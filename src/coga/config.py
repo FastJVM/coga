@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 import os
 import random
-import shlex
 import subprocess
 import tomllib
 from collections.abc import Mapping
@@ -35,7 +34,6 @@ class SecretError(Exception):
 class AgentType:
     name: str
     cli: str
-    auto: str
     file: str
     mode: str               # "local" | future: "remote" | "cloud"
     # Flag (or flag template) the CLI accepts to set the session display name
@@ -54,17 +52,6 @@ class AgentType:
     # token `{prompt}` is replaced with the composed prompt. Empty string lets
     # launch use its built-in defaults for known CLIs, then positional fallback.
     discussion: str = ""
-    # Machine-local permission-skip policy — settable ONLY from a partial
-    # `[agents.<name>]` table in `coga.local.toml` (shared `coga.toml`
-    # carrying either key fails config load, so a dangerous default can never
-    # be committed). `skip_permissions = "auto"` opts this agent into
-    # appending `skip_permissions_argv` for normal `mode: auto` task launches;
-    # unset / `false` keeps today's behavior. The argv is authored as one
-    # string and parsed with `shlex.split` (e.g.
-    # `"--dangerously-skip-permissions"` for claude,
-    # `"--dangerously-bypass-approvals-and-sandbox"` for codex).
-    skip_permissions: str = ""           # "" (off) | "auto"
-    skip_permissions_argv: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -86,8 +73,21 @@ class TicketField:
 
 @dataclass(frozen=True)
 class MegalaunchConfig:
-    """Budget guard for unattended sequential launches."""
+    """Budget guard for unattended sequential launches.
 
+    The live guard reads each agent's own subscription usage windows (see
+    `coga.usage_probe`): a fixed session (5h-window) reserve floor, plus a
+    weekly pacing reserve that requires ~100% remaining at the start of the
+    weekly window and relaxes linearly down to the hard floor inside the
+    final `weekly_final_window_hours`.
+    """
+
+    min_session_remaining_percent: float = 5.0
+    min_weekly_remaining_percent: float = 5.0
+    weekly_final_window_hours: float = 24.0
+    # Deprecated, unused: the coga-tracked token budget the usage-window guard
+    # replaced. Still parsed so existing coga.toml files keep loading; drop
+    # these once live configs no longer set them.
     token_guard: int = 200_000
     default_token_budget: int = 2_000_000
     window_hours: int = 24
@@ -128,7 +128,7 @@ class Config:
     # `[launch].idle_timeout = 0` must explicitly disarm it rather than collapse
     # to "omitted" and re-enable the default. The env overrides
     # (`COGA_REPL_IDLE_TIMEOUT` / `COGA_REPL_MAX_SESSION`) still win over these;
-    # see `coga.commands.recurring`. Attended `coga launch` does not read them
+    # see `coga.recurring_runner`. Attended `coga launch` does not read them
     # — only the unattended sweep arms a limit, so a human's session is never
     # killed by a committed default.
     launch_idle_timeout: float | None = None
@@ -204,6 +204,12 @@ def find_repo_root(start: Path | None = None) -> Path:
     Also descends into a sibling `coga/` subdir at each level — so
     `coga` works from a company repo's root, not just from inside
     `coga/`.
+
+    Discovery never descends deeper than that one `coga/` level: a coga repo
+    nested in a monorepo subdir (`tools/ops/coga/`, via `coga init tools/ops`)
+    is deliberately found only from inside its subtree, not from the host
+    repo's root — scanning the whole tree downward would be slow and ambiguous
+    with several nested coga repos.
     """
     cur = (start or Path.cwd()).resolve()
     for candidate in [cur, *cur.parents]:
@@ -214,45 +220,12 @@ def find_repo_root(start: Path | None = None) -> Path:
             return nested
     raise ConfigError(
         f"No coga.toml found in {cur} or any parent directory. "
-        "Run `coga` from inside a Coga repo."
+        "Run `coga` from inside a Coga repo — a coga/ nested in a subdir "
+        "is only discovered from inside that subdir's subtree."
     )
 
 
 # --- loader --------------------------------------------------------------------
-
-
-def _default_user() -> str:
-    """Best-effort operator name when `coga.local.toml` sets no `user`.
-
-    A name is cosmetic for most commands (task attribution, Slack), so a missing
-    `user` must never wall anyone out — derive one rather than hard-failing
-    (`--help` and read-only included). Prefer the name the operator already
-    configured for git, since that's what their commits are attributed to, then
-    fall back to the OS username, then a last-resort literal. `coga init --user`
-    is still how you set a durable name explicitly.
-    """
-    import getpass
-    import subprocess
-
-    try:
-        name = subprocess.run(
-            ["git", "config", "user.name"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        ).stdout.strip()
-        if name:
-            return name
-    except Exception:
-        pass
-
-    name = os.environ.get("USER") or os.environ.get("LOGNAME")
-    if name:
-        return name
-    try:
-        return getpass.getuser()
-    except Exception:
-        return "user"
 
 
 def load_config(repo_root: Path | None = None) -> Config:
@@ -321,12 +294,22 @@ def load_config(repo_root: Path | None = None) -> Config:
     ) = _parse_launch(shared.get("launch"))
     megalaunch = _parse_megalaunch(shared.get("megalaunch"))
 
-    # A missing `user` is no longer fatal: derive one (git `user.name`, then the
-    # OS username) so `--help`, read-only, and write commands all work on a bare
-    # clone (no coga.local.toml). `coga init` writes a durable `user` — the
-    # `--user` value, or the same derived default — and warns when it had to
-    # derive it.
-    current_user = local.get("user") or _default_user()
+    # The operator's `user` must be set explicitly in `coga.local.toml` — coga
+    # never guesses it. A guessed name (git `user.name`, OS username) can
+    # disagree with the `owner` tokens written into tickets, and for an
+    # unattended sweep a wrong `me` fails silently. So a missing/empty `user` is
+    # a hard error on every command. Existing repos recover by creating or
+    # editing `coga.local.toml`; fresh repos pass `coga init --user <name>`,
+    # which writes `user` before anything reads config.
+    current_user = local.get("user")
+    if not current_user:
+        raise ConfigError(
+            "No `user` set in coga.local.toml — coga needs your name and will "
+            'not guess it. Add `user = "<name>"` to '
+            f"{local_path} (for example, `user = \"marc\"`). "
+            "For a fresh repo that has not been initialized yet, run "
+            "`coga init --user <name>`."
+        )
 
     return Config(
         repo_root=root,
@@ -390,9 +373,8 @@ def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> 
 
 # Fixed-schema tables — every key not listed is rejected at load time. Free-form
 # maps (aliases, secrets, extensions, slack gifs/users) are deliberately absent;
-# their keys are data. Top-level keys that carry a dedicated migration error
-# (`assignees` in shared; `skip_permissions*` in a shared `[agents.<name>]`) are
-# omitted here so their tailored raise fires before the generic check.
+# their keys are data. Deprecated / known-rejected keys run their dedicated
+# migration errors before this generic check.
 _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "version",
     "default_status",
@@ -415,7 +397,6 @@ _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
 })
 _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
     "cli",
-    "auto",
     "file",
     "mode",
     "name_flag",
@@ -441,6 +422,10 @@ _ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset(
     {"idle_timeout", "max_session", "worktree", "worktree_path"}
 )
 _ALLOWED_MEGALAUNCH_KEYS: frozenset[str] = frozenset({
+    "min_session_remaining_percent",
+    "min_weekly_remaining_percent",
+    "weekly_final_window_hours",
+    # Deprecated token-budget keys — parsed but unused (see MegalaunchConfig).
     "token_guard",
     "default_token_budget",
     "window_hours",
@@ -490,6 +475,20 @@ def _parse_positive_int(value: object, label: str) -> int:
     return value
 
 
+def _parse_percent(value: object, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ConfigError(f"{label} must be a number between 0 and 100")
+    if not 0 <= value <= 100:
+        raise ConfigError(f"{label} must be a number between 0 and 100")
+    return float(value)
+
+
+def _parse_positive_number(value: object, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ConfigError(f"{label} must be a positive number")
+    return float(value)
+
+
 def _parse_megalaunch(raw: object) -> MegalaunchConfig:
     """Parse `[megalaunch]` budget guard settings."""
     if raw is None:
@@ -505,6 +504,27 @@ def _parse_megalaunch(raw: object) -> MegalaunchConfig:
         for name, value in budgets_raw.items()
     }
     return MegalaunchConfig(
+        min_session_remaining_percent=_parse_percent(
+            raw.get(
+                "min_session_remaining_percent",
+                MegalaunchConfig.min_session_remaining_percent,
+            ),
+            "[megalaunch].min_session_remaining_percent",
+        ),
+        min_weekly_remaining_percent=_parse_percent(
+            raw.get(
+                "min_weekly_remaining_percent",
+                MegalaunchConfig.min_weekly_remaining_percent,
+            ),
+            "[megalaunch].min_weekly_remaining_percent",
+        ),
+        weekly_final_window_hours=_parse_positive_number(
+            raw.get(
+                "weekly_final_window_hours",
+                MegalaunchConfig.weekly_final_window_hours,
+            ),
+            "[megalaunch].weekly_final_window_hours",
+        ),
         token_guard=_parse_positive_int(
             raw.get("token_guard", MegalaunchConfig.token_guard),
             "[megalaunch].token_guard",
@@ -521,30 +541,12 @@ def _parse_megalaunch(raw: object) -> MegalaunchConfig:
     )
 
 
-_LOCAL_AGENT_OVERRIDE_KEYS: frozenset[str] = frozenset({
-    # The only `[agents.<name>]` keys honored from `coga.local.toml`.
-    # Anything else in a local agent table fails loud rather than silently
-    # diverging from the shared agent definition.
-    "skip_permissions",
-    "skip_permissions_argv",
-})
-
-
 def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentType]:
     out: dict[str, AgentType] = {}
     for name, data in raw.items():
-        for required in ("cli", "auto", "file"):
+        for required in ("cli", "file"):
             if required not in data:
                 raise ConfigError(f"agents.{name}.{required} is required")
-        for local_only in sorted(_LOCAL_AGENT_OVERRIDE_KEYS):
-            if local_only in data:
-                raise ConfigError(
-                    f"agents.{name}.{local_only} is machine-local policy and "
-                    "must not be committed to shared coga.toml. Move it to a "
-                    f"partial [agents.{name}] table in coga.local.toml."
-                )
-        # Generic unknown-key reject runs after the dedicated skip-policy raise
-        # above so that machine-local-policy message is preserved.
         _reject_unknown_keys(data, _ALLOWED_AGENT_KEYS, f"[agents.{name}]")
         discussion = data.get("discussion", "")
         if not isinstance(discussion, str):
@@ -558,80 +560,21 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
                 f"agents.{name}.session_id_flag must be a string "
                 f"(got {type(session_id_flag).__name__})"
             )
-        local_data = (local_raw or {}).get(name, {})
-        skip_permissions, skip_permissions_argv = _parse_local_skip_policy(
-            name, local_data
-        )
         out[name] = AgentType(
             name=name,
             cli=data["cli"],
-            auto=data["auto"],
             file=data["file"],
             mode=data.get("mode", "local"),
             name_flag=data.get("name_flag", ""),
             session_id_flag=session_id_flag,
             discussion=discussion,
-            skip_permissions=skip_permissions,
-            skip_permissions_argv=skip_permissions_argv,
         )
-    unknown_local = sorted(set(local_raw or {}) - set(raw))
-    if unknown_local:
+    if local_raw:
         raise ConfigError(
-            f"coga.local.toml overrides unknown agent(s) {unknown_local}. "
-            f"Known agents (from coga.toml): {sorted(raw)}."
+            "coga.local.toml no longer supports [agents.<name>] overrides; "
+            "put shared agent config in coga.toml."
         )
     return out
-
-
-def _parse_local_skip_policy(
-    name: str, local_data: object
-) -> tuple[str, tuple[str, ...]]:
-    """Parse a partial local `[agents.<name>]` table's permission-skip policy.
-
-    `skip_permissions` accepts only unset / `false` (off) or the string
-    `"auto"`; anything else fails config load. `skip_permissions_argv` must be
-    a string and is parsed with `shlex.split`. The "auto without argv" case is
-    deliberately legal here — `coga launch` fails loud when the policy would
-    actually apply, so a half-written local table doesn't brick every other
-    coga command on the machine.
-    """
-    if not isinstance(local_data, dict):
-        raise ConfigError(
-            f"[agents.{name}] in coga.local.toml must be a table "
-            f"(got {type(local_data).__name__})"
-        )
-    bad_keys = sorted(set(local_data) - _LOCAL_AGENT_OVERRIDE_KEYS)
-    if bad_keys:
-        raise ConfigError(
-            f"[agents.{name}] in coga.local.toml has unsupported keys "
-            f"{bad_keys}. Only {sorted(_LOCAL_AGENT_OVERRIDE_KEYS)} may be "
-            "overridden locally; everything else belongs in shared coga.toml."
-        )
-
-    skip_permissions = ""
-    if "skip_permissions" in local_data:
-        value = local_data["skip_permissions"]
-        if value is False:
-            skip_permissions = ""
-        elif value == "auto":
-            skip_permissions = "auto"
-        else:
-            raise ConfigError(
-                f"[agents.{name}].skip_permissions in coga.local.toml must "
-                f"be false or \"auto\" (got {value!r})"
-            )
-
-    skip_permissions_argv: tuple[str, ...] = ()
-    if "skip_permissions_argv" in local_data:
-        value = local_data["skip_permissions_argv"]
-        if not isinstance(value, str):
-            raise ConfigError(
-                f"[agents.{name}].skip_permissions_argv in coga.local.toml "
-                f"must be a string (got {type(value).__name__})"
-            )
-        skip_permissions_argv = tuple(shlex.split(value))
-
-    return skip_permissions, skip_permissions_argv
 
 
 _RESERVED_TICKET_FIELD_NAMES: frozenset[str] = frozenset({
@@ -1152,7 +1095,7 @@ def _parse_launch(
 
     `idle_timeout` / `max_session` are seconds (int or float). A `<= 0` or
     non-finite value disarms that limit (returns None), matching the env-var
-    override's "off" contract in `coga.commands.recurring`. `idle_timeout`
+    override's "off" contract in `coga.recurring_runner`. `idle_timeout`
     returns a separate presence flag so an explicit disarm can beat the built-in
     recurring default; omitted keys are None/False. These are defaults for the
     *unattended* sweep only — attended `coga launch` never reads them.

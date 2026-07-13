@@ -7,12 +7,14 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from coga.blackboard import append_blocker
 from coga.commands import delete as delete_cmd
 from coga.cli import app
 from coga.create import create_task
 from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import log_path
+from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV
 from coga.taskfile import join_task_body, read_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
@@ -66,7 +68,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -101,7 +102,7 @@ def _make_task(
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status=status, force_directory=force_directory,
     )
     # File form: `ref["path"]` is the `tasks/<slug>.md` ticket file (it *is* the
@@ -130,7 +131,7 @@ def _write_workflow_less_task(
         slug: {slug}
         title: Work
         status: {status}
-        autonomy: interactive
+        mode: agent
         owner: marc
         human: marc
         agent: claude
@@ -298,7 +299,7 @@ def test_bump_supervised_prints_chain_hint_on_agent_rotation(repo: Path) -> None
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
-        contexts=[], autonomy="interactive",
+        contexts=[], mode="agent",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -331,6 +332,67 @@ def test_bump_unsupervised_prints_no_hint(repo: Path) -> None:
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
     assert "Supervised launch" not in result.output
+
+
+def test_bump_supervised_refuses_stale_composed_step(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["step"] = "2 (pr)"
+    ticket.write(task_path)
+
+    result = CliRunner().invoke(
+        app,
+        ["bump", slug],
+        env={
+            "COGA_SUPERVISED": "1",
+            EXPECTED_TASK_ENV: str(task_path.resolve()),
+            EXPECTED_STEP_ENV: "1 (implement)",
+        },
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "Refusing to bump" in result.output
+    assert "composed for step '1 (implement)'" in result.output
+    assert "now on step '2 (pr)'" in result.output
+    assert Ticket.read(task_path).step == "2 (pr)"
+
+
+def test_bump_supervised_allows_unfrozen_workflow_without_step(repo: Path) -> None:
+    legacy = repo / "tasks" / "legacy"
+    legacy.mkdir(parents=True)
+    ticket_path = legacy / "ticket.md"
+    ticket_path.write_text(dedent(
+        """
+        ---
+        slug: legacy
+        title: Legacy
+        status: in_progress
+        mode: agent
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow: code
+        ---
+
+        <!-- coga:blackboard -->
+        """
+    ).lstrip())
+
+    result = CliRunner().invoke(
+        app,
+        ["bump", "legacy"],
+        env={
+            "COGA_SUPERVISED": "1",
+            EXPECTED_TASK_ENV: str(legacy.resolve()),
+            EXPECTED_STEP_ENV: "",
+        },
+    )
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(ticket_path).step == "2 (pr)"
 
 
 def test_bump_past_final_step_errors_with_mark_done_hint(repo: Path) -> None:
@@ -400,6 +462,100 @@ def test_unblock_records_answer_and_reactivates(repo: Path) -> None:
     assert "cap at 5 minutes" in blackboard
 
 
+def test_unblock_in_progress_resolves_asks_only(repo: Path) -> None:
+    """An interactive blocked-launch session records its resolution while the
+    ticket is already `in_progress` (launch reactivated it): the asks resolve,
+    status and step stay untouched."""
+    slug, task_path = _make_task(repo)
+    append_blocker(task_path, "agent:claude", "which retry ceiling?")
+
+    result = CliRunner().invoke(app, ["unblock", slug, "--answer", "cap at 5 minutes"])
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "in_progress"
+    assert ticket.step == "1 (implement)"
+    blackboard = read_blackboard(task_path)
+    assert "- [x]" in blackboard
+    assert "cap at 5 minutes" in blackboard
+    assert "asks resolved, still in_progress" in _log_text(repo, slug)
+
+
+def test_unblock_in_progress_without_asks_refuses(repo: Path) -> None:
+    slug, _ = _make_task(repo)
+    result = CliRunner().invoke(app, ["unblock", slug, "--answer", "nothing open"])
+    assert result.exit_code == 2
+    assert "no open blockers" in result.output
+
+
+def test_unblock_refuses_other_statuses(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="draft")
+    append_blocker(task_path, "agent:claude", "which retry ceiling?")
+    result = CliRunner().invoke(app, ["unblock", slug, "--answer", "cap it"])
+    assert result.exit_code == 2
+    assert "unblock requires" in result.output
+
+
+def _make_named_task(repo: Path, title: str) -> tuple[str, Path]:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg, title=title, workflow_name="code",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
+        watchers=[], status="in_progress",
+    )
+    return ref["slug"], ref["path"]
+
+
+def test_unblock_all_walks_every_blocked_task(repo: Path) -> None:
+    slug_a, path_a = _make_named_task(repo, "Alpha")
+    slug_b, path_b = _make_named_task(repo, "Beta")
+    runner = CliRunner()
+    for slug in (slug_a, slug_b):
+        r = runner.invoke(app, ["block", "--task", slug, "--reason", f"why {slug}?"])
+        assert r.exit_code == 0, r.output
+
+    # One answer per blocked task, in list order; same text so order is moot.
+    result = runner.invoke(app, ["unblock", "--all"], input="do it\ndo it\n")
+
+    assert result.exit_code == 0, result.output
+    assert "Unblocked 2, skipped 0" in result.output
+    for path in (path_a, path_b):
+        ticket = Ticket.read(path)
+        assert ticket.status == "active"
+        blackboard = read_blackboard(path)
+        assert "- [x]" in blackboard
+        assert "do it" in blackboard
+
+
+def test_unblock_all_blank_answer_skips(repo: Path) -> None:
+    slug, path = _make_named_task(repo, "Gamma")
+    runner = CliRunner()
+    r = runner.invoke(app, ["block", "--task", slug, "--reason", "which ceiling?"])
+    assert r.exit_code == 0, r.output
+
+    result = runner.invoke(app, ["unblock", "--all"], input="\n")
+
+    assert result.exit_code == 0, result.output
+    assert "skipped" in result.output
+    assert "Unblocked 0, skipped 1" in result.output
+    # A skipped task stays blocked with its ask open.
+    assert Ticket.read(path).status == "blocked"
+
+
+def test_unblock_all_no_blocked_tasks(repo: Path) -> None:
+    _make_named_task(repo, "Delta")  # active, not blocked
+    result = CliRunner().invoke(app, ["unblock", "--all"])
+    assert result.exit_code == 0, result.output
+    assert "No blocked tasks." in result.output
+
+
+def test_unblock_all_rejects_task_argument(repo: Path) -> None:
+    slug, _ = _make_named_task(repo, "Epsilon")
+    result = CliRunner().invoke(app, ["unblock", slug, "--all"])
+    assert result.exit_code == 2
+    assert "not both" in result.output
+
+
 # --- delete -------------------------------------------------------------------
 
 
@@ -466,7 +622,7 @@ def test_delete_skill_runs_as_script_step(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Throwaway", workflow_name="delete-self",
-        contexts=[], autonomy="auto", owner="marc", assignee="claude",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active", force_directory=True,
     )
     task_path = ref["path"]
@@ -520,7 +676,7 @@ def test_script_mode_marks_done_after_final_step(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Daily flush", workflow_name="flush-once",
-        contexts=[], autonomy="auto", owner="marc", assignee="claude",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     task_path = ref["path"]
@@ -558,7 +714,7 @@ def test_script_mode_advances_to_next_step(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Two stage", workflow_name="flush-twice",
-        contexts=[], autonomy="auto", owner="marc", assignee="claude",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     task_path = ref["path"]
@@ -656,7 +812,7 @@ def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
-        contexts=[], autonomy="interactive",
+        contexts=[], mode="agent",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -705,7 +861,7 @@ def test_bump_role_token_with_missing_field_fails_loud(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
-        contexts=[], autonomy="interactive",
+        contexts=[], mode="agent",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -731,7 +887,6 @@ def _add_codex_agent(repo: Path) -> None:
             """
             [agents.codex]
             cli = "codex"
-            auto = "exec"
             file = "AGENTS.md"
             """
         )
@@ -764,7 +919,7 @@ def test_other_agent_resolves_to_the_peer_on_bump(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
-        contexts=[], autonomy="interactive",
+        contexts=[], mode="agent",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -792,7 +947,7 @@ def test_bump_rewind_resolves_target_step_assignee(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
-        contexts=[], autonomy="interactive",
+        contexts=[], mode="agent",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -823,7 +978,7 @@ def test_other_agent_flips_with_the_coder(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
-        contexts=[], autonomy="interactive",
+        contexts=[], mode="agent",
         owner="marc", assignee="codex",
         human="marc", agent="codex",
         watchers=[], status="in_progress",
@@ -852,7 +1007,7 @@ def test_other_agent_step_one_resolves_at_create_time(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer-first",
-        contexts=[], autonomy="interactive",
+        contexts=[], mode="agent",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -867,7 +1022,7 @@ def test_other_agent_fails_loud_without_exactly_two_agents(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
-        contexts=[], autonomy="interactive",
+        contexts=[], mode="agent",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -892,7 +1047,7 @@ def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
         slug: legacy
         title: Legacy
         status: in_progress
-        autonomy: interactive
+        mode: agent
         owner: marc
         human: marc
         agent: claude
@@ -920,7 +1075,7 @@ def test_bump_handoff_appears_in_slack_text(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
-        contexts=[], autonomy="interactive",
+        contexts=[], mode="agent",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -1001,13 +1156,15 @@ def test_status_blocked_expands_open_blockers(repo: Path) -> None:
     result = runner.invoke(app, ["block", "--task", slug, "--reason", "pick retry ceiling"])
     assert result.exit_code == 0, result.output
 
-    result = runner.invoke(app, ["status", "--blocked"])
+    result = runner.invoke(app, ["status", "--blocked"], env={"COLUMNS": "200"})
 
     assert result.exit_code == 0, result.output
     assert slug in result.output
     assert "blocked" in result.output
     assert "pick retry ceiling" in result.output
-    assert f'coga unblock {slug} --answer "..."' in result.output
+    # The unblock command is a shared footer with a <slug> placeholder now,
+    # not a repeated per-row column.
+    assert 'coga unblock <slug> --answer "..."' in result.output
 
 
 def test_status_narrow_terminal_keeps_each_task_on_one_line(
@@ -1016,7 +1173,7 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="anything", workflow_name="code",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="t1",
     )
     monkeypatch.setenv("COLUMNS", "60")
@@ -1034,12 +1191,12 @@ def test_status_splits_recurring_into_own_table(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Normal", workflow_name="code", contexts=[],
-        autonomy="interactive", owner="marc", assignee="claude",
+        mode="agent", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="normal-task",
     )
     create_task(
         cfg=cfg, title="Recurring", workflow_name="code", contexts=[],
-        autonomy="interactive", owner="marc", assignee="claude",
+        mode="agent", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="recurring/foo",
     )
     result = CliRunner().invoke(app, ["status"])
@@ -1058,7 +1215,7 @@ def test_status_does_not_show_title_column(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="A distinctive ticket title", workflow_name="code",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="t1",
     )
     runner = CliRunner()
@@ -1147,12 +1304,12 @@ def test_status_hides_done_by_default_without_deleting(repo: Path) -> None:
     cfg = load_config(repo)
     active = create_task(
         cfg=cfg, title="Active", workflow_name="code", contexts=[],
-        autonomy="interactive", owner="marc", assignee="claude",
+        mode="agent", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="active-task",
     )
     done = create_task(
         cfg=cfg, title="Finished", workflow_name="code", contexts=[],
-        autonomy="interactive", owner="marc", assignee="claude",
+        mode="agent", owner="marc", assignee="claude",
         watchers=[], status="done", slug_override="finished-task",
     )
     runner = CliRunner()
@@ -1172,7 +1329,7 @@ def test_status_all_includes_done_tasks(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Finished", workflow_name="code", contexts=[],
-        autonomy="interactive", owner="marc", assignee="claude",
+        mode="agent", owner="marc", assignee="claude",
         watchers=[], status="done", slug_override="finished-task",
     )
 
@@ -1210,12 +1367,12 @@ def test_status_default_orders_by_updated_desc(repo: Path) -> None:
     cfg = load_config(repo)
     older = create_task(
         cfg=cfg, title="older", workflow_name="code",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="aaa-old",
     )
     newer = create_task(
         cfg=cfg, title="newer", workflow_name="code",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="zzz-new",
     )
     _set_log_timestamp(repo, older["slug"], "2026-01-01 09:00")
@@ -1234,7 +1391,7 @@ def test_status_order_by_slug_is_alphabetical(repo: Path) -> None:
     for slug in ("zeta", "alpha", "mu"):
         create_task(
             cfg=cfg, title=slug, workflow_name="code",
-            contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+            contexts=[], mode="agent", owner="marc", assignee="claude",
             watchers=[], status="active", slug_override=slug,
         )
     runner = CliRunner()
@@ -1251,7 +1408,7 @@ def test_status_reverse_flips_order(repo: Path) -> None:
     for slug in ("alpha", "zeta"):
         create_task(
             cfg=cfg, title=slug, workflow_name="code",
-            contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+            contexts=[], mode="agent", owner="marc", assignee="claude",
             watchers=[], status="active", slug_override=slug,
         )
     runner = CliRunner()
@@ -1271,12 +1428,12 @@ def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
     cfg = load_config(repo)
     has_log = create_task(
         cfg=cfg, title="logged", workflow_name="code",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="zzz-logged",
     )
     no_log = create_task(
         cfg=cfg, title="no log", workflow_name="code",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="aaa-nolog",
     )
     _set_log_timestamp(repo, has_log["slug"], "2026-04-30 17:00")

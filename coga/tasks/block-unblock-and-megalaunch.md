@@ -1,8 +1,8 @@
 ---
 slug: block-unblock-and-megalaunch
 title: Block, unblock, and megalaunch
-status: in_progress
-autonomy: interactive
+status: done
+mode: agent
 owner: nick
 human: nick
 agent: codex
@@ -28,7 +28,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

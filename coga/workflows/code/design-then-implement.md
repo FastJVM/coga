@@ -29,6 +29,20 @@ ticket directly to correct scope or approach. When the spec is right,
 run `coga bump` to hand off to `implement`. If the design is wrong
 enough to redo, relaunch the `design` step instead of bumping.
 
+## open-pr
+
+**Script step — no agent runs here.** The `code/open-pr` skill declares a
+`script:`, so the launch supervisor runs it: it reads `branch:` / `worktree:`
+from `## Dev`, confirms the worktree is on that branch, clean, and ahead of
+`main`, pushes, opens the PR, records `pr: <url>`, and — on exit 0 — advances to
+`review`. It fails loud and does **not** advance if there is nothing committed
+to PR or auth is broken.
+
+There is no peer/self-review step here, so the PR body falls back to the
+ticket's `## Description` (the reviewed design spec). If the `implement` step
+wants a more specific body, it can write a `## PR` section on the blackboard;
+otherwise the spec is used as-is.
+
 ## review
 
 Owner reviews the open PR. This is an owner-controlled gate. If an agent

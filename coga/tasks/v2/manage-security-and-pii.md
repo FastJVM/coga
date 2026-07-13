@@ -2,7 +2,7 @@
 slug: v2/manage-security-and-pii
 title: manage security and PII
 status: draft
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

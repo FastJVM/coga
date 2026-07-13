@@ -124,7 +124,6 @@ def repo(tmp_path: Path) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -146,7 +145,7 @@ def repo(tmp_path: Path) -> Path:
         ---
         schedule: "0 9 * * *"
         title: "Dev update"
-        autonomy: interactive
+        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -205,7 +204,7 @@ def test_stale_keys_ignores_removed_parent(repo: Path) -> None:
 
 def _allow_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
     )
 
 
@@ -228,7 +227,6 @@ def test_create_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -243,7 +241,7 @@ def test_create_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
         ---
         schedule: "0 9 * * *"
         title: "Plain"
-        autonomy: interactive
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -279,7 +277,7 @@ def test_template_rejects_malformed_state_keys(
         ---
         schedule: "0 9 * * *"
         title: "Bad"
-        autonomy: interactive
+        mode: agent
         assignee: claude
         owner: marc
         {state_keys_line}

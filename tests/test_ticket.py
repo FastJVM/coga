@@ -41,7 +41,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
 
@@ -53,7 +52,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        autonomy: interactive
+        mode: agent
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -206,7 +205,6 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
         discussion = "--append-system-prompt {prompt}"
@@ -256,12 +254,10 @@ def test_ticket_agent_override_codex_gets_kickoff(
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
         [agents.codex]
         cli = "codex"
-        auto = "exec"
         file = "AGENTS.md"
         mode = "local"
 
@@ -316,6 +312,48 @@ def test_ticket_refuses_draft_left_without_workflow(
     assert ticket.workflow is None
 
 
+def test_ticket_reports_post_exit_validation_errors(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Schema breakage authored by the interview fails before returning."""
+    prompts: list[str] = []
+    ticket_path = repo / "tasks" / "investigate-retries.md"
+
+    def author_broken_ticket() -> None:
+        t = Ticket.read(ticket_path)
+        t.frontmatter["workflow"] = "direct/body"
+        t.frontmatter["contexts"] = ["email/ghost"]
+        t.write(ticket_path)
+
+    _allow_ticket_launch(monkeypatch, prompts, on_run=author_broken_ticket)
+
+    result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
+    assert result.exit_code == 2, result.output
+    combined = result.output + (result.stderr or "")
+    assert "Ticket validation failed after authoring" in combined
+    assert "email/ghost" in combined
+
+
+def test_ticket_requires_tty_before_spawning(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called = False
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["ticket"])
+    assert result.exit_code == 2
+    assert "requires a TTY" in (result.output + (result.stderr or ""))
+    assert called is False
+
+
 def test_ticket_existing_active_task_is_editable_without_status_change(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -326,7 +364,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
         title="Queued work",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -355,7 +393,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
         title="Broken context",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -395,7 +433,7 @@ def test_ticket_edits_in_progress_task(
         title="Running work",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -467,7 +505,7 @@ def test_ticket_existing_draft_greets_as_edit_not_create(
         title="Batch draft",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -495,7 +533,7 @@ def test_ticket_nested_bare_leaf_edits_existing_not_duplicate(
         title="Relaunch",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -530,7 +568,7 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
             title="Relaunch",
             workflow_name="direct/body",
             contexts=[],
-            autonomy="interactive",
+            mode="agent",
             owner="marc",
             assignee="claude",
             watchers=[],
@@ -555,4 +593,3 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
     assert not called
     # No duplicate top-level draft was scaffolded.
     assert not (repo / "tasks" / "relaunch.md").exists()
-

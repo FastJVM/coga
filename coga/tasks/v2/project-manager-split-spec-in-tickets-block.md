@@ -2,7 +2,7 @@
 slug: v2/project-manager-split-spec-in-tickets-block
 title: 'project manager: split spec in tickets + block'
 status: draft
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

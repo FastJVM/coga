@@ -6,7 +6,7 @@ title: "Autoclose merged tickets"
 # step references the `coga/autoclose/sweep` skill, whose `script:` calls
 # `coga.autoclose.sweep_merged`. No `claude -p` / `codex exec`
 # buffering, so it is safe under the temporary mode=auto recurring freeze.
-autonomy: auto
+mode: script
 workflow: autoclose-merged/sweep
 ---
 

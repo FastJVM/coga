@@ -1,15 +1,34 @@
 ---
+slug: install/retest-ssh-https-and-init-reclone-on-fresh-machine
 title: Retest SSH/HTTPS clone + init re-clone on a fresh work machine
-status: draft
-mode: interactive
+status: active
+mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: zach
-contexts: []
+assignee: claude
+contexts:
+- dev/code
 skills: []
-workflow: null
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -31,3 +50,16 @@ on a real SSH-default machine. Touchpoints to exercise: `RELAY_REPO_URL` /
 `clone_upstream` in `src/relay/commands/update.py`, and source normalization in
 `src/relay/skill_manager.py`. Sibling onboarding issues live in this `install/`
 group.
+
+**Retest 2026-07-08 (fresh-container, HTTPS path):** `COGA_REPO_URL` override
+verified working (including a local-path value — Greg's workaround is a
+sanctioned path now); code prefers an SSH coga remote when one exists; failed
+clone rolls back atomically. Still open here: (a) the real SSH-default-machine
+run this ticket asks for, and (b) the re-clone surprise itself, which
+escalated — the clone vendors *main HEAD*, not the installed version, and is
+slated for removal in `install/vendor-cli-from-installed-package-not-git-clone`.
+If that ticket lands first, only the SSH-machine verification remains.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

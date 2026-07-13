@@ -1,10 +1,10 @@
 ---
 slug: cli-extension-model/move-command-logic-to-tickets
 title: Move command logic into tickets
-status: active
-autonomy: interactive
-owner: zach
-human: zach
+status: done
+mode: agent
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:
@@ -20,7 +20,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -102,7 +101,62 @@ carve-outs (secret resolution and the `mark`/`bump` state-writes stay core).
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Tier-2 shim design (2026-06-23, zach + claude) — restating Nico's ticket spec
+## State reconciliation (2026-07-01, claude) — read this first
+
+**PR #491 (`move-ticket-authoring-out-of-core`, landed today) supersedes the
+tier-2 TOML shim below.** It collapsed `ticket.py` to its irreducible head
+(`arg → draft → launch`) with deterministic finalization extracted to
+`coga.authoring` + the script-shaped `coga/ticket/finalize` skill, and updated
+`coga/extension-model` to say Pass 2 introduces **no new launcher mechanism**.
+That resolves the OPEN question below as option (a), taken further: no
+declarative `[shims.*]` config at all — irreducible head + script-shaped module
+is the committed fused-head pattern. `project`/`retire` remain follow-ups on the
+same pattern (bespoke create-step, shared frame).
+
+**Where the three groups now live** (this ticket has become an umbrella —
+each group was split out or landed elsewhere):
+1. **Reads** → child ticket `cli-extension-model/move-read-views-to-tickets-as-scripts`
+   (draft, `code/design-then-implement`, carries Nico's 2026-06-23 direction
+   decision + the parameterization crux for its design step). Its stated
+   dependency `remove-the-shim-concept` LANDED (PR #445, merged 2026-06-29), so
+   it is unblocked. Mechanism gap its design must solve: `launch.py:267-268`
+   refuses script launches on bootstrap tickets, and reads are parameterized
+   (`show <slug>`) while the no-transient-launch-params guardrail stands.
+2. **Recurring scan → Dream-shaped task** — the one group with NO ticket and
+   no work yet.
+3. **Fused heads** — `ticket` DONE via #491 (pattern above); `project`/`retire`
+   follow-ups on the same pattern, no tickets yet.
+
+Also noticed: sibling draft `cli-extension-model/rename-shim-to-alias` is stale
+(pre-dates PR #445, which deleted the shim concept it wanted to rename;
+references dead PR #425 and old "Relay" naming) — candidate for deletion.
+Left untouched — deletion is the owner's call.
+
+## Session outcome (2026-07-01, claude) — Done= bar met, closing as umbrella
+
+Asked the human which way to go (wrap-up vs. executing a group here); no
+response after 60s, proceeded with the recommended reversible path:
+
+- **Created** `cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task`
+  (draft, `code/design-then-implement`) — the plan artifact for group 2, the one
+  group that had none. Its body records scope (what moves / what doesn't), the
+  guardrails, and the bootstrapping crux its design step must settle (the scan
+  is what launches recurring runs, so what invokes the scan task) — coordinated
+  with the reads ticket's identical command-head crux.
+- Groups 1 and 3 need nothing from this ticket: reads = child ticket
+  `move-read-views-to-tickets-as-scripts` (unblocked since PR #445); fused
+  heads = pattern committed-as-implemented by PR #491, `project`/`retire`
+  follow-ups on that pattern.
+
+Done= check: reads have a committed plan (child ticket), recurring now has one
+(new child ticket), the first move landed (#491's `ticket` collapse), and the
+fused-head design + migration path is committed as implemented. `project`/
+`retire` follow-up tickets were NOT created — the extension-model context
+already names them as follow-ups and drafting them is cheap when picked up.
+Marking done as the umbrella's coordination work is complete; execution lives
+in the child tickets.
+
+## Tier-2 shim design (2026-06-23, zach + claude) — SUPERSEDED by PR #491, kept for the audit trail
 
 The "committed design" the Done= asks for. ELABORATES Nico's sketch in the ticket
 body; does not change it. Scope: the GENERIC `arg → create-draft → launch`
@@ -189,3 +243,7 @@ routes through — it touched only the SPAWN (compose → spawn → log), NOT th
 (`arg → create-draft`) or back (`validate/sync`) this shim owns. So the shim's scope
 is unchanged and its launch dependency is now built. Greet-first is no longer in this
 ticket's scope (the earlier "shim first → greet-first second" plan is moot).
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":263093,"cache_read_input_tokens":4014751,"cli":"claude","input_tokens":20950,"model":"claude-fable-5","output_tokens":61591,"provider":"anthropic","schema":1,"session_id":"71b9d8a4-50fd-43d8-bddd-97f1c308d445","slug":"cli-extension-model/move-command-logic-to-tickets","step":"execute","title":"Move command logic into tickets","ts":"2026-07-02T04:15:04.507261Z","usage_status":"ok"}

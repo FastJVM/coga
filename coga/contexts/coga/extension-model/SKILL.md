@@ -131,7 +131,9 @@ that **the prompt is a pure function of the files on disk now**.
 
 - A param **materialized into the ticket's files at creation** becomes state — fine,
   and already how `retire`, recurring instantiation, and the ticket-authoring
-  commands work (`arg → draft` writes the arg into the draft).
+  commands work (`arg → draft` writes the arg into the draft). `coga ticket` is
+  the example: the command head materializes the title/ref, then the authoring
+  interview and finalize phase operate on files.
 - A param passed **at launch, per-invocation, not persisted** is forbidden: it
   smuggles hidden input that is not in the repo, so re-running the same slug does
   different things for reasons no file records. That breaks reproducibility and the
@@ -176,8 +178,8 @@ actively fights the capability boundary.
 | Home | Members |
 | --- | --- |
 | **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · *(hooks)* secret-inject, skill-verify-at-compose |
-| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · move target: `recurring` (scan) · fused, authoring moving to tickets: `ticket`, `project`, `retire` |
-| **External / command** | reads: `status`, `show`, `recurring list`, `skill status`, `validate` · external CLI: `skill install/install-local/install-url/update/remove` · notify/escape: `slack`, `block`, `unblock` · `secret get` |
+| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · `ticket` collapsed to irreducible command head + `bootstrap/ticket` interview + `coga/ticket/finalize` script-shaped module · `recurring` scan collapsed to thin command head + `bootstrap/recurring-scan` stateless script target · move targets: `project`, `retire` |
+| **External / command** | reads: `show`/`status` collapsed to thin command heads + `coga.views` render exposed as the `coga/show` script-shaped module (mirrors `ticket`); `recurring list`, `skill status`, `validate` still whole commands · external CLI: `skill install/install-local/install-url/update/remove` · notify/escape: `slack`, `block`, `unblock` · `secret get` |
 | **Alias (sugar)** | `chat`, `dream`, `build` · (proposed) `skill-update`, `autoclose` |
 
 ## Sequenced externalization, not a redesign
@@ -196,12 +198,20 @@ model):
   external script/service surface. One decision, because the trust-straddle ties
   "stays kernel" to "becomes an external script."
 - **Pass 2 — what goes *into tickets*** (execution;
-  `cli-extension-model/move-command-logic-to-tickets`). Moves the read views
-  (`status`/`show`/`recurring list`/`skill status`) → stateless script tickets
-  (tickets-as-scripts) and `recurring` scan → a Dream-shaped task (neither needs a
-  new mechanism), and moves ticket-authoring (`ticket`/`project`/`retire`) into
-  tickets via `move-ticket-authoring-out-of-core`; no new launcher mechanism is
-  introduced.
+  `cli-extension-model/move-command-logic-to-tickets`). Moves the read views'
+  render substance out of the command files and `recurring` scan → a Dream-shaped
+  task (neither needs a new mechanism), and moves ticket-authoring substance out of
+  command files. The shape a parameterized read actually takes is the same as
+  `ticket`: a *transient* operand (`show <slug>`, `status [dir]` + flags) can't be
+  materialized into an arg-less launched ticket without breaking the
+  files-on-disk / no-transient-launch-params invariant, so the arg stays at the
+  **Typer layer** on a thin command head and only the *render* changes home — into
+  a tested package module (`coga.views`) also exposed in script-step shape (the
+  `coga/show` skill). `ticket` was the first collapsed case (irreducible
+  `arg → draft → launch` head + `coga.authoring`/`coga/ticket/finalize`);
+  `show`/`status` followed (thin heads + `coga.views`/`coga/show`). `recurring
+  list`, `skill status`, `project`, and `retire` remain follow-ups; no new
+  launcher mechanism is introduced.
 
 Each pass respects the carve-outs: the secret/state-write kernel does not move, and
 externalized logic stays tested Python (the no-inversion guardrail).

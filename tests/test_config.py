@@ -37,7 +37,6 @@ def repo(tmp_path: Path) -> Path:
 
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
 
@@ -64,41 +63,12 @@ def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert not hasattr(cfg, "secrets")
 
 
-def test_missing_local_toml_still_loads(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """With no coga.local.toml at all, load_config derives the user (git
-    user.name, then the OS username) instead of failing."""
-    import coga.config as config_mod
-
+def test_missing_local_toml_fails_loud(repo: Path) -> None:
+    """With no coga.local.toml at all, load_config fails loud rather than
+    guessing a name — the operator must set `user` explicitly."""
     (repo / "coga.local.toml").unlink()
-    monkeypatch.setattr(config_mod, "_default_user", lambda: "dora")
-    assert load_config(repo).current_user == "dora"
-
-
-def test_default_user_prefers_git_then_os(monkeypatch: pytest.MonkeyPatch) -> None:
-    """_default_user uses git user.name when set, else the OS username."""
-    import subprocess
-
-    from coga.config import _default_user
-
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="git-name\n", stderr=""),
-    )
-    assert _default_user() == "git-name"
-
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *a, **k: subprocess.CompletedProcess(a, 1, stdout="", stderr=""),
-    )
-    monkeypatch.setenv("USER", "ada")
-    assert _default_user() == "ada"
-    monkeypatch.delenv("USER", raising=False)
-    monkeypatch.setenv("LOGNAME", "lin")
-    assert _default_user() == "lin"
+    with pytest.raises(ConfigError, match="No `user` set in coga.local.toml"):
+        load_config(repo)
 
 
 def test_secrets_table_in_local_toml_rejected(repo: Path) -> None:
@@ -130,7 +100,6 @@ def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
         version = 1
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -177,113 +146,11 @@ def test_agent_session_id_flag_must_be_string(repo: Path) -> None:
         load_config(repo)
 
 
-def test_agent_skip_policy_defaults_off(repo: Path) -> None:
-    cfg = load_config(repo)
-    agent = cfg.agent_type("claude")
-    assert agent.skip_permissions == ""
-    assert agent.skip_permissions_argv == ()
-
-
-def test_agent_skip_policy_loads_from_local(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions = "auto"
-        skip_permissions_argv = "--permission-mode bypassPermissions"
-        """,
-    )
-    cfg = load_config(repo)
-    agent = cfg.agent_type("claude")
-    assert agent.skip_permissions == "auto"
-    assert agent.skip_permissions_argv == ("--permission-mode", "bypassPermissions")
-
-
-def test_agent_skip_permissions_false_is_off(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions = false
-        skip_permissions_argv = "--dangerously-skip-permissions"
-        """,
-    )
-    cfg = load_config(repo)
-    agent = cfg.agent_type("claude")
-    assert agent.skip_permissions == ""
-    assert agent.skip_permissions_argv == ("--dangerously-skip-permissions",)
-
-
-def test_agent_skip_permissions_rejects_bad_value(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions = "always"
-        """,
-    )
-    with pytest.raises(ConfigError, match=r'must be false or "auto"'):
-        load_config(repo)
-
-
-def test_agent_skip_permissions_rejects_true_boolean(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions = true
-        """,
-    )
-    with pytest.raises(ConfigError, match=r'must be false or "auto"'):
-        load_config(repo)
-
-
-def test_agent_skip_permissions_argv_rejects_non_string(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions_argv = ["--dangerously-skip-permissions"]
-        """,
-    )
-    with pytest.raises(ConfigError, match="skip_permissions_argv.*must be a string"):
-        load_config(repo)
-
-
-def test_agent_skip_auto_without_argv_loads(repo: Path) -> None:
-    """Config load tolerates "auto" with no argv — `coga launch` is the
-    fail-loud point, so a half-written local table doesn't brick every
-    other coga command on the machine."""
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions = "auto"
-        """,
-    )
-    cfg = load_config(repo)
-    agent = cfg.agent_type("claude")
-    assert agent.skip_permissions == "auto"
-    assert agent.skip_permissions_argv == ()
-
-
 def test_agent_skip_keys_rejected_in_shared_toml(repo: Path) -> None:
     text = (repo / "coga.toml").read_text()
     (repo / "coga.toml").write_text(text + 'skip_permissions = "auto"\n')
     with pytest.raises(
-        ConfigError, match="machine-local policy.*must not be committed"
+        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*skip_permissions"
     ):
         load_config(repo)
 
@@ -294,28 +161,21 @@ def test_agent_skip_argv_rejected_in_shared_toml(repo: Path) -> None:
         text + 'skip_permissions_argv = "--dangerously-skip-permissions"\n'
     )
     with pytest.raises(
-        ConfigError, match="machine-local policy.*must not be committed"
+        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*skip_permissions_argv"
     ):
         load_config(repo)
 
 
-def test_local_agent_override_rejects_unknown_agent(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.goat]
-        skip_permissions = "auto"
-        """,
-    )
-    with pytest.raises(ConfigError, match="unknown agent"):
+def test_agent_auto_argv_rejected_in_shared_toml(repo: Path) -> None:
+    text = (repo / "coga.toml").read_text()
+    (repo / "coga.toml").write_text(text + 'auto = "-p"\n')
+    with pytest.raises(
+        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*auto"
+    ):
         load_config(repo)
 
 
-def test_local_agent_override_rejects_other_keys(repo: Path) -> None:
-    """Local `[agents.<name>]` tables are partial overrides for the skip
-    policy only — redefining e.g. `cli` locally must fail loud."""
+def test_local_agent_overrides_are_rejected(repo: Path) -> None:
     _write(
         repo / "coga.local.toml",
         """
@@ -323,10 +183,9 @@ def test_local_agent_override_rejects_other_keys(repo: Path) -> None:
 
         [agents.claude]
         cli = "claude-nightly"
-        skip_permissions = "auto"
         """,
     )
-    with pytest.raises(ConfigError, match="unsupported keys"):
+    with pytest.raises(ConfigError, match="no longer supports"):
         load_config(repo)
 
 
@@ -445,7 +304,6 @@ def test_legacy_assignees_table_rejected(tmp_path: Path) -> None:
         version = 1
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
 
         [assignees.marc]
@@ -472,7 +330,6 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
 
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
         name_flag = "-n"
@@ -514,10 +371,6 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
         """
         user = "marc"
 
-        [agents.claude]
-        skip_permissions = "auto"
-        skip_permissions_argv = "--dangerously-skip-permissions"
-
         [git]
         enabled = false
         """,
@@ -525,7 +378,6 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
     cfg = load_config(tmp_path)
     assert cfg.current_user == "marc"
     assert cfg.git_enabled is False  # local override wins
-    assert cfg.agent_type("claude").skip_permissions == "auto"
 
 
 def test_unknown_top_level_shared_section_rejected(repo: Path) -> None:
@@ -593,7 +445,6 @@ def test_unknown_notification_slack_key_rejected(tmp_path: Path) -> None:
 
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
 
         [notification.slack]
@@ -709,7 +560,6 @@ def test_assignees_dedicated_message_beats_generic(tmp_path: Path) -> None:
         version = 1
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
 
         [assignees.marc]
@@ -727,25 +577,26 @@ def test_extra_local_field_retired(repo: Path) -> None:
     assert not hasattr(cfg, "extra_local")
 
 
-def test_missing_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A missing `user` is no longer fatal — it derives a name from the machine
-    (git user.name, then the OS username), so a fresh clone runs `--help` /
-    read-only / write commands without editing coga.local.toml first."""
-    import coga.config as config_mod
-
+def test_missing_user_fails_loud(tmp_path: Path) -> None:
+    """A missing/empty `user` is a hard error on every command — coga reads the
+    operator's name from config and never guesses it. The message points at the
+    existing-repo edit remedy."""
     _write(
         tmp_path / "coga.toml",
         """
         version = 1
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
     _write(tmp_path / "coga.local.toml", "")
-    monkeypatch.setattr(config_mod, "_default_user", lambda: "greg")
-    assert load_config(tmp_path).current_user == "greg"
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(tmp_path)
+    message = str(excinfo.value)
+    assert 'Add `user = "<name>"`' in message
+    assert "coga.local.toml" in message
+    assert "fresh repo" in message
 
 
 def test_find_repo_root(repo: Path) -> None:
@@ -755,6 +606,22 @@ def test_find_repo_root(repo: Path) -> None:
 
 
 def test_find_repo_root_not_found(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="No coga.toml found"):
+        find_repo_root(tmp_path)
+
+
+def test_find_repo_root_nested_coga_only_from_inside_subtree(tmp_path: Path) -> None:
+    """A coga/ nested in a monorepo subdir (`coga init tools/ops`) is found
+    from anywhere inside its subtree, but discovery never descends more than
+    one level — the host repo's root doesn't see it."""
+    nested = tmp_path / "tools" / "ops" / "coga"
+    nested.mkdir(parents=True)
+    (nested / "coga.toml").write_text("version = 1\n")
+    inside = tmp_path / "tools" / "ops" / "src" / "deep"
+    inside.mkdir(parents=True)
+
+    assert find_repo_root(inside) == nested
+    assert find_repo_root(tmp_path / "tools" / "ops") == nested
     with pytest.raises(ConfigError, match="No coga.toml found"):
         find_repo_root(tmp_path)
 
@@ -1090,3 +957,37 @@ def test_extensions_non_table_rejected(repo: Path) -> None:
     (repo / "coga.toml").write_text(text)
     with pytest.raises(ConfigError, match=r"\[extensions\] must be a table"):
         load_config(repo)
+
+
+def test_megalaunch_usage_reserve_keys_load(repo: Path) -> None:
+    with (repo / "coga.toml").open("a") as f:
+        f.write(
+            "[megalaunch]\n"
+            "min_session_remaining_percent = 10\n"
+            "min_weekly_remaining_percent = 8.5\n"
+            "weekly_final_window_hours = 12\n"
+        )
+
+    cfg = load_config(repo)
+
+    assert cfg.megalaunch.min_session_remaining_percent == 10.0
+    assert cfg.megalaunch.min_weekly_remaining_percent == 8.5
+    assert cfg.megalaunch.weekly_final_window_hours == 12.0
+
+
+def test_megalaunch_reserve_percent_rejects_out_of_range(repo: Path) -> None:
+    with (repo / "coga.toml").open("a") as f:
+        f.write("[megalaunch]\nmin_session_remaining_percent = 250\n")
+
+    with pytest.raises(ConfigError, match="between 0 and 100"):
+        load_config(repo)
+
+
+def test_megalaunch_deprecated_token_keys_still_load(repo: Path) -> None:
+    """Live configs still set the replaced token-budget keys; they must parse."""
+    with (repo / "coga.toml").open("a") as f:
+        f.write("[megalaunch]\ndefault_token_budget = 20_000_000\n")
+
+    cfg = load_config(repo)
+
+    assert cfg.megalaunch.default_token_budget == 20_000_000

@@ -2,7 +2,7 @@
 slug: marketing/readme-and-docs
 title: README + vision.md editorial pass
 status: in_progress
-autonomy: interactive
+mode: agent
 owner: zach
 human: zach
 agent: claude

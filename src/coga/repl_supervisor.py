@@ -1,8 +1,8 @@
 """Run an agent REPL through a PTY and watch for an "I'm done" signal.
 
-In interactive mode the agent's REPL doesn't exit on its own — the human
-types `/exit`. For `coga recurring --interactive` (and any other unattended
-caller of an interactive launch) we want the agent itself to be able to
+An AI agent REPL doesn't exit on its own — the human types `/exit`.
+For `coga recurring --interactive` (and any other unattended caller of an
+agent launch) we want the agent itself to be able to
 signal completion so the next task can start without manual intervention.
 
 The signal travels over a single **sentinel file**. The supervisor creates a
@@ -38,6 +38,12 @@ from coga.atomicio import atomic_write_text
 # Env var name the supervisor uses to advertise the sentinel-file path to
 # the child. `emit_done_marker` reads this. Stable name = stable contract.
 SENTINEL_ENV = "COGA_DONE_SENTINEL"
+
+# Env vars scoped to a supervised launch step. A child `coga bump` uses these
+# as a compare-and-swap guard: it may only bump the ticket/step that composed
+# the session it is finishing.
+EXPECTED_TASK_ENV = "COGA_EXPECTED_TASK"
+EXPECTED_STEP_ENV = "COGA_EXPECTED_STEP"
 
 # Grace period after SIGTERM before we escalate to SIGKILL. Claude Code and
 # Codex respect SIGTERM, but a wedged or signal-trapping REPL would otherwise
@@ -198,11 +204,16 @@ def run_with_done_marker(
         if cwd is not None:
             try:
                 os.chdir(cwd)
-            except OSError:
+            except OSError as exc:
+                os.write(2, f"coga: chdir to launch cwd {cwd} failed: {exc}\r\n".encode())
                 os._exit(127)
         try:
             os.execvp(cmd[0], cmd)
-        except OSError:
+        except OSError as exc:
+            # E2BIG (an argv element over MAX_ARG_STRLEN), ENOENT, and EACCES
+            # all land here. A bare 127 reads as "command not found" and hides
+            # which — name the errno so the failure is diagnosable.
+            os.write(2, f"coga: exec {cmd[0]} failed: {exc}\r\n".encode())
             os._exit(127)
 
     _resize_pty(master_fd)
@@ -446,8 +457,13 @@ def emit_done_marker(session_id: str | None = None) -> None:
     `session_id` is written as the file content so the supervisor can verify
     the signal names *its* session and ignore stray writes from unrelated
     descendants that merely inherited the env var. Session-ending commands
-    pass the resolved task path (see `coga.commands.{bump,mark,block}`); a
-    bare call writes the legacy `"done"` sentinel.
+    pass the task's `id_slug` (see `coga.commands.{bump,mark,block}`) — the
+    worktree-independent ticket identity. It is deliberately the slug rather
+    than the resolved task path: under `[launch].worktree` isolation the same
+    ticket exists at two absolute paths (primary checkout + per-launch
+    worktree), so a path-scoped marker written from the "wrong" cwd never
+    matched what the supervisor polled and the REPL hung. A bare call writes
+    the legacy `"done"` sentinel.
     """
     sentinel = os.environ.get(SENTINEL_ENV)
     if not sentinel:
@@ -470,6 +486,8 @@ def emit_done_marker(session_id: str | None = None) -> None:
 
 __all__ = [
     "SENTINEL_ENV",
+    "EXPECTED_STEP_ENV",
+    "EXPECTED_TASK_ENV",
     "_TIMEOUT_EXIT_CODE",
     "_TTY_SANITIZE",
     "ReplOutcome",

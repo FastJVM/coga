@@ -1,0 +1,21 @@
+---
+title: Recurring scan
+mode: script
+assignee: system
+secrets: null
+script: run.py
+---
+
+## Description
+
+Stateless bootstrap script target for the bare `coga recurring` command.
+It has no schedule, workflow, status, or high-water mark of its own. The
+public command head owns Typer parsing for `--interactive` and `--all`, writes
+those values into `COGA_RECURRING_INTERACTIVE` and `COGA_RECURRING_FORCE`, and
+launches this target.
+
+The script loads the current Coga config, scans `coga/recurring/`, creates or
+reuses due period tasks, syncs recurring creates, prints/broadcasts scan
+results, and launches due tasks sequentially through the normal launch path.
+The recurring state it reads and writes remains the template files and
+instantiated task directories, not this bootstrap target.

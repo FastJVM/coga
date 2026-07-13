@@ -2,7 +2,7 @@
 slug: v2/add-relay-skill-search-with-candidate-eval
 title: Add relay skill search with candidate eval
 status: draft
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude
@@ -93,7 +93,7 @@ Key code / surfaces:
 Open design questions for the interview:
 
 - **Eval engine**: deterministic heuristic (keyword/size/command-pattern
-  checks) vs. an LLM judgment the agent runs vs. both? An LLM judge is more
+  checks) vs. an AI judgment the agent runs vs. both? An AI judge is more
   accurate but makes `relay skill search` non-deterministic and network-bound.
 - **Sources**: GitHub-only for v1, or also a registry index? Registries have no
   single stable API — decide whether to depend on one.
@@ -123,7 +123,7 @@ Open design questions for the interview:
       git/`gh` mutating calls. It degrades gracefully (clear error, non-zero
       exit, no crash) when `gh` is unauthenticated or offline, and caps the
       number of candidates fetched.
-- [ ] The eval-engine decision (heuristic vs. LLM vs. both) and the
+- [ ] The eval-engine decision (heuristic vs. AI vs. both) and the
       source/v1-scope decision are recorded in this ticket's blackboard.
 - [ ] Focused tests cover the search parse + the eval ranking, with the
       network/`gh` call mocked (no live network in tests).

@@ -27,13 +27,16 @@ the `coga/cli` *context*. Read this for the worked classification; read
    whose first expansion token isn't a known built-in, and soft-drops the
    legacy `create = "launch bootstrap/ticket"` line.
 
-2. **Built-in commands** — `src/coga/commands/*.py`, registered in
-   `cli.py:74-93`. These hold real pre/post logic.
+2. **Built-in command heads** — `src/coga/commands/*.py`, registered in
+   `cli.py:74-93`. These hold the irreducible command-shaped parts: argument
+   resolution, guards, and calls into kernel/script-shaped modules when an
+   alias has no hook point.
 
 3. **Bootstrap launch tickets / recurring launches** — package-backed tickets
-   at `bootstrap/<name>/ticket.md` (stateless launch targets) and templates at
-   `coga/recurring/<name>/` launched via `recurring launch <name>`. These are
-   the only place pure passthroughs actually live.
+   at `bootstrap/<name>/ticket.md` (stateless launch targets, including
+   ticket-owned scripts) and templates at `coga/recurring/<name>/` launched via
+   `recurring launch <name>`. These are the only place pure passthroughs
+   actually live.
 
 ## The rule
 
@@ -43,10 +46,13 @@ the `coga/cli` *context*. Read this for the worked classification; read
 > built-in.
 
 `coga ticket` is the standing proof: it was promoted *out of* the old
-`create = "launch bootstrap/ticket"` alias into a built-in precisely because it
-drafts a ticket on the fly, validates the authored ticket after the agent
+`create = "launch bootstrap/ticket"` alias into a built-in command head because
+it drafts a ticket on the fly, validates the authored ticket after the agent
 exits, git-syncs changed `tasks/`/`contexts/`/`skills/`, and enforces a TTY —
-none of which an argv rewrite can express.
+none of which an argv rewrite can express. The authoring interview itself is
+the `bootstrap/ticket` launch target, and the post-exit validation/sync phase
+now lives in `coga.authoring` plus the script-shaped `coga/ticket/finalize`
+skill; the command remains only because the pre/post hook is irreducible.
 
 The structural consequence: **aliases can only ever capture a `launch X` or
 `recurring launch X` shape, and only when X needs no pre/post logic.** Every
@@ -63,7 +69,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 |------|-----------|-------------|-----|
 | `init` | built-in | No | Scaffolds/refreshes `coga/`, clones upstream, installs venv deps. Heavy side effects. |
 | `create` / `draft` | built-in | No | Scaffolds a `draft` ticket dir + posts `✨` to Slack + post-write validate. |
-| `ticket` | built-in | No | **Canonical proof.** Drafts-on-fly, validates after agent exits, git-syncs, TTY guard. |
+| `ticket` | thin built-in head + `coga.authoring` finalize | No | **Canonical proof.** Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. |
 | `project` | built-in | No | Interview → scaffold many drafts → post-validate; TTY guard. |
 | `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |
 | `status` | built-in | No | Reads tree + renders tables. Logic, not a passthrough to another command. |
@@ -78,7 +84,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 | `validate` | built-in | No | Static repo/config diagnostic, `--fix` creates missing files. |
 | `skill` (group) | built-in | No | `gh skill` wrapper: install/update/remove/status, provenance, digests. |
 | `mark` (group) | built-in | No | Status transitions + Slack + workflow gating + post-write validate. |
-| `recurring` (group) | built-in | No | Schedule scan, get-or-create, sequential launch, dedup high-water mark. |
+| `recurring` (group) | thin built-in scan head + `bootstrap/recurring-scan` / `coga.recurring_runner` | No | The public head owns flags/env; the extracted runner still does schedule scan, get-or-create, sequential launch, dedup high-water mark. |
 | `secret` (group) | built-in | No | Secret resolution/inspection. |
 
 **No CLI verb is an alias-able pure passthrough.** Each is its own
@@ -89,12 +95,14 @@ implementation, not a fixed rewrite to another command.
 | Bootstrap ticket | Mechanism today | Alias-able? | Why |
 |------|-----------------|-------------|-----|
 | `orient` | `chat` default alias → `launch bootstrap/orient` | Yes — already aliased | Pure `launch bootstrap/orient`; no pre/post logic. |
-| `ticket` | `coga ticket` built-in | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. |
+| `ticket` | `coga ticket` command head + `coga/ticket/finalize` | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. The validate/sync substance is script-shaped, not an alias hook. |
 | `project` | `coga project` built-in | No | Interview + multi-draft scaffold + TTY guard; not a passthrough. |
+| `recurring-scan` | `coga recurring` command head + `coga.recurring_runner` | No | The bootstrap script target exists, but the public command parses `--interactive` / `--all` and passes them through an explicit env contract before launch. |
 
-Only `orient`, `project`, `ticket` are bootstrap tickets (`resolve_bootstrap`);
-`orient` is already the `chat` alias and the other two need built-ins. **No
-un-aliased bootstrap-ticket passthrough remains.**
+Only `orient`, `project`, `ticket`, and `recurring-scan` are bootstrap tickets
+(`resolve_bootstrap`); `orient` is already the `chat` alias, `recurring-scan`
+is already behind the `coga recurring` head, and the other two need built-ins.
+**No un-aliased bootstrap-ticket passthrough remains.**
 
 ### Recurring launches (`recurring launch <name>`)
 
@@ -197,13 +205,14 @@ it *to start* a launch (movable)? Nothing else is kernel.
 
 **Most current built-ins are not kernel — they're fused or already external.**
 `automerge`/`digest`/`delete` already run as a sweep skill / post step /
-delete-task skill. `coga ticket` is the worked fused case: its authoring
-conversation is a workflow interactive step (the `bootstrap/ticket` launch target
-already), its post-exit validate + git-sync is a script step (same shape as the
-autoclose sweep), and the `arg → draft` head (`ticket.py:99-127`) is irreducible;
-moving authoring into a ticket (`move-ticket-authoring-out-of-core`) collapses
-`ticket` to that head + a mixed workflow with zero hand-written command logic.
-`project` and `retire` share that irreducible head.
+delete-task skill. `coga ticket` is the worked collapsed case: its authoring
+conversation is the `bootstrap/ticket` launch target already, its post-exit
+validate + git-sync lives in `coga.authoring` and is exposed as the
+`coga/ticket/finalize` script skill (same shape as the autoclose sweep), and the
+`arg → draft` head in `commands/ticket.py` is irreducible. The command calls the
+finalize module inline after the single-shot interview to preserve the stateless,
+concurrent-safe bootstrap launch target; no generic shim or workflow-step state
+was introduced. `project` and `retire` share that irreducible head.
 
 **Ticket vs. command is decided by statefulness, not parameters.** Both can take
 arguments; the question is whether the operation is a stateful reviewable unit of

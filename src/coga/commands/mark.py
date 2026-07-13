@@ -15,7 +15,13 @@ import sys
 import typer
 
 from coga.config import ConfigError, load_config
-from coga.mark import RequiredExtensionMissing, WorkflowMissing
+from coga.mark import (
+    BlackboardNeedsSynthesis,
+    RequiredExtensionMissing,
+    StrandedProductCode,
+    WorkflowMissing,
+)
+from coga.mark import format_blackboard_synthesis_refusal
 from coga.mark import mark_active as _mark_active
 from coga.mark import mark_done as _mark_done
 from coga.mark import mark_paused as _mark_paused
@@ -81,6 +87,12 @@ def active(
             f"Cannot activate {ref.id_slug}: required extension field(s) "
             f"empty: {names}. Fill them in `ticket.md` then retry."
         )
+    except BlackboardNeedsSynthesis as exc:
+        _bail(
+            format_blackboard_synthesis_refusal(
+                ref.id_slug, action="activate", reason=exc.reason
+            )
+        )
     except TaskValidationError as exc:
         _bail(str(exc))
 
@@ -122,6 +134,12 @@ def done(
         "--message",
         help="Optional FYI to piggy-back on the state-transition broadcast.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Finish even if a direct/body ticket committed product code that "
+        "won't reach the control branch (the code will stay stranded).",
+    ),
 ) -> None:
     """Set status to `done`. Allowed from `active` or `in_progress`."""
     cfg, ref, ticket = _load(task)
@@ -149,6 +167,19 @@ def done(
             digest_detail=f"{finisher} finished{transition or ' → done'} ✅{suffix}",
             image_url=cfg.gif_for("done"),
             echo=f"{ref.id_slug}: done",
+            force=force,
+        )
+    except StrandedProductCode as exc:
+        listed = "\n".join(f"    {p}" for p in exc.paths)
+        _bail(
+            f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow has "
+            f"no push/PR step, but this checkout committed tracked product code "
+            f"that is not on {cfg.git_control_branch!r}:\n"
+            f"{listed}\n"
+            f"That code will strand off the control branch when the launch "
+            f"worktree is removed. Move the ticket to a code/* workflow "
+            f"(code/with-self-review or code/with-review) so it opens a PR, or "
+            f"re-run with --force to finish anyway and keep the code stranded."
         )
     except TaskValidationError as exc:
         _bail(str(exc))
@@ -156,9 +187,10 @@ def done(
     # `mark done` is a session-end transition; tell a supervising
     # `coga launch` to tear down the agent's REPL. Other `mark`
     # transitions (active / paused) are not terminal and intentionally
-    # skip the marker. The resolved task path scopes the signal to this
-    # ticket (see `emit_done_marker`).
-    emit_done_marker(session_id=str(ref.path.resolve()))
+    # skip the marker. The task's `id_slug` scopes the signal to this
+    # ticket (see `emit_done_marker`) — worktree-independent, unlike a
+    # resolved path, so it matches whichever checkout the command runs in.
+    emit_done_marker(session_id=ref.id_slug)
 
 
 # --- helpers -----------------------------------------------------------------

@@ -29,8 +29,8 @@ import typer
 
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
-from coga.blackboard import blackboard_size_warning, format_bytes
-from coga.commands.launch_script import is_script_launch
+from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
+from coga.commands.launch_script import current_step_is_script, is_script_launch
 from coga.compose import (
     ComposeError,
     PromptComposition,
@@ -49,12 +49,19 @@ from coga.github_preflight import check_git_auth, check_git_remote
 from coga import git
 from coga.logfile import append_log
 from coga.mark import (
+    BlackboardNeedsSynthesis,
     RequiredExtensionMissing,
     WorkflowMissing,
+    format_blackboard_synthesis_refusal,
     mark_active,
+    mark_blocked,
     mark_in_progress,
 )
-from coga.repl_supervisor import run_with_done_marker
+from coga.repl_supervisor import (
+    EXPECTED_STEP_ENV,
+    EXPECTED_TASK_ENV,
+    run_with_done_marker,
+)
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -64,6 +71,7 @@ from coga.tasks import (
 )
 from coga.ticket import Ticket
 from coga.validate import TaskValidationError
+from coga.version_skew import warn_if_installed_predates_source
 from coga.workflow import WorkflowError
 
 
@@ -85,13 +93,6 @@ def launch(
         False,
         "--prompt-report",
         help="Print composed prompt layers and approximate token counts, then exit without launching.",
-    ),
-    autonomy_override: str | None = typer.Option(
-        None,
-        "--autonomy",
-        help="Run with this autonomy for this launch only (interactive or auto), "
-        "overriding the ticket's `autonomy:`. For debugging — the ticket file is "
-        "not modified.",
     ),
     idle_timeout: float | None = typer.Option(
         None,
@@ -143,23 +144,9 @@ def launch(
         except ConfigError as exc:
             _bail(str(exc))
 
-    if autonomy_override is not None and autonomy_override not in ("interactive", "auto"):
-        _bail("--autonomy must be 'interactive' or 'auto'")
-
     def _read(target: TaskRef | BootstrapRef) -> Ticket:
-        """Read the ticket, applying the ephemeral `--agent` override.
-
-        `--mode` is deliberately NOT written into `frontmatter` here: the
-        same ticket object is handed to `mark_in_progress`, which persists
-        it. The mode override is threaded separately to `compose_prompt` and
-        `build_agent_command` so the ticket file is never touched.
-        """
+        """Read the ticket, applying the ephemeral `--agent` override."""
         t = read_ticket(target)
-        if autonomy_override is not None and is_script_launch(cfg, t):
-            _bail(
-                "--autonomy-override is not supported for script tasks "
-                "(they compose no agent prompt)."
-            )
         if agent_override is not None and is_bootstrap:
             t.frontmatter["assignee"] = agent_override
         return t
@@ -170,7 +157,7 @@ def launch(
             _bail("script tasks do not compose an agent prompt.")
         try:
             composition = compose_prompt_report(
-                cfg, ref, ticket, autonomy_override=autonomy_override
+                cfg, ref, ticket
             )
         except ComposeError as exc:
             _bail(str(exc))
@@ -184,15 +171,9 @@ def launch(
 
     typer.echo(
         f"Launch: task {ref.id_slug} "
-        f"(status={ticket.status if not is_bootstrap else 'n/a'}, autonomy={ticket.autonomy}, "
+        f"(status={ticket.status if not is_bootstrap else 'n/a'}, mode={ticket.mode}, "
         f"assignee={ticket.assignee or 'unassigned'})"
     )
-    if autonomy_override is not None:
-        typer.secho(
-            f"Launch: autonomy overridden to {autonomy_override!r} for this run "
-            "— ticket file unchanged",
-            fg=typer.colors.YELLOW,
-        )
 
     # A `done` ticket is finished: launching it must not restart its frozen
     # workflow. Re-activating would re-seed `step: 1` without re-resolving
@@ -208,12 +189,49 @@ def launch(
             "different ticket."
         )
 
+    blocked_resume = False
+
+    # A blocked ticket may be launched only by an explicit interactive human
+    # act: the session's first job becomes resolving the open asks with the
+    # human (the composed prompt gains a resolve-or-re-block preamble keyed
+    # off the blackboard's open blockers), and the ticket reactivates inline
+    # after preflights pass. Batch surfaces are unchanged — a
+    # script step or TTY-less run has no human to discuss with, so those keep
+    # the hard refusal (checked here, before any status mutation). `coga
+    # megalaunch` never gets this far: it classifies blocked tickets as
+    # skipped-unresolved-blocker before launching.
     if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "blocked":
-        _bail(
-            f"Cannot launch {ref.id_slug}: it is blocked. Run "
-            f"`coga status --blocked` to read the open ask, then "
-            f"`coga unblock {ref.id_slug} --answer \"...\"` to resume."
-        )
+        if (
+            ticket.mode == "agent"
+            and not is_script_launch(cfg, ticket)
+            and _interactive_stdio_has_tty()
+        ):
+            if not open_blockers(ref.ticket_path):
+                _bail(
+                    f"Cannot launch {ref.id_slug}: it is blocked but has no "
+                    "open blocker asks to resolve. Record a blocker with "
+                    f"`coga block --task {ref.id_slug} --reason \"...\"` or "
+                    "repair the task state before launching."
+                )
+            blocked_resume = True
+            typer.echo(
+                f"Launch: {ref.id_slug} is blocked — resuming interactively; "
+                "the session's first job is to resolve or re-block the open asks."
+            )
+        else:
+            _bail(
+                f"Cannot launch {ref.id_slug}: it is blocked, and only an "
+                f"interactive launch from a TTY can resume it to resolve the "
+                f"blocker in-session. Run `coga status --blocked` to read the "
+                f"open ask, then `coga unblock {ref.id_slug} --answer \"...\"` "
+                f"to resume."
+            )
+
+    # Refuse human handoffs before allocating an isolated launch worktree. A
+    # human-owned active/in-progress step should report the handoff directly,
+    # even in sandboxes where `.git/worktrees` is not writable.
+    if not is_bootstrap and ticket.status not in {"draft", "paused"}:
+        _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
     # Per-launch `git worktree` isolation (`[launch].worktree`). When on, the
     # whole supervised session — launch-owned status writes, every step's
@@ -226,29 +244,36 @@ def launch(
     worktree_path: Path | None = None
     spawn_cwd: Path | None = None
     script_launch = is_script_launch(cfg, ticket)
+    # A `mode: agent` workflow can sit on a script step (e.g. code/open-pr):
+    # that step runs with no agent, through the same run_script_mode path as a
+    # whole `mode: script` ticket. Treat both alike for launch-worktree
+    # isolation and the mode dispatch below — the script uses the feature
+    # worktree recorded under `## Dev`, not a launch-isolation worktree.
+    run_current_as_script = script_launch or current_step_is_script(cfg, ticket)
     if (
         cfg.launch_worktree
         and isinstance(ref, TaskRef)
         and not is_bootstrap
-        and not script_launch
+        and not run_current_as_script
     ):
         cfg, ref, worktree_path = _enter_launch_worktree(base_cfg, ref, task)
         if worktree_path is not None:
             spawn_cwd = worktree_path
             ticket = _read(ref)
             script_launch = is_script_launch(cfg, ticket)
+            run_current_as_script = script_launch or current_step_is_script(cfg, ticket)
 
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
         # is brought to `active` inline rather than refused with a "run
         # `coga mark active` first" hint. The flip to `in_progress` still happens
         # later (after the compose pre-flight), so this only does the `mark active`
-        # half. Done before the script-mode dispatch so both interactive and script
+        # half. Done before the mode dispatch so both agent and script
         # launches start from an activated, stepped ticket.
         if (
             not is_bootstrap
             and isinstance(ref, TaskRef)
-            and ticket.status not in {"active", "in_progress"}
+            and ticket.status in {"draft", "paused"}
         ):
             _auto_activate(cfg, ref, ticket)
 
@@ -256,44 +281,32 @@ def launch(
         if not assignee:
             _bail(f"Task {ref.id_slug} has no assignee")
 
-        # Script vs. agent is deduced, not declared: a step whose skill carries a
-        # `script:` (or a no-skill step / workflow-less task with the ticket's own
-        # `script:`) runs as a script, with no agent and no composed prompt.
-        if script_launch:
-            if agent_override is not None:
-                _bail(
-                    "--agent is only supported for agent (interactive/auto) launches."
-                )
-            if is_bootstrap:
-                _bail("Bootstrap tickets only support interactive/auto launches.")
+        if ticket.mode not in ("agent", "script"):
+            _bail(f"Unknown mode: {ticket.mode!r}")
+
+        # A whole `mode: script` ticket AND a `mode: agent` workflow whose current
+        # step is a script step (e.g. code/open-pr) both run with no agent and no
+        # composed prompt, through the same run_script_mode path. Handling it here
+        # — before the agent-only TTY / CLI / git-auth setup — is what lets a
+        # relaunch land straight on the script step without a terminal. The
+        # supervisor loop below runs the same path for a script step reached
+        # mid-chain; on exit 0 the step advances, on non-zero it does not.
+        if run_current_as_script:
+            if script_launch and agent_override is not None:
+                _bail("--agent is only supported for agent launches.")
             from coga.commands.launch_script import run_script_mode
-            run_script_mode(cfg, ref, ticket)
+            run_script_mode(cfg, ref, ticket, stateless=is_bootstrap)
             return
 
-        autonomy = autonomy_override or ticket.autonomy
+        mode = ticket.mode
 
-        if autonomy not in ("interactive", "auto"):
-            _bail(f"Unknown autonomy: {autonomy!r}")
+        _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
-        if autonomy == "auto":
-            # Temporary policy. `claude -p` and `codex exec` buffer stdout until
-            # the run completes, so auto launches produce no live console output
-            # for the operator. Until coga grows a streaming consumer for the
-            # agent's structured output, we refuse rather than let runs sit
-            # silently. Re-enable when streaming lands.
+        if mode == "agent" and not _interactive_stdio_has_tty():
             _bail(
-                f"Cannot launch {ref.id_slug!r}: autonomy=auto is temporarily disabled. "
-                "Auto runs produce no live console output (claude -p and codex exec "
-                "buffer until completion), so unattended runs are unobservable. "
-                "Set the ticket to autonomy: interactive (and run from a TTY), or "
-                "give it a script if the work fits a single script entry point."
-            )
-
-        if autonomy == "interactive" and not _interactive_stdio_has_tty():
-            _bail(
-                f"Cannot launch {ref.id_slug!r}: autonomy=interactive requires a TTY "
+                f"Cannot launch {ref.id_slug!r}: mode=agent requires a TTY "
                 "(stdin and stdout must both be terminals). Run from a real "
-                "shell, or give the ticket a script entry point."
+                "shell, or use mode: script for deterministic unattended work."
             )
 
         launch_assignee = agent_override or assignee
@@ -314,16 +327,6 @@ def launch(
             _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
         typer.echo(f"Launch: found agent CLI at {agent_path}")
 
-        # Pre-flight the permission-skip policy for the first step's agent so a
-        # skip_permissions = "auto" agent with no configured argv fails loud here
-        # — before the in_progress flip and "started" broadcast, like the compose
-        # pre-flight below. The per-step loop re-resolves the policy for rotated
-        # agents.
-        try:
-            _skip_permissions_argv_for_launch(agent, autonomy, ref)
-        except ConfigError as exc:
-            _bail(str(exc))
-
         # Fail loud BEFORE flipping status: if a referenced context or skill is
         # missing, the composed prompt would drop a layer the human expected the
         # agent to have. Refuse to start — and don't flip the ticket to
@@ -331,7 +334,7 @@ def launch(
         # The per-step loop below re-composes; this is a cheap pre-flight (file
         # reads only) so the flip and notification post are never reached on a bad ref.
         try:
-            compose_prompt(cfg, ref, ticket, autonomy_override=autonomy_override)
+            compose_prompt(cfg, ref, ticket)
         except ComposeError as exc:
             _bail(str(exc))
 
@@ -351,6 +354,16 @@ def launch(
         # broadcast or flips status.
         _preflight_push_auth(cfg, ref, is_bootstrap=is_bootstrap)
 
+        # All fail-loud preflights have passed — the session is going to run. A
+        # stale installed binary launching agent work is the costliest place for
+        # version skew to hide (it can burn a whole session running bugs already
+        # fixed in source), so surface it here, before the status flip and spawn.
+        # Warn-only, and a silent no-op outside a coga source checkout.
+        warn_if_installed_predates_source(cfg.repo_root)
+
+        if blocked_resume and isinstance(ref, TaskRef) and ticket.status == "blocked":
+            _auto_activate(cfg, ref, ticket)
+
         if isinstance(ref, TaskRef) and ticket.status == "active":
             try:
                 mark_in_progress(
@@ -368,8 +381,8 @@ def launch(
             except TaskValidationError as exc:
                 _bail(str(exc))
 
-        # Interactive launches chain across consecutive agent-owned steps the
-        # same way auto mode does. After the agent exits (via autoquit on
+        # Agent launches chain across consecutive agent-owned steps. After the
+        # agent exits (via autoquit on
         # `coga bump` / `mark done` / `block`, or via `/exit`), we re-read the
         # ticket and either relaunch the next step's agent as a fresh process —
         # rotating the CLI when the step hands off to a different agent (e.g.
@@ -396,6 +409,26 @@ def launch(
         first_step = True
         while True:
             ticket = _read(ref)
+
+            # A workflow step whose single skill declares a `script:` runs as a
+            # deterministic script even inside a `mode: agent` workflow — the same
+            # run_script_mode path used above, dispatched per step. The launcher,
+            # not an agent, executes it and advances only on exit 0, so
+            # `code/open-pr` reached mid-chain (peer-review → open-pr) cannot
+            # complete without producing a real PR.
+            if not is_bootstrap and current_step_is_script(cfg, ticket):
+                from coga.commands.launch_script import run_script_mode
+
+                _echo_launch_iteration(ref, ticket)
+                before = ticket
+                # Advances the step on success; on failure posts and sys.exit.
+                run_script_mode(cfg, ref, ticket)
+                ticket = read_ticket(ref)
+                stop_reason = _harness_stop_reason(ref, before, ticket, cfg)
+                if stop_reason is not None:
+                    typer.echo(stop_reason)
+                    break
+                continue
 
             # Resolve the agent for THIS step from the ticket's current
             # assignee, so the supervisor can rotate claude <-> codex across
@@ -435,16 +468,9 @@ def launch(
             )
 
             _echo_launch_iteration(ref, ticket)
-
-            # Re-resolve the permission-skip policy for THIS step's agent and
-            # the ticket's current mode — supervised chains rotate agents
-            # (claude <-> codex), and each agent carries its own local policy.
-            try:
-                skip_permissions_argv = _skip_permissions_argv_for_launch(
-                    agent, autonomy_override or ticket.autonomy, ref
-                )
-            except ConfigError as exc:
-                _bail(str(exc))
+            step_env = dict(env)
+            step_env[EXPECTED_TASK_ENV] = str(ref.path.resolve())
+            step_env[EXPECTED_STEP_ENV] = ticket.step or ""
 
             try:
                 session = spawn_agent_session(
@@ -452,20 +478,18 @@ def launch(
                     ref,
                     ticket,
                     agent,
-                    autonomy,
-                    env=env,
+                    mode,
+                    env=step_env,
                     actor=f"human:{cfg.current_user}",
                     log_message=_launch_log_message(
-                        autonomy,
+                        mode,
                         ticket.assignee or assignee,
                         step_assignee or launch_assignee,
                         agent.name,
                     ),
-                    autonomy_override=autonomy_override,
                     name=ticket.title or "",
                     discussion=_is_discussion_bootstrap(ref),
                     kickoff=_bootstrap_kickoff(ref),
-                    skip_permissions_argv=skip_permissions_argv,
                     idle_timeout=idle_timeout,
                     max_session=max_session,
                     label="Launch",
@@ -480,6 +504,9 @@ def launch(
                 _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
 
             typer.echo(f"Launch: agent exited with code {session.exit_code}")
+            if blocked_resume:
+                _reblock_unresolved_resume(cfg, ref, step_assignee or launch_assignee)
+                blocked_resume = False
             if session.termination_kind == "timeout":
                 # A liveness limit (idle / max-session) tore the REPL down — the
                 # agent never signalled done. Don't chain to the next step.
@@ -542,7 +569,7 @@ def launch(
 
 
 def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
-    """Bring a draft / paused ticket to `active` inline.
+    """Bring a draft / paused / resumable blocked ticket to `active` inline.
 
     `coga launch` used to refuse any status but `active`/`in_progress` and
     point the operator at `coga mark active`. Now launching *is* the
@@ -550,7 +577,8 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     mutates `ticket` in place — status → active, a bare-string `workflow:`
     frozen, and `step:` seeded — so the later `mark_in_progress` flip fires off
     the same object. (A `done` ticket never reaches here: launch refuses it
-    earlier rather than restart a finished workflow.)
+    earlier rather than restart a finished workflow. A blocked ticket reaches
+    here only after the launch preflights have passed.)
 
     Fails loud, leaving the ticket untouched, when activation can't legally
     happen: the ticket has no workflow to advance, its `workflow:` ref can't
@@ -585,6 +613,55 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         _bail(
             f"Cannot launch {ref.id_slug}: required extension field(s) empty: "
             f"{names}. Fill them in `ticket.md` then retry."
+        )
+    except BlackboardNeedsSynthesis as exc:
+        _bail(
+            format_blackboard_synthesis_refusal(
+                ref.id_slug, action="launch", reason=exc.reason
+            )
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
+
+
+def _reblock_unresolved_resume(
+    cfg: Config, ref: TaskRef | BootstrapRef, blocker: str | None
+) -> None:
+    """Return an unresolved blocked-ticket resume to the blocked queue.
+
+    A resumed blocked launch is allowed to become `in_progress` so the same
+    session can discuss, run `coga unblock`, and continue to `coga bump`. If
+    that session exits before recording the answer, keep the unresolved ask
+    visible to `status --blocked`, `unblock --all`, and blocker reminders.
+    """
+    if not isinstance(ref, TaskRef) or not ref.ticket_path.exists():
+        return
+    blockers = open_blockers(ref.ticket_path)
+    if not blockers:
+        return
+    ticket = read_ticket(ref)
+    if ticket.status != "in_progress":
+        return
+
+    owner = ticket.owner or cfg.current_user
+    detail = "; ".join(b.reason for b in blockers)
+    try:
+        mark_blocked(
+            cfg,
+            ref,
+            ticket,
+            actor="system",
+            log_message=(
+                "blocked: unresolved blocker still open after resumed launch exited"
+            ),
+            slack_text=(
+                f"🛑 {blocker or cfg.current_user} still blocked "
+                f"*{ref.id_slug}* \"{ticket.title}\": {detail}"
+            ),
+            echo=(
+                f"{ref.id_slug}: blocked (unresolved blocker still open; "
+                f"owner {owner} needs to answer)"
+            ),
         )
     except TaskValidationError as exc:
         _bail(str(exc))
@@ -726,6 +803,31 @@ def _cleanup_launch_worktree(
     git.remove_launch_worktree(base_cfg, worktree_path)
 
 
+# Linux caps a single execve() argument at MAX_ARG_STRLEN (32 pages =
+# 131072 bytes). A composed prompt at or over it makes the PTY child's
+# execvp fail with E2BIG before the agent ever starts. Stay under with
+# headroom for a discussion template's text wrapped around `{prompt}`.
+_MAX_PROMPT_ARG_BYTES = 120_000
+
+
+def _argv_prompt(prompt: str, prompt_file: Path) -> str:
+    """The prompt as it rides argv: verbatim, or a file pointer when oversized.
+
+    The prompt file is already on disk (written before the argv is built) and
+    is only removed after the session ends, so the pointer stays valid for the
+    agent's whole run. Same content, one indirection — the alternative is a
+    guaranteed E2BIG exec failure.
+    """
+    if len(prompt.encode()) <= _MAX_PROMPT_ARG_BYTES:
+        return prompt
+    return (
+        f"Read the file {prompt_file} in full before doing anything else — "
+        "its contents are your complete composed Coga prompt, too large to "
+        "pass as a command-line argument. Follow it exactly as if it had "
+        "been given to you as this message."
+    )
+
+
 def build_agent_command(
     agent,
     mode: str,
@@ -733,15 +835,12 @@ def build_agent_command(
     *,
     name: str = "",
     discussion: bool = False,
-    skip_permissions_argv: tuple[str, ...] = (),
     session_id: str | None = None,
 ) -> list[str]:
     """Build the argv for spawning the agent.
 
-    Interactive: `<cli> <prompt>` — agent opens its REPL with the prompt as
-    the first user message. Auto: `<cli> <auto-flag(s)> <prompt>` — prefix
-    flags put the CLI in headless mode (e.g. `-p` for claude, `exec` for
-    codex).
+    Agent mode: `<cli> <prompt>` — agent opens its REPL with the prompt as
+    the first user message.
 
     When the agent declares `name_flag` and a non-empty `name` is passed,
     `<name_flag> <name>` is inserted right after the CLI so the spawned
@@ -749,11 +848,7 @@ def build_agent_command(
     in `discussion` mode so the human's first ask names the session.
 
     `session_id` uses the agent's `session_id_flag`, when configured, to pin a
-    transcript id. `skip_permissions_argv` (the agent's machine-local
-    permission-skip argv, threaded by `_skip_permissions_argv_for_launch` only
-    when its policy applies) is inserted after the name/session argv and before
-    the mode-specific argv/prompt payload — `claude -n <title> --session-id
-    <uuid> <skip-argv> -p <prompt>`, `codex <skip-argv> exec <prompt>`.
+    transcript id.
 
     `discussion=True` (used for human discussion sessions like `coga chat`
     and `coga ticket`) routes the prompt through the agent's
@@ -763,8 +858,10 @@ def build_agent_command(
     title. Uses configured `agent.discussion`, then built-in templates for
     known `claude` / `codex` CLIs, then falls back to positional.
     """
+    if mode != "agent":
+        raise ValueError(f"build_agent_command only supports mode='agent', got {mode!r}")
     discussion_template = _discussion_template(agent) if discussion else ""
-    if discussion_template and mode == "interactive":
+    if discussion_template:
         tokens = [
             tok.replace("{prompt}", prompt)
             for tok in shlex.split(discussion_template)
@@ -776,20 +873,10 @@ def build_agent_command(
     session_id_args: list[str] = []
     if session_id and agent.session_id_flag:
         session_id_args = [*shlex.split(agent.session_id_flag), session_id]
-    if mode == "interactive":
-        return [
-            agent.cli,
-            *name_args,
-            *session_id_args,
-            *skip_permissions_argv,
-            prompt,
-        ]
     return [
         agent.cli,
         *name_args,
         *session_id_args,
-        *skip_permissions_argv,
-        *shlex.split(agent.auto),
         prompt,
     ]
 
@@ -809,11 +896,9 @@ def spawn_agent_session(
     env,
     actor: str,
     log_message: str,
-    autonomy_override: str | None = None,
     name: str = "",
     discussion: bool = False,
     kickoff: str | None = None,
-    skip_permissions_argv: tuple[str, ...] = (),
     prompt_suffix: str = "",
     idle_timeout: float | None = None,
     max_session: float | None = None,
@@ -856,7 +941,7 @@ def spawn_agent_session(
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 
     typer.echo(f"{label}: composing prompt")
-    prompt = compose_prompt(cfg, ref, ticket, autonomy_override=autonomy_override)
+    prompt = compose_prompt(cfg, ref, ticket)
     if prompt_suffix:
         prompt = f"{prompt}{prompt_suffix}"
     prompt_file = write_prompt_file(prompt, ref)
@@ -864,13 +949,20 @@ def spawn_agent_session(
         f"{label}: prompt written to {prompt_file} "
         f"({len(prompt)} chars)"
     )
+    prompt_arg = _argv_prompt(prompt, prompt_file)
+    if prompt_arg is not prompt:
+        typer.echo(
+            f"{label}: prompt exceeds the {_MAX_PROMPT_ARG_BYTES}-byte "
+            f"single-argument limit — the agent will read it from "
+            f"{prompt_file}"
+        )
 
     # Single-file format: usage records live in the `## Usage` section of the
     # ticket's blackboard region, so the usage "blackboard" is the ticket itself.
     usage_blackboard = ref.ticket_path
     should_capture_usage = (
         capture_usage
-        and mode in {"interactive", "auto"}
+        and mode == "agent"
         and isinstance(ref, TaskRef)
         and usage_blackboard.is_file()
     )
@@ -890,10 +982,9 @@ def spawn_agent_session(
         cmd = build_agent_command(
             agent,
             mode,
-            prompt,
+            prompt_arg,
             name=name,
             discussion=discussion,
-            skip_permissions_argv=skip_permissions_argv,
             session_id=usage_session_id,
         )
         if kickoff:
@@ -912,30 +1003,31 @@ def spawn_agent_session(
             # Non-fatal on any git failure.
             git.sync_log(cfg, message=f"Log: {ref.id_slug}")
 
-        if mode == "interactive" and name and sys.stdout.isatty():
+        if mode == "agent" and name and sys.stdout.isatty():
             sys.stdout.write(f"\033]2;{name}\007")
             sys.stdout.flush()
 
-        if mode == "interactive":
-            # Interactive REPLs (`claude`, `codex`) don't exit on their own.
-            # Run through a PTY watcher so an agent that writes the session-done
-            # sentinel after `coga mark done` / `coga block` releases the REPL.
-            spawn_started = True
-            outcome = run_with_done_marker(
-                cmd,
-                env,
-                session_id=str(ref.path.resolve()),
-                idle_timeout=idle_timeout,
-                max_session=max_session,
-                cwd=cwd,
-            )
-            return AgentSessionResult(outcome.exit_code, outcome.kind)
-
         spawn_started = True
-        result = subprocess.run(
-            cmd, env=env, check=False, cwd=str(cwd) if cwd is not None else None
+        # Agent CLIs (`claude`, `codex`) don't exit on their own. Run through a
+        # PTY watcher so an agent that writes the session-done sentinel after
+        # `coga bump` / `coga mark done` / `coga block` releases the REPL.
+        # Scope the sentinel by the task's `id_slug`, the identifier `bump` /
+        # `mark` / `block` write. It must be the slug, not `ref.path.resolve()`:
+        # under `[launch].worktree` isolation `ref` is re-rooted into the
+        # per-launch worktree, so a path-scoped marker only matched when the
+        # agent's `coga bump` also ran from that worktree — a bump from the
+        # primary checkout (or a peer agent's separate clone) wrote a different
+        # path, the poll never matched, and the REPL hung. The slug is the same
+        # from any checkout, so teardown fires regardless of the bump's cwd.
+        outcome = run_with_done_marker(
+            cmd,
+            env,
+            session_id=ref.id_slug,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+            cwd=cwd,
         )
-        return AgentSessionResult(result.returncode, "natural")
+        return AgentSessionResult(outcome.exit_code, outcome.kind)
     except FileNotFoundError:
         spawn_started = False
         raise
@@ -968,36 +1060,6 @@ def spawn_agent_session(
             pass
 
 
-def _skip_permissions_argv_for_launch(
-    agent, mode: str, ref: TaskRef | BootstrapRef
-) -> tuple[str, ...]:
-    """Resolve the permission-skip argv for one agent spawn, or `()`.
-
-    The policy is machine-local per-agent config (`coga.local.toml`
-    `[agents.<name>] skip_permissions = "auto"`) and applies only to normal
-    task tickets running in effective `mode: auto`. Bootstrap/discussion
-    tickets and interactive/script launches always get `()` — today's
-    behavior. Called per step so supervised chains re-evaluate the policy
-    for whichever agent the current step rotated to.
-
-    Fails loud (ConfigError) when the policy applies but the agent has no
-    `skip_permissions_argv` configured — never silently fall back to the
-    normal permission mode the operator opted out of.
-    """
-    if mode != "auto" or not isinstance(ref, TaskRef):
-        return ()
-    if agent.skip_permissions != "auto":
-        return ()
-    if not agent.skip_permissions_argv:
-        raise ConfigError(
-            f"Agent {agent.name!r} has skip_permissions = \"auto\" but no "
-            "skip_permissions_argv in coga.local.toml. Set it (e.g. "
-            f"`[agents.{agent.name}] skip_permissions_argv = \"...\"`) or "
-            "remove the skip_permissions policy."
-        )
-    return agent.skip_permissions_argv
-
-
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
     return isinstance(ref, BootstrapRef) and ref.id_slug in DISCUSSION_BOOTSTRAP_TICKETS
 
@@ -1028,12 +1090,12 @@ def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
     if current is None:
         typer.echo(
             f"→ launching {ref.id_slug} "
-            f"(status={ticket.status}, mode={ticket.autonomy}, assignee={ticket.assignee or 'unassigned'})"
+            f"(status={ticket.status}, mode={ticket.mode}, assignee={ticket.assignee or 'unassigned'})"
         )
         return
     typer.echo(
         f"→ entering step {ticket.step}: {current['name']} "
-        f"(status={ticket.status}, mode={ticket.autonomy}, assignee={ticket.assignee or 'unassigned'})"
+        f"(status={ticket.status}, mode={ticket.mode}, assignee={ticket.assignee or 'unassigned'})"
     )
 
 
@@ -1125,6 +1187,30 @@ def _launch_log_message(
     return (
         f"launched in {mode} mode "
         f"(assignee={assignee}, launch_assignee={launch_assignee}, agent={agent_name})"
+    )
+
+
+def _refuse_human_handoff_launch(
+    cfg: Config,
+    ref: TaskRef | BootstrapRef,
+    ticket: Ticket,
+    agent_override: str | None,
+) -> None:
+    assignee = ticket.assignee
+    if (
+        isinstance(ref, BootstrapRef)
+        or ticket.mode != "agent"
+        or not assignee
+        or assignee in cfg.agents
+    ):
+        return
+    override = (
+        f" with --agent {agent_override!r}" if agent_override is not None else ""
+    )
+    _bail(
+        f"Cannot launch {ref.id_slug}{override}: assignee {assignee!r} "
+        "is not a configured agent type. This is a human handoff; "
+        "reassign the task to an agent type before launching an agent."
     )
 
 

@@ -1,8 +1,8 @@
 ---
 slug: v2/relay-design-repositories
 title: relay-design-repositories
-status: active
-autonomy: interactive
+status: paused
+mode: agent
 owner: zach
 human: zach
 agent: claude

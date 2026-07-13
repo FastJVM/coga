@@ -52,7 +52,7 @@ def _write_workflow_less_task(
         slug: {slug}
         title: Work
         status: {status}
-        autonomy: interactive
+        mode: agent
         owner: marc
         human: marc
         agent: claude
@@ -85,7 +85,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -127,7 +126,7 @@ def _make_task(
     else:
         ref = create_task(
             cfg=cfg, title="Work", workflow_name=workflow,
-            contexts=[], autonomy="interactive", owner="marc", assignee=assignee,
+            contexts=[], mode="agent", owner="marc", assignee=assignee,
             watchers=[], status=status,
         )
     path = ref["path"]
@@ -347,7 +346,7 @@ def test_automerge_digest_preserves_transition_and_pr_link(
 def test_recurring_create_is_silent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from coga.commands.recurring import _broadcast_scan
+    from coga.recurring_runner import _broadcast_scan
     from coga.recurring import DueScan, DueTask
     from coga.tasks import TaskRef
 

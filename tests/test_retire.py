@@ -31,7 +31,6 @@ def repo(tmp_path: Path) -> Path:
 
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
 
@@ -62,7 +61,7 @@ def _seed_done_task(repo: Path, slug: str = "fix-retry-logic") -> Path:
         slug: {slug}
         title: Fix retry logic
         status: done
-        autonomy: interactive
+        mode: agent
         owner: marc
         assignee: marc
         ---
@@ -87,7 +86,7 @@ def test_retire_no_launch_creates_task_with_target_slug(
 
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
-    assert "Retire: using assignee claude (agent type claude, autonomy interactive)" in result.output
+    assert "Retire: using assignee claude (agent type claude, mode agent)" in result.output
     assert "Retire: creating task 'Retire fix-retry-logic'" in result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
     assert "Retire: launch skipped (--no-launch)" in result.output
@@ -101,7 +100,7 @@ def test_retire_no_launch_creates_task_with_target_slug(
     # workflow so they run their body directly while still being a
     # workflow-carrying, bumpable, valid active task.
     assert ticket.status == "active"
-    assert ticket.autonomy == "interactive"
+    assert ticket.mode == "agent"
     assert ticket.assignee == "claude"
     assert ticket.workflow["name"] == "direct/body"
     assert "Retire the done ticket `fix-retry-logic`" in ticket.body
@@ -123,7 +122,7 @@ def test_retire_refuses_non_done_target(
         slug: in-flight
         title: Still going
         status: active
-        autonomy: interactive
+        mode: agent
         owner: marc
         assignee: marc
         ---
@@ -157,22 +156,6 @@ def test_retire_refuses_unknown_slug(
     assert "no-such-task" in result.output
 
 
-def test_retire_refuses_auto_mode(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """`coga retire <slug> --autonomy auto` is rejected while auto is disabled."""
-    monkeypatch.chdir(repo)
-    _seed_done_task(repo, "fix-retry-logic")
-
-    result = CliRunner().invoke(
-        app, ["retire", "fix-retry-logic", "--autonomy", "auto", "--no-launch"]
-    )
-
-    assert result.exit_code == 2
-    assert "autonomy=auto is temporarily disabled" in result.output
-    assert not (repo / "tasks" / "retire-fix-retry-logic").exists()
-
-
 def test_retire_launches_after_create(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -184,7 +167,9 @@ def test_retire_launches_after_create(
         task: str,
         agent_override: str | None,
         prompt_report: bool,
-        autonomy_override: str | None = None,
+        idle_timeout: float | None = None,
+        max_session: float | None = None,
+        return_timeout: bool = False,
     ) -> None:
         ticket = Ticket.read(repo / "tasks" / f"{task}.md")
         assert ticket.status == "active"
@@ -193,16 +178,16 @@ def test_retire_launches_after_create(
                 "task": task,
                 "agent_override": agent_override,
                 "prompt_report": prompt_report,
-                "autonomy_override": autonomy_override,
+                "idle_timeout": idle_timeout,
+                "max_session": max_session,
+                "return_timeout": return_timeout,
             }
         )
         typer.echo("fake launch called")
 
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
-    result = CliRunner().invoke(
-        app, ["retire", "fix-retry-logic", "--autonomy", "interactive"]
-    )
+    result = CliRunner().invoke(app, ["retire", "fix-retry-logic"])
 
     assert result.exit_code == 0, result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
@@ -216,13 +201,15 @@ def test_retire_launches_after_create(
 
     cfg = load_config(repo)
     log = "\n".join(task_log_lines(cfg, "retire-fix-retry-logic"))
-    assert "created (autonomy=interactive, status=active)" in log
+    assert "created (mode=agent, status=active)" in log
     assert calls == [
         {
             "task": "retire-fix-retry-logic",
             "agent_override": None,
             "prompt_report": False,
-            "autonomy_override": None,
+            "idle_timeout": None,
+            "max_session": None,
+            "return_timeout": False,
         }
     ]
 
@@ -269,7 +256,7 @@ def test_retire_prunes_merged_branch_before_launch(
         slug: {slug}
         title: Fix retry logic
         status: done
-        autonomy: interactive
+        mode: agent
         owner: marc
         assignee: marc
         ---
@@ -322,4 +309,3 @@ def test_retire_resolves_unique_prefix(
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
     assert (repo / "tasks" / "retire-fix-retry-logic.md").is_file()
-

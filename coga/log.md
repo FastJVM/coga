@@ -569,3 +569,569 @@ an editor opened by 'git commit'. Please make sure all processes
 are terminated then try again. If it still fails, a git process
 may have crashed in this repository earlier:
 remove the file manually to continue.
+2026-07-01 10:09 [remove-relay-migration-script] [human:nicktoper] task done
+2026-07-01 10:10 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] task done
+2026-07-01 10:10 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] task done
+2026-07-01 10:10 [block-unblock-and-megalaunch] [human:nicktoper] task done
+2026-07-01 10:10 [add-a-docs-oriented-review-workflow-for-docs-only] [human:nicktoper] task done
+2026-07-01 10:10 [drain-pending-auto-tickets-with-leftover-session-b] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-01 10:16 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] blocked: Design stale, needs rescope before implement. (1) Overlaps existing src/coga/megalaunch.py drain (run_megalaunch/budget_state) which uses coga-token-tracking, the model this ticket rejected for an OAuth usage-window probe — reconcile into one drain path or justify two. (2) Likely duplicates in_progress ticket nightly-auto-drain-run-for-ready-tickets. (3) Precondition unmet: autonomy=auto still disabled at launch.py:285. (4) mode->autonomy semantic drift throughout criteria. Decide reconcile/dedup path before implement resumes.
+2026-07-01 10:17 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 10:17 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] blocked: test
+2026-07-01 10:21 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 10:23 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 10:11 [move-ticket-authoring-out-of-core] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-01 10:28 [move-ticket-authoring-out-of-core] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-01 10:28 [move-ticket-authoring-out-of-core] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-01 10:28 [move-ticket-authoring-out-of-core] [human:nicktoper] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-01 10:40 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 11:48 [move-ticket-authoring-out-of-core] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-01 11:48 [move-ticket-authoring-out-of-core] [git] sync failed: `git fetch origin main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
+2026-07-01 11:48 [coga] [git] sync failed: `git fetch origin main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
+2026-07-01 11:48 [move-ticket-authoring-out-of-core] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-07-01 11:57 [move-ticket-authoring-out-of-core] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-01 11:57 [move-ticket-authoring-out-of-core] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/coga/.git/worktrees/43b4daa33d35417bb3528981d7433a1c/FETCH_HEAD': Read-only file system
+2026-07-01 11:57 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/coga/.git/worktrees/43b4daa33d35417bb3528981d7433a1c/FETCH_HEAD': Read-only file system
+2026-07-01 11:57 [move-ticket-authoring-out-of-core] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 11:58 [move-ticket-authoring-out-of-core] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/491
+2026-07-01 11:59 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-07-01 11:59 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-07-01 12:10 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-29 12:51 [anonymous-install-telemetry-opt-out-no-pii] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-01 12:15 [make-megalaunch-user-specific] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-07-01 12:15 [make-megalaunch-user-specific-2] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-07-01 12:15 [make-megalaunch-user-specific-2] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-01 12:16 [make-megalaunch-user-specific] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-01 12:54 [retire-the-autonomy-tier-concept] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-07-01 13:00 [resolve-blocker-inline-via-chat-on-interactive-lau] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-07-01 13:06 [drain-pending-auto-tickets-with-leftover-session-b] [human:nicktoper] unblocked (blocked → active): Rescope (Nick, 2026-07-01): fold this ticket's OAuth usage-window budget model (Claude GET /api/oauth/usage five_hour/seven_day; Codex prime-once + rollout rate_limits snapshot) INTO the existing src/coga/megalaunch.py drain rather than building a second drain path. megalaunch already does sequential active-ticket draining but gates on coga-tracked tokens (agent_token_budgets/token_guard/UsageRecord); replace/augment that guard with the OAuth usage-window probe (per-agent UsageProbe, fail-soft). Dedup vs nightly-auto-drain-run-for-ready-tickets: reconcile into this one path. Hard precondition unchanged: the autonomy=auto launch gate (launch.py:285) must land first before drain can actually launch. Also fix mode->autonomy semantic drift throughout the ticket during re-scope. The 'test' junk blocker is cleared as noise.
+2026-07-01 14:23 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 14:24 [v2/relay-design-repositories] [human:nicktoper] paused (active → paused)
+2026-07-01 14:24 [v2/gh-merge-requirement] [human:nicktoper] paused (active → paused)
+2026-07-01 14:24 [v2/acceptance-criteria] [human:nicktoper] paused (active → paused)
+2026-07-01 14:24 [v2/identify-blocking-issues] [human:nicktoper] paused (active → paused)
+2026-07-01 14:24 [v2/issue-inbox-slack] [human:nicktoper] paused (active → paused)
+2026-07-01 14:24 [v2/automerge-ticket] [human:nicktoper] paused (active → paused)
+2026-07-01 14:24 [v2/add-dev-testing-setup-skill] [human:nicktoper] paused (in_progress → paused)
+2026-07-01 14:26 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 15:37 [auto/stream-agent-progress-in-auto-mode-and-recurring-l] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 15:37 [auto/stream-agent-progress-in-auto-mode-and-recurring-l] [megalaunch] launched via coga megalaunch
+2026-07-01 15:37 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 16:34 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-07-01 16:38 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-07-01 21:03 [auto/stream-agent-progress-in-auto-mode-and-recurring-l] [human:nicktoper] task done — Shipped via PR #496 (megalaunch now spawns interactive launches); headless stream-json rejected for now
+2026-07-01 21:07 [cli-extension-model/move-command-logic-to-tickets] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 21:07 [cli-extension-model/move-command-logic-to-tickets] [megalaunch] launched via coga megalaunch
+2026-07-01 21:13 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-07-01 21:15 [cli-extension-model/move-command-logic-to-tickets] [human:nicktoper] task done — Umbrella closed: reads + recurring each have a committed child-ticket plan; fused-head pattern landed via PR #491 (ticket collapse), project/retire follow-ups on that pattern
+2026-07-01 21:15 [drain-pending-auto-tickets-with-leftover-session-b] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 21:07 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-07-01 21:15 [drain-pending-auto-tickets-with-leftover-session-b] [megalaunch] launched via coga megalaunch
+2026-07-01 21:18 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-01 21:18 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-01 21:18 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-01 21:28 [stop-trimming-blackboard-but-refuse-to-launch-befo] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-01 21:28 [stop-trimming-blackboard-but-refuse-to-launch-befo] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/coga/.git/worktrees/9fe5ac0ae5ef4d858336bd027bc8b90f/FETCH_HEAD': Read-only file system
+2026-07-01 21:28 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-07-01 21:40 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] advanced to step 4 (open-pr)
+2026-07-01 21:40 [drain-pending-auto-tickets-with-leftover-session-b] [megalaunch] launched via coga megalaunch
+2026-07-01 21:42 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] advanced to step 5 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/497
+2026-07-01 21:42 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 21:42 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [megalaunch] launched via coga megalaunch
+2026-07-01 22:08 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done: headless auto runner + capture/notify, branch unblock-auto-launch (331b9e89)
+2026-07-01 22:08 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [megalaunch] launched via coga megalaunch
+2026-07-01 22:37 [stop-trimming-blackboard-but-refuse-to-launch-befo] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-01 22:37 [stop-trimming-blackboard-but-refuse-to-launch-befo] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/coga/.git/worktrees/9fe5ac0ae5ef4d858336bd027bc8b90f/FETCH_HEAD': Read-only file system
+2026-07-01 22:37 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/coga/.git/worktrees/9fe5ac0ae5ef4d858336bd027bc8b90f/FETCH_HEAD': Read-only file system
+2026-07-01 22:37 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 22:38 [stop-trimming-blackboard-but-refuse-to-launch-befo] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/498
+2026-07-02 08:01 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-02 08:01 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [git] sync failed: `git add -- coga/tasks/mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-07-02 08:01 [coga] [git] sync failed: `git add -- coga/log.md coga/tasks/mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-07-02 08:01 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [megalaunch] launched via coga megalaunch
+2026-07-02 08:03 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/499
+2026-07-02 10:39 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 10:39 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-07-02 10:40 [resolve-blocker-inline-via-chat-on-interactive-lau] [human:nicktoper] activated (draft → active)
+2026-07-02 10:40 [retire-the-autonomy-tier-concept] [human:nicktoper] activated (draft → active)
+2026-07-02 10:40 [make-megalaunch-user-specific] [human:nicktoper] activated (draft → active)
+2026-07-02 10:40 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 10:53 [resolve-blocker-inline-via-chat-on-interactive-lau] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-02 11:09 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 10:53 [resolve-blocker-inline-via-chat-on-interactive-lau] [megalaunch] launched via coga megalaunch
+2026-07-02 11:12 [resolve-blocker-inline-via-chat-on-interactive-lau] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done: interactive launch of a blocked ticket now resumes inline with a resolve-or-re-block preamble; branch launch-blocked-chat, commit 85c18ecb
+2026-07-02 11:10 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-02 11:31 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-02 11:31 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-02 11:31 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-02 11:37 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 11:37 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:claude] advanced to step 2 (review-design) → assigned to nicktoper
+2026-07-02 11:37 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [git] sync failed: `git add -- coga/tasks/cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+2026-07-02 11:12 [resolve-blocker-inline-via-chat-on-interactive-lau] [megalaunch] launched via coga megalaunch
+2026-07-02 11:55 [resolve-blocker-inline-via-chat-on-interactive-lau] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-02 11:55 [resolve-blocker-inline-via-chat-on-interactive-lau] [git] sync failed: `git add -- coga/tasks/resolve-blocker-inline-via-chat-on-interactive-lau.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-07-02 11:55 [coga] [git] sync failed: `git add -- coga/log.md coga/tasks/resolve-blocker-inline-via-chat-on-interactive-lau.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-07-02 11:55 [resolve-blocker-inline-via-chat-on-interactive-lau] [megalaunch] launched via coga megalaunch
+2026-07-02 11:57 [resolve-blocker-inline-via-chat-on-interactive-lau] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/501
+2026-07-02 12:08 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 12:42 [warn-on-launch-when-the-installed-coga-predates-th] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-07-02 13:02 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:nicktoper] advanced to step 3 (implement) → assigned to codex — Design approved by nicktoper; peer-review step added (codex implements, claude reviews)
+2026-07-02 14:07 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 14:11 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 14:11 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-07-02 14:10 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 14:23 [branch-cleanup-as-recurring-tasks] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-02 15:05 [branch-cleanup-as-recurring-tasks] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-02 15:05 [branch-cleanup-as-recurring-tasks] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-02 15:05 [branch-cleanup-as-recurring-tasks] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 15:30 [branch-cleanup-as-recurring-tasks] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — Implemented branch-sweep on branch `branch-sweep` (worktree /home/n/Code/claude/coga-branch-sweep), committed and tested (1045 passed). Next: open-pr.
+2026-07-02 15:30 [branch-cleanup-as-recurring-tasks] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-07-02 17:06 [branch-cleanup-as-recurring-tasks] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-02 17:06 [branch-cleanup-as-recurring-tasks] [git] sync failed: `git add -- coga/tasks/branch-cleanup-as-recurring-tasks.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/branch-cleanup-as-recurring-tasks.md: failed to insert into database
+error: unable to index file 'coga/tasks/branch-cleanup-as-recurring-tasks.md'
+fatal: adding files failed
+2026-07-02 17:06 [branch-cleanup-as-recurring-tasks] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 17:07 [branch-cleanup-as-recurring-tasks] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/504
+2026-07-02 21:23 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 21:23 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 21:23 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-02 21:39 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=codex, launch_assignee=claude, agent=claude)
+2026-07-02 22:20 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:codex] advanced to step 4 (peer-review) → assigned to claude
+2026-07-02 22:20 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 22:26 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:claude] advanced to step 5 (open-pr) → assigned to codex — Peer-review PASS: relocations byte-identical (no inversion), env-contract threads through the subprocess, statelessness enforced; 1034 tests pass. → open-pr
+2026-07-02 22:22 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 22:27 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:claude] advanced to step 5 (open-pr) → assigned to codex — Peer-review passed (1032 tests green, faithful move, contexts synced). Ready for open-pr.
+2026-07-02 22:26 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-02 22:34 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:codex] advanced to step 6 (review) → assigned to nicktoper
+2026-07-02 22:34 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [git] sync failed: `git add -- coga/tasks/cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task.md: failed to insert into database
+error: unable to index file 'coga/tasks/cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task.md'
+fatal: adding files failed
+2026-07-02 22:35 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 22:22 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 22:27 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:claude] advanced to step 5 (open-pr) → assigned to codex — Peer-review passed (1032 tests green, faithful move, contexts synced). Ready for open-pr.
+2026-07-02 22:27 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-02 22:35 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:codex] advanced to step 6 (review) → assigned to nicktoper
+2026-07-02 22:38 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 22:52 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:claude] advanced to step 5 (open-pr) → assigned to codex — Peer review approved; one doc-staleness fix committed on the branch (9245f9c5); wheel build verified manually since test_packaging skips without hatchling
+2026-07-02 22:38 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 22:52 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:claude] advanced to step 5 (open-pr) → assigned to codex — Peer review approved; one doc-staleness fix committed on the branch (9245f9c5); wheel build verified manually since test_packaging skips without hatchling
+2026-07-02 22:52 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-02 22:55 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:codex] advanced to step 6 (review) → assigned to nicktoper
+2026-07-02 22:56 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 22:56 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 22:56 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 23:03 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-02 23:08 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-02 23:25 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] activated (draft → active)
+2026-07-02 23:08 [cli-extension-model/rename-shim-to-alias] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-02 23:47 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-02 23:50 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-02 23:51 [branch-cleanup-as-recurring-tasks] [human:nicktoper] task done
+2026-07-02 23:51 [nightly-auto-drain-run-for-ready-tickets] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-02 23:51 [nightly-auto-drain-run-for-ready-tickets] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-02 23:47 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-02 23:47 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-03 10:27 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [agent:codex] advanced to step 2 (peer-review) → assigned to claude
+2026-07-02 23:47 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-02 23:47 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-03 10:27 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [agent:codex] advanced to step 2 (peer-review) → assigned to claude
+2026-07-03 10:27 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-03 10:40 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-03 10:30 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-03 10:44 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [agent:claude] advanced to step 3 (open-pr) → assigned to codex
+2026-07-03 10:44 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [git] sync failed: `git add -- coga/tasks/cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy.md: failed to insert into database
+error: unable to index file 'coga/tasks/cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy.md'
+fatal: adding files failed
+2026-07-03 10:46 [warn-on-launch-when-the-installed-coga-predates-th] [human:nicktoper] activated (draft → active)
+2026-07-03 10:46 [add-ci-to-generate-package-update-automatically-or] [human:nicktoper] activated (draft → active)
+2026-07-03 10:46 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] activated (draft → active)
+2026-07-03 10:46 [fix-stale-relay-sync-context-git-failures-swallowe] [human:nicktoper] activated (draft → active)
+2026-07-03 10:46 [coga-rename-follow-ups-post-repo-rename] [human:nicktoper] activated (draft → active)
+2026-07-03 10:46 [relay-ticket-doesn-t-ask-quesion-and-start-doing] [human:nicktoper] activated (draft → active)
+2026-07-03 10:44 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-03 10:49 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [agent:codex] advanced to step 4 (review) → assigned to nicktoper
+2026-07-03 10:50 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-03 10:51 [relay-ticket-doesn-t-ask-quesion-and-start-doing] [human:nicktoper] task done
+2026-07-03 10:51 [add-ci-to-generate-package-update-automatically-or] [human:nicktoper] task done
+2026-07-03 11:56 [launch-prompt/review-and-edit-the-relay-launch-prompt-editorial] [human:nicktoper] paused (active → paused)
+2026-07-03 11:57 [marketing/relay-discord] [human:nicktoper] paused (active → paused)
+2026-07-03 11:57 [marketing/launch-relay-product-launch-comms] [human:nicktoper] paused (active → paused)
+2026-07-03 11:58 [coga-rename-follow-ups-post-repo-rename] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-03 11:58 [coga-rename-follow-ups-post-repo-rename] [megalaunch] launched via coga megalaunch
+2026-07-03 12:02 [migrate-desktop-relay-repos-to-coga-tracking] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-03 12:03 [coga-rename-follow-ups-post-repo-rename] [agent:claude] blocked: Nothing left to implement: every checklist item already landed while this ticket sat — URL flips + README clone target via merged PR #455 (bdc18b2a), PyPI trusted publisher repointed + coga 0.2.0 published 2026-06-27 (release run 28296440460), README PyPI install via PR #466 (ee2b61f6); update.py legacy gitignore entries verified consistent. I created the last open item as ticket migrate-desktop-relay-repos-to-coga-tracking (needs your Desktop repo list filled in). No diff exists for self-qa/pr steps, so: please mark this ticket done (and fill the repo list / decide whether draft coga-cli-cutover is also moot), or tell me if any part should still produce a PR.
+2026-07-03 12:03 [fix-stale-relay-sync-context-git-failures-swallowe] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-03 12:03 [fix-stale-relay-sync-context-git-failures-swallowe] [megalaunch] launched via coga megalaunch
+2026-07-03 12:09 [fix-stale-relay-sync-context-git-failures-swallowe] [agent:claude] advanced to step 2 (self-qa)
+2026-07-03 12:09 [fix-stale-relay-sync-context-git-failures-swallowe] [megalaunch] launched via coga megalaunch
+2026-07-03 12:21 [fix-stale-relay-sync-context-git-failures-swallowe] [agent:claude] advanced to step 3 (pr) — self-qa done: 4 doc inaccuracies fixed + parity test added (98e0b719); details on blackboard
+2026-07-03 12:21 [fix-stale-relay-sync-context-git-failures-swallowe] [megalaunch] launched via coga megalaunch
+2026-07-03 12:22 [fix-stale-relay-sync-context-git-failures-swallowe] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/510
+2026-07-03 12:22 [allow-creation-of-coga-dir-in-subdir] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-03 12:22 [allow-creation-of-coga-dir-in-subdir] [megalaunch] launched via coga megalaunch
+2026-07-03 12:38 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 2 (self-qa) — implement done: init now works in monorepo subdirs; branch init-in-subdir, all tests green
+2026-07-03 12:38 [allow-creation-of-coga-dir-in-subdir] [megalaunch] launched via coga megalaunch
+2026-07-03 12:55 [warn-on-launch-when-the-installed-coga-predates-th] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-03 14:30 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=nicktoper, launch_assignee=codex, agent=codex)
+2026-07-03 14:32 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=nicktoper, launch_assignee=codex, agent=codex)
+2026-07-03 12:55 [warn-on-launch-when-the-installed-coga-predates-th] [megalaunch] launched via coga megalaunch
+2026-07-03 14:48 [warn-on-launch-when-the-installed-coga-predates-th] [agent:claude] advanced to step 2 (self-qa)
+2026-07-03 14:48 [warn-on-launch-when-the-installed-coga-predates-th] [megalaunch] launched via coga megalaunch
+2026-07-03 15:06 [warn-on-launch-when-the-installed-coga-predates-th] [agent:claude] advanced to step 3 (pr)
+2026-07-03 15:06 [warn-on-launch-when-the-installed-coga-predates-th] [megalaunch] launched via coga megalaunch
+2026-07-03 15:07 [warn-on-launch-when-the-installed-coga-predates-th] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/511 (no CI configured; rebase onto main likely wanted before merge)
+2026-07-03 16:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-03 16:13 [coga-rename-follow-ups-post-repo-rename] [human:nicktoper] unblocked (blocked → active): Confirmed: everything already landed (PR #455 URL flips, coga 0.2.0 on PyPI 2026-06-27, README PyPI install PR #466). No diff to produce. Marking done; Desktop repo list tracked in migrate-desktop-relay-repos-to-coga-tracking.
+2026-07-03 16:13 [coga-rename-follow-ups-post-repo-rename] [human:nicktoper] task done
+2026-07-03 16:13 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-03 16:16 [zzz-throwaway-workflow-probe] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-03 18:02 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-03 18:02 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-03 18:06 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-03 18:02 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-03 18:08 [cli-extension-model/move-read-views-to-tickets-as-scripts] [agent:claude] advanced to step 2 (review-design) → assigned to nicktoper — Design spec written. Crux (parameterized read → arg-less script ticket) resolved by committed #491 precedent: thin command head keeps the arg at the Typer layer, render moves to a tested module + script skill, no new launcher. 4 open questions on the blackboard (chief: package-module vs. render-body-in-coga/skills; status's flag matrix).
+2026-07-03 18:13 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-03 18:13 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-03 18:13 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-03 18:25 [cli-extension-model/move-read-views-to-tickets-as-scripts] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-03 18:25 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-03 20:06 [cli-extension-model/move-read-views-to-tickets-as-scripts] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-03 20:07 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-03 20:08 [cli-extension-model/move-read-views-to-tickets-as-scripts] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/513
+2026-07-03 20:08 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-03 20:08 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-03 21:39 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-03 21:47 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] task done — Landed via PR #513 (squash-merged as 6534a9eb). Ticket state reconciled after cross-worktree divergence.
+2026-07-03 21:53 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] task done — PR #509 merged 2026-07-03 21:41; closing final review step
+2026-07-04 10:11 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 10:11 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-04 10:14 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 10:14 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 10:14 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 10:52 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done on branch open-pr-script (commit 584ebe34); full suite green. Per-step script dispatch + code/open-pr script.
+2026-07-04 10:52 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 10:52 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 10:52 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=nicktoper, launch_assignee=codex, agent=codex)
+2026-07-04 11:02 [add-a-nothing-to-implement-close-path-so-already-s] [agent:nicktoper] advanced to step 2 (self-qa) → assigned to claude
+2026-07-04 11:02 [add-a-nothing-to-implement-close-path-so-already-s] [git] sync failed: `git add -- coga/tasks/add-a-nothing-to-implement-close-path-so-already-s.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/add-a-nothing-to-implement-close-path-so-already-s.md: failed to insert into database
+error: unable to index file 'coga/tasks/add-a-nothing-to-implement-close-path-so-already-s.md'
+fatal: adding files failed
+2026-07-04 11:02 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:17 [add-a-nothing-to-implement-close-path-so-already-s] [agent:claude] advanced to step 3 (pr) — self-qa done: /code-review + /simplify ran; no correctness changes (findings matched block.py pattern), added docstring fix + workflowless test. Branch codex/already-satisfied-close.
+2026-07-04 11:17 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:18 [add-a-nothing-to-implement-close-path-so-already-s] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/516 (no CI configured on repo)
+2026-07-04 11:20 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=nicktoper, launch_assignee=codex, agent=codex)
+2026-07-04 11:21 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:22 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-04 10:52 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-04 11:24 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review fix committed: 1bf7ab6d; targeted launch/open-pr tests passed; full suite has unrelated usage_probe failure.
+2026-07-04 11:24 [make-open-pr-a-script-step-so-bump-requires-a-real] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-04 11:24 [coga] [git] sync failed: `git add -- coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md: failed to insert into database
+error: unable to index file 'coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md'
+fatal: adding files failed
+2026-07-04 11:27 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:claude] slack: Peer review done: advanced to open-pr; fix commit 1bf7ab6d; state sync recovered on main as 3b2c11be.
+2026-07-04 11:31 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:32 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:33 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/517
+2026-07-04 12:17 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 19:47 [migrate-desktop-relay-repos-to-coga-tracking] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 20:03 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-04 20:07 [improve-readme] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-04 20:07 [improve-readme] [git] sync failed: `git add -- coga/tasks/improve-readme.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/improve-readme.md: failed to insert into database
+error: unable to index file 'coga/tasks/improve-readme.md'
+fatal: adding files failed
+2026-07-04 20:07 [improve-readme] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-04 21:13 [improve-readme] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-04 21:13 [improve-readme] [git] sync failed: `git add -- coga/tasks/improve-readme.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/improve-readme.md: failed to insert into database
+error: unable to index file 'coga/tasks/improve-readme.md'
+fatal: adding files failed
+2026-07-04 21:13 [improve-readme] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 21:16 [improve-readme] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened & mergeable: https://github.com/FastJVM/coga/pull/520 (README-only, 918→73 lines; resolved a main conflict that re-added the old command reference)
+2026-07-05 09:45 [write-real-coga-documentation-command-reference-gu] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-05 09:48 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 10:04 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 3 (pr) — self-qa done: /code-review + /simplify run; 2 correctness fixes applied (fail-loud on gitignored target; scope init commit to coga/), 1039 tests pass. Advancing to pr.
+2026-07-05 10:04 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 10:08 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/522 (branch 94 behind main but merges clean, no conflicts)
+2026-07-05 11:19 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 11:33 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 3 (pr)
+2026-07-05 11:33 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 11:37 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR updated: https://github.com/FastJVM/coga/pull/522 now includes the self-qa sibling-subdir guard fix (32009066); MERGEABLE
+2026-07-05 11:53 [write-real-coga-documentation-command-reference-gu] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 11:53 [write-real-coga-documentation-command-reference-gu] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 11:53 [write-real-coga-documentation-command-reference-gu] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-05 13:27 [write-real-coga-documentation-command-reference-gu] [agent:codex] advanced to step 2 (peer-review) → assigned to claude
+2026-07-05 13:29 [audit-chat-and-build-are-core-free] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-05 13:29 [audit-chat-and-build-are-core-free] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 13:29 [audit-chat-and-build-are-core-free] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-05 13:33 [audit-chat-and-build-are-core-free] [human:nicktoper] task done — Already satisfied: chat/build are pure aliases; pytest passed
+2026-07-05 13:33 [audit-chat-and-build-are-core-free] [git] sync failed: `git add -- coga/tasks/audit-chat-and-build-are-core-free.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/audit-chat-and-build-are-core-free.md: failed to insert into database
+error: unable to index file 'coga/tasks/audit-chat-and-build-are-core-free.md'
+fatal: adding files failed
+2026-07-05 13:33 [coga] [git] sync failed: `git add -- coga/tasks/audit-chat-and-build-are-core-free.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/audit-chat-and-build-are-core-free.md: failed to insert into database
+error: unable to index file 'coga/tasks/audit-chat-and-build-are-core-free.md'
+fatal: adding files failed
+2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 13:36 [make-megalaunch-user-specific] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-05 13:38 [coga-cli-cutover] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-05 14:43 [coga-cli-cutover] [human:nicktoper] activated (draft → active)
+2026-07-05 14:43 [coga-cli-cutover] [human:nicktoper] task done
+2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 13:36 [make-megalaunch-user-specific] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-05 13:36 [make-megalaunch-user-specific] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-05 14:47 [make-megalaunch-user-specific] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-05 14:47 [make-megalaunch-user-specific] [git] sync failed: `git add -- coga/tasks/make-megalaunch-user-specific.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/make-megalaunch-user-specific.md: failed to insert into database
+error: unable to index file 'coga/tasks/make-megalaunch-user-specific.md'
+fatal: adding files failed
+2026-07-05 14:47 [make-megalaunch-user-specific] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 14:52 [make-megalaunch-user-specific] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/523
+2026-07-05 14:58 [overload-ticket-locally-easily] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-05 14:59 [ticket-must-merge-blackblaord] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-05 14:59 [ticket-must-merge-blackblaord] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-05 18:43 [ticket-must-merge-blackblaord] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-05 18:43 [ticket-must-merge-blackblaord] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-07-05 19:31 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 19:58 [ticket-must-merge-blackblaord] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-05 19:58 [ticket-must-merge-blackblaord] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 19:58 [ticket-must-merge-blackblaord] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-05 20:04 [ticket-must-merge-blackblaord] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-05 20:04 [ticket-must-merge-blackblaord] [git] sync failed: `git add -- coga/tasks/ticket-must-merge-blackblaord.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/ticket-must-merge-blackblaord.md: failed to insert into database
+error: unable to index file 'coga/tasks/ticket-must-merge-blackblaord.md'
+fatal: adding files failed
+2026-07-05 20:04 [coga] [git] sync failed: `git add -- coga/tasks/ticket-must-merge-blackblaord.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/ticket-must-merge-blackblaord.md: failed to insert into database
+error: unable to index file 'coga/tasks/ticket-must-merge-blackblaord.md'
+fatal: adding files failed
+2026-07-05 20:50 [ticket-must-merge-blackblaord] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-05 20:52 [ticket-must-merge-blackblaord] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-05 22:11 [ticket-must-merge-blackblaord] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/524
+2026-07-05 22:34 [move-open-pr-gate-from-launch-into-bump-make-open] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 22:34 [move-open-pr-gate-from-launch-into-bump-make-open] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 23:07 [move-open-pr-gate-from-launch-into-bump-make-open] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-06 11:54 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-06 11:54 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-06 11:54 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-06 12:01 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-06 12:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-06 12:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-04 21:16 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 09:46 [move-ticket-authoring-out-of-core] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-05 09:48 [move-ticket-authoring-out-of-core] [human:nicktoper] task done
+2026-07-05 11:53 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 11:53 [make-megalaunch-user-specific] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-05 14:52 [make-megalaunch-user-specific] [git] sync refused: coga/tasks/make-megalaunch-user-specific.md: step would move backward from '4 (review)' to '1 (implement)'; blackboard would shrink from 6351 to 165 bytes
+2026-07-05 15:01 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 20:16 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-06 12:59 [Move open_pr recipe into the code/open-pr-skill-keep-only-parse-worktree-path-in-cor] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-06 12:59 [move-open-pr-recipe-into-the-code-open-pr-skill-ke] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-06 14:59 [decide-what-belongs-in-core-vs-skills-and-move-ski] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-06 15:01 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-06 15:02 [Stop direct/body-tickets-from-stranding-committed-code-off-mai] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-06 15:02 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-06 15:03 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-06 15:09 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-06 17:47 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-06 22:04 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-06 22:04 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [git] sync failed: `git add -- coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-07-06 22:04 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-07 10:25 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-07 10:25 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-07 10:26 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-07 10:26 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-07 10:28 [clean-up-workflows-and-make-sure-they-re-in-bootst] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-07 10:28 [cleanup-core-commands] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-07 10:52 [stop-direct-body-tickets-from-stranding-committed] [agent:claude] advanced to step 2 (self-qa) — Guardrail (b) implemented on branch direct-body-strand-guard (commit 70c6b81e); audit found no local direct/body offenders — see blackboard
+2026-07-07 10:25 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-07 15:22 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [agent:claude] advanced to step 2 (self-qa)
+2026-07-07 15:22 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [git] sync failed: `git add -- coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md: failed to insert into database
+error: unable to index file 'coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md'
+fatal: adding files failed
+2026-07-07 15:22 [coga] [git] sync failed: `git add -- coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md: failed to insert into database
+error: unable to index file 'coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md'
+fatal: adding files failed
+2026-07-07 15:05 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-07 18:16 [stop-direct-body-tickets-from-stranding-committed] [agent:claude] advanced to step 3 (pr) — self-qa clean: applied simplify + code-review fixes (commit d8887b31); branch direct-body-strand-guard ready for PR. Recovered stranded blackboard (Dev/Audit/guardrail) — see ticket.
+2026-07-07 15:05 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-07 18:16 [stop-direct-body-tickets-from-stranding-committed] [agent:claude] advanced to step 3 (pr) — self-qa clean: applied simplify + code-review fixes (commit d8887b31); branch direct-body-strand-guard ready for PR. Recovered stranded blackboard (Dev/Audit/guardrail) — see ticket.
+2026-07-07 18:16 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-07 15:05 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-07 18:16 [stop-direct-body-tickets-from-stranding-committed] [agent:claude] advanced to step 3 (pr) — self-qa clean: applied simplify + code-review fixes (commit d8887b31); branch direct-body-strand-guard ready for PR. Recovered stranded blackboard (Dev/Audit/guardrail) — see ticket.
+2026-07-07 18:16 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-07 18:26 [stop-direct-body-tickets-from-stranding-committed] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/528
+2026-07-08 20:22 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-09 11:37 [install/vendor-cli-from-installed-package-not-git-clone] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/warn-loud-when-init-commit-is-skipped] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/add-migration-errors-for-removed-config-keys] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/cut-release-to-realign-pypi-with-main] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/quiet-managed-skill-failures-on-old-gh] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/improve-reinit-already-exists-message] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/init-next-steps-should-mention-agent-cli-requireme] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/gh-auth-hint-on-managed-skill-rate-limit] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/decide-whether-gh-stays-required-at-init] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 12:29 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 12:29 [validate-tickets-at-create-time] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 15:03 [install/add-migration-errors-for-removed-config-keys] [human:nicktoper] activated (draft → active)
+2026-07-09 15:03 [install/cut-release-to-realign-pypi-with-main] [human:nicktoper] activated (draft → active)
+2026-07-09 15:03 [install/decide-whether-gh-stays-required-at-init] [human:nicktoper] activated (draft → active)
+2026-07-09 15:03 [install/gh-auth-hint-on-managed-skill-rate-limit] [human:nicktoper] activated (draft → active)
+2026-07-09 15:03 [install/improve-reinit-already-exists-message] [human:nicktoper] activated (draft → active)
+2026-07-09 15:03 [install/init-next-steps-should-mention-agent-cli-requireme] [human:nicktoper] activated (draft → active)
+2026-07-09 15:03 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/quiet-managed-skill-failures-on-old-gh] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/vendor-cli-from-installed-package-not-git-clone] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/warn-loud-when-init-commit-is-skipped] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/document-where-to-run-init-and-adopt-existing-repo] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/external-users-cannot-install-managed-skills] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/harden-packaging-and-install-before-launch] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/init-does-not-persist-user-then-blocks-on-reinit] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/pip-hash-requirement-breaks-editable-install] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/recommend-virtualenv-not-system-python] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/relay-help-and-cli-should-not-require-user] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/retest-ssh-https-and-init-reclone-on-fresh-machine] [human:nicktoper] activated (draft → active)
+2026-07-08 20:24 [bootstrap/ticket] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-07-08 20:24 [cleanup-core-commands] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-07-09 15:06 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-09 15:07 [cleanup-core-commands/launch-decomposition] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-09 15:08 [cleanup-core-commands/launch-decomposition] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-09 15:08 [cleanup-core-commands/launch-decomposition] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-09 15:08 [cleanup-core-commands/launch-decomposition] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-09 15:08 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-09 15:06 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-09 15:07 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-09 15:16 [install/init-venv-python-selection-breaks-on-wrong-host-py] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — Implemented: explicit venv interpreter rule (COGA_PYTHON override), requires-python pre-check, ensurepip remediation — branch venv-python-selection, suite green
+2026-07-09 15:06 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-09 15:07 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-09 15:16 [install/init-venv-python-selection-breaks-on-wrong-host-py] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — Implemented: explicit venv interpreter rule (COGA_PYTHON override), requires-python pre-check, ensurepip remediation — branch venv-python-selection, suite green
+2026-07-09 15:16 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-09 16:38 [install/init-venv-python-selection-breaks-on-wrong-host-py] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-10 11:31 [install/document-where-to-run-init-and-adopt-existing-repo] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-10 11:31 [install/document-where-to-run-init-and-adopt-existing-repo] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-10 11:47 [install/document-where-to-run-init-and-adopt-existing-repo] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-10 12:24 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-10 12:24 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] script exited with code 2
+2026-07-10 12:26 [bootstrap/orient] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-10 11:47 [install/document-where-to-run-init-and-adopt-existing-repo] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-10 15:37 [install/document-where-to-run-init-and-adopt-existing-repo] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review fixed default-alias init guidance; full suite passes.
+2026-07-10 11:47 [install/document-where-to-run-init-and-adopt-existing-repo] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-10 15:37 [install/document-where-to-run-init-and-adopt-existing-repo] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review fixed default-alias init guidance; full suite passes.
+2026-07-10 15:37 [install/document-where-to-run-init-and-adopt-existing-repo] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-10 15:37 [install/document-where-to-run-init-and-adopt-existing-repo] [system] script exited with code 2
+2026-07-10 15:42 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-10 15:43 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-10 15:43 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] script exited with code 2
+2026-07-10 15:44 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-10 15:44 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] script exited with code 0
+2026-07-10 15:44 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] advanced to step 4 (review) → assigned to nicktoper after script step
+2026-07-10 18:25 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nick] task done
+2026-07-10 18:27 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-10 18:27 [fix-open-pr-false-staleness-from-coga-state-commit] [git] sync failed: `git add -- coga/tasks/fix-open-pr-false-staleness-from-coga-state-commit.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-07-10 18:27 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-10 18:35 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] activated (draft → active) — Implementation committed on fix/open-pr-state-only-drift; ready for workflow review.
+2026-07-10 18:35 [fix-open-pr-false-staleness-from-coga-state-commit] [git] sync failed: `git add -- coga/tasks/fix-open-pr-false-staleness-from-coga-state-commit.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-07-10 18:35 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] started (active → in_progress) via coga launch
+2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] started (active → in_progress) via coga launch
+2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-10 18:48 [install/external-users-cannot-install-managed-skills] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-10 20:50 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-10 20:50 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-10 20:51 [fix-open-pr-false-staleness-from-coga-state-commit] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-10 21:14 [make-open-pr-metadata-tolerate-annotated-branch-an] [human:nick] created (mode=agent, status=draft)
+2026-07-10 20:51 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-10 21:23 [fix-open-pr-false-staleness-from-coga-state-commit] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review fixed two P2 freshness-boundary findings; full suite 1149 passed, 1 skipped.
+2026-07-10 20:51 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-10 21:23 [fix-open-pr-false-staleness-from-coga-state-commit] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review fixed two P2 freshness-boundary findings; full suite 1149 passed, 1 skipped.
+2026-07-10 21:23 [fix-open-pr-false-staleness-from-coga-state-commit] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-10 21:23 [fix-open-pr-false-staleness-from-coga-state-commit] [system] script exited with code 2
+2026-07-10 21:25 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-10 21:25 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-10 21:36 [fix-open-pr-false-staleness-from-coga-state-commit] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-10 21:36 [fix-open-pr-false-staleness-from-coga-state-commit] [system] script exited with code 2
+2026-07-10 21:36 [fix-open-pr-false-staleness-from-coga-state-commit] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-10 21:36 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-10 21:44 [fix-open-pr-false-staleness-from-coga-state-commit] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-10 21:44 [fix-open-pr-false-staleness-from-coga-state-commit] [system] script exited with code 0
+2026-07-10 21:44 [fix-open-pr-false-staleness-from-coga-state-commit] [system] advanced to step 4 (review) → assigned to nicktoper after script step
+2026-07-11 10:50 [install/harden-packaging-and-install-before-launch] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-12 17:36 [make-ticket-script-form-works] [human:nick] created (mode=agent, status=draft)
+2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] started (active → in_progress) via coga launch
+2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-10 18:48 [install/external-users-cannot-install-managed-skills] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-10 18:48 [install/external-users-cannot-install-managed-skills] [human:nick] launched in agent mode (assignee=codex, agent=codex)
+2026-07-12 17:50 [install/external-users-cannot-install-managed-skills] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-12 17:50 [install/external-users-cannot-install-managed-skills] [git] sync failed: `git add -- coga/tasks/install/external-users-cannot-install-managed-skills` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/external-users-cannot-install-managed-skills/blackboard.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/external-users-cannot-install-managed-skills/blackboard.md'
+fatal: adding files failed
+2026-07-12 17:50 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 17:50 [install/external-users-cannot-install-managed-skills] [system] script exited with code 2
+2026-07-12 18:01 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 18:01 [install/external-users-cannot-install-managed-skills] [system] script exited with code 2
+2026-07-12 18:02 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 18:02 [install/external-users-cannot-install-managed-skills] [system] script exited with code 2
+2026-07-12 18:02 [bootstrap/orient] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-11 10:50 [install/harden-packaging-and-install-before-launch] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-11 10:52 [install/harden-packaging-and-install-before-launch] [agent:claude] blocked: This umbrella ticket has no standalone implementation acceptance: its concrete fixes are owned by still-active install/ siblings. Please approve converting it into the final clean-machine end-to-end verification gate after those fixes land, or name the specific standalone deliverable for this step.
+2026-07-11 10:52 [install/harden-packaging-and-install-before-launch] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-11 10:52 [coga] [git] sync failed: `git add -- coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md'
+fatal: adding files failed
+2026-07-12 18:04 [install/harden-packaging-and-install-before-launch] [human:nicktoper] unblocked (blocked → active): Approved: convert this ticket to the final clean-machine end-to-end verification gate, using a one-step direct/body workflow and no implementation PR.
+2026-07-12 18:04 [install/harden-packaging-and-install-before-launch] [git] sync failed: `git add -- coga/tasks/install/harden-packaging-and-install-before-launch` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/harden-packaging-and-install-before-launch/blackboard.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/harden-packaging-and-install-before-launch/blackboard.md'
+fatal: adding files failed
+2026-07-12 18:04 [install/harden-packaging-and-install-before-launch] [git] sync refused: coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md: status would move backward from 'in_progress' to 'active'
+2026-07-12 18:04 [install/harden-packaging-and-install-before-launch] [human:nicktoper] paused (active → paused) — Reframed as the final clean-machine verification gate; paused until sibling install fixes land and the target release is published.
+2026-07-12 18:04 [install/harden-packaging-and-install-before-launch] [git] sync failed: `git add -- coga/tasks/install/harden-packaging-and-install-before-launch` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/harden-packaging-and-install-before-launch/blackboard.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/harden-packaging-and-install-before-launch/blackboard.md'
+fatal: adding files failed
+2026-07-12 18:04 [coga] [git] sync failed: `git add -- coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md'
+fatal: adding files failed
+2026-07-12 20:15 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 20:15 [install/external-users-cannot-install-managed-skills] [system] script exited with code 1
+2026-07-12 20:15 [bootstrap/orient] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-12 20:15 [install/document-where-to-run-init-and-adopt-existing-repo] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 20:15 [install/document-where-to-run-init-and-adopt-existing-repo] [system] script exited with code 2
+2026-07-12 20:15 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-12 20:31 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 20:31 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 20:31 [install/external-users-cannot-install-managed-skills] [system] script exited with code 2
+2026-07-12 20:32 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 20:32 [install/external-users-cannot-install-managed-skills] [system] script exited with code 0
+2026-07-12 20:32 [install/external-users-cannot-install-managed-skills] [system] advanced to step 4 (review) → assigned to zach after script step
+2026-07-12 20:35 [install/harden-packaging-and-install-before-launch] [human:nick] activated (paused → active) — auto on launch
+2026-07-12 20:35 [install/harden-packaging-and-install-before-launch] [human:nick] started (active → in_progress) via coga launch
+2026-07-12 20:35 [install/harden-packaging-and-install-before-launch] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-12 20:37 [install/harden-packaging-and-install-before-launch] [agent:claude] blocked: Verification gate prerequisites unmet: PyPI latest is coga 0.2.0 (uploaded 2026-06-27, predating the 2026-07-08 retest fixes) and the named install/ siblings (vendor-cli-from-installed-package, warn-loud-when-init-commit-is-skipped, agent-CLI guidance, migration errors, external-users-cannot-install-managed-skills) plus cut-release-to-realign-pypi-with-main are still active/in_progress. Relaunch this gate after those tickets are done and the realigned version is published to PyPI.
+2026-07-12 20:39 [install/init-does-not-persist-user-then-blocks-on-reinit] [human:nick] started (active → in_progress) via coga launch
+2026-07-12 20:40 [install/init-does-not-persist-user-then-blocks-on-reinit] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-12 20:44 [install/init-does-not-persist-user-then-blocks-on-reinit] [human:nick] task done
+2026-07-12 20:45 [install/pip-hash-requirement-breaks-editable-install] [human:nick] started (active → in_progress) via coga launch

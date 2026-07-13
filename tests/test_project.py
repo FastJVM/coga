@@ -46,7 +46,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
         """,
@@ -57,7 +56,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Plan a project into tickets
-        autonomy: interactive
+        mode: agent
         skills:
           - bootstrap/project
         assignee: claude
@@ -117,7 +116,7 @@ def _create_drafts(*titles: str):  # type: ignore[no-untyped-def]
                 title=title,
                 workflow_name=None,
                 contexts=[],
-                autonomy="interactive",
+                mode="agent",
                 owner=cfg.current_user,
                 assignee=None,
                 watchers=[],
@@ -223,17 +222,17 @@ def test_project_fails_loud_on_broken_draft(
             title="Broken step",
             workflow_name=None,
             contexts=[],
-            autonomy="interactive",
+            mode="agent",
             owner=cfg.current_user,
             assignee=None,
             watchers=[],
             status="draft",
         )
-        # An invalid autonomy is a hard validation error — the session left a
+        # An invalid mode is a hard validation error — the session left a
         # malformed ticket and the command must surface it, not pass silently.
         path = result["path"]
         t = Ticket.read(path)
-        t.frontmatter["autonomy"] = "bogus"
+        t.frontmatter["mode"] = "bogus"
         t.write(path)
 
     prompts: list[str] = []

@@ -1,8 +1,8 @@
 ---
 slug: remove-relay-migration-script
 title: remove relay migration script
-status: in_progress
-autonomy: interactive
+status: done
+mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
