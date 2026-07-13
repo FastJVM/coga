@@ -121,3 +121,7 @@ for dev setup — retest note scoped remaining docs work to README Install;
 dev-env readers hitting this now get the pointer from coga's own error
 message. docs/migrating-to-coga.md also mentions `pip install -e .`
 (untouched, same reasoning).
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":151786,"cache_read_input_tokens":3943753,"cli":"claude","input_tokens":134,"model":"claude-fable-5","output_tokens":52554,"provider":"anthropic","schema":1,"session_id":"675077ec-11cc-4aa1-9bf5-c99457a88680","slug":"install/pip-hash-requirement-breaks-editable-install","step":"implement","title":"pip hash-checking mode breaks editable install","ts":"2026-07-13T03:54:01.150260Z","usage_status":"ok"}
