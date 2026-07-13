@@ -1061,3 +1061,4 @@ fatal: adding files failed
 2026-07-10 21:44 [fix-open-pr-false-staleness-from-coga-state-commit] [system] script exited with code 0
 2026-07-10 21:44 [fix-open-pr-false-staleness-from-coga-state-commit] [system] advanced to step 4 (review) → assigned to nicktoper after script step
 2026-07-11 10:50 [install/harden-packaging-and-install-before-launch] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-12 17:36 [make-ticket-script-form-works] [human:nick] created (mode=agent, status=draft)
