@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -116,6 +116,42 @@ pip-installed; this machine's python3.12 is PEP-668 externally managed and has
 no coga install, and `pip install -e .` is refused). All three touched test
 files pass (145 tests). Not blocking on it since it demonstrably predates the
 branch; flagging here for the peer-review step.
+
+## Peer review — complete
+
+- Native `codex review --base main` found one must-fix P2: the cached old-gh
+  short-circuit in `reconcile_managed_skills` runs before distinguishing the
+  next entry's operation, so an existing URL-backed skill is skipped even
+  though its update path does not use `gh skill`.
+- Fix shape: retain the cached skip for missing installs (all install paths use
+  `gh skill`) and existing GitHub-backed updates, while allowing existing
+  URL-backed entries to reconcile normally. Add a mixed-sequence regression
+  test proving a URL update still runs after an earlier GitHub entry detects
+  old gh.
+- The second native review found another P2: `ensure_gh_skill` classified every
+  nonzero probe as old gh, including supported `gh` binaries with unreadable or
+  malformed config. Narrow the dedicated exception to a missing binary or the
+  recognized `unknown command "skill"` signature; preserve other probe failures
+  as ordinary `SkillManagerError`s with their actual diagnostic.
+- Applied both fixes in rebased commit `a6205a84`. The final native
+  `codex review --base main` reported no findings.
+- Rebased cleanly onto current `main` (`2c74a7f1`); branch is clean, contains
+  `main`, and is two commits ahead.
+- Verification after rebase: `PYTHONPATH="$PWD/src" python3.12 -m pytest -q`
+  — 1156 passed, 1 skipped. The absolute `PYTHONPATH` lets the stateless
+  script-launch subprocess import the worktree package without an editable
+  install, so the previously reported environment-only failure is green.
+
+## PR
+
+Quiet old-GitHub-CLI managed-skill failures during `coga init`: detect a missing
+or recognized pre-2.90 `gh skill` capability once, skip the remaining optional
+managed installs, and print one compact upgrade warning instead of repeated
+usage dumps. Required skills remain fail-loud, unrelated `gh` probe failures
+retain their real diagnostics, and URL-backed reconciliation continues without
+`gh skill` when possible.
+
+Tests: `PYTHONPATH="$PWD/src" python3.12 -m pytest -q` — 1156 passed, 1 skipped.
 
 ## Usage
 
