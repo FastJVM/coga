@@ -49,7 +49,7 @@ no in-memory state.
   only, never persists it on the ticket.
 - **Workflows** are ordered step definitions. A repo's own workflows live in
   `coga/workflows/`; package-backed reusable workflows (the core `code/*`
-  loop, `dev/with-self-review`, `docs/create-google-doc`,
+  loop, `code/with-self-review`, `docs/create-google-doc`,
   `docs/with-review`, the Dream child workflows, `digest/post`) live in
   package `bootstrap/workflows/` resources.
   Resolution is local-first, exactly like skills and contexts: a local
@@ -63,16 +63,19 @@ no in-memory state.
   flips (e.g. `code/with-review`) and agent-rotation relaunches. Steps without
   one leave the assignee unchanged.
 - **Recurring templates** live in `coga/recurring/`. `coga recurring`
-  scans them, creates the current run at the stable path-qualified task ref
-  `tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/notifications),
-  records the serviced period as `last_serviced_period` in the template
-  blackboard, and launches the due ones. The created tasks then use the same
-  ticket, workflow, launch, bump, and blackboard machinery as any other task.
+  launches the stateless package-backed `bootstrap/recurring-scan` script
+  target, which scans templates, creates the current run at the stable
+  path-qualified task ref `tasks/recurring/<name>/` (`recurring/<name>` in
+  CLI/status/notifications), records the serviced period as
+  `last_serviced_period` in the template blackboard, and launches the due
+  ones. The created tasks then use the same ticket, workflow, launch, bump,
+  and blackboard machinery as any other task.
 - **Bootstrap tickets** in package `bootstrap/<name>/ticket.md` resources
-  are stateless launch targets for skills. No status, no workflow. Used for
-  ticket-less re-entry points like `coga launch bootstrap/orient` (the `chat`
-  alias). They are never factories — `coga launch` no longer creates new
-  tickets from them; use `coga create` for that.
+  are stateless launch targets for skills or ticket-owned scripts. No status,
+  no workflow. Used for ticket-less re-entry points like `coga launch
+  bootstrap/orient` (the `chat` alias) and deterministic bootstrap scripts
+  like `bootstrap/recurring-scan`. `coga launch` does not create new tickets
+  merely because a target is under `bootstrap/`; use `coga create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, reusable
   workflows, hooks, and launch targets shipped in the installed package.
   `pip install coga` puts them in the wheel; `coga init` does not
@@ -104,7 +107,7 @@ Claude Code and Codex use.
 Every ticket carries the same canonical key set. These names are
 reserved — no extension or alias may collide with them:
 
-`slug`, `title`, `status`, `autonomy`, `owner`, `human`, `agent`,
+`slug`, `title`, `status`, `mode`, `owner`, `human`, `agent`,
 `assignee`, `watchers`, `workflow`, `step`, `contexts`, `skills`, `secrets`,
 `script`.
 
@@ -178,11 +181,9 @@ Two carve-outs keep it honest:
   names to values, so their *keys* are data, not schema — they are never
   rejected.
 - **Deprecated / known-but-rejected keys run their dedicated migration errors
-  *first*.** A top-level `[assignees]`, or `skip_permissions` /
-  `skip_permissions_argv` inside a *shared* `[agents.<name>]` table (machine-local
-  policy that belongs in `coga.local.toml`), each raise their tailored
-  guidance before the generic unknown-key check, so the friendlier message
-  survives rather than being swallowed by a generic "unknown key".
+  *first*.** A top-level `[assignees]` still raises its tailored guidance before
+  the generic unknown-key check, so the friendlier message survives rather than
+  being swallowed by a generic "unknown key".
 
 ## Workflow gated at activation, not draft time
 
@@ -208,9 +209,9 @@ is allowed. A workflow-less `done` ticket is finished and immutable, so it is
 left alone.
 
 `coga ticket` (guided authoring) fills the workflow in through its
-interview skill. `coga recurring` creating (a bare scan-and-launch run
-and the on-demand `recurring launch <name>`, including the `coga dream`
-alias) and `coga retire` create their own one-shots straight to `active`
+interview skill. The `bootstrap/recurring-scan` script target, on-demand
+`recurring launch <name>` (including the `coga dream` alias), and `coga
+retire` create their own one-shots straight to `active`
 by calling `create_task` directly — but they are **not** workflow-less
 exceptions: a template that declares no workflow (and every retire task)
 creates with the one-step `direct/body` workflow, which runs the ticket
@@ -230,8 +231,15 @@ task; the invariant holds for machine-authored tasks too.
   `mark active` step inline for a ticket that is still `draft` or `paused`
   before that flip. A `done` ticket is finished: launch refuses it and leaves
   it untouched rather than restarting its workflow. A `blocked` ticket is
-  waiting on a concrete answer; launch refuses it until `coga unblock`
-  records that answer. `bump` ignores `status:`
+  waiting on a concrete answer; an **interactive** launch from a TTY resumes
+  it inline (`blocked → active → in_progress`, `step:` preserved) and the
+  composed prompt gains a resolve-or-re-block preamble listing the open asks
+  verbatim, so settling them with the human is the session's first job —
+  recorded via `coga unblock <slug> --answer`, which on an already
+  `in_progress` ticket resolves the asks without touching status or step.
+  If the resumed session exits before recording an answer, launch returns the
+  ticket to `blocked` so blocker queues keep reporting it. Script and TTY-less launches keep refusing a blocked ticket until `coga unblock`
+  records the answer. `bump` ignores `status:`
   entirely (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when
@@ -249,65 +257,64 @@ authors a draft, `coga mark` flips status across the lifecycle,
   then flipping `active → in_progress` as it does. `launch` is the one command
   that touches both planes.
 
-## Autonomy and execution
+## Mode and execution
 
-A task does **not** declare what *kind* of work it is — that is deduced from
-its content and its workflow steps. The single declared execution axis is
-`autonomy:` (it replaced the former `mode:`); whether a given step runs a
-script or composes an agent is deduced, not declared.
+A task declares the substance that runs with `mode:`. Attendance and autonomy
+are not ticket fields anymore; blockers, assignees, TTY availability, and
+megalaunch decide whether work can proceed without more human input.
 
-`autonomy:` in ticket frontmatter:
+`mode:` in ticket frontmatter:
 
-- **`interactive`** — human-attended terminal session. Agent gets the
-  composed prompt, human stays in the loop. The REPL doesn't terminate on
-  its own — `coga bump` / `coga mark done` / `coga block` signal the
-  launch supervisor via the session-scoped `$COGA_DONE_SENTINEL` file, and
-  the supervisor SIGTERMs the REPL. The sentinel file is the only done
-  channel: the supervisor honors it only when the file's content names the
-  launched task's session id, so a session-ending command run by an
-  unrelated descendant that merely inherited the env var cannot trigger
-  teardown. After teardown, `coga launch` re-reads
-  the ticket and either spawns a fresh REPL for the next workflow step (whenever
-  it is an *agent's* turn — relaunching the next agent's CLI, so it rotates
-  e.g. claude → codex → claude across a peer-review workflow) or returns
-  control to the caller (the next step hands off to an owner/human, the status
-  flipped to `done`/`paused`/`blocked`, the agent blocked or exited non-zero,
-  or no progress was made). The discriminator is agent-vs-human, not
-  same-vs-changed assignee. Each respawn gives the next step a clean prompt
-  scope, with no carryover reasoning from the previous skill. Cross-ticket
-  chaining is `coga recurring --interactive`.
-- **`auto`** — one-shot autonomous run. Same composed prompt, no
-  human input. **Note: `autonomy: auto` launches are currently temporarily
-  disabled** — `coga launch` refuses them
-  (`src/coga/commands/launch.py`) and recurring enforces the same freeze
-  (`src/coga/recurring.py`); the description below documents the intended
-  design for when it is re-enabled. An operator may opt an agent into skipping its CLI's
-  per-command permission/approval prompts for these runs with a partial
-  `[agents.<name>]` table in `coga.local.toml`: `skip_permissions = "auto"`
-  plus `skip_permissions_argv = "..."` (one string, `shlex`-split, inserted
-  after the session-name argv and before the auto argv/prompt). The policy
-  is machine-local only — either key in shared `coga.toml` fails config
-  load — and applies only to normal task tickets in effective `autonomy: auto`:
-  interactive launches, bootstrap/discussion tickets, and script steps keep
-  today's behavior. (`auto` is currently frozen, as `mode: auto` was.) Supervised chains re-resolve it per step for whichever
-  agent the step rotated to, and `"auto"` with no configured argv fails the
-  launch loud before spawning.
-Script vs. agent is **deduced**, not declared — there is no `mode: script`. A
-workflow step runs a script when it resolves to a script entry: its single
-skill's `script:`, or (for a no-skill step, or a workflow-less task) the
-ticket's own `script:` field. Otherwise the step composes a prompt and spawns
-the step's agent. A "mixed" task is just a workflow with both kinds of steps
-over one ticket. A ticket's `script:` is either `inline` (a fenced code block
-under the body's `## Script` heading) or a sibling filename (which makes the
-task take its directory form). Script steps inject secrets as env vars and run
-with no agent; `autonomy` does not apply to them.
+- **`agent`** — compose the prompt and spawn the ticket assignee's agent CLI in a
+  live REPL. Normal launches require stdin and stdout to be TTYs. The REPL
+  does not terminate on its own: `coga bump`, `coga mark done`, and
+  `coga block` signal the launch supervisor via the session-scoped
+  `$COGA_DONE_SENTINEL` file, and the supervisor tears the REPL down. After
+  teardown, `coga launch` re-reads the ticket and either spawns a fresh REPL
+  for the next agent-owned workflow step (rotating CLIs when the step assignee
+  changes) or returns control to the caller at human handoffs, terminal states,
+  blockers, no-progress exits, and non-zero exits. Blocked tickets can resume
+  inline only for a `mode: agent` launch from a TTY, so the first job in that
+  session is to resolve or re-block the open asks.
+- **`script`** — run deterministic code directly, with no composed agent
+  prompt. The script entry comes from the current workflow step's single skill
+  `script:` field, or from the ticket's own `script:` field for no-skill or
+  workflow-less script tasks. Script launches inject declared secrets as
+  environment variables, run without a TTY, and are the right shape for
+  recurring, cron, wrappers, and CI. Package-backed bootstrap tickets may also
+  name a ticket-owned script; those run through the same script path with
+  stateless launch semantics, so the bootstrap target itself gets no task
+  lifecycle or log writes.
+
+There is no `autonomy:` field. The old `skip_permissions` / `skip_permissions_argv` keys are removed and rejected as unknown config.
+
+### Script steps inside an agent workflow
+
+`mode:` is the ticket's *default* substance, but execution is decided **per
+step**. Inside a `mode: agent` workflow, any step whose single skill declares a
+`script:` runs as a script — the launch supervisor runs it directly instead of
+spawning an agent. This is how `code/with-review` interleaves the deterministic
+`code/open-pr` step between agent steps: implement (agent) → peer-review (agent)
+→ open-pr (**script**) → review (human).
+
+The supervisor loop checks each step with `current_step_is_script` (a step has
+one skill and that skill's SKILL.md has a `script:`) before resolving an agent.
+On a script step it calls the same `run_script_mode` used by whole-ticket
+scripts, which runs the script and, **on exit 0**, advances the step (or marks
+the task done after the final step); **on a non-zero exit** it posts a failure
+and leaves the step put. So a script step's completion is gated by its exit
+code, not by an agent's judgment — a step cannot advance without its script
+producing its output. (This is the mechanism that makes `code/open-pr` require a
+real PR: no branch / no commits ahead of base / `gh` failure → non-zero exit →
+the step does not advance.) Whole-ticket `mode: script` launches are the
+orthogonal case, gated by `is_script_launch` (`ticket.mode == "script"`).
 
 ## Prompt composition
 
 `coga launch` builds one composed prompt and writes it to a temp
 file. Layers, in order:
 
-1. Base prompt + mode-specific block (`interactive` / `auto`). Both
+1. Base prompt plus the agent-mode block for `mode: agent`. Both
    are package resources, not files under `coga/`.
 2. Repo context (`coga/context.md` — top-level facts about this
    surface).
@@ -318,7 +325,12 @@ file. Layers, in order:
 7. The task description (the ticket body's `## Description`).
 
 The agent gets all of this as one input. There is no follow-up
-loading.
+loading. One delivery caveat: the prompt rides the agent CLI's argv, and
+Linux caps a single argument at 128 KiB. Launch swaps a composed prompt over
+~120 KB for a short argv pointer telling the agent to read the prompt file
+(kept on disk for the whole session) — same content, one indirection, instead
+of a guaranteed `E2BIG` exec failure. A prompt that big is usually context
+bloat; `coga launch --prompt-report` shows which layer to trim.
 
 Note what is deliberately **absent**: the `coga/log.md` audit log is never
 a composition layer. It is the one repo-global, append-only file, lives outside
@@ -329,13 +341,17 @@ The consequence is a hard division of labor: working state that the next run
 must read goes in the blackboard (and is therefore composed, so keep it
 small); durable history goes in the log (never composed, so let it
 accumulate).
-Activation also promotes the blackboard from draft authoring scratch to
-active-work notes. If the blackboard does not already have a
-`## Production notes` section, `mark active` replaces the whole blackboard
-region with that starter note. Once that marker exists, later `paused→active`
-activations leave the blackboard alone. Durable task data belongs in the ticket
-body before activation; post-activation handoff notes belong in the blackboard.
-Forced recurring reruns that repair other statuses do not reset the blackboard.
+Draft activation is also the first-launch readiness gate for the blackboard.
+The stock placeholder counts as empty, but substantive pre-launch notes —
+authoring/evaluator sections such as `## Evaluator review`, `## Ticket
+authoring notes`, or `## Proposals`, plus large custom scratchpads — make
+`mark active` and launch-time auto-activation refuse before workflow freezing,
+status changes, log writes, Slack posts, prompt composition, or agent spawn.
+The operator must merge durable requirements into `## Description` /
+`## Context` first. If blackboard content is intentionally part of the run,
+put it under `## Production notes`; that marker tells activation to leave
+the blackboard alone. Later `paused→active` reactivations and forced
+recurring reruns do not recheck post-launch blackboard growth.
 
 An interactive launch's PTY supervisor tears down the REPL when the
 session-scoped `$COGA_DONE_SENTINEL` file names the launched task — its sole

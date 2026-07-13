@@ -22,6 +22,7 @@ Checks (whole-repo):
 - contexts / skills / workflow step skills resolve to real files.
 - step is consistent with workflow shape and status.
 - Blackboard files are not large enough to bloat composed prompts.
+- Draft blackboards do not still carry prelaunch authoring notes.
 - Tasks stuck in `in_progress` with no recent log activity.
 - Assignees referenced in tickets exist in coga.toml.
 - (Opt-in) Slack webhook reachability via an empty-text probe.
@@ -41,7 +42,12 @@ from typing import Any, Iterable
 
 import requests
 
-from coga.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning, render_blackboard
+from coga.blackboard import (
+    BLACKBOARD_WARN_BYTES,
+    blackboard_size_warning,
+    prelaunch_blackboard_synthesis_reason,
+    render_blackboard,
+)
 from coga.config import (
     Config,
     ConfigError,
@@ -70,14 +76,14 @@ from coga.ticket import Ticket, TicketError
 from coga.workflow import VALID_ASSIGNEE_ROLES
 
 VALID_STATUSES = {"draft", "active", "in_progress", "blocked", "paused", "done"}
-VALID_AUTONOMY = {"interactive", "auto"}
+VALID_MODES = {"agent", "script"}
 
 # Canonical ticket frontmatter schema.
 REQUIRED_TASK_KEYS: tuple[str, ...] = (
     "slug",
     "title",
     "status",
-    "autonomy",
+    "mode",
     "owner",
     "human",
     "agent",
@@ -367,6 +373,24 @@ def _check_one_task(
     out.extend(_check_refs(cfg, task_label, ticket))
     out.extend(_check_workflow_shape(task_label, ticket))
 
+    if ticket.status == "draft" and fences == 1:
+        reason = prelaunch_blackboard_synthesis_reason(
+            ref.ticket_path,
+            blackboard_required=False,
+        )
+        if reason is not None:
+            out.append(Issue(
+                kind="unsynthesized-draft-blackboard",
+                task=task_label,
+                message=(
+                    "draft blackboard has pre-launch authoring notes "
+                    f"({reason}); synthesize durable content into the ticket "
+                    "body or move intentional launch notes under "
+                    "`## Production notes` before activation"
+                ),
+                severity="warn",
+            ))
+
     if idle_hours != float("inf") and ticket.status == "in_progress":
         # Idle time comes from this task's most recent line in the repo-global
         # log (tagged by ref). Those timestamps are naive local time, so compare
@@ -498,13 +522,13 @@ def _check_frontmatter_schema(
                 severity="error",
             ))
 
-    if "autonomy" in fm:
-        autonomy = fm["autonomy"]
-        if not isinstance(autonomy, str) or autonomy not in VALID_AUTONOMY:
+    if "mode" in fm:
+        mode = fm["mode"]
+        if not isinstance(mode, str) or mode not in VALID_MODES:
             out.append(Issue(
-                kind="invalid-autonomy",
+                kind="invalid-mode",
                 task=task_label,
-                message=f"autonomy {autonomy!r} not in {sorted(VALID_AUTONOMY)}",
+                message=f"mode {mode!r} not in {sorted(VALID_MODES)}",
                 severity="error",
             ))
 
@@ -894,8 +918,22 @@ def _github_issues(cfg: Config) -> list[Issue]:
     from coga.github_preflight import run_preflight
 
     issues: list[Issue] = []
-    for result in run_preflight(cfg.git_remote):
-        if not result.ok:
+    for result in run_preflight(
+        cfg.git_remote,
+        control_branch=cfg.git_control_branch,
+        cwd=cfg.repo_root,
+        coga_root=cfg.repo_root,
+    ):
+        if result.ok and result.value == "state-only-drift":
+            issues.append(
+                Issue(
+                    kind="github-git-branch-state-only-drift",
+                    task="(github)",
+                    message=result.detail,
+                    severity="warning",
+                )
+            )
+        elif not result.ok:
             issues.append(
                 Issue(
                     kind=f"github-{result.name}",

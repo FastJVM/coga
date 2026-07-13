@@ -13,6 +13,8 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/managed-skills.toml",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",
     "coga/resources/templates/coga/bootstrap/project/ticket.md",
+    "coga/resources/templates/coga/bootstrap/recurring-scan/ticket.md",
+    "coga/resources/templates/coga/bootstrap/recurring-scan/run.py",
     "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",
@@ -26,6 +28,10 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "blockers/remind/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "blockers/remind/run.py",
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
+    "ticket/finalize/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
+    "ticket/finalize/run.py",
     "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
     "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.md",
@@ -43,7 +49,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "with-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/code/"
     "design-then-implement.md",
-    "coga/resources/templates/coga/bootstrap/workflows/dev/"
+    "coga/resources/templates/coga/bootstrap/workflows/code/"
     "with-self-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/docs/"
     "create-google-doc.md",
@@ -59,6 +65,11 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/skills/code/implement/"
     "SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md",
+    # open-pr is a script step: run.py is its entry point and recipe.py is the
+    # self-contained recipe run.py imports as a sibling — both must ship or the
+    # skill can't run in a fresh repo.
+    "coga/resources/templates/coga/bootstrap/skills/code/open-pr/run.py",
+    "coga/resources/templates/coga/bootstrap/skills/code/open-pr/recipe.py",
     "coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/digest/flush/"
     "SKILL.md",
@@ -67,6 +78,25 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/skills/_template/SKILL.md",
     "coga/resources/templates/coga/skills/direct/body/SKILL.md",
 )
+
+
+# Live/packaged file pairs that must stay byte-identical. Most bootstrap
+# templates are curated copies that intentionally diverge from the live
+# `coga/` tree, so this is an explicit allowlist, not a tree diff.
+IDENTICAL_LIVE_PACKAGED_PAIRS = (
+    (
+        "coga/contexts/coga/sync/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
+    ),
+)
+
+
+def test_live_and_packaged_copies_stay_identical() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    for live, packaged in IDENTICAL_LIVE_PACKAGED_PAIRS:
+        assert (repo_root / live).read_bytes() == (repo_root / packaged).read_bytes(), (
+            f"{live} and {packaged} have drifted; edit both copies together"
+        )
 
 
 def test_package_includes_coga_resources() -> None:

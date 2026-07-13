@@ -2,7 +2,7 @@
 slug: v2/use-slack-as-a-sync-channel-for-tickets
 title: Use Slack as a sync channel for tickets
 status: draft
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

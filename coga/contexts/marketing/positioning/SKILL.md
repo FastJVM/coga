@@ -81,15 +81,16 @@ claim Linear-style pixel polish. The felt moments to dramatize instead:
 
 Comms must stay credible. State plainly where Coga is outclassed:
 
-- **Fully-unattended autonomy is temporarily disabled** (auto-mode
-  buffers output; pending streaming + a liveness watchdog). Devin /
-  Symphony / Claude Code win on fire-and-forget today.
+- **Fully-managed unattended autonomy is not Coga's default shape**. Coga keeps
+  the local, file-backed loop and uses blockers, megalaunch, script tasks, and
+  liveness watchdogs for unattended drain; Devin / Symphony / Claude Code win
+  on fire-and-forget today.
 - Workflow is a **linear state machine** — heavy parallel/dynamic
   orchestration → frameworks (LangGraph et al.).
 - **Self-hosted, self-supported** — no managed reliability / SLA.
 - Not zero-setup (that's `CLAUDE.md`).
 - "Shipping the bug backlog *is* the strategy" — the felt layer is gated
-  behind the maturity fixes (Slack drops, auto-mode, watchdog). Don't
+  behind the maturity fixes (Slack drops, megalaunch/watchdog polish). Don't
   promise the felt experience the bugs are currently blocking.
 
 ## Competitive framing (for positioning, not attack copy)

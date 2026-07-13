@@ -1,11 +1,4 @@
-"""`coga launch` script dispatch — direct script execution, no agent.
-
-A task runs a script (rather than composing an agent prompt) when the current
-step carries a single skill whose `SKILL.md` declares `script:`, or — for a
-no-skill step / workflow-less task — when the ticket itself declares `script:`.
-That deduction lives in `is_script_launch`; nothing on the ticket declares
-"script mode" anymore (the old `mode: script` value is gone).
-"""
+"""`coga launch` script dispatch — direct script execution, no agent."""
 
 from __future__ import annotations
 
@@ -27,34 +20,43 @@ from coga.bump import (
 from coga.compose import _extract_section
 from coga.config import Config, SecretError, build_launch_env
 from coga.logfile import append_log
-from coga.mark import mark_done, mark_in_progress
+from coga.mark import StrandedProductCode, mark_done, mark_in_progress
 from coga.paths import log_path, resolve_skill_path, skill_resolution_paths
 from coga.skill import Skill
 from coga.notification import post
 from coga.taskfile import split_body
-from coga.tasks import TaskRef
+from coga.tasks import TargetRef
 from coga.ticket import Ticket
 from coga.validate import TaskValidationError
 
 
 def is_script_launch(cfg: Config, ticket: Ticket) -> bool:
-    """Deduce whether the current step runs a script (vs composing an agent).
+    """Return true when the ticket declares `mode: script`."""
+    return ticket.mode == "script"
 
-    A single-skill step whose `SKILL.md` carries `script:` runs that script. A
-    no-skill step (or a workflow-less task) runs the ticket's own `script:` when
-    one is set. Anything else composes an agent prompt.
+
+def current_step_is_script(cfg: Config, ticket: Ticket) -> bool:
+    """True when the ticket's *current workflow step* is a script step.
+
+    A step runs as a script when it has exactly one skill and that skill's
+    SKILL.md declares a `script:` entry — the same rule `_resolve_script` uses to
+    pick the step-skill script. This is what lets a `mode: agent` workflow
+    interleave a deterministic script step (e.g. `code/open-pr`) with agent
+    steps: the launch supervisor consults this per step and runs the script
+    itself rather than spawning an agent. Whole-ticket `mode: script` launches
+    are covered by `is_script_launch`; this is orthogonal (it never inspects
+    `ticket.mode`).
     """
     step = ticket.current_step()
-    if step is not None:
-        skills = list(step.get("skills") or [])
-        if len(skills) == 1:
-            sp = resolve_skill_path(cfg, skills[0])
-            if sp is not None and Skill.load(sp).script:
-                return True   # step skill carries a script
-        if not skills and ticket.script:
-            return True        # a no-skill step runs the ticket's own script
+    if step is None:
         return False
-    return bool(ticket.script)  # workflow-less task with a ticket-owned script
+    skills_refs = list(step.get("skills") or [])
+    if len(skills_refs) != 1:
+        return False
+    sp = resolve_skill_path(cfg, skills_refs[0])
+    if sp is None:
+        return False
+    return bool(Skill.load(sp).script)
 
 
 def script_repo_root(cfg: Config) -> Path:
@@ -68,7 +70,7 @@ def script_repo_root(cfg: Config) -> Path:
 
 
 def build_script_env(
-    cfg: Config, ref: TaskRef, skill: Skill | None = None
+    cfg: Config, ref: TargetRef, skill: Skill | None = None
 ) -> dict[str, str]:
     """The script task/skill metadata environment contract.
 
@@ -113,7 +115,9 @@ def build_script_command(script_path: Path) -> list[str]:
     return ["sh", str(script_path)]
 
 
-def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+def run_script_mode(
+    cfg: Config, ref: TargetRef, ticket: Ticket, *, stateless: bool = False
+) -> None:
     """Execute the task's script — a step skill's, or the ticket's own.
 
     Dispatch (see `is_script_launch`):
@@ -127,6 +131,10 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     directory = the host repo (parent of coga/), or repo_root if coga.toml
     lives at the top level. Non-zero exit: task stays at current step; a Slack
     FYI is posted.
+
+    `stateless=True` is for package-backed bootstrap script targets such as
+    `bootstrap/recurring-scan`: resolve and run the same script shape, but skip
+    task lifecycle writes because there is no task.
     """
     skill, cmd, log_label, cleanup = _resolve_script(cfg, ref, ticket)
 
@@ -138,7 +146,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         cleanup()
         _bail(str(exc))
 
-    if ticket.status == "active":
+    if not stateless and ticket.status == "active":
         cur = ticket.current_step()
         step_note = f" (step {ticket.step_index()}: {cur['name']})" if cur else ""
         try:
@@ -163,7 +171,8 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     env.update(build_script_env(cfg, ref, skill))
     cwd = script_repo_root(cfg)
 
-    append_log(cfg, ref.id_slug, "system", f"launched as a script ({log_label})")
+    if not stateless:
+        append_log(cfg, ref.id_slug, "system", f"launched as a script ({log_label})")
 
     try:
         result = subprocess.run(cmd, env=env, cwd=cwd, check=False)
@@ -175,10 +184,15 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     # skill run as a script step does exactly that. The task still exists iff its
     # ticket file is on disk (file- or directory-form), so key the post-run
     # bookkeeping off that rather than the directory.
-    if ref.ticket_path.exists():
+    if not stateless and ref.ticket_path.exists():
         append_log(cfg, ref.id_slug, "system", f"script exited with code {exit_code}")
 
     if exit_code != 0:
+        if stateless:
+            typer.secho(
+                f"Script exited with {exit_code}.", fg=typer.colors.YELLOW, err=True
+            )
+            sys.exit(exit_code)
         cur = ticket.current_step()
         where = f" at step {ticket.step_index()} ({cur['name']})" if cur else ""
         post(
@@ -193,6 +207,8 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         sys.exit(exit_code)
 
     typer.echo(f"{ref.id_slug}: script ran successfully")
+    if stateless:
+        return
 
     # A script has no agent to run `coga bump` / `coga mark done`, so the
     # launcher applies the same completion contract itself: advance to the next
@@ -214,7 +230,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
 
 
 def _resolve_script(
-    cfg: Config, ref: TaskRef, ticket: Ticket
+    cfg: Config, ref: TargetRef, ticket: Ticket
 ) -> tuple[Skill | None, list[str], str, "Callable[[], None]"]:
     """Resolve the concrete script to run and how to launch it.
 
@@ -265,7 +281,7 @@ def _resolve_skill_script(
 
 
 def _resolve_ticket_script(
-    ref: TaskRef, ticket: Ticket
+    ref: TargetRef, ticket: Ticket
 ) -> tuple[None, list[str], str, "Callable[[], None]"]:
     """Resolve the ticket's own `script:` — an inline block or a sibling file."""
     spec = ticket.script
@@ -296,7 +312,7 @@ _FENCE_RE = re.compile(r"```([^\n`]*)\n(.*?)\n```", re.DOTALL)
 
 
 def _resolve_inline_script(
-    ref: TaskRef, ticket: Ticket
+    ref: TargetRef, ticket: Ticket
 ) -> tuple[None, list[str], str, "Callable[[], None]"]:
     """Run the fenced code block in the body's `## Script` section.
 
@@ -419,6 +435,18 @@ def _mark_script_done(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
             ),
             digest_detail="→ done (script)",
             echo=f"{ref.id_slug}: done",
+        )
+    except StrandedProductCode as exc:
+        # No `_NO_PR_WORKFLOWS` member runs as a script today, so this is
+        # currently unreachable — but the guard set is meant to grow. Surface
+        # the strand loudly (as the interactive `mark done` does) instead of
+        # letting it escape as a traceback from an unattended script launch.
+        listed = "\n".join(f"    {p}" for p in exc.paths)
+        _bail(
+            f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow has "
+            f"no push/PR step, but this checkout committed tracked product code "
+            f"not on the control branch:\n{listed}\n"
+            f"Move it to a code/* workflow so it opens a PR."
         )
     except TaskValidationError as exc:
         _bail(str(exc))

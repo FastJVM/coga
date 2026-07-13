@@ -14,7 +14,7 @@ per-period tasks.
 A recurring task lives under `coga/recurring/<name>/` and has the same
 shape as any task directory:
 
-- `ticket.md` — YAML frontmatter (`schedule`, `autonomy`, `title`, …) plus the
+- `ticket.md` — YAML frontmatter (`schedule`, `mode`, `title`, …) plus the
   run body. This is the recurring task's definition.
 - the **blackboard region** (in `ticket.md`, below the
   `<!-- coga:blackboard -->` fence) — **persists across every run.** This is
@@ -27,11 +27,15 @@ it creates a period task.
 A directory whose name starts with `_` (`_template/`, `_rem/`) is inert — the
 scanner skips it. That is how the starter templates ship without firing.
 
-- `coga recurring` (bare) — scans every recurring task, get-or-creates the
-  stable instantiated task at `coga/tasks/recurring/<name>/`, records the
-  current period as `last_serviced_period` in the template blackboard, and
-  launches the ones still `active` or orphaned `in_progress`. **Launch order
-  is phased, not alphabetical:** the
+- `coga recurring` (bare) — the public command head parses `--interactive`
+  and `--all`, then launches the package-backed `bootstrap/recurring-scan`
+  script target with those values in `COGA_RECURRING_INTERACTIVE` and
+  `COGA_RECURRING_FORCE`. That target scans every recurring task,
+  get-or-creates the stable instantiated task at
+  `coga/tasks/recurring/<name>/`, records the current period as
+  `last_serviced_period` in the template blackboard, and launches the ones
+  still `active` or orphaned `in_progress`. **Launch order is phased, not
+  alphabetical:** the
   cleanup template — Dream, the recurring janitor (see below) — is sorted
   **last** so its retro pass acts on the period tickets the *same* sweep just
   drove to `done`, instead of trailing them by a full sweep. Among the
@@ -48,8 +52,8 @@ scanner skips it. That is how the starter templates ship without firing.
   `done` (finished work) and `paused` (a human parked it) stay skipped. A
   stale leftover under `tasks/recurring/<name>/` is resumed before any new
   period work for that template; there is only one instantiated path per
-  template. If a non-interactive launched task
-  returns still unfinished, the sweep stops before the next due task.
+  template. If a script-launched task returns still unfinished, the sweep
+  stops before the next due task.
 - `coga recurring launch <name>` — creates one named recurring task now,
   ignoring its schedule. `<name>` is the directory name. Unless
   `--interactive` is set, the launched REPL receives the same concrete
@@ -61,8 +65,9 @@ scanner skips it. That is how the starter templates ship without firing.
 - `schedule` — a 5-field cron string. **Required**; a recurring task without
   it (or without `ticket.md`) is skipped with a stderr warning and an entry
   in the run's Slack summary.
-- `autonomy` — `interactive` or `auto` (defaults to `auto`). Script-ness is
-  deduced from the workflow's step skills / a ticket `script:`, not declared.
+- `mode` — `agent` or `script` (defaults to `agent`). `agent` templates need a TTY
+  and run under the REPL supervisor; `script` templates run deterministic code
+  directly and are the right shape for unattended schedulers.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered

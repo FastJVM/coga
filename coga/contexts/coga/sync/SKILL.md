@@ -1,6 +1,6 @@
 ---
 name: coga/sync
-description: Notifications and git as coga's sync layers — why notifications are optional on first run but configured Slack fails loud, how task-state git sync works, why failures crash, and how to design new features that respect sync.
+description: Notifications and git as coga's sync layers — why notifications are optional on first run but configured Slack fails loud, how task-state git sync works, why notification failures crash but git sync misses don't, and how to design new features that respect sync.
 ---
 
 # Sync layers — notifications and git
@@ -234,7 +234,7 @@ new string:
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
   session start), plus `coga.blocker_reminders.remind_blocked_tasks` for
   unresolved blocker reminders. Outcome callers (`notify`): `mark.mark_done` (including
-  the autoclose sweep and script-mode completion) and `commands/recurring.py`'s error
+  the autoclose sweep and script-mode completion) and `coga/recurring_runner.py`'s error
   summary. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
   in the repo-global `coga/log.md`, tagged with the task ref.
@@ -397,7 +397,9 @@ without ever checking out `main`: it builds the control branch's tree in a
 `commit-tree`s onto the fetched control tip, and pushes that commit straight to
 `refs/heads/<control>`. The feature working tree — staged and unstaged code
 alike — is never touched, stashed, or reset. A detached HEAD takes the same
-cross-branch path but skips the local commit (it would be orphaned).
+cross-branch path but skips the local commit (it would be orphaned); any dirty
+`merge=union` files that would otherwise have ridden that local commit are
+union-merged directly into the control-branch commit.
 
 The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
 moved under us (another coga process, a teammate), the
@@ -407,6 +409,29 @@ lock file is introduced, consistent with `coga/architecture`'s no-mutex model.
 Concurrent local or cross-machine processes each fetch→build→push; exactly one
 fast-forwards per round and the losers retry, so nothing on the control branch
 is clobbered.
+
+After a detached launch worktree wins that push, Coga fast-forwards the local
+control-branch ref best-effort. When no worktree has the branch checked out, a
+bare `update-ref` moves it. When one does — the primary checkout sitting on
+`main` is the common case — the ref is **never** moved directly: moving `main`
+behind an attached checkout desynchronizes its index and working tree (the old
+on-disk task files then look like fresh local edits, and a later catch-all
+sweep can commit that stale snapshot back over the newer pushed state).
+Instead the fast-forward runs *through* that worktree as `merge --ff-only`,
+which moves ref, index, and working tree together and refuses divergence or
+overwriting local edits. A refused fast-forward is a stderr note, never a
+crash — origin already has the commit; preserving the attached checkout's
+file/index coherence is required, the local ref update stays best-effort.
+
+Detached launch-worktree cleanup checks the same boundary. After the teardown
+sweep runs, dirt relative to the old detached base is ignored if applying those
+dirty Coga paths would no longer change the fetched control tip. That lets
+successful sync remove the throwaway worktree while still preserving it when a
+task file or union-file append has not actually reached `main`. If the cleanup
+freshness fetch itself cannot write `FETCH_HEAD` because the launch sandbox made
+git metadata read-only, cleanup may compare against the already-present local
+`<remote>/<control>` ref instead; other fetch failures still preserve the
+worktree for recovery.
 
 Scope is narrow. `src/coga/git.py::sync_task_state(cfg, task_path, *,
 message)` stages and commits only the task directory pathspec. It must not use
@@ -440,10 +465,13 @@ OS-state line the "Scope is narrow" rule draws, so product code (`src/`,
 `tests/`) is structurally never swept in. Branch handling and the
 `merge=union` split reuse the same machinery as `sync_paths` (union files —
 `log.md`, the digest spool — committed locally + union-merged onto the control
-branch, never landed via the wholesale-replace overlay); union membership is
-asked of git directly via `git check-attr merge`, so any future `merge=union`
-file is handled automatically. Same non-fatal failure model: a sweep that can't
-reach the control branch is surfaced (stderr + `coga/log.md`), never a crash.
+branch, never landed via the wholesale-replace overlay from a feature branch).
+On detached HEAD, where there is no durable local branch commit, those union
+files are three-way union-merged directly into the control-branch commit. Union
+membership is asked of git directly via `git check-attr merge`, so any future
+`merge=union` file is handled automatically. Same non-fatal failure model: a
+sweep that can't reach the control branch is surfaced (stderr + `coga/log.md`),
+never a crash.
 
 It is wired at two boundaries, *in addition to* — never replacing — the
 per-transition syncs, which keep the readable git history and digest filtering:
@@ -485,10 +513,31 @@ Failure model:
   failure was swallowed yet still exited 0, so a first-time user saw a confusing
   error with no actual failure.
 - Git operation failures (missing git, invalid repo state, commit failure,
-  fetch/push failure, no remote, or contention exhausting the retry loop) crash
-  loud: stderr plus a repo-global `coga/log.md` line, then `typer.Exit(1)`. The same-branch push
-  stays crash-loud on non-fast-forward; only the cross-branch land retries
-  (where rebuilding is trivial because no working tree is involved).
+  fetch/push failure, no remote, or contention exhausting the retry loop) are
+  **non-fatal sync misses**: stderr plus a repo-global `coga/log.md` line, then
+  the command continues and exits 0. `GitError` is swallowed at each sync
+  entry point (`sync_paths` for `bump`/`mark`, `sync_coga_state` for the
+  sweep, and `sync_log`, which reports to stderr only so it never re-dirties
+  the log it just failed to commit) — the on-disk markdown is the source of
+  truth and git is only the sync layer, so a push that can't reach the
+  control branch must never abort a local state transition. (An earlier version re-raised
+  `typer.Exit(1)` here, which broke the supervised launch chain: `coga bump`'s
+  sync aborted before the done marker fired, so the supervisor never
+  relaunched the next step.) "Fail loud" means surface the miss, not crash.
+  Both push paths absorb a non-fast-forward rejection and retry, bounded by
+  the same attempt cap: the cross-branch land refetches the moved tip and
+  rebuilds its overlay tree; the same-branch push fetches and rebases with an
+  explicit stash that restores the pre-sync state on any failure.
+- The one **fatal** git gate in this failure model is launch entry, before
+  the ticket flips to `in_progress`: `coga launch` preflights push access to
+  the configured remote with the same non-interactive `git push --dry-run`
+  probe `coga validate --check-github` uses, and refuses to start the session
+  (non-zero exit, no "started" post) whenever the probe cannot push to a
+  configured remote — unauthenticated and unreachable/offline alike — because
+  the session drives through git/gh and would otherwise fail at ship time. The preflight
+  self-skips when there is nothing to gate: bootstrap tickets,
+  `[git].enabled = false`, or a remote that doesn't resolve. Mid-workflow
+  syncs (`coga bump`, `mark`, the sweep) are never fatal.
 
 Config lives in `[git]`: `enabled` defaults true, `remote` defaults `origin`,
 and `control_branch` defaults `main`. `enabled` may be overridden in

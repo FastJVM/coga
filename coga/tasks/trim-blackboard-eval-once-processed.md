@@ -2,7 +2,7 @@
 slug: trim-blackboard-eval-once-processed
 title: trim blackboard eval once processed
 status: done
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude
@@ -11,7 +11,7 @@ contexts:
 - coga/codebase
 skills: []
 workflow:
-  name: dev/with-self-review
+  name: code/with-self-review
   steps:
   - name: implement
     skills:
@@ -127,7 +127,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 **Cold-read critique — trim-blackboard-eval-once-processed**
 
 - **Clarity: strong.** A no-context agent could start immediately. Hook point, primitives, heading list, no-op contract, test targets, and out-of-scope are all spelled out. Rare for a draft.
-- **Workflow fit: good.** `dev/with-self-review` suits a small mechanical helper + unit tests; no mismatch.
+- **Workflow fit: good.** `code/with-self-review` suits a small mechanical helper + unit tests; no mismatch.
 - **Hook point: correct.** Both `commands/mark.py:active` (line 41) and `_auto_activate` (`commands/launch.py:498`) route through the core `mark_active` (`mark.py:219`), so trimming there covers both, as claimed. Confirmed.
 - **Line pointers: mostly accurate**, two nits: `launch.py:498` is really `src/coga/commands/launch.py:498` (path omits `commands/`); bootstrap Step 6 is line 279, not ~278. Harmless.
 - **Real gap in the no-op claim.** The ticket frames no-op purely around *heading absence*, but `read_blackboard` (default `blackboard_required=True`) **raises `TaskFileError` on a fence-less ticket** — and bootstrap tickets have no fence. If `mark_active` ever runs on one, the trim throws. Mirror `blackboard_size_warning`'s `try/except (FileNotFoundError, TaskFileError)` guard; the ticket doesn't mention this.

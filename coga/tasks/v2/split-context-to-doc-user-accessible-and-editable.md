@@ -2,7 +2,7 @@
 slug: v2/split-context-to-doc-user-accessible-and-editable
 title: 'split context to doc: user accessible and editable'
 status: draft
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

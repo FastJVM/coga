@@ -1,15 +1,34 @@
 ---
+slug: install/pip-hash-requirement-breaks-editable-install
 title: pip hash-checking mode breaks editable install
-status: draft
-mode: interactive
+status: in_progress
+mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: zach
-contexts: []
+assignee: claude
+contexts:
+- dev/code
 skills: []
-workflow: null
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -29,3 +48,15 @@ and Development Commands"). This is the first domino in his install attempt — 
 also caused the partial `relay init` failure tracked by
 `install/init-does-not-persist-user-then-blocks-on-reinit`. Broader install
 robustness is the umbrella `install/harden-packaging-and-install-before-launch`.
+
+**Retest 2026-07-08 (fresh-container):** still broken. `PIP_REQUIRE_HASHES=1`
+raw-fails both `pip install coga` ("requirements must have versions pinned")
+and `pip install -e .` ("no single file to hash") with no coga-side detection
+and no docs mention. Partial mitigation shipped: README now leads with
+`uv tool install coga`, which ignores pip config. Remaining work: document
+the uv escape hatch next to the pip instructions (README Install), and/or
+detect the failure and print the remediation.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

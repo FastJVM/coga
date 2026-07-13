@@ -1,51 +1,76 @@
 ---
 name: code/open-pr
-description: Agent step that pushes the branch and opens (or marks ready) the PR. Final agent step before human review.
+script: run.py
+description: Script step that pushes the branch and opens (or readies) the PR, then records the PR URL on the blackboard. Runs deterministically — no agent — so the step cannot complete without a real PR.
 ---
 
-# Push and open the PR
+# Push and open the PR (script step)
 
-Final agent step. Push the branch and open the PR (or mark a draft
-ready). The workflow declares the next step's assignee, so the
-handoff happens automatically on bump — you don't edit `assignee:`
-yourself.
+This step is a **script**, not an agent checklist. The launch supervisor runs
+`run.py` in place of an agent and advances the workflow **only if the script
+exits 0**. A non-zero exit posts a failure and leaves the step put. That is the
+point: the open-pr step cannot "complete" without producing a real PR, so no one
+can bump past it with nothing built (the cross-worktree divergence incident).
 
-## Order of operations
+Because the exit code — not an agent's judgment — gates the bump, there is
+nothing to hand-run and no `coga bump` to remember: the launcher bumps for you.
 
-1. **Find the feature worktree.** Read `branch:` and `worktree:` under
-   `## Dev` on the blackboard. Change into that worktree and confirm
-   it is on the recorded branch with a clean working tree.
-2. **Push** the branch from the feature worktree.
-3. **Open the PR** with `gh pr create`. If the `code/self-qa` step
-   already opened a draft, run `gh pr ready <PR#>` instead. Title =
-   ticket title. Body = short summary + "Closes ticket: `<slug>`" + a
-   one-line test plan.
-4. **Blackboard the URL from the primary checkout.** Return to the
-   primary checkout and add `pr: <url>` under the `## Dev` section on
-   the blackboard (see the `dev/code` context).
-5. **Bump from the primary checkout.** Run `coga bump <slug>` to
-   advance to the next step.
+## What the script does
 
-## Acceptance for this step
+1. Reads `branch:` / `worktree:` from the `## Dev` blackboard section (see the
+   `dev/code` context).
+2. Confirms the feature worktree is on that branch, is clean, and has commits
+   ahead of the base branch (`[git].control_branch`, default `main`).
+3. Confirms the branch has no **material stale drift** from the latest
+   `<remote>/<control-branch>`. It continues visibly when the control branch
+   advanced only through non-overlapping generated `coga/tasks/**` or
+   `coga/log.md` state, which Coga itself writes between steps. Source, docs,
+   config, mixed, or overlapping state drift still fails loud because it can
+   reintroduce reverted work.
+4. Pushes the branch (`git push -u <remote> <branch>`).
+5. Opens the PR with `gh pr create` — or `gh pr ready` if a draft already exists
+   for the branch, or reuses an already-open PR on a re-run (idempotent).
+6. Writes `pr: <url>` back under `## Dev`.
 
-- A PR exists, links the ticket, and is green on CI (or the failure is
-  noted on the blackboard with a reason).
-- The blackboard has `branch:`, `worktree:`, and `pr: <url>` under
-  `## Dev`.
-- `coga bump` has advanced the workflow.
+**PR title** = the ticket title. **PR body** comes, in order, from: a `## PR`
+section the agent authored on the blackboard (or in the ticket body), else the
+ticket's `## Description`, else the title. A `Closes ticket: <slug>` line is
+always appended. So the *judgment* (what the PR says) stays with the agent in
+the earlier implement/peer-review steps; the *mechanics* (push, create, record)
+are the script's.
 
-## What this skill does NOT do
+## What the earlier agent steps must leave behind
+
+The script consumes what implement/peer-review recorded. If those steps didn't:
+
+- **`branch:` / `worktree:` under `## Dev`** — record them the moment the branch
+  and feature worktree are created (per the `dev/code` context). Missing either
+  → the script fails loud pointing at the gap.
+- **committed work on the branch** — no commits ahead of base → the script fails
+  loud rather than opening an empty PR. This is the incident case, caught by
+  construction.
+- **(optional) a `## PR` section** — a curated summary + test plan. Omitting it
+  is fine; the script falls back to `## Description`.
+
+## Failure modes (all fail loud, none advance the step)
+
+- No `branch:` / `worktree:` recorded, or the worktree is gone → exit non-zero
+  with the missing field named and a `coga block` hint.
+- Worktree on the wrong branch, dirty, or no commits ahead of base → exit
+  non-zero; nothing is pushed or opened.
+- Branch is materially stale, or touches the same generated state path that
+  changed on the control branch → exit non-zero; rebase/merge the control branch
+  in an earlier step, then relaunch.
+- `git push` / `gh pr create` auth failure → exit non-zero with the
+  `github_preflight` setup hint (fix the remote, load your SSH key / credential
+  helper, `gh auth login`).
+
+When the step fails, fix the cause (usually a missing `## Dev` field or an
+un-committed change) and relaunch, or `coga block` if it needs a human decision.
+
+## What this step does NOT do
 
 - Decide whether to merge — that's the human's job in the next step.
-- Make code changes. If CI fails for a real reason, `coga block` and
-  let the human relaunch.
-- Edit `assignee:` by hand. The workflow's per-step `assignee:` field
-  handles the role rewrite on bump.
-
-## Gotchas
-
-- If `gh` isn't authed, surface the error to the human on the
-  blackboard — don't skip the PR step.
-- If CI fails for reasons unrelated to your change, write it to the
-  blackboard with a link to the failing run, then bump anyway. The
-  human decides whether to re-run or rework.
+- Make code changes or resolve CI failures.
+- Resolve merge conflicts with the base — harmless state-only divergence needs
+  no merge, while material divergence remains for peer review to reconcile.

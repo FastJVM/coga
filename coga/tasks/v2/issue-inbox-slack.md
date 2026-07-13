@@ -1,8 +1,8 @@
 ---
 slug: v2/issue-inbox-slack
 title: issue-inbox-slack
-status: active
-autonomy: interactive
+status: paused
+mode: agent
 owner: zach
 human: zach
 agent: claude

@@ -2,7 +2,7 @@
 slug: filter-relay-status-by-directory-group
 title: Filter relay status by directory/group
 status: done
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude
@@ -13,7 +13,7 @@ contexts:
 - coga/codebase
 skills: []
 workflow:
-  name: dev/with-self-review
+  name: code/with-self-review
   steps:
   - name: implement
     skills:

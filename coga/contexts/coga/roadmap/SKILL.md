@@ -25,12 +25,12 @@ This context is **sequencing only**; the reasoning behind decisions lives in
 
 ## Critical path (the short version)
 
-1. Land the in-flight autonomy-triage work so the board is legible.
+1. Land the in-flight workflow/assignee triage work so the board is legible.
 2. Ship the **RC release gate** (below) — a stranger can `pipx install` Coga
    and run their first task. This is the launch.
-3. `auto/stream-agent-progress` is the **single highest-leverage unlock** — it
-   re-enables `autonomy: auto` and thereby the entire unattended-drain vision. The
-   whole autonomy chain in v1 sits behind it.
+3. Megalaunch plus blockers is the unattended-drain path; deterministic
+   recurring work should use `mode: script`, while `mode: agent` remains a
+   TTY-supervised agent REPL.
 4. The single-file task-format rewrite is high-blast-radius; sequence it when
    the board is calm.
 
@@ -40,8 +40,8 @@ The hard list of what must be true before we tag and announce. This is a
 **subset and re-ordering of the v1 cut** focused on "a stranger installs it and
 runs their first task." Tier chosen: **blockers + CI** (domain,
 uninstall, and changelog are fast-follows, not gate items). Assumption: the RC
-ships **interactive + script only** — `autonomy: auto` stays disabled (its blocker
-is `auto/stream-agent-progress`, in the v1 autonomy chain below).
+ships **Agent + script only** — `mode:` is execution substance (`agent` or
+`script`), not an autonomy switch.
 
 **Blockers — cannot tag without these:**
 
@@ -74,7 +74,7 @@ works natively), and a version tag + short changelog.
 
 ### In-flight (1)
 
-- `wire-autonomy-triage-into-impl-ready-workflows` [active] — autonomy tiers +
+- `wire-autonomy-triage-into-impl-ready-workflows` [active] — advisory tiers +
   authoring-time classification; the last in-flight straggler.
 
 ### Installability — the launch gate (6)
@@ -108,9 +108,9 @@ A stranger must be able to install and run Coga out of the box.
   Scheduling is deferred out of v1; when revisited, design the operator-owned
   scheduler entry point from scratch instead of assuming a bundled cron wrapper.
   Scheduling only — the budget-aware drain loop is a separate ticket (below).
-- `enforce-mode-auto-for-recurring-templates` [draft] — no-TTY safety: under
-  cron only `autonomy: auto` / script templates launch; an interactive template
-  scaffolds but fails to launch. Pairs with the cron ticket.
+- `enforce-script-mode-for-recurring-templates` [draft] — no-TTY safety: under
+  cron only `mode: script` templates launch; a `mode: agent` template scaffolds
+  but fails to launch without a TTY. Pairs with the cron ticket.
 - `fix-recurring-templates-not-instantiated` [draft] — **verification gate**
   (not an open bug): prove a due template reliably instantiates + launches its
   period task under a no-TTY cron sweep, with failure modes tested. Underlying
@@ -157,11 +157,11 @@ Bugs a stranger hits on day one — in scope precisely because of the v1 promise
 - `improve-prompt-for-coga-launch` [draft] + `improve-prompt-for-coga-ticket`
   [draft] — tighten the launch/ticket-authoring prompts.
 
-### Autonomy chain (7)
+### Unattended drain chain (7)
 
 The big bet: use spare overnight token budget to run flagged-ready tickets
-unattended. Strict dependency chain; `auto/stream-agent-progress` is the hard
-blocker, so this lands late in v1.
+unattended. The path is blockers + megalaunch + usage guards, not a ticket
+`autonomy:` field, so this lands late in v1.
 
 - `session-done-sentinel-from-mark-done-bump-leaks-in` [draft] —
   reliability prerequisite: a child `coga mark done`/`bump` leaks the
@@ -171,10 +171,11 @@ blocker, so this lands late in v1.
 
 1. `track-usage-of-llm` [done] — foundational per-session usage primitive;
    everything below consumes it.
-2. `represent-autonomy-tier-in-ticket-mode-field` [draft] — the
-   "ready for unattended execution" flag; consumes the autonomy-triage work.
-3. `auto/stream-agent-progress-in-auto-mode-and-recurring-l` [draft] — **hard
-   blocker**; re-enables `autonomy: auto` (currently disabled — it buffers stdout).
+2. `retire-the-autonomy-tier-concept` [draft] — remove the old tier-to-field
+   projection now that blockers and megalaunch carry the unattended-drain gate.
+3. `auto/stream-agent-progress-in-auto-mode-and-recurring-l` [draft] —
+   historical precursor; replace with the live megalaunch/blocker stream work
+   rather than reintroducing `autonomy: auto`.
 4. `async-park-and-continue-on-block` [draft] — a blocked ticket parks cleanly
    and the sweep keeps going instead of stalling.
 5. `drain-pending-auto-tickets-with-leftover-session-b` [draft] — the

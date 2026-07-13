@@ -9,6 +9,7 @@ import requests
 
 from coga.create import create_task
 from coga.config import load_config
+from coga.taskfile import replace_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
 from coga.validate import apply_safe_fixes, probe_slack, run
@@ -29,7 +30,6 @@ def repo(tmp_path: Path):
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -55,7 +55,7 @@ def test_clean_repo_has_no_issues(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=["email/payment-flow"], autonomy="interactive",
+        contexts=["email/payment-flow"], mode="agent",
         owner="marc", assignee="claude", watchers=[], status="draft",
     )
     report = run(cfg)
@@ -73,7 +73,7 @@ def test_broken_skill_ref(repo: Path) -> None:
         slug: 001-x
         title: X
         status: active
-        autonomy: interactive
+        mode: agent
         assignee: claude
         owner: marc
         workflow:
@@ -100,7 +100,7 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -116,7 +116,7 @@ def test_invalid_status(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -130,7 +130,7 @@ def test_invalid_status(repo: Path) -> None:
 def _draft_with_secrets(repo: Path, cfg, secrets_value) -> None:
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -202,7 +202,7 @@ def test_missing_blackboard_fence_is_error(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -221,7 +221,7 @@ def test_apply_safe_fixes_adds_missing_blackboard_fence(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -244,7 +244,7 @@ def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -266,20 +266,77 @@ def test_large_blackboard_warns(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
     # Single-file format: the measured blackboard is the region below the fence
     # in ticket.md, not a sibling blackboard.md. The region content starts on its
     # own line after the fence (as every real blackboard writer leaves it).
-    from coga.taskfile import replace_blackboard
     replace_blackboard(ref.ticket_path, "\n\n" + "x" * 2048 + "\n")
 
     report = run(cfg, max_blackboard_bytes=1024)
     issue = next(i for i in report.issues if i.kind == "large-blackboard")
     assert issue.severity == "warn"
     assert "included in launch prompts" in issue.message
+
+
+def test_draft_authoring_blackboard_warns_without_fixing(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="agent", owner="marc", assignee="claude",
+        watchers=[], status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path, "\n## Evaluator review\n\nNeeds synthesis.\n")
+
+    report = run(cfg, fix=True)
+
+    issue = next(
+        i for i in report.issues if i.kind == "unsynthesized-draft-blackboard"
+    )
+    assert issue.severity == "warn"
+    assert "## Evaluator review" in issue.message
+    assert "`## Production notes`" in issue.message
+    assert report.fixes == []
+
+
+def test_authoring_blackboard_warning_is_draft_only(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="X", workflow_name="code/with-review",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path, "\n## Evaluator review\n\nActive work note.\n")
+
+    report = run(cfg)
+
+    assert not [
+        i for i in report.issues if i.kind == "unsynthesized-draft-blackboard"
+    ]
+
+
+def test_draft_authoring_blackboard_allows_production_notes(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="agent", owner="marc", assignee="claude",
+        watchers=[], status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(
+        ref.ticket_path,
+        "\n## Production notes\n\nKeep this for launch.\n\n## Evaluator review\n\nReviewed.\n",
+    )
+
+    report = run(cfg)
+
+    assert not [
+        i for i in report.issues if i.kind == "unsynthesized-draft-blackboard"
+    ]
 
 
 class _FakeResponse:
@@ -424,6 +481,10 @@ def test_check_github_success(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
                     0, "git@github.com:o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(0)
+                ),
                 ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
                 ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
                     0, "", "Logged in to github.com"
@@ -472,6 +533,10 @@ def test_check_github_missing_gh(
                     0, "git@github.com:o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(0)
+                ),
                 ("gh", "--version"): FileNotFoundError(),
             }
         ),
@@ -494,6 +559,10 @@ def test_check_github_gh_unauthenticated(
                     0, "git@ghe.example.com:o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(0)
+                ),
                 ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
                 ("gh", "auth", "status", "--hostname", "ghe.example.com"): _FakeProc(
                     1, "", "not logged in to ghe.example.com"
@@ -538,6 +607,151 @@ def test_check_github_push_auth_failure(
     assert "push access" in auth_issue.message
 
 
+def test_check_github_stale_branch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "coga.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    0, "https://github.com/o/r.git\n"
+                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(1)
+                ),
+                ("git", "merge-base", "FETCH_HEAD", "HEAD"): _FakeProc(
+                    0, "base-sha\n"
+                ),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "FETCH_HEAD",
+                ): _FakeProc(0, "src/coga/changed.py\n"),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "HEAD",
+                ): _FakeProc(0, "README.md\n"),
+                ("git", "rev-parse", "--show-prefix"): _FakeProc(0, "coga/\n"),
+                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
+                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
+                    0, "", "Logged in to github.com"
+                ),
+            }
+        ),
+    )
+    cfg = load_config(repo)
+    report = run(cfg, check_github=True)
+
+    kinds = _github_kinds(report)
+    assert "github-git-branch-current" in kinds
+    branch_issue = next(
+        i for i in report.issues if i.kind == "github-git-branch-current"
+    )
+    assert "does not contain latest origin/main" in branch_issue.message
+    assert "git rebase FETCH_HEAD" in branch_issue.message
+
+
+def test_check_github_accepts_non_overlapping_coga_state_drift(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "coga.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    0, "https://github.com/o/r.git\n"
+                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(1)
+                ),
+                ("git", "merge-base", "FETCH_HEAD", "HEAD"): _FakeProc(
+                    0, "base-sha\n"
+                ),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "FETCH_HEAD",
+                ): _FakeProc(0, "coga/tasks/other.md\ncoga/log.md\n"),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "HEAD",
+                ): _FakeProc(0, "src/coga/feature.py\n"),
+                ("git", "rev-parse", "--show-prefix"): _FakeProc(0, "coga/\n"),
+                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
+                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
+                    0, "", "Logged in to github.com"
+                ),
+            }
+        ),
+    )
+
+    cfg = load_config(repo)
+    report = run(cfg, check_github=True)
+
+    assert _github_kinds(report) == ["github-git-branch-state-only-drift"]
+    issue = next(
+        item
+        for item in report.issues
+        if item.kind == "github-git-branch-state-only-drift"
+    )
+    assert issue.severity == "warning"
+    assert "safe to publish" in issue.message
+
+
+@pytest.mark.parametrize(
+    ("coga_prefix", "control_paths", "expected_kind"),
+    [
+        ("", "tasks/other.md\nlog.md\n", "github-git-branch-state-only-drift"),
+        ("coga/", "example/coga/tasks/other.md\n", "github-git-branch-current"),
+    ],
+)
+def test_check_github_scopes_state_drift_to_configured_coga_root(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    coga_prefix: str,
+    control_paths: str,
+    expected_kind: str,
+) -> None:
+    monkeypatch.setattr(
+        "coga.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    0, "https://github.com/o/r.git\n"
+                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(1)
+                ),
+                ("git", "merge-base", "FETCH_HEAD", "HEAD"): _FakeProc(
+                    0, "base-sha\n"
+                ),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "FETCH_HEAD",
+                ): _FakeProc(0, control_paths),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "HEAD",
+                ): _FakeProc(0, "src/coga/feature.py\n"),
+                ("git", "rev-parse", "--show-prefix"): _FakeProc(0, coga_prefix),
+                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
+                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
+                    0, "", "Logged in to github.com"
+                ),
+            }
+        ),
+    )
+
+    report = run(load_config(repo), check_github=True)
+
+    assert _github_kinds(report) == [expected_kind]
+
+
 def test_run_no_github_check_by_default(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -560,7 +774,7 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -571,7 +785,7 @@ def test_validate_flags_missing_declared_extension(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     # Add the declaration AFTER the ticket exists — simulates declaring a new
@@ -595,7 +809,7 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     # Now remove the declaration.
@@ -624,7 +838,7 @@ def test_validate_flags_enum_violation(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -653,7 +867,7 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -667,7 +881,7 @@ def test_workflow_less_draft_is_clean(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -687,7 +901,7 @@ def _write_workflow_less_task(repo: Path, slug: str, status: str) -> Path:
         slug: {slug}
         title: X
         status: {status}
-        autonomy: interactive
+        mode: agent
         owner: marc
         assignee: claude
         workflow: null
@@ -727,7 +941,7 @@ def test_stuck_in_progress_flagged(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="in_progress",
     )
     ref = list_tasks(cfg)[0]
@@ -753,7 +967,7 @@ def _write_full_task(repo: Path, rel: str, title: str = "X") -> Path:
         slug: {rel}
         title: {title}
         status: draft
-        autonomy: interactive
+        mode: agent
         owner: marc
         human: marc
         agent: claude

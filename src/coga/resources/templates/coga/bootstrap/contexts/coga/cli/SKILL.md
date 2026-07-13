@@ -15,6 +15,13 @@ This context is just the operator's reference.
 Scaffold `coga/` in `PATH` (default `.`).
 
 - `coga init mycompany` — fresh scaffold; refuses if `coga/` exists.
+- `PATH` must be inside a git work tree, but doesn't have to be the git
+  root: `coga init tools/ops` inside a monorepo scaffolds a nested
+  `tools/ops/coga/` committed into the host repo. A nested coga repo is
+  discovered only from inside its subtree (`tools/ops/…`) — commands run
+  from the host repo's root won't see it. Nesting a `coga/` inside an
+  existing coga repo is refused, as is a target the host repo gitignores
+  (init must be able to commit `coga/`).
 
 It clones the upstream CLI into the repo's `coga/.coga/`, copies the
 package's coga templates, builds the self-contained venv the vendored CLI
@@ -57,7 +64,7 @@ repo, and capturing your name is `coga init`'s job, not `build`'s. There is no
 separate `coga setup` command — initialize the repo with `coga init`, then run
 `coga build`.
 
-## coga create "\<title\>" [--workflow \<name\>] [--autonomy interactive|auto]
+## coga create "\<title\>" [--workflow \<name\>] [--mode agent|script]
 
 Scaffold a new raw `draft` ticket and post `✨` when a notification channel
 is selected (a fresh repo selects none, so this is silent out of the box).
@@ -173,18 +180,26 @@ current step's skill + blackboard + ticket body) into one prompt and
 start the configured agent. Accepts `status: active` or `in_progress`
 directly; a `draft` / `paused` ticket is activated inline first — typing
 `coga launch` is the readiness signal, so it activates the ticket for you
-rather than refusing. A `blocked` ticket is refused until `coga unblock`
-records the answer; a `done` ticket is refused because it is finished. A ticket
+rather than refusing. A `blocked` ticket resumes the same way when the launch
+is interactive from a TTY: it reactivates inline (`blocked → active →
+in_progress`, `step:` preserved) and the composed prompt gains a
+resolve-or-re-block preamble listing the open asks verbatim, making them the
+session's first job — the agent records the resolution with
+`coga unblock <slug> --answer "..."` (which leaves an `in_progress` ticket's
+status and step untouched) or re-blocks with a refined reason. If the resumed
+session exits before recording an answer, launch returns the ticket to
+`blocked` so blocker queues keep reporting it. Script, auto, and
+Script and TTY-less launches of a blocked ticket are still refused until
+`coga unblock` records the answer (`coga megalaunch` likewise still skips it
+as `skipped-unresolved-blocker`); a `done` ticket is refused because it is finished. A ticket
 that can't be activated — no workflow, or an empty `required` extension field
 — still fails loud with the same remedy `mark active` gives. Launching an
 `active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
-already-`in_progress` ticket resumes it without another status flip. Interactive launches require stdin and stdout to both be
-terminals. **`autonomy: auto` is temporarily disabled** — auto runs (claude
-`-p`, codex `exec`) buffer stdout until completion, leaving the operator
-with no live console signal. Use a script step (a step whose skill has `script:`) for unattended wrappers
-and CI until streaming lands. a script step runs the step's skill script
-directly. Script launches inject task metadata env vars including
+already-`in_progress` ticket resumes it without another status flip. `mode:
+agent` launches require stdin and stdout to both be terminals. `mode: script`
+runs deterministic code directly without composing an agent prompt. Script
+launches inject task metadata env vars including
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, and `COGA_TASK_BLACKBOARD`.
 
 - `coga launch <slug>` — accepts any unique prefix (git-short-SHA-style).
@@ -192,24 +207,19 @@ directly. Script launches inject task metadata env vars including
   path under `tasks/` (`marketing/coga-crm`), matching what `coga status`
   prints — the bare leaf alone won't resolve.
 - `coga launch <slug> --agent <type>` — one-off agent-type override
-  (e.g. `--agent claude`); does not rewrite the ticket's `assignee:`.
+  for an agent-owned task (e.g. `--agent claude`); does not rewrite the
+  ticket's `assignee:` and does not bypass a human handoff.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
-  spawning an agent.
-- `coga launch <slug> --mode <interactive|auto>` — override the ticket's
-  `mode:` for this launch only. The debug knob for stepping through a
-  `autonomy: auto` ticket in an attended terminal. Ephemeral: the ticket file is
-  never rewritten, and both the spawned command and the composed
-  mode-specific prompt block follow the override. Rejected for a script step
-  tickets, which compose no agent prompt. `--mode auto` is rejected while
-  the auto-launch policy is in force.
+  spawning an agent. Rejected for `mode: script` tickets, which compose no
+  agent prompt.
 - `coga launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
 
 Discussion bootstrap tickets (`bootstrap/orient`, `bootstrap/ticket`) use
 built-in templates for the standard `claude` and `codex` CLIs, or the selected
-agent's optional `discussion = "...{prompt}..."` override. In interactive mode
-the Coga prompt is context and the first human ask can name the session.
+agent's optional `discussion = "...{prompt}..."` override. In discussion
+launches the Coga prompt is context and the first human ask can name the session.
 Other task launches keep passing the composed prompt positionally.
 
 `launch` does not probe `gh` for PR state before composing the prompt —
@@ -217,8 +227,8 @@ auto-bumping a ticket whose final-step PR has merged is the job of
 `coga automerge` / the `autoclose-merged` recurring sweep, never launch. It
 does, though, **pre-flight git push access**: before flipping status or
 spawning the agent, it runs a non-interactive `git push --dry-run` against the
-configured remote (the same probe as `coga validate --check-github`) and
-refuses the launch if push auth is broken. Coga drives the whole session
+configured remote (the same push-auth probe `coga validate --check-github`
+uses) and refuses the launch if push auth is broken. Coga drives the whole session
 through git/gh (branch push, `gh pr create`, every `coga bump` syncs ticket
 state), so a dead remote means a run guaranteed to fail at ship time — fail
 loud at the door, not after a long run. The gate self-skips for bootstrap
@@ -234,7 +244,8 @@ supervised chain.
 
 Agent type comes from the ticket's `assignee` directly — it names an
 `[agents.<type>]` block in `coga.toml`. Human assignees aren't
-launchable; reassign to an agent type first.
+launchable, and `--agent` does not convert a human handoff into an agent
+step; reassign to an agent type first.
 
 For workflow-bound interactive tasks, `launch` can continue through
 consecutive agent-owned steps in fresh processes. After a clean agent exit,
@@ -317,10 +328,14 @@ execution under `tasks/recurring/` (`recurring/<name>`), so they render in a
 in with it. `coga recurring list` is the schedule-aware view of those.
 
 `coga status --blocked` is the focused human-answer queue. It shows only
-blocked work and expands multi-blocker tasks to one row per open ask, including
-slug, current step, owner, assignee, blocker age/reason, and the next command
-shape (`coga unblock <slug> --answer "..."`). It is still read-only: it never
-resolves blockers, relaunches work, or probes the network.
+blocked work and expands multi-blocker tasks to one row per open ask in a
+single table (slug, step, owner, age, reason). The reason is ellipsized to keep
+each ask on one line — the full text is one `coga show <slug>` away — and the
+`coga unblock <slug> --answer "..."` command shape is a shared footer rather
+than a repeated per-row column. Blocked-ness keys off `status: blocked` alone;
+leftover asks on a non-blocked ticket are `coga validate`'s drift to catch, not
+this view's. It is still read-only: it never resolves blockers, relaunches
+work, or probes the network.
 
 The script-backed `recurring/blocker-reminders` task uses the same blocked-task
 contract to re-notify owners about unresolved blockers and records a
@@ -383,7 +398,7 @@ resolver and the same deletion is reachable as a script step.
 Bootstrap tickets aren't user-deletable — they're package-backed batteries
 managed by the installed Coga package.
 
-## coga retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
+## coga retire \<slug\> [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
@@ -392,8 +407,7 @@ base if warranted, and deletes the source task directory in the same PR.
 The retire task is scaffolded straight to `active`; `coga retire` launches
 it unless `--no-launch` is passed.
 
-- `coga retire <slug>` — scaffold and launch in `interactive` mode (auto
-  is temporarily disabled).
+- `coga retire <slug>` — scaffold and launch a `mode: agent` retire task.
 - `coga retire <slug> --no-launch` — scaffold the retire task (already
   `active`) and print the explicit `coga launch <slug>` command.
 
@@ -468,25 +482,51 @@ current workflow step can continue.
 `--reason` is required and should be specific enough for the human to answer
 from `coga status --blocked` without reading the whole ticket.
 
-## coga unblock \<slug\> [--answer "..."]
+## coga unblock \<slug\> [--answer "..."] | coga unblock --all
 
 Resolve open blockers and move `blocked -> active` while preserving `step:`.
 With `--answer`, records the resolution non-interactively. Without it, prompts
 in the terminal after showing the open blocker asks. `coga launch <slug>` can
-then resume the same workflow step from the files.
+then resume the same workflow step from the files. On an `in_progress` ticket
+with open asks — an interactive blocked-launch session recording the
+resolution it just discussed — it resolves the asks only, leaving status and
+`step:` untouched.
 
-## coga megalaunch [--max-tasks N]
+`coga unblock --all` walks **every** blocked task in turn: for each it prints
+the task and its open blocker asks (the cause), then prompts for an answer.
+A non-empty answer is appended to that task's blackboard and the task is
+reactivated (`blocked -> active`); a **blank** answer skips the task, leaving it
+blocked. The run ends with an `Unblocked N, skipped M` summary. `--all` is the
+clear-the-queue counterpart to naming one slug — it takes no slug and rejects
+`--answer` (each task is answered per-ticket at its prompt). After it finishes,
+`coga launch <slug>` each reactivated task.
 
-Attempt launchable active work sequentially using the shared megalaunch engine.
-This is not parallel fanout: it scans active tasks, skips human gates and open
-blockers, checks the assigned agent's token budget guard, preflights launch
-requirements, then runs one eligible agent step at a time with unattended
-launch policy. The run summary distinguishes launched, completed, blocked,
-skipped-human-gate, skipped-unresolved-blocker, skipped-budget, and failed.
+## coga megalaunch [--max-tasks N] [--agent <type>]
+
+Attempt launchable active work owned by the configured current user
+sequentially using the shared megalaunch engine. This is not parallel fanout:
+it scans active tasks, silently filters out tickets whose `owner` is not
+`load_config().current_user` (including owner-less tickets, so other owners'
+work is not counted as skip noise), skips human gates and open blockers, checks
+the assigned agent's token budget guard, preflights launch requirements, then
+runs one eligible agent step at a time. Each step is a normal **interactive**
+launch — the agent REPL streams live to the console under the PTY watcher, and
+the done-sentinel (`coga bump` / `mark done` / `block`) releases it before the
+sweep moves on — never a headless `claude -p` run, which would buffer all
+output until the run ends. The recurring sweep's idle-timeout / max-session
+backstops are armed so a wedged REPL can't starve the queue; because the REPLs
+are interactive, megalaunch requires a TTY and fails loud without one. The run
+summary distinguishes launched, completed, blocked, skipped-human-gate,
+skipped-unresolved-blocker, skipped-budget, and failed.
 
 The daily `recurring/megalaunch` script task calls the same engine and writes a
 bounded `## Megalaunch Run Summary`, replacing old summaries so the recurring
 blackboard does not grow forever.
+
+Pass `--agent <type>` to scope the sweep to tickets currently assigned to that
+configured agent type. Tickets assigned to other agents are outside the run and
+are not counted as skip noise; if a launched task hands off to a different
+agent, megalaunch stops there for that task.
 
 ## coga slack --task \<slug\> --message "..."
 
@@ -523,7 +563,7 @@ resolved value.
 ## coga dream
 
 Run Coga's generic cleanup pass now. `dream` is not a built-in command — it
-is a default alias for `recurring launch dream`. It scaffolds the
+is a default alias for `recurring launch dream`. It creates the
 `coga/recurring/dream/` recurring task and launches it interactively.
 
 The instantiated task ref is `recurring/dream`: the `recurring/` directory
@@ -536,12 +576,15 @@ results to that run's blackboard, and finishes with `coga mark done`.
 
 ## coga recurring
 
-Scan `coga/recurring/`, then scaffold and launch every task that is due.
+Scan `coga/recurring/`, then create and launch every task that is due.
+The Typer command head only parses `--interactive` / `--all` and launches the
+stateless package-backed `bootstrap/recurring-scan` script target, passing
+those flags as `COGA_RECURRING_INTERACTIVE` / `COGA_RECURRING_FORCE`.
 
 For each template (skipping `_`-prefixed files) `coga recurring` enforces
 **one live task per template**: if the generated task at `recurring/<name>` is
 already `active` or orphaned `in_progress`, that one is
-launched/resumed and no duplicate is scaffolded; only when none is live does it
+launched/resumed and no duplicate is created; only when none is live does it
 get-or-create the current run at `coga/tasks/recurring/<name>/` and advance
 the template blackboard's `last_serviced_period` line. It launches the due ones
 **sequentially** — orphaned `in_progress` resumes first, then fresh launches,
@@ -559,10 +602,9 @@ Dedup after Dream deletes a completed run comes from
 `last_serviced_period >= current period_key`; the repo-global `coga/log.md`
 (tagged `recurring/<name>`) is append-only human history, not the dedup source.
 
-`coga recurring --interactive` launches every due task in interactive mode
-for that run from an attended TTY, even ones whose template says `autonomy: auto`
-— the debug knob for stepping through a recurring run by hand. It threads
-`coga launch --mode interactive` through and rewrites no ticket files.
+`coga recurring --interactive` is the human-stepped debug knob for a recurring
+run. It requires an attended TTY and leaves the recurring liveness backstops
+unarmed; each template still launches according to its own `mode:`.
 
 `coga recurring --all` **forces a real, full run of every template**. It is
 *not* a sandbox: the only difference from a bare `coga recurring` is that it
@@ -577,17 +619,13 @@ slug-based suppression, no orphan reaping, and no fold-back-to-template-log
 step. Use it to force this period's work to re-run without waiting for the
 schedule.
 
-**`autonomy: auto` templates are temporarily skipped** with a stderr line and
-a Slack scan-error summary. The auto-launch path produces no live console
-output, so scheduled runs would sit silently. **`autonomy: interactive` templates
-are also skipped when `coga recurring` has no stdin/stdout TTY**, because the
-agent REPL cannot be driven. Templates should use a script step (or
-`autonomy: interactive` when the scan is launched from a real TTY) until streaming
-lands.
+`mode: agent` templates are skipped when `coga recurring` has no stdin/stdout
+TTY, because the agent REPL cannot be driven. Templates intended for cron or
+other unattended schedulers should use `mode: script`.
 
-**Idle-timeout backstop.** A `autonomy: interactive` template that *does* launch
-(a TTY is present) but whose agent stalls or crashes before signalling done —
-never reaching `coga bump` / `mark done` / `block` — would otherwise block the
+**Idle-timeout backstop.** A `mode: agent` template that *does* launch (a TTY is
+present) but whose agent stalls or crashes before signalling done — never
+reaching `coga bump` / `mark done` / `block` — would otherwise block the
 sequential sweep forever. Both the bare sweep and `coga recurring --all` arm a
 generous idle timeout on each spawned REPL (passed through as `coga launch
 --idle-timeout`): if it produces no output and takes no input for that long,
@@ -603,7 +641,7 @@ Dream, REM, and other recurring maintenance loops all use this surface.
 
 ## coga recurring launch \<name\>
 
-Scaffold one named recurring template now and launch it, ignoring its
+Create one named recurring template now and launch it, ignoring its
 schedule. `name` is the directory name under `coga/recurring/`. The task
 ref is `recurring/<name>`, so a manual `launch` and a bare `coga recurring`
 converge on one stable task directory (idempotent — a second `launch` reuses
@@ -611,17 +649,16 @@ the existing task). An orphaned `in_progress` run is resumed rather than
 duplicated; a `done` or `paused` run is left alone. This is exactly what the
 `coga dream` alias expands to.
 Unless `--interactive` is set, it passes the same concrete idle-timeout and
-max-session limits as the scheduled sweep. `--interactive` runs it in
-interactive mode even if the template says `autonomy: auto`, for debugging one
-template by hand, and leaves those liveness limits unarmed.
+max-session limits as the scheduled sweep. `--interactive` leaves those
+liveness limits unarmed for debugging one template by hand.
 
 ## coga recurring list
 
-Read-only view of the recurring system — scaffolds nothing and launches
+Read-only view of the recurring system — creates nothing and launches
 nothing (the inspectable counterpart of a bare `coga recurring`, which
 get-or-creates each due period's task and runs it). Prints two tables: every
 template with its schedule, last/next firing, and current-period state
-(`due — not scaffolded`, or the live instance's status); then the **picked
+(`due — not created`, or the live instance's status); then the **picked
 tasks** — the recurring period tasks already on disk, with their status and
 step. A template that fails to load (e.g. missing `schedule`) shows as an
 error row instead of crashing the view.
@@ -672,7 +709,8 @@ only; they don't accept their own flags.
   filter) → `coga recurring --all`.
 - Launching one named recurring task now → `coga recurring launch <name>`.
 - Starting or resuming agent work on a task → `coga launch <slug>`.
-- Attempting all launchable active agent work → `coga megalaunch`.
+- Attempting your launchable active agent work → `coga megalaunch`
+  (`--agent <type>` scopes it to one agent).
 - Other bootstrap ticket → `coga launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `coga bump`.
 - Catching up tickets after a teammate merged a PR → `coga automerge`
@@ -704,8 +742,15 @@ is an opt-in preflight that mirrors `--check-slack`: it probes git/GitHub auth
 readiness so a raw tool failure surfaces as an actionable setup hint before PR
 time instead of surprising an agent mid-run. It probes the *configured* remote
 (`git remote get-url <cfg.git_remote>`, not a hardcoded `origin`), checks push
-access with a non-mutating `git push --dry-run`, and verifies `gh --version` and
-`gh auth status --hostname <host>` for that remote's host. Every probe is fully
+access with a non-mutating `git push --dry-run`, fetches the configured control
+branch, and verifies before PR handoff that `HEAD` contains every material
+control-branch change. Divergence confined to non-overlapping generated
+`coga/tasks/**` and `coga/log.md` state is reported but accepted; Coga writes
+that state between workflow steps, so requiring literal ancestry would make the
+next script-backed `open-pr` step stale by construction. Source, docs, config,
+mixed, or overlapping state drift remains an error. The preflight also verifies
+`gh --version` and `gh auth status --hostname <host>` for the remote's host.
+Every probe is fully
 non-interactive (`GIT_TERMINAL_PROMPT=0`, ssh `BatchMode=yes`) so a missing
 credential fails fast rather than hanging on a hidden prompt; failures are
 `(github)` errors excluded from the ok count. It is opt-in because the default

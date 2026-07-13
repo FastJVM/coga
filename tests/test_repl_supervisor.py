@@ -276,6 +276,30 @@ def _run_through_pty_capture(
     return outcome, captured
 
 
+def test_exec_failure_names_the_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failed exec must say *why* — a bare 127 reads as "command not found"
+    even when the real cause is E2BIG or EACCES."""
+    outcome, out = _run_through_pty_capture(
+        monkeypatch, ["/nonexistent/coga-agent-cli"]
+    )
+    assert outcome.exit_code == 127
+    assert b"coga: exec /nonexistent/coga-agent-cli failed" in out
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="per-argument MAX_ARG_STRLEN is Linux-specific"
+)
+def test_oversized_argv_element_reports_e2big(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An argv element over MAX_ARG_STRLEN (128 KiB) makes execvp fail with
+    E2BIG — the regression that surfaced as a silent 127 when a 142 KB
+    composed prompt rode argv."""
+    outcome, out = _run_through_pty_capture(monkeypatch, ["true", "x" * 200_000])
+    assert outcome.exit_code == 127
+    assert b"Argument list too long" in out
+
+
 def test_tty_sanitize_emitted_after_signal_teardown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

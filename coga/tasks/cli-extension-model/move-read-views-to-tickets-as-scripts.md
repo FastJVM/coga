@@ -1,10 +1,10 @@
 ---
 slug: cli-extension-model/move-read-views-to-tickets-as-scripts
 title: Move show/status into their lowest-tier mechanism
-status: draft
-autonomy: interactive
-owner: zach
-human: zach
+status: done
+mode: agent
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:
@@ -13,19 +13,15 @@ contexts:
 - coga/codebase
 skills: []
 workflow:
-  name: code/design-then-implement
+  name: code/with-review
   steps:
-  - name: design
-    skills:
-    - code/design
-    assignee: agent
-  - name: review-design
-    skills: []
-    assignee: owner
   - name: implement
     skills:
     - code/implement
     assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
   - name: open-pr
     skills:
     - code/open-pr
@@ -34,7 +30,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (design)
 ---
 
 ## Description

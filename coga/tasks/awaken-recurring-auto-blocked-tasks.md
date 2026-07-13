@@ -1,8 +1,8 @@
 ---
 slug: awaken-recurring-auto-blocked-tasks
 title: Awaken recurring auto blocked tasks
-status: in_progress
-autonomy: interactive
+status: done
+mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -31,7 +31,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description

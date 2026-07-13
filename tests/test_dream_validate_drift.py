@@ -75,7 +75,6 @@ def _seed_repo(root: Path) -> Path:
 
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
 
         """,
@@ -88,7 +87,7 @@ def _seed_repo(root: Path) -> Path:
         ---
         title: Broken Context
         status: active
-        mode: interactive
+        mode: agent
         owner: marc
         assignee: claude
         contexts:

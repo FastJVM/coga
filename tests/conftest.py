@@ -105,6 +105,8 @@ def _clear_supervised_session_env(monkeypatch):
     (autouse runs first, so their `monkeypatch.setenv` wins)."""
     monkeypatch.delenv("COGA_DONE_SENTINEL", raising=False)
     monkeypatch.delenv("COGA_SUPERVISED", raising=False)
+    monkeypatch.delenv("COGA_EXPECTED_TASK", raising=False)
+    monkeypatch.delenv("COGA_EXPECTED_STEP", raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -126,13 +128,16 @@ def _stub_git(monkeypatch, request):
         return
     # All public sync entry points are stubbed: `sync_task_state` (mark / bump /
     # create / block), `sync_paths` (the multi-path variant `coga ticket`
-    # authoring uses), and `sync_log` (the log-only commit a bootstrap-shim
+    # authoring uses), and `sync_log` (the log-only commit a bootstrap-ticket
     # launch fires). Stubbing only the first would let authoring or a bootstrap
     # launch shell out to real git on a non-git tmp path and break the
     # faked-subprocess tests.
     monkeypatch.setattr("coga.git.sync_task_state", lambda *a, **k: None)
     monkeypatch.setattr("coga.git.sync_paths", lambda *a, **k: None)
     monkeypatch.setattr("coga.git.sync_log", lambda *a, **k: None)
+    # The `direct/body` stranding guard (`mark done`) also shells out to git;
+    # default it to "nothing stranded" off the real-git harness.
+    monkeypatch.setattr("coga.git.stranded_product_paths", lambda *a, **k: [])
     # The catch-all subtree sweep fires from the launch teardown and the CLI
     # dispatch boundary, so it too must no-op off the real-git harness.
     monkeypatch.setattr("coga.git.sync_coga_state", lambda *a, **k: None)
@@ -261,7 +266,6 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             default_status = "draft"
             [agents.claude]
             cli = "claude"
-            auto = "-p"
             file = "CLAUDE.md"
             [notification]
             channels = ["slack"]
@@ -271,6 +275,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
         ).lstrip()
     )
     (coga_os / "coga.local.toml").write_text('user = "marc"\n')
+    (root / ".gitignore").write_text("coga/coga.local.toml\n")
     # Mirror the live repo's union-merge marking so `git check-attr merge`
     # resolves `log.md` / the digest spool as `merge=union` (the subtree sweep's
     # union split, and the spool's mergeable contract, depend on it).

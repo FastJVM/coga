@@ -9,7 +9,6 @@ default_status = "draft"
 
 [agents.claude]
 cli = "claude"
-auto = "-p"
 file = "CLAUDE.md"
 mode = "local"
 # `claude -n <name>` sets the session display name shown in the /resume
@@ -20,7 +19,6 @@ discussion = "--append-system-prompt {prompt}"
 
 [agents.codex]
 cli = "codex"
-auto = "exec"
 file = "AGENTS.md"
 mode = "local"
 discussion = "-c developer_instructions={prompt}"

@@ -41,7 +41,7 @@ def usage(
         help="Emit structured JSON for downstream consumers.",
     ),
 ) -> None:
-    """Show LLM token usage recorded under task blackboards."""
+    """Show agent token usage recorded under task blackboards."""
     if by not in BY_CHOICES:
         typer.secho(
             f"--by must be one of: {', '.join(BY_CHOICES)}",

@@ -6,7 +6,7 @@ title: "Daily digest"
 # step references the `coga/digest/flush` skill, whose `script:` runs
 # `coga digest`. No `claude -p` / `codex exec` buffering, so it is safe under
 # the temporary mode=auto recurring freeze.
-autonomy: auto
+mode: script
 workflow: digest/post
 owner: nick
 assignee: claude

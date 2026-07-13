@@ -275,7 +275,6 @@ def test_usage_command_outputs_json(tmp_path: Path, monkeypatch) -> None:
         version = 1
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )

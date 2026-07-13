@@ -1,8 +1,8 @@
 ---
 slug: coga-cli-cutover
 title: coga CLI cutover
-status: draft
-autonomy: interactive
+status: done
+mode: agent
 owner: zach
 human: zach
 agent: claude
@@ -23,7 +23,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (cutover)
 ---
 
 ## Description

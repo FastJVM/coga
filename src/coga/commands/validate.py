@@ -12,6 +12,7 @@ import typer
 from coga.blackboard import BLACKBOARD_WARN_BYTES
 from coga.config import ConfigError, load_config
 from coga.validate import run, validate_task
+from coga.version_skew import warn_if_installed_predates_source
 
 
 def validate(
@@ -56,6 +57,12 @@ def validate(
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(2)
+
+    # Diagnostic surface: validate is where a developer looks when something is
+    # off, so surface a stale installed binary here too. Warn-only, to stderr
+    # (never stdout, so `--json` output stays clean), silent outside a source
+    # checkout.
+    warn_if_installed_predates_source(cfg.repo_root)
 
     if task is not None:
         if check_slack:

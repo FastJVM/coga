@@ -2,7 +2,7 @@
 slug: v2/op-secret-dependency-init-enforcement
 title: Decide whether `op` should be enforceable at init (vs launch-only)
 status: draft
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

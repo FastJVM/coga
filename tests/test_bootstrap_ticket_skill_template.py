@@ -62,3 +62,12 @@ def test_bootstrap_ticket_greets_off_kickoff_token_not_body() -> None:
     # from scratch, don't announce a creation.
     assert "even if its body is" in text
     assert 'never announce it "has been created"' in text
+
+
+def test_bootstrap_ticket_cleanup_preserves_non_draft_blackboards() -> None:
+    text = BOOTSTRAP_TICKET_SKILL.read_text()
+
+    assert "If the ticket is still `status: draft`, reset" in text
+    assert "If editing an existing non-draft ticket" in text
+    assert "preserve unrelated blackboard content such as blockers" in text
+    assert "remove only the authoring\n   sections you used" in text

@@ -1,8 +1,8 @@
 ---
 slug: marketing/relay-discord
 title: relay-discord
-status: active
-autonomy: interactive
+status: paused
+mode: agent
 owner: zach
 human: zach
 agent: claude

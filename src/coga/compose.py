@@ -9,6 +9,7 @@ from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
 
+from coga.blackboard import BLOCKER_TS_FORMAT, Blocker, parse_blockers_text
 from coga.config import Config
 from coga.paths import (
     context_resolution_paths,
@@ -104,30 +105,19 @@ def compose_prompt(
     cfg: Config,
     task_ref: TargetRef,
     ticket: Ticket,
-    *,
-    autonomy_override: str | None = None,
 ) -> str:
     """Assemble the composed prompt in spec order (§compose)."""
-    return compose_prompt_report(
-        cfg, task_ref, ticket, autonomy_override=autonomy_override
-    ).prompt
+    return compose_prompt_report(cfg, task_ref, ticket).prompt
 
 
 def compose_prompt_report(
     cfg: Config,
     task_ref: TargetRef,
     ticket: Ticket,
-    *,
-    autonomy_override: str | None = None,
 ) -> PromptComposition:
-    """Assemble the prompt and keep per-layer measurement metadata.
-
-    `autonomy_override`, when set, replaces the ticket's `autonomy:` for the
-    header and the autonomy-specific prompt block — a per-launch debug override
-    that never touches the ticket file.
-    """
+    """Assemble the prompt and keep per-layer measurement metadata."""
     layers: list[PromptLayer] = []
-    autonomy = autonomy_override or ticket.autonomy
+    mode = ticket.mode
 
     # Split the single-file ticket body at the blackboard fence: the body above
     # feeds the Description / inline-Context layers, the region below is the
@@ -142,7 +132,7 @@ def compose_prompt_report(
         f"# Coga task — {task_ref.id_slug}\n\n"
         f"Title: {ticket.title}\n"
         f"Task directory: {_task_path_for_prompt(cfg, task_ref)}\n"
-        f"Autonomy: {autonomy}"
+        f"Mode: {mode}"
     )
     if ticket.status:
         header += f"\nStatus: {ticket.status}"
@@ -156,22 +146,36 @@ def compose_prompt_report(
         ref="prompt.md",
     ))
 
-    # 2. Autonomy-specific prompt
-    if autonomy == "interactive":
+    # 2. agent-mode prompt. Script tasks never compose; enforced by launch.py.
+    if mode == "agent":
         layers.append(PromptLayer(
             "mode_prompt",
-            "Interactive mode",
-            _resource("prompt-interactive.md"),
-            ref="prompt-interactive.md",
+            "Agent mode",
+            _resource("prompt-agent.md"),
+            ref="prompt-agent.md",
         ))
-    elif autonomy == "auto":
-        layers.append(PromptLayer(
-            "mode_prompt",
-            "Auto mode",
-            _resource("prompt-auto.md"),
-            ref="prompt-auto.md",
-        ))
-    # A script task is never composed; enforced by launch.py's dispatch.
+
+    # 2b. Blocker-resolution preamble. An interactive session whose blackboard
+    # still carries open asks must resolve-or-re-block before the step's real
+    # work — this is how `coga launch` resumes a blocked ticket as a chat
+    # (launch reactivates it inline, so by compose time `status:` is already
+    # `in_progress`; the open asks are the durable signal). Keying off the
+    # blackboard rather than a launch-threaded flag keeps the preamble purely
+    # composed state: it reappears if a session dies mid-discussion and
+    # disappears once `coga unblock` records the answer.
+    if mode == "agent" and not isinstance(task_ref, BootstrapRef):
+        open_asks = [
+            b
+            for b in parse_blockers_text(blackboard_text or "")
+            if not b.resolved
+        ]
+        if open_asks:
+            layers.append(PromptLayer(
+                "blocker_preamble",
+                "Resolve the open blocker first",
+                _blocker_preamble(task_ref.id_slug, open_asks),
+                ref="prompt-blocker-resolution.md",
+            ))
 
     # 3. repo context.md
     pctx = repo_context_path(cfg)
@@ -272,6 +276,24 @@ def _task_path_for_prompt(cfg: Config, task_ref: TargetRef) -> str:
     except ValueError:
         return str(path)
     return str(Path(cfg.repo_root.name) / rel)
+
+
+def _blocker_preamble(slug: str, open_asks: list[Blocker]) -> str:
+    """Render the resolve-or-re-block preamble for a ticket with open asks.
+
+    The asks are listed verbatim (stale and junk ones included) so the human
+    can clear them in the session.
+    """
+    lines = []
+    for blocker in open_asks:
+        ts = (
+            blocker.created_at.strftime(BLOCKER_TS_FORMAT)
+            if blocker.created_at
+            else "unknown time"
+        )
+        lines.append(f"- [{ts}] [{blocker.actor}] {blocker.reason}")
+    template = _resource("prompt-blocker-resolution.md")
+    return template.replace("{slug}", slug).replace("{blockers}", "\n".join(lines))
 
 
 def _section(title: str, body: str) -> str:

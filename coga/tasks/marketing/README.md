@@ -1,4 +1,20 @@
-# Marketing tasks
+---
+slug: marketing/README
+title: Marketing tasks directory index
+status: draft
+mode: agent
+owner: nicktoper
+human: nicktoper
+agent: claude
+assignee: nicktoper
+contexts: []
+skills: []
+workflow: null
+secrets: null
+script: null
+---
+
+## Description
 
 Group directory for marketing and launch work — launch plans, comms,
 positioning tickets, and anything pre/post-launch promotional. New
@@ -12,3 +28,5 @@ leaf-name based, so the move doesn't change how the ticket is referenced.
 The bar for membership: the work itself is marketing (comms, community,
 positioning, adoption tracking, launch assets) — not product work that
 merely helps the launch.
+
+<!-- coga:blackboard -->

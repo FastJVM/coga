@@ -62,6 +62,40 @@ def _task_dir(parent: Path, slug: str = "demo") -> Path:
     return path
 
 
+def _step_ticket_text(
+    *, step: str, status: str = "in_progress", blackboard: str = "notes\n"
+) -> str:
+    head = dedent(f"""
+        ---
+        slug: demo
+        title: demo
+        status: {status}
+        mode: agent
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow:
+          name: code
+          steps:
+          - name: implement
+          - name: review
+          - name: merge
+        step: {step}
+        ---
+
+        ## Description
+
+        Demo.
+
+        <!-- coga:blackboard -->
+
+    """).lstrip()
+    return head + blackboard
+
+
 def _write_config(tmp_path: Path, *, shared_extra: str = "", local_extra: str = "") -> Path:
     root = tmp_path / "coga"
     root.mkdir()
@@ -178,7 +212,7 @@ def test_sync_log_commits_and_pushes_the_log_on_control_branch(git_repo):
     """A bare log append is committed + pushed, never left dirty (the bootstrap
     launch hole that blocks the next `git pull` at the checkout gate)."""
     cfg = load_config(git_repo.coga_os)
-    append_log(cfg, "bootstrap/orient", "human:nick", "launched in interactive mode")
+    append_log(cfg, "bootstrap/orient", "human:nick", "launched in agent mode")
     # The append starts life uncommitted in the working tree.
     assert "log.md" in git_repo.git("status", "--porcelain")
 
@@ -387,7 +421,154 @@ def test_sync_detached_head_lands_without_local_commit(git_repo, capsys):
     assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
     # No local commit was made — the task dir is still uncommitted on disk.
     assert "tasks/" in git_repo.git("status", "--porcelain")
-    assert "detached HEAD" in capsys.readouterr().err
+    # `main` isn't checked out anywhere (the primary is detached), so the
+    # landing fast-forwards the local ref directly via `update-ref`.
+    local = git_repo.git("rev-parse", "main").strip()
+    origin = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    assert local == origin
+    assert "not fast-forwarded" not in capsys.readouterr().err
+
+
+def test_sync_from_launch_worktree_fast_forwards_primary_checkout(git_repo, capsys):
+    """The launch-worktree default syncs from a detached HEAD while the primary
+    checkout holds `main`. The landing must fast-forward `main` *through* that
+    worktree (`merge --ff-only`), or the primary falls behind origin after
+    every launch until a manual pull."""
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-ff")
+    try:
+        worktree_cfg = _cfg(path / "coga")
+        task = _task_dir(path / "coga")
+
+        git.sync_task_state(worktree_cfg, task, message="Ticket: demo — created")
+
+        local = git_repo.git("rev-parse", "main").strip()
+        origin = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+        assert local == origin
+        # The fast-forward went through the primary worktree, so its working
+        # tree reflects the landed state — ref, index, and files agree.
+        assert (git_repo.coga_os / "tasks" / "demo" / "ticket.md").is_file()
+        assert git_repo.git("status", "--porcelain", "--", "coga/tasks") == ""
+        assert "not fast-forwarded" not in capsys.readouterr().err
+    finally:
+        git.remove_launch_worktree(cfg, path)
+
+
+def test_sync_from_launch_worktree_notes_when_fast_forward_blocked(git_repo, capsys):
+    """A conflicting local file in the primary checkout must never be clobbered
+    by the fast-forward: the landing still reaches origin, the local `main`
+    stays put, and the miss is a stderr note — not a crash."""
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-ff-blocked")
+    try:
+        # An untracked file in the primary checkout at the exact path the sync
+        # lands — `merge --ff-only` must refuse rather than overwrite it.
+        conflicting = git_repo.coga_os / "tasks" / "demo" / "ticket.md"
+        conflicting.parent.mkdir(parents=True)
+        conflicting.write_text("local human draft — do not clobber\n")
+        before = git_repo.git("rev-parse", "main").strip()
+
+        worktree_cfg = _cfg(path / "coga")
+        task = _task_dir(path / "coga")
+        git.sync_task_state(worktree_cfg, task, message="Ticket: demo — created")
+
+        assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+        assert git_repo.git("rev-parse", "main").strip() == before
+        assert conflicting.read_text() == "local human draft — do not clobber\n"
+        assert "not fast-forwarded" in capsys.readouterr().err
+    finally:
+        git.remove_launch_worktree(cfg, path)
+
+
+def test_sync_detached_head_uses_local_control_ref_before_fetch(git_repo, monkeypatch):
+    """A detached launch worktree should not need to write FETCH_HEAD on the
+    uncontended first push.
+
+    Some agent sandboxes make the per-worktree git dir read-only, so an eager
+    `git fetch origin main` fails before a perfectly valid local-control-ref
+    landing attempt can even build its tree.
+    """
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("checkout", "--detach", "HEAD")
+    task = _task_dir(git_repo.coga_os)
+    real_run_git = git._run_git
+
+    def fail_fetch(root, *args, **kwargs):
+        if args[:3] == ("fetch", "origin", "main"):
+            raise git.GitError("fetch should not run on first attempt")
+        return real_run_git(root, *args, **kwargs)
+
+    monkeypatch.setattr(git, "_run_git", fail_fetch)
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+
+
+def test_sync_detached_head_union_merges_log_to_control_branch(git_repo):
+    """Detached HEAD has no local branch commit for `merge=union` files to ride.
+
+    The cross-branch land must therefore union-merge dirty log/spool-style files
+    directly into the control commit instead of preserving the launch worktree
+    forever with only local log appends.
+    """
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-union-log")
+    try:
+        git_repo.push_competing_commit("coga/log.md", "remote log line\n")
+        worktree_cfg = _cfg(path / "coga")
+        append_log(worktree_cfg, "demo", "agent:codex", "detached log line")
+
+        git.sync_coga_state(worktree_cfg, message="Sync coga state")
+
+        origin_log = subprocess.run(
+            ["git", "show", "main:coga/log.md"],
+            cwd=git_repo.origin,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert "remote log line" in origin_log
+        assert "detached log line" in origin_log
+        assert "coga/log.md" in git_repo.git("status", "--porcelain", cwd=path)
+        assert not git.launch_worktree_has_dirty_coga_state(cfg, path)
+    finally:
+        git.remove_launch_worktree(cfg, path)
+
+
+def test_launch_worktree_dirty_check_falls_back_when_fetch_head_read_only(
+    git_repo, monkeypatch
+):
+    """Cleanup should not strand worktrees when only FETCH_HEAD is read-only.
+
+    Sandboxed launch sessions can successfully land their dirty Coga state on
+    control, then fail the cleanup freshness fetch because `.git/worktrees/...`
+    cannot write FETCH_HEAD. If local `origin/main` already names the landed
+    control tip, that dirty state is recoverable elsewhere and the worktree can
+    be removed.
+    """
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-readonly-fetch-head")
+    original_run_git = git._run_git
+    try:
+        worktree_cfg = _cfg(path / "coga")
+        append_log(worktree_cfg, "demo", "agent:codex", "detached log line")
+        git.sync_coga_state(worktree_cfg, message="Sync coga state")
+
+        def fail_fetch_head(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if args == ("fetch", "origin", "main"):
+                raise git.GitError(
+                    "`git fetch origin main` failed (exit 255): "
+                    "error: cannot open '.git/FETCH_HEAD': Read-only file system"
+                )
+            return original_run_git(root, *args, **kwargs)
+
+        monkeypatch.setattr(git, "_run_git", fail_fetch_head)
+
+        assert not git.launch_worktree_has_dirty_coga_state(cfg, path)
+    finally:
+        monkeypatch.setattr(git, "_run_git", original_run_git)
+        git.remove_launch_worktree(cfg, path)
 
 
 def test_sync_noop_when_not_a_git_repo(tmp_path, capsys, real_git):
@@ -799,7 +980,7 @@ def _seed_ticket_bootstrap(coga_os: Path) -> None:
             """
             ---
             title: Create a new ticket
-            mode: interactive
+        mode: agent
             skills:
               - bootstrap/ticket
             assignee: claude
@@ -1164,6 +1345,200 @@ def test_sync_coga_state_lands_nonunion_on_main_keeps_union_local_on_feature(git
     assert "hand note" in git_repo.git("show", "HEAD:coga/log.md")
 
 
+def test_sync_coga_state_refuses_detached_step_regression(git_repo, capsys):
+    """A stale launch worktree must not bury a newer bump in `Sync coga state`.
+
+    The stale checkout starts at step 1, main advances to step 2, then the stale
+    checkout dirties its old ticket. The catch-all sweep should leave that old
+    file dirty and log the refusal instead of pushing a generic state-sync
+    commit that rewinds the ticket on origin/main.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True)
+    ticket = task / "ticket.md"
+    ticket.write_text(_step_ticket_text(step="1 (implement)", blackboard="old\n"))
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo step 1")
+    git_repo.git("push", "origin", "main")
+
+    worktree = git.add_launch_worktree(cfg, "stale-step-regression")
+    try:
+        ticket.write_text(
+            _step_ticket_text(
+                step="2 (review)",
+                blackboard="peer review verdict\nPR link\n",
+            )
+        )
+        git_repo.git("add", "coga/tasks/demo/ticket.md")
+        git_repo.git("commit", "-m", "Ticket: demo — step 2 (review)")
+        git_repo.git("push", "origin", "main")
+
+        stale_cfg = _cfg(worktree / "coga")
+        stale_ticket = worktree / "coga" / "tasks" / "demo" / "ticket.md"
+        stale_ticket.write_text(
+            _step_ticket_text(step="1 (implement)", blackboard="old\nusage\n")
+        )
+
+        git.sync_coga_state(stale_cfg, message="Sync coga state")
+
+        captured = capsys.readouterr()
+        assert "sync refused" in captured.err
+        assert "step would move backward" in captured.err
+        assert "coga/tasks/demo/ticket.md" in captured.err
+        origin_ticket = subprocess.run(
+            ["git", "show", "main:coga/tasks/demo/ticket.md"],
+            cwd=git_repo.origin,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert "step: 2 (review)" in origin_ticket
+        assert "peer review verdict" in origin_ticket
+        assert "usage" not in origin_ticket
+        assert "Sync coga state" not in git_repo.origin_subjects()
+        assert "ticket.md" in git_repo.git(
+            "status", "--porcelain", "--", "coga/tasks/demo/ticket.md",
+            cwd=worktree,
+        )
+        assert "sync refused" in (worktree / "coga" / "log.md").read_text()
+        assert "demo" in (worktree / "coga" / "log.md").read_text()
+    finally:
+        git.remove_launch_worktree(cfg, worktree)
+
+
+def test_sync_coga_state_rechecks_step_regression_after_fetch(git_repo, capsys):
+    """A stale local control ref must not let an older worktree overwrite origin."""
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True)
+    ticket = task / "ticket.md"
+    ticket.write_text(_step_ticket_text(step="1 (implement)", blackboard="old\n"))
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo step 1")
+    git_repo.git("push", "origin", "main")
+
+    worktree = git.add_launch_worktree(cfg, "stale-fetch-regression")
+    try:
+        stale_cfg = _cfg(worktree / "coga")
+        stale_ticket = worktree / "coga" / "tasks" / "demo" / "ticket.md"
+        stale_ticket.write_text(
+            _step_ticket_text(step="2 (review)", blackboard="stale\nusage\n")
+        )
+        git_repo.push_competing_commit(
+            "coga/tasks/demo/ticket.md",
+            _step_ticket_text(step="3 (merge)", blackboard="newest\n"),
+        )
+
+        git.sync_coga_state(stale_cfg, message="Sync coga state")
+
+        captured = capsys.readouterr()
+        assert "sync refused" in captured.err
+        assert "step would move backward" in captured.err
+        origin_ticket = subprocess.run(
+            ["git", "show", "main:coga/tasks/demo/ticket.md"],
+            cwd=git_repo.origin,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert "step: 3 (merge)" in origin_ticket
+        assert "newest" in origin_ticket
+        assert "stale" not in origin_ticket
+        assert "Sync coga state" not in git_repo.origin_subjects()
+        assert "ticket.md" in git_repo.git(
+            "status", "--porcelain", "--", "coga/tasks/demo/ticket.md",
+            cwd=worktree,
+        )
+    finally:
+        git.remove_launch_worktree(cfg, worktree)
+
+
+def test_sync_coga_state_refuses_status_regression(git_repo, capsys):
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True)
+    ticket = task / "ticket.md"
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="current\n",
+        )
+    )
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo in progress")
+    git_repo.git("push", "origin", "main")
+
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="active",
+            blackboard="stale\n",
+        )
+    )
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    captured = capsys.readouterr()
+    assert "sync refused" in captured.err
+    assert "status would move backward" in captured.err
+    origin_ticket = subprocess.run(
+        ["git", "show", "main:coga/tasks/demo/ticket.md"],
+        cwd=git_repo.origin,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "status: in_progress" in origin_ticket
+    assert "stale" not in origin_ticket
+    assert "Sync coga state" not in git_repo.origin_subjects()
+
+
+@pytest.mark.parametrize(
+    ("committed_status", "working_status"),
+    [("blocked", "active"), ("paused", "in_progress")],
+)
+def test_sync_coga_state_allows_resume_statuses(
+    git_repo, committed_status, working_status
+):
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True)
+    ticket = task / "ticket.md"
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status=committed_status,
+            blackboard="waiting\n",
+        )
+    )
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", f"seed demo {committed_status}")
+    git_repo.git("push", "origin", "main")
+
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status=working_status,
+            blackboard="resumed\n",
+        )
+    )
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    origin_ticket = subprocess.run(
+        ["git", "show", "main:coga/tasks/demo/ticket.md"],
+        cwd=git_repo.origin,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert f"status: {working_status}" in origin_ticket
+    assert "resumed" in origin_ticket
+    assert "Sync coga state" in git_repo.origin_subjects()
+
+
 def test_sync_coga_state_noop_on_clean_subtree(git_repo):
     """A clean coga/ subtree is a silent no-op: no commit, nothing pushed."""
     cfg = load_config(git_repo.coga_os)
@@ -1287,6 +1662,62 @@ def test_add_launch_worktree_uses_control_branch_from_feature_checkout(git_repo)
         git.remove_launch_worktree(cfg, path)
 
 
+def test_detached_launch_sync_does_not_dirty_checked_out_control_branch(
+    git_repo,
+) -> None:
+    """A detached launch worktree must not move the local `main` ref behind the
+    primary checkout.
+
+    Regression: the detached cross-branch sync pushed the right task state, then
+    fast-forwarded local `main` even though it was checked out elsewhere. The
+    primary worktree still had the old files on disk, so they appeared dirty and
+    the next `sync_coga_state` committed the stale task back over the good one.
+    """
+    cfg = _cfg(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    (task / "ticket.md").write_text("---\ntitle: demo\n---\n\nold state\n")
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed task")
+    git_repo.git("push", "origin", "main")
+
+    path = git.add_launch_worktree(cfg, "session-ref-guard")
+    try:
+        worktree_task = path / "coga" / "tasks" / "demo" / "ticket.md"
+        worktree_task.write_text("---\ntitle: demo\n---\n\nnew detached state\n")
+        git.sync_task_state(
+            _cfg(path / "coga"),
+            worktree_task,
+            message="Ticket: demo — detached",
+        )
+
+        origin_task = subprocess.run(
+            ["git", "show", "main:coga/tasks/demo/ticket.md"],
+            cwd=git_repo.origin,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert "new detached state" in origin_task
+        assert (
+            git_repo.git("status", "--porcelain", "--", "coga/tasks/demo/ticket.md")
+            == ""
+        )
+
+        git.sync_coga_state(cfg)
+
+        origin_after_sweep = subprocess.run(
+            ["git", "show", "main:coga/tasks/demo/ticket.md"],
+            cwd=git_repo.origin,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert "new detached state" in origin_after_sweep
+        assert "old state" not in origin_after_sweep
+    finally:
+        git.remove_launch_worktree(cfg, path)
+
+
 def test_add_launch_worktree_returns_none_off_git(tmp_path) -> None:
     plain = tmp_path / "not-git" / "coga"
     plain.mkdir(parents=True)
@@ -1357,18 +1788,81 @@ def test_remove_launch_worktree_forces_through_dirty_tree(git_repo) -> None:
     assert not path.exists()
 
 
-def test_reap_orphan_launch_worktrees_removes_only_stale(git_repo) -> None:
+def _dead_pid() -> int:
+    """A PID that names no live process: spawn a child and reap it, so
+    `os.kill(pid, 0)` raises `ProcessLookupError`."""
+    proc = subprocess.Popen(["sh", "-c", "exit 0"])
+    proc.wait()
+    return proc.pid
+
+
+def test_reap_keeps_live_owner_regardless_of_age(git_repo) -> None:
+    """The owning `coga launch` process is alive → keep the worktree even when
+    its dir mtime is ancient. Liveness beats the age gate, so an attended
+    session running past `max_age_seconds` is never reaped mid-work."""
     cfg = _cfg(git_repo.coga_os)
-    stale = git.add_launch_worktree(cfg, "crashed")
-    fresh = git.add_launch_worktree(cfg, "running")
-    # Backdate the orphan well past the threshold; leave the live one recent.
-    old = 1
-    os.utime(stale, (old, old))
+    # `add_launch_worktree` stamps this (live) test process as the owner.
+    live = git.add_launch_worktree(cfg, "running")
+    os.utime(live, (1, 1))  # pretend it is very old
 
     git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
 
-    assert not stale.exists()  # crash orphan reaped
-    assert fresh.is_dir()  # live session untouched
+    assert live.is_dir()
+    git.remove_launch_worktree(cfg, live)
+
+
+def test_reap_removes_dead_owner_promptly(git_repo, monkeypatch) -> None:
+    """Owner process gone + no recoverable state → reaped now, without waiting
+    out the age gate. This is the stillborn/crash orphan the fix collects."""
+    cfg = _cfg(git_repo.coga_os)
+    wt = git.add_launch_worktree(cfg, "crashed-clean")
+    root = git._toplevel(cfg.repo_root)
+    git._stamp_launch_worktree_owner(root, "crashed-clean", _dead_pid())
+    monkeypatch.setattr(git, "_has_recoverable_launch_state", lambda *a: False)
+
+    # Recent mtime — the old age gate would have kept it; liveness reaps it.
+    git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
+
+    assert not wt.exists()
+
+
+def test_reap_holds_then_gcs_dead_owner_with_recoverable_state(
+    git_repo, monkeypatch
+) -> None:
+    """Owner gone but recoverable Coga state remains → held for recovery while
+    fresh, then force-removed once past the age window so it still GCs."""
+    cfg = _cfg(git_repo.coga_os)
+    wt = git.add_launch_worktree(cfg, "crashed-dirty")
+    root = git._toplevel(cfg.repo_root)
+    git._stamp_launch_worktree_owner(root, "crashed-dirty", _dead_pid())
+    monkeypatch.setattr(git, "_has_recoverable_launch_state", lambda *a: True)
+
+    git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
+    assert wt.is_dir()  # recent → held for recovery
+
+    os.utime(wt, (1, 1))  # age past the window
+    git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
+    assert not wt.exists()  # GC backstop still fires
+
+
+def test_reap_unstamped_worktree_uses_age_gate(git_repo) -> None:
+    """A worktree with no owner stamp (created before owner-stamping) keeps the
+    original behaviour: reap only past `max_age_seconds`, since a young one may
+    still be a live pre-stamp session we cannot prove is dead."""
+    cfg = _cfg(git_repo.coga_os)
+    stale = git.add_launch_worktree(cfg, "legacy-stale")
+    fresh = git.add_launch_worktree(cfg, "legacy-fresh")
+    root = git._toplevel(cfg.repo_root)
+    # Drop the owner markers to simulate pre-stamp worktrees.
+    for key in ("legacy-stale", "legacy-fresh"):
+        admin = git._launch_worktree_admin_dir(root, key)
+        (admin / git._LAUNCH_OWNER_PIDFILE).unlink()
+    os.utime(stale, (1, 1))
+
+    git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
+
+    assert not stale.exists()  # old + unstamped → reaped
+    assert fresh.is_dir()  # young + unstamped → kept (may be a live session)
     git.remove_launch_worktree(cfg, fresh)
 
 
@@ -1378,11 +1872,11 @@ def test_reap_orphan_launch_worktrees_noop_without_dir(git_repo) -> None:
     git.reap_orphan_launch_worktrees(cfg)
 
 
-def test_launch_isolates_session_in_a_worktree_and_preserves_dirty_state(
+def test_launch_isolates_session_in_a_worktree_and_cleans_up_synced_state(
     git_repo, monkeypatch
 ):
     """`[launch].worktree` runs the agent in a detached per-launch worktree and
-    preserves it on exit when unsynced Coga state remains recoverable."""
+    removes it on exit once detached Coga state has landed on control."""
     from coga.commands.launch import launch as launch_cmd
 
     toml = git_repo.coga_os / "coga.toml"
@@ -1395,7 +1889,7 @@ def test_launch_isolates_session_in_a_worktree_and_preserves_dirty_state(
         title="Fix retry logic",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -1432,7 +1926,6 @@ def test_launch_isolates_session_in_a_worktree_and_preserves_dirty_state(
         "fix-retry-logic",
         agent_override=None,
         prompt_report=False,
-        autonomy_override=None,
         idle_timeout=None,
         max_session=None,
         return_timeout=True,
@@ -1447,9 +1940,29 @@ def test_launch_isolates_session_in_a_worktree_and_preserves_dirty_state(
     assert "status: active" in (
         git_repo.coga_os / "tasks" / "fix-retry-logic.md"
     ).read_text()  # launch status writes did not touch the primary checkout
-    assert worktree.exists()  # dirty Coga state is left for recovery
-    assert git.launch_worktree_has_dirty_coga_state(cfg, worktree)
-    git.remove_launch_worktree(cfg, worktree)
+    origin_ticket = subprocess.run(
+        ["git", "show", "main:coga/tasks/fix-retry-logic.md"],
+        cwd=git_repo.origin,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "status: in_progress" in origin_ticket
+    assert not worktree.exists()  # synced detached Coga state did not wedge cleanup
+
+
+def test_launch_worktree_dirty_check_preserves_unsynced_coga_state(git_repo) -> None:
+    """Dirty Coga state still blocks teardown when it is not on control."""
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-unsynced")
+    try:
+        task = path / "coga" / "tasks" / "demo" / "ticket.md"
+        task.parent.mkdir(parents=True)
+        task.write_text("---\ntitle: demo\n---\n\nunsynced\n")
+
+        assert git.launch_worktree_has_dirty_coga_state(cfg, path)
+    finally:
+        git.remove_launch_worktree(cfg, path)
 
 
 def test_launch_without_worktree_toggle_runs_in_place(git_repo, monkeypatch):
@@ -1465,7 +1978,7 @@ def test_launch_without_worktree_toggle_runs_in_place(git_repo, monkeypatch):
         title="Fix retry logic",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -1493,7 +2006,6 @@ def test_launch_without_worktree_toggle_runs_in_place(git_repo, monkeypatch):
         "fix-retry-logic",
         agent_override=None,
         prompt_report=False,
-        autonomy_override=None,
         idle_timeout=None,
         max_session=None,
         return_timeout=True,
@@ -1501,3 +2013,121 @@ def test_launch_without_worktree_toggle_runs_in_place(git_repo, monkeypatch):
 
     assert captured["cwd"] is None
     assert not (git_repo.root / ".coga" / "worktrees").exists()
+
+
+# --- direct/body stranding guard (`stranded_product_paths`, `mark done`) --------
+#
+# A `direct/body` workflow has no push/PR step, so product code the agent commits
+# rides a throwaway launch-worktree branch that state-sync never lands on `main`
+# and that dangles when the worktree is removed (the 2026-07-06 DaCapo incident).
+# `stranded_product_paths` detects it; `mark done` refuses on it unless `--force`.
+
+
+def _commit_product_file(git_repo, relpath: str, text: str = "print('x')\n") -> None:
+    """Commit a tracked non-Coga file on the current branch/HEAD."""
+    path = git_repo.root / relpath
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    git_repo.git("add", "--", relpath)
+    git_repo.git("commit", "-m", f"add {relpath}")
+
+
+def _active_task(git_repo, *, workflow: str, slug: str) -> tuple[str, Path]:
+    """Create + activate a task (frozen workflow, launch-ready) on `main`."""
+    cfg = load_config(git_repo.coga_os)
+    ref = create_task(
+        cfg=cfg, title="Strandy", workflow_name=workflow,
+        contexts=[], mode="agent", owner="marc", assignee="claude",
+        watchers=[], status="draft", slug_override=slug,
+    )
+    assert runner.invoke(app, ["mark", "active", ref["slug"]]).exit_code == 0
+    return ref["slug"], Path(ref["path"])
+
+
+def test_stranded_product_paths_flags_committed_code_off_control(git_repo):
+    """Product code committed on a branch that never lands on `main` is flagged."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    assert git.stranded_product_paths(cfg, git_repo.coga_os) == ["src/coga/stray.py"]
+
+
+def test_stranded_product_paths_flags_detached_head_launch_worktree(git_repo):
+    """The real trigger: a detached-HEAD launch worktree with a committed
+    product file. `refs/heads/main` stays put (the base) while the detached
+    HEAD advances, so the three-dot diff still isolates the stranded commit."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("checkout", "--detach")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    assert git.stranded_product_paths(cfg, git_repo.coga_os) == ["src/coga/stray.py"]
+
+
+def test_stranded_product_paths_ignores_coga_state(git_repo):
+    """Committed Coga OS-state (`coga/`) is what sync already lands — not stranded."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(
+        git_repo, "coga/tasks/demo/ticket.md", "---\ntitle: demo\n---\n"
+    )
+
+    assert git.stranded_product_paths(cfg, git_repo.coga_os) == []
+
+
+def test_stranded_product_paths_empty_on_control_branch(git_repo):
+    """On the control branch HEAD == base, so there is nothing to strand."""
+    cfg = load_config(git_repo.coga_os)
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    assert git.stranded_product_paths(cfg, git_repo.coga_os) == []
+
+
+def test_stranded_product_paths_soft_empty_off_git(tmp_path, real_git):
+    """Fail-open: a non-git checkout and disabled git both yield `[]`, never raise."""
+    assert git.stranded_product_paths(_cfg(tmp_path), tmp_path) == []
+    assert git.stranded_product_paths(
+        _cfg(tmp_path, git_enabled=False), tmp_path
+    ) == []
+
+
+def test_mark_done_refuses_direct_body_with_stranded_code(git_repo):
+    """`coga mark done` on a `direct/body` ticket with committed product code
+    off `main` is refused, names the path, and leaves the ticket unfinished."""
+    slug, task_path = _active_task(git_repo, workflow="direct/body", slug="strandy")
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    result = runner.invoke(app, ["mark", "done", slug])
+
+    assert result.exit_code == 2, result.output
+    combined = result.output + (result.stderr or "")
+    assert "src/coga/stray.py" in combined
+    assert "code/with-self-review" in combined
+    # The guard runs before the write, so the ticket is untouched.
+    assert Ticket.read(task_path).status == "active"
+
+
+def test_mark_done_force_overrides_stranded_code(git_repo):
+    """`--force` finishes the ticket anyway (the code stays stranded, by choice)."""
+    slug, task_path = _active_task(git_repo, workflow="direct/body", slug="forced")
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    result = runner.invoke(app, ["mark", "done", slug, "--force"])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "done"
+
+
+def test_mark_done_allows_code_workflow_with_committed_code(git_repo):
+    """The guard is scoped to `direct/body`: a `code/*` workflow (which opens a
+    PR) finishes normally even with committed product code on its branch."""
+    slug, task_path = _active_task(git_repo, workflow="code", slug="coder")
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    result = runner.invoke(app, ["mark", "done", slug])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "done"
