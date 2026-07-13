@@ -501,6 +501,36 @@ def _spec_clause_holds(version: tuple[int, int, int], op: str, want: str) -> boo
     return True
 
 
+_HASH_MODE_MARKERS = (
+    "--require-hashes",
+    "requiring hashes",
+    "hashes are required",
+)
+
+
+def hash_checking_hint(stderr: str) -> str:
+    """Remediation to append when pip failed because of hash-checking mode.
+
+    Managed machines commonly force pip's hash-checking mode globally
+    (`PIP_REQUIRE_HASHES=1` or `require-hashes` in pip config). Local
+    directories and requirement files without pinned hashes can't satisfy it,
+    so every pip call coga makes fails with a raw pip error that doesn't name
+    the setting. Returns "" when stderr doesn't look like that failure.
+    """
+    lowered = stderr.lower()
+    if not any(marker in lowered for marker in _HASH_MODE_MARKERS):
+        return ""
+    return (
+        "\npip is running in hash-checking mode (PIP_REQUIRE_HASHES=1 or "
+        "require-hashes in pip config — common on managed machines), which "
+        "rejects installs that don't ship pinned hashes, including coga's "
+        "own venv bootstrap.\n"
+        "Re-run the same coga command with hash checking disabled for it, "
+        "e.g.:\n"
+        "  PIP_REQUIRE_HASHES=0 coga init …"
+    )
+
+
 def install_venv(coga_os: Path) -> Path:
     """Create `.coga/.venv/` and `pip install` the vendored coga package into it.
 
@@ -619,7 +649,8 @@ def install_venv(coga_os: Path) -> Path:
     )
     if result.returncode != 0:
         typer.secho(
-            f"pip install failed:\n{result.stderr}",
+            f"pip install failed:\n{result.stderr}"
+            f"{hash_checking_hint(result.stderr)}",
             fg=typer.colors.RED,
             err=True,
         )
@@ -674,7 +705,8 @@ def install_skill_requirements(coga_os: Path, venv_dir: Path) -> list[Path]:
         )
         if result.returncode != 0:
             typer.secho(
-                f"pip install -r {req} failed:\n{result.stderr}",
+                f"pip install -r {req} failed:\n{result.stderr}"
+                f"{hash_checking_hint(result.stderr)}",
                 fg=typer.colors.RED,
                 err=True,
             )
