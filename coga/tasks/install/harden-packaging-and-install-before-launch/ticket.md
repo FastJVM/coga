@@ -1,7 +1,7 @@
 ---
 slug: install/harden-packaging-and-install-before-launch
 title: Harden packaging and first-install before launch
-status: in_progress
+status: blocked
 mode: agent
 owner: zach
 human: zach
@@ -109,9 +109,30 @@ Run the public path in a disposable clean Linux environment, without
   body are satisfied; a successful run records evidence and marks the ticket
   done directly.
 
+## Prerequisite audit (2026-07-12 relaunch)
+
+- Checked before running the verification gate, per the scope decision above.
+- PyPI: latest published release is `coga 0.2.0`, uploaded 2026-06-27 — before
+  the 2026-07-08 clean-container retest that produced the sibling fixes. The
+  repo's `pyproject.toml` also says 0.2.0, so the realigned release has not
+  been cut; `install/cut-release-to-realign-pypi-with-main` is still `active`.
+- Sibling fixes named in Prerequisites are not merged/done:
+  `vendor-cli-from-installed-package-not-git-clone` (active),
+  `warn-loud-when-init-commit-is-skipped` (active),
+  `init-next-steps-should-mention-agent-cli-requireme` (active),
+  `add-migration-errors-for-removed-config-keys` (active),
+  `external-users-cannot-install-managed-skills` (in_progress, step 4 review),
+  `decide-whether-gh-stays-required-at-init` (active).
+- Conclusion: running the gate now would verify a release that predates every
+  fix and fail for known reasons. Blocked instead; relaunch once the named
+  siblings are done and the realignment ticket has published a new version to
+  PyPI.
+
 ---
 
 ## Blockers
 
 - [x] [2026-07-11 10:52] [agent:claude] id=20260711T105203 This umbrella ticket has no standalone implementation acceptance: its concrete fixes are owned by still-active install/ siblings. Please approve converting it into the final clean-machine end-to-end verification gate after those fixes land, or name the specific standalone deliverable for this step.
   resolved: [2026-07-12 18:04] [human:nicktoper] Approved: convert this ticket to the final clean-machine end-to-end verification gate, using a one-step direct/body workflow and no implementation PR.
+
+- [ ] [2026-07-12 20:37] [agent:claude] id=20260712T203710 Verification gate prerequisites unmet: PyPI latest is coga 0.2.0 (uploaded 2026-06-27, predating the 2026-07-08 retest fixes) and the named install/ siblings (vendor-cli-from-installed-package, warn-loud-when-init-commit-is-skipped, agent-CLI guidance, migration errors, external-users-cannot-install-managed-skills) plus cut-release-to-realign-pypi-with-main are still active/in_progress. Relaunch this gate after those tickets are done and the realigned version is published to PyPI.

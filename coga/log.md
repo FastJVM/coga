@@ -1114,3 +1114,5 @@ fatal: adding files failed
 2026-07-12 20:32 [install/external-users-cannot-install-managed-skills] [system] advanced to step 4 (review) → assigned to zach after script step
 2026-07-12 20:35 [install/harden-packaging-and-install-before-launch] [human:nick] activated (paused → active) — auto on launch
 2026-07-12 20:35 [install/harden-packaging-and-install-before-launch] [human:nick] started (active → in_progress) via coga launch
+2026-07-12 20:35 [install/harden-packaging-and-install-before-launch] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-12 20:37 [install/harden-packaging-and-install-before-launch] [agent:claude] blocked: Verification gate prerequisites unmet: PyPI latest is coga 0.2.0 (uploaded 2026-06-27, predating the 2026-07-08 retest fixes) and the named install/ siblings (vendor-cli-from-installed-package, warn-loud-when-init-commit-is-skipped, agent-CLI guidance, migration errors, external-users-cannot-install-managed-skills) plus cut-release-to-realign-pypi-with-main are still active/in_progress. Relaunch this gate after those tickets are done and the realigned version is published to PyPI.
