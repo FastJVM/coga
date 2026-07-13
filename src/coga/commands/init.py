@@ -628,7 +628,10 @@ def _print_no_access_skill_notes(summary: ManagedSkillSummary) -> None:
         remediation = results[0].details.get("remediation")
         count = len(results)
         plural = "s" if count != 1 else ""
-        if "`gh`" in reason and "is not installed" in reason:
+        missing_gh = (
+            "`gh`" in reason and "is not installed" in reason
+        ) or "github cli 2.90.0+" in reason.casefold()
+        if missing_gh:
             next_step = (
                 "Install GitHub CLI 2.90.0+ from https://cli.github.com, "
                 f"authenticate with `gh auth login`, then run e.g. `{remediation}`."

@@ -130,7 +130,9 @@ def test_install_managed_skills_skips_optional_skills_from_inaccessible_source(
     def runner(args, cwd) -> subprocess.CompletedProcess[str]:
         command = list(args)
         commands.append(command)
-        if command[:3] == ["gh", "repo", "view"]:
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        if command[:3] == ["gh", "skill", "install"]:
             return subprocess.CompletedProcess(
                 command,
                 1,
@@ -140,7 +142,7 @@ def test_install_managed_skills_skips_optional_skills_from_inaccessible_source(
                     "'owner/private'. (repository)"
                 ),
             )
-        raise AssertionError(f"unexpected command past failed probe: {command}")
+        raise AssertionError(f"unexpected command: {command}")
 
     summary = install_managed_skills(
         tmp_path,
@@ -151,8 +153,19 @@ def test_install_managed_skills_skips_optional_skills_from_inaccessible_source(
         runner=runner,
     )
 
-    # One probe for the shared source, and no `gh skill install` attempts.
-    assert commands == [["gh", "repo", "view", "owner/private", "--json", "name"]]
+    # The first real install identifies the denial; the second is skipped.
+    assert commands == [
+        ["gh", "skill", "--help"],
+        [
+            "gh",
+            "skill",
+            "install",
+            "owner/private",
+            "tools/one",
+            "--dir",
+            str(tmp_path / "skills"),
+        ],
+    ]
     assert summary.counts() == {"skipped-no-access": 2}
     first = summary.results[0]
     assert "owner/private is not accessible" in first.message
@@ -174,7 +187,7 @@ def test_install_managed_skills_skips_optional_skills_when_gh_missing(
 
     assert summary.counts() == {"skipped-no-access": 1}
     [result] = summary.results
-    assert result.details["reason"] == "GitHub CLI (`gh`) is not installed"
+    assert "GitHub CLI 2.90.0+" in result.details["reason"]
 
 
 def test_install_managed_skills_skips_source_blocked_by_saml_enforcement(
@@ -185,6 +198,8 @@ def test_install_managed_skills_skips_source_blocked_by_saml_enforcement(
     def runner(args, cwd) -> subprocess.CompletedProcess[str]:
         command = list(args)
         commands.append(command)
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
         return subprocess.CompletedProcess(
             command,
             1,
@@ -201,7 +216,8 @@ def test_install_managed_skills_skips_source_blocked_by_saml_enforcement(
         runner=runner,
     )
 
-    assert commands == [["gh", "repo", "view", "owner/private", "--json", "name"]]
+    assert len(commands) == 2
+    assert commands[1][:3] == ["gh", "skill", "install"]
     assert summary.counts() == {"skipped-no-access": 1}
     assert "SAML enforcement" in summary.results[0].details["reason"]
 
@@ -210,9 +226,10 @@ def test_required_managed_skill_from_inaccessible_source_fails_loud(
     tmp_path: Path,
 ) -> None:
     def runner(args, cwd) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(
-            list(args), 1, stdout="", stderr="HTTP 404: Not Found"
-        )
+        command = list(args)
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr="HTTP 404: Not Found")
 
     with pytest.raises(ManagedSkillError) as exc:
         install_managed_skills(
@@ -231,7 +248,7 @@ def test_required_managed_skill_from_inaccessible_source_fails_loud(
     assert "Remediation: coga skill install owner/private tools/core" in str(exc.value)
 
 
-def test_install_managed_skills_installs_when_source_accessible(
+def test_install_managed_skills_allows_anonymous_public_install(
     tmp_path: Path,
 ) -> None:
     commands: list[list[str]] = []
@@ -248,19 +265,21 @@ def test_install_managed_skills_installs_when_source_accessible(
     )
 
     assert summary.counts() == {"installed": 1}
-    assert commands[0] == ["gh", "repo", "view", "owner/repo", "--json", "name"]
-    assert [
-        "gh",
-        "skill",
-        "install",
-        "owner/repo",
-        "tools/example",
-        "--dir",
-        str(tmp_path / "skills"),
-    ] in commands
+    assert commands == [
+        ["gh", "skill", "--help"],
+        [
+            "gh",
+            "skill",
+            "install",
+            "owner/repo",
+            "tools/example",
+            "--dir",
+            str(tmp_path / "skills"),
+        ],
+    ]
 
 
-def test_install_managed_skills_does_not_treat_probe_outage_as_no_access(
+def test_install_managed_skills_does_not_treat_install_outage_as_no_access(
     tmp_path: Path,
 ) -> None:
     commands: list[list[str]] = []
@@ -268,14 +287,16 @@ def test_install_managed_skills_does_not_treat_probe_outage_as_no_access(
     def runner(args, cwd) -> subprocess.CompletedProcess[str]:
         command = list(args)
         commands.append(command)
-        if command[:3] == ["gh", "repo", "view"]:
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        if command[:3] == ["gh", "skill", "install"]:
             return subprocess.CompletedProcess(
                 command,
                 1,
                 stdout="",
                 stderr="error connecting to api.github.com: network is unreachable",
             )
-        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        raise AssertionError(f"unexpected command: {command}")
 
     summary = install_managed_skills(
         tmp_path,
@@ -283,17 +304,9 @@ def test_install_managed_skills_does_not_treat_probe_outage_as_no_access(
         runner=runner,
     )
 
-    assert summary.counts() == {"installed": 1}
-    assert commands[0] == ["gh", "repo", "view", "owner/repo", "--json", "name"]
-    assert [
-        "gh",
-        "skill",
-        "install",
-        "owner/repo",
-        "tools/example",
-        "--dir",
-        str(tmp_path / "skills"),
-    ] in commands
+    assert summary.counts() == {"failed": 1}
+    assert len(commands) == 2
+    assert commands[1][:3] == ["gh", "skill", "install"]
 
 
 def test_reconcile_managed_skills_uses_update_path_for_existing_skill(

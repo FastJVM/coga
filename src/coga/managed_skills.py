@@ -10,7 +10,6 @@ from pathlib import Path
 import tomllib
 
 from coga.config import Config
-from coga.github_source import github_owner_repo
 from coga.skill_manager import (
     Downloader,
     Runner,
@@ -20,7 +19,6 @@ from coga.skill_manager import (
     _skill_target,
     install_github_skill,
     install_url_skill,
-    run_subprocess,
     update_skills,
 )
 
@@ -229,12 +227,8 @@ def _run_install(
         if spec.source_type == "github":
             if github_installer is not None:
                 return github_installer(cfg, spec.source, spec.ref)
-            # Managed manifests routinely pull several skills from one source
-            # repo, and an onboarding user often can't see that repo at all
-            # (private, or gh unauthenticated). Probe each unique source once
-            # instead of letting every `gh skill install` fail separately.
-            reason = _github_source_unavailable_reason(
-                spec.source, runner=runner, cache=access_cache
+            reason = _cached_github_source_unavailable_reason(
+                spec.source, cache=access_cache
             )
             if reason is not None:
                 if spec.required:
@@ -244,7 +238,21 @@ def _run_install(
                         )
                     )
                 return _no_access_result(spec, reason)
-            return install_github_skill(cfg, spec.source, spec.ref, runner=runner)
+            try:
+                return install_github_skill(cfg, spec.source, spec.ref, runner=runner)
+            except SkillManagerError as exc:
+                reason = _github_access_denial_reason(str(exc))
+                if reason is None:
+                    raise
+                if access_cache is not None:
+                    access_cache[spec.source.strip()] = reason
+                if spec.required:
+                    raise ManagedSkillError(
+                        _required_failure_message(
+                            spec, f"no access to {spec.source} ({reason})"
+                        )
+                    ) from exc
+                return _no_access_result(spec, reason)
         return install_url_skill(
             cfg,
             spec.source,
@@ -258,50 +266,20 @@ def _run_install(
         return _failure_result(spec, exc)
 
 
-def _github_source_unavailable_reason(
+def _cached_github_source_unavailable_reason(
     source: str,
     *,
-    runner: Runner | None,
     cache: dict[str, str | None] | None,
 ) -> str | None:
-    """Return why `source` can't be reached through `gh`, or None if it can.
-
-    Cached per reconcile/install run so a manifest with many skills from one
-    repo probes that repo once, not once per skill.
-    """
+    """Return a prior access denial for this source within the current run."""
     key = source.strip()
-    if cache is not None and key in cache:
-        return cache[key]
-    reason = _probe_github_source(key, runner=runner)
-    if cache is not None:
-        cache[key] = reason
-    return reason
-
-
-def _probe_github_source(source: str, *, runner: Runner | None) -> str | None:
-    target = github_owner_repo(source) or source
-    command = ["gh", "repo", "view", target, "--json", "name"]
-    try:
-        result = (runner or run_subprocess)(command, None)
-    except FileNotFoundError:
-        return "GitHub CLI (`gh`) is not installed"
-    if result.returncode == 0:
-        return None
-    output = result.stderr or result.stdout
-    reason = _github_access_denial_reason(output)
-    if reason is not None:
-        return reason
-    # A failed reachability probe is not necessarily an access denial. Let the
-    # real installer report rate limits, network outages, and other operational
-    # failures through the existing optional/required failure path.
-    return None
+    return cache.get(key) if cache is not None else None
 
 
 def _github_access_denial_reason(output: str) -> str | None:
     lines = [line.strip() for line in output.splitlines() if line.strip()]
     if not lines:
         return None
-    normalized = output.casefold()
     access_markers = (
         "could not resolve to a repository",
         "not logged into any github hosts",
@@ -315,9 +293,12 @@ def _github_access_denial_reason(output: str) -> str | None:
         "grant your oauth token access",
         "http 401",
         "http 404",
+        "github cli 2.90.0+ with `gh skill` is required",
     )
-    if any(marker in normalized for marker in access_markers):
-        return lines[0]
+    for line in lines:
+        normalized = line.casefold()
+        if any(marker in normalized for marker in access_markers):
+            return line
     return None
 
 
