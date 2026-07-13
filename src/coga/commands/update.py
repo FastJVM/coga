@@ -503,6 +503,7 @@ def _spec_clause_holds(version: tuple[int, int, int], op: str, want: str) -> boo
 
 _HASH_MODE_MARKERS = (
     "--require-hashes",
+    "can't verify hashes",
     "requiring hashes",
     "hashes are required",
 )

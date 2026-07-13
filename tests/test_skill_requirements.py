@@ -128,8 +128,9 @@ def test_failed_install_hash_mode_prints_remediation(
 
 
 def test_hash_checking_hint_recognizes_pip_hash_errors() -> None:
-    # The three shapes pip's hash-checking mode actually emits: unpinned
-    # requirements, missing hashes, and the editable-install refusal.
+    # The four shapes pip's hash-checking mode actually emits: unpinned
+    # requirements, missing hashes, local directories, and the editable-install
+    # refusal.
     unpinned = (
         "ERROR: In --require-hashes mode, all requirements must have their "
         "versions pinned with ==. These do not:\n    coga"
@@ -138,11 +139,15 @@ def test_hash_checking_hint_recognizes_pip_hash_errors() -> None:
         "ERROR: Hashes are required in --require-hashes mode, but they are "
         "missing from some requirements."
     )
+    local_directory = (
+        "ERROR: Can't verify hashes for these file:// requirements because "
+        "they point to directories:\n    file:///src/coga"
+    )
     editable = (
         "ERROR: The editable requirement file:///src/coga cannot be installed "
         "when requiring hashes, because there is no single file to hash."
     )
-    for stderr in (unpinned, missing, editable):
+    for stderr in (unpinned, missing, local_directory, editable):
         assert "PIP_REQUIRE_HASHES=0" in update_cmd.hash_checking_hint(stderr)
 
 
