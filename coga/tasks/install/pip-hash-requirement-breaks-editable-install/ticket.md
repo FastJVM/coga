@@ -6,7 +6,7 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -59,4 +59,65 @@ detect the failure and print the remediation.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: pip-hash-hint
+worktree: /home/n/Code/claude/coga/.coga/worktrees/coga-pip-hash-hint
+
+## Plan (implement step)
+
+Two remaining deliverables per the retest note:
+
+1. **README Install docs** — add a short "hash-checking mode" note next to the
+   pip instructions: what the failure looks like ("Hashes are required in
+   --require-hashes mode" / "no single file to hash"), why (managed-machine
+   `PIP_REQUIRE_HASHES=1` or `require-hashes` in pip config), and the escape
+   hatches: `uv tool install coga` (ignores pip config) or prefix the pip
+   command with `PIP_REQUIRE_HASHES=0`.
+2. **Runtime detection** — coga itself runs pip at runtime: `install_venv()`
+   and `install_skill_requirements()` in `src/coga/commands/update.py`
+   pip-install into `.coga/.venv` during `coga init`/`coga update`. Under
+   global hash-checking mode those subprocess pip calls fail with the same raw
+   error. Add a helper that recognizes hash-checking-mode stderr and appends
+   the exact remediation (`PIP_REQUIRE_HASHES=0 coga init …`) to both failure
+   messages, instead of only dumping pip stderr.
+
+Decision: detect + print remediation, do NOT silently set
+`PIP_REQUIRE_HASHES=0` on coga's own pip subprocesses — managed machines set
+that policy deliberately; overriding it silently changes security posture.
+
+Tests: extend tests/test_skill_requirements.py style (fake subprocess.run,
+returncode=1 with hash-mode stderr) asserting the remediation text is printed.
+
+## Implemented (commit c5620c34 on pip-hash-hint)
+
+- **README.md** Install section: after the `pip install -e .` block, a
+  paragraph naming the two failure strings, the cause
+  (`PIP_REQUIRE_HASHES=1` / `require-hashes` pip config on managed machines),
+  and both escape hatches (`uv tool install coga`; `PIP_REQUIRE_HASHES=0`
+  prefix on the pip command).
+- **src/coga/commands/update.py**: new `hash_checking_hint(stderr)` helper +
+  `_HASH_MODE_MARKERS`; both pip-failure paths (`install_venv`,
+  `install_skill_requirements`) append the remediation
+  (`PIP_REQUIRE_HASHES=0 coga init …`) when stderr matches. No silent
+  override of the machine's hash policy (see decision above).
+- **tests/test_skill_requirements.py**: 3 new tests — remediation printed on
+  hash-mode failure, hint recognizes all three real pip error shapes, hint
+  stays empty for unrelated failures.
+
+Verification (all in a python3.12 venv, coga installed editable):
+- `python -m pytest` — 1152 passed, 1 skipped, 0 failed. (With coga *not*
+  installed for the interpreter, `test_bootstrap_script_launch_is_stateless`
+  fails with ModuleNotFoundError — pre-existing environment artifact, fails
+  identically on unmodified main.)
+- Real-pip check: ran `pip install flask` and `pip install -e .` under
+  `PIP_REQUIRE_HASHES=1`; both real stderr shapes match the markers
+  (`detected=True`), and the test fixtures use pip's verbatim strings.
+- Runtime path end-to-end: `install_skill_requirements` under
+  `PIP_REQUIRE_HASHES=1` against the packaged skills fails on the first
+  unpinned requirement and prints the full remediation block, exit 2.
+
+Not done (scoping): CLAUDE.md/AGENTS.md still lead with `pip install -e .`
+for dev setup — retest note scoped remaining docs work to README Install;
+dev-env readers hitting this now get the pointer from coga's own error
+message. docs/migrating-to-coga.md also mentions `pip install -e .`
+(untouched, same reasoning).
