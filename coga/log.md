@@ -1075,3 +1075,5 @@ fatal: adding files failed
 2026-07-12 17:50 [install/external-users-cannot-install-managed-skills] [system] script exited with code 2
 2026-07-12 18:01 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-12 18:01 [install/external-users-cannot-install-managed-skills] [system] script exited with code 2
+2026-07-12 18:02 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 18:02 [install/external-users-cannot-install-managed-skills] [system] script exited with code 2
