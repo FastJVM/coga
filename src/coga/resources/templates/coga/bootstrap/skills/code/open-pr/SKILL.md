@@ -21,11 +21,12 @@ nothing to hand-run and no `coga bump` to remember: the launcher bumps for you.
    `dev/code` context).
 2. Confirms the feature worktree is on that branch, is clean, and has commits
    ahead of the base branch (`[git].control_branch`, default `main`).
-3. Confirms the branch is **not stale** — it must contain the latest
-   `<remote>/<control-branch>` (fetch + `merge-base --is-ancestor`). This is the
-   same stale-branch guard the agent checklist used to run via
-   `coga validate --check-github`: a branch that predates the control tip can
-   reintroduce reverted work, so the script refuses it instead of opening the PR.
+3. Confirms the branch has no **material stale drift** from the latest
+   `<remote>/<control-branch>`. It continues visibly when the control branch
+   advanced only through non-overlapping generated `coga/tasks/**` or
+   `coga/log.md` state, which Coga itself writes between steps. Source, docs,
+   config, mixed, or overlapping state drift still fails loud because it can
+   reintroduce reverted work.
 4. Pushes the branch (`git push -u <remote> <branch>`).
 5. Opens the PR with `gh pr create` — or `gh pr ready` if a draft already exists
    for the branch, or reuses an already-open PR on a re-run (idempotent).
@@ -57,8 +58,9 @@ The script consumes what implement/peer-review recorded. If those steps didn't:
   with the missing field named and a `coga block` hint.
 - Worktree on the wrong branch, dirty, or no commits ahead of base → exit
   non-zero; nothing is pushed or opened.
-- Branch is stale (does not contain the latest control branch) → exit non-zero;
-  rebase/merge the control branch in an earlier step, then relaunch.
+- Branch is materially stale, or touches the same generated state path that
+  changed on the control branch → exit non-zero; rebase/merge the control branch
+  in an earlier step, then relaunch.
 - `git push` / `gh pr create` auth failure → exit non-zero with the
   `github_preflight` setup hint (fix the remote, load your SSH key / credential
   helper, `gh auth login`).
@@ -70,5 +72,5 @@ un-committed change) and relaunch, or `coga block` if it needs a human decision.
 
 - Decide whether to merge — that's the human's job in the next step.
 - Make code changes or resolve CI failures.
-- Resolve merge conflicts with the base — if the workflow needs that before
-  handoff, the peer-review agent step handles it before this step runs.
+- Resolve merge conflicts with the base — harmless state-only divergence needs
+  no merge, while material divergence remains for peer review to reconcile.

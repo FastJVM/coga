@@ -30,6 +30,7 @@ from coga.compose import _extract_section
 from coga.config import Config
 from coga.github_preflight import (
     _remote_host,
+    check_branch_contains_control,
     check_git_auth,
     check_git_remote,
     check_gh_auth,
@@ -130,8 +131,8 @@ def open_pr(cfg: Config, *, slug: str, blackboard_path: Path) -> str:
 
     Reads `branch:` / `worktree:` (and an optional `## PR` body) from the
     ticket's `## Dev` blackboard section, confirms the worktree is on that
-    branch, clean, ahead of the base branch, and not stale (contains the latest
-    `<remote>/<base>`), pushes, opens the PR (`gh pr create`, or `gh pr ready`
+    branch, clean, ahead of the base branch, and has no material stale drift
+    from `<remote>/<base>`, pushes, opens the PR (`gh pr create`, or `gh pr ready`
     for an existing draft, or reuses an already-open PR), and writes
     `pr: <url>` back under `## Dev`.
 
@@ -221,36 +222,23 @@ def open_pr(cfg: Config, *, slug: str, blackboard_path: Path) -> str:
             f"Build the change, or `coga block --task {slug}`."
         )
 
-    # --- refuse a stale branch (must contain the latest control tip) ---------
-    # The agent open-pr checklist used to run this guard via
-    # `coga validate --check-github`; carrying it into the script keeps the
-    # protection when open-pr is no longer an agent step. A branch that predates
-    # `<remote>/<base>` can reintroduce work that was reverted on the control
-    # branch, so fetch the control tip and require it to be an ancestor of HEAD.
-    fetched = _git(["fetch", remote, base], cwd=worktree)
-    if fetched.returncode != 0:
-        raise OpenPrError(
-            f"`git fetch {remote} {base}` failed in {worktree!r}: "
-            f"{fetched.stderr.strip() or 'no output'}. Cannot confirm the branch "
-            f"is current with {remote}/{base} before opening the PR."
-        )
-    contains = _git(
-        ["merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"], cwd=worktree
+    # --- refuse material stale-branch drift ---------------------------------
+    # Task-step and audit-log sync advances the control branch between agent
+    # steps. The shared preflight permits only non-overlapping generated state;
+    # any source/docs/config or overlapping drift remains a hard failure.
+    freshness = check_branch_contains_control(
+        remote,
+        base,
+        cwd=worktree,
+        coga_root=cfg.repo_root,
     )
-    if contains.returncode == 1:
+    if not freshness.ok:
         raise OpenPrError(
-            f"Branch {branch!r} does not contain the latest {remote}/{base}. "
-            "Opening a PR from a stale branch can reintroduce reverted work; "
-            "rebase or merge the control branch first (e.g. "
-            f"`git fetch {remote} {base}` then `git rebase FETCH_HEAD`) and "
-            f"relaunch, or `coga block --task {slug}`."
+            f"Branch {branch!r} is not safe to publish. {freshness.detail} "
+            f"Reconcile it and relaunch, or `coga block --task {slug}`."
         )
-    if contains.returncode != 0:
-        raise OpenPrError(
-            f"Could not compare HEAD with {remote}/{base} in {worktree!r} "
-            "(`git merge-base --is-ancestor FETCH_HEAD HEAD` failed: "
-            f"{contains.stderr.strip() or 'no output'})."
-        )
+    if freshness.value == "state-only-drift":
+        print(f"[open-pr] {freshness.detail}")
 
     # --- push ----------------------------------------------------------------
     push = _git(["push", "-u", remote, branch], cwd=worktree)
