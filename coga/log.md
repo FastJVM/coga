@@ -1146,3 +1146,6 @@ fatal: adding files failed
 2026-07-12 21:03 [coga-notifications/support-second-webhook] [human:zach] created (mode=agent, status=draft)
 2026-07-12 21:04 [coga-notifications/add-coga-slack-important] [human:zach] created (mode=agent, status=draft)
 2026-07-12 21:08 [install/quiet-managed-skill-failures-on-old-gh] [human:nick] started (active → in_progress) via coga launch
+2026-07-12 21:08 [install/quiet-managed-skill-failures-on-old-gh] [human:nick] started (active → in_progress) via coga launch
+2026-07-12 21:08 [install/quiet-managed-skill-failures-on-old-gh] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-12 21:19 [install/quiet-managed-skill-failures-on-old-gh] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
