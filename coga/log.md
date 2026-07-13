@@ -1071,3 +1071,5 @@ fatal: adding files failed
 error: coga/tasks/install/external-users-cannot-install-managed-skills/blackboard.md: failed to insert into database
 error: unable to index file 'coga/tasks/install/external-users-cannot-install-managed-skills/blackboard.md'
 fatal: adding files failed
+2026-07-12 17:50 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 17:50 [install/external-users-cannot-install-managed-skills] [system] script exited with code 2
