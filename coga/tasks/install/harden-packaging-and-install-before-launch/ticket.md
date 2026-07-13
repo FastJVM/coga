@@ -1,7 +1,7 @@
 ---
 slug: install/harden-packaging-and-install-before-launch
 title: Harden packaging and first-install before launch
-status: active
+status: in_progress
 mode: agent
 owner: zach
 human: zach
