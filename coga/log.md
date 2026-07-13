@@ -1102,3 +1102,4 @@ error: unable to index file 'coga/tasks/install/harden-packaging-and-install-bef
 fatal: adding files failed
 2026-07-12 20:15 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-12 20:15 [install/external-users-cannot-install-managed-skills] [system] script exited with code 1
+2026-07-12 20:15 [bootstrap/orient] [human:nick] launched in agent mode (assignee=claude, agent=claude)
