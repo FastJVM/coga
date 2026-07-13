@@ -6,7 +6,7 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -52,6 +52,7 @@ delegates to `gh skill` (see the `relay/cli` context, `relay skill`) and
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/535
 branch: managed-skills-no-access
 worktree: /home/n/Code/claude/coga/.coga/worktrees/coga-managed-skills-no-access
 
