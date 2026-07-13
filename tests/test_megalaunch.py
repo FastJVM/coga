@@ -451,6 +451,132 @@ def test_megalaunch_cli_accepts_agent_filter(
     assert Ticket.read(claude_ref["path"]).status == "active"
 
 
+def test_megalaunch_directory_scopes_the_sweep(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`directory` narrows the queue to that tasks/ sub-tree, like `coga status <dir>`."""
+    cfg = load_config(repo)
+    inside = create_task(
+        cfg=cfg,
+        title="In scope",
+        workflow_name="code",
+        contexts=[],
+        mode="agent",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+        directory="marketing",
+    )
+    outside = create_task(
+        cfg=cfg,
+        title="Out of scope",
+        workflow_name="code",
+        contexts=[],
+        mode="agent",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(  # type: ignore[no-untyped-def]
+        cfg, ref_obj, ticket, agent, mode, **kwargs
+    ):
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg, directory="marketing")
+
+    assert run.directory == "marketing"
+    assert [result.slug for result in run.results] == [inside["slug"]]
+    assert Ticket.read(inside["path"]).status == "done"
+    assert Ticket.read(outside["path"]).status == "active"
+
+
+def test_megalaunch_unknown_directory_fails_loud(repo: Path) -> None:
+    """A directory that doesn't exist under tasks/ raises, never sweeps nothing silently."""
+    from coga.tasks import UnknownDirectoryError
+
+    cfg = load_config(repo)
+
+    with pytest.raises(UnknownDirectoryError):
+        run_megalaunch(cfg, directory="nope")
+
+
+def test_megalaunch_cli_accepts_directory(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    cfg = load_config(repo)
+    inside = create_task(
+        cfg=cfg,
+        title="Scoped work",
+        workflow_name="code",
+        contexts=[],
+        mode="agent",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+        directory="marketing",
+    )
+    outside = create_task(
+        cfg=cfg,
+        title="Other work",
+        workflow_name="code",
+        contexts=[],
+        mode="agent",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+    )
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(  # type: ignore[no-untyped-def]
+        cfg, ref_obj, ticket, agent, mode, **kwargs
+    ):
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    result = CliRunner().invoke(app, ["megalaunch", "marketing"])
+
+    assert result.exit_code == 0, result.output
+    assert "Directory: marketing" in result.output
+    assert inside["slug"] in result.output
+    assert Ticket.read(inside["path"]).status == "done"
+    assert Ticket.read(outside["path"]).status == "active"
+
+    bad = CliRunner().invoke(app, ["megalaunch", "nope"])
+    assert bad.exit_code == 2
+
+
 def test_megalaunch_requires_tty(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -641,9 +767,14 @@ def test_megalaunch_skips_unreadable_usage_window(repo: Path) -> None:
 def test_megalaunch_ignores_non_active_tickets(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """done/draft/paused tickets are ignored — never launched, never `failed`."""
+    """done/draft/paused/in_progress tickets are ignored — never launched, never `failed`."""
     cfg = load_config(repo)
-    for title, status in (("Done", "done"), ("Draft", "draft"), ("Paused", "paused")):
+    for title, status in (
+        ("Done", "done"),
+        ("Draft", "draft"),
+        ("Paused", "paused"),
+        ("Running", "in_progress"),
+    ):
         ref = create_task(
             cfg=cfg,
             title=title,
@@ -674,14 +805,14 @@ def test_megalaunch_ignores_non_active_tickets(
     assert run.counts["failed"] == 0
 
 
-def test_megalaunch_resumes_in_progress_agent_task(
+def test_megalaunch_leaves_in_progress_tickets_alone(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An in_progress agent-assigned ticket is resumed, not re-marked."""
+    """An in_progress ticket belongs to another session — never grabbed, never counted."""
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg,
-        title="Resume me",
+        title="Someone else's step",
         workflow_name="code",
         contexts=[],
         mode="agent",
@@ -696,35 +827,22 @@ def test_megalaunch_resumes_in_progress_agent_task(
 
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
 
-    def fail_mark(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise AssertionError("resume must not re-run the active → in_progress mark")
+    def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("megalaunch must not touch an in_progress ticket")
 
-    monkeypatch.setattr("coga.megalaunch.mark_in_progress", fail_mark)
-
-    class _Session:
-        exit_code = 0
-        termination_kind = "natural"
-
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
-        updated = Ticket.read(ref_obj.ticket_path)
-        updated.frontmatter["status"] = "done"
-        updated.frontmatter.pop("step", None)
-        updated.write(ref_obj.ticket_path)
-        return _Session()
-
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
 
     run = run_megalaunch(cfg)
 
-    assert run.counts["launched"] == 1
-    assert run.counts["completed"] == 1
-    assert Ticket.read(ref["path"]).status == "done"
+    assert run.results == []
+    assert run.counts["launched"] == 0
+    assert Ticket.read(ref["path"]).status == "in_progress"
 
 
-def test_megalaunch_in_progress_human_assignee_is_human_gate(
+def test_megalaunch_human_assignee_is_human_gate(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An in_progress ticket parked on a human shows up as skipped-human-gate."""
+    """An active ticket parked on a human shows up as skipped-human-gate."""
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg,
@@ -738,7 +856,6 @@ def test_megalaunch_in_progress_human_assignee_is_human_gate(
         watchers=[],
     )
     ticket = Ticket.read(ref["path"])
-    ticket.frontmatter["status"] = "in_progress"
     ticket.frontmatter["assignee"] = "marc"
     ticket.write(ref["path"])
 

@@ -14,9 +14,19 @@ from coga.megalaunch import (
     render_run_summary,
     run_megalaunch,
 )
+from coga.tasks import UnknownDirectoryError
 
 
 def megalaunch(
+    directory: str | None = typer.Argument(
+        None,
+        metavar="[DIR]",
+        help=(
+            "Only sweep tasks under `tasks/<DIR>/` (a directory path, nested "
+            "ones included, e.g. `marketing` or `marketing/social`), same as "
+            "`coga status <DIR>`. Omit to sweep every task."
+        ),
+    ),
     max_tasks: int | None = typer.Option(
         None,
         "--max-tasks",
@@ -43,8 +53,10 @@ def megalaunch(
             sys.exit(2)
 
     try:
-        run = run_megalaunch(cfg, max_tasks=max_tasks, agent_filter=agent)
-    except MegalaunchError as exc:
+        run = run_megalaunch(
+            cfg, max_tasks=max_tasks, agent_filter=agent, directory=directory
+        )
+    except (MegalaunchError, UnknownDirectoryError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
     # Local outcome to stdout before the notification post, so a Slack crash
@@ -79,9 +91,6 @@ def _drain_post_text(run: MegalaunchRun) -> str | None:
         parts.append(f"{skipped} not launchable")
     if counts["failed"]:
         parts.append(f"{counts['failed']} failed")
-    label = (
-        f"Megalaunch drain ({run.agent_filter})"
-        if run.agent_filter is not None
-        else "Megalaunch drain"
-    )
+    scope = [s for s in (run.agent_filter, run.directory) if s is not None]
+    label = f"Megalaunch drain ({', '.join(scope)})" if scope else "Megalaunch drain"
     return label + ": " + "; ".join(parts)
