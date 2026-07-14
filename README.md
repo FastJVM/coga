@@ -18,26 +18,32 @@ isolated CLI with `uv`:
 uv tool install coga
 ```
 
-That puts `coga` on your `PATH`.
+That puts `coga` on your `PATH`, in a virtualenv of its own, without touching
+your system Python.
 
-If you want Coga inside the current Python environment instead:
-
-```sh
-uv pip install coga
-```
-
-Plain `pip` works too:
+No `uv`? Create a virtualenv and install into it:
 
 ```sh
+python3 -m venv .venv
+source .venv/bin/activate
 pip install coga
 ```
 
-To develop Coga or test a branch from source:
+If you explicitly want Coga in the current Python environment instead — no
+virtualenv, no isolation — opt out with:
+
+```sh
+python3 -m pip install coga    # or: uv pip install --system coga
+```
+
+To develop Coga or test a branch from source, use a virtualenv there too:
 
 ```sh
 git clone https://github.com/FastJVM/coga
 cd coga
-python -m pip install -e .
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
 
 If a `pip` command above aborts with `Hashes are required in --require-hashes
@@ -49,7 +55,7 @@ escape hatches:
 - `uv tool install coga` — uv doesn't read pip's config, so it's unaffected.
 - Disable hash checking for the one command by prefixing it, e.g.
   `PIP_REQUIRE_HASHES=0 pip install coga` or
-  `PIP_REQUIRE_HASHES=0 python -m pip install -e .`
+  `PIP_REQUIRE_HASHES=0 pip install -e .`
 
 Then run:
 
