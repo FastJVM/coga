@@ -1,7 +1,7 @@
 ---
 slug: document-cross-machine-sandbox-dev-loop-friction-i
 title: Document cross-machine/sandbox dev-loop friction in coga/codebase
-status: in_progress
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -25,7 +25,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
