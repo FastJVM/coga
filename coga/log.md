@@ -1165,3 +1165,12 @@ fatal: adding files failed
 2026-07-13 18:02 [install/recommend-virtualenv-not-system-python] [human:nick] started (active → in_progress) via coga launch
 2026-07-13 18:02 [install/recommend-virtualenv-not-system-python] [human:nick] launched in agent mode (assignee=claude, agent=claude)
 2026-07-13 18:07 [install/recommend-virtualenv-not-system-python] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-13 18:02 [install/recommend-virtualenv-not-system-python] [human:nick] started (active → in_progress) via coga launch
+2026-07-13 18:02 [install/recommend-virtualenv-not-system-python] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-13 18:07 [install/recommend-virtualenv-not-system-python] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-13 18:07 [install/recommend-virtualenv-not-system-python] [human:nick] launched in agent mode (assignee=codex, agent=codex)
+2026-07-13 18:17 [install/recommend-virtualenv-not-system-python] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-13 18:17 [install/recommend-virtualenv-not-system-python] [git] sync failed: `git add -- coga/tasks/install/recommend-virtualenv-not-system-python` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/recommend-virtualenv-not-system-python/blackboard.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/recommend-virtualenv-not-system-python/blackboard.md'
+fatal: adding files failed

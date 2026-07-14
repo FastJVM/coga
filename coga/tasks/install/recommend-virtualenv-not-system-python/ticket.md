@@ -6,7 +6,7 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -94,6 +94,35 @@ worktree: /home/n/Code/claude/coga/.coga/worktrees/coga-readme-venv-install
   collection — pre-existing environment issue, unrelated to this docs change).
 - No push, no PR — that's the later open-pr step.
 
+## Peer review
+
+- Native `codex review --base main` found one must-fix: the explicit opt-out
+  showed `uv pip install coga`, but uv requires `--system` when no virtualenv is
+  active. Corrected it to `uv pip install --system coga` in commit 1135a9c0.
+- Full suite: `PYTHONPATH=src python -m pytest` — 1170 passed, 1 skipped. Without
+  the source path, the known stateless-script test fails because this
+  interpreter does not have Coga installed; the source-backed run exercises the
+  current checkout and passes.
+- Branch is clean, has two commits ahead of its fork point, and merges cleanly
+  with current `main` (which advanced only with this task's control-plane state).
+
+## PR
+
+### Summary
+
+- Keep `uv tool install coga` as the isolated default and explain that it does
+  not touch system Python.
+- Make the non-uv and source-install paths create and activate a virtualenv,
+  while labeling current/system-environment installation as an explicit opt-out.
+- Use macOS-compatible `python3` commands and a working `uv pip --system`
+  opt-out.
+
+### Test plan
+
+`PYTHONPATH=src python -m pytest` — 1170 passed, 1 skipped.
+
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":123250,"cache_read_input_tokens":2185750,"cli":"claude","input_tokens":90,"model":"claude-fable-5","output_tokens":34190,"provider":"anthropic","schema":1,"session_id":"4a5cc6bf-320d-40c4-b0a0-c0a411e32313","slug":"install/recommend-virtualenv-not-system-python","step":"implement","title":"Onboarding install should use a virtualenv, not system Python","ts":"2026-07-14T01:07:40.433781Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3733504,"cli":"codex","input_tokens":118702,"model":"gpt-5.6-sol","output_tokens":11429,"provider":"openai","schema":1,"session_id":"019f5e2a-5bf9-7f41-b66f-805a29579f96","slug":"install/recommend-virtualenv-not-system-python","step":"peer-review","title":"Onboarding install should use a virtualenv, not system Python","ts":"2026-07-14T01:17:32.718888Z","usage_status":"ok"}
