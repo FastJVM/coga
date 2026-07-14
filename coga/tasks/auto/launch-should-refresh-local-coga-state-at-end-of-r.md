@@ -173,3 +173,7 @@ Decisions worth reviewing:
   sweep a no-op.
 - `status`/`show`/`validate` are non-sweeping read-only commands (principle 6),
   hence the no-fetch constraint on the status warning.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":549387,"cache_read_input_tokens":22750847,"cli":"claude","input_tokens":265,"model":"claude-fable-5","output_tokens":233876,"provider":"anthropic","schema":1,"session_id":"5d36927f-c621-47ce-87d8-cef4696e409c","slug":"auto/launch-should-refresh-local-coga-state-at-end-of-r","step":"implement","title":"Launch should refresh local coga state at end of run","ts":"2026-07-14T03:39:22.312996Z","usage_status":"ok"}
