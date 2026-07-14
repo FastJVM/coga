@@ -1,7 +1,7 @@
 ---
 slug: install/recommend-virtualenv-not-system-python
 title: Onboarding install should use a virtualenv, not system Python
-status: in_progress
+status: done
 owner: zach
 human: zach
 agent: claude
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
