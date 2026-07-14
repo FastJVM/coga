@@ -1,7 +1,7 @@
 ---
 slug: install/document-where-to-run-init-and-adopt-existing-repo
 title: Document where to run relay init and how to adopt an existing project
-status: in_progress
+status: done
 owner: zach
 human: zach
 agent: claude
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
