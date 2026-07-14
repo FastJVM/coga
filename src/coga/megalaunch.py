@@ -1,8 +1,10 @@
 """Sequential console launcher for launchable, agent-owned Coga work.
 
-A ticket is launchable when it is `active`, or `in_progress` — a step some
-earlier session started and left unfinished; those resume from the current
-step exactly like `coga launch <slug>`.
+Only `active` tickets enter the sweep. An `in_progress` ticket belongs to a
+session some other process started — megalaunch never touches it; resuming an
+orphaned one is a deliberate manual `coga launch <slug>`. An optional
+directory narrows the sweep to a `tasks/` sub-tree, exactly like
+`coga status <dir>`.
 
 Megalaunch is a set of normal interactive launches, not a headless drain: each
 eligible step spawns the agent REPL under the PTY watcher exactly like
@@ -45,7 +47,7 @@ from coga.github_preflight import check_git_auth, check_git_remote
 from coga.logfile import first_activity_map
 from coga.mark import mark_in_progress
 from coga.taskfile import read_blackboard, replace_blackboard
-from coga.tasks import TaskRef, list_tasks, read_ticket
+from coga.tasks import TaskRef, filter_tasks_under, list_tasks, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
 
@@ -78,6 +80,7 @@ class MegalaunchResult:
 class MegalaunchRun:
     started_at: datetime
     agent_filter: str | None = None
+    directory: str | None = None
     results: list[MegalaunchResult] = field(default_factory=list)
 
     @property
@@ -101,13 +104,15 @@ def run_megalaunch(
     *,
     max_tasks: int | None = None,
     agent_filter: str | None = None,
+    directory: str | None = None,
     max_steps_per_task: int = 8,
     probes: dict[str, usage_probe.UsageProbe] | None = None,
 ) -> MegalaunchRun:
-    """Attempt launchable (active or resumable in_progress) tasks sequentially.
+    """Attempt launchable `active` tasks sequentially, each under the budget guard.
 
-    Each task runs under the same budget guard; `in_progress` tickets are
-    resumed from their current step exactly like `coga launch <slug>` would.
+    `directory` narrows the sweep to that `tasks/` sub-tree (nested tasks
+    included), same semantics as `coga status <dir>` — an unknown directory
+    raises `UnknownDirectoryError` rather than sweeping nothing silently.
     """
     cfg = cfg or load_config()
     if agent_filter is not None:
@@ -132,7 +137,11 @@ def run_megalaunch(
     if probes is None:
         probes = usage_probe.build_probes(cfg)
 
-    for ref in _tasks_oldest_first(cfg):
+    # Validates the directory up front (fail loud on a typo) and narrows the
+    # queue before any ticket is read, so out-of-scope work is never counted.
+    queue = filter_tasks_under(_tasks_oldest_first(cfg), directory, cfg)
+
+    for ref in queue:
         if max_tasks is not None and attempted >= max_tasks:
             break
         try:
@@ -152,11 +161,13 @@ def run_megalaunch(
         if ticket.owner != cfg.current_user:
             continue
 
-        # `active` (launchable), `in_progress` (resumable — a prior session
-        # started the step but exited without finishing it), and `blocked`
-        # (reportable) tickets are in scope. draft/paused/done are ignored —
-        # never launched and never counted as a result.
-        if ticket.status not in {"active", "in_progress", "blocked"}:
+        # `active` (launchable) and `blocked` (reportable) tickets are in
+        # scope. draft/paused/done are ignored — never launched and never
+        # counted as a result. `in_progress` is ignored too: that status means
+        # some other session owns the step right now (or crashed mid-step),
+        # and neither is megalaunch's to grab — resuming an orphan is a
+        # deliberate manual `coga launch <slug>`.
+        if ticket.status not in {"active", "blocked"}:
             continue
         if agent_filter is not None and ticket.assignee != agent_filter:
             continue
@@ -183,6 +194,7 @@ def run_megalaunch(
     return MegalaunchRun(
         started_at=started_at,
         agent_filter=agent_filter,
+        directory=directory,
         results=results,
     )
 
@@ -214,7 +226,7 @@ def _candidate_result(
         detail = "; ".join(blocker.reason for blocker in blockers) or "status is blocked"
         return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
 
-    if ticket.status not in {"active", "in_progress"}:
+    if ticket.status != "active":
         return None
     if blockers:
         detail = "; ".join(blocker.reason for blocker in blockers)
@@ -475,6 +487,8 @@ def render_run_summary(run: MegalaunchRun) -> str:
     ]
     if run.agent_filter is not None:
         lines.extend(["", f"Agent: {run.agent_filter}"])
+    if run.directory is not None:
+        lines.extend(["", f"Directory: {run.directory}"])
     lines.extend(["", "Counts:"])
     for key in (
         "launched",

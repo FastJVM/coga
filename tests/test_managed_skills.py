@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -167,6 +168,195 @@ def test_required_managed_skill_fails_loud_on_old_gh(tmp_path: Path) -> None:
         )
 
     assert "Required managed skill `tools/core` failed from owner/repo" in str(exc.value)
+
+
+def test_install_managed_skills_skips_optional_skills_from_inaccessible_source(
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        commands.append(command)
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        if command[:3] == ["gh", "skill", "install"]:
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr=(
+                    "GraphQL: Could not resolve to a Repository with the name "
+                    "'owner/private'. (repository)"
+                ),
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[
+            ManagedSkillSpec(ref="tools/one", source="owner/private"),
+            ManagedSkillSpec(ref="tools/two", source="owner/private"),
+        ],
+        runner=runner,
+    )
+
+    # The first real install identifies the denial; the second is skipped.
+    assert commands == [
+        ["gh", "skill", "--help"],
+        [
+            "gh",
+            "skill",
+            "install",
+            "owner/private",
+            "tools/one",
+            "--dir",
+            str(tmp_path / "skills"),
+        ],
+    ]
+    assert summary.counts() == {"skipped-no-access": 2}
+    first = summary.results[0]
+    assert "owner/private is not accessible" in first.message
+    assert first.details["remediation"] == "coga skill install owner/private tools/one"
+    assert "Could not resolve to a Repository" in first.details["reason"]
+
+
+def test_install_managed_skills_skips_optional_skills_when_gh_missing(
+    tmp_path: Path,
+) -> None:
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError("gh")
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[ManagedSkillSpec(ref="tools/example", source="owner/repo")],
+        runner=runner,
+    )
+
+    # A missing gh binary is a tooling gap, not a credential problem — it
+    # takes the dedicated skipped-old-gh path, never skipped-no-access.
+    assert summary.counts() == {"skipped-old-gh": 1}
+    [result] = summary.results
+    assert "GitHub CLI 2.90.0+" in result.message
+
+
+def test_install_managed_skills_skips_source_blocked_by_saml_enforcement(
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        commands.append(command)
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr=(
+                "GraphQL: Resource protected by organization SAML enforcement. "
+                "You must grant your OAuth token access to this organization."
+            ),
+        )
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[ManagedSkillSpec(ref="tools/example", source="owner/private")],
+        runner=runner,
+    )
+
+    assert len(commands) == 2
+    assert commands[1][:3] == ["gh", "skill", "install"]
+    assert summary.counts() == {"skipped-no-access": 1}
+    assert "SAML enforcement" in summary.results[0].details["reason"]
+
+
+def test_required_managed_skill_from_inaccessible_source_fails_loud(
+    tmp_path: Path,
+) -> None:
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr="HTTP 404: Not Found")
+
+    with pytest.raises(ManagedSkillError) as exc:
+        install_managed_skills(
+            tmp_path,
+            specs=[
+                ManagedSkillSpec(
+                    ref="tools/core",
+                    source="owner/private",
+                    required=True,
+                )
+            ],
+            runner=runner,
+        )
+
+    assert "no access to owner/private" in str(exc.value)
+    assert "Remediation: coga skill install owner/private tools/core" in str(exc.value)
+
+
+def test_install_managed_skills_allows_anonymous_public_install(
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[ManagedSkillSpec(ref="tools/example", source="owner/repo")],
+        runner=runner,
+    )
+
+    assert summary.counts() == {"installed": 1}
+    assert commands == [
+        ["gh", "skill", "--help"],
+        [
+            "gh",
+            "skill",
+            "install",
+            "owner/repo",
+            "tools/example",
+            "--dir",
+            str(tmp_path / "skills"),
+        ],
+    ]
+
+
+def test_install_managed_skills_does_not_treat_install_outage_as_no_access(
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        commands.append(command)
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        if command[:3] == ["gh", "skill", "install"]:
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr="error connecting to api.github.com: network is unreachable",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[ManagedSkillSpec(ref="tools/example", source="owner/repo")],
+        runner=runner,
+    )
+
+    assert summary.counts() == {"failed": 1}
+    assert len(commands) == 2
+    assert commands[1][:3] == ["gh", "skill", "install"]
 
 
 def test_reconcile_managed_skills_detects_old_gh_once_and_skips_rest(

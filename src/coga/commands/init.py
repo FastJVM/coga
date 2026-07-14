@@ -39,7 +39,7 @@ from coga.managed_skills import (
     ManagedSkillSummary,
     install_managed_skills,
 )
-from coga.skill_manager import GH_SKILL_REQUIRED
+from coga.skill_manager import GH_SKILL_REQUIRED, SkillResult
 
 
 LOCAL_TOML_TEMPLATE = """\
@@ -607,6 +607,7 @@ def _print_managed_skill_summary(summary: ManagedSkillSummary) -> None:
             fg=typer.colors.YELLOW,
             err=True,
         )
+    _print_no_access_skill_notes(summary)
     for result in summary.results:
         if result.status != "failed":
             continue
@@ -621,6 +622,45 @@ def _print_managed_skill_summary(summary: ManagedSkillSummary) -> None:
         )
         if remediation:
             typer.secho(f"  Remediation: {remediation}", fg=typer.colors.YELLOW, err=True)
+
+
+def _print_no_access_skill_notes(summary: ManagedSkillSummary) -> None:
+    """One consolidated note per unreachable source, not one warning per skill.
+
+    A user outside the source repo's org (the default for anyone onboarding)
+    would otherwise see every optional skill from that repo reported as its own
+    failure. Coga is fully functional without these skills, so say that once,
+    with how to get them later.
+    """
+    by_source: dict[str, list[SkillResult]] = {}
+    for result in summary.results:
+        if result.status != "skipped-no-access":
+            continue
+        by_source.setdefault(str(result.details.get("source")), []).append(result)
+    for source, results in by_source.items():
+        reason = str(results[0].details.get("reason"))
+        remediation = results[0].details.get("remediation")
+        count = len(results)
+        plural = "s" if count != 1 else ""
+        missing_gh = (
+            "`gh`" in reason and "is not installed" in reason
+        ) or "github cli 2.90.0+" in reason.casefold()
+        if missing_gh:
+            next_step = (
+                "Install GitHub CLI 2.90.0+ from https://cli.github.com, "
+                f"authenticate with `gh auth login`, then run e.g. `{remediation}`."
+            )
+        else:
+            next_step = (
+                f"Get access to {source} (or authenticate with `gh auth login`), "
+                f"then run e.g. `{remediation}`."
+            )
+        typer.secho(
+            f"Note: skipped {count} optional managed skill{plural} from {source} — "
+            f"that repo isn't accessible with your GitHub credentials ({reason}). "
+            f"Coga works without them. To install later, {next_step}",
+            fg=typer.colors.YELLOW,
+        )
 
 
 

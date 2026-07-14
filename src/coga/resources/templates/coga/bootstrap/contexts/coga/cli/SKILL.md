@@ -501,11 +501,14 @@ clear-the-queue counterpart to naming one slug — it takes no slug and rejects
 `--answer` (each task is answered per-ticket at its prompt). After it finishes,
 `coga launch <slug>` each reactivated task.
 
-## coga megalaunch [--max-tasks N] [--agent <type>]
+## coga megalaunch [DIR] [--max-tasks N] [--agent <type>]
 
 Attempt launchable active work owned by the configured current user
 sequentially using the shared megalaunch engine. This is not parallel fanout:
-it scans active tasks, silently filters out tickets whose `owner` is not
+it scans `active` tasks only — an `in_progress` ticket belongs to a session
+some other process started (or that crashed mid-step) and is never grabbed;
+resuming an orphaned one is a deliberate manual `coga launch <slug>`. It
+silently filters out tickets whose `owner` is not
 `load_config().current_user` (including owner-less tickets, so other owners'
 work is not counted as skip noise), skips human gates and open blockers, checks
 the assigned agent's token budget guard, preflights launch requirements, then
@@ -527,6 +530,11 @@ Pass `--agent <type>` to scope the sweep to tickets currently assigned to that
 configured agent type. Tickets assigned to other agents are outside the run and
 are not counted as skip noise; if a launched task hands off to a different
 agent, megalaunch stops there for that task.
+
+An optional positional `DIR` scopes the sweep to tasks under `tasks/<DIR>/`
+(nested ones included), exactly like `coga status <dir>` — `coga megalaunch
+marketing` drains only that sub-tree, and an unknown directory fails loud
+instead of sweeping nothing silently. It composes with `--agent`.
 
 ## coga slack --task \<slug\> --message "..."
 
@@ -710,7 +718,8 @@ only; they don't accept their own flags.
 - Launching one named recurring task now → `coga recurring launch <name>`.
 - Starting or resuming agent work on a task → `coga launch <slug>`.
 - Attempting your launchable active agent work → `coga megalaunch`
-  (`--agent <type>` scopes it to one agent).
+  (`--agent <type>` scopes it to one agent, `coga megalaunch <dir>` to one
+  `tasks/` sub-tree).
 - Other bootstrap ticket → `coga launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `coga bump`.
 - Catching up tickets after a teammate merged a PR → `coga automerge`

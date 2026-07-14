@@ -50,9 +50,11 @@ the **preceding `self-qa` step**, before it bumps:
 - **Author the PR body** — add a `## PR` section on the blackboard (summary +
   one-line test plan). The script uses it as the PR body, falling back to
   `## Description` if absent.
-- **Make the branch mergeable with `main`** — resolve any base conflicts,
-  re-run `python -m pytest`, and commit, so the reviewer gets a clean PR. Leave
-  the branch committed and ahead of `main`.
+- **Make the branch fresh, not just conflict-free** — run `git fetch origin
+  main && git rebase FETCH_HEAD` unconditionally (the `open-pr` script refuses
+  a branch that is materially stale against `origin/main` even when it merges
+  cleanly), resolve whatever surfaces, re-run `python -m pytest`, and commit.
+  Leave the branch committed and ahead of `main`.
 
 ## review
 

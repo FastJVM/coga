@@ -34,15 +34,16 @@ ticket reassigned to the human owner.
 6. **Commit.** Conventional, present-tense summary line. Reference the
    ticket slug in the body. One commit per logical change is fine; rebase
    to clean up before pushing.
-7. **Probe auth and branch freshness before you push.** Run
-   `coga validate --check-github` first. If git/`gh` auth isn't ready, or the
-   branch does not contain the latest configured control branch, do **not**
-   improvise around it: write the exact failure and the suggested fix (set/fix
-   the remote, load your SSH key or credential helper, run `gh auth login`, or
-   rebase/merge the control branch) under `## Dev` on the blackboard, then
-   `coga block` with a one-line reason so the human can fix the environment or
-   relaunch after the branch is current. The push and PR cannot succeed safely
-   without it.
+7. **Probe auth and freshen the branch before you push.** Run
+   `coga validate --check-github` first. A stale branch you fix yourself:
+   `git fetch origin main && git rebase FETCH_HEAD` from the clean feature
+   worktree, re-run the tests, and commit — `coga block` only when a conflict
+   needs a judgment call you can't make. Auth you do **not** improvise
+   around: if git/`gh` isn't ready, write the exact failure and the suggested
+   fix (set/fix the remote, load your SSH key or credential helper, run
+   `gh auth login`) under `## Dev` on the blackboard, then `coga block` with
+   a one-line reason so the human can fix the environment. The push and PR
+   cannot succeed safely without both.
 8. **Push** the branch from the feature worktree.
 9. **Open the PR** with `gh pr create`. Title = ticket title. Body =
    short summary + "Closes ticket: `<slug>`" + a one-line test plan.
