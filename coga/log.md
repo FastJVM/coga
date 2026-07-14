@@ -1199,3 +1199,4 @@ fatal: adding files failed
 2026-07-13 21:45 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-13 21:45 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-14 09:44 [bootstrap/orient] [human:zach] launched in agent mode (assignee=claude, agent=claude)
+2026-07-14 11:49 [bootstrap/orient] [human:zach] launched in agent mode (assignee=claude, agent=claude)
