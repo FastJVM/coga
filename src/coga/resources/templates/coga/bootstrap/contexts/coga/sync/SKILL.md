@@ -348,16 +348,12 @@ to the pre-sync tip and re-applies the stash there — so a failed recovery leav
 no conflict markers and no orphaned stash, only a reported sync miss.
 
 (Process-level races within a single clone — a recurring sweep and an agent's
-`coga mark`/`bump` both `rebase --autostash`-ing one working tree — are a
-separate concern handled by **per-agent worktree isolation**: the
-`[launch].worktree` knob (on by default, `worktree_path` sets the location)
-runs each `coga launch` session in its own detached
-`git worktree` (`.coga/worktrees/<id>`), so concurrent agents never share one
-`.git/index` / stash stack. Detached HEAD also forces every task-state sync onto
-the cross-branch temp-index overlay — the path that never rebases a working tree
-— so the contention has nowhere to land. coga stays intentionally lock-free; the
-worktrees *isolate* rather than serialize, and this spool contract is what keeps
-that safe across clones.)
+`coga mark`/`bump` both `rebase --autostash`-ing one working tree — remain a
+known limitation: launches run in the shared checkout, so concurrent agents in
+one clone share a single `.git/index` / stash stack. Run concurrent sessions
+from separate clones or worktrees, or sequentially — `coga megalaunch` is
+strictly sequential and unaffected. coga stays intentionally lock-free; this
+spool contract is what keeps the sync safe across clones.)
 
 ## Git — durable task-state sync
 
@@ -410,7 +406,7 @@ Concurrent local or cross-machine processes each fetch→build→push; exactly o
 fast-forwards per round and the losers retry, so nothing on the control branch
 is clobbered.
 
-After a detached launch worktree wins that push, Coga fast-forwards the local
+After a cross-branch landing wins that push, Coga fast-forwards the local
 control-branch ref best-effort. When no worktree has the branch checked out, a
 bare `update-ref` moves it. When one does — the primary checkout sitting on
 `main` is the common case — the ref is **never** moved directly: moving `main`
@@ -422,16 +418,6 @@ which moves ref, index, and working tree together and refuses divergence or
 overwriting local edits. A refused fast-forward is a stderr note, never a
 crash — origin already has the commit; preserving the attached checkout's
 file/index coherence is required, the local ref update stays best-effort.
-
-Detached launch-worktree cleanup checks the same boundary. After the teardown
-sweep runs, dirt relative to the old detached base is ignored if applying those
-dirty Coga paths would no longer change the fetched control tip. That lets
-successful sync remove the throwaway worktree while still preserving it when a
-task file or union-file append has not actually reached `main`. If the cleanup
-freshness fetch itself cannot write `FETCH_HEAD` because the launch sandbox made
-git metadata read-only, cleanup may compare against the already-present local
-`<remote>/<control>` ref instead; other fetch failures still preserve the
-worktree for recovery.
 
 Scope is narrow. `src/coga/git.py::sync_task_state(cfg, task_path, *,
 message)` stages and commits only the task directory pathspec. It must not use

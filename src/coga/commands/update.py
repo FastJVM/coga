@@ -266,8 +266,7 @@ _HOST_GITIGNORE_BODY = (
     "# agent CLIs (Claude Code, Codex) can discover Coga's generated skill view.\n"
     ".claude/skills/coga\n"
     ".codex/skills/coga\n"
-    "# coga-local state: vendored CLI/venv (`.coga/bin`, `.coga/.venv`) and the\n"
-    "# per-launch `git worktree` checkouts `[launch].worktree` creates.\n"
+    "# coga-local state: vendored CLI/venv (`.coga/bin`, `.coga/.venv`).\n"
     ".coga/\n"
     f"{HOST_GITIGNORE_END}\n"
 )

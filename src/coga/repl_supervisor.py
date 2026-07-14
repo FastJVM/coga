@@ -146,7 +146,6 @@ def run_with_done_marker(
     max_session: float | None = None,
     output_fd: int | None = None,
     input_fd: int | None = None,
-    cwd: "os.PathLike[str] | str | None" = None,
 ) -> ReplOutcome:
     """Spawn `cmd` in a PTY, proxy stdio, SIGTERM the child on done signal.
 
@@ -177,10 +176,6 @@ def run_with_done_marker(
     busy but never signals done. Also a `timeout` outcome. Leave None for no
     wall-clock cap.
 
-    `cwd`, when set, is the working directory the child runs in — the per-launch
-    `git worktree` under `[launch].worktree` isolation. None runs in the
-    supervisor's own cwd (today's behaviour).
-
     `output_fd` / `input_fd` exist for tests; production callers leave them
     None and the supervisor proxies the real stdio.
     """
@@ -188,7 +183,7 @@ def run_with_done_marker(
         import subprocess
 
         code = subprocess.run(
-            cmd, env=dict(env), check=False, cwd=cwd
+            cmd, env=dict(env), check=False
         ).returncode
         return ReplOutcome(code, "natural")
 
@@ -201,12 +196,6 @@ def run_with_done_marker(
     if pid == 0:  # child
         for k, v in child_env.items():
             os.environ[k] = v
-        if cwd is not None:
-            try:
-                os.chdir(cwd)
-            except OSError as exc:
-                os.write(2, f"coga: chdir to launch cwd {cwd} failed: {exc}\r\n".encode())
-                os._exit(127)
         try:
             os.execvp(cmd[0], cmd)
         except OSError as exc:
@@ -458,10 +447,10 @@ def emit_done_marker(session_id: str | None = None) -> None:
     the signal names *its* session and ignore stray writes from unrelated
     descendants that merely inherited the env var. Session-ending commands
     pass the task's `id_slug` (see `coga.commands.{bump,mark,block}`) — the
-    worktree-independent ticket identity. It is deliberately the slug rather
-    than the resolved task path: under `[launch].worktree` isolation the same
-    ticket exists at two absolute paths (primary checkout + per-launch
-    worktree), so a path-scoped marker written from the "wrong" cwd never
+    checkout-independent ticket identity. It is deliberately the slug rather
+    than the resolved task path: the same ticket can exist at two absolute
+    paths (e.g. a peer agent's separate clone or another checkout of the
+    repo), so a path-scoped marker written from the "wrong" cwd never
     matched what the supervisor polled and the REPL hung. A bare call writes
     the legacy `"done"` sentinel.
     """

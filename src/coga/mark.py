@@ -64,9 +64,10 @@ def _assert_no_stranded_product_code(cfg: Config, ref: TaskRef, ticket: Ticket) 
 
     A `direct/body` (or other push/PR-less) workflow lands only Coga OS state on
     the control branch; any tracked product code the agent committed rides a
-    throwaway launch-worktree branch that never reaches `main` and dangles when
-    the worktree is removed. Detect it before the `done` write and raise so the
-    CLI can steer the ticket to a `code/*` workflow (or `--force` past it).
+    throwaway branch or detached checkout that never reaches `main` and dangles
+    when that checkout is removed. Detect it before the `done` write and raise
+    so the CLI can steer the ticket to a `code/*` workflow (or `--force` past
+    it).
     """
     name = _workflow_name(ticket)
     if name not in _NO_PR_WORKFLOWS:

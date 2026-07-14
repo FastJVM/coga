@@ -68,8 +68,8 @@ def block(
         _bail(str(exc))
 
     # `id_slug` (not the resolved path) scopes the signal so it matches the
-    # supervisor regardless of which checkout — primary or per-launch worktree
-    # — the command runs in. See `bump.py` for the worktree-drift rationale.
+    # supervisor regardless of which checkout the command runs in. See
+    # `bump.py` for the path-drift rationale.
     emit_done_marker(session_id=ref.id_slug)
 
 
