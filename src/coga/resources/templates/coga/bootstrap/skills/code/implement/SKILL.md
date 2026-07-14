@@ -30,7 +30,12 @@ later `code/open-pr` step does that, after self-review and fixes.
    *not* have to match the slug. Then return to the primary checkout and
    write `branch: <branch-name>` and `worktree: <path>` under a `## Dev`
    section on the blackboard. See the `dev/code` context for the full
-   convention.
+   convention. **On a resumed session** where `## Dev` already records a
+   `branch:` and `worktree:`, reuse them — and refresh first: from the
+   clean feature worktree, `git fetch origin main && git rebase
+   FETCH_HEAD`, re-running the tests if new commits came in. Work parked
+   for days drifts; start from current `main`, not from where the last
+   session left off.
 4. **Implement in the worktree.** Change into the feature worktree and
    match existing code style. Keep changes scoped to the
    ticket — no opportunistic refactors. If you find a real adjacent bug,
@@ -53,7 +58,13 @@ later `code/open-pr` step does that, after self-review and fixes.
    prompt composition, or workflow semantics (per CLAUDE.md).
 7. **Commit.** Conventional, present-tense summary line. Reference the
    ticket slug in the body. One commit per logical change is fine.
-8. **Bump — this is what ends the step.** Return to the primary
+8. **Freshen against `main` before handing off.** From the clean feature
+   worktree, `git fetch origin main && git rebase FETCH_HEAD`; if commits
+   came in, re-run the tests and fix what broke. The later `open-pr`
+   script step refuses a branch missing material commits from
+   `origin/main`, and as a script it has no judgment to rebase with —
+   freshness lands in the agent steps, while judgment is available.
+9. **Bump — this is what ends the step.** Return to the primary
    checkout and run `coga bump <slug>`. This advances the workflow to
    the next step and is the *only* thing that does so — there is no
    autobump. If you stop here without running it, the workflow stalls
@@ -68,6 +79,7 @@ later `code/open-pr` step does that, after self-review and fixes.
   on the blackboard.
 - Tests pass locally.
 - Changes committed (no working-tree modifications left).
+- The branch contains the latest `origin/main`.
 - No push, no PR yet.
 - Blackboard reflects what changed and any decisions made.
 - `coga bump <slug>` has been run — the step is not done until it has.
