@@ -93,3 +93,7 @@ worktree: /home/n/Code/claude/coga/.coga/worktrees/coga-readme-venv-install
   machine's default python is 3.9, which fails Coga's version guard before
   collection — pre-existing environment issue, unrelated to this docs change).
 - No push, no PR — that's the later open-pr step.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":123250,"cache_read_input_tokens":2185750,"cli":"claude","input_tokens":90,"model":"claude-fable-5","output_tokens":34190,"provider":"anthropic","schema":1,"session_id":"4a5cc6bf-320d-40c4-b0a0-c0a411e32313","slug":"install/recommend-virtualenv-not-system-python","step":"implement","title":"Onboarding install should use a virtualenv, not system Python","ts":"2026-07-14T01:07:40.433781Z","usage_status":"ok"}
