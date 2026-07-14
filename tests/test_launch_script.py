@@ -216,7 +216,7 @@ def test_script_launch_refreshes_launch_checkout(
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude",
+        contexts=[], owner="marc", assignee="claude",
         watchers=[], status="active",
     )
 
@@ -243,7 +243,7 @@ def test_failed_script_launch_still_refreshes_launch_checkout(
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Fail", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude",
+        contexts=[], owner="marc", assignee="claude",
         watchers=[], status="active",
     )
 
