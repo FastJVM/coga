@@ -165,3 +165,7 @@ worktree: /home/n/Code/codex/coga-remove-ticket-mode
   layer composes unconditionally (compose is only reached by agent launches).
 - `coga/tasks/*` body text and `coga/log.md` history mentioning the old
   `mode:` field left untouched (historical record).
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":660827,"cache_read_input_tokens":56303156,"cli":"claude","input_tokens":593,"model":"claude-fable-5","output_tokens":227861,"provider":"anthropic","schema":1,"session_id":"98eb70fc-7cb4-46c9-9447-255c77bfdc0f","slug":"remove-mode-from-ticket-frontmatter-and-deduce-scr","step":"implement","title":"Remove mode from ticket frontmatter and deduce script-vs-agent from context","ts":"2026-07-14T02:56:53.900933Z","usage_status":"ok"}
