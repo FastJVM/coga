@@ -12,6 +12,7 @@ import tomllib
 from coga.config import Config
 from coga.skill_manager import (
     Downloader,
+    GhSkillUnavailableError,
     Runner,
     SkillManagerError,
     SkillResult,
@@ -136,6 +137,7 @@ def install_managed_skills(
     summary = ManagedSkillSummary()
     skill_specs = specs if specs is not None else load_managed_skill_manifest()
     access_cache: dict[str, str | None] = {}
+    gh_unavailable: GhSkillUnavailableError | None = None
     for spec in skill_specs:
         target = _skill_target(cfg, spec.ref)
         if target.exists():
@@ -149,8 +151,15 @@ def install_managed_skills(
                 )
             )
             continue
-        summary.results.append(
-            _run_install(
+        if gh_unavailable is not None:
+            if spec.required:
+                raise ManagedSkillError(
+                    _required_failure_message(spec, gh_unavailable)
+                ) from gh_unavailable
+            summary.results.append(_gh_unavailable_result(spec, gh_unavailable))
+            continue
+        try:
+            result = _run_install(
                 cfg,
                 spec,
                 runner=runner,
@@ -158,7 +167,14 @@ def install_managed_skills(
                 github_installer=github_installer,
                 access_cache=access_cache,
             )
-        )
+        except GhSkillUnavailableError as exc:
+            # Every manifest install goes through `gh skill`, so one missing
+            # `gh skill` means they all fail identically — record it once and
+            # skip the rest instead of re-probing (and re-failing) per skill.
+            gh_unavailable = exc
+            summary.results.append(_gh_unavailable_result(spec, exc))
+            continue
+        summary.results.append(result)
     return summary
 
 
@@ -175,19 +191,38 @@ def reconcile_managed_skills(
     summary = ManagedSkillSummary()
     skill_specs = specs if specs is not None else load_managed_skill_manifest()
     access_cache: dict[str, str | None] = {}
+    gh_unavailable: GhSkillUnavailableError | None = None
     for spec in skill_specs:
         target = _skill_target(cfg, spec.ref)
         if not target.exists():
-            summary.results.append(
-                _run_install(
-                    cfg,
-                    spec,
-                    runner=runner,
-                    downloader=downloader,
-                    github_installer=github_installer,
-                    access_cache=access_cache,
+            if gh_unavailable is not None:
+                if spec.required:
+                    raise ManagedSkillError(
+                        _required_failure_message(spec, gh_unavailable)
+                    ) from gh_unavailable
+                summary.results.append(_gh_unavailable_result(spec, gh_unavailable))
+                continue
+            try:
+                summary.results.append(
+                    _run_install(
+                        cfg,
+                        spec,
+                        runner=runner,
+                        downloader=downloader,
+                        github_installer=github_installer,
+                        access_cache=access_cache,
+                    )
                 )
-            )
+            except GhSkillUnavailableError as exc:
+                gh_unavailable = exc
+                summary.results.append(_gh_unavailable_result(spec, exc))
+            continue
+        if gh_unavailable is not None and spec.source_type == "github":
+            if spec.required:
+                raise ManagedSkillError(
+                    _required_failure_message(spec, gh_unavailable)
+                ) from gh_unavailable
+            summary.results.append(_gh_unavailable_result(spec, gh_unavailable))
             continue
         try:
             if updater is not None:
@@ -199,6 +234,12 @@ def reconcile_managed_skills(
                     runner=runner,
                     downloader=downloader,
                 )
+        except GhSkillUnavailableError as exc:
+            if spec.required:
+                raise ManagedSkillError(_required_failure_message(spec, exc)) from exc
+            gh_unavailable = exc
+            summary.results.append(_gh_unavailable_result(spec, exc))
+            continue
         except SkillManagerError as exc:
             result = _failure_result(spec, exc)
             if spec.required:
@@ -240,6 +281,10 @@ def _run_install(
                 return _no_access_result(spec, reason)
             try:
                 return install_github_skill(cfg, spec.source, spec.ref, runner=runner)
+            except GhSkillUnavailableError:
+                # Not an access problem — the outer handler propagates it so
+                # the caller can skip the remaining manifest entries.
+                raise
             except SkillManagerError as exc:
                 reason = _github_access_denial_reason(str(exc))
                 if reason is None:
@@ -260,6 +305,12 @@ def _run_install(
             runner=runner,
             downloader=downloader,
         )
+    except GhSkillUnavailableError as exc:
+        if spec.required:
+            raise ManagedSkillError(_required_failure_message(spec, exc)) from exc
+        # Let the caller see the missing `gh skill` so it can skip the
+        # remaining manifest entries instead of failing each identically.
+        raise
     except SkillManagerError as exc:
         if spec.required:
             raise ManagedSkillError(_required_failure_message(spec, exc)) from exc
@@ -293,7 +344,6 @@ def _github_access_denial_reason(output: str) -> str | None:
         "grant your oauth token access",
         "http 401",
         "http 404",
-        "github cli 2.90.0+ with `gh skill` is required",
     )
     for line in lines:
         normalized = line.casefold()
@@ -316,6 +366,22 @@ def _no_access_result(spec: ManagedSkillSpec, reason: str) -> SkillResult:
             "required": spec.required,
             "remediation": spec.remediation_command(),
             "reason": reason,
+        },
+    )
+
+
+def _gh_unavailable_result(
+    spec: ManagedSkillSpec, exc: GhSkillUnavailableError
+) -> SkillResult:
+    return SkillResult(
+        name=spec.ref,
+        source_type=spec.source_type,
+        status="skipped-old-gh",
+        message=str(exc),
+        details={
+            "source": spec.source,
+            "required": spec.required,
+            "remediation": spec.remediation_command(),
         },
     )
 

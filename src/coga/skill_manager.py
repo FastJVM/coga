@@ -43,6 +43,10 @@ class SkillManagerError(Exception):
     """Raised for user-facing skill-management failures."""
 
 
+class GhSkillUnavailableError(SkillManagerError):
+    """Raised when `gh skill` is unavailable — gh missing or older than 2.90."""
+
+
 @dataclass
 class SkillResult:
     name: str
@@ -588,13 +592,22 @@ def ensure_gh_skill(*, runner: Runner | None = None) -> None:
     try:
         result = (runner or run_subprocess)(command, None)
     except FileNotFoundError as exc:
-        raise SkillManagerError(GH_SKILL_REQUIRED) from exc
+        raise GhSkillUnavailableError(GH_SKILL_REQUIRED) from exc
     if result.returncode != 0:
-        raise SkillManagerError(
-            GH_SKILL_REQUIRED
-            + "\n"
-            + (result.stderr or result.stdout).strip()
+        output = (result.stderr or result.stdout).strip()
+        normalized = output.lower()
+        old_gh = (
+            'unknown command "skill" for "gh"' in normalized
+            or "unknown command: skill" in normalized
         )
+        if old_gh:
+            # Old gh follows the unknown-command line with its full usage
+            # screen; keep only that first line so callers can report it once.
+            detail = output.splitlines()[0].strip() if output else ""
+            message = f"{GH_SKILL_REQUIRED}\n{detail}" if detail else GH_SKILL_REQUIRED
+            raise GhSkillUnavailableError(message)
+        message = f"{GH_SKILL_REQUIRED}\n{output}" if output else GH_SKILL_REQUIRED
+        raise SkillManagerError(message)
 
 
 def run_command_string(

@@ -13,7 +13,12 @@ from coga.managed_skills import (
     load_managed_skill_manifest,
     reconcile_managed_skills,
 )
-from coga.skill_manager import SkillManagerError, SkillResult, SkillUpdateSummary
+from coga.skill_manager import (
+    GhSkillUnavailableError,
+    SkillManagerError,
+    SkillResult,
+    SkillUpdateSummary,
+)
 
 
 def test_load_managed_skill_manifest(tmp_path: Path) -> None:
@@ -122,6 +127,49 @@ def test_optional_managed_skill_install_failure_is_reported(tmp_path: Path) -> N
     assert result.details["remediation"] == "coga skill install owner/repo tools/example"
 
 
+def test_install_managed_skills_detects_old_gh_once_and_skips_rest(
+    tmp_path: Path,
+) -> None:
+    calls: list[str | None] = []
+
+    def install(_: Config, __: str, skill: str | None) -> SkillResult:
+        calls.append(skill)
+        raise GhSkillUnavailableError("GitHub CLI 2.90.0+ with `gh skill` is required")
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[
+            ManagedSkillSpec(ref="tools/one", source="owner/repo"),
+            ManagedSkillSpec(ref="tools/two", source="owner/repo"),
+            ManagedSkillSpec(ref="tools/three", source="owner/repo"),
+        ],
+        github_installer=install,
+    )
+
+    assert calls == ["tools/one"]
+    assert summary.counts() == {"skipped-old-gh": 3}
+    for result in summary.results:
+        assert "gh skill" in result.message
+        assert result.details["remediation"].startswith("coga skill install owner/repo")
+
+
+def test_required_managed_skill_fails_loud_on_old_gh(tmp_path: Path) -> None:
+    def install(_: Config, __: str, ___: str | None) -> SkillResult:
+        raise GhSkillUnavailableError("GitHub CLI 2.90.0+ with `gh skill` is required")
+
+    with pytest.raises(ManagedSkillError) as exc:
+        install_managed_skills(
+            tmp_path,
+            specs=[
+                ManagedSkillSpec(ref="tools/optional", source="owner/repo"),
+                ManagedSkillSpec(ref="tools/core", source="owner/repo", required=True),
+            ],
+            github_installer=install,
+        )
+
+    assert "Required managed skill `tools/core` failed from owner/repo" in str(exc.value)
+
+
 def test_install_managed_skills_skips_optional_skills_from_inaccessible_source(
     tmp_path: Path,
 ) -> None:
@@ -185,9 +233,11 @@ def test_install_managed_skills_skips_optional_skills_when_gh_missing(
         runner=runner,
     )
 
-    assert summary.counts() == {"skipped-no-access": 1}
+    # A missing gh binary is a tooling gap, not a credential problem — it
+    # takes the dedicated skipped-old-gh path, never skipped-no-access.
+    assert summary.counts() == {"skipped-old-gh": 1}
     [result] = summary.results
-    assert "GitHub CLI 2.90.0+" in result.details["reason"]
+    assert "GitHub CLI 2.90.0+" in result.message
 
 
 def test_install_managed_skills_skips_source_blocked_by_saml_enforcement(
@@ -307,6 +357,76 @@ def test_install_managed_skills_does_not_treat_install_outage_as_no_access(
     assert summary.counts() == {"failed": 1}
     assert len(commands) == 2
     assert commands[1][:3] == ["gh", "skill", "install"]
+
+
+def test_reconcile_managed_skills_detects_old_gh_once_and_skips_rest(
+    tmp_path: Path,
+) -> None:
+    for name in ("one", "two"):
+        existing = tmp_path / "skills" / "tools" / name
+        existing.mkdir(parents=True)
+        (existing / "SKILL.md").write_text("local\n")
+    updated: list[str] = []
+
+    def update(_: Config, skill: str) -> SkillUpdateSummary:
+        updated.append(skill)
+        raise GhSkillUnavailableError("GitHub CLI 2.90.0+ with `gh skill` is required")
+
+    summary = reconcile_managed_skills(
+        tmp_path,
+        specs=[
+            ManagedSkillSpec(ref="tools/one", source="owner/repo"),
+            ManagedSkillSpec(ref="tools/two", source="owner/repo"),
+        ],
+        updater=update,
+    )
+
+    assert updated == ["tools/one"]
+    assert summary.counts() == {"skipped-old-gh": 2}
+
+
+def test_reconcile_managed_skills_updates_existing_url_skill_after_old_gh(
+    tmp_path: Path,
+) -> None:
+    for name in ("github", "url"):
+        existing = tmp_path / "skills" / "tools" / name
+        existing.mkdir(parents=True)
+        (existing / "SKILL.md").write_text("local\n")
+    updated: list[str] = []
+
+    def update(_: Config, skill: str) -> SkillUpdateSummary:
+        updated.append(skill)
+        if skill == "tools/github":
+            raise GhSkillUnavailableError(
+                "GitHub CLI 2.90.0+ with `gh skill` is required"
+            )
+        return SkillUpdateSummary(
+            [
+                SkillResult(
+                    name=skill,
+                    source_type="url",
+                    status="unchanged",
+                    message="upstream digest unchanged",
+                )
+            ]
+        )
+
+    summary = reconcile_managed_skills(
+        tmp_path,
+        specs=[
+            ManagedSkillSpec(ref="tools/github", source="owner/repo"),
+            ManagedSkillSpec(
+                ref="tools/url",
+                source="https://example.test/skill",
+                source_type="url",
+                required=True,
+            ),
+        ],
+        updater=update,
+    )
+
+    assert updated == ["tools/github", "tools/url"]
+    assert summary.counts() == {"skipped-old-gh": 1, "unchanged": 1}
 
 
 def test_reconcile_managed_skills_uses_update_path_for_existing_skill(

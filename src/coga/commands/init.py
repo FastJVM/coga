@@ -39,7 +39,7 @@ from coga.managed_skills import (
     ManagedSkillSummary,
     install_managed_skills,
 )
-from coga.skill_manager import SkillResult
+from coga.skill_manager import GH_SKILL_REQUIRED, SkillResult
 
 
 LOCAL_TOML_TEMPLATE = """\
@@ -593,6 +593,20 @@ def _print_managed_skill_summary(summary: ManagedSkillSummary) -> None:
     counts = summary.counts()
     rendered = ", ".join(f"{key}={value}" for key, value in sorted(counts.items()))
     typer.echo(f"Managed skills: {rendered}")
+    skipped_old_gh = [r for r in summary.results if r.status == "skipped-old-gh"]
+    if skipped_old_gh:
+        count = len(skipped_old_gh)
+        noun = "skill" if count == 1 else "skills"
+        typer.secho(
+            f"Warning: skipped {count} optional managed {noun} — {GH_SKILL_REQUIRED}",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        typer.secho(
+            "  Skipped: " + ", ".join(result.name for result in skipped_old_gh),
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
     _print_no_access_skill_notes(summary)
     for result in summary.results:
         if result.status != "failed":

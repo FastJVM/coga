@@ -609,6 +609,43 @@ def test_init_reports_installed_managed_skills(
     assert fake_managed_skill_sync.install_calls == [target / "coga"]
 
 
+def test_init_prints_one_compact_warning_for_old_gh_skips(
+    tmp_path: Path,
+    fake_clone,
+    fake_venv,
+    fake_managed_skill_sync,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _make_git_repo(tmp_path / "company")
+
+    def old_gh_result(name: str) -> SkillResult:
+        return SkillResult(
+            name=name,
+            source_type="github",
+            status="skipped-old-gh",
+            message=init_cmd.GH_SKILL_REQUIRED,
+            details={
+                "source": "google/agents-cli",
+                "required": False,
+                "remediation": f"coga skill install google/agents-cli {name}",
+            },
+        )
+
+    fake_managed_skill_sync.install_summary = ManagedSkillSummary(
+        [old_gh_result("tools/one"), old_gh_result("tools/two")]
+    )
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert "Managed skills: skipped-old-gh=2" in result.output
+    assert "Warning: skipped 2 optional managed skills" in result.output
+    assert "  Skipped: tools/one, tools/two" in result.output
+    # One compact upgrade line, not one warning per skill.
+    assert result.output.count("GitHub CLI 2.90.0+") == 1
+    assert "failed" not in result.output
+
+
 def test_init_notes_skipped_no_access_managed_skills(
     tmp_path: Path,
     fake_clone,
@@ -616,7 +653,6 @@ def test_init_notes_skipped_no_access_managed_skills(
     fake_managed_skill_sync,
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
-
     fake_managed_skill_sync.install_summary = ManagedSkillSummary(
         [
             SkillResult(
