@@ -270,6 +270,11 @@ def launch(
             and ticket.status in {"draft", "paused"}
         ):
             _auto_activate(cfg, ref, ticket)
+            # Activation freezes a bare-string workflow and seeds step 1. A
+            # hand-authored draft can therefore become script-backed here even
+            # though the pre-activation deduction above could not see a current
+            # step. Recompute before choosing the script or agent path.
+            run_current_as_script = is_script_launch(cfg, ticket)
 
         assignee = ticket.assignee
         if not assignee:

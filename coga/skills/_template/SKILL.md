@@ -29,6 +29,6 @@ Optional. Useful when the description alone is ambiguous.
 ## Bundled scripts
 
 If this skill ships with scripts, drop them next to SKILL.md and describe
-when each is called. The agent invokes them during interactive/auto
-sessions; for script tasks, `coga launch` runs the first
+when each is called. The agent invokes them during agent sessions; for
+script tasks, `coga launch` runs the first
 executable script with secrets injected as env vars.

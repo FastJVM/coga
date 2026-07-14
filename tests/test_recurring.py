@@ -964,6 +964,59 @@ def test_template_deduction_prefers_template_script(repo: Path) -> None:
     assert all(name != "own-script" for name, _ in scan.errors)
 
 
+def test_template_deduction_isolates_malformed_first_step_skill(
+    repo: Path,
+) -> None:
+    """One malformed skill is a per-template scan error, not a sweep abort."""
+    _write(
+        repo / "skills" / "broken" / "run" / "SKILL.md",
+        "not skill frontmatter\n",
+    )
+    _write(
+        repo / "workflows" / "broken.md",
+        """
+        ---
+        name: broken
+        description: malformed first-step skill.
+        steps:
+          - name: run
+            skills:
+              - broken/run
+        ---
+        """,
+    )
+    _write_recurring(
+        repo,
+        "a-broken",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Broken"
+        workflow: broken
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Broken.
+        """,
+    )
+    _seed_script_workflow(repo)
+    _write_recurring_script(
+        repo, "z-script-check", schedule="0 9 * * *", title="Script check"
+    )
+
+    cfg = load_config(repo)
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=False
+    )
+
+    assert "z-script-check" in {task.template for task in scan.tasks}
+    broken_error = next(message for name, message in scan.errors if name == "a-broken")
+    assert "step 1 skill 'broken/run' could not be loaded" in broken_error
+
+
 def test_template_deduction_multi_skill_step_is_agent(repo: Path, capsys) -> None:
     """A workflow step 1 with more than one skill is not a script step — the
     same exactly-one-skill rule the live dispatch uses — so the template

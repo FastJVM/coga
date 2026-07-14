@@ -122,7 +122,7 @@ def test_megalaunch_runs_active_agent_task(
         termination_kind = "natural"
 
     def fake_spawn(  # type: ignore[no-untyped-def]
-        cfg, ref_obj, ticket, agent, mode, **kwargs
+        cfg, ref_obj, ticket, agent, **kwargs
     ):
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -179,7 +179,7 @@ def test_megalaunch_chains_agent_owned_steps(
     seen_steps: list[str] = []
 
     def fake_spawn(  # type: ignore[no-untyped-def]
-        cfg, ref_obj, ticket, agent, mode, **kwargs
+        cfg, ref_obj, ticket, agent, **kwargs
     ):
         updated = Ticket.read(ref_obj.ticket_path)
         seen_steps.append(updated.step or "")
@@ -236,7 +236,7 @@ def test_megalaunch_agent_filter_only_drains_matching_assignee(
 
     launched: list[str] = []
 
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -299,7 +299,7 @@ def test_megalaunch_only_sweeps_current_users_tickets(
 
     launched: list[str] = []
 
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -356,7 +356,7 @@ def test_megalaunch_agent_filter_stops_at_agent_handoff(
 
     seen_steps: list[str] = []
 
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         updated = Ticket.read(ref_obj.ticket_path)
         seen_steps.append(updated.step or "")
         updated.frontmatter["step"] = "2 (verify)"
@@ -422,7 +422,7 @@ def test_megalaunch_cli_accepts_agent_filter(
         termination_kind = "natural"
 
     def fake_spawn(  # type: ignore[no-untyped-def]
-        cfg, ref_obj, ticket, agent, mode, **kwargs
+        cfg, ref_obj, ticket, agent, **kwargs
     ):
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -476,7 +476,7 @@ def test_megalaunch_directory_scopes_the_sweep(
         termination_kind = "natural"
 
     def fake_spawn(  # type: ignore[no-untyped-def]
-        cfg, ref_obj, ticket, agent, mode, **kwargs
+        cfg, ref_obj, ticket, agent, **kwargs
     ):
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -542,7 +542,7 @@ def test_megalaunch_cli_accepts_directory(
         termination_kind = "natural"
 
     def fake_spawn(  # type: ignore[no-untyped-def]
-        cfg, ref_obj, ticket, agent, mode, **kwargs
+        cfg, ref_obj, ticket, agent, **kwargs
     ):
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -602,8 +602,7 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
 
     seen: dict[str, object] = {}
 
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
-        seen["mode"] = mode
+    def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         seen["idle_timeout"] = kwargs.get("idle_timeout")
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -616,7 +615,6 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
     run = run_megalaunch(cfg)
 
     assert run.counts["completed"] == 1
-    assert seen["mode"] == "agent"
     # The recurring sweep's idle backstop is armed so a wedged REPL can't
     # starve the rest of the queue.
     assert seen["idle_timeout"] is not None
@@ -878,7 +876,7 @@ def test_megalaunch_reprobes_between_launches(
         exit_code = 0
         termination_kind = "natural"
 
-    def fake_spawn(cfg_, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)
@@ -933,7 +931,7 @@ def test_megalaunch_services_tasks_oldest_first(
         exit_code = 0
         termination_kind = "natural"
 
-    def fake_spawn(cfg_, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)

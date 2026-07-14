@@ -264,6 +264,38 @@ def test_bootstrap_script_launch_is_stateless(repo: Path) -> None:
     assert not log_path.exists() or log_path.read_text() == ""
 
 
+def test_draft_bare_script_workflow_recomputes_dispatch_after_activation(
+    repo: Path,
+) -> None:
+    """Activation freezes a hand-authored workflow ref before dispatch.
+
+    Before activation there is no frozen current step to inspect. Once step 1
+    is seeded, launch must re-deduce the script-backed skill instead of taking
+    the agent/TTY path cached from the draft shape.
+    """
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Draft check",
+        workflow_name="ops",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["workflow"] = "ops"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(ref.ticket_path)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(ref.ticket_path).status == "done"
+
+
 # --- deduced dispatch ----------------------------------------------------------
 #
 # There is no `mode:` frontmatter: `is_script_launch` deduces script-vs-agent

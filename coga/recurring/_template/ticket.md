@@ -2,10 +2,8 @@
 schedule: "0 9 * * 1"
 schedule_comment: "Every Monday at 9am"
 title: "Replace with the recurring task title"
-# Pick a mode: `script` runs a skill script directly with no agent;
-# `auto` is a one-shot headless agent run whose output is buffered to the
-# task log; `interactive` drops into a human terminal with live output.
-autonomy: auto
+# Step 1 runs as a script when its single skill declares `script:`;
+# otherwise the run opens an attended agent session and requires a TTY.
 workflow: namespace/your-workflow
 owner: replace-with-human-name
 assignee: replace-with-human-or-agent-nickname

@@ -508,7 +508,12 @@ def _template_runs_as_script(cfg: Config, template: Template) -> bool:
     sp = resolve_skill_path(cfg, step_skills[0])
     if sp is None:
         return False
-    return bool(Skill.load(sp).script)
+    try:
+        return bool(Skill.load(sp).script)
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        raise RecurringError(
+            f"step 1 skill {step_skills[0]!r} could not be loaded: {exc}"
+        ) from exc
 
 
 def _create_at_slug(

@@ -4,8 +4,8 @@ schedule_comment: "Every Monday at 9am — update clean imported skills into one
 title: "Skill update"
 # A script step runs the updater directly with no agent: the workflow's one
 # step references the `bootstrap/skill-update` skill, whose `script:` runs
-# `coga skill update --all --pr`. No `claude -p` / `codex exec` buffering, so
-# it is safe under the temporary mode=auto recurring freeze.
+# `coga skill update --all --pr`. It runs directly with no agent buffering, so
+# it is safe for unattended recurring runs.
 workflow: skill-update/run
 ---
 
