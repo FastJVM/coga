@@ -228,7 +228,7 @@ def find_repo_root(start: Path | None = None) -> Path:
 # --- loader --------------------------------------------------------------------
 
 
-def load_config(repo_root: Path | None = None) -> Config:
+def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> Config:
     root = repo_root or find_repo_root()
     shared = _read_toml(root / "coga.toml")
     local_path = root / "coga.local.toml"
@@ -297,19 +297,29 @@ def load_config(repo_root: Path | None = None) -> Config:
     # The operator's `user` must be set explicitly in `coga.local.toml` — coga
     # never guesses it. A guessed name (git `user.name`, OS username) can
     # disagree with the `owner` tokens written into tickets, and for an
-    # unattended sweep a wrong `me` fails silently. So a missing/empty `user` is
-    # a hard error on every command. Existing repos recover by creating or
-    # editing `coga.local.toml`; fresh repos pass `coga init --user <name>`,
-    # which writes `user` before anything reads config.
+    # unattended sweep a wrong `me` fails silently. So a missing/empty `user`
+    # is a hard error on every command that acts *as* someone. Read-only
+    # surfaces that never read `current_user` (the eager load behind `--help`;
+    # `status`, `show`, `validate`, and `usage`; plus the `skill status`,
+    # `recurring list`, and `secret get` group views) pass `require_user=False`
+    # and get `current_user = ""` instead, so
+    # a teammate on a fresh clone — where the gitignored `coga.local.toml`
+    # does not exist yet — can look around before setting a name. Existing
+    # repos recover by creating or editing `coga.local.toml`; fresh repos pass
+    # `coga init --user <name>`, which writes `user` before anything reads
+    # config.
     current_user = local.get("user")
     if not current_user:
-        raise ConfigError(
-            "No `user` set in coga.local.toml — coga needs your name and will "
-            'not guess it. Add `user = "<name>"` to '
-            f"{local_path} (for example, `user = \"marc\"`). "
-            "For a fresh repo that has not been initialized yet, run "
-            "`coga init --user <name>`."
-        )
+        if require_user:
+            raise ConfigError(
+                "No `user` set in coga.local.toml — coga needs your name and "
+                'will not guess it. Add `user = "<name>"` to '
+                f"{local_path} (for example, `user = \"marc\"`); the file is "
+                "gitignored, so every teammate's clone sets its own. "
+                "For a fresh repo that has not been initialized yet, run "
+                "`coga init --user <name>`."
+            )
+        current_user = ""
 
     return Config(
         repo_root=root,

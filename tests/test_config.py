@@ -596,7 +596,44 @@ def test_missing_user_fails_loud(tmp_path: Path) -> None:
     message = str(excinfo.value)
     assert 'Add `user = "<name>"`' in message
     assert "coga.local.toml" in message
+    assert "gitignored" in message
     assert "fresh repo" in message
+
+
+def test_missing_user_tolerated_when_not_required(tmp_path: Path) -> None:
+    """`require_user=False` is the read-only escape hatch: a teammate's fresh
+    clone has no gitignored `coga.local.toml` at all, and `--help` / `status` /
+    `show` / `validate` / `usage` must still load config. `current_user` comes
+    back empty instead of guessed — coga still never derives a name."""
+    _write(
+        tmp_path / "coga.toml",
+        """
+        version = 1
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        """,
+    )
+    # No coga.local.toml written at all — the fresh-clone shape.
+    cfg = load_config(tmp_path, require_user=False)
+    assert cfg.current_user == ""
+
+
+def test_blank_user_tolerated_when_not_required(tmp_path: Path) -> None:
+    """An empty `user = ""` line (the pre-init template shape) behaves like a
+    missing one under `require_user=False`."""
+    _write(
+        tmp_path / "coga.toml",
+        """
+        version = 1
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(tmp_path / "coga.local.toml", 'user = ""\n')
+    cfg = load_config(tmp_path, require_user=False)
+    assert cfg.current_user == ""
 
 
 def test_find_repo_root(repo: Path) -> None:

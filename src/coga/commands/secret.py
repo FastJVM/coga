@@ -45,7 +45,7 @@ def get(
     rejected — there is nothing to resolve.
     """
     try:
-        load_config()
+        load_config(require_user=False)
     except ConfigError as exc:
         _bail(str(exc))
 

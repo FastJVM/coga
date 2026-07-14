@@ -116,7 +116,7 @@ def list_recurring() -> None:
     then the picked tasks — the recurring period tasks already on disk.
     """
     try:
-        cfg = load_config()
+        cfg = load_config(require_user=False)
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
