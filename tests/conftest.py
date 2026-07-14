@@ -141,6 +141,14 @@ def _stub_git(monkeypatch, request):
     # The catch-all subtree sweep fires from the launch teardown and the CLI
     # dispatch boundary, so it too must no-op off the real-git harness.
     monkeypatch.setattr("coga.git.sync_coga_state", lambda *a, **k: None)
+    # Launch's end-of-run pull-back fetches; `status`'s staleness probe reads
+    # local refs. Both shell out to git, so no-op them off the harness too.
+    monkeypatch.setattr(
+        "coga.git.refresh_coga_state_from_control", lambda *a, **k: None
+    )
+    monkeypatch.setattr("coga.git.stale_coga_task_rels", lambda *a, **k: [])
+    # `views` binds the probe at import time, so patch its name too.
+    monkeypatch.setattr("coga.views.stale_coga_task_rels", lambda *a, **k: [])
     # Launch's push-auth gate also shells out to git (check_git_remote /
     # check_git_auth). Default the remote probe to "unresolved" so the gate
     # self-skips exactly as it would in a non-git checkout; the dedicated gate

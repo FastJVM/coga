@@ -22,6 +22,7 @@ from rich.table import Table
 
 from coga.blackboard import Blocker, open_blockers
 from coga.config import Config, load_config
+from coga.git import stale_coga_task_rels
 from coga.logfile import (
     first_activity_map,
     last_activity_map,
@@ -162,6 +163,8 @@ def render_status(
     Raises `ViewError` for a bad `--order-by` and `UnknownDirectoryError` for an
     unknown directory; the caller translates both to `sys.exit(2)`.
     """
+    _warn_if_control_ahead(cfg)
+
     if dirs:
         _list_dirs(cfg, directory, no_recurse=no_recurse)
         return
@@ -279,6 +282,26 @@ def render_status(
         console.print(_summary_line(recurring_rows), style="dim")
     if hidden_done:
         console.print(_done_hint(hidden_done).lstrip(), style="dim")
+
+
+def _warn_if_control_ahead(cfg: Config) -> None:
+    """One yellow stderr line when the fetched control ref has newer task state.
+
+    `status` is strictly read-only and no-network (principle 6), so this leans
+    on `stale_coga_task_rels`: a comparison against the local remote-tracking
+    `origin/<control>` ref only — it can say "your view is stale as of the last
+    fetch", never fetch to find out more, and it fails open to silence. Stderr,
+    not the table's stdout, so piped output stays parseable.
+    """
+    stale = stale_coga_task_rels(cfg)
+    if not stale:
+        return
+    noun = "task" if len(stale) == 1 else "tasks"
+    Console(stderr=True).print(
+        f"[yellow]Warning: {cfg.git_remote}/{cfg.git_control_branch} has newer "
+        f"state for {len(stale)} {noun} than this checkout — this view may be "
+        f"stale. A finished `coga launch` from here refreshes it.[/yellow]"
+    )
 
 
 def _list_dirs(cfg: Config, directory: str | None, *, no_recurse: bool) -> None:

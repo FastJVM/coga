@@ -39,6 +39,17 @@ holding worktree with `merge --ff-only` — the launch-worktree default leaves
 the primary checkout on `main`, and without this it would fall behind origin
 after every launch until a manual pull.
 
+That best-effort fast-forward moves only the control *ref*: a checkout parked
+on any other branch keeps rendering task state as of its own last commit, so
+the operator who just watched a launch finish still saw the old step in
+`coga status`. `refresh_coga_state_from_control` is the pull-back half that
+closes the loop — `coga launch` runs it against the launch checkout on every
+exit path, fetching `origin/<control>` and folding its `coga/tasks/**` (and,
+union-safely, `log.md`) back into the working tree. `stale_coga_task_rels` is
+the read-only companion probe `coga status` uses to at least *warn* when the
+remote-tracking control ref is known to be ahead — local refs only, no fetch,
+so the render stays no-network.
+
 Failure model: a failed git *operation* raises `GitError` internally, but at
 the boundary (`sync_paths`) it is non-fatal — written to stderr + the task's
 `log.md`, then swallowed so the command keeps running. The task markdown on
@@ -422,6 +433,271 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
     except GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         append_log(cfg, ref_tag_for_path(cfg, subtree), "git", f"sync failed: {exc}")
+
+
+def refresh_coga_state_from_control(
+    cfg: Config, *, message: str = "Refresh coga state from control"
+) -> None:
+    """Pull the control branch's task state back into this checkout.
+
+    The pull-back half of the always-on sync contract, run by `coga launch`
+    when a run ends (bump handoff, `mark done`, `block`, agent exit — every
+    exit path the supervisor sees). The publish half above lands each
+    transition on `origin/<control>` but fast-forwards only the local control
+    *ref*, so a checkout parked on any other branch keeps rendering task state
+    as of its own last commit: the operator watches a launch finish, runs
+    `coga status` in the same terminal, and sees the completed step missing.
+
+    Branch handling:
+
+      - Control branch → fetch + `merge --ff-only` onto the fetched tip. The
+        checkout *is* the control branch, so a plain fast-forward is the whole
+        refresh; a diverged local control is a loud non-fatal miss, never an
+        implicit merge.
+      - Feature branch → fetch, overlay the `coga/tasks/**` files changed on
+        the fetched control tip since its merge base with HEAD, and commit them
+        on the current branch — the same local-commit shape the mid-run
+        feature-branch sync uses, so the branch's product tree is never
+        touched. `coga/log.md` is three-way union-merged (local ∪ control) so
+        locally appended log lines survive. Three guards keep the overlay
+        safe: a path dirty in the working tree is skipped (a hand-edit in
+        flight belongs to the catch-all sweep and its regression guard, not a
+        blind overwrite); committed local divergence is preserved unless the
+        control history proves it already absorbed that exact local version;
+        and a ticket whose local state is *ahead* of the control copy is skipped
+        (`_guard_coga_state_regressions`'s rule pointed the other way — a
+        refresh must never move local state backward).
+      - Detached HEAD → skip with a stderr note; the refresh commit would be
+        orphaned. Launch runs this against the checkout it was invoked from,
+        never the detached isolation worktree.
+
+    Same non-fatal failure model as `sync_paths` (stderr + `coga/log.md`,
+    never a crash): a checkout that cannot refresh is exactly as stale as it
+    already was, and surfacing the run's real outcome matters more.
+    """
+    if not cfg.git_enabled:
+        sys.stderr.write(f"[git] disabled (refresh suppressed): {message}\n")
+        return
+    try:
+        root = _toplevel(cfg.repo_root)
+        if root is None:
+            sys.stderr.write(f"[git] not a git repo (refresh skipped): {message}\n")
+            return
+        if not _control_branch_present(root, cfg.git_control_branch, cfg.git_remote):
+            sys.stderr.write(
+                _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
+            )
+            return
+        branch = _current_branch(root)
+        if branch == "HEAD":
+            sys.stderr.write(
+                f"[git] detached HEAD — coga state not refreshed. ({message})\n"
+            )
+            return
+        _run_git(root, "fetch", cfg.git_remote, cfg.git_control_branch)
+        tip = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+        if branch == cfg.git_control_branch:
+            _run_git(root, "merge", "--ff-only", "--quiet", tip)
+            return
+        _refresh_branch_from_control(cfg, root, tip, message)
+    except GitError as exc:
+        sys.stderr.write(f"[git] refresh failed: {exc}. Message was: {message}\n")
+        append_log(
+            cfg, ref_tag_for_path(cfg, cfg.repo_root), "git", f"refresh failed: {exc}"
+        )
+
+
+def _refresh_branch_from_control(
+    cfg: Config, root: Path, tip: str, message: str
+) -> None:
+    """Overlay the control tip's newer task paths onto a feature checkout."""
+    tasks_rel = _relative_to_root(root, cfg.repo_root / "tasks")
+    ancestor = _run_git(root, "merge-base", "HEAD", tip).strip()
+    out = _run_git(
+        root, "diff", "-z", "--name-only", ancestor, tip, "--", tasks_rel
+    )
+    candidates = [rel for rel in out.split("\x00") if rel]
+    dirty = set(_changed_paths_under(root, [tasks_rel]))
+    updated: list[str] = []
+    for rel in candidates:
+        if rel in dirty:
+            sys.stderr.write(
+                f"[git] refresh: leaving {rel} untouched — it has uncommitted "
+                "local changes (the next command's state sweep owns them).\n"
+            )
+            continue
+        control = _tree_bytes(root, tip, rel)
+        reason = _refresh_regression_reason(cfg, root, rel, control)
+        if reason is not None:
+            sys.stderr.write(f"[git] refresh: leaving {rel} untouched — {reason}.\n")
+            continue
+        reason = _refresh_committed_divergence_reason(
+            root, rel, control, ancestor, tip
+        )
+        if reason is not None:
+            sys.stderr.write(f"[git] refresh: leaving {rel} untouched — {reason}.\n")
+            continue
+        _write_worktree_bytes(root, rel, control)
+        updated.append(rel)
+    updated.extend(_refresh_log_from_control(cfg, root, tip))
+    if updated:
+        _commit_paths(root, updated, message)
+
+
+def _refresh_regression_reason(
+    cfg: Config, root: Path, rel: str, control: bytes | None
+) -> str | None:
+    """Why overwriting `rel` from the control tip would regress local state.
+
+    None when the overwrite is safe. Only ticket files carry orderable state;
+    attachments and other task files always follow the control copy. A path
+    deleted on the control branch propagates too — a retire/delete that landed
+    elsewhere is newer state, and any in-flight local edit was already kept by
+    the dirty-path guard.
+    """
+    if rel not in _changed_task_ticket_rels(root, cfg.repo_root, [rel]):
+        return None
+    if control is None:
+        return None
+    local = _working_tree_bytes(root, rel)
+    if local is None:
+        return None
+    local_state = _ticket_state_from_bytes(local)
+    control_state = _ticket_state_from_bytes(control)
+    if local_state is None or control_state is None:
+        return None
+    reason = _ticket_state_regression_reason(
+        rel, committed=local_state, working=control_state
+    )
+    if reason is None:
+        return None
+    return f"the local copy is ahead of the control branch ({reason})"
+
+
+def _refresh_committed_divergence_reason(
+    root: Path,
+    rel: str,
+    control: bytes | None,
+    ancestor: str,
+    tip: str,
+) -> str | None:
+    """Preserve committed feature-side task changes that control did not absorb.
+
+    A two-tip task diff cannot tell which branch introduced a difference. The
+    caller narrows candidates to control-side changes since the merge base;
+    this second guard handles paths changed on *both* sides. Control may replace
+    the local version only when that exact blob appears in the control path's
+    post-fork history: proof the publish half absorbed it before later state
+    advanced. Otherwise choosing either side would discard committed content.
+    """
+    local = _tree_bytes(root, "HEAD", rel)
+    base = _tree_bytes(root, ancestor, rel)
+    if local == base or local == control:
+        return None
+    if local is not None:
+        commits = _run_git(root, "rev-list", f"{ancestor}..{tip}", "--", rel)
+        if any(
+            _tree_bytes(root, commit, rel) == local
+            for commit in commits.splitlines()
+        ):
+            return None
+
+    return "it has committed local changes not superseded by newer control state"
+
+
+def _refresh_log_from_control(cfg: Config, root: Path, tip: str) -> list[str]:
+    """Union-merge the control tip's `log.md` into the working tree.
+
+    Returns `[log_rel]` when the merge changed the local copy, else `[]`.
+    Direction matters: `current` is the local working copy (committed or
+    still dirty), so lines only this checkout has survive while the control
+    branch's lines fold in — the same union contract the publish paths honor
+    in the opposite direction.
+    """
+    log_rel = _relative_to_root(root, log_path(cfg))
+    control = _tree_bytes(root, tip, log_rel)
+    if control is None:
+        return []
+    local = _working_tree_bytes(root, log_rel) or b""
+    ancestor = _run_git(root, "merge-base", "HEAD", tip).strip()
+    base = _tree_bytes(root, ancestor, log_rel) or b""
+    merged = _merge_union_bytes(current=local, base=base, other=control)
+    if merged == local:
+        return []
+    _write_worktree_bytes(root, log_rel, merged)
+    return [log_rel]
+
+
+def _write_worktree_bytes(root: Path, rel: str, data: bytes | None) -> None:
+    """Write (or remove, for None) one repo-relative file in the working tree."""
+    path = root / rel
+    if data is None:
+        if path.is_file():
+            path.unlink()
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+
+
+def stale_coga_task_rels(cfg: Config) -> list[str]:
+    """Task paths where the remote-tracking control ref is ahead of this checkout.
+
+    The read-only staleness probe behind `coga status`'s warning. Compares the
+    working tree against `refs/remotes/<remote>/<control>` — local refs only,
+    never a fetch, so a render stays no-network (`coga/principles` #6); the
+    answer is as fresh as the last fetch, which is exactly the information the
+    stale view itself was built from. Counts only differences that are
+    provably *newer* on the remote side: a ticket whose remote copy is ahead
+    on step/status progress, or a ticket present in the remote tree and absent
+    locally. Locally-ahead or merely-divergent files are not staleness — a
+    warning that cries wolf on every hand-edit would be tuned out. Fail-open:
+    any git failure returns [] (a warning probe must never break `status`).
+    """
+    if not cfg.git_enabled:
+        return []
+    try:
+        root = _toplevel(cfg.repo_root)
+        if root is None:
+            return []
+        ref = f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}"
+        if not _git_ref_present(root, ref):
+            return []
+        tasks_rel = _relative_to_root(root, cfg.repo_root / "tasks")
+        out = _run_git(root, "diff", "-z", "--name-only", ref, "--", tasks_rel)
+        return [
+            rel
+            for rel in out.split("\x00")
+            if rel and _remote_ticket_is_newer(cfg, root, ref, rel)
+        ]
+    except GitError:
+        return []
+
+
+def _remote_ticket_is_newer(cfg: Config, root: Path, rev: str, rel: str) -> bool:
+    """Whether `rev`'s copy of ticket `rel` is strictly ahead of the checkout's."""
+    if rel not in _changed_task_ticket_rels(root, cfg.repo_root, [rel]):
+        return False
+    remote = _tree_bytes(root, rev, rel)
+    if remote is None:
+        # Only exists locally — local-ahead (e.g. a fresh draft), not stale.
+        return False
+    try:
+        local = _working_tree_bytes(root, rel)
+    except GitError:
+        return False
+    if local is None:
+        # Landed on control, absent here — definitionally behind.
+        return True
+    remote_state = _ticket_state_from_bytes(remote)
+    local_state = _ticket_state_from_bytes(local)
+    if remote_state is None or local_state is None:
+        return False
+    return (
+        _ticket_state_regression_reason(
+            rel, committed=remote_state, working=local_state
+        )
+        is not None
+    )
 
 
 def _dispatch_branch_sync(
@@ -1897,8 +2173,10 @@ __all__ = [
     "add_launch_worktree",
     "launch_worktree_has_dirty_coga_state",
     "reap_orphan_launch_worktrees",
+    "refresh_coga_state_from_control",
     "remove_launch_worktree",
     "repo_root_in_worktree",
+    "stale_coga_task_rels",
     "sync_coga_state",
     "sync_log",
     "sync_paths",

@@ -146,6 +146,35 @@ def test_render_status_lists_tasks(repo: Path) -> None:
     assert "ship-it" in out
 
 
+def test_render_status_warns_when_control_ref_ahead(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """When the fetched control ref has newer task state, the table gets a
+    stderr staleness warning (stdout stays parseable)."""
+    _task(repo, "fix-retry-logic")
+    monkeypatch.setattr(
+        "coga.views.stale_coga_task_rels",
+        lambda cfg: ["coga/tasks/fix-retry-logic/ticket.md"],
+    )
+    console = _recording_console()
+
+    render_status(
+        load_config(repo),
+        directory=None,
+        no_recurse=False,
+        order_by="updated",
+        reverse=False,
+        show_all=False,
+        dirs=False,
+        blocked=False,
+        console=console,
+    )
+
+    err = capsys.readouterr().err
+    assert "newer" in err and "1 task" in err
+    assert "newer" not in console.file.getvalue()
+
+
 def test_render_status_bad_order_by_raises(repo: Path) -> None:
     _task(repo, "fix-retry-logic")
 

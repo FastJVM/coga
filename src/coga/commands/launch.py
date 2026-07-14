@@ -296,6 +296,10 @@ def launch(
                 _bail("--agent is only supported for agent launches.")
             from coga.commands.launch_script import run_script_mode
             run_script_mode(cfg, ref, ticket, stateless=is_bootstrap)
+            # A failed script sys.exits inside run_script_mode; that path is
+            # refreshed by the BaseException handler below, so this fires
+            # exactly once per script launch.
+            _refresh_launch_checkout(base_cfg)
             return
 
         mode = ticket.mode
@@ -403,6 +407,10 @@ def launch(
     except BaseException:
         if worktree_path is not None:
             _cleanup_launch_worktree(base_cfg, cfg, worktree_path)
+        # Setup can exit after state was already published (the auto-activate
+        # or in_progress flip, a failed script step) — pull that state back
+        # into the launch checkout before surfacing the exit.
+        _refresh_launch_checkout(base_cfg)
         raise
 
     try:
@@ -563,6 +571,11 @@ def launch(
         # worktree, and git refuses to remove the worktree it is invoked from.
         if worktree_path is not None:
             _cleanup_launch_worktree(base_cfg, cfg, worktree_path)
+        # After teardown (whose sweep lands any leftover worktree state on the
+        # control branch), pull the run's published state back into the
+        # checkout the operator launched from, so the `coga status` they run
+        # next in this terminal shows the world the run just created.
+        _refresh_launch_checkout(base_cfg)
 
 
 # --- helpers ------------------------------------------------------------------
@@ -775,6 +788,22 @@ def _mirror_local_config_into_worktree(source_root: Path, worktree_root: Path) -
         target.symlink_to(source)
     except OSError:
         shutil.copy2(source, target)
+
+
+def _refresh_launch_checkout(cfg: Config) -> None:
+    """Pull the control branch's task state back into the launch checkout.
+
+    Runs once on every exit path the supervisor sees. `cfg` must be the config
+    rooted where `coga launch` was invoked (`base_cfg`), never the per-launch
+    isolation worktree — the worktree is torn down, and it is the operator's
+    checkout that otherwise stays stale until a manual pull. Non-fatal by
+    construction: `refresh_coga_state_from_control` surfaces git failures on
+    stderr + the log and never raises, so a refresh miss cannot mask the
+    launch's real outcome.
+    """
+    git.refresh_coga_state_from_control(
+        cfg, message="Refresh coga state after launch"
+    )
 
 
 def _cleanup_launch_worktree(

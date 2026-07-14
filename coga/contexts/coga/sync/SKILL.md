@@ -543,6 +543,40 @@ Config lives in `[git]`: `enabled` defaults true, `remote` defaults `origin`,
 and `control_branch` defaults `main`. `enabled` may be overridden in
 `coga.local.toml`; remote and branch are shared repo policy.
 
+### The launch-end pull-back — `refresh_coga_state_from_control`
+
+Everything above publishes: state flows from the running command *to* the
+control branch, and the only local thing that moves is the control ref's
+best-effort fast-forward. A checkout parked on a feature branch therefore
+rendered a stale world after every launch — the operator watched a run finish,
+typed `coga status` in the same terminal, and saw the old step with no signal
+that the view was stale.
+
+`coga launch` closes that loop at the end of every run (bump handoff,
+`mark done`, `block`, agent exit, a failed setup after state was published —
+each exit path the supervisor sees): it fetches `origin/<control>` and folds
+the control tip's `coga/tasks/**` back into the checkout the launch was
+invoked from. On the control branch that is a plain `merge --ff-only`. On a
+feature branch only task files changed on control since the branches' merge
+base are overlaid and committed on the current branch — the same local-commit
+shape the mid-run sync uses — so the branch's product tree is never touched;
+`coga/log.md` is three-way union-merged so locally appended lines survive.
+Working-tree-dirty paths are skipped (they belong to the catch-all sweep and
+its regression guard, not a blind overwrite). Committed changes on both sides
+are preserved locally unless the control path's history proves it already
+absorbed that exact local version, and a ticket whose local copy is ahead of
+the control tip is left alone — a refresh must never move state backward.
+Failures follow the same non-fatal posture as the publish half: stderr +
+`coga/log.md`, never a crash.
+
+`coga status` cannot fetch (a render is read-only and no-network, principle
+6), so it gets the warning half instead: `stale_coga_task_rels` compares the
+working tree against the local remote-tracking `<remote>/<control>` ref and
+`status` prints one stderr warning when that ref provably has newer ticket
+state (a step/status ahead, or a ticket missing locally). No fetch means the
+answer is only as fresh as the last fetch — it cannot see a push nobody has
+fetched — but it turns the silently stale table into a labeled one.
+
 ## Design rule for new features
 
 If a new command changes state that other team members need to know
