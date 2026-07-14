@@ -33,7 +33,7 @@ If you explicitly want Coga in the current Python environment instead — no
 virtualenv, no isolation — opt out with:
 
 ```sh
-python3 -m pip install coga    # or: uv pip install coga
+python3 -m pip install coga    # or: uv pip install --system coga
 ```
 
 To develop Coga or test a branch from source, use a virtualenv there too:
