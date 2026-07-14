@@ -1177,3 +1177,4 @@ fatal: adding files failed
 2026-07-13 18:17 [install/recommend-virtualenv-not-system-python] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-13 18:17 [install/recommend-virtualenv-not-system-python] [system] script exited with code 0
 2026-07-13 18:17 [install/recommend-virtualenv-not-system-python] [system] advanced to step 4 (review) → assigned to zach after script step
+2026-07-13 19:15 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [human:nicktoper] activated (draft → active) — auto on launch
