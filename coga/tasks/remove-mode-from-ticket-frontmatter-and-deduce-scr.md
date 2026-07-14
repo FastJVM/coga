@@ -100,3 +100,7 @@ of bailing loud; TTY-less contexts still fail on the TTY gate.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":60945,"cache_read_input_tokens":112077,"cli":"claude","input_tokens":10,"model":"claude-fable-5","output_tokens":1739,"provider":"anthropic","schema":1,"session_id":"95808471-2ec6-4870-908e-0530a236852f","slug":"remove-mode-from-ticket-frontmatter-and-deduce-scr","step":"implement","title":"Remove mode from ticket frontmatter and deduce script-vs-agent from context","ts":"2026-07-14T04:45:31.406972Z","usage_status":"ok"}
