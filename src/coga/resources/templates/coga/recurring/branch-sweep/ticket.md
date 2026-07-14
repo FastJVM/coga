@@ -4,8 +4,8 @@ schedule_comment: "Every Monday at 7am - prune stale git branches before the day
 title: "Branch sweep"
 # A script step runs the sweep directly with no agent: the workflow's one
 # step references the `coga/branch-sweep/sweep` skill, whose `script:` calls
-# `coga.branchsweep.sweep_branches`. No `claude -p` / `codex exec`
-# buffering, so it is safe under the temporary mode=auto recurring freeze.
+# `coga.branchsweep.sweep_branches`. It runs directly with no agent buffering,
+# so it is safe for unattended recurring runs.
 autonomy: auto
 workflow: branch-sweep/sweep
 ---

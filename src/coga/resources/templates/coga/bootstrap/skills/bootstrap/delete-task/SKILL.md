@@ -1,6 +1,6 @@
 ---
 name: bootstrap/delete-task
-description: Remove a task directory from the working tree — the implementation behind `coga delete`, also runnable as a standalone script-mode skill.
+description: Remove a task directory from the working tree — the implementation behind `coga delete`, also runnable as a standalone script skill.
 script: run.py
 ---
 
@@ -12,8 +12,8 @@ history is the audit trail, so deletion posts no Slack broadcast.
 
 This is the single implementation of task deletion. `coga delete <slug>`
 resolves the slug to a task, then runs this skill's `run.py` directly with the
-task-metadata environment variables a `mode: script` launch injects. The skill
-is equally a normal `mode: script` skill: a workflow step that references
+task-metadata environment variables a script launch injects. The skill
+is equally a normal script-backed skill: a workflow step that references
 `bootstrap/delete-task` deletes its own task directory on `coga launch`.
 
 The script keys off `COGA_TASK_TICKET`: a `<dir>/ticket.md` means a

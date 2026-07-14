@@ -2,7 +2,6 @@
 slug: overload-ticket-locally-easily
 title: overload ticket locally easily
 status: draft
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

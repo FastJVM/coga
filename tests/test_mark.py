@@ -57,7 +57,7 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "draf
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="agent", owner="marc", assignee="claude",
+        contexts=[], owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     return ref["slug"], ref["path"]

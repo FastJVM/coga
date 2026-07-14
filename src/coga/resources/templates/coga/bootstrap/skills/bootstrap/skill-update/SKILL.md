@@ -24,7 +24,7 @@ PR.
 
 - Purpose: update clean imported skills into one reviewable PR and report the
   skills that need human follow-up.
-- Runs: a `mode: script` Coga task whose workflow step references
+- Runs: a script-stepped Coga task whose workflow step references
   `bootstrap/skill-update`.
 - Inputs: the installed skills under `coga/skills/`, their recorded
   `.coga-source.json` provenance, and (for the PR) git plus `gh` against the
@@ -53,7 +53,8 @@ From the host repo root:
 coga launch <skill-update-task>
 ```
 
-The task must be `mode: script` and its current workflow step must reference
+The task's current workflow step must have this skill as its single skill —
+that makes the launch a script run — and must reference
 `bootstrap/skill-update`. Coga injects `COGA_TASK_SLUG` and
 `COGA_TASK_BLACKBOARD`; the script appends its result to that blackboard.
 

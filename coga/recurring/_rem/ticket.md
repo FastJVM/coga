@@ -2,9 +2,8 @@
 schedule: "0 9 * * 1"
 schedule_comment: "Every Monday at 9am"
 title: "Replace with the REM task title"
-# Pick a mode: `script` runs a skill script directly with no agent;
-# `agent` drops into a human terminal with live agent output.
-mode: script
+# Step 1 runs as a script when its single skill declares `script:`;
+# otherwise the run opens an attended agent session and requires a TTY.
 workflow: namespace/your-workflow
 owner: replace-with-human-name
 assignee: replace-with-agent-type-or-human-name

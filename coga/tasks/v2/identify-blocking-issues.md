@@ -2,7 +2,6 @@
 slug: v2/identify-blocking-issues
 title: identify-blocking-issues
 status: paused
-mode: agent
 owner: zach
 human: zach
 agent: claude

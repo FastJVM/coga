@@ -36,11 +36,6 @@ def create(
             "'marketing/social/relaunch' nests deeper. No slash = top level."
         ),
     ),
-    mode: str = typer.Option(
-        "agent",
-        "--mode",
-        help="Task mode: agent or script.",
-    ),
     workflow: str | None = typer.Option(
         None,
         "--workflow",
@@ -52,13 +47,12 @@ def create(
     ),
 ) -> None:
     """Create a new raw draft ticket."""
-    create_draft(title=title, mode=mode, workflow=workflow)
+    create_draft(title=title, workflow=workflow)
 
 
 def create_draft(
     *,
     title: str,
-    mode: str,
     workflow: str | None = None,
 ) -> dict[str, object]:
     """Create a raw draft ticket from a (possibly path-qualified) title.
@@ -75,8 +69,6 @@ def create_draft(
     a ticket with no workflow, since a workflow-less ticket can never be
     `coga bump`ed.
     """
-    if mode not in {"agent", "script"}:
-        _bail("--mode must be 'agent' or 'script'")
     directory, leaf_title = _split_create_path(title)
     if not leaf_title.strip():
         _bail("title cannot be empty")
@@ -92,7 +84,6 @@ def create_draft(
             title=leaf_title,
             workflow_name=workflow,
             contexts=[],
-            mode=mode,
             owner=cfg.current_user,
             assignee=None,
             watchers=[],

@@ -2,7 +2,6 @@
 slug: make-ticket-script-form-works
 title: make ticket script form works
 status: draft
-mode: agent
 owner: nick
 human: nick
 agent: claude

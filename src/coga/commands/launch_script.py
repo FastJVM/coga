@@ -31,8 +31,13 @@ from coga.validate import TaskValidationError
 
 
 def is_script_launch(cfg: Config, ticket: Ticket) -> bool:
-    """Return true when the ticket declares `mode: script`."""
-    return ticket.mode == "script"
+    """True when this launch runs a script instead of spawning an agent.
+
+    Deduced from context, never declared: the current workflow step is a
+    script step (`current_step_is_script`), or the ticket carries its own
+    `script:` entry (`inline` or a sibling file). Neither → an agent launch.
+    """
+    return current_step_is_script(cfg, ticket) or bool(ticket.script)
 
 
 def current_step_is_script(cfg: Config, ticket: Ticket) -> bool:
@@ -40,12 +45,10 @@ def current_step_is_script(cfg: Config, ticket: Ticket) -> bool:
 
     A step runs as a script when it has exactly one skill and that skill's
     SKILL.md declares a `script:` entry — the same rule `_resolve_script` uses to
-    pick the step-skill script. This is what lets a `mode: agent` workflow
-    interleave a deterministic script step (e.g. `code/open-pr`) with agent
-    steps: the launch supervisor consults this per step and runs the script
-    itself rather than spawning an agent. Whole-ticket `mode: script` launches
-    are covered by `is_script_launch`; this is orthogonal (it never inspects
-    `ticket.mode`).
+    pick the step-skill script. This is what lets a workflow interleave a
+    deterministic script step (e.g. `code/open-pr`) with agent steps: the
+    launch supervisor consults this per step and runs the script itself rather
+    than spawning an agent.
     """
     step = ticket.current_step()
     if step is None:

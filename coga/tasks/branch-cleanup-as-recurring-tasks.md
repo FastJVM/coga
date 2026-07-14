@@ -2,7 +2,6 @@
 slug: branch-cleanup-as-recurring-tasks
 title: branch cleanup as recurring tasks
 status: done
-mode: agent
 owner: nick
 human: nick
 agent: claude

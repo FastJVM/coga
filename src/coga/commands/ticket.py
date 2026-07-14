@@ -141,7 +141,7 @@ def _resolve_or_create_target(
                 f"Ambiguous task ref {target!r}: matches {slugs}. "
                 "Re-run with the qualified `<dir>/<slug>` to disambiguate."
             )
-        result = create_draft(title=target, mode="agent")
+        result = create_draft(title=target)
         # Re-resolve through discovery so the TaskRef carries the correct shape
         # (file-form vs directory-form) — create may land a bare `<slug>.md`.
         ref = resolve_task(cfg, str(result["slug"]))
@@ -179,7 +179,6 @@ def _resolve_existing(ref: TaskRef) -> tuple[TaskRef, Ticket, bool]:
 
 def _authoring_ticket(ticket: Ticket) -> Ticket:
     fm = dict(ticket.frontmatter)
-    fm["mode"] = "agent"
     fm["skills"] = [AUTHORING_SKILL]
     return Ticket(frontmatter=fm, body=ticket.body)
 
@@ -194,7 +193,7 @@ def _run_authoring_session(
 ) -> None:
     if not _interactive_stdio_has_tty():
         _bail(
-            "Cannot launch guided ticket authoring: mode=interactive requires "
+            "Cannot launch guided ticket authoring: it requires "
             "a TTY (stdin and stdout must both be terminals)."
         )
 
@@ -222,7 +221,6 @@ def _run_authoring_session(
             ref,
             ticket,
             agent,
-            "agent",
             env=os.environ.copy(),
             actor=f"human:{cfg.current_user}",
             log_message=(

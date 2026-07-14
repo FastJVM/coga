@@ -2,7 +2,6 @@
 slug: v2/compose-strips-skill-md-and-context-frontmatter-be
 title: Compose strips SKILL.md and context frontmatter before injection
 status: draft
-mode: agent
 owner: nick
 human: nick
 agent: claude

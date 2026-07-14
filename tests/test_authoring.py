@@ -67,7 +67,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        mode: agent
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -95,7 +94,6 @@ def _create_task(
         title=title,
         workflow_name=workflow,
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],

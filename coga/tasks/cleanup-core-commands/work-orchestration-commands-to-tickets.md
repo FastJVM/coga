@@ -2,7 +2,6 @@
 slug: cleanup-core-commands/work-orchestration-commands-to-tickets
 title: Move work orchestration commands to tickets
 status: draft
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex

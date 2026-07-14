@@ -2,7 +2,6 @@
 slug: coga-notifications/add-coga-slack-important
 title: add-coga-slack-important
 status: draft
-mode: agent
 owner: zach
 human: zach
 agent: claude

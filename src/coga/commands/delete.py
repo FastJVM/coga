@@ -3,7 +3,7 @@
 Thin entrypoint: resolve the task argument, then dispatch into the
 `bootstrap/delete-task` skill, which performs the actual filesystem removal.
 That skill is the single implementation of task deletion — it is equally
-runnable as a `mode: script` workflow step. Recovery is via `git restore`.
+runnable as a script workflow step. Recovery is via `git restore`.
 """
 
 from __future__ import annotations

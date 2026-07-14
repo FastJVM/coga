@@ -2,7 +2,6 @@
 slug: add-a-docs-oriented-review-workflow-for-docs-only
 title: Add a docs-oriented review workflow for docs-only tickets
 status: done
-mode: agent
 owner: nick
 human: nick
 agent: claude

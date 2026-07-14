@@ -107,7 +107,6 @@ def test_megalaunch_runs_active_agent_task(
         title="Run me",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -123,7 +122,7 @@ def test_megalaunch_runs_active_agent_task(
         termination_kind = "natural"
 
     def fake_spawn(  # type: ignore[no-untyped-def]
-        cfg, ref_obj, ticket, agent, mode, **kwargs
+        cfg, ref_obj, ticket, agent, **kwargs
     ):
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -164,7 +163,6 @@ def test_megalaunch_chains_agent_owned_steps(
         title="Run twice",
         workflow_name="two-agent",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -181,7 +179,7 @@ def test_megalaunch_chains_agent_owned_steps(
     seen_steps: list[str] = []
 
     def fake_spawn(  # type: ignore[no-untyped-def]
-        cfg, ref_obj, ticket, agent, mode, **kwargs
+        cfg, ref_obj, ticket, agent, **kwargs
     ):
         updated = Ticket.read(ref_obj.ticket_path)
         seen_steps.append(updated.step or "")
@@ -212,7 +210,6 @@ def test_megalaunch_agent_filter_only_drains_matching_assignee(
         title="Claude work",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -223,7 +220,6 @@ def test_megalaunch_agent_filter_only_drains_matching_assignee(
         title="Codex work",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="codex",
         status="active",
@@ -240,7 +236,7 @@ def test_megalaunch_agent_filter_only_drains_matching_assignee(
 
     launched: list[str] = []
 
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -277,7 +273,6 @@ def test_megalaunch_only_sweeps_current_users_tickets(
         title="My work",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -288,7 +283,6 @@ def test_megalaunch_only_sweeps_current_users_tickets(
         title="Their work",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="dora",
         assignee="claude",
         status="active",
@@ -305,7 +299,7 @@ def test_megalaunch_only_sweeps_current_users_tickets(
 
     launched: list[str] = []
 
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append(ref_obj.id_slug)
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -349,7 +343,6 @@ def test_megalaunch_agent_filter_stops_at_agent_handoff(
         title="Handoff",
         workflow_name="two-agent",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="codex",
         status="active",
@@ -363,7 +356,7 @@ def test_megalaunch_agent_filter_stops_at_agent_handoff(
 
     seen_steps: list[str] = []
 
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         updated = Ticket.read(ref_obj.ticket_path)
         seen_steps.append(updated.step or "")
         updated.frontmatter["step"] = "2 (verify)"
@@ -399,7 +392,6 @@ def test_megalaunch_cli_accepts_agent_filter(
         title="Claude CLI work",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -410,7 +402,6 @@ def test_megalaunch_cli_accepts_agent_filter(
         title="Codex CLI work",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="codex",
         status="active",
@@ -431,7 +422,7 @@ def test_megalaunch_cli_accepts_agent_filter(
         termination_kind = "natural"
 
     def fake_spawn(  # type: ignore[no-untyped-def]
-        cfg, ref_obj, ticket, agent, mode, **kwargs
+        cfg, ref_obj, ticket, agent, **kwargs
     ):
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -461,7 +452,6 @@ def test_megalaunch_directory_scopes_the_sweep(
         title="In scope",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -473,7 +463,6 @@ def test_megalaunch_directory_scopes_the_sweep(
         title="Out of scope",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -487,7 +476,7 @@ def test_megalaunch_directory_scopes_the_sweep(
         termination_kind = "natural"
 
     def fake_spawn(  # type: ignore[no-untyped-def]
-        cfg, ref_obj, ticket, agent, mode, **kwargs
+        cfg, ref_obj, ticket, agent, **kwargs
     ):
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -526,7 +515,6 @@ def test_megalaunch_cli_accepts_directory(
         title="Scoped work",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -538,7 +526,6 @@ def test_megalaunch_cli_accepts_directory(
         title="Other work",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -555,7 +542,7 @@ def test_megalaunch_cli_accepts_directory(
         termination_kind = "natural"
 
     def fake_spawn(  # type: ignore[no-untyped-def]
-        cfg, ref_obj, ticket, agent, mode, **kwargs
+        cfg, ref_obj, ticket, agent, **kwargs
     ):
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -602,7 +589,6 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
         title="Watch me",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -616,8 +602,7 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
 
     seen: dict[str, object] = {}
 
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
-        seen["mode"] = mode
+    def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         seen["idle_timeout"] = kwargs.get("idle_timeout")
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -630,7 +615,6 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
     run = run_megalaunch(cfg)
 
     assert run.counts["completed"] == 1
-    assert seen["mode"] == "agent"
     # The recurring sweep's idle backstop is armed so a wedged REPL can't
     # starve the rest of the queue.
     assert seen["idle_timeout"] is not None
@@ -646,7 +630,6 @@ def test_megalaunch_timeout_teardown_reports_failed(
         title="Wedged",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -678,7 +661,6 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
         title="Blocked",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -704,7 +686,6 @@ def test_megalaunch_budget_guard_skips_on_low_session_window(repo: Path) -> None
         title="Too expensive",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -728,7 +709,6 @@ def test_megalaunch_skips_agent_without_probe(repo: Path) -> None:
         title="Unprobeable",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -750,7 +730,6 @@ def test_megalaunch_skips_unreadable_usage_window(repo: Path) -> None:
         title="No signal",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -780,7 +759,6 @@ def test_megalaunch_ignores_non_active_tickets(
             title=title,
             workflow_name="code",
             contexts=[],
-            mode="agent",
             owner="marc",
             assignee="claude",
             status="active",
@@ -815,7 +793,6 @@ def test_megalaunch_leaves_in_progress_tickets_alone(
         title="Someone else's step",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -849,7 +826,6 @@ def test_megalaunch_human_assignee_is_human_gate(
         title="With human",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -888,7 +864,6 @@ def test_megalaunch_reprobes_between_launches(
             title=title,
             workflow_name="code",
             contexts=[],
-            mode="agent",
             owner="marc",
             assignee="claude",
             status="active",
@@ -901,7 +876,7 @@ def test_megalaunch_reprobes_between_launches(
         exit_code = 0
         termination_kind = "natural"
 
-    def fake_spawn(cfg_, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)
@@ -939,7 +914,6 @@ def test_megalaunch_services_tasks_oldest_first(
             title=title,
             workflow_name="code",
             contexts=[],
-            mode="agent",
             owner="marc",
             assignee="claude",
             status="active",
@@ -957,7 +931,7 @@ def test_megalaunch_services_tasks_oldest_first(
         exit_code = 0
         termination_kind = "natural"
 
-    def fake_spawn(cfg_, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)

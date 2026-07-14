@@ -2,7 +2,6 @@
 slug: better-readme
 title: better readme
 status: draft
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

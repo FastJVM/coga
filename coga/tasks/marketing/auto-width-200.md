@@ -2,7 +2,6 @@
 slug: marketing/auto-width-200
 title: auto-width-200
 status: draft
-mode: agent
 owner: nick
 human: zach
 agent: claude

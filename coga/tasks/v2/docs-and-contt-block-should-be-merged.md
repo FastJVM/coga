@@ -2,7 +2,6 @@
 slug: v2/docs-and-contt-block-should-be-merged
 title: docs and contt block should be merged
 status: draft
-mode: agent
 owner: nick
 human: nick
 agent: claude

@@ -33,7 +33,6 @@ TICKET = """
 ---
 title: X
 status: draft
-mode: agent
 owner: marc
 human: marc
 agent: claude

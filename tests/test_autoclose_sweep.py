@@ -201,11 +201,10 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
     assert read_last_serviced_period(template_ticket) == "2026-06-11"
 
     ticket = Ticket.read(refs[0].path / "ticket.md")
-    # The template declares `mode: script`, and `is_script_launch` confirms the
-    # created task runs as a script, not an agent.
+    # The workflow's one step is script-backed, so `is_script_launch` deduces
+    # the created task runs as a script, not an agent.
     from coga.commands.launch_script import is_script_launch
 
-    assert ticket.mode == "script"
     assert is_script_launch(cfg, ticket) is True
     assert ticket.assignee == "claude"
     assert ticket.workflow["name"] == "autoclose-merged/sweep"

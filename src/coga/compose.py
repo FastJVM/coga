@@ -117,7 +117,6 @@ def compose_prompt_report(
 ) -> PromptComposition:
     """Assemble the prompt and keep per-layer measurement metadata."""
     layers: list[PromptLayer] = []
-    mode = ticket.mode
 
     # Split the single-file ticket body at the blackboard fence: the body above
     # feeds the Description / inline-Context layers, the region below is the
@@ -131,8 +130,7 @@ def compose_prompt_report(
     header = (
         f"# Coga task — {task_ref.id_slug}\n\n"
         f"Title: {ticket.title}\n"
-        f"Task directory: {_task_path_for_prompt(cfg, task_ref)}\n"
-        f"Mode: {mode}"
+        f"Task directory: {_task_path_for_prompt(cfg, task_ref)}"
     )
     if ticket.status:
         header += f"\nStatus: {ticket.status}"
@@ -146,14 +144,14 @@ def compose_prompt_report(
         ref="prompt.md",
     ))
 
-    # 2. agent-mode prompt. Script tasks never compose; enforced by launch.py.
-    if mode == "agent":
-        layers.append(PromptLayer(
-            "mode_prompt",
-            "Agent mode",
-            _resource("prompt-agent.md"),
-            ref="prompt-agent.md",
-        ))
+    # 2. agent-mode prompt. Only agent launches compose (script launches never
+    # reach here; enforced by launch.py), so the layer is unconditional.
+    layers.append(PromptLayer(
+        "mode_prompt",
+        "Agent mode",
+        _resource("prompt-agent.md"),
+        ref="prompt-agent.md",
+    ))
 
     # 2b. Blocker-resolution preamble. An interactive session whose blackboard
     # still carries open asks must resolve-or-re-block before the step's real
@@ -163,7 +161,7 @@ def compose_prompt_report(
     # blackboard rather than a launch-threaded flag keeps the preamble purely
     # composed state: it reappears if a session dies mid-discussion and
     # disappears once `coga unblock` records the answer.
-    if mode == "agent" and not isinstance(task_ref, BootstrapRef):
+    if not isinstance(task_ref, BootstrapRef):
         open_asks = [
             b
             for b in parse_blockers_text(blackboard_text or "")

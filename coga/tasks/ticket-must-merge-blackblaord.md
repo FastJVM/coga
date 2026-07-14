@@ -2,7 +2,6 @@
 slug: ticket-must-merge-blackblaord
 title: ticket must merge blackblaord
 status: in_progress
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

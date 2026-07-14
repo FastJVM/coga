@@ -68,7 +68,6 @@ def _task_with_blocker(
         title="Blocked work",
         workflow_name="code",
         contexts=[],
-        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],

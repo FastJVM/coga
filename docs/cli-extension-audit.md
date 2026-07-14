@@ -163,7 +163,7 @@ pure-passthrough set for aliasing is exactly the two named above.
 - **`bootstrap/import` and `bootstrap/delete-task` are *skills*, not launch
   tickets.** Neither has a `ticket.md`, so neither is a `resolve_bootstrap`
   target and neither can be an alias. `bootstrap/delete-task` is the single
-  implementation behind `coga delete` (also runnable as a `mode: script`
+  implementation behind `coga delete` (also runnable as a script
   step); `bootstrap/import` is the judgment layer used during ticket authoring,
   not a launchable thing. Do not mistake a `bootstrap/skills/...` path for an
   aliasable bootstrap ticket.
@@ -178,11 +178,11 @@ pure-passthrough set for aliasing is exactly the two named above.
 The flat "alias-able? yes/no" framing above is too coarse — it hides that
 "needs logic" does **not** imply "needs a hand-written built-in." Logic can live
 as skills in a workflow (`autoclose-merged/sweep` and `digest/post` already
-prove command-grade logic runs fine as `mode: script` steps). The refined
+prove command-grade logic runs fine as script steps). The refined
 conclusion: the surface collapses to **three homes for logic, plus sugar**.
 
 1. **Kernel** — small tested Python that can't be anything else.
-2. **Tickets / workflows** — *stateful, reviewable* work as skills / `mode: script`
+2. **Tickets / workflows** — *stateful, reviewable* work as skills / script
    steps on a ticket.
 3. **External scripts / tools** — *stateless, parameterized* invocations. Two kinds:
    an **external tool** Coga shells out to (`gh`, `op`, `git` — exists, no design),
@@ -232,7 +232,7 @@ ticket/prompt/git machinery.
 `arg → draft+workflow → launch` authoring command stays that single fixed shape;
 conditionals or computed args make it an illegible `coga.toml` DSL. (2) *No inversion* —
 relocating logic out of the kernel moves the substance unchanged (tested
-`mode: script` Python), never rewrites a deterministic check as agent judgment.
+script-step Python), never rewrites a deterministic check as agent judgment.
 
 The ratified rule lives in the `coga/extension-model` context; this section is
 the audit's path to it.

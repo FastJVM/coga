@@ -6,7 +6,7 @@ script: run.py
 
 # Branch Sweep
 
-This skill is the `mode: script` body of the `recurring/branch-sweep/`
+This skill is the script body of the `recurring/branch-sweep/`
 ticket. It is the safety net behind `coga retire`'s branch deletion — retire's
 cleanup is best-effort (failures are swallowed), and branches also leak when
 a ticket is deleted without going through retire or a session dies mid-flight.

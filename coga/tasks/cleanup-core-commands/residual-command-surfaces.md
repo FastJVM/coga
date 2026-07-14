@@ -2,7 +2,6 @@
 slug: cleanup-core-commands/residual-command-surfaces
 title: Classify residual command surfaces
 status: draft
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex

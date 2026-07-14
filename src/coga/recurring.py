@@ -15,10 +15,12 @@ from croniter import CroniterError, croniter
 from coga.create import create_task
 from coga.config import Config
 from coga.logfile import append_log
-from coga.paths import recurring_dir
+from coga.paths import recurring_dir, resolve_skill_path, resolve_workflow_path
 from coga.period_state import write_snapshot
+from coga.skill import Skill
 from coga.taskfile import read_blackboard, upsert_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
+from coga.workflow import Workflow, WorkflowError
 
 
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
@@ -367,12 +369,17 @@ def create_template(
     if existing is not None:
         return CreateOutcome(ref=existing, created=False)
 
-    effective_mode = _effective_mode(template, allow_agent=allow_agent)
+    if not allow_agent and not _template_runs_as_script(cfg, template):
+        raise RecurringError(
+            "an agent run requires a TTY (stdin and stdout must both be "
+            "terminals). Run `coga recurring --interactive` from a real shell, "
+            "or give the template a script (a `script:` entry, or a workflow "
+            "whose step 1 has a single script-backed skill) for unattended runs."
+        )
     outcome = _create_at_slug(
         cfg,
         template,
         target_slug=target_slug,
-        effective_mode=effective_mode,
         title=_extract_title(template),
     )
     _advance_serviced_period(cfg, template, period_key, outcome, now)
@@ -475,20 +482,38 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
     return out
 
 
-def _effective_mode(template: Template, *, allow_agent: bool = True) -> str:
-    """Resolve a template's mode, enforcing the TTY gate for agent runs."""
-    effective_mode = template.frontmatter.get("mode", "agent")
-    if effective_mode not in {"agent", "script"}:
+def _template_runs_as_script(cfg: Config, template: Template) -> bool:
+    """Pre-freeze deduction of a template's launch substance.
+
+    The same rule `coga.commands.launch_script.is_script_launch` applies to a
+    live ticket, evaluated before the period task exists: the template carries
+    its own `script:` entry, or step 1 of its named workflow (resolved from
+    `coga/workflows/` — nothing is frozen yet; a workflow-less template runs
+    `direct/body` like `_create_at_slug` does) has exactly one skill whose
+    SKILL.md declares a `script:`. Neither → an agent run, which the sweep's
+    TTY gate refuses unattended. An unresolvable workflow or skill deduces to
+    agent — create/launch fail loud on it later, with better remedies than the
+    sweep could give here.
+    """
+    if template.frontmatter.get("script"):
+        return True
+    workflow_name = template.frontmatter.get("workflow") or "direct/body"
+    try:
+        wf = Workflow.load(resolve_workflow_path(cfg, workflow_name))
+    except WorkflowError:
+        return False
+    step_skills = wf.steps[0].skills
+    if len(step_skills) != 1:
+        return False
+    sp = resolve_skill_path(cfg, step_skills[0])
+    if sp is None:
+        return False
+    try:
+        return bool(Skill.load(sp).script)
+    except (OSError, ValueError, yaml.YAMLError) as exc:
         raise RecurringError(
-            f"mode {effective_mode!r} not in ['agent', 'script']"
-        )
-    if effective_mode == "agent" and not allow_agent:
-        raise RecurringError(
-            "mode=agent requires a TTY (stdin and stdout must both be terminals). "
-            "Run `coga recurring --interactive` from a real shell, or make the "
-            "template `mode: script`."
-        )
-    return effective_mode
+            f"step 1 skill {step_skills[0]!r} could not be loaded: {exc}"
+        ) from exc
 
 
 def _create_at_slug(
@@ -496,7 +521,6 @@ def _create_at_slug(
     template: Template,
     *,
     target_slug: str,
-        effective_mode: str,
     title: str,
 ) -> CreateOutcome:
     """Create one recurring task at an explicit slug. Shared by period and
@@ -531,7 +555,6 @@ def _create_at_slug(
         # workflow so it is activatable, bumpable, and valid like any task.
         workflow_name=template.frontmatter.get("workflow") or "direct/body",
         contexts=contexts,
-        mode=effective_mode,
         owner=template.frontmatter.get("owner"),
         assignee=assignee,
         watchers=list(template.frontmatter.get("watchers") or []),
@@ -542,7 +565,7 @@ def _create_at_slug(
         # the period task; whether it runs as a script is then deduced at launch.
         script=template.frontmatter.get("script"),
         # Carry the template body verbatim so sections beyond `## Description`
-        # (notably `## Script config`, which sets a script step's mode/sync)
+        # (notably `## Script config`, which configures a script step's run)
         # reach the period task instead of being dropped at create time.
         body=template.body,
         # Recurring period tasks stay directory-form: they may carry a

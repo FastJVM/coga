@@ -37,7 +37,7 @@ def main(
     interactive: bool = typer.Option(
         False,
         "--interactive",
-        help="Launch due agent-mode tasks as a human-stepped run, leaving REPL "
+        help="Launch due agent tasks as a human-stepped run, leaving REPL "
         "liveness backstops unarmed. Ticket files are not modified.",
     ),
     all_: bool = typer.Option(
@@ -193,19 +193,18 @@ def _print_picked_table(console: Console, picked: list[TaskRef]) -> None:
         title_justify="left",
         show_edge=False,
     )
-    for col in ("slug", "status", "step", "mode"):
+    for col in ("slug", "status", "step"):
         table.add_column(col, no_wrap=True)
     for ref in picked:
         try:
             ticket = read_ticket(ref)
         except TicketError:
-            table.add_row(ref.id_slug, "(unreadable)", "-", "-")
+            table.add_row(ref.id_slug, "(unreadable)", "-")
             continue
         table.add_row(
             ref.id_slug,
             ticket.status or "-",
             ticket.step or "-",
-            ticket.mode or "-",
         )
     console.print(table)
 

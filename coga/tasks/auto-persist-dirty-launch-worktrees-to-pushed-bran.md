@@ -2,7 +2,6 @@
 slug: auto-persist-dirty-launch-worktrees-to-pushed-bran
 title: Auto-persist dirty launch worktrees to pushed branches
 status: in_progress
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

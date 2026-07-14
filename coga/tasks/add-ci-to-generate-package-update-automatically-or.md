@@ -2,7 +2,6 @@
 slug: add-ci-to-generate-package-update-automatically-or
 title: add ci to generate package update automatically (or add a recurring task)
 status: done
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

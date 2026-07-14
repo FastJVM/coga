@@ -2,7 +2,6 @@
 slug: marketing/relay-ticket-creates
 title: relay-ticket-creates
 status: in_progress
-mode: agent
 owner: zach
 human: zach
 agent: claude
