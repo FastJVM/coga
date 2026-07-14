@@ -6,7 +6,7 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -51,4 +51,45 @@ needs); this one is about first-time *user* onboarding.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: readme-venv-install
+worktree: /home/n/Code/claude/coga/.coga/worktrees/coga-readme-venv-install
+
+## Findings (implement step)
+
+- "Relay" in the ticket is Coga's pre-rename name (see docs/migrating-to-coga.md);
+  the touchpoint is this repo's top-level README.md.
+- The README was rewritten since the ticket was filed (#520) and now leads with
+  `uv tool install coga`, which is already venv-isolated — the spirit of the
+  ticket's "recommended path" is satisfied by keeping that lead.
+- Residual problems the ticket still covers: the plain-`pip` block installs into
+  whatever Python is active (system Python for a new user) with no warning, and
+  the from-source block uses `python -m pip install -e .` — both system-Python
+  installs, and `python` doesn't exist on stock macOS (only `python3`).
+- No tests pin README install copy; README is not mirrored under
+  src/coga/resources/templates (test_init vendors the host repo's README at
+  runtime, not a static copy). CLAUDE.md's contributor build command left
+  untouched — ticket scopes to the README install block.
+- marketing/readme-and-docs (broader editorial pass) is in_progress but
+  currently sitting with the human at its design step; this scoped fix doesn't
+  conflict.
+
+## Decisions
+
+- Kept `uv tool install coga` as the first recommendation (it creates its own
+  venv, so it meets "don't pollute system Python"); made the non-uv path an
+  explicit venv create + activate + install; folded `uv pip install` / plain
+  `pip install` into a clearly-labeled opt-out for current/system environment;
+  switched from-source block to `python3 -m venv` + `pip install -e .`.
+- Also updated the pip hash-checking escape-hatch example (`python -m pip
+  install -e .` → `pip install -e .`) to match the new venv-based from-source
+  block — same `python`-on-macOS problem, same README install section.
+
+## Implement step — done
+
+- Commit 6db6ef0a on `readme-venv-install` ("README: recommend a virtualenv
+  for pip installs, not system Python"); README.md only, worktree clean.
+- Tests: full suite passes — 1170 passed, 1 skipped (Python 3.12 venv; this
+  machine's default python is 3.9, which fails Coga's version guard before
+  collection — pre-existing environment issue, unrelated to this docs change).
+- No push, no PR — that's the later open-pr step.
