@@ -1179,3 +1179,5 @@ fatal: adding files failed
 2026-07-13 18:17 [install/recommend-virtualenv-not-system-python] [system] advanced to step 4 (review) → assigned to zach after script step
 2026-07-13 19:15 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-13 19:15 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-13 19:15 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-13 19:56 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
