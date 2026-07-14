@@ -1,7 +1,7 @@
 ---
 slug: install/pip-hash-requirement-breaks-editable-install
 title: pip hash-checking mode breaks editable install
-status: in_progress
+status: done
 owner: zach
 human: zach
 agent: claude
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
