@@ -2,7 +2,6 @@
 slug: cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task
 title: Move the recurring scan into a Dream-shaped task
 status: in_progress
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex

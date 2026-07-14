@@ -2,7 +2,6 @@
 slug: nightly-auto-drain-run-for-ready-tickets
 title: Nightly auto-drain run for ready tickets
 status: in_progress
-mode: agent
 owner: nick
 human: nick
 agent: claude

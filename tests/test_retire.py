@@ -61,7 +61,6 @@ def _seed_done_task(repo: Path, slug: str = "fix-retry-logic") -> Path:
         slug: {slug}
         title: Fix retry logic
         status: done
-        mode: agent
         owner: marc
         assignee: marc
         ---
@@ -86,7 +85,7 @@ def test_retire_no_launch_creates_task_with_target_slug(
 
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
-    assert "Retire: using assignee claude (agent type claude, mode agent)" in result.output
+    assert "Retire: using assignee claude (agent type claude)" in result.output
     assert "Retire: creating task 'Retire fix-retry-logic'" in result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
     assert "Retire: launch skipped (--no-launch)" in result.output
@@ -100,7 +99,7 @@ def test_retire_no_launch_creates_task_with_target_slug(
     # workflow so they run their body directly while still being a
     # workflow-carrying, bumpable, valid active task.
     assert ticket.status == "active"
-    assert ticket.mode == "agent"
+    assert "mode" not in ticket.frontmatter
     assert ticket.assignee == "claude"
     assert ticket.workflow["name"] == "direct/body"
     assert "Retire the done ticket `fix-retry-logic`" in ticket.body
@@ -122,7 +121,6 @@ def test_retire_refuses_non_done_target(
         slug: in-flight
         title: Still going
         status: active
-        mode: agent
         owner: marc
         assignee: marc
         ---
@@ -201,7 +199,7 @@ def test_retire_launches_after_create(
 
     cfg = load_config(repo)
     log = "\n".join(task_log_lines(cfg, "retire-fix-retry-logic"))
-    assert "created (mode=agent, status=active)" in log
+    assert "created (status=active)" in log
     assert calls == [
         {
             "task": "retire-fix-retry-logic",
@@ -256,7 +254,6 @@ def test_retire_prunes_merged_branch_before_launch(
         slug: {slug}
         title: Fix retry logic
         status: done
-        mode: agent
         owner: marc
         assignee: marc
         ---

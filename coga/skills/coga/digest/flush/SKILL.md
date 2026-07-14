@@ -6,7 +6,7 @@ script: run.py
 
 # Daily digest flush
 
-This skill is the `mode: script` body of the `recurring/digest/` ticket. It
+This skill is the script body of the `recurring/digest/` ticket. It
 runs `coga digest`, which:
 
 1. reads the JSONL Done/error records spooled under `## Spool (pending)` on the

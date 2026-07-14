@@ -3,8 +3,8 @@
 This is the **consumer** half of the daily-digest pipeline. Done events and
 recurring scan errors spool structured JSONL records into the dedicated
 `recurring/digest/spool.md` file as they happen (see
-`coga.notification.notify`). Once a day the digest recurring ticket fires as a
-`mode: script` task, and its script step runs this command:
+`coga.notification.notify`). Once a day the digest recurring ticket fires, and
+its script step runs this command:
 
   read the unconsumed records → fetch origin/main → render Done + Also merged →
   post via the webhook → advance the spool watermark → record the new git

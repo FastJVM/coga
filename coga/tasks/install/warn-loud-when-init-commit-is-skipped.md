@@ -2,7 +2,6 @@
 slug: install/warn-loud-when-init-commit-is-skipped
 title: Warn loud when init commit is skipped
 status: active
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

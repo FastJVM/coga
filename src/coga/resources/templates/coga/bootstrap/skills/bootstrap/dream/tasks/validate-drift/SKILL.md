@@ -22,7 +22,7 @@ It then classifies every validator issue into one of three buckets:
 ## Known Skill Contract
 
 - Purpose: deterministic repo-health validation and conservative safe repair
-- Runs: a `mode: script` Coga task whose workflow step references
+- Runs: a script-stepped Coga task whose workflow step references
   `bootstrap/dream/tasks/validate-drift`
 - Inputs: `coga.toml`, `coga.local.toml`, task directories, workflow refs,
   context refs, skill refs, and optional Slack webhook reachability
@@ -47,7 +47,8 @@ From the host repo root:
 coga launch <validate-drift-child-task>
 ```
 
-The child task must be `mode: script` and its current workflow step must
+The child task's current workflow step must have this skill as its single
+skill — that makes the launch a script run — and must
 reference `bootstrap/dream/tasks/validate-drift`. Coga injects
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, and `COGA_TASK_BLACKBOARD`; the script
 uses that metadata to append its result to the child task blackboard.

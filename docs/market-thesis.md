@@ -177,7 +177,7 @@ Read down the last column and the thesis is self-evident: Coga is the only entry
 
 ### The capability matrix — who holds which axis
 
-The map above is the *taste* cut (what each tool teaches). This is the *capability* cut: the concrete axes a buyer can check. Two distinctions matter and are easy to get wrong. **(1) Prose-as-code ≠ prose-as-context.** A `CLAUDE.md` is *context* — declarative, "here is how things are." Coga's tickets/workflows/skills are *instructions* — imperative, "do X, then Y, verify Z." The "code" is the imperative layer that tells the agent what to do; Coga keeps it separate from the context layer (the data it acts on), and `CLAUDE.md` has only the latter. **(2) Automation is not binary.** Coga's routing is granular — a task declares its execution substance (`mode: agent` or `mode: script`) and its workflow/assignees decide who acts at each step. The ticket no longer carries an autonomy flag; unattended drain is handled by blockers, megalaunch, script tasks, and the liveness watchdog.
+The map above is the *taste* cut (what each tool teaches). This is the *capability* cut: the concrete axes a buyer can check. Two distinctions matter and are easy to get wrong. **(1) Prose-as-code ≠ prose-as-context.** A `CLAUDE.md` is *context* — declarative, "here is how things are." Coga's tickets/workflows/skills are *instructions* — imperative, "do X, then Y, verify Z." The "code" is the imperative layer that tells the agent what to do; Coga keeps it separate from the context layer (the data it acts on), and `CLAUDE.md` has only the latter. **(2) Automation is not binary.** Coga's routing is granular — a task's execution substance (script vs agent) is deduced from its `script:` and workflow steps, and its workflow/assignees decide who acts at each step. The ticket carries neither a mode nor an autonomy flag; unattended drain is handled by blockers, megalaunch, script tasks, and the liveness watchdog.
 
 | Tool | Programmed in | Owned & legible (your git) | Vendor-neutral (BYO-agent) | Batteries that *compound* | Human-gated loop | Domains | Autonomy | Cost |
 |---|---|---|---|---|---|---|---|---|
@@ -274,7 +274,7 @@ Three buckets, in priority order:
 
 **Bucket A — the loop isn't *felt* (the felt-taste gap).** The correction loop is the sensory payoff, and it's currently broken by maturity bugs, not design:
 - **Slack silently drops posts** (`slack.py:97` ignores the HTTP response) → the ambient-awareness layer is dead. *(ticket: `slack-post-ignores-http-response…`, HIGH)*
-- **Agent-mode launches require a TTY** → unattended drain depends on megalaunch, blockers, liveness limits, and `mode: script` work rather than a headless prompt flag.
+- **Agent launches require a TTY** → unattended drain depends on megalaunch, blockers, liveness limits, and script-backed work rather than a headless prompt flag.
 - Fixing these is the difference between taste-that's-read and taste-that's-felt.
 
 **Bucket B — can't be *trusted unattended* yet (the maturation arc).** The vision's whole arc is attended → trusted-automation → cloud. The graduation is blocked:

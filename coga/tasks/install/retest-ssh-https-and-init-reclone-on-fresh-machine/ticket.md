@@ -2,7 +2,6 @@
 slug: install/retest-ssh-https-and-init-reclone-on-fresh-machine
 title: Retest SSH/HTTPS clone + init re-clone on a fresh work machine
 status: active
-mode: agent
 owner: zach
 human: zach
 agent: claude

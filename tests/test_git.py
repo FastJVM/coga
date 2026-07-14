@@ -70,7 +70,6 @@ def _step_ticket_text(
         slug: demo
         title: demo
         status: {status}
-        mode: agent
         owner: marc
         human: marc
         agent: claude
@@ -946,7 +945,6 @@ def _seed_ticket_bootstrap(coga_os: Path) -> None:
             """
             ---
             title: Create a new ticket
-        mode: agent
             skills:
               - bootstrap/ticket
             assignee: claude
@@ -1603,7 +1601,7 @@ def _active_task(git_repo, *, workflow: str, slug: str) -> tuple[str, Path]:
     cfg = load_config(git_repo.coga_os)
     ref = create_task(
         cfg=cfg, title="Strandy", workflow_name=workflow,
-        contexts=[], mode="agent", owner="marc", assignee="claude",
+        contexts=[], owner="marc", assignee="claude",
         watchers=[], status="draft", slug_override=slug,
     )
     assert runner.invoke(app, ["mark", "active", ref["slug"]]).exit_code == 0

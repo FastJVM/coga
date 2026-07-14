@@ -8,7 +8,7 @@ from pathlib import Path
 
 import typer
 
-from coga.config import ConfigError, load_config
+from coga.config import Config, ConfigError, load_config
 from coga.skill_manager import (
     SkillManagerError,
     install_github_skill,
@@ -161,7 +161,7 @@ def status(
     ),
 ) -> None:
     """Summarize installed skills and their recorded source metadata."""
-    cfg = _load_config_or_exit()
+    cfg = _load_config_or_exit(require_user=False)
     try:
         results = status_skills(cfg, check=check)
     except SkillManagerError as exc:
@@ -181,9 +181,9 @@ def status(
         )
 
 
-def _load_config_or_exit():
+def _load_config_or_exit(*, require_user: bool = True) -> Config:
     try:
-        return load_config()
+        return load_config(require_user=require_user)
     except ConfigError as exc:
         _bail(str(exc))
 

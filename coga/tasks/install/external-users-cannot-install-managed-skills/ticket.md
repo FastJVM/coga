@@ -2,7 +2,6 @@
 slug: install/external-users-cannot-install-managed-skills
 title: External users can't install managed skills (relay-skills access)
 status: in_progress
-mode: agent
 owner: zach
 human: zach
 agent: claude

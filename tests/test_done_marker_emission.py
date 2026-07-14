@@ -74,7 +74,7 @@ def _make_task(
         return _write_workflow_less_task(repo, status=status)
     ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="agent", owner="marc", assignee="claude",
+        contexts=[], owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     return ref["slug"], ref["path"]
@@ -90,7 +90,6 @@ def _write_workflow_less_task(
         slug: {slug}
         title: Work
         status: {status}
-        mode: agent
         owner: marc
         human: marc
         agent: claude

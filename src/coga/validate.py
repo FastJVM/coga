@@ -76,14 +76,12 @@ from coga.ticket import Ticket, TicketError
 from coga.workflow import VALID_ASSIGNEE_ROLES
 
 VALID_STATUSES = {"draft", "active", "in_progress", "blocked", "paused", "done"}
-VALID_MODES = {"agent", "script"}
 
 # Canonical ticket frontmatter schema.
 REQUIRED_TASK_KEYS: tuple[str, ...] = (
     "slug",
     "title",
     "status",
-    "mode",
     "owner",
     "human",
     "agent",
@@ -148,6 +146,23 @@ def _duplicate_slug_issue(exc: DuplicateTaskSlugError) -> Issue:
     )
 
 
+def _missing_user_issue(cfg: Config) -> Issue | None:
+    """Point a user-less clone at its machine-local setup without blocking reads."""
+    if cfg.current_user:
+        return None
+    return Issue(
+        kind="missing-user",
+        task="(config)",
+        message=(
+            "no `user` set in coga.local.toml — read-only commands work, "
+            "but anything that creates or moves work will fail; add "
+            '`user = "<name>"` (the file is gitignored, so every clone '
+            "sets its own)"
+        ),
+        severity="warn",
+    )
+
+
 def run(
     cfg: Config,
     idle_hours: float = 72.0,
@@ -157,6 +172,15 @@ def run(
     fix: bool = False,
 ) -> Report:
     report = Report(generated_at=_now_iso())
+
+    # `coga validate` loads config with `require_user=False` so a teammate's
+    # fresh clone (no gitignored `coga.local.toml` yet) can run diagnostics at
+    # all — so the missing name must surface here as a finding instead of
+    # silently validating clean.
+    missing_user = _missing_user_issue(cfg)
+    if missing_user is not None:
+        report.issues.append(missing_user)
+
     try:
         refs = list_tasks(cfg)
     except DuplicateTaskSlugError as exc:
@@ -202,6 +226,9 @@ def validate_task(
     """Validate exactly one task directory. Used by `coga validate --task`
     and by every Coga-owned command that mutates a task file."""
     report = Report(generated_at=_now_iso())
+    missing_user = _missing_user_issue(cfg)
+    if missing_user is not None:
+        report.issues.append(missing_user)
     try:
         ref = resolve_task(cfg, slug)
     except DuplicateTaskSlugError as exc:
@@ -519,16 +546,6 @@ def _check_frontmatter_schema(
                 kind="invalid-status",
                 task=task_label,
                 message=f"status {status!r} not in {sorted(VALID_STATUSES)}",
-                severity="error",
-            ))
-
-    if "mode" in fm:
-        mode = fm["mode"]
-        if not isinstance(mode, str) or mode not in VALID_MODES:
-            out.append(Issue(
-                kind="invalid-mode",
-                task=task_label,
-                message=f"mode {mode!r} not in {sorted(VALID_MODES)}",
                 severity="error",
             ))
 
@@ -1052,7 +1069,7 @@ def _main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        cfg = load_config()
+        cfg = load_config(require_user=False)
     except ConfigError as exc:
         sys.stderr.write(f"{exc}\n")
         return 2

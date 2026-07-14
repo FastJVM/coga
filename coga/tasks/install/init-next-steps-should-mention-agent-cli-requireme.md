@@ -2,7 +2,6 @@
 slug: install/init-next-steps-should-mention-agent-cli-requireme
 title: Init next steps should mention agent CLI requirement
 status: active
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

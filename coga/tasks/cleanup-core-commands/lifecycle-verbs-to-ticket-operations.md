@@ -2,7 +2,6 @@
 slug: cleanup-core-commands/lifecycle-verbs-to-ticket-operations
 title: Move lifecycle verbs to ticket operations
 status: draft
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex

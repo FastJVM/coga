@@ -2,7 +2,6 @@
 slug: cleanup-core-commands/support-commands-boundary
 title: Classify support commands under the small-core rule
 status: draft
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex

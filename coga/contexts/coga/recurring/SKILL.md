@@ -14,7 +14,7 @@ per-period tasks.
 A recurring task lives under `coga/recurring/<name>/` and has the same
 shape as any task directory:
 
-- `ticket.md` — YAML frontmatter (`schedule`, `mode`, `title`, …) plus the
+- `ticket.md` — YAML frontmatter (`schedule`, `title`, …) plus the
   run body. This is the recurring task's definition.
 - the **blackboard region** (in `ticket.md`, below the
   `<!-- coga:blackboard -->` fence) — **persists across every run.** This is
@@ -65,9 +65,11 @@ scanner skips it. That is how the starter templates ship without firing.
 - `schedule` — a 5-field cron string. **Required**; a recurring task without
   it (or without `ticket.md`) is skipped with a stderr warning and an entry
   in the run's Slack summary.
-- `mode` — `agent` or `script` (defaults to `agent`). `agent` templates need a TTY
-  and run under the REPL supervisor; `script` templates run deterministic code
-  directly and are the right shape for unattended schedulers.
+- there is no `mode` field: whether a run is a script or an agent session is
+  deduced (the template's `script:`, or a script-backed workflow step 1 →
+  script; else agent). Agent templates need a TTY and run under the REPL
+  supervisor; script templates run deterministic code directly and are the
+  right shape for unattended schedulers.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered

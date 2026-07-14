@@ -1,6 +1,5 @@
 ---
 title: Recurring scan
-mode: script
 assignee: system
 secrets: null
 script: run.py

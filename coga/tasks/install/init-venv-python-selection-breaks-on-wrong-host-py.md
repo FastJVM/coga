@@ -2,7 +2,6 @@
 slug: install/init-venv-python-selection-breaks-on-wrong-host-py
 title: Init venv python selection breaks on wrong host python
 status: done
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

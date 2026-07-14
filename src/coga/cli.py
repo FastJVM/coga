@@ -326,9 +326,15 @@ def main() -> None:
     # `uninstall` shares this leniency: a broken/legacy config is itself a
     # reason to remove Coga, so it must not be blocked by config load failure.
     init_invoked = invoked_command in ("init", "uninstall")
+    # This eager load only feeds aliases and the end-of-command state sweep,
+    # neither of which reads `current_user` — so it tolerates a missing `user`
+    # (a teammate's fresh clone has no gitignored `coga.local.toml` yet).
+    # Otherwise `coga`, `coga --help`, and every `<command> --help` would die
+    # before Typer even parses them. Commands that act as someone still load
+    # strictly in their own bodies and fail there with the actionable message.
     try:
         find_repo_root()
-        cfg = load_config()
+        cfg = load_config(require_user=False)
     except ConfigError as exc:
         msg = str(exc)
         if "No coga.toml found" in msg:

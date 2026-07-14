@@ -2,7 +2,6 @@
 slug: v2/add-subproject
 title: add subproject
 status: draft
-mode: agent
 owner: nick
 human: nick
 agent: claude

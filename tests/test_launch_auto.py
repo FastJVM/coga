@@ -23,7 +23,6 @@ def _write_script_task(repo: Path, *, slug: str, title: str) -> None:
         slug: {slug}
         title: {title}
         status: active
-        mode: script
         owner: marc
         human: marc
         agent: claude

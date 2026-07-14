@@ -2,7 +2,6 @@
 slug: cli-extension-model/move-read-views-to-tickets-as-scripts
 title: Move show/status into their lowest-tier mechanism
 status: done
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

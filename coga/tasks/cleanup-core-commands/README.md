@@ -2,7 +2,6 @@
 slug: cleanup-core-commands/README
 title: Cleanup core commands task directory
 status: draft
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex

@@ -91,6 +91,23 @@ For command help, start with `coga --help`. For the deeper "why", read
 actually load, read
 [`coga/contexts/coga/principles/SKILL.md`](coga/contexts/coga/principles/SKILL.md).
 
+### Joining an existing Coga repo
+
+`coga init` is only for repos that don't have a `coga/` yet. If you cloned a
+repo that already uses Coga, the shared config (`coga.toml`) came with the
+clone, but `coga.local.toml` — the machine-local file holding your name — is
+gitignored, so every clone creates its own. Read-only commands (`coga status`,
+`coga show`, `coga validate`, `--help`) work without it; anything that creates
+or moves work needs it. Create it next to `coga.toml`:
+
+```sh
+echo 'user = "<your-name>"' > coga/coga.local.toml
+```
+
+Coga never guesses your name (from git or `$USER`) — tickets reference people
+by these names, and a guessed one that doesn't match fails silently.
+`coga validate` will remind you with a warning until it's set.
+
 ## Key Values
 
 **You own the system.** Coga is markdown, Python, Git, and the shell. No hosted

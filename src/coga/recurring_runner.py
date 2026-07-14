@@ -15,6 +15,7 @@ import typer
 
 from coga import git
 from coga.commands.launch import _interactive_stdio_has_tty
+from coga.commands.launch_script import is_script_launch
 from coga.config import Config
 from coga.logfile import append_log, ref_tag_for_path, task_log_lines
 from coga.paths import log_path
@@ -112,7 +113,7 @@ def run_recurring_scan(
             _prepare_forced_launch(cfg, task)
         # Sequential by design: each launch blocks until the agent session
         # exits before the next begins. `scan_due` filters out templates that
-        # cannot run in the current stdio context (`mode: agent` with no TTY), and
+        # cannot run in the current stdio context (an agent run with no TTY), and
         # the liveness backstops release any that launch but then stall. `launch`
         # returns "timeout" when a backstop fired so we record the wedge honestly
         # below instead of pausing it as a human would.
@@ -977,10 +978,9 @@ def _stop_if_unfinished_after_launch(
 ) -> None:
     """Stop a bare recurring sweep if one launched task is still in flight.
 
-    `interactive` is set when the sweep is `--interactive` (or the just-
-    launched template's own `mode:` was interactive). In that case the human
-    is driving — exiting the agent without marking done is a valid "park this
-    run and move on" signal, not a stuck task. Make that durable by pausing the
+    `interactive` is set when the sweep is `--interactive`. In that case the
+    human is driving — exiting the agent without marking done is a valid "park
+    this run and move on" signal, not a stuck task. Make that durable by pausing the
     task, then continue instead of bailing the sweep; otherwise the next scan
     would treat the leftover `in_progress` state as a dead supervisor's orphan
     and relaunch it.
@@ -1024,8 +1024,8 @@ def _stop_if_unfinished_after_launch(
         )
         return
 
-    if interactive or ticket.mode == "agent":
-        suffix = "Agent-mode recurring launch exited unfinished"
+    if interactive or not is_script_launch(cfg, ticket):
+        suffix = "Agent recurring launch exited unfinished"
         try:
             mark_paused(
                 cfg,

@@ -2,7 +2,6 @@
 slug: fix-open-pr-false-staleness-from-coga-state-commit
 title: Fix open-pr false staleness from Coga state commits
 status: in_progress
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

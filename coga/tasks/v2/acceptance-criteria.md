@@ -2,7 +2,6 @@
 slug: v2/acceptance-criteria
 title: acceptance-criteria
 status: paused
-mode: agent
 owner: zach
 human: zach
 agent: claude

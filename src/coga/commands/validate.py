@@ -53,7 +53,7 @@ def validate(
 ) -> None:
     """Validate repo + config; exits 1 if any errors are found."""
     try:
-        cfg = load_config()
+        cfg = load_config(require_user=False)
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(2)

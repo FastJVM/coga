@@ -56,7 +56,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Plan a project into tickets
-        mode: agent
         skills:
           - bootstrap/project
         assignee: claude
@@ -116,7 +115,6 @@ def _create_drafts(*titles: str):  # type: ignore[no-untyped-def]
                 title=title,
                 workflow_name=None,
                 contexts=[],
-                mode="agent",
                 owner=cfg.current_user,
                 assignee=None,
                 watchers=[],
@@ -222,17 +220,16 @@ def test_project_fails_loud_on_broken_draft(
             title="Broken step",
             workflow_name=None,
             contexts=[],
-            mode="agent",
             owner=cfg.current_user,
             assignee=None,
             watchers=[],
             status="draft",
         )
-        # An invalid mode is a hard validation error — the session left a
+        # An invalid status is a hard validation error — the session left a
         # malformed ticket and the command must surface it, not pass silently.
         path = result["path"]
         t = Ticket.read(path)
-        t.frontmatter["mode"] = "bogus"
+        t.frontmatter["status"] = "bogus"
         t.write(path)
 
     prompts: list[str] = []

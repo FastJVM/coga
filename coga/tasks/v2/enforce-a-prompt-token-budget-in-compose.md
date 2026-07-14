@@ -2,7 +2,6 @@
 slug: v2/enforce-a-prompt-token-budget-in-compose
 title: Enforce a prompt token budget in compose
 status: draft
-mode: agent
 owner: nick
 human: nick
 agent: claude

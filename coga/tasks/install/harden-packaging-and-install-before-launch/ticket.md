@@ -2,7 +2,6 @@
 slug: install/harden-packaging-and-install-before-launch
 title: Harden packaging and first-install before launch
 status: blocked
-mode: agent
 owner: zach
 human: zach
 agent: claude

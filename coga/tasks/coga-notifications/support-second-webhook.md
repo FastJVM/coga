@@ -2,7 +2,6 @@
 slug: coga-notifications/support-second-webhook
 title: support-second-webhook
 status: draft
-mode: agent
 owner: zach
 human: zach
 agent: claude

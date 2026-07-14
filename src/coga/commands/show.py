@@ -23,7 +23,7 @@ def show(
     blackboard) and, for a real task, its history reconstructed from the
     repo-global log."""
     try:
-        cfg = load_config()
+        cfg = load_config(require_user=False)
     except ConfigError as exc:
         _bail(str(exc))
 

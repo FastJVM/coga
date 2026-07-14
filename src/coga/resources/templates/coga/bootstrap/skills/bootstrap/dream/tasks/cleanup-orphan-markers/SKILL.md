@@ -19,7 +19,7 @@ run.
 
 - Purpose: detect already-processed done tickets that are eligible for
   delete-only cleanup.
-- Runs: a `mode: script` Coga task whose workflow step references
+- Runs: a script-stepped Coga task whose workflow step references
   `bootstrap/dream/tasks/cleanup-orphan-markers`.
 - Inputs: task directories under `coga/tasks/`, the source task's
   `## Retro` marker in its `ticket.md` blackboard region, GitHub open PR
