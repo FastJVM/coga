@@ -56,7 +56,6 @@ ORDER_BY_CHOICES = (
     "owner",
     "assignee",
     "step",
-    "mode",
     "updated",
     "created",
 )
@@ -219,7 +218,6 @@ def render_status(
             "owner": ticket.owner or "-",
             "assignee": ticket.assignee or "-",
             "step": ticket.step or "-",
-            "mode": ticket.mode,
             "updated_ts": activity.get(ref.id_slug),
             "created_ts": created.get(ref.id_slug),
         })
@@ -339,11 +337,11 @@ def _build_table(rows: list[dict], narrow: bool, now: datetime) -> Table:
         # so Rich's balancer doesn't crop it. Everything else ellipsizes.
         max_slug = max((len(r["slug"]) for r in rows), default=0)
         table.add_column("slug", no_wrap=True, overflow="fold", min_width=max_slug)
-        for col in ("status", "owner", "assignee", "step", "mode", "updated"):
+        for col in ("status", "owner", "assignee", "step", "updated"):
             table.add_column(col, no_wrap=True, overflow="ellipsis")
     else:
         table.add_column("slug", no_wrap=True, overflow="fold")
-        for col in ("status", "owner", "assignee", "step", "mode", "updated"):
+        for col in ("status", "owner", "assignee", "step", "updated"):
             table.add_column(col)
 
     for r in rows:
@@ -351,7 +349,7 @@ def _build_table(rows: list[dict], narrow: bool, now: datetime) -> Table:
         updated = _format_relative(ts, now) if ts is not None else "-"
         table.add_row(
             r["slug"], r["status"], r["owner"], r["assignee"],
-            r["step"], r["mode"], updated,
+            r["step"], updated,
         )
     return table
 
