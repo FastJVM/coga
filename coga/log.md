@@ -1201,3 +1201,6 @@ fatal: adding files failed
 2026-07-14 09:44 [bootstrap/orient] [human:zach] launched in agent mode (assignee=claude, agent=claude)
 2026-07-14 11:49 [bootstrap/orient] [human:zach] launched in agent mode (assignee=claude, agent=claude)
 2026-07-14 11:53 [install/relay-help-and-cli-should-not-require-user] [human:nick] started (active → in_progress) via coga launch
+2026-07-14 11:53 [install/relay-help-and-cli-should-not-require-user] [human:nick] started (active → in_progress) via coga launch
+2026-07-14 11:53 [install/relay-help-and-cli-should-not-require-user] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-14 12:09 [install/relay-help-and-cli-should-not-require-user] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done: branch relax-user-requirement, 1180 tests green; --help/status/show/validate/usage now run without coga.local.toml
