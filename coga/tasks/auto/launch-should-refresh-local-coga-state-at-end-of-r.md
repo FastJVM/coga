@@ -6,7 +6,7 @@ mode: agent
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -173,6 +173,38 @@ Decisions worth reviewing:
   sweep a no-op.
 - `status`/`show`/`validate` are non-sweeping read-only commands (principle 6),
   hence the no-fetch constraint on the status warning.
+
+## Peer review
+
+Review approved after one must-fix safety correction. The original feature-
+branch overlay diffed whole branch tips, so a clean committed task edit that
+existed only on the feature side could be mistaken for control-side freshness,
+overwritten, and committed away. Commit `3cbc23aa` now limits candidates to
+control-side changes since the merge base and overwrites committed divergence
+only when control history proves it already absorbed that exact local version.
+Real-git regressions cover same-step blackboard divergence, task attachments,
+and the normal absorbed-then-advanced convergence path.
+
+The branch was rebased onto `origin/main` at `5cc75ee3` and is clean with two
+commits ahead. Final verification on the rebased history:
+`PYTHONPATH=/home/n/Code/claude/coga-launch-end-refresh/src python3.12 -m pytest`
+— **1191 passed, 1 skipped**.
+
+## PR
+
+### Summary
+
+- Refresh the checkout that invoked `coga launch` from the control branch at
+  every supervised exit, updating task state without touching product files.
+- Union-merge `coga/log.md`, preserve dirty or unabsorbed committed local task
+  state, and warn on stderr when `coga status` can prove its local view is stale
+  from remote-tracking refs without fetching.
+- Document the pull-back contract and cover feature/control branches, failure
+  paths, launch teardown, and status rendering with real-git regressions.
+
+### Test plan
+
+`PYTHONPATH=/home/n/Code/claude/coga-launch-end-refresh/src python3.12 -m pytest` — 1191 passed, 1 skipped.
 
 ## Usage
 
