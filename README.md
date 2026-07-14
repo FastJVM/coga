@@ -40,6 +40,17 @@ cd coga
 python -m pip install -e .
 ```
 
+If a `pip` command above aborts with `Hashes are required in --require-hashes
+mode` — or, for the editable install, `there is no single file to hash` — your
+machine enables pip's hash-checking mode globally (`PIP_REQUIRE_HASHES=1` or
+`require-hashes` in the pip config, common on managed work machines). Two
+escape hatches:
+
+- `uv tool install coga` — uv doesn't read pip's config, so it's unaffected.
+- Disable hash checking for the one command by prefixing it, e.g.
+  `PIP_REQUIRE_HASHES=0 pip install coga` or
+  `PIP_REQUIRE_HASHES=0 python -m pip install -e .`
+
 Then run:
 
 ```sh
