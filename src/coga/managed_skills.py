@@ -135,6 +135,7 @@ def install_managed_skills(
     cfg = _manifest_skill_config(coga_os)
     summary = ManagedSkillSummary()
     skill_specs = specs if specs is not None else load_managed_skill_manifest()
+    access_cache: dict[str, str | None] = {}
     for spec in skill_specs:
         target = _skill_target(cfg, spec.ref)
         if target.exists():
@@ -155,6 +156,7 @@ def install_managed_skills(
                 runner=runner,
                 downloader=downloader,
                 github_installer=github_installer,
+                access_cache=access_cache,
             )
         )
     return summary
@@ -172,6 +174,7 @@ def reconcile_managed_skills(
     cfg = _manifest_skill_config(coga_os)
     summary = ManagedSkillSummary()
     skill_specs = specs if specs is not None else load_managed_skill_manifest()
+    access_cache: dict[str, str | None] = {}
     for spec in skill_specs:
         target = _skill_target(cfg, spec.ref)
         if not target.exists():
@@ -182,6 +185,7 @@ def reconcile_managed_skills(
                     runner=runner,
                     downloader=downloader,
                     github_installer=github_installer,
+                    access_cache=access_cache,
                 )
             )
             continue
@@ -217,12 +221,38 @@ def _run_install(
     runner: Runner | None,
     downloader: Downloader | None,
     github_installer: GithubInstaller | None,
+    access_cache: dict[str, str | None] | None = None,
 ) -> SkillResult:
     try:
         if spec.source_type == "github":
             if github_installer is not None:
                 return github_installer(cfg, spec.source, spec.ref)
-            return install_github_skill(cfg, spec.source, spec.ref, runner=runner)
+            reason = _cached_github_source_unavailable_reason(
+                spec.source, cache=access_cache
+            )
+            if reason is not None:
+                if spec.required:
+                    raise ManagedSkillError(
+                        _required_failure_message(
+                            spec, f"no access to {spec.source} ({reason})"
+                        )
+                    )
+                return _no_access_result(spec, reason)
+            try:
+                return install_github_skill(cfg, spec.source, spec.ref, runner=runner)
+            except SkillManagerError as exc:
+                reason = _github_access_denial_reason(str(exc))
+                if reason is None:
+                    raise
+                if access_cache is not None:
+                    access_cache[spec.source.strip()] = reason
+                if spec.required:
+                    raise ManagedSkillError(
+                        _required_failure_message(
+                            spec, f"no access to {spec.source} ({reason})"
+                        )
+                    ) from exc
+                return _no_access_result(spec, reason)
         return install_url_skill(
             cfg,
             spec.source,
@@ -234,6 +264,60 @@ def _run_install(
         if spec.required:
             raise ManagedSkillError(_required_failure_message(spec, exc)) from exc
         return _failure_result(spec, exc)
+
+
+def _cached_github_source_unavailable_reason(
+    source: str,
+    *,
+    cache: dict[str, str | None] | None,
+) -> str | None:
+    """Return a prior access denial for this source within the current run."""
+    key = source.strip()
+    return cache.get(key) if cache is not None else None
+
+
+def _github_access_denial_reason(output: str) -> str | None:
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if not lines:
+        return None
+    access_markers = (
+        "could not resolve to a repository",
+        "not logged into any github hosts",
+        "authentication failed",
+        "bad credentials",
+        "requires authentication",
+        "must authenticate",
+        "gh auth login",
+        "resource not accessible by",
+        "saml enforcement",
+        "grant your oauth token access",
+        "http 401",
+        "http 404",
+        "github cli 2.90.0+ with `gh skill` is required",
+    )
+    for line in lines:
+        normalized = line.casefold()
+        if any(marker in normalized for marker in access_markers):
+            return line
+    return None
+
+
+def _no_access_result(spec: ManagedSkillSpec, reason: str) -> SkillResult:
+    return SkillResult(
+        name=spec.ref,
+        source_type=spec.source_type,
+        status="skipped-no-access",
+        message=(
+            f"optional skill skipped — {spec.source} is not accessible with "
+            f"your GitHub credentials ({reason})"
+        ),
+        details={
+            "source": spec.source,
+            "required": spec.required,
+            "remediation": spec.remediation_command(),
+            "reason": reason,
+        },
+    )
 
 
 def _failure_result(spec: ManagedSkillSpec, exc: object) -> SkillResult:

@@ -4,7 +4,9 @@
 # need no entry here (they work offline) — this includes the gmail /
 # google-calendar / calendar-reminder / browser capabilities. Entries below are
 # optional domain skills still fetched from a public source at init/update; a
-# failed fetch warns rather than failing init.
+# failed fetch warns rather than failing init. When an install reports an access
+# denial, later optional skills from that source are skipped with one note
+# instead of repeating the same failing `gh skill install` for every skill.
 
 [[skills]]
 ref = "google-agents-cli-workflow"

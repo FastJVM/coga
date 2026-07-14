@@ -609,6 +609,79 @@ def test_init_reports_installed_managed_skills(
     assert fake_managed_skill_sync.install_calls == [target / "coga"]
 
 
+def test_init_notes_skipped_no_access_managed_skills(
+    tmp_path: Path,
+    fake_clone,
+    fake_venv,
+    fake_managed_skill_sync,
+) -> None:
+    target = _make_git_repo(tmp_path / "company")
+
+    fake_managed_skill_sync.install_summary = ManagedSkillSummary(
+        [
+            SkillResult(
+                name=f"tools/{name}",
+                source_type="github",
+                status="skipped-no-access",
+                message=(
+                    "optional skill skipped — owner/private is not accessible "
+                    "with your GitHub credentials (HTTP 404: Not Found)"
+                ),
+                details={
+                    "source": "owner/private",
+                    "required": False,
+                    "remediation": f"coga skill install owner/private tools/{name}",
+                    "reason": "HTTP 404: Not Found",
+                },
+            )
+            for name in ("one", "two")
+        ]
+    )
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert "Managed skills: skipped-no-access=2" in result.output
+    # One consolidated note per source — not a warning per skill.
+    assert (
+        "Note: skipped 2 optional managed skills from owner/private" in result.output
+    )
+    assert "Coga works without them" in result.output
+    assert "gh auth login" in result.output
+    assert "Warning: optional managed skill" not in result.output
+
+
+def test_init_tells_user_to_install_missing_gh_for_managed_skills(
+    tmp_path: Path,
+    fake_clone,
+    fake_venv,
+    fake_managed_skill_sync,
+) -> None:
+    target = _make_git_repo(tmp_path / "company")
+    fake_managed_skill_sync.install_summary = ManagedSkillSummary(
+        [
+            SkillResult(
+                name="tools/example",
+                source_type="github",
+                status="skipped-no-access",
+                message="optional skill skipped",
+                details={
+                    "source": "owner/private",
+                    "required": False,
+                    "remediation": "coga skill install owner/private tools/example",
+                    "reason": "GitHub CLI (`gh`) is not installed",
+                },
+            )
+        ]
+    )
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+
+    assert result.exit_code == 0, result.output
+    assert "Install GitHub CLI 2.90.0+ from https://cli.github.com" in result.output
+    assert "authenticate with `gh auth login`" in result.output
+
+
 def test_init_fails_loud_when_required_managed_skill_fails(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
