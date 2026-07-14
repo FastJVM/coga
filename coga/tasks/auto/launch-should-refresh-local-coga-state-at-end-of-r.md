@@ -1,7 +1,7 @@
 ---
 slug: auto/launch-should-refresh-local-coga-state-at-end-of-r
 title: Launch should refresh local coga state at end of run
-status: in_progress
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -27,7 +27,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
