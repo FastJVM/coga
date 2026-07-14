@@ -250,12 +250,12 @@ def test_user_alias_overrides_default(
     assert captured["argv"] == ["coga", "launch", "bootstrap/something-else"]
 
 
-def test_default_chat_alias_registers_outside_repo(
+def test_default_alias_help_registers_outside_repo(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`coga --help` from a non-coga dir still shows `chat`."""
+    """Alias help still dispatches from a non-Coga directory."""
     monkeypatch.chdir(tmp_path)  # no coga here
-    monkeypatch.setattr("sys.argv", ["coga", "chat"])
+    monkeypatch.setattr("sys.argv", ["coga", "chat", "--help"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
 
     captured: dict[str, list[str]] = {}
@@ -266,7 +266,28 @@ def test_default_chat_alias_registers_outside_repo(
 
     monkeypatch.setattr("coga.cli.app", fake_app)
     main()
-    assert captured["argv"] == ["coga", "launch", "bootstrap/orient"]
+    assert captured["argv"] == ["coga", "launch", "bootstrap/orient", "--help"]
+
+
+@pytest.mark.parametrize("command", ["status", "build"])
+def test_main_missing_repo_points_to_init(
+    command: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Built-ins and default aliases explain how to adopt the current repo."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["coga", command])
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "No coga.toml found" in err
+    assert "project's git root" in err
+    assert "`coga init --user NAME`" in err
 
 
 def test_default_aliases_pass_validation() -> None:
