@@ -6,7 +6,7 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -52,6 +52,7 @@ needs); this one is about first-time *user* onboarding.
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/542
 branch: readme-venv-install
 worktree: /home/n/Code/claude/coga/.coga/worktrees/coga-readme-venv-install
 
