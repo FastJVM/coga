@@ -6,7 +6,7 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -126,6 +126,34 @@ Notes for reviewer:
   load (before, main() died pre-dispatch). The sweep never reads
   `current_user` and is non-fatal, so this is benign.
 
+## Peer review — done
+
+Native `codex review --base main` found two must-fix P2s: the read-only
+`coga skill status` and `coga recurring list` views still loaded config
+strictly, and `coga validate --task <slug>` skipped the new missing-user
+warning. Both were reproduced and fixed in commit `3e65d4f5`, with CLI
+regression coverage. Mutating skill/recurring paths remain strict.
+
+The branch was unconditionally rebased onto current `origin/main` at
+`e7c1f60d`; it is clean, two commits ahead, and zero behind. Verification:
+focused missing-user coverage passed (94 tests), `git diff --check` passed,
+and the full Python 3.12 suite passed (1206 passed, 1 skipped).
+
+## PR
+
+Relax Coga's local `user` requirement for help and every read-only CLI view
+while preserving fail-loud identity checks for commands that create or move
+work. Missing/blank `user` now produces an empty `current_user` only on
+explicitly lenient paths; `coga validate` reports the machine-local setup
+warning (including task-scoped validation), and the README documents how a
+teammate joining an existing repo creates the gitignored `coga.local.toml`.
+Coga deliberately still does not guess from `$USER` because ticket identity
+tokens must match explicit team names.
+
+Test plan: `python -m pytest` (1206 passed, 1 skipped).
+
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":347176,"cache_read_input_tokens":13469634,"cli":"claude","input_tokens":243,"model":"claude-fable-5","output_tokens":108284,"provider":"anthropic","schema":1,"session_id":"f7ed48e2-b6f3-4524-ab69-d8492f706220","slug":"install/relay-help-and-cli-should-not-require-user","step":"implement","title":"relay CLI should not require user to be set (default to $USER)","ts":"2026-07-14T19:09:16.834906Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":4739072,"cli":"codex","input_tokens":143229,"model":"gpt-5.6-sol","output_tokens":12475,"provider":"openai","schema":1,"session_id":"019f6208-9bef-7053-af35-eb075d462a9b","slug":"install/relay-help-and-cli-should-not-require-user","step":"peer-review","title":"relay CLI should not require user to be set (default to $USER)","ts":"2026-07-14T19:23:35.945110Z","usage_status":"ok"}

@@ -1204,3 +1204,12 @@ fatal: adding files failed
 2026-07-14 11:53 [install/relay-help-and-cli-should-not-require-user] [human:nick] started (active → in_progress) via coga launch
 2026-07-14 11:53 [install/relay-help-and-cli-should-not-require-user] [human:nick] launched in agent mode (assignee=claude, agent=claude)
 2026-07-14 12:09 [install/relay-help-and-cli-should-not-require-user] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done: branch relax-user-requirement, 1180 tests green; --help/status/show/validate/usage now run without coga.local.toml
+2026-07-14 11:53 [install/relay-help-and-cli-should-not-require-user] [human:nick] started (active → in_progress) via coga launch
+2026-07-14 11:53 [install/relay-help-and-cli-should-not-require-user] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-14 12:09 [install/relay-help-and-cli-should-not-require-user] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done: branch relax-user-requirement, 1180 tests green; --help/status/show/validate/usage now run without coga.local.toml
+2026-07-14 12:09 [install/relay-help-and-cli-should-not-require-user] [human:nick] launched in agent mode (assignee=codex, agent=codex)
+2026-07-14 12:23 [install/relay-help-and-cli-should-not-require-user] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-14 12:23 [install/relay-help-and-cli-should-not-require-user] [git] sync failed: `git add -- coga/tasks/install/relay-help-and-cli-should-not-require-user` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/relay-help-and-cli-should-not-require-user/blackboard.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/relay-help-and-cli-should-not-require-user/blackboard.md'
+fatal: adding files failed
