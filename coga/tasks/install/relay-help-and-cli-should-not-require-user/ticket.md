@@ -1,7 +1,7 @@
 ---
 slug: install/relay-help-and-cli-should-not-require-user
 title: relay CLI should not require user to be set (default to $USER)
-status: in_progress
+status: done
 owner: zach
 human: zach
 agent: claude
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
