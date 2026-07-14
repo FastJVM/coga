@@ -62,8 +62,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"
-        [launch]
-        worktree = false
         """,
     )
     _write(company / "coga.local.toml", 'user = "marc"\n')

@@ -223,39 +223,16 @@ def launch(
                 f"to resume."
             )
 
-    # Refuse human handoffs before allocating an isolated launch worktree. A
-    # human-owned active/in-progress step should report the handoff directly,
-    # even in sandboxes where `.git/worktrees` is not writable.
+    # Refuse human handoffs up front: a human-owned active/in-progress step
+    # should report the handoff directly, before any status mutation.
     if not is_bootstrap and ticket.status not in {"draft", "paused"}:
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
-    # Per-launch `git worktree` isolation (`[launch].worktree`). When on, the
-    # whole supervised session — launch-owned status writes, every step's
-    # compose, spawn, in-session `coga bump`/`mark`, and usage sync — runs
-    # against a private detached worktree instead of the shared primary checkout.
-    # `base_cfg` is kept for teardown; `cfg`/`ref` are re-rooted into the
-    # worktree so reads, spawns, and syncs all target it. Bootstrap tickets,
-    # script launches, and non-git checkouts are unaffected.
-    base_cfg = cfg
-    worktree_path: Path | None = None
-    spawn_cwd: Path | None = None
     # A script launch — the current step is a script step (e.g. code/open-pr)
     # or the ticket carries its own `script:` — runs with no agent, through
-    # run_script_mode. It is excluded from launch-worktree isolation: the
-    # script uses the feature worktree recorded under `## Dev`, not a
-    # launch-isolation worktree.
+    # run_script_mode. The script uses the feature worktree recorded under
+    # `## Dev`.
     run_current_as_script = is_script_launch(cfg, ticket)
-    if (
-        cfg.launch_worktree
-        and isinstance(ref, TaskRef)
-        and not is_bootstrap
-        and not run_current_as_script
-    ):
-        cfg, ref, worktree_path = _enter_launch_worktree(base_cfg, ref, task)
-        if worktree_path is not None:
-            spawn_cwd = worktree_path
-            ticket = _read(ref)
-            run_current_as_script = is_script_launch(cfg, ticket)
 
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
@@ -296,7 +273,7 @@ def launch(
             # A failed script sys.exits inside run_script_mode; that path is
             # refreshed by the BaseException handler below, so this fires
             # exactly once per script launch.
-            _refresh_launch_checkout(base_cfg)
+            _refresh_launch_checkout(cfg)
             return
 
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
@@ -401,12 +378,10 @@ def launch(
         signal.signal(signal.SIGINT, _on_signal)
         signal.signal(signal.SIGTERM, _on_signal)
     except BaseException:
-        if worktree_path is not None:
-            _cleanup_launch_worktree(base_cfg, cfg, worktree_path)
         # Setup can exit after state was already published (the auto-activate
         # or in_progress flip, a failed script step) — pull that state back
         # into the launch checkout before surfacing the exit.
-        _refresh_launch_checkout(base_cfg)
+        _refresh_launch_checkout(cfg)
         raise
 
     try:
@@ -498,7 +473,6 @@ def launch(
                     warn_blackboard=True,
                     capture_usage=not is_bootstrap,
                     commit_log=is_bootstrap,
-                    cwd=spawn_cwd,
                 )
             except ComposeError as exc:
                 _bail(str(exc))
@@ -559,17 +533,12 @@ def launch(
                 typer.echo(stop_reason)
                 break
     finally:
-        # Tear down the per-launch worktree on every exit path — clean chain
-        # completion, `sys.exit` on a non-zero/timeout agent, or an exception.
-        # Driven from `base_cfg` (the primary root); `cfg` now points into the
-        # worktree, and git refuses to remove the worktree it is invoked from.
-        if worktree_path is not None:
-            _cleanup_launch_worktree(base_cfg, cfg, worktree_path)
-        # After teardown (whose sweep lands any leftover worktree state on the
-        # control branch), pull the run's published state back into the
-        # checkout the operator launched from, so the `coga status` they run
-        # next in this terminal shows the world the run just created.
-        _refresh_launch_checkout(base_cfg)
+        # On every exit path — clean chain completion, `sys.exit` on a
+        # non-zero/timeout agent, or an exception — pull the run's published
+        # state back into the checkout the operator launched from, so the
+        # `coga status` they run next in this terminal shows the world the
+        # run just created.
+        _refresh_launch_checkout(cfg)
 
 
 # --- helpers ------------------------------------------------------------------
@@ -708,89 +677,11 @@ def _preflight_push_auth(
         )
 
 
-def _enter_launch_worktree(
-    cfg: Config, ref: TaskRef, task: str
-) -> tuple[Config, TaskRef, Path | None]:
-    """Create a per-launch worktree and re-root config/ref into it.
-
-    Returns `(cfg, ref, worktree_path)` re-rooted into a fresh detached worktree
-    (keyed by a unique id so a relaunch of a still-running ticket can't collide),
-    or the unchanged `(cfg, ref, None)` when there is no git repo to isolate
-    within — a non-git checkout has no shared-index race to close. Reaps
-    crash-orphaned worktrees first. A genuine `git worktree add` failure is a
-    launch refusal, not a silent fall back to the shared checkout: the operator
-    opted into isolation, and quietly reintroducing the race would defeat it.
-    """
-    git.reap_orphan_launch_worktrees(cfg)
-    try:
-        worktree_path = git.add_launch_worktree(cfg, uuid4().hex)
-    except git.GitError as exc:
-        _bail(
-            f"Cannot launch {ref.id_slug}: [launch].worktree is on but creating "
-            f"an isolation worktree failed — {exc}. Fix the git state and retry, "
-            "or set [launch].worktree = false to run in the shared checkout."
-        )
-    if worktree_path is None:
-        return cfg, ref, None
-    typer.echo(f"Launch: isolating session in worktree {worktree_path}")
-    try:
-        worktree_repo_root = git.repo_root_in_worktree(cfg, worktree_path)
-        _copy_task_state_into_worktree(cfg.repo_root, ref.path, worktree_repo_root)
-        _mirror_local_config_into_worktree(cfg.repo_root, worktree_repo_root)
-        worktree_cfg = load_config(repo_root=worktree_repo_root)
-        worktree_ref = resolve_target(worktree_cfg, task)
-    except BaseException:
-        # Re-rooting failed after the worktree was created — tear it down so a
-        # failed setup never leaks a checkout, then re-raise. (The caller's
-        # `finally` only covers a worktree it was handed back.)
-        git.remove_launch_worktree(cfg, worktree_path)
-        raise
-    if not isinstance(worktree_ref, TaskRef):
-        # Defensive: a TaskRef in the primary checkout must resolve to a TaskRef
-        # in the worktree too (identical tree). If it somehow doesn't, drop the
-        # worktree and run unisolated rather than crash the launch.
-        git.remove_launch_worktree(cfg, worktree_path)
-        return cfg, ref, None
-    return worktree_cfg, worktree_ref, worktree_path
-
-
-def _copy_task_state_into_worktree(
-    source_root: Path, source_path: Path, worktree_root: Path
-) -> None:
-    """Seed the isolated checkout with the live task file/dir from the caller."""
-    rel = source_path.relative_to(source_root)
-    target = worktree_root / rel
-    if source_path.is_dir():
-        if target.exists():
-            shutil.rmtree(target)
-        shutil.copytree(source_path, target)
-        return
-
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source_path, target)
-
-
-def _mirror_local_config_into_worktree(source_root: Path, worktree_root: Path) -> None:
-    """Expose ignored machine-local config inside a fresh git worktree."""
-    source = source_root / "coga.local.toml"
-    if not source.is_file():
-        return
-    target = worktree_root / "coga.local.toml"
-    try:
-        if target.exists() or target.is_symlink():
-            target.unlink()
-        target.symlink_to(source)
-    except OSError:
-        shutil.copy2(source, target)
-
-
 def _refresh_launch_checkout(cfg: Config) -> None:
     """Pull the control branch's task state back into the launch checkout.
 
-    Runs once on every exit path the supervisor sees. `cfg` must be the config
-    rooted where `coga launch` was invoked (`base_cfg`), never the per-launch
-    isolation worktree — the worktree is torn down, and it is the operator's
-    checkout that otherwise stays stale until a manual pull. Non-fatal by
+    Runs once on every exit path the supervisor sees, so the operator's
+    checkout never stays stale until a manual pull. Non-fatal by
     construction: `refresh_coga_state_from_control` surfaces git failures on
     stderr + the log and never raises, so a refresh miss cannot mask the
     launch's real outcome.
@@ -798,32 +689,6 @@ def _refresh_launch_checkout(cfg: Config) -> None:
     git.refresh_coga_state_from_control(
         cfg, message="Refresh coga state after launch"
     )
-
-
-def _cleanup_launch_worktree(
-    base_cfg: Config, worktree_cfg: Config, worktree_path: Path
-) -> None:
-    """Remove a launch worktree only after recoverable Coga state is clean."""
-    git.sync_coga_state(worktree_cfg)
-    try:
-        dirty = git.launch_worktree_has_dirty_coga_state(base_cfg, worktree_path)
-    except git.GitError as exc:
-        typer.secho(
-            f"Launch: leaving isolation worktree {worktree_path} for recovery; "
-            f"could not inspect Coga state ({exc}).",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-        return
-    if dirty:
-        typer.secho(
-            f"Launch: leaving isolation worktree {worktree_path} for recovery; "
-            "unsynced Coga state remains.",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-        return
-    git.remove_launch_worktree(base_cfg, worktree_path)
 
 
 # Linux caps a single execve() argument at MAX_ARG_STRLEN (32 pages =
@@ -925,7 +790,6 @@ def spawn_agent_session(
     warn_blackboard: bool = False,
     capture_usage: bool = False,
     commit_log: bool = False,
-    cwd: Path | None = None,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -947,12 +811,6 @@ def spawn_agent_session(
     `git pull` at the checkout gate (the append is committed before the REPL
     starts, so even an in-session `git pull` is unblocked). `coga ticket`
     leaves it False — its post-session `sync_paths` folds the log in instead.
-
-    `cwd`, when set, is the working directory the agent subprocess runs in — the
-    per-launch `git worktree` under `[launch].worktree` isolation. It also keys
-    usage capture (the agent CLI stores its transcript under a hash of its cwd),
-    so it must match where the agent actually ran. None (the default) runs in
-    the launch process's own cwd — today's shared-checkout behaviour.
     """
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
@@ -992,7 +850,7 @@ def spawn_agent_session(
         usage_tracking.snapshot_session_files(usage_provider)
         if should_capture_usage else set()
     )
-    usage_cwd = (cwd or Path.cwd()).resolve()
+    usage_cwd = Path.cwd().resolve()
     usage_window_start = datetime.now(timezone.utc)
     spawn_started = False
 
@@ -1030,19 +888,17 @@ def spawn_agent_session(
         # `coga bump` / `coga mark done` / `coga block` releases the REPL.
         # Scope the sentinel by the task's `id_slug`, the identifier `bump` /
         # `mark` / `block` write. It must be the slug, not `ref.path.resolve()`:
-        # under `[launch].worktree` isolation `ref` is re-rooted into the
-        # per-launch worktree, so a path-scoped marker only matched when the
-        # agent's `coga bump` also ran from that worktree — a bump from the
-        # primary checkout (or a peer agent's separate clone) wrote a different
-        # path, the poll never matched, and the REPL hung. The slug is the same
-        # from any checkout, so teardown fires regardless of the bump's cwd.
+        # a path-scoped marker only matches when the agent's `coga bump` ran
+        # from the same checkout — a bump from a peer agent's separate clone
+        # (or any other checkout of the repo) writes a different path, the
+        # poll never matches, and the REPL hangs. The slug is the same from
+        # any checkout, so teardown fires regardless of the bump's cwd.
         outcome = run_with_done_marker(
             cmd,
             env,
             session_id=ref.id_slug,
             idle_timeout=idle_timeout,
             max_session=max_session,
-            cwd=cwd,
         )
         return AgentSessionResult(outcome.exit_code, outcome.kind)
     except FileNotFoundError:

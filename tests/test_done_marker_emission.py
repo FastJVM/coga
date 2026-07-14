@@ -5,8 +5,9 @@
 (see `coga.repl_supervisor`). The signal travels over the *sentinel file*
 (`$COGA_DONE_SENTINEL`) and nothing else: a success writes the task's
 `id_slug` into the file, scoped to this session. The slug (not the resolved
-path) is what makes the signal survive `[launch].worktree` isolation, where
-the same ticket lives at two absolute paths. Other transitions (`mark
+path) is what makes the signal survive a bump run from a different checkout
+of the repo, where the same ticket lives at two absolute paths. Other
+transitions (`mark
 active`, `mark paused`, or any error path) must NOT write it at all — the
 session is not over.
 """
@@ -130,7 +131,7 @@ def test_bump_success_signals_via_sentinel(
     result = CliRunner().invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
     # The signal goes to the side-channel file, scoped to this task by its
-    # worktree-independent `id_slug` (not the resolved path).
+    # checkout-independent `id_slug` (not the resolved path).
     assert sentinel.read_text().strip() == slug
 
 
@@ -257,18 +258,18 @@ def test_block_error_empty_reason_does_not_signal(
     assert not sentinel.exists()
 
 
-# --- worktree-independence (the regression this fix closes) -------------------
+# --- checkout-independence (the regression this fix closes) -------------------
 
 
-def test_sentinel_scope_is_worktree_independent(repo: Path) -> None:
+def test_sentinel_scope_is_checkout_independent(repo: Path) -> None:
     """The sentinel is scoped by `id_slug`, not the resolved path.
 
-    Under `[launch].worktree` isolation the supervisor scopes the channel from
-    the primary checkout while the agent's `coga bump` runs in the per-launch
-    worktree — two different absolute paths for one ticket. A path-scoped
-    marker written from the worktree never matched what the supervisor polled,
-    so the REPL hung and the human had to relaunch by hand. `id_slug` is the
-    same from either checkout, so the two sides agree.
+    The supervisor may scope the channel from one checkout while the agent's
+    `coga bump` runs in another (e.g. a peer agent's separate clone) — two
+    different absolute paths for one ticket. A path-scoped marker written from
+    the "wrong" checkout never matched what the supervisor polled, so the REPL
+    hung and the human had to relaunch by hand. `id_slug` is the same from
+    either checkout, so the two sides agree.
 
     This asserts the invariant the fix relies on: the identity string is stable
     across checkouts, while the resolved path — the OLD scope key — is not.
@@ -277,12 +278,11 @@ def test_sentinel_scope_is_worktree_independent(repo: Path) -> None:
 
     slug, primary_path = _make_task(repo)
 
-    # Mirror the whole task tree into a per-launch worktree checkout, the way
-    # `coga launch` re-roots into `.coga/worktrees/<hex>` under isolation.
+    # Mirror the whole task tree into a second checkout of the same repo.
     import shutil
 
-    wt_root = repo / ".coga" / "worktrees" / "deadbeefcafe"
-    shutil.copytree(repo, wt_root, ignore=shutil.ignore_patterns(".coga"))
+    wt_root = repo.parent / "second-checkout"
+    shutil.copytree(repo, wt_root)
 
     primary_ref = tasks_mod.resolve_target(load_config(repo), slug)
     worktree_ref = tasks_mod.resolve_target(load_config(wt_root), slug)

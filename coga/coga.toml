@@ -140,20 +140,6 @@ zach = "U0AG5LKCK8E"
 #   remote = "origin"
 #   control_branch = "main"
 
-# --- Launch ---
-# `worktree` (default true) isolates each `coga launch` agent session in its
-# own per-launch `git worktree` (a gitignored `.coga/worktrees/<id>`, detached
-# at the control-branch tip) instead of the shared primary checkout, so several
-# agents on *different* tickets can run from one clone without their `coga bump`
-# / `mark` syncs contending a single `.git/index` / stash stack. `worktree_path`
-# (default `.coga/worktrees`) sets where those worktrees live — relative to the
-# git toplevel, or an absolute path; a custom in-repo path must be gitignored.
-# Shared repo policy (no coga.local.toml override). Set `worktree = false` for
-# the shared single-checkout flow.
-#   [launch]
-#   worktree = false
-#   worktree_path = ".coga/worktrees"
-
 # --- Megalaunch ---
 # Per-agent token budget over the trailing 24h window, from the `## Usage`
 # records in task blackboards. Cache-read tokens count at 1/10th weight (they

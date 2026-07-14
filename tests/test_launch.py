@@ -543,8 +543,6 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         [agents.codex]
         cli = "codex"
         file = "AGENTS.md"
-        [launch]
-        worktree = false
         """,
     )
     _write(company / "coga.local.toml", 'user = "marc"\n')
@@ -2077,8 +2075,6 @@ def test_launch_regular_task_does_not_use_discussion_template(
         cli = "claude"
         file = "CLAUDE.md"
         discussion = "--append-system-prompt {prompt}"
-        [launch]
-        worktree = false
         """,
     )
     captured: dict[str, object] = {}
@@ -2194,31 +2190,6 @@ def test_launch_agent_override_does_not_bypass_human_handoff(
     assert "assignee 'marc' is not a configured agent type" in (
         result.output + (result.stderr or "")
     )
-
-
-def test_launch_human_handoff_refuses_before_worktree_creation(
-    active_task: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    config_path = active_task / "coga.toml"
-    config_path.write_text(
-        config_path.read_text().replace("worktree = false", "worktree = true")
-    )
-    cfg = load_config(active_task)
-    ref = list_tasks(cfg)[0]
-    ticket = Ticket.read(ref.ticket_path)
-    ticket.frontmatter["status"] = "in_progress"
-    ticket.frontmatter["assignee"] = "marc"
-    ticket.write(ref.ticket_path)
-
-    def add_launch_worktree(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise AssertionError("human handoff should fail before worktree creation")
-
-    monkeypatch.setattr("coga.commands.launch.git.add_launch_worktree", add_launch_worktree)
-
-    result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
-
-    assert result.exit_code == 2
-    assert "This is a human handoff" in (result.output + (result.stderr or ""))
 
 
 def test_launch_bootstrap_unknown_ticket(

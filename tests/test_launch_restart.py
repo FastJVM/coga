@@ -6,18 +6,18 @@ ticket and spawns a **fresh** agent process for the next step — that respawn i
 what users call "restart". `tests/test_repl_supervisor.py` covers the PTY-level
 teardown (sentinel file -> SIGTERM -> SIGKILL) thoroughly, but nothing exercised
 the higher layer: launch -> agent bumps -> supervisor respawns next step ->
-agent finishes. And nothing exercised that chain through `[launch].worktree`
-isolation, where the ticket state the supervisor re-reads lives in a detached
-git worktree and has to survive teardown/sync-back.
+agent finishes. And nothing exercised that chain with *real* git sync in the
+loop, where the finished state must land on the control branch (and survive a
+control branch that moved mid-session).
 
 Both symptoms the team is chasing live near here: "restart is not working" (the
-respawn) and "losing work" (worktree state not surviving to the primary
-checkout). These tests lock in the *happy path* for both: with real git sync the
-chain respawns across the worktree boundary and the finished `done` state lands
-back on the primary checkout. They are the regression guard so a change (e.g. the
-in-flight open-pr-gate migration) can't silently break respawn or sync-back.
+respawn) and "losing work" (state not reaching the control branch). These tests
+lock in the *happy path* for both: with real git sync the chain respawns and
+the finished `done` state lands on the control branch. They are the regression
+guard so a change (e.g. the in-flight open-pr-gate migration) can't silently
+break respawn or sync-back.
 
-Note the `wt_repo` fixture must opt into real git via `real_git`; under the
+Note the `git_chain_repo` fixture must opt into real git via `real_git`; under the
 autouse `_stub_git` no-op the sync-back is stubbed and the test "loses work" as
 an artifact, not a finding.
 """
@@ -95,9 +95,8 @@ class _FakeAgent:
     Each `spawn_agent_session` the supervisor makes is one agent session. The
     fake records the step it ran on, then does what a real agent does as its
     last action — `coga bump` for every step but the last, `coga mark done` on
-    the last — from the checkout the supervisor handed it (`cwd`), which under
-    worktree isolation is the detached worktree, not the primary. Running the
-    *real* CLI keeps ticket-state advance and git sync in the loop.
+    the last — from the launch checkout. Running the *real* CLI keeps
+    ticket-state advance and git sync in the loop.
     """
 
     def __init__(self, primary_coga_os: Path, actions: list[str], hook=None) -> None:
@@ -116,10 +115,8 @@ class _FakeAgent:
         if self.hook is not None:
             self.hook(len(self.steps))
 
-        # A real agent runs `coga` from its checkout's `coga/` dir. With
-        # worktree isolation on, `cwd` is the worktree git toplevel, so its coga
-        # OS dir is `<cwd>/coga`; with it off, `cwd` is None and the process cwd
-        # already is the primary coga OS dir.
+        # A real agent runs `coga` from its checkout's `coga/` dir; `cwd` is
+        # None and the process cwd already is the primary coga OS dir.
         run_from = Path(cwd) / "coga" if cwd is not None else self.primary_coga_os
         action = self.actions.popleft() if self.actions else "mark_done"
         argv = (
@@ -153,7 +150,7 @@ def _patch_launch_env(monkeypatch: pytest.MonkeyPatch, fake: _FakeAgent) -> None
     )
 
 
-# --- baseline: chain works with worktree isolation OFF ------------------------
+# --- baseline: chain works without git sync ------------------------------------
 
 
 @pytest.fixture
@@ -167,8 +164,6 @@ def plain_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"
-        [launch]
-        worktree = false
         """,
     )
     _write(company / "coga.local.toml", 'user = "marc"\n')
@@ -322,16 +317,16 @@ def test_launch_functionally_auto_restarts_through_three_steps(
     assert ticket.status == "done"
 
 
-# --- the canary: same chain through `[launch].worktree` isolation -------------
+# --- the canary: same chain with real git sync in the loop --------------------
 
 
 @pytest.fixture
-def wt_repo(real_git, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """Real git repo with a bare origin; `[launch].worktree` defaults ON.
+def git_chain_repo(real_git, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Real git repo with a bare origin.
 
     Requesting `real_git` opts the whole test out of the autouse `_stub_git`
     no-op, so `coga.git.sync_*` runs for real against this repo — otherwise the
-    worktree sync-back we are probing would be stubbed to a no-op and the test
+    sync-back we are probing would be stubbed to a no-op and the test
     would "lose work" as an artifact rather than a finding.
     """
     repo = init_git_repo(tmp_path)
@@ -344,73 +339,63 @@ def wt_repo(real_git, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return repo
 
 
-def test_supervisor_respawns_next_step_after_bump_with_worktree(
-    wt_repo, monkeypatch: pytest.MonkeyPatch
+def test_supervisor_respawns_next_step_after_bump_with_real_git(
+    git_chain_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The chain must survive per-launch worktree isolation without losing work.
+    """The chain must survive real git sync without losing work.
 
-    With `[launch].worktree` on, each step runs in a detached worktree and the
-    supervisor re-reads ticket state that was bumped *there*. This asserts both
-    that the respawn happens (restart) and that the finished `done` state lands
-    back in the primary checkout (no work lost on teardown).
+    This asserts both that the respawn happens (restart) and that the finished
+    `done` state is present in the launch checkout at the end.
     """
-    slug = _create_agent_task(wt_repo.coga_os, ["implement", "finish"])
-    # Commit the workflow + task so the detached worktree checkout has them.
-    wt_repo.git("add", "-A")
-    wt_repo.git("commit", "-m", "seed chain task")
+    slug = _create_agent_task(git_chain_repo.coga_os, ["implement", "finish"])
+    git_chain_repo.git("add", "-A")
+    git_chain_repo.git("commit", "-m", "seed chain task")
 
-    fake = _FakeAgent(wt_repo.coga_os, actions=["bump", "mark_done"])
+    fake = _FakeAgent(git_chain_repo.coga_os, actions=["bump", "mark_done"])
     _patch_launch_env(monkeypatch, fake)
-
-    assert load_config(wt_repo.coga_os).launch_worktree is True
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
 
-    # Respawn happened across the worktree boundary.
+    # Respawn happened.
     assert fake.steps == ["1 (implement)", "2 (finish)"], fake.steps
-    # Each session ran inside a per-launch worktree (not the primary checkout).
-    assert all(c and Path(c) != wt_repo.root for c in fake.cwds), fake.cwds
 
-    # Work landed back in the primary checkout — the "losing work" canary.
     primary_ticket = Ticket.read(
-        list_tasks(load_config(wt_repo.coga_os))[0].ticket_path
+        list_tasks(load_config(git_chain_repo.coga_os))[0].ticket_path
     )
     assert primary_ticket.status == "done", (
-        "worktree teardown did not sync the finished ticket back to the "
-        "primary checkout — work lost"
+        "the finished ticket did not survive the chain — work lost"
     )
 
 
-def test_worktree_session_survives_concurrent_control_branch_advance(
-    wt_repo, monkeypatch: pytest.MonkeyPatch
+def test_session_survives_concurrent_control_branch_advance(
+    git_chain_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Confirm/deny the reported regression: does a worktree session lose work
-    when the control branch advances underneath it?
+    """Does a session lose work when the control branch advances underneath it?
 
     The realistic trigger for "losing work" / "restart is not working": while a
-    worktree-isolated session runs, ANOTHER coga instance (or any commit) lands
-    on `origin/main`. The worktree's sync-back must then land on a moved control
-    branch (non-fast-forward) instead of a clean fast-forward. If that land is
-    dropped, the finished `done` state never reaches the primary checkout and a
-    fresh `coga launch` re-reads stale state — exactly the symptom.
+    session runs, ANOTHER coga instance (or any commit) lands on `origin/main`.
+    The session's sync must then land on a moved control branch
+    (non-fast-forward) instead of a clean fast-forward. If that land is
+    dropped, the finished `done` state never reaches the control branch and a
+    fresh `coga launch` elsewhere re-reads stale state — exactly the symptom.
 
     A rival commit is pushed to `origin/main` at the start of step 1, before the
     session's own bumps land.
     """
-    slug = _create_agent_task(wt_repo.coga_os, ["implement", "finish"])
-    wt_repo.git("add", "-A")
-    wt_repo.git("commit", "-m", "seed chain task")
-    wt_repo.git("push", "origin", "main")
+    slug = _create_agent_task(git_chain_repo.coga_os, ["implement", "finish"])
+    git_chain_repo.git("add", "-A")
+    git_chain_repo.git("commit", "-m", "seed chain task")
+    git_chain_repo.git("push", "origin", "main")
 
     def advance_main_once(step_index: int) -> None:
         if step_index == 1:
-            wt_repo.push_competing_commit(
+            git_chain_repo.push_competing_commit(
                 "coga/tasks/rival/ticket.md", "rival instance\n"
             )
 
     fake = _FakeAgent(
-        wt_repo.coga_os, actions=["bump", "mark_done"], hook=advance_main_once
+        git_chain_repo.coga_os, actions=["bump", "mark_done"], hook=advance_main_once
     )
     _patch_launch_env(monkeypatch, fake)
 
@@ -419,9 +404,9 @@ def test_worktree_session_survives_concurrent_control_branch_advance(
     assert fake.steps == ["1 (implement)", "2 (finish)"], fake.steps
 
     primary_ticket = Ticket.read(
-        list_tasks(load_config(wt_repo.coga_os))[0].ticket_path
+        list_tasks(load_config(git_chain_repo.coga_os))[0].ticket_path
     )
     assert primary_ticket.status == "done", (
-        "control branch advanced mid-session and the worktree's finished state "
-        "was not synced back to the primary checkout — work lost"
+        "control branch advanced mid-session and the finished state "
+        "was not synced — work lost"
     )

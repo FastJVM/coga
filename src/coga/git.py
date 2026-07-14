@@ -13,7 +13,7 @@ control branch's tree in a *temporary index* and pushing a fresh commit
 straight to `refs/heads/<control>`, never checking out `main` or touching the
 feature working tree — and *also* commits the task files on the current branch
 so the agent's checkout reflects the ticket state it works against. Detached
-launch worktrees take the same temp-index path; `merge=union` files that cannot
+checkouts take the same temp-index path; `merge=union` files that cannot
 ride a local branch commit are union-merged directly into the control commit.
 
 `sync_log` is the narrow companion for callers that append to the repo-global
@@ -35,9 +35,9 @@ dirty changes intact. A detached HEAD takes the cross-branch landing path but
 skips the local commit (a commit on a detached HEAD would be orphaned). After a
 successful landing push, the local control ref is fast-forwarded best-effort:
 directly via `update-ref` when no worktree holds the branch, or through the
-holding worktree with `merge --ff-only` — the launch-worktree default leaves
-the primary checkout on `main`, and without this it would fall behind origin
-after every launch until a manual pull.
+holding worktree with `merge --ff-only` — without this, a checkout left on
+`main` would fall behind origin after every cross-branch landing until a
+manual pull.
 
 That best-effort fast-forward moves only the control *ref*: a checkout parked
 on any other branch keeps rendering task state as of its own last commit, so
@@ -173,11 +173,12 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
 
     The detection half of the `direct/body` stranding guard. A workflow with no
     push/PR step (`direct/body`) can leave committed *product* code on a
-    throwaway launch-worktree branch: coga's scoped state-sync lands only the
-    `coga/` OS-state subtree on the control branch (never `git add -A`), so the
-    product commit rides no branch that reaches `main`. When the worktree is
-    deleted its ref goes with it and the commits dangle — the 2026-07-06 DaCapo
-    incident. This surfaces that code *before* `mark done` closes the task.
+    throwaway branch or detached checkout: coga's scoped state-sync lands only
+    the `coga/` OS-state subtree on the control branch (never `git add -A`), so
+    the product commit rides no branch that reaches `main`. When that checkout
+    is deleted its ref goes with it and the commits dangle — the 2026-07-06
+    DaCapo incident. This surfaces that code *before* `mark done` closes the
+    task.
 
     Compares the current HEAD against the control branch with a merge-base
     (three-dot) diff, `--name-only`, restricted to paths **outside** the Coga
@@ -468,8 +469,7 @@ def refresh_coga_state_from_control(
         (`_guard_coga_state_regressions`'s rule pointed the other way — a
         refresh must never move local state backward).
       - Detached HEAD → skip with a stderr note; the refresh commit would be
-        orphaned. Launch runs this against the checkout it was invoked from,
-        never the detached isolation worktree.
+        orphaned. Launch runs this against the checkout it was invoked from.
 
     Same non-fatal failure model as `sync_paths` (stderr + `coga/log.md`,
     never a crash): a checkout that cannot refresh is exactly as stale as it
@@ -729,10 +729,10 @@ def _dispatch_branch_sync(
         return
 
     if branch == "HEAD":
-        # Detached HEAD (the per-launch worktree default): no local commit —
-        # it would be orphaned. The landing pushes the control branch and
-        # fast-forwards the primary checkout via `_try_update_local_ref`;
-        # only a fast-forward miss warrants a stderr note, printed there.
+        # Detached HEAD: no local commit — it would be orphaned. The landing
+        # pushes the control branch and fast-forwards the primary checkout via
+        # `_try_update_local_ref`; only a fast-forward miss warrants a stderr
+        # note, printed there.
         overlay = set(overlay_rels)
         union_rels = [rel for rel in local_rels if rel not in overlay]
         _land_paths_on_control_branch(
@@ -837,8 +837,8 @@ def _guard_coga_state_regressions(
     """Fail loud before a catch-all sweep commits stale task frontmatter.
 
     `sync_coga_state` is intentionally broad within the Coga OS subtree. That
-    breadth is safe for usage records and hand-edits, but not for a stale launch
-    worktree whose task file predates a newer bump. Compare dirty task tickets
+    breadth is safe for usage records and hand-edits, but not for a stale
+    checkout whose task file predates a newer bump. Compare dirty task tickets
     against the committed control-branch copy and leave the stale file dirty
     instead of burying it in a generic "Sync coga state" commit.
     """
@@ -1357,7 +1357,7 @@ def _merge_union_path(
 
     This is the temp-index equivalent of the `merge=union` driver used when a
     local branch commit later merges through Git. It is only used for detached
-    launch worktrees, where there is no durable local branch commit for `log.md`
+    checkouts, where there is no durable local branch commit for `log.md`
     / `spool.md` appends to ride.
     """
     working = _working_tree_bytes(root, rel)
@@ -1504,8 +1504,8 @@ def _try_update_local_ref(root: Path, branch: str, new: str) -> None:
     branch moved on locally, or a checkout has conflicting dirty edits) only
     means a later local checkout of the control branch must fetch. When no
     worktree has the branch checked out, a bare `update-ref` is enough. When
-    one does — the common case: the primary checkout holds `main` while a
-    detached launch worktree syncs — the ref must not be moved directly
+    one does — e.g. the primary checkout holds `main` while a sync lands from
+    a feature worktree or detached checkout — the ref must not be moved directly
     (that desyncs the attached worktree's index and makes stale files look
     like fresh edits to the next catch-all sweep); instead fast-forward
     *through* that worktree with `merge --ff-only`, which moves ref, index,
@@ -1828,354 +1828,9 @@ def _path_exists(root: Path, rel: str) -> bool:
     return path.exists()
 
 
-# --- per-launch worktree isolation -------------------------------------------
-
-# Default directory (relative to the git toplevel) holding per-launch `git
-# worktree` checkouts when `[launch].worktree` is on. It lives under a gitignored
-# `.coga/` so the primary checkout's `git status` never shows it and the
-# `sync_coga_state` sweep never touches it (the sweep scopes to the `coga/` OS
-# subtree, which this sits entirely outside of). Overridable per repo via
-# `[launch].worktree_path` (`cfg.launch_worktree_path`); a custom in-repo path
-# must be gitignored by the operator to keep those two properties.
-_LAUNCH_WORKTREE_DIR = (".coga", "worktrees")
-
-
-def _launch_worktree_base_dir(root: Path, cfg: Config) -> Path:
-    """Resolve the configured per-launch worktree root.
-
-    A relative `[launch].worktree_path` is anchored at the git toplevel; an
-    absolute one is used verbatim. Falls back to the packaged default when the
-    config carries no path (older `Config` shapes in tests).
-    """
-    configured = getattr(cfg, "launch_worktree_path", None) or os.path.join(
-        *_LAUNCH_WORKTREE_DIR
-    )
-    candidate = Path(configured)
-    if candidate.is_absolute():
-        return candidate
-    return root / candidate
-
-
-# A launch worktree this old is treated as a crash orphan and reaped on the next
-# launch. Deliberately generous: the per-launch `finally` removal is the primary
-# cleanup, so this only mops up worktrees a hard crash (SIGKILL / power loss)
-# left behind. An attended interactive session running continuously past this
-# threshold is vanishingly unlikely, and reaping one only makes that session's
-# syncs fail loudly rather than corrupting anything.
-_ORPHAN_WORKTREE_MAX_AGE_SECONDS = 24 * 60 * 60
-
-
-def add_launch_worktree(cfg: Config, key: str) -> Path | None:
-    """Create a detached worktree at the control-branch tip for one launch.
-
-    Returns the worktree's absolute path, or None when there is no git repo to
-    isolate within — without git sync there is no shared-index race, so the
-    caller just runs in the primary checkout unchanged.
-
-    The checkout is **detached** at the control branch's commit rather than on a
-    branch: the control branch is already checked out in the primary tree (git
-    forbids a second worktree on the same branch), and a detached HEAD routes
-    every task-state sync through the cross-branch temp-index overlay — the path
-    that never touches a shared `.git/index`, which is the entire point of the
-    isolation. Falls back to detaching at the current `HEAD` when the control
-    branch ref is absent (e.g. a launch from a checkout that predates it).
-
-    Raises `GitError` on a real `git worktree add` failure; the caller decides
-    whether that aborts the launch.
-    """
-    root = _toplevel(cfg.repo_root)
-    if root is None:
-        return None
-    base = _launch_worktree_base_dir(root, cfg)
-    base.mkdir(parents=True, exist_ok=True)
-    path = base / key
-    commitish = _launch_worktree_base(root, cfg.git_remote, cfg.git_control_branch)
-    _run_git(root, "worktree", "add", "--detach", str(path), commitish)
-    # Stamp the supervising process so `reap_orphan_launch_worktrees` can tell a
-    # live launch from a crash orphan without waiting out the age gate. The
-    # caller of `add_launch_worktree` is the `coga launch` process that then runs
-    # the whole session (the PTY supervisor loop), so its PID is the liveness
-    # signal for this worktree.
-    _stamp_launch_worktree_owner(root, key, os.getpid())
-    return path
-
-
-# Git's private admin dir per worktree (`.git/worktrees/<key>/`) — never part of
-# the working tree, and removed by `git worktree remove`/`prune`, so a marker
-# stored there can't dirty the checkout or leak after teardown.
-_LAUNCH_OWNER_PIDFILE = "coga-launch.pid"
-
-
-def _launch_worktree_admin_dir(root: Path, key: str) -> Path | None:
-    """Absolute path of git's admin dir for launch worktree `key`, or None."""
-    try:
-        out = _run_git(root, "rev-parse", "--git-path", f"worktrees/{key}").strip()
-    except GitError:
-        return None
-    if not out:
-        return None
-    admin = Path(out)
-    if not admin.is_absolute():
-        admin = root / admin
-    return admin
-
-
-def _stamp_launch_worktree_owner(root: Path, key: str, pid: int) -> None:
-    """Record the supervising PID for a launch worktree. Best-effort."""
-    admin = _launch_worktree_admin_dir(root, key)
-    if admin is None or not admin.is_dir():
-        return
-    try:
-        (admin / _LAUNCH_OWNER_PIDFILE).write_text(f"{pid}\n")
-    except OSError:
-        pass
-
-
-def _launch_worktree_owner_pid(root: Path, key: str) -> int | None:
-    """The PID that owns launch worktree `key`, or None when unstamped."""
-    admin = _launch_worktree_admin_dir(root, key)
-    if admin is None:
-        return None
-    try:
-        return int((admin / _LAUNCH_OWNER_PIDFILE).read_text().strip())
-    except (OSError, ValueError):
-        return None
-
-
-def _process_alive(pid: int) -> bool:
-    """Whether `pid` names a live process. Errs toward 'alive' when unsure so a
-    liveness check never destroys a worktree it can't prove is abandoned."""
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True  # exists, just owned by another user
-    except OSError:
-        return True  # can't tell — keep the worktree
-    return True
-
-
-def _launch_worktree_base(root: Path, remote: str, branch: str) -> str:
-    """Best local ref to detach a launch worktree from."""
-    local_ref = f"refs/heads/{branch}"
-    if _git_ref_present(root, local_ref):
-        return local_ref
-    remote_ref = f"refs/remotes/{remote}/{branch}"
-    if _git_ref_present(root, remote_ref):
-        return remote_ref
-    return "HEAD"
-
-
-def launch_worktree_has_dirty_coga_state(cfg: Config, path: Path) -> bool:
-    """True when a launch worktree still has recoverable Coga OS changes.
-
-    Used before teardown. Detached launch worktrees may retain state that the
-    non-fatal git sync layer could not land; force-removing such a checkout
-    would delete the only local copy. Dirt relative to the worktree's detached
-    base is expected after a successful sync, so this compares dirty Coga paths
-    to the fetched control tip and preserves the worktree only when applying
-    those paths would still change that tip. Non-Coga scratch files do not block
-    cleanup.
-    """
-    root = _toplevel(path)
-    if root is None:
-        return False
-    coga_root = repo_root_in_worktree(cfg, path)
-    state_pathspecs = _coga_state_pathspecs(root, coga_root)
-    changed = _changed_paths_under(root, state_pathspecs)
-    if not changed:
-        return False
-    return not _changed_paths_match_control_tip(cfg, root, changed)
-
-
-def _changed_paths_match_control_tip(
-    cfg: Config, root: Path, rels: list[str]
-) -> bool:
-    """Whether dirty working-tree paths are already represented on control."""
-    control = _control_tip_for_dirty_check(cfg, root)
-    ancestor = _run_git(root, "merge-base", "HEAD", control).strip()
-    union = _union_merge_paths(root, rels)
-    for rel in rels:
-        if rel in union:
-            if not _union_path_includes_worktree(
-                root, current_rev=control, base_rev=ancestor, rel=rel
-            ):
-                return False
-            continue
-        if _working_tree_bytes(root, rel) != _tree_bytes(root, control, rel):
-            return False
-    return True
-
-
-def _control_tip_for_dirty_check(cfg: Config, root: Path) -> str:
-    try:
-        _run_git(root, "fetch", cfg.git_remote, cfg.git_control_branch)
-        return _run_git(root, "rev-parse", "FETCH_HEAD").strip()
-    except GitError as exc:
-        if not _is_fetch_head_write_failure(str(exc)):
-            raise
-        local = _local_control_tip(root, cfg.git_remote, cfg.git_control_branch)
-        if local is None:
-            raise
-        sys.stderr.write(
-            "[git] note: could not refresh control tip for launch-worktree "
-            f"cleanup ({exc}); using local {cfg.git_remote}/{cfg.git_control_branch}.\n"
-        )
-        return local
-
-
-def _is_fetch_head_write_failure(message: str) -> bool:
-    lowered = message.lower()
-    return "fetch_head" in lowered and any(
-        marker in lowered
-        for marker in (
-            "read-only file system",
-            "permission denied",
-            "cannot open",
-        )
-    )
-
-
-def _local_control_tip(root: Path, remote: str, branch: str) -> str | None:
-    for ref in (f"refs/remotes/{remote}/{branch}", f"refs/heads/{branch}"):
-        if _git_ref_present(root, ref):
-            return _run_git(root, "rev-parse", ref).strip()
-    return None
-
-
-def _union_path_includes_worktree(
-    root: Path, *, current_rev: str, base_rev: str, rel: str
-) -> bool:
-    current = _tree_bytes(root, current_rev, rel) or b""
-    try:
-        merged = _merge_union_path(
-            root, current_rev=current_rev, base_rev=base_rev, rel=rel
-        )
-    except GitError:
-        return False
-    return merged == current
-
-
-def remove_launch_worktree(cfg: Config, path: Path) -> None:
-    """Remove a per-launch worktree and prune its registry entry. Best-effort.
-
-    Never raises: cleanup runs in `coga launch`'s `finally`, so a failed removal
-    must not mask the launch's real outcome. Callers that care about recoverable
-    Coga state should check first; this primitive is intentionally forceful so a
-    stray scratch file cannot wedge teardown. Removal is driven from the
-    *primary* git root, never from inside `path` itself, so git does not refuse
-    it as "the current working tree".
-    """
-    root = _toplevel(cfg.repo_root)
-    if root is None:
-        return
-    try:
-        _run_git(root, "worktree", "remove", "--force", str(path))
-    except GitError:
-        pass
-    if path.exists():
-        shutil.rmtree(path, ignore_errors=True)
-    try:
-        _run_git(root, "worktree", "prune")
-    except GitError:
-        pass
-
-
-def reap_orphan_launch_worktrees(
-    cfg: Config, *, max_age_seconds: float = _ORPHAN_WORKTREE_MAX_AGE_SECONDS
-) -> None:
-    """Remove crash-orphaned launch worktrees, best-effort.
-
-    Normal teardown removes a launch worktree in `coga launch`'s `finally`; this
-    is the backstop for one the process never got to. Run on launch entry: prune
-    git's registry, then decide each directory under the worktree root by the
-    liveness of its owning `coga launch` process (stamped at creation):
-
-    - **owner alive** → keep, always. A precise signal, so even an attended
-      session running longer than `max_age_seconds` is never reaped mid-work
-      (the old dir-mtime age gate could not see that it was still live).
-    - **owner dead, no recoverable Coga state** → remove now, without waiting out
-      the age gate. This is the common orphan — a stillborn or crashed session —
-      and the pile-up this fixes.
-    - **owner dead but recoverable Coga state remains** → hold for recovery, the
-      same bargain `_cleanup_launch_worktree` strikes, but bounded: once older
-      than `max_age_seconds` it is force-removed so held worktrees still GC.
-    - **unstamped** (created before owner-stamping, or the stamp failed) → fall
-      back to the original `max_age_seconds` age gate, since liveness is unknown.
-
-    Never raises — orphan cleanup must not block a fresh launch.
-    """
-    root = _toplevel(cfg.repo_root)
-    if root is None:
-        return
-    try:
-        _run_git(root, "worktree", "prune")
-    except GitError:
-        pass
-    base = _launch_worktree_base_dir(root, cfg)
-    if not base.is_dir():
-        return
-    now = time.time()
-    try:
-        entries = list(base.iterdir())
-    except OSError:
-        return
-    for entry in entries:
-        if not entry.is_dir():
-            continue
-        pid = _launch_worktree_owner_pid(root, entry.name)
-        if pid is not None and _process_alive(pid):
-            continue  # live supervisor — never reap
-        try:
-            age = now - entry.stat().st_mtime
-        except OSError:
-            continue
-        within_recovery_window = age < max_age_seconds
-        if within_recovery_window:
-            if pid is None:
-                # No liveness signal: could still be a live pre-stamp session.
-                # Keep the original generous age gate rather than guess.
-                continue
-            if _has_recoverable_launch_state(cfg, entry):
-                # Dead owner, but the finally-path recovery bargain applies:
-                # leave it for a human until the age gate forces GC.
-                continue
-        remove_launch_worktree(cfg, entry)
-
-
-def _has_recoverable_launch_state(cfg: Config, path: Path) -> bool:
-    """`launch_worktree_has_dirty_coga_state`, but never raises — an
-    inconclusive check must keep the worktree (safe direction), not delete it."""
-    try:
-        return launch_worktree_has_dirty_coga_state(cfg, path)
-    except GitError:
-        return True
-
-
-def repo_root_in_worktree(cfg: Config, worktree_path: Path) -> Path:
-    """Map `cfg.repo_root` (the coga OS dir) into a sibling worktree checkout.
-
-    `cfg.repo_root` may be the git toplevel or a nested `coga/` under it;
-    preserve that relative position inside `worktree_path` so a re-loaded config
-    rooted there resolves the same task tree.
-    """
-    root = _toplevel(cfg.repo_root)
-    if root is None:
-        return worktree_path
-    return worktree_path / cfg.repo_root.relative_to(root)
-
-
 __all__ = [
     "GitError",
-    "add_launch_worktree",
-    "launch_worktree_has_dirty_coga_state",
-    "reap_orphan_launch_worktrees",
     "refresh_coga_state_from_control",
-    "remove_launch_worktree",
-    "repo_root_in_worktree",
     "stale_coga_task_rels",
     "sync_coga_state",
     "sync_log",

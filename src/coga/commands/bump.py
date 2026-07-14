@@ -224,11 +224,11 @@ def bump(
     # REPL tears down without `/exit`. Harmless tagged line otherwise. The
     # task's `id_slug` scopes the signal to this ticket so an unrelated nested
     # `coga bump` (e.g. a test fixture) can't end our session. It is the
-    # *slug*, not the resolved path, on purpose: under `[launch].worktree`
-    # isolation the same ticket lives at two absolute paths (the primary
-    # checkout and the per-launch worktree), so a path-scoped marker written
-    # from the "wrong" cwd never matched what the supervisor polled for and
-    # the REPL hung. The slug is identical from either checkout.
+    # *slug*, not the resolved path, on purpose: the same ticket can live at
+    # two absolute paths (e.g. a peer agent's separate clone or another
+    # checkout of the repo), so a path-scoped marker written from the "wrong"
+    # cwd never matched what the supervisor polled for and the REPL hung. The
+    # slug is identical from any checkout.
     emit_done_marker(session_id=ref.id_slug)
 
 
