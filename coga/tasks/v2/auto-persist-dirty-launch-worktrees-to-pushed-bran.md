@@ -122,3 +122,9 @@ pr:
 - Commit: `8f6e7846` (`Persist dirty launch worktree changes`).
 - Verification: `PYTHONPATH=/tmp/coga-auto-persist-launch-dirt/src python3.12 -m pytest tests/test_git.py -k 'launch_worktree or launch_cleanup'` (18 passed); `PYTHONPATH=/tmp/coga-auto-persist-launch-dirt/src python3.12 -m pytest` (1091 passed, 1 skipped); `git diff --check` (clean).
 - Handoff note: task-scoped validation, `coga bump auto-persist-dirty-launch-worktrees-to-pushed-bran`, and `coga block --task auto-persist-dirty-launch-worktrees-to-pushed-bran ...` all failed before running because this launch checkout has no `coga/coga.local.toml` user configured. I did not write `coga.local.toml`; the public Coga command needs that local config before the workflow can advance.
+
+## Parked (2026-07-14)
+
+Launch worktree isolation was removed in PR #547 and deferred to v2. This
+ticket is superseded by `v2/reintroduce-per-launch-worktree-isolation`, whose
+design checklist includes the auto-persist requirement.
