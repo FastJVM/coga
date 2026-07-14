@@ -2205,6 +2205,75 @@ def test_refresh_keeps_locally_newer_ticket(git_repo, capsys):
     assert "leaving coga/tasks/demo/ticket.md untouched" in capsys.readouterr().err
 
 
+def test_refresh_keeps_committed_same_step_ticket_edits(git_repo, capsys):
+    """Control-side content at the same workflow position must not overwrite a
+    committed feature-side blackboard edit: neither side is provably newer."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    git_repo.checkout_branch("feature/x")
+    ticket.write_text(
+        _step_ticket_text(step="1 (implement)", blackboard="local finding\n")
+    )
+    git_repo.git("add", "--", "coga/tasks/demo")
+    git_repo.git("commit", "-m", "record local finding")
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(step="1 (implement)", blackboard="remote finding\n"),
+    )
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    content = ticket.read_text()
+    assert "local finding" in content
+    assert "remote finding" not in content
+    assert "committed local changes" in capsys.readouterr().err
+
+
+def test_refresh_updates_committed_ticket_after_control_absorbed_it(git_repo):
+    """A normal feature-side state commit can converge after its exact ticket
+    version landed on control and control subsequently advanced it."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    git_repo.checkout_branch("feature/x")
+    local = _step_ticket_text(step="1 (implement)", blackboard="shared finding\n")
+    ticket.write_text(local)
+    git_repo.git("add", "--", "coga/tasks/demo")
+    git_repo.git("commit", "-m", "record shared finding locally")
+    git_repo.push_competing_commit("coga/tasks/demo/ticket.md", local)
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(step="2 (review)", blackboard="shared finding\n"),
+    )
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    content = ticket.read_text()
+    assert "step: 2 (review)" in content
+    assert "shared finding" in content
+
+
+def test_refresh_keeps_committed_divergent_task_attachment(git_repo, capsys):
+    """Task attachments have no orderable workflow state, so a both-sides
+    change is preserved locally instead of being overwritten blindly."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_demo_ticket_on_main(git_repo)
+    attachment = git_repo.coga_os / "tasks" / "demo" / "notes.txt"
+    attachment.write_text("base\n")
+    git_repo.git("add", "--", "coga/tasks/demo/notes.txt")
+    git_repo.git("commit", "-m", "seed task attachment")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    attachment.write_text("local\n")
+    git_repo.git("add", "--", "coga/tasks/demo/notes.txt")
+    git_repo.git("commit", "-m", "edit task attachment locally")
+    git_repo.push_competing_commit("coga/tasks/demo/notes.txt", "remote\n")
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    assert attachment.read_text() == "local\n"
+    assert "committed local changes" in capsys.readouterr().err
+
+
 def test_refresh_skips_dirty_working_tree_ticket(git_repo, capsys):
     """An uncommitted hand-edit survives: dirty paths belong to the catch-all
     sweep and its regression guard, not a blind overwrite."""

@@ -557,15 +557,17 @@ that the view was stale.
 each exit path the supervisor sees): it fetches `origin/<control>` and folds
 the control tip's `coga/tasks/**` back into the checkout the launch was
 invoked from. On the control branch that is a plain `merge --ff-only`. On a
-feature branch only the differing task files are overlaid and committed on the
-current branch — the same local-commit shape the mid-run sync uses — so the
-branch's product tree is never touched; `coga/log.md` is three-way
-union-merged so locally appended lines survive. Two guards keep the overlay
-one-directional: working-tree-dirty paths are skipped (they belong to the
-catch-all sweep and its regression guard, not a blind overwrite), and a ticket
-whose local copy is ahead of the control tip is left alone — a refresh must
-never move state backward. Failures follow the same non-fatal posture as the
-publish half: stderr + `coga/log.md`, never a crash.
+feature branch only task files changed on control since the branches' merge
+base are overlaid and committed on the current branch — the same local-commit
+shape the mid-run sync uses — so the branch's product tree is never touched;
+`coga/log.md` is three-way union-merged so locally appended lines survive.
+Working-tree-dirty paths are skipped (they belong to the catch-all sweep and
+its regression guard, not a blind overwrite). Committed changes on both sides
+are preserved locally unless the control path's history proves it already
+absorbed that exact local version, and a ticket whose local copy is ahead of
+the control tip is left alone — a refresh must never move state backward.
+Failures follow the same non-fatal posture as the publish half: stderr +
+`coga/log.md`, never a crash.
 
 `coga status` cannot fetch (a render is read-only and no-network, principle
 6), so it gets the warning half instead: `stale_coga_task_rels` compares the

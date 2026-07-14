@@ -454,17 +454,19 @@ def refresh_coga_state_from_control(
         checkout *is* the control branch, so a plain fast-forward is the whole
         refresh; a diverged local control is a loud non-fatal miss, never an
         implicit merge.
-      - Feature branch → fetch, overlay the `coga/tasks/**` files that differ
-        between HEAD and the fetched tip onto the working tree, and commit
-        them on the current branch — the same local-commit shape the mid-run
+      - Feature branch → fetch, overlay the `coga/tasks/**` files changed on
+        the fetched control tip since its merge base with HEAD, and commit them
+        on the current branch — the same local-commit shape the mid-run
         feature-branch sync uses, so the branch's product tree is never
         touched. `coga/log.md` is three-way union-merged (local ∪ control) so
-        locally appended log lines survive. Two guards keep the overlay safe:
-        a path dirty in the working tree is skipped (a hand-edit in flight
-        belongs to the catch-all sweep and its regression guard, not a blind
-        overwrite), and a ticket whose local state is *ahead* of the control
-        copy is skipped (`_guard_coga_state_regressions`'s rule pointed the
-        other way — a refresh must never move local state backward).
+        locally appended log lines survive. Three guards keep the overlay
+        safe: a path dirty in the working tree is skipped (a hand-edit in
+        flight belongs to the catch-all sweep and its regression guard, not a
+        blind overwrite); committed local divergence is preserved unless the
+        control history proves it already absorbed that exact local version;
+        and a ticket whose local state is *ahead* of the control copy is skipped
+        (`_guard_coga_state_regressions`'s rule pointed the other way — a
+        refresh must never move local state backward).
       - Detached HEAD → skip with a stderr note; the refresh commit would be
         orphaned. Launch runs this against the checkout it was invoked from,
         never the detached isolation worktree.
@@ -510,7 +512,10 @@ def _refresh_branch_from_control(
 ) -> None:
     """Overlay the control tip's newer task paths onto a feature checkout."""
     tasks_rel = _relative_to_root(root, cfg.repo_root / "tasks")
-    out = _run_git(root, "diff", "-z", "--name-only", "HEAD", tip, "--", tasks_rel)
+    ancestor = _run_git(root, "merge-base", "HEAD", tip).strip()
+    out = _run_git(
+        root, "diff", "-z", "--name-only", ancestor, tip, "--", tasks_rel
+    )
     candidates = [rel for rel in out.split("\x00") if rel]
     dirty = set(_changed_paths_under(root, [tasks_rel]))
     updated: list[str] = []
@@ -523,6 +528,12 @@ def _refresh_branch_from_control(
             continue
         control = _tree_bytes(root, tip, rel)
         reason = _refresh_regression_reason(cfg, root, rel, control)
+        if reason is not None:
+            sys.stderr.write(f"[git] refresh: leaving {rel} untouched — {reason}.\n")
+            continue
+        reason = _refresh_committed_divergence_reason(
+            root, rel, control, ancestor, tip
+        )
         if reason is not None:
             sys.stderr.write(f"[git] refresh: leaving {rel} untouched — {reason}.\n")
             continue
@@ -561,6 +572,37 @@ def _refresh_regression_reason(
     if reason is None:
         return None
     return f"the local copy is ahead of the control branch ({reason})"
+
+
+def _refresh_committed_divergence_reason(
+    root: Path,
+    rel: str,
+    control: bytes | None,
+    ancestor: str,
+    tip: str,
+) -> str | None:
+    """Preserve committed feature-side task changes that control did not absorb.
+
+    A two-tip task diff cannot tell which branch introduced a difference. The
+    caller narrows candidates to control-side changes since the merge base;
+    this second guard handles paths changed on *both* sides. Control may replace
+    the local version only when that exact blob appears in the control path's
+    post-fork history: proof the publish half absorbed it before later state
+    advanced. Otherwise choosing either side would discard committed content.
+    """
+    local = _tree_bytes(root, "HEAD", rel)
+    base = _tree_bytes(root, ancestor, rel)
+    if local == base or local == control:
+        return None
+    if local is not None:
+        commits = _run_git(root, "rev-list", f"{ancestor}..{tip}", "--", rel)
+        if any(
+            _tree_bytes(root, commit, rel) == local
+            for commit in commits.splitlines()
+        ):
+            return None
+
+    return "it has committed local changes not superseded by newer control state"
 
 
 def _refresh_log_from_control(cfg: Config, root: Path, tip: str) -> list[str]:
