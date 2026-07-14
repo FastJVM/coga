@@ -1191,3 +1191,7 @@ fatal: adding files failed
 2026-07-13 20:48 [bootstrap/orient] [human:nick] launched in agent mode (assignee=claude, agent=claude)
 2026-07-13 19:56 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
 2026-07-13 20:49 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review findings fixed; rebased onto origin/main; 1176 passed, 1 skipped.
+2026-07-13 19:56 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-13 20:49 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review findings fixed; rebased onto origin/main; 1176 passed, 1 skipped.
+2026-07-13 20:49 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-13 20:49 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [system] script exited with code 2
