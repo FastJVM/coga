@@ -125,3 +125,7 @@ Notes for reviewer:
   (`sync_coga_state`) now runs after a mutating command fails its own strict
   load (before, main() died pre-dispatch). The sweep never reads
   `current_user` and is non-fatal, so this is benign.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":347176,"cache_read_input_tokens":13469634,"cli":"claude","input_tokens":243,"model":"claude-fable-5","output_tokens":108284,"provider":"anthropic","schema":1,"session_id":"f7ed48e2-b6f3-4524-ab69-d8492f706220","slug":"install/relay-help-and-cli-should-not-require-user","step":"implement","title":"relay CLI should not require user to be set (default to $USER)","ts":"2026-07-14T19:09:16.834906Z","usage_status":"ok"}
