@@ -1181,3 +1181,4 @@ fatal: adding files failed
 2026-07-13 19:15 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-13 19:15 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-13 19:56 [remove-mode-from-ticket-frontmatter-and-deduce-scr] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-13 20:17 [auto/launch-should-refresh-local-coga-state-at-end-of-r] [human:nick] activated (draft → active) — auto on launch
