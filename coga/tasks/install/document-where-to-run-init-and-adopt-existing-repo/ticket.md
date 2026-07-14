@@ -6,7 +6,7 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -62,6 +62,7 @@ the hint there too (`src/coga/cli.py`).
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/543
 branch: docs/init-adopt-existing-repo
 worktree: /tmp/coga-init-adoption-docs
 
