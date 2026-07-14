@@ -299,9 +299,10 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     # disagree with the `owner` tokens written into tickets, and for an
     # unattended sweep a wrong `me` fails silently. So a missing/empty `user`
     # is a hard error on every command that acts *as* someone. Read-only
-    # surfaces that never read `current_user` (the eager load behind `--help`
-    # and the `status` / `show` / `validate` / `usage` / `secret get` command
-    # heads) pass `require_user=False` and get `current_user = ""` instead, so
+    # surfaces that never read `current_user` (the eager load behind `--help`;
+    # `status`, `show`, `validate`, and `usage`; plus the `skill status`,
+    # `recurring list`, and `secret get` group views) pass `require_user=False`
+    # and get `current_user = ""` instead, so
     # a teammate on a fresh clone — where the gitignored `coga.local.toml`
     # does not exist yet — can look around before setting a name. Existing
     # repos recover by creating or editing `coga.local.toml`; fresh repos pass

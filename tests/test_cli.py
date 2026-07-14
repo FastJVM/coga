@@ -113,9 +113,32 @@ def test_validate_runs_and_warns_without_user(clone: Path) -> None:
     assert "coga.local.toml" in missing_user[0]["message"]
 
 
+def test_task_validate_runs_and_warns_without_user(clone: Path) -> None:
+    result = CliRunner().invoke(
+        app, ["validate", "--task", "fix-retry-logic", "--json"]
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    missing_user = [i for i in payload["issues"] if i["kind"] == "missing-user"]
+    assert len(missing_user) == 1
+    assert missing_user[0]["severity"] == "warn"
+
+
 def test_usage_runs_without_user(clone: Path) -> None:
     result = CliRunner().invoke(app, ["usage"])
     assert result.exit_code == 0
+
+
+def test_skill_status_runs_without_user(clone: Path) -> None:
+    result = CliRunner().invoke(app, ["skill", "status"])
+    assert result.exit_code == 0
+    assert "No `user` set" not in result.output
+
+
+def test_recurring_list_runs_without_user(clone: Path) -> None:
+    result = CliRunner().invoke(app, ["recurring", "list"])
+    assert result.exit_code == 0
+    assert "(no recurring templates)" in result.output
 
 
 def test_mutating_command_still_requires_user(clone: Path) -> None:

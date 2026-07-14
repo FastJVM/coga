@@ -148,6 +148,23 @@ def _duplicate_slug_issue(exc: DuplicateTaskSlugError) -> Issue:
     )
 
 
+def _missing_user_issue(cfg: Config) -> Issue | None:
+    """Point a user-less clone at its machine-local setup without blocking reads."""
+    if cfg.current_user:
+        return None
+    return Issue(
+        kind="missing-user",
+        task="(config)",
+        message=(
+            "no `user` set in coga.local.toml — read-only commands work, "
+            "but anything that creates or moves work will fail; add "
+            '`user = "<name>"` (the file is gitignored, so every clone '
+            "sets its own)"
+        ),
+        severity="warn",
+    )
+
+
 def run(
     cfg: Config,
     idle_hours: float = 72.0,
@@ -162,18 +179,9 @@ def run(
     # fresh clone (no gitignored `coga.local.toml` yet) can run diagnostics at
     # all — so the missing name must surface here as a finding instead of
     # silently validating clean.
-    if not cfg.current_user:
-        report.issues.append(Issue(
-            kind="missing-user",
-            task="(config)",
-            message=(
-                "no `user` set in coga.local.toml — read-only commands work, "
-                "but anything that creates or moves work will fail; add "
-                '`user = "<name>"` (the file is gitignored, so every clone '
-                "sets its own)"
-            ),
-            severity="warn",
-        ))
+    missing_user = _missing_user_issue(cfg)
+    if missing_user is not None:
+        report.issues.append(missing_user)
 
     try:
         refs = list_tasks(cfg)
@@ -220,6 +228,9 @@ def validate_task(
     """Validate exactly one task directory. Used by `coga validate --task`
     and by every Coga-owned command that mutates a task file."""
     report = Report(generated_at=_now_iso())
+    missing_user = _missing_user_issue(cfg)
+    if missing_user is not None:
+        report.issues.append(missing_user)
     try:
         ref = resolve_task(cfg, slug)
     except DuplicateTaskSlugError as exc:
