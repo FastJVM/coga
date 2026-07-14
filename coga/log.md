@@ -1188,3 +1188,4 @@ fatal: adding files failed
 2026-07-13 20:17 [auto/launch-should-refresh-local-coga-state-at-end-of-r] [human:nick] started (active → in_progress) via coga launch
 2026-07-13 20:17 [auto/launch-should-refresh-local-coga-state-at-end-of-r] [human:nick] launched in agent mode (assignee=claude, agent=claude)
 2026-07-13 20:39 [auto/launch-should-refresh-local-coga-state-at-end-of-r] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-13 20:48 [bootstrap/orient] [human:nick] launched in agent mode (assignee=claude, agent=claude)
