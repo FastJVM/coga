@@ -2,7 +2,6 @@
 slug: install/add-migration-errors-for-removed-config-keys
 title: Add migration errors for removed config keys
 status: active
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

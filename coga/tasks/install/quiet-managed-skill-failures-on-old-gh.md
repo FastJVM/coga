@@ -2,7 +2,6 @@
 slug: install/quiet-managed-skill-failures-on-old-gh
 title: Quiet managed skill failures on old gh
 status: in_progress
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

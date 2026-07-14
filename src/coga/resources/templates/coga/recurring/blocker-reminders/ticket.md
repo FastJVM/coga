@@ -5,8 +5,7 @@ title: "Blocker reminders"
 # A script step runs the reminder sweep directly with no agent: the workflow's
 # one step references the `coga/blockers/remind` skill, whose `script:` calls
 # `coga.blocker_reminders.remind_blocked_tasks`. No agent auto-run buffering, so it is
-# safe for unattended recurring runs because this template uses mode: script.
-mode: script
+# safe for unattended recurring runs because this template runs as a script.
 workflow: blocker-reminders/run
 ---
 

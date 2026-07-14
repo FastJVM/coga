@@ -2,7 +2,6 @@
 slug: v2/file-locking-for-concurrent-task-mutation
 title: File locking for concurrent task mutation
 status: draft
-mode: agent
 owner: nick
 human: nick
 agent: claude

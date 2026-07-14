@@ -27,7 +27,6 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
     "slug",
     "title",
     "status",
-    "mode",
     "owner",
     "human",
     "agent",
@@ -124,17 +123,15 @@ class Ticket:
         return self.frontmatter.get("status", "")
 
     @property
-    def mode(self) -> str:
-        """The task's execution substance: `agent` composes a prompt for an
-        agent; `script` runs a deterministic script entry point."""
-        return self.frontmatter.get("mode", "agent")
-
-    @property
     def script(self) -> str | None:
         """The task's own script entry, or None. `inline` → the fenced code
         block in the body's `## Script` section; a filename (`run.sh`) → a
         sibling file (directory form). Absent → no ticket-owned script (a pure
-        agent task, or a task whose script comes from a workflow step's skill)."""
+        agent task, or a task whose script comes from a workflow step's skill).
+
+        Whether a launch runs a script or spawns an agent is deduced per
+        launch — see `coga.commands.launch_script.is_script_launch` — never
+        declared on the ticket."""
         return self.frontmatter.get("script")
 
     @property

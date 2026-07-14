@@ -2,7 +2,6 @@
 slug: install/init-does-not-persist-user-then-blocks-on-reinit
 title: relay init doesn't persist user on first run, then wedges on re-init
 status: done
-mode: agent
 owner: zach
 human: zach
 agent: claude

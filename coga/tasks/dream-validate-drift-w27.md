@@ -2,7 +2,6 @@
 slug: dream-validate-drift-w27
 title: Dream validate-drift (W27)
 status: done
-mode: script
 owner: nicktoper
 human: nicktoper
 agent: claude

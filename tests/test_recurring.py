@@ -218,8 +218,8 @@ def _write_recurring_script(
     title: str,
     extra: str = "",
 ) -> None:
-    """Write a recurring SCRIPT template: `mode: script` + the seeded
-    script workflow, so it is detected as a script template and bypasses the
+    """Write a recurring SCRIPT template: the seeded script workflow's step 1
+    is script-backed, so the template deduces to a script run and bypasses the
     Agent TTY gate. `extra` appends additional frontmatter lines (e.g.
     `state_keys`); each line is re-indented to the 8-space block so `dedent`
     strips uniformly."""
@@ -238,7 +238,6 @@ def _write_recurring_script(
         ---
         schedule: "{schedule}"
         title: "{title}"
-        mode: script
         workflow: {_SCRIPT_WORKFLOW}
         assignee: claude
         owner: marc{extra_block}
@@ -338,7 +337,6 @@ def repo(tmp_path: Path):
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -436,7 +434,7 @@ def test_scan_due_creates_task(repo: Path) -> None:
 
     ticket = Ticket.read(task.ref.path / "ticket.md")
     assert ticket.title == "Weekly deliverability check"
-    assert ticket.mode == "agent"
+    assert "mode" not in ticket.frontmatter
     assert ticket.owner == "marc"
     assert task.ref.directory == "recurring"
     assert task.ref.slug == "weekly-check"
@@ -475,7 +473,6 @@ def test_create_does_not_duplicate_explicit_period_task_context(
         ---
         schedule: "0 9 * * 1"
         title: "Already lists period-task"
-        mode: agent
         assignee: claude
         owner: marc
         contexts:
@@ -509,7 +506,6 @@ def test_create_preserves_non_description_template_sections(repo: Path) -> None:
         ---
         schedule: "0 9 * * 1"
         title: "Has script config"
-        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -550,7 +546,6 @@ def test_create_preserves_recurring_template_secrets(repo: Path) -> None:
         ---
         title: "Locked down"
         schedule: "0 9 * * 1"
-        mode: agent
         secrets: []
         ---
 
@@ -697,7 +692,6 @@ def test_due_orders_dream_last(repo: Path) -> None:
             ---
             schedule: "0 9 * * 1"
             title: "{name}"
-            mode: agent
             assignee: claude
             owner: marc
             ---
@@ -728,7 +722,6 @@ def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
             ---
             schedule: "0 9 * * 1"
             title: "{name}"
-            mode: agent
             assignee: claude
             owner: marc
             ---
@@ -788,7 +781,6 @@ def test_scan_due_skips_malformed_schedule(repo: Path, capsys) -> None:
         ---
         schedule: "not a cron"
         title: "Bad cron"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -816,7 +808,6 @@ def test_scan_due_accepts_year_scoped_schedule_for_current_year(repo: Path) -> N
         ---
         schedule: "0 0 1 1 * * 2026"
         title: "Year-scoped"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -856,8 +847,12 @@ def test_scan_due_flags_legacy_md_file(repo: Path, capsys) -> None:
     assert "skipping legacy.md" in capsys.readouterr().err
 
 
-def test_scan_due_rejects_invalid_mode_template(repo: Path, capsys) -> None:
-    """The removed `mode: auto` value fails loud during recurring scan."""
+def test_scan_due_ignores_leftover_mode_key(repo: Path, capsys) -> None:
+    """The removed `mode:` field is inert: a stale template still scans.
+
+    Whether a run is a script or an agent session is deduced from the
+    template's `script:` / workflow step 1, so a leftover `mode:` key — any
+    value — neither dispatches nor fails."""
     _write_recurring(
         repo,
         "daily-auto",
@@ -877,14 +872,8 @@ def test_scan_due_rejects_invalid_mode_template(repo: Path, capsys) -> None:
     )
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
-    # The good interactive template still creates.
-    assert len(scan.tasks) == 1
-    assert scan.tasks[0].template == "weekly-check"
-    # The invalid template is skipped via scan.errors.
-    assert len(scan.errors) == 1
-    assert scan.errors[0][0] == "daily-auto"
-    assert "mode 'auto' not in ['agent', 'script']" in scan.errors[0][1]
-    assert "skipping daily-auto" in capsys.readouterr().err
+    assert {task.template for task in scan.tasks} == {"weekly-check", "daily-auto"}
+    assert scan.errors == []
 
 
 def test_scan_due_skips_interactive_template_without_tty(
@@ -910,14 +899,14 @@ def test_scan_due_skips_interactive_template_without_tty(
     assert scan.tasks[0].template == "z-script-check"
     assert len(scan.errors) == 1
     assert scan.errors[0][0] == "weekly-check"
-    assert "mode=agent requires a TTY" in scan.errors[0][1]
+    assert "an agent run requires a TTY" in scan.errors[0][1]
     assert "skipping weekly-check" in capsys.readouterr().err
 
 
-def test_scan_due_template_without_explicit_mode_defaults_to_llm(
+def test_scan_due_template_without_script_deduces_agent(
     repo: Path, capsys
 ) -> None:
-    """A template without `mode:` defaults to `agent`."""
+    """A template with no script anywhere deduces to an agent run."""
     _write_recurring(
         repo,
         "no-mode",
@@ -938,6 +927,119 @@ def test_scan_due_template_without_explicit_mode_defaults_to_llm(
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     assert {task.template for task in scan.tasks} == {"weekly-check", "no-mode"}
     assert scan.errors == []
+
+
+def test_template_deduction_prefers_template_script(repo: Path) -> None:
+    """Pre-freeze deduction rule 1: a template's own `script:` makes it a
+    script run — no workflow resolution needed — so an unattended scan keeps
+    it instead of TTY-gating it."""
+    _write_recurring(
+        repo,
+        "own-script",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Own script"
+        script: inline
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Own script.
+
+        ## Script
+
+        ```sh
+        exit 0
+        ```
+        """,
+    )
+    cfg = load_config(repo)
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=False
+    )
+    assert "own-script" in {task.template for task in scan.tasks}
+    assert all(name != "own-script" for name, _ in scan.errors)
+
+
+def test_template_deduction_multi_skill_step_is_agent(repo: Path, capsys) -> None:
+    """A workflow step 1 with more than one skill is not a script step — the
+    same exactly-one-skill rule the live dispatch uses — so the template
+    deduces to agent and the unattended scan TTY-gates it."""
+    _seed_script_workflow(repo)
+    _write(
+        repo / "workflows" / "two-skills.md",
+        f"""
+        ---
+        name: two-skills
+        description: step 1 has two skills, so it cannot be a script step.
+        steps:
+          - name: run
+            skills:
+              - {_SCRIPT_SKILL}
+              - {_SCRIPT_SKILL}
+            assignee: agent
+        ---
+        """,
+    )
+    _write_recurring(
+        repo,
+        "two-skill-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Two-skill check"
+        workflow: two-skills
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Two skills.
+        """,
+    )
+    cfg = load_config(repo)
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=False
+    )
+    errored = {name for name, _ in scan.errors}
+    assert "two-skill-check" in errored
+
+
+def test_template_deduction_unresolvable_workflow_is_agent(
+    repo: Path, capsys
+) -> None:
+    """An unresolvable `workflow:` deduces to agent (the sweep TTY-gates it)
+    rather than crashing the scan — create/launch fail loud on the missing
+    workflow later, with better remedies."""
+    _write_recurring(
+        repo,
+        "ghost-workflow",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Ghost workflow"
+        workflow: does/not-exist
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Ghost.
+        """,
+    )
+    cfg = load_config(repo)
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=False
+    )
+    errored = {name for name, _ in scan.errors}
+    assert "ghost-workflow" in errored
+    detail = dict(scan.errors)["ghost-workflow"]
+    assert "an agent run requires a TTY" in detail
 
 
 def test_scan_due_skips_underscore_template(repo: Path, capsys) -> None:
@@ -1076,7 +1178,7 @@ def test_recurring_launch_creates_dream_task(
     assert refs[0].id_slug == "recurring/dream"
     ticket = Ticket.read(refs[0].path / "ticket.md")
     assert ticket.title == "Dream"
-    assert ticket.mode == "agent"
+    assert "mode" not in ticket.frontmatter
     # Dream's template declares no workflow, so it creates with the
     # `direct/body` workflow: it runs its body's ordered phases directly,
     # but is still a workflow-carrying, bumpable, valid active task.
@@ -1110,7 +1212,6 @@ def test_recurring_launch_syncs_period_task_and_high_water(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1160,7 +1261,6 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1225,7 +1325,6 @@ def test_recurring_launch_does_not_publish_feature_only_template_log(
         ---
         schedule: "0 9 * * 1"
         title: "New weekly"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1268,7 +1367,6 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1326,7 +1424,6 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1398,7 +1495,6 @@ def test_recurring_launch_explicit_rerun_bypasses_handled_period_ledger(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1455,7 +1551,6 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1512,7 +1607,6 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1570,7 +1664,6 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1632,7 +1725,6 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1703,7 +1795,6 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1774,7 +1865,6 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1844,7 +1934,6 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1914,7 +2003,6 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1993,7 +2081,6 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -2125,7 +2212,6 @@ def test_scan_due_force_defers_existing_done_period_until_launch(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -2175,7 +2261,6 @@ def test_scan_due_force_does_not_advance_live_prior_period_task(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -2377,7 +2462,6 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -2456,7 +2540,6 @@ def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -2513,7 +2596,6 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -2750,7 +2832,6 @@ def test_recurring_all_syncs_forced_existing_period_state(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -2843,7 +2924,7 @@ def test_recurring_all_skips_interactive_template_without_tty(
     assert "No recurring templates to launch." in result.output
     combined = result.output + (result.stderr or "")
     assert "skipping weekly-check" in combined
-    assert "mode=agent requires a TTY" in combined
+    assert "an agent run requires a TTY" in combined
     assert list_tasks(load_config(repo)) == []
 
 
@@ -3048,7 +3129,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     assert calls == ["recurring/z-script-check"]
     combined = result.output + (result.stderr or "")
     assert "skipping weekly-check" in combined
-    assert "mode=agent requires a TTY" in combined
+    assert "an agent run requires a TTY" in combined
     assert any(
         "skipped 1 template" in msg and "weekly-check" in msg
         for msg in slack_msgs
@@ -3066,7 +3147,6 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
         ---
         schedule: "not a cron"
         title: "Bad cron"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -3083,7 +3163,6 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
         ---
         schedule: "0 9 * * *"
         title: "Script check"
-        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -3146,7 +3225,6 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
         ---
         schedule: "0 9 * * 1"
         title: "Second weekly check"
-        mode: agent
         assignee: claude
         owner: marc
         ---

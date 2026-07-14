@@ -8,7 +8,7 @@ description: Interview the human, fill in a freshly-scaffolded draft ticket (wor
 Your job is to turn a one-line title into a complete `draft` ticket the human
 can review and launch. You do **not** start the work itself — you set it up.
 
-The human is at the keyboard in a `mode: agent` launch. Ask, don't guess. Keep
+The human is at the keyboard in an attended agent launch. Ask, don't guess. Keep
 the interview short — 4–6 questions, not a survey.
 
 ## Ticket format — read this first
@@ -181,8 +181,9 @@ answer.
      step (`autonomy/human-verify`, or a `code/*` workflow with an owner
      review step already qualifies)
    - `fully-automated` → an all-agent workflow (`autonomy/fully-automated`, or
-     an all-agent `code/*`). Do not encode a tier↔mode mapping; `mode` remains
-     the execution substance (`agent` or `script`), not the autonomy tier.
+     an all-agent `code/*`). Do not encode a tier↔substance mapping; whether a
+     launch runs a script or an agent is deduced from the ticket's `script:`
+     and its workflow steps, not from the autonomy tier.
 4. **Workflow** — which workflow fits? `ls coga/workflows/
    <package-bootstrap>/workflows/` for the options (e.g. `code/with-review`
    for a code change shipped via PR — a bundled package `bootstrap/workflows/`

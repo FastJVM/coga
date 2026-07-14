@@ -272,16 +272,6 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
-    if kind == "invalid-mode":
-        return ClassifiedIssue(
-            issue=issue,
-            action=ACTION_HUMAN_NEEDED,
-            remediation=(
-                "`mode:` is author intent (interactive / auto / script). Ask the "
-                "owner which mode the task should run in; do not guess."
-            ),
-        )
-
     if kind == "unknown-task":
         return ClassifiedIssue(
             issue=issue,

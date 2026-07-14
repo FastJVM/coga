@@ -107,7 +107,7 @@ Claude Code and Codex use.
 Every ticket carries the same canonical key set. These names are
 reserved — no extension or alias may collide with them:
 
-`slug`, `title`, `status`, `mode`, `owner`, `human`, `agent`,
+`slug`, `title`, `status`, `owner`, `human`, `agent`,
 `assignee`, `watchers`, `workflow`, `step`, `contexts`, `skills`, `secrets`,
 `script`.
 
@@ -257,65 +257,71 @@ authors a draft, `coga mark` flips status across the lifecycle,
   then flipping `active → in_progress` as it does. `launch` is the one command
   that touches both planes.
 
-## Mode and execution
+## Script vs agent execution
 
-A task declares the substance that runs with `mode:`. Attendance and autonomy
-are not ticket fields anymore; blockers, assignees, TTY availability, and
-megalaunch decide whether work can proceed without more human input.
+Whether a launch runs a script or spawns an agent is **deduced from context,
+per launch** — there is no `mode:` ticket field. The rule, in order:
 
-`mode:` in ticket frontmatter:
+1. **Step-skill script** — the current workflow step has exactly one skill and
+   that skill's SKILL.md declares `script:` → run that script.
+2. **Ticket-owned script** — otherwise the ticket's own `script:` field is set
+   (`inline`, or a sibling file in a directory-form task) → run that.
+3. **Neither → agent** — compose the prompt and spawn the ticket assignee's
+   agent CLI (TTY required).
 
-- **`agent`** — compose the prompt and spawn the ticket assignee's agent CLI in a
-  live REPL. Normal launches require stdin and stdout to be TTYs. The REPL
-  does not terminate on its own: `coga bump`, `coga mark done`, and
-  `coga block` signal the launch supervisor via the session-scoped
-  `$COGA_DONE_SENTINEL` file, and the supervisor tears the REPL down. After
-  teardown, `coga launch` re-reads the ticket and either spawns a fresh REPL
-  for the next agent-owned workflow step (rotating CLIs when the step assignee
-  changes) or returns control to the caller at human handoffs, terminal states,
-  blockers, no-progress exits, and non-zero exits. Blocked tickets can resume
-  inline only for a `mode: agent` launch from a TTY, so the first job in that
-  session is to resolve or re-block the open asks.
-- **`script`** — run deterministic code directly, with no composed agent
-  prompt. The script entry comes from the current workflow step's single skill
-  `script:` field, or from the ticket's own `script:` field for no-skill or
-  workflow-less script tasks. Script launches inject declared secrets as
-  environment variables, run without a TTY, and are the right shape for
-  recurring, cron, wrappers, and CI. Package-backed bootstrap tickets may also
-  name a ticket-owned script; those run through the same script path with
-  stateless launch semantics, so the bootstrap target itself gets no task
-  lifecycle or log writes.
+`is_script_launch` implements the rule: `current_step_is_script(ticket) or
+ticket.script`. Attendance and autonomy are not ticket fields either;
+blockers, assignees, TTY availability, and megalaunch decide whether work can
+proceed without more human input.
+
+**Agent launches** compose the prompt and spawn the assignee's agent CLI in a
+live REPL. They require stdin and stdout to be TTYs. The REPL
+does not terminate on its own: `coga bump`, `coga mark done`, and
+`coga block` signal the launch supervisor via the session-scoped
+`$COGA_DONE_SENTINEL` file, and the supervisor tears the REPL down. After
+teardown, `coga launch` re-reads the ticket and either spawns a fresh REPL
+for the next agent-owned workflow step (rotating CLIs when the step assignee
+changes) or returns control to the caller at human handoffs, terminal states,
+blockers, no-progress exits, and non-zero exits. Blocked tickets can resume
+inline only for an agent launch from a TTY, so the first job in that
+session is to resolve or re-block the open asks.
+
+**Script launches** run deterministic code directly, with no composed agent
+prompt. They inject declared secrets as environment variables, run without a
+TTY, and are the right shape for recurring, cron, wrappers, and CI.
+Package-backed bootstrap tickets may also name a ticket-owned script; those
+run through the same script path with stateless launch semantics, so the
+bootstrap target itself gets no task lifecycle or log writes.
 
 There is no `autonomy:` field. The old `skip_permissions` / `skip_permissions_argv` keys are removed and rejected as unknown config.
 
 ### Script steps inside an agent workflow
 
-`mode:` is the ticket's *default* substance, but execution is decided **per
-step**. Inside a `mode: agent` workflow, any step whose single skill declares a
-`script:` runs as a script — the launch supervisor runs it directly instead of
-spawning an agent. This is how `code/with-review` interleaves the deterministic
+Because the deduction runs **per step**, one workflow freely mixes substances:
+any step whose single skill declares a `script:` runs as a script — the launch
+supervisor runs it directly instead of spawning an agent. This is how
+`code/with-review` interleaves the deterministic
 `code/open-pr` step between agent steps: implement (agent) → peer-review (agent)
 → open-pr (**script**) → review (human).
 
 The supervisor loop checks each step with `current_step_is_script` (a step has
 one skill and that skill's SKILL.md has a `script:`) before resolving an agent.
-On a script step it calls the same `run_script_mode` used by whole-ticket
+On a script step it calls the same `run_script_mode` used by ticket-owned
 scripts, which runs the script and, **on exit 0**, advances the step (or marks
 the task done after the final step); **on a non-zero exit** it posts a failure
 and leaves the step put. So a script step's completion is gated by its exit
 code, not by an agent's judgment — a step cannot advance without its script
 producing its output. (This is the mechanism that makes `code/open-pr` require a
 real PR: no branch / no commits ahead of base / `gh` failure → non-zero exit →
-the step does not advance.) Whole-ticket `mode: script` launches are the
-orthogonal case, gated by `is_script_launch` (`ticket.mode == "script"`).
+the step does not advance.)
 
 ## Prompt composition
 
 `coga launch` builds one composed prompt and writes it to a temp
 file. Layers, in order:
 
-1. Base prompt plus the agent-mode block for `mode: agent`. Both
-   are package resources, not files under `coga/`.
+1. Base prompt plus the agent-mode block (script launches compose no
+   prompt at all). Both are package resources, not files under `coga/`.
 2. Repo context (`coga/context.md` — top-level facts about this
    surface).
 3. Ticket contexts (everything in `contexts:` frontmatter list).

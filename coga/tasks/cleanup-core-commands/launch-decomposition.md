@@ -2,7 +2,6 @@
 slug: cleanup-core-commands/launch-decomposition
 title: Decompose launch into substrate plus ticket orchestration
 status: in_progress
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex

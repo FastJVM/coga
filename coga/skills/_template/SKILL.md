@@ -30,5 +30,5 @@ Optional. Useful when the description alone is ambiguous.
 
 If this skill ships with scripts, drop them next to SKILL.md and describe
 when each is called. The agent invokes them during interactive/auto
-sessions; for `mode: script` tasks, `coga launch` runs the first
+sessions; for script tasks, `coga launch` runs the first
 executable script with secrets injected as env vars.

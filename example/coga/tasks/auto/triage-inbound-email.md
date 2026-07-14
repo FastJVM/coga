@@ -2,7 +2,6 @@
 slug: auto/triage-inbound-email
 title: Triage inbound email
 status: draft
-mode: agent
 owner: marc
 human: marc
 agent: claude

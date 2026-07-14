@@ -2,7 +2,6 @@
 slug: remove-mode-from-ticket-frontmatter-and-deduce-scr
 title: Remove mode from ticket frontmatter and deduce script-vs-agent from context
 status: in_progress
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

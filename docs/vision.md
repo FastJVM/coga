@@ -125,10 +125,11 @@ Two consequences worth naming:
 
 **Blackboards** are per-task workspaces where agents write findings, plans, decisions, and blockers. The blackboard is how agents persist state between sessions — an agent that crashes mid-task is recoverable because the blackboard has its last known state. It's the pattern from 1970s AI research (Hearsay-II): independent processes coordinate through a shared mutable surface rather than direct message passing.
 
-**Task mode** declares execution substance, not autonomy. `mode: agent` launches
-the configured agent in an attended REPL; `mode: script` runs deterministic
-Python with task metadata and secrets injected. There is no ticket autonomy
-flag. Unattended drain comes from script tasks, blockers, megalaunch, and the
+**Execution substance** is deduced per launch, not declared. A task whose
+current workflow step is script-backed, or which carries its own `script:`,
+runs deterministic code with task metadata and secrets injected; anything
+else launches the configured agent in an attended REPL. There is no ticket
+mode or autonomy flag. Unattended drain comes from script tasks, blockers, megalaunch, and the
 liveness watchdog around supervised agent sessions.
 
 **The base prompt** is a system prompt injected into every agent session. It teaches the agent how to operate within Coga — when to advance workflow steps, when to panic, how to use the blackboard, how to handle frontmatter. The base prompt lives as version-controlled markdown. Agents don't learn Coga through their own memory or config; they learn it fresh every session from a file we own.
@@ -193,7 +194,7 @@ These aren't aspirational practices. They're the methodology. Coga without them 
 
 Concrete substitutions, because abstractions don't convince anyone:
 
-Instead of Notion or Linear for task tracking, a folder of markdown files in the repo. Instead of Zapier for recurring automation, skills with bundled scripts triggered by cron. Instead of an ops coordinator, mode: script tasks and megalaunch sweeps that handle reconciliation, deliverability checks, reply triage, patent drafting. Instead of Slack-as-memory, a blackboard per task that survives sessions and is readable by whoever picks up the work. Instead of an internal wiki, contexts attached to tasks so knowledge is used where it's needed rather than filed where it'll be forgotten.
+Instead of Notion or Linear for task tracking, a folder of markdown files in the repo. Instead of Zapier for recurring automation, skills with bundled scripts triggered by cron. Instead of an ops coordinator, script tasks and megalaunch sweeps that handle reconciliation, deliverability checks, reply triage, patent drafting. Instead of Slack-as-memory, a blackboard per task that survives sessions and is readable by whoever picks up the work. Instead of an internal wiki, contexts attached to tasks so knowledge is used where it's needed rather than filed where it'll be forgotten.
 
 Each substitution has a tradeoff. Notion has a better UI. Linear has stronger collaboration features. Zapier has integrations we'd have to build ourselves. A real ops coordinator has judgment an agent can't replicate. We accept every one of those tradeoffs because the substrate matters more than any individual feature — one coherent system beats seven disconnected ones when the coherence is what lets knowledge compound.
 
@@ -217,7 +218,7 @@ That's also why we're publishing at all. Articulating the methodology keeps us a
 
 ## Failure modes we watch for
 
-**Silent wrong answers.** mode: script or megalaunch tasks that fail confidently, returning output that looks correct but isn't. The framework's third question — can we evaluate the result? — is meant to prevent this. When evaluation capacity is thin, the task moves from script or all-agent to a human approval workflow, even if it's recurring.
+**Silent wrong answers.** Script or megalaunch tasks that fail confidently, returning output that looks correct but isn't. The framework's third question — can we evaluate the result? — is meant to prevent this. When evaluation capacity is thin, the task moves from script or all-agent to a human approval workflow, even if it's recurring.
 
 **Context drift.** The world changes, contexts don't. Dream catches some of this, but not all. We schedule quarterly reviews of context accuracy against recent blackboards and recent company changes.
 

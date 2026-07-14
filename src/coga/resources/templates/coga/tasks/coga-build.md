@@ -2,7 +2,6 @@
 slug: coga-build
 title: coga-build
 status: active
-mode: agent
 owner: new-user
 human: new-user
 agent: claude

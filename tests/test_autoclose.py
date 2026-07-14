@@ -31,7 +31,6 @@ def _write_workflow_less_task(
         slug: {slug}
         title: Work
         status: {status}
-        mode: agent
         owner: marc
         human: marc
         agent: claude
@@ -104,7 +103,7 @@ def _make_task(
     else:
         ref = create_task(
             cfg=cfg, title="Work", workflow_name=workflow,
-            contexts=[], mode="agent", owner="marc", assignee="claude",
+            contexts=[], owner="marc", assignee="claude",
             watchers=[], status=status,
         )
         # File-form default: `ref["path"]` is the `tasks/<slug>.md` ticket itself.

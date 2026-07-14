@@ -64,7 +64,6 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         title="Fix retry logic",
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
-        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=["pierre"],
@@ -115,7 +114,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # 4. Create a second task so we can exercise block + slack without revival of the first.
     ref2 = create_task(
         cfg=cfg, title="Investigate slow DNS",
-        workflow_name="code/with-review", contexts=[], mode="agent",
+        workflow_name="code/with-review", contexts=[],
         owner="marc", assignee="claude", watchers=[], status="in_progress",
     )
     r = runner.invoke(app, [

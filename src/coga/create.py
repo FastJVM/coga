@@ -29,7 +29,6 @@ def create_task(
     title: str,
     workflow_name: str | None,
     contexts: list[str],
-    mode: str,
     owner: str | None,
     assignee: str | None,
     watchers: list[str],
@@ -174,7 +173,6 @@ def create_task(
         "slug": created_ref.id_slug,
         "title": title,
         "status": status,
-        "mode": mode,
         "owner": owner,
         "human": human,
         "agent": agent,
@@ -201,7 +199,7 @@ def create_task(
     if body is not None:
         # Recurring creating passes the template body verbatim so sections
         # beyond `## Description` survive into the period task — notably
-        # `## Script config`, which drives a script step's mode/sync. Ensure
+        # `## Script config`, which configures a script step's run. Ensure
         # the canonical `## Context` section exists so the body shape stays
         # uniform and compose can read inline task context. A template body may
         # itself carry a blackboard fence + region; strip it so the period task
@@ -220,7 +218,7 @@ def create_task(
     Ticket(frontmatter=fm, body=full_body).write(ticket_path)
 
     actor = f"{created_by}:{cfg.current_user}" if created_by == "human" else created_by
-    append_log(cfg, created_ref.id_slug, actor, f"created (mode={mode}, status={status})")
+    append_log(cfg, created_ref.id_slug, actor, f"created (status={status})")
 
     issues = validate_task_dir(cfg, created_ref)
     errors = [i for i in issues if i.severity == "error"]

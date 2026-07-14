@@ -2,7 +2,6 @@
 slug: v2/script-mode-to-activate
 title: script mode to activate
 status: draft
-mode: agent
 owner: nick
 human: nick
 agent: claude

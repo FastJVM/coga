@@ -2,7 +2,6 @@
 slug: v2/log-timestamps-need-seconds-and-timezone-for-unamb
 title: Log timestamps need seconds and timezone for unambiguous ordering
 status: draft
-mode: agent
 owner: nick
 human: nick
 agent: claude

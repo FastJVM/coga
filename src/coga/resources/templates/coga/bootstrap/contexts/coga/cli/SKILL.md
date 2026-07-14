@@ -64,7 +64,7 @@ repo, and capturing your name is `coga init`'s job, not `build`'s. There is no
 separate `coga setup` command — initialize the repo with `coga init`, then run
 `coga build`.
 
-## coga create "\<title\>" [--workflow \<name\>] [--mode agent|script]
+## coga create "\<title\>" [--workflow \<name\>]
 
 Scaffold a new raw `draft` ticket and post `✨` when a notification channel
 is selected (a fresh repo selects none, so this is silent out of the box).
@@ -196,10 +196,12 @@ that can't be activated — no workflow, or an empty `required` extension field
 — still fails loud with the same remedy `mark active` gives. Launching an
 `active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
-already-`in_progress` ticket resumes it without another status flip. `mode:
-agent` launches require stdin and stdout to both be terminals. `mode: script`
-runs deterministic code directly without composing an agent prompt. Script
-launches inject task metadata env vars including
+already-`in_progress` ticket resumes it without another status flip. Whether
+a launch runs a script or spawns an agent is deduced per launch: a
+script-backed current step or a ticket-level `script:` runs as a script;
+anything else spawns the assignee's agent, which requires stdin and stdout to
+both be terminals. Script launches run deterministic code directly without
+composing an agent prompt and inject task metadata env vars including
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, and `COGA_TASK_BLACKBOARD`.
 
 - `coga launch <slug>` — accepts any unique prefix (git-short-SHA-style).
@@ -211,7 +213,7 @@ launches inject task metadata env vars including
   ticket's `assignee:` and does not bypass a human handoff.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
-  spawning an agent. Rejected for `mode: script` tickets, which compose no
+  spawning an agent. Rejected for script launches, which compose no
   agent prompt.
 - `coga launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
@@ -407,7 +409,7 @@ base if warranted, and deletes the source task directory in the same PR.
 The retire task is scaffolded straight to `active`; `coga retire` launches
 it unless `--no-launch` is passed.
 
-- `coga retire <slug>` — scaffold and launch a `mode: agent` retire task.
+- `coga retire <slug>` — scaffold and launch an agent retire task.
 - `coga retire <slug> --no-launch` — scaffold the retire task (already
   `active`) and print the explicit `coga launch <slug>` command.
 
@@ -612,7 +614,8 @@ Dedup after Dream deletes a completed run comes from
 
 `coga recurring --interactive` is the human-stepped debug knob for a recurring
 run. It requires an attended TTY and leaves the recurring liveness backstops
-unarmed; each template still launches according to its own `mode:`.
+unarmed; each template still launches according to its deduced substance
+(script when its `script:` or workflow step 1 is script-backed, else agent).
 
 `coga recurring --all` **forces a real, full run of every template**. It is
 *not* a sandbox: the only difference from a bare `coga recurring` is that it
@@ -627,11 +630,12 @@ slug-based suppression, no orphan reaping, and no fold-back-to-template-log
 step. Use it to force this period's work to re-run without waiting for the
 schedule.
 
-`mode: agent` templates are skipped when `coga recurring` has no stdin/stdout
-TTY, because the agent REPL cannot be driven. Templates intended for cron or
-other unattended schedulers should use `mode: script`.
+Agent templates (no `script:` and no script-backed workflow step 1) are
+skipped when `coga recurring` has no stdin/stdout TTY, because the agent REPL
+cannot be driven. Templates intended for cron or other unattended schedulers
+should carry a script.
 
-**Idle-timeout backstop.** A `mode: agent` template that *does* launch (a TTY is
+**Idle-timeout backstop.** An agent template that *does* launch (a TTY is
 present) but whose agent stalls or crashes before signalling done — never
 reaching `coga bump` / `mark done` / `block` — would otherwise block the
 sequential sweep forever. Both the bare sweep and `coga recurring --all` arm a

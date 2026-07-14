@@ -7,7 +7,6 @@ title: "Rebase stale worktrees"
 # exact judgment the deterministic open-pr script step refuses to fake.
 # Launch on demand with `coga recurring launch rebase-stale-worktrees`
 # whenever the open-pr staleness gate fires.
-mode: agent
 ---
 
 ## Description

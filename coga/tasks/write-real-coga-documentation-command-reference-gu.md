@@ -2,7 +2,6 @@
 slug: write-real-coga-documentation-command-reference-gu
 title: Write real Coga product documentation
 status: in_progress
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex

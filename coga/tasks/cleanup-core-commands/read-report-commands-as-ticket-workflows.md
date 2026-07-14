@@ -2,7 +2,6 @@
 slug: cleanup-core-commands/read-report-commands-as-ticket-workflows
 title: Classify read and report commands under the small-core rule
 status: draft
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex

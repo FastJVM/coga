@@ -82,7 +82,7 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude",
+        contexts=[], owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -126,7 +126,7 @@ def test_script_mode_fails_loud_on_unset_declared_secret(
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude",
+        contexts=[], owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -151,7 +151,7 @@ def test_script_mode_least_privilege_empty_list_injects_nothing(
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude",
+        contexts=[], owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -173,7 +173,7 @@ def test_script_mode_rejects_agent_override(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude",
+        contexts=[], owner="marc", assignee="claude",
         watchers=[], status="active",
     )
 
@@ -185,22 +185,6 @@ def test_script_mode_rejects_agent_override(repo: Path) -> None:
     )
 
 
-def test_script_mode_requires_skill_field(repo: Path) -> None:
-    # Rewrite SKILL.md without `script:`
-    skill_md = repo / "skills" / "ops" / "checker" / "SKILL.md"
-    skill_md.write_text("---\nname: ops/checker\n---\n")
-    cfg = load_config(repo)
-    create_task(
-        cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude",
-        watchers=[], status="active",
-    )
-    runner = CliRunner()
-    result = runner.invoke(app, ["launch", "check"])
-    assert result.exit_code == 2
-    assert "script" in result.output.lower()
-
-
 def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
     script = repo / "skills" / "ops" / "checker" / "check.sh"
     script.write_text("#!/bin/sh\nexit 3\n")
@@ -209,7 +193,7 @@ def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Fail", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude",
+        contexts=[], owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     runner = CliRunner()
@@ -278,3 +262,83 @@ def test_bootstrap_script_launch_is_stateless(repo: Path) -> None:
     assert list_tasks(cfg) == []
     log_path = repo / "log.md"
     assert not log_path.exists() or log_path.read_text() == ""
+
+
+# --- deduced dispatch ----------------------------------------------------------
+#
+# There is no `mode:` frontmatter: `is_script_launch` deduces script-vs-agent
+# per launch — a script-backed current step, else the ticket's own `script:`,
+# else an agent launch.
+
+
+def test_is_script_launch_deduces_from_script_backed_step(repo: Path) -> None:
+    from coga.commands.launch_script import is_script_launch
+
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    assert ticket.script is None
+    assert is_script_launch(cfg, ticket) is True
+
+
+def test_is_script_launch_deduces_from_ticket_owned_script(repo: Path) -> None:
+    from coga.commands.launch_script import is_script_launch
+
+    # Strip the skill's `script:` so the step is not script-backed; the
+    # ticket's own `script:` alone must carry the deduction.
+    skill_md = repo / "skills" / "ops" / "checker" / "SKILL.md"
+    skill_md.write_text(
+        "---\nname: ops/checker\ndescription: runs a health check.\n---\n"
+    )
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active", script="inline",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    assert is_script_launch(cfg, ticket) is True
+
+
+def test_is_script_launch_deduces_agent_when_no_script_anywhere(repo: Path) -> None:
+    from coga.commands.launch_script import is_script_launch
+
+    skill_md = repo / "skills" / "ops" / "checker" / "SKILL.md"
+    skill_md.write_text(
+        "---\nname: ops/checker\ndescription: runs a health check.\n---\n"
+    )
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    assert is_script_launch(cfg, ticket) is False
+
+
+def test_agent_deduction_without_tty_fails_on_tty_gate(repo: Path) -> None:
+    """The accepted behavior change: a task whose script vanished deduces to
+    an agent launch, and a TTY-less context then fails on the TTY gate rather
+    than a missing-script bail."""
+    skill_md = repo / "skills" / "ops" / "checker" / "SKILL.md"
+    skill_md.write_text(
+        "---\nname: ops/checker\ndescription: runs a health check.\n---\n"
+    )
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    result = CliRunner().invoke(app, ["launch", "check"])
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "an agent launch requires a TTY" in combined

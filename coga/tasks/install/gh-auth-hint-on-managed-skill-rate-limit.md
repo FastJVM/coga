@@ -2,7 +2,6 @@
 slug: install/gh-auth-hint-on-managed-skill-rate-limit
 title: gh auth hint on managed skill rate limit
 status: active
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

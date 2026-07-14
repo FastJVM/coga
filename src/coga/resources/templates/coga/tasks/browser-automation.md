@@ -2,7 +2,6 @@
 slug: browser-automation
 title: Browser automation
 status: draft
-mode: agent
 owner: new-user
 human: new-user
 agent: claude

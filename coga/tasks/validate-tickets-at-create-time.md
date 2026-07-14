@@ -2,7 +2,6 @@
 slug: validate-tickets-at-create-time
 title: Validate tickets at create time
 status: draft
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

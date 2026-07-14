@@ -29,7 +29,8 @@ This context is **sequencing only**; the reasoning behind decisions lives in
 2. Ship the **RC release gate** (below) — a stranger can `pipx install` Coga
    and run their first task. This is the launch.
 3. Megalaunch plus blockers is the unattended-drain path; deterministic
-   recurring work should use `mode: script`, while `mode: agent` remains a
+   recurring work should be script-backed (a `script:` entry or a
+   script-backed workflow step), while agent launches remain a
    TTY-supervised agent REPL.
 4. The single-file task-format rewrite is high-blast-radius; sequence it when
    the board is calm.
@@ -40,8 +41,9 @@ The hard list of what must be true before we tag and announce. This is a
 **subset and re-ordering of the v1 cut** focused on "a stranger installs it and
 runs their first task." Tier chosen: **blockers + CI** (domain,
 uninstall, and changelog are fast-follows, not gate items). Assumption: the RC
-ships **Agent + script only** — `mode:` is execution substance (`agent` or
-`script`), not an autonomy switch.
+ships **Agent + script only** — execution substance is deduced per launch
+(script-backed step or ticket `script:` → script, else agent), not an
+autonomy switch.
 
 **Blockers — cannot tag without these:**
 
@@ -109,7 +111,7 @@ A stranger must be able to install and run Coga out of the box.
   scheduler entry point from scratch instead of assuming a bundled cron wrapper.
   Scheduling only — the budget-aware drain loop is a separate ticket (below).
 - `enforce-script-mode-for-recurring-templates` [draft] — no-TTY safety: under
-  cron only `mode: script` templates launch; a `mode: agent` template scaffolds
+  cron only script-backed templates launch; an agent template scaffolds
   but fails to launch without a TTY. Pairs with the cron ticket.
 - `fix-recurring-templates-not-instantiated` [draft] — **verification gate**
   (not an open bug): prove a due template reliably instantiates + launches its

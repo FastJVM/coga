@@ -6,7 +6,6 @@ title: "Dream"
 # subagents, and exercises agent judgment. A weekly `coga recurring` run
 # creates and launches the Dream task when its schedule is due; `coga dream`
 # (alias for `coga recurring launch dream`) creates and launches it now.
-mode: agent
 ---
 
 ## Description

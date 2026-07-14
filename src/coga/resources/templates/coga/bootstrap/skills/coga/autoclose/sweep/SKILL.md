@@ -6,7 +6,7 @@ script: run.py
 
 # Autoclose Merged Tickets
 
-This skill is the `mode: script` body of the `recurring/autoclose-merged/`
+This skill is the script body of the `recurring/autoclose-merged/`
 ticket. It runs the merged-ticket auto-close sweep — the sole trigger for closing
 tickets whose PR has merged:
 

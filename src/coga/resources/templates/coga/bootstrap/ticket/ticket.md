@@ -1,6 +1,5 @@
 ---
 title: Create a new ticket
-mode: agent
 skills:
   - bootstrap/ticket
 assignee: claude

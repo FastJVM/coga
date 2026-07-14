@@ -171,7 +171,7 @@ def launch(
 
     typer.echo(
         f"Launch: task {ref.id_slug} "
-        f"(status={ticket.status if not is_bootstrap else 'n/a'}, mode={ticket.mode}, "
+        f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
         f"assignee={ticket.assignee or 'unassigned'})"
     )
 
@@ -201,11 +201,7 @@ def launch(
     # megalaunch` never gets this far: it classifies blocked tickets as
     # skipped-unresolved-blocker before launching.
     if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "blocked":
-        if (
-            ticket.mode == "agent"
-            and not is_script_launch(cfg, ticket)
-            and _interactive_stdio_has_tty()
-        ):
+        if not is_script_launch(cfg, ticket) and _interactive_stdio_has_tty():
             if not open_blockers(ref.ticket_path):
                 _bail(
                     f"Cannot launch {ref.id_slug}: it is blocked but has no "
@@ -243,13 +239,12 @@ def launch(
     base_cfg = cfg
     worktree_path: Path | None = None
     spawn_cwd: Path | None = None
-    script_launch = is_script_launch(cfg, ticket)
-    # A `mode: agent` workflow can sit on a script step (e.g. code/open-pr):
-    # that step runs with no agent, through the same run_script_mode path as a
-    # whole `mode: script` ticket. Treat both alike for launch-worktree
-    # isolation and the mode dispatch below — the script uses the feature
-    # worktree recorded under `## Dev`, not a launch-isolation worktree.
-    run_current_as_script = script_launch or current_step_is_script(cfg, ticket)
+    # A script launch — the current step is a script step (e.g. code/open-pr)
+    # or the ticket carries its own `script:` — runs with no agent, through
+    # run_script_mode. It is excluded from launch-worktree isolation: the
+    # script uses the feature worktree recorded under `## Dev`, not a
+    # launch-isolation worktree.
+    run_current_as_script = is_script_launch(cfg, ticket)
     if (
         cfg.launch_worktree
         and isinstance(ref, TaskRef)
@@ -260,16 +255,15 @@ def launch(
         if worktree_path is not None:
             spawn_cwd = worktree_path
             ticket = _read(ref)
-            script_launch = is_script_launch(cfg, ticket)
-            run_current_as_script = script_launch or current_step_is_script(cfg, ticket)
+            run_current_as_script = is_script_launch(cfg, ticket)
 
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
         # is brought to `active` inline rather than refused with a "run
         # `coga mark active` first" hint. The flip to `in_progress` still happens
         # later (after the compose pre-flight), so this only does the `mark active`
-        # half. Done before the mode dispatch so both agent and script
-        # launches start from an activated, stepped ticket.
+        # half. Done before the script-vs-agent dispatch so both agent and
+        # script launches start from an activated, stepped ticket.
         if (
             not is_bootstrap
             and isinstance(ref, TaskRef)
@@ -281,18 +275,16 @@ def launch(
         if not assignee:
             _bail(f"Task {ref.id_slug} has no assignee")
 
-        if ticket.mode not in ("agent", "script"):
-            _bail(f"Unknown mode: {ticket.mode!r}")
-
-        # A whole `mode: script` ticket AND a `mode: agent` workflow whose current
-        # step is a script step (e.g. code/open-pr) both run with no agent and no
-        # composed prompt, through the same run_script_mode path. Handling it here
-        # — before the agent-only TTY / CLI / git-auth setup — is what lets a
-        # relaunch land straight on the script step without a terminal. The
-        # supervisor loop below runs the same path for a script step reached
-        # mid-chain; on exit 0 the step advances, on non-zero it does not.
+        # A script launch — the ticket's own `script:`, or a current step whose
+        # single skill is script-backed (e.g. code/open-pr) — runs with no agent
+        # and no composed prompt, through the same run_script_mode path.
+        # Handling it here — before the agent-only TTY / CLI / git-auth setup —
+        # is what lets a relaunch land straight on the script step without a
+        # terminal. The supervisor loop below runs the same path for a script
+        # step reached mid-chain; on exit 0 the step advances, on non-zero it
+        # does not.
         if run_current_as_script:
-            if script_launch and agent_override is not None:
+            if agent_override is not None:
                 _bail("--agent is only supported for agent launches.")
             from coga.commands.launch_script import run_script_mode
             run_script_mode(cfg, ref, ticket, stateless=is_bootstrap)
@@ -302,15 +294,14 @@ def launch(
             _refresh_launch_checkout(base_cfg)
             return
 
-        mode = ticket.mode
-
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
-        if mode == "agent" and not _interactive_stdio_has_tty():
+        if not _interactive_stdio_has_tty():
             _bail(
-                f"Cannot launch {ref.id_slug!r}: mode=agent requires a TTY "
+                f"Cannot launch {ref.id_slug!r}: an agent launch requires a TTY "
                 "(stdin and stdout must both be terminals). Run from a real "
-                "shell, or use mode: script for deterministic unattended work."
+                "shell, or give the task a script (a `script:` entry or a "
+                "script-backed workflow step) for deterministic unattended work."
             )
 
         launch_assignee = agent_override or assignee
@@ -419,8 +410,8 @@ def launch(
             ticket = _read(ref)
 
             # A workflow step whose single skill declares a `script:` runs as a
-            # deterministic script even inside a `mode: agent` workflow — the same
-            # run_script_mode path used above, dispatched per step. The launcher,
+            # deterministic script even mid-way through an agent workflow — the
+            # same run_script_mode path used above, dispatched per step. The launcher,
             # not an agent, executes it and advances only on exit 0, so
             # `code/open-pr` reached mid-chain (peer-review → open-pr) cannot
             # complete without producing a real PR.
@@ -486,11 +477,9 @@ def launch(
                     ref,
                     ticket,
                     agent,
-                    mode,
                     env=step_env,
                     actor=f"human:{cfg.current_user}",
                     log_message=_launch_log_message(
-                        mode,
                         ticket.assignee or assignee,
                         step_assignee or launch_assignee,
                         agent.name,
@@ -859,7 +848,6 @@ def _argv_prompt(prompt: str, prompt_file: Path) -> str:
 
 def build_agent_command(
     agent,
-    mode: str,
     prompt: str,
     *,
     name: str = "",
@@ -868,7 +856,7 @@ def build_agent_command(
 ) -> list[str]:
     """Build the argv for spawning the agent.
 
-    Agent mode: `<cli> <prompt>` — agent opens its REPL with the prompt as
+    Default shape: `<cli> <prompt>` — agent opens its REPL with the prompt as
     the first user message.
 
     When the agent declares `name_flag` and a non-empty `name` is passed,
@@ -887,8 +875,6 @@ def build_agent_command(
     title. Uses configured `agent.discussion`, then built-in templates for
     known `claude` / `codex` CLIs, then falls back to positional.
     """
-    if mode != "agent":
-        raise ValueError(f"build_agent_command only supports mode='agent', got {mode!r}")
     discussion_template = _discussion_template(agent) if discussion else ""
     if discussion_template:
         tokens = [
@@ -920,7 +906,6 @@ def spawn_agent_session(
     ref: TaskRef | BootstrapRef,
     ticket: Ticket,
     agent,
-    mode: str,
     *,
     env,
     actor: str,
@@ -991,7 +976,6 @@ def spawn_agent_session(
     usage_blackboard = ref.ticket_path
     should_capture_usage = (
         capture_usage
-        and mode == "agent"
         and isinstance(ref, TaskRef)
         and usage_blackboard.is_file()
     )
@@ -1010,7 +994,6 @@ def spawn_agent_session(
     try:
         cmd = build_agent_command(
             agent,
-            mode,
             prompt_arg,
             name=name,
             discussion=discussion,
@@ -1032,7 +1015,7 @@ def spawn_agent_session(
             # Non-fatal on any git failure.
             git.sync_log(cfg, message=f"Log: {ref.id_slug}")
 
-        if mode == "agent" and name and sys.stdout.isatty():
+        if name and sys.stdout.isatty():
             sys.stdout.write(f"\033]2;{name}\007")
             sys.stdout.flush()
 
@@ -1119,12 +1102,12 @@ def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
     if current is None:
         typer.echo(
             f"→ launching {ref.id_slug} "
-            f"(status={ticket.status}, mode={ticket.mode}, assignee={ticket.assignee or 'unassigned'})"
+            f"(status={ticket.status}, assignee={ticket.assignee or 'unassigned'})"
         )
         return
     typer.echo(
         f"→ entering step {ticket.step}: {current['name']} "
-        f"(status={ticket.status}, mode={ticket.mode}, assignee={ticket.assignee or 'unassigned'})"
+        f"(status={ticket.status}, assignee={ticket.assignee or 'unassigned'})"
     )
 
 
@@ -1206,15 +1189,14 @@ def _format_prompt_report(id_slug: str, composition: PromptComposition) -> str:
 
 
 def _launch_log_message(
-    mode: str,
     assignee: str,
     launch_assignee: str,
     agent_name: str,
 ) -> str:
     if launch_assignee == assignee:
-        return f"launched in {mode} mode (assignee={assignee}, agent={agent_name})"
+        return f"launched (assignee={assignee}, agent={agent_name})"
     return (
-        f"launched in {mode} mode "
+        f"launched "
         f"(assignee={assignee}, launch_assignee={launch_assignee}, agent={agent_name})"
     )
 
@@ -1228,7 +1210,7 @@ def _refuse_human_handoff_launch(
     assignee = ticket.assignee
     if (
         isinstance(ref, BootstrapRef)
-        or ticket.mode != "agent"
+        or is_script_launch(cfg, ticket)
         or not assignee
         or assignee in cfg.agents
     ):

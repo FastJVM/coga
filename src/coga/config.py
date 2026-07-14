@@ -583,7 +583,6 @@ _RESERVED_TICKET_FIELD_NAMES: frozenset[str] = frozenset({
     # may not collide with any of these.
     "title",
     "status",
-    "mode",
     "owner",
     "human",
     "agent",

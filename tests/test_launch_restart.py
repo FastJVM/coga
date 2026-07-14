@@ -79,7 +79,6 @@ def _create_agent_task(coga_os: Path, step_names: list[str]) -> str:
         title="Chain restart",
         workflow_name="chain",
         contexts=[],
-        mode="agent",
         owner="marc",
         human="marc",
         agent="claude",
@@ -108,7 +107,7 @@ class _FakeAgent:
         self.cwds: list[str] = []
         self.hook = hook
 
-    def __call__(self, cfg, ref, ticket, agent, mode, *args, **kwargs):  # noqa: ANN001
+    def __call__(self, cfg, ref, ticket, agent, *args, **kwargs):  # noqa: ANN001
         cwd = kwargs.get("cwd")
         self.steps.append(ticket.step or "")
         self.cwds.append(str(cwd) if cwd is not None else "")

@@ -2,7 +2,6 @@
 slug: make-megalaunch-user-specific
 title: make megalaunch user specific
 status: in_progress
-mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

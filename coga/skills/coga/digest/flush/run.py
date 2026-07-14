@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Flush the daily-digest spool — the `mode: script` body of recurring/digest.
+"""Flush the daily-digest spool — the script body of recurring/digest.
 
-Runs as a Coga `mode: script` step (see `coga.commands.launch_script`): the
+Runs as a Coga script step (see `coga.commands.launch_script`): the
 working directory is the host repo, and `coga` is importable. We call
 `run_digest` directly rather than shelling out to `coga digest`, so the flush
 does not depend on `coga` being on `PATH` inside the script environment.
@@ -9,7 +9,7 @@ does not depend on `coga` being on `PATH` inside the script environment.
 `coga digest` is idempotent — when there are no Done records, recurring
 errors, or post-filter new commits, it posts nothing — so this exits 0 on a
 quiet day. A genuine notification failure crashes loud (per `notification.post`), which the
-script-mode launcher reports as a non-zero exit and posts live.
+script launcher reports as a non-zero exit and posts live.
 """
 
 from __future__ import annotations

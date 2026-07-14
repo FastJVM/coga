@@ -67,7 +67,7 @@ def project(
 
     if not _interactive_stdio_has_tty():
         _bail(
-            "Cannot launch project planning: mode=interactive requires a TTY "
+            "Cannot launch project planning: it requires a TTY "
             "(stdin and stdout must both be terminals)."
         )
 
@@ -91,7 +91,6 @@ def project(
             ref,
             bootstrap_ticket,
             agent,
-            "agent",
             env=os.environ.copy(),
             actor=f"human:{cfg.current_user}",
             log_message=(

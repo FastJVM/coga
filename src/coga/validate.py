@@ -76,14 +76,12 @@ from coga.ticket import Ticket, TicketError
 from coga.workflow import VALID_ASSIGNEE_ROLES
 
 VALID_STATUSES = {"draft", "active", "in_progress", "blocked", "paused", "done"}
-VALID_MODES = {"agent", "script"}
 
 # Canonical ticket frontmatter schema.
 REQUIRED_TASK_KEYS: tuple[str, ...] = (
     "slug",
     "title",
     "status",
-    "mode",
     "owner",
     "human",
     "agent",
@@ -519,16 +517,6 @@ def _check_frontmatter_schema(
                 kind="invalid-status",
                 task=task_label,
                 message=f"status {status!r} not in {sorted(VALID_STATUSES)}",
-                severity="error",
-            ))
-
-    if "mode" in fm:
-        mode = fm["mode"]
-        if not isinstance(mode, str) or mode not in VALID_MODES:
-            out.append(Issue(
-                kind="invalid-mode",
-                task=task_label,
-                message=f"mode {mode!r} not in {sorted(VALID_MODES)}",
                 severity="error",
             ))
 
