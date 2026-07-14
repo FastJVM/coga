@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -169,3 +169,42 @@ worktree: /home/n/Code/codex/coga-remove-ticket-mode
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":660827,"cache_read_input_tokens":56303156,"cli":"claude","input_tokens":593,"model":"claude-fable-5","output_tokens":227861,"provider":"anthropic","schema":1,"session_id":"98eb70fc-7cb4-46c9-9447-255c77bfdc0f","slug":"remove-mode-from-ticket-frontmatter-and-deduce-scr","step":"implement","title":"Remove mode from ticket frontmatter and deduce script-vs-agent from context","ts":"2026-07-14T02:56:53.900933Z","usage_status":"ok"}
+
+## Peer Review (2026-07-13)
+
+- Native `codex review --base main` completed after rerunning outside the
+  restricted sandbox. Four actionable findings were fixed in commit
+  `b9ba1139` (rebased as `299d2f84`): the stale megalaunch spawn argument,
+  script deduction cached before draft workflow activation, malformed
+  recurring skills aborting the whole sweep, and obsolete mode guidance in
+  shipped recurring templates.
+- Added regressions for draft bare-workflow script dispatch and per-template
+  recurring error isolation; megalaunch mocks now enforce the mode-free
+  `spawn_agent_session` signature.
+- Rebased unconditionally onto `origin/main` at `b5e9df72`. The sole conflict
+  preserved the newer live state of
+  `auto/launch-should-refresh-local-coga-state-at-end-of-r` while removing its
+  obsolete `mode:` line. Branch is clean with two commits ahead of main.
+- Verification after rebase: `1176 passed, 1 skipped` using absolute
+  `PYTHONPATH` and Python 3.12; task-scoped validation and the `example/coga`
+  fixture both report zero issues; `git diff --check` is clean.
+
+## PR
+
+### Summary
+
+- Remove the `mode:` field from ticket schema, writers, CLI, validation,
+  status/recurring views, repository tickets, packaged templates, and the
+  example fixture.
+- Deduce each launch from its current context: a single script-backed step
+  skill first, then a ticket-owned `script:`, otherwise an attended agent
+  session.
+- Apply the same pre-freeze deduction to recurring templates, update the
+  durable architecture/CLI guidance, and keep live and packaged templates in
+  sync.
+- Preserve fail-loud behavior around malformed recurring skills and cover the
+  draft-activation and megalaunch call paths found during peer review.
+
+### Test plan
+
+`PYTHONPATH=/home/n/Code/codex/coga-remove-ticket-mode/src PYTHONDONTWRITEBYTECODE=1 python3.12 -m pytest -p no:cacheprovider` — 1176 passed, 1 skipped.
