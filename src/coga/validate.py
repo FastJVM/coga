@@ -157,6 +157,24 @@ def run(
     fix: bool = False,
 ) -> Report:
     report = Report(generated_at=_now_iso())
+
+    # `coga validate` loads config with `require_user=False` so a teammate's
+    # fresh clone (no gitignored `coga.local.toml` yet) can run diagnostics at
+    # all — so the missing name must surface here as a finding instead of
+    # silently validating clean.
+    if not cfg.current_user:
+        report.issues.append(Issue(
+            kind="missing-user",
+            task="(config)",
+            message=(
+                "no `user` set in coga.local.toml — read-only commands work, "
+                "but anything that creates or moves work will fail; add "
+                '`user = "<name>"` (the file is gitignored, so every clone '
+                "sets its own)"
+            ),
+            severity="warn",
+        ))
+
     try:
         refs = list_tasks(cfg)
     except DuplicateTaskSlugError as exc:
@@ -1052,7 +1070,7 @@ def _main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        cfg = load_config()
+        cfg = load_config(require_user=False)
     except ConfigError as exc:
         sys.stderr.write(f"{exc}\n")
         return 2

@@ -67,7 +67,7 @@ def status(
 ) -> None:
     """Show tasks in the repo."""
     try:
-        cfg = load_config()
+        cfg = load_config(require_user=False)
     except ConfigError as exc:
         _bail(str(exc))
 
