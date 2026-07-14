@@ -1213,3 +1213,6 @@ fatal: adding files failed
 error: coga/tasks/install/relay-help-and-cli-should-not-require-user/blackboard.md: failed to insert into database
 error: unable to index file 'coga/tasks/install/relay-help-and-cli-should-not-require-user/blackboard.md'
 fatal: adding files failed
+2026-07-14 12:23 [install/relay-help-and-cli-should-not-require-user] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-14 12:23 [install/relay-help-and-cli-should-not-require-user] [system] script exited with code 0
+2026-07-14 12:23 [install/relay-help-and-cli-should-not-require-user] [system] advanced to step 4 (review) → assigned to zach after script step
