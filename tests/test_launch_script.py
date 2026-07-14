@@ -220,6 +220,55 @@ def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
     assert "script exited with code 3" in log
 
 
+def test_script_launch_refreshes_launch_checkout(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A clean script launch ends with the end-of-run refresh, exactly once."""
+    refreshed: list[Path] = []
+    monkeypatch.setattr(
+        "coga.git.refresh_coga_state_from_control",
+        lambda cfg, **kwargs: refreshed.append(cfg.repo_root),
+    )
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], mode="script", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "check"])
+
+    assert result.exit_code == 0, result.output
+    assert len(refreshed) == 1
+    assert refreshed[0].resolve() == repo.resolve()
+
+
+def test_failed_script_launch_still_refreshes_launch_checkout(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failing script exits through the supervisor's error path; the refresh
+    still runs (once) before the exit surfaces."""
+    script = repo / "skills" / "ops" / "checker" / "check.sh"
+    script.write_text("#!/bin/sh\nexit 3\n")
+    script.chmod(0o755)
+    refreshed: list[Path] = []
+    monkeypatch.setattr(
+        "coga.git.refresh_coga_state_from_control",
+        lambda cfg, **kwargs: refreshed.append(cfg.repo_root),
+    )
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Fail", workflow_name="ops",
+        contexts=[], mode="script", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fail"])
+
+    assert result.exit_code == 3
+    assert len(refreshed) == 1
+
+
 def test_bootstrap_script_launch_is_stateless(repo: Path) -> None:
     result = CliRunner().invoke(app, ["launch", "bootstrap/recurring-scan"])
     assert result.exit_code == 0, result.output

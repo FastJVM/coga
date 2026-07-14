@@ -694,6 +694,37 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert "launched in agent mode" in log
 
 
+def test_launch_refreshes_launch_checkout_on_exit(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The supervisor's exit path pulls control-branch state back into the
+    checkout the launch was run from, exactly once — so the `coga status` the
+    operator runs next in the same terminal shows the finished run."""
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    monkeypatch.setattr(
+        "coga.commands.launch.subprocess.run",
+        lambda cmd, env=None, check=False, cwd=None: _Result(),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    refreshed: list[Path] = []
+    monkeypatch.setattr(
+        "coga.git.refresh_coga_state_from_control",
+        lambda cfg, **kwargs: refreshed.append(cfg.repo_root),
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+
+    assert result.exit_code == 0, result.output
+    assert len(refreshed) == 1
+    assert refreshed[0].resolve() == active_task.resolve()
+
+
 # --- push-auth gate -----------------------------------------------------------
 #
 # Coga drives the whole session through git/gh, so launch refuses to spawn an

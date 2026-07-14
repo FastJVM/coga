@@ -2131,3 +2131,220 @@ def test_mark_done_allows_code_workflow_with_committed_code(git_repo):
 
     assert result.exit_code == 0, result.output
     assert Ticket.read(task_path).status == "done"
+
+
+# --- refresh_coga_state_from_control (the launch-end pull-back) -----------------
+
+
+def _seed_demo_ticket_on_main(git_repo, *, step: str = "1 (implement)") -> Path:
+    """Commit + push a step ticket on main, return its working-tree path."""
+    ticket = git_repo.coga_os / "tasks" / "demo" / "ticket.md"
+    ticket.parent.mkdir(parents=True)
+    ticket.write_text(_step_ticket_text(step=step))
+    git_repo.git("add", "--", "coga/tasks/demo")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+    return ticket
+
+
+def test_refresh_pulls_newer_control_ticket_into_feature_checkout(git_repo):
+    """A step bump that landed on origin/main mid-run reaches a feature-branch
+    checkout — the exact staleness the launch-end refresh exists to close."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    git_repo.checkout_branch("feature/x")
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md", _step_ticket_text(step="2 (review)")
+    )
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh coga state after launch")
+
+    assert "step: 2 (review)" in ticket.read_text()
+    # Committed on the feature branch (the mid-run local-commit shape), not
+    # left dirty for the next sweep — and the branch never changed.
+    assert "tasks/" not in git_repo.git("status", "--porcelain")
+    assert "Refresh coga state after launch" in git_repo.git(
+        "log", "--format=%s", "feature/x"
+    )
+    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
+
+
+def test_refresh_adds_control_only_ticket_and_leaves_product_tree_alone(git_repo):
+    """A brand-new ticket on the control branch appears locally; product files
+    that also moved on origin/main are never touched."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.push_competing_commit("src/app.py", "print('new')\n")
+    git_repo.push_competing_commit(
+        "coga/tasks/other/ticket.md", _step_ticket_text(step="1 (implement)")
+    )
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    assert (git_repo.coga_os / "tasks" / "other" / "ticket.md").is_file()
+    assert not (git_repo.root / "src" / "app.py").exists()
+
+
+def test_refresh_keeps_locally_newer_ticket(git_repo, capsys):
+    """A ticket whose local copy is ahead of the control branch is left alone —
+    the refresh must never move local state backward."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    ticket = git_repo.coga_os / "tasks" / "demo" / "ticket.md"
+    ticket.parent.mkdir(parents=True)
+    ticket.write_text(_step_ticket_text(step="3 (merge)"))
+    git_repo.git("add", "--", "coga/tasks/demo")
+    git_repo.git("commit", "-m", "local demo at step 3")
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md", _step_ticket_text(step="1 (implement)")
+    )
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    assert "step: 3 (merge)" in ticket.read_text()
+    assert "leaving coga/tasks/demo/ticket.md untouched" in capsys.readouterr().err
+
+
+def test_refresh_skips_dirty_working_tree_ticket(git_repo, capsys):
+    """An uncommitted hand-edit survives: dirty paths belong to the catch-all
+    sweep and its regression guard, not a blind overwrite."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    git_repo.checkout_branch("feature/x")
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md", _step_ticket_text(step="2 (review)")
+    )
+    ticket.write_text(_step_ticket_text(step="1 (implement)", blackboard="hand edit\n"))
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    assert "hand edit" in ticket.read_text()
+    assert "uncommitted local changes" in capsys.readouterr().err
+
+
+def test_refresh_union_merges_log(git_repo):
+    """`log.md` is union-merged, so lines only this checkout has survive while
+    the control branch's lines fold in."""
+    cfg = load_config(git_repo.coga_os)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("- base line\n")
+    git_repo.git("add", "--", "coga/log.md")
+    git_repo.git("commit", "-m", "seed log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    log.write_text("- base line\n- local line\n")
+    git_repo.git("add", "--", "coga/log.md")
+    git_repo.git("commit", "-m", "local log line")
+    git_repo.push_competing_commit("coga/log.md", "- base line\n- remote line\n")
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    content = log.read_text()
+    assert "- local line" in content
+    assert "- remote line" in content
+    assert "log.md" not in git_repo.git("status", "--porcelain")
+
+
+def test_refresh_fast_forwards_control_branch_checkout(git_repo):
+    """On the control branch itself the refresh is a plain fast-forward."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md", _step_ticket_text(step="1 (implement)")
+    )
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    assert (git_repo.coga_os / "tasks" / "demo" / "ticket.md").is_file()
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
+
+
+def test_refresh_skips_detached_head(git_repo, capsys):
+    """A detached checkout (the isolation-worktree shape) is skipped — the
+    refresh commit would be orphaned."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("checkout", "--detach")
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    assert "detached HEAD" in capsys.readouterr().err
+
+
+def test_refresh_nonfatal_when_fetch_fails(git_repo, capsys):
+    """A refresh that can't reach the remote is loud (stderr + log), never a crash."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("remote", "set-url", "origin", str(git_repo.root / "missing.git"))
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    assert "[git] refresh failed" in capsys.readouterr().err
+    assert "refresh failed" in _global_log(cfg)
+
+
+def test_refresh_suppressed_when_disabled(tmp_path, capsys, real_git):
+    cfg = _cfg(tmp_path, git_enabled=False)
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh")
+
+    assert "disabled" in capsys.readouterr().err
+
+
+# --- stale_coga_task_rels (the read-only status staleness probe) ----------------
+
+
+def test_stale_probe_reports_remote_ahead_ticket(git_repo):
+    """A fetched-but-unmerged step bump on origin/main is reported as stale."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_demo_ticket_on_main(git_repo)
+    git_repo.checkout_branch("feature/x")
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md", _step_ticket_text(step="2 (review)")
+    )
+    git_repo.git("fetch", "origin")
+
+    assert git.stale_coga_task_rels(cfg) == ["coga/tasks/demo/ticket.md"]
+
+
+def test_stale_probe_counts_ticket_missing_locally(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.push_competing_commit(
+        "coga/tasks/other/ticket.md", _step_ticket_text(step="1 (implement)")
+    )
+    git_repo.git("fetch", "origin")
+
+    assert git.stale_coga_task_rels(cfg) == ["coga/tasks/other/ticket.md"]
+
+
+def test_stale_probe_ignores_locally_ahead_ticket(git_repo):
+    """Local-ahead or merely-divergent state is not staleness — no wolf-crying."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_demo_ticket_on_main(git_repo)
+    git_repo.checkout_branch("feature/x")
+    ticket = git_repo.coga_os / "tasks" / "demo" / "ticket.md"
+    ticket.write_text(_step_ticket_text(step="3 (merge)"))
+    git_repo.git("add", "--", "coga/tasks/demo")
+    git_repo.git("commit", "-m", "local demo at step 3")
+    git_repo.git("fetch", "origin")
+
+    assert git.stale_coga_task_rels(cfg) == []
+
+
+def test_stale_probe_never_fetches(git_repo):
+    """The probe reads local refs only: a push that was never fetched is
+    invisible to it (status stays no-network by design)."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md", _step_ticket_text(step="2 (review)")
+    )
+    # No `git fetch` — the remote-tracking ref still points at the old tip.
+    assert git.stale_coga_task_rels(cfg) == []
+
+
+def test_stale_probe_empty_without_remote_tracking_ref(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+
+    assert git.stale_coga_task_rels(cfg) == []
