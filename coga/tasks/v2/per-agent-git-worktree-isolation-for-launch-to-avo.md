@@ -1,5 +1,5 @@
 ---
-slug: per-agent-git-worktree-isolation-for-launch-to-avo
+slug: v2/per-agent-git-worktree-isolation-for-launch-to-avo
 title: Per-agent git worktree isolation for launch to avoid intra-clone autostash
   races
 status: done

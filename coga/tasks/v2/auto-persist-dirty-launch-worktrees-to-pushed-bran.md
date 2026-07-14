@@ -1,5 +1,5 @@
 ---
-slug: auto-persist-dirty-launch-worktrees-to-pushed-bran
+slug: v2/auto-persist-dirty-launch-worktrees-to-pushed-bran
 title: Auto-persist dirty launch worktrees to pushed branches
 status: paused
 owner: nicktoper
@@ -34,7 +34,6 @@ secrets: null
 script: null
 step: 2 (self-qa)
 # --- extensions ---
-mode: agent
 ---
 
 ## Description
