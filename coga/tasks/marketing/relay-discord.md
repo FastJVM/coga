@@ -6,7 +6,9 @@ owner: nick
 human: nick
 agent: claude
 assignee: nick
-contexts: []
+contexts:
+  - marketing/plan
+  - marketing/positioning
 skills: []
 workflow:
   name: autonomy/human-only

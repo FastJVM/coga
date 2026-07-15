@@ -6,7 +6,9 @@ owner: nick
 human: nick
 agent: claude
 assignee: claude
-contexts: []
+contexts:
+  - marketing/plan
+  - marketing/positioning
 skills: []
 workflow:
   name: docs/with-review
