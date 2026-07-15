@@ -63,6 +63,15 @@ curiosity gap. Rules that keep it working:
   experiment/proof → pitch 2 (cost/ownership) → install. The wedge names
   the reader's felt pain today; the autonomy argument alone is abstract
   and the experiment alone is about us, not them.
+- **First person, recipe-shaped.** The voice is "I" — a founder's field
+  report — never "we announce." No solved-hot-water claims anywhere: the
+  posture is *show the result, hand over the method*. The closing beat
+  is **"here's how I did it"** — the exact setup, commands, tickets, and
+  morning ritual, detailed enough to replicate the fortnight. This is
+  the conversion engine: a report gets read, a recipe gets run, and
+  replication is the install path. The attitude cuts only because of
+  what's underneath it — humble in tone, arrogant in specificity,
+  provocative in verifiability.
 
 ## Pitch 1 — measured human input, not claimed machine output
 
