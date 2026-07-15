@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-publish
-    github-ref: refs/tags/v0.6.1
+    github-ref: refs/tags/v1.1.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 313ab5a0b881238b8f461a8964c4563ecf50be4e
+    github-tree-sha: ec5e1d878d3878b729619afd3ed59c88747d3bf6
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 0.6.1
+    version: 1.1.0
 name: google-agents-cli-publish
 ---
 # Gemini Enterprise Registration
@@ -48,7 +48,7 @@ Pass `--display-name` / `--description` to override the card defaults. For Agent
 
 ### ADK Registration (default on Agent Runtime)
 
-This is the **default and recommended registration for Agent Runtime** deployments: Gemini Enterprise invokes the agent natively via `:streamQuery` on its reasoning engine resource, authenticating end-to-end. It's also the path to use when the agent needs an OAuth authorization (`--authorization-id`). The agent is registered directly via its reasoning engine resource name; no agent card URL is needed.
+This is the **default and recommended registration for Agent Runtime** deployments: Gemini Enterprise invokes the agent natively via `:streamQuery` on its reasoning engine resource, authenticating end-to-end. Under the hood, `:streamQuery` dispatches to the `AdkApp`'s `streaming_agent_run_with_events` method — when debugging an ADK invocation, search the runtime's `reasoning_engine_stderr` logs for that method name to trace the failure. It's also the path to use when the agent needs an OAuth authorization (`--authorization-id`). The agent is registered directly via its reasoning engine resource name; no agent card URL is needed.
 
 ```bash
 agents-cli publish gemini-enterprise \
@@ -183,12 +183,13 @@ Docs: https://docs.cloud.google.com/agent-registry/manage-agents
 | "Gemini Enterprise App ID is required" | Provide `--gemini-enterprise-app-id` or set the `ID` / `GEMINI_ENTERPRISE_APP_ID` env var |
 | Re-publishing the same agent | Registration is idempotent — re-running updates the existing registration in place instead of creating a duplicate |
 | HTTP 403 on registration | Check that your account has Discovery Engine Editor permissions on the Gemini Enterprise project |
+| Debugging ADK invocation failures on Agent Runtime | Gemini Enterprise calls the agent via the `AdkApp`'s `streaming_agent_run_with_events` method (the native `:streamQuery` contract). Grep the runtime's `reasoning_engine_stderr` logs for `streaming_agent_run_with_events` to find the underlying error |
 | "Could not fetch agent card" | Verify the agent is running and the URL is correct; for Cloud Run, ensure `gcloud auth login` is done |
 
 ---
 
 ## Related Skills
 
-- `/google-agents-cli-deploy` — Deployment targets, CI/CD pipelines, and production workflows
+- `/google-agents-cli-deploy` — Deployment targets, CI/CD pipelines, and production workflows (also covers Agent Gateway governed ingress/egress and Semantic Governance awareness)
 - `/google-agents-cli-workflow` — Development workflow, coding guidelines, and operational rules
 - `/google-agents-cli-scaffold` — Project creation and enhancement with `agents-cli scaffold create` / `scaffold enhance`
