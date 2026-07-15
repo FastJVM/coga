@@ -1,8 +1,24 @@
 ---
-schedule: "0 2 * * *"
-schedule_comment: "Every day at 2am - attempt launchable active agent work"
-title: "Megalaunch active tickets"
-workflow: megalaunch/run
+slug: recurring/megalaunch
+title: Megalaunch active tickets
+status: active
+owner: nick
+human: nick
+agent: claude
+assignee: claude
+contexts:
+- coga/period-task
+skills: []
+workflow:
+  name: megalaunch/run
+  steps:
+  - name: run
+    skills:
+    - coga/megalaunch/run
+    assignee: agent
+secrets: null
+script: null
+step: 1 (run)
 ---
 
 ## Description
@@ -23,10 +39,8 @@ blackboard with counts and per-ticket outcomes. The summary is replaced on
 rerun so old per-run noise does not accumulate in future prompts; unresolved
 blockers stay on the affected task blackboards.
 
+## Context
+
 <!-- coga:blackboard -->
 
-This blackboard persists across every run of this recurring task. The
-`coga/megalaunch/run` script replaces `## Megalaunch Run Summary` each run
-and leaves durable decisions or unresolved blockers in their own sections.
-
-last_serviced_period: 2026-07-14
+The blackboard is a notepad to be written to often as the human and agent works through a task.
