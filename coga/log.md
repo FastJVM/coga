@@ -1287,3 +1287,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 15:20 [coga-notifications/support-second-webhook] [system] advanced to step 4 (review) → assigned to zach after script step
 2026-07-15 15:23 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-15 15:32 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-15 16:34 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
