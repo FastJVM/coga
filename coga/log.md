@@ -1250,3 +1250,4 @@ fatal: adding files failed
 2026-07-15 12:09 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
 2026-07-15 12:09 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
 2026-07-15 12:10 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 12:25 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nick] created (status=draft)
