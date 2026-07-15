@@ -59,8 +59,8 @@ last_serviced_period: 2026-07-14
 
 ### Digest State
 
-last_commit: 8d019a8fc2890627f9e1356923d22e542c43d0a6
-range: 8fe393b..8d019a8 (430 commit(s), 122 reported)
+last_commit: d6cb8e6747aba5500326aa8c77a8a0e426babc6a
+range: 8d019a8..d6cb8e6 (788 commit(s), 171 reported)
 posted: yes
 ## Spool (pending)
 
