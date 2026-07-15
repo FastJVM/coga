@@ -1,7 +1,7 @@
 ---
 slug: coga-notifications/support-second-webhook
 title: support-second-webhook
-status: active
+status: in_progress
 owner: zach
 human: zach
 agent: claude
