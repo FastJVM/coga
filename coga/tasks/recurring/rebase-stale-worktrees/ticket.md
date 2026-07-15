@@ -1,12 +1,24 @@
 ---
-schedule: "0 8 * * 1"
-schedule_comment: "Every Monday at 8am — after branch-sweep deletes dead branches, rebase the live stale ones"
-title: "Rebase stale worktrees"
-# Runs as an agent: a rebase can hit conflicts, and deciding whether a
-# textually-clean rebase is still semantically right needs judgment — the
-# exact judgment the deterministic open-pr script step refuses to fake.
-# Launch on demand with `coga recurring launch rebase-stale-worktrees`
-# whenever the open-pr staleness gate fires.
+slug: recurring/rebase-stale-worktrees
+title: Rebase stale worktrees
+status: active
+owner: nick
+human: nick
+agent: claude
+assignee: claude
+contexts:
+- coga/period-task
+skills: []
+workflow:
+  name: direct/body
+  steps:
+  - name: execute
+    skills:
+    - direct/body
+    assignee: agent
+secrets: null
+script: null
+step: 1 (execute)
 ---
 
 ## Description
@@ -66,10 +78,8 @@ abandoned or already-merged residue — branch-sweep's problem, not this task's.
 - A worktree already mid-rebase or mid-merge at the start of the run is
   someone's live session: report it, don't touch it.
 
+## Context
+
 <!-- coga:blackboard -->
 
-`coga recurring` keeps the serviced-period high-water mark here as
-`last_serviced_period`. Each run replaces the `## Rebase Run Summary`
-section below with its results.
-
-last_serviced_period: 2026-W29
+The blackboard is a notepad to be written to often as the human and agent works through a task.
