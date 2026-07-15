@@ -50,8 +50,14 @@ def post(
     owner: str | None = None,
     watchers: list[str] | None = None,
     image_url: str | None = None,
+    important: bool = False,
 ) -> None:
-    """Post a live notification through every configured channel."""
+    """Post a live notification through every configured channel.
+
+    `important` routes the message to the channel's alert destination — for
+    Slack, the coga-important webhook — instead of the default one. Reserve it
+    for posts that need a human to go do something.
+    """
     channels = _channels(cfg)
     if not channels:
         sys.stderr.write(f"[notification] no channels configured: {message}\n")
@@ -63,6 +69,7 @@ def post(
             owner=owner,
             watchers=watchers,
             image_url=image_url,
+            important=important,
         )
 
 
