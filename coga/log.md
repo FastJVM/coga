@@ -1260,3 +1260,5 @@ fatal: adding files failed
 2026-07-15 12:32 [recurring/rebase-stale-worktrees] [human:nick] task done — Rebase run W29: 20 stale branches — 3 rebased clean but empty vs main (already landed), 17 semantic conflicts aborted and reported; no pushes (no upstreams); all worktrees left clean
 2026-07-15 12:32 [recurring/skill-update] [system] started (active → in_progress) via coga launch
 2026-07-15 12:32 [recurring/skill-update] [system] launched as a script (skill=bootstrap/skill-update, script=run.py)
+2026-07-15 12:32 [recurring/skill-update] [system] script exited with code 0
+2026-07-15 12:32 [recurring/skill-update] [system] completed (final script step ran) via coga launch
