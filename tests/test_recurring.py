@@ -1301,6 +1301,71 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     assert f"created {ref.id_slug}" in ledger
 
 
+def test_recurring_scan_catches_checkout_up_to_origin_before_scanning(
+    git_repo, monkeypatch, capsys
+) -> None:
+    """A sweep starting behind origin fast-forwards the checkout first.
+
+    With no templates due, nothing creates or lands — the only way the
+    competing commit can reach the working tree is the pre-scan catch-up.
+    """
+    git_repo.push_competing_commit("notes.md", "remote note\n")
+    assert not (git_repo.root / "notes.md").exists()
+
+    cfg = load_config(git_repo.coga_os)
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+
+    assert (git_repo.root / "notes.md").is_file()
+    assert "not fast-forwarded" not in capsys.readouterr().err
+
+
+def test_recurring_launch_lands_create_without_ff_noise(
+    git_repo, monkeypatch
+) -> None:
+    """A create on the checked-out control branch emits no ff-merge dump.
+
+    The landing pushes origin ahead while the checkout is still dirty with the
+    create paths; the checkout is reconciled by the post-landing rebase, so no
+    doomed `merge --ff-only` attempt (and no spurious stderr note) runs.
+    """
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    git_repo.push_competing_commit("notes.md", "remote note\n")
+
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
+    result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
+
+    assert result.exit_code == 0, result.output
+    assert "not fast-forwarded" not in result.output
+    cfg = load_config(coga_os)
+    ref = list_tasks(cfg)[0]
+    assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
+    # The pre-create catch-up (or post-landing rebase) leaves the checkout at
+    # origin's tip, competing commit included.
+    assert (git_repo.root / "notes.md").is_file()
+
+
 def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
     git_repo, monkeypatch
 ) -> None:

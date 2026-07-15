@@ -76,6 +76,7 @@ def run_recurring_scan(
 
     `coga recurring launch <name>` force-runs one named template now.
     """
+    _sync_control_checkout_ahead(cfg)
     scan = scan_due(
         cfg, allow_interactive=_interactive_stdio_has_tty(), force=force
     )
@@ -141,6 +142,7 @@ def run_recurring_named(
     `recurring/<name>`, so this and a bare `coga recurring` converge on one
     instantiated task directory.
     """
+    _sync_control_checkout_ahead(cfg)
     try:
         outcome = create_named(cfg, name)
     except RecurringError as exc:
@@ -166,6 +168,33 @@ def run_recurring_named(
 
     _launch_created(cfg, ref, interactive=interactive)
     return 0
+
+
+def _sync_control_checkout_ahead(cfg: Config) -> None:
+    """Catch the checked-out control branch up to origin before scanning.
+
+    The scan decides what is due from working-tree templates and period tasks;
+    starting from origin's tip means those reads see runs another machine
+    already serviced, instead of relying solely on the per-create FETCH_HEAD
+    checks. Runs while the tree is still clean of scan writes, so the rebase
+    is normally a plain fast-forward. Only applies when this checkout holds
+    the control branch. Non-fatal on any miss (offline, conflicting local
+    edits): this is a freshness pass, not a correctness gate — each create
+    still reconciles against FETCH_HEAD and rebases the checkout after
+    landing.
+    """
+    if not cfg.git_enabled:
+        return
+    root = _git_toplevel(cfg.repo_root)
+    if root is None:
+        return
+    try:
+        if _current_branch(root) != cfg.git_control_branch:
+            return
+        _fetch_control_branch(cfg, root)
+        _rebase_checked_out_branch_onto(root, _rev_parse(root, "FETCH_HEAD"))
+    except git.GitError as exc:
+        sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {exc}\n")
 
 
 def _launch_created(cfg: Config, ref: TaskRef, *, interactive: bool = False) -> None:
