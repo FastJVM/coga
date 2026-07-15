@@ -1,7 +1,7 @@
 ---
 slug: recurring/digest
 title: Daily digest
-status: active
+status: in_progress
 owner: nick
 human: nick
 agent: claude
