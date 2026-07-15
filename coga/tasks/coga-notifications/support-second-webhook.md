@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -73,7 +73,8 @@ the legacy allowed-key set to split from the `[notification.slack]` one, or
 
 ## What changed
 
-Commit `18f50553` on `important-webhook`. Config only — no CLI surface yet.
+Initial implementation commit `ea30f832` on `important-webhook`; peer-review
+commit `b347055a` adds the CLI surface called out below.
 
 - `config.py` — `_resolve_notification_slack_important_webhook`, `env:` indirection,
   local overrides shared, no legacy/bare-env fallback. New `cfg.slack_important_webhook`
@@ -110,6 +111,28 @@ For `add-coga-slack-important`: `post(..., important=True)` is the entry point;
 the flag and the alert message shape are all that's left. That ticket's body still
 says "Coga Notifications" for the channel renamed to coga-important on 2026-07-15
 — worth a pass when it starts.
+
+## Peer Review
+
+Codex review against `main` found one must-fix: the implementation documented
+`coga slack --important`, but the command did not yet expose or forward the flag.
+Applied commit `b347055a` (`peer-review: wire important Slack FYIs`) adding the
+Typer option and command-level regression coverage.
+
+Rebased `important-webhook` onto `origin/main` at `72aafb38`; no conflicts.
+Full verification after rebase: `python -m pytest` — 1216 passed, 1 skipped.
+
+## PR
+
+Summary:
+- Add `[notification.slack].important_webhook` resolution with `env:` support and
+  no legacy `[slack]` fallback.
+- Route important Slack posts to the second webhook, falling back to the default
+  webhook with a stderr note when the important webhook is unset.
+- Expose `coga slack --important`, update Coga sync context/template docs, and
+  cover config, routing, fallback, and CLI forwarding in tests.
+
+Test plan: `python -m pytest` — 1216 passed, 1 skipped.
 
 ## Usage
 

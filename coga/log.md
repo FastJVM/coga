@@ -1277,3 +1277,8 @@ fatal: adding files failed
 2026-07-15 14:10 [coga-notifications/support-second-webhook] [human:zach] started (active → in_progress) via coga launch
 2026-07-15 14:10 [coga-notifications/support-second-webhook] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-15 14:57 [coga-notifications/support-second-webhook] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 14:57 [coga] [git] sync failed: `git rev-parse FETCH_HEAD` failed (exit 128): fatal: ambiguous argument 'FETCH_HEAD': unknown revision or path not in the working tree.
+Use '--' to separate paths from revisions, like this:
+'git <command> [<revision>...] -- [<file>...]'
+2026-07-15 14:57 [coga-notifications/support-second-webhook] [human:zach] launched (assignee=codex, agent=codex)
+2026-07-15 15:20 [coga-notifications/support-second-webhook] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
