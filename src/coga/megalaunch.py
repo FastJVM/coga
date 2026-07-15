@@ -1,10 +1,14 @@
 """Sequential console launcher for launchable, agent-owned Coga work.
 
-Only `active` tickets enter the sweep. An `in_progress` ticket belongs to a
-session some other process started — megalaunch never touches it; resuming an
-orphaned one is a deliberate manual `coga launch <slug>`. An optional
-directory narrows the sweep to a `tasks/` sub-tree, exactly like
-`coga status <dir>`.
+Only `active` tickets enter the default sweep. An `in_progress` ticket
+belongs to a session some other process started — the sweep never grabs one;
+resuming it must be deliberate. An **explicit selection** (the `--pick`
+picker or `--relaunch`) is that deliberate act: selected tickets may be
+`active` or `in_progress`, and a selected ticket
+that turns out unlaunchable (wrong owner, draft/paused/done, script step) is
+reported loudly instead of silently skipped — the human named it, so its
+outcome is owed back. An optional directory narrows either mode to a `tasks/`
+sub-tree, exactly like `coga status <dir>`.
 
 Megalaunch is a set of normal interactive launches, not a headless drain: each
 eligible step spawns the agent REPL under the PTY watcher exactly like
@@ -24,6 +28,7 @@ whose windows can't be read is skipped conservatively, never launched blind.
 
 from __future__ import annotations
 
+import json
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -62,6 +67,7 @@ MegalaunchOutcome = Literal[
     "skipped-human-gate",
     "skipped-unresolved-blocker",
     "skipped-budget",
+    "skipped-unlaunchable",
     "failed",
 ]
 
@@ -81,6 +87,7 @@ class MegalaunchRun:
     started_at: datetime
     agent_filter: str | None = None
     directory: str | None = None
+    selection: tuple[str, ...] | None = None
     results: list[MegalaunchResult] = field(default_factory=list)
 
     @property
@@ -92,6 +99,7 @@ class MegalaunchRun:
             "skipped-human-gate": 0,
             "skipped-unresolved-blocker": 0,
             "skipped-budget": 0,
+            "skipped-unlaunchable": 0,
             "failed": 0,
         }
         for result in self.results:
@@ -105,6 +113,7 @@ def run_megalaunch(
     max_tasks: int | None = None,
     agent_filter: str | None = None,
     directory: str | None = None,
+    selection: list[str] | None = None,
     max_steps_per_task: int = 8,
     probes: dict[str, usage_probe.UsageProbe] | None = None,
 ) -> MegalaunchRun:
@@ -113,6 +122,13 @@ def run_megalaunch(
     `directory` narrows the sweep to that `tasks/` sub-tree (nested tasks
     included), same semantics as `coga status <dir>` — an unknown directory
     raises `UnknownDirectoryError` rather than sweeping nothing silently.
+
+    `selection` (exact `id_slug`s) switches to explicit mode: only the named
+    tasks run, `in_progress` ones are resumed (naming a task is the deliberate
+    act the default sweep refuses to infer), and a named task that can't launch
+    — wrong owner, draft/paused/done, filtered agent — is reported as
+    `skipped-unlaunchable` instead of dropped. A selection slug matching no
+    task raises `MegalaunchError`.
     """
     cfg = cfg or load_config()
     if agent_filter is not None:
@@ -140,6 +156,14 @@ def run_megalaunch(
     # Validates the directory up front (fail loud on a typo) and narrows the
     # queue before any ticket is read, so out-of-scope work is never counted.
     queue = filter_tasks_under(_tasks_oldest_first(cfg), directory, cfg)
+    explicit = selection is not None
+    if explicit:
+        wanted = set(selection or [])
+        queue = [ref for ref in queue if ref.id_slug in wanted]
+        missing = wanted - {ref.id_slug for ref in queue}
+        if missing:
+            listed = ", ".join(sorted(missing))
+            raise MegalaunchError(f"Selected tasks not found: {listed}")
 
     for ref in queue:
         if max_tasks is not None and attempted >= max_tasks:
@@ -157,22 +181,57 @@ def run_megalaunch(
         # other owners' work doesn't inflate the summary counts. `ticket.owner`
         # is `None` when the field is absent, so owner-less tickets are excluded
         # too. Part 1 guarantees `current_user` is a real configured name, never
-        # a guess, so this filter is trustworthy for unattended runs.
+        # a guess, so this filter is trustworthy for unattended runs. An
+        # explicitly selected ticket is never dropped silently — the human
+        # named it, so its outcome is owed back (still not launched: someone
+        # else's work is theirs to start).
         if ticket.owner != cfg.current_user:
+            if explicit:
+                results.append(
+                    _result(
+                        ref,
+                        "skipped-unlaunchable",
+                        f"owned by {ticket.owner or 'nobody'}, not "
+                        f"{cfg.current_user}",
+                        ticket.assignee,
+                    )
+                )
             continue
 
         # `active` (launchable) and `blocked` (reportable) tickets are in
-        # scope. draft/paused/done are ignored — never launched and never
-        # counted as a result. `in_progress` is ignored too: that status means
-        # some other session owns the step right now (or crashed mid-step),
-        # and neither is megalaunch's to grab — resuming an orphan is a
-        # deliberate manual `coga launch <slug>`.
-        if ticket.status not in {"active", "blocked"}:
+        # scope. In the default sweep, draft/paused/done are ignored — never
+        # launched and never counted as a result — and `in_progress` is
+        # ignored too: that status means some other session owns the step
+        # right now (or crashed mid-step), and neither is the sweep's to grab.
+        # An explicit selection is the deliberate resume the sweep refuses to
+        # infer: `in_progress` launches, everything else unlaunchable is
+        # reported loudly.
+        launchable = {"active", "in_progress", "blocked"} if explicit else {"active", "blocked"}
+        if ticket.status not in launchable:
+            if explicit:
+                results.append(
+                    _result(
+                        ref,
+                        "skipped-unlaunchable",
+                        f"status is {ticket.status}",
+                        ticket.assignee,
+                    )
+                )
             continue
         if agent_filter is not None and ticket.assignee != agent_filter:
+            if explicit:
+                results.append(
+                    _result(
+                        ref,
+                        "skipped-unlaunchable",
+                        f"assigned to {ticket.assignee or 'nobody'}, not "
+                        f"{agent_filter}",
+                        ticket.assignee,
+                    )
+                )
             continue
 
-        candidate = _candidate_result(cfg, ref, ticket, probes)
+        candidate = _candidate_result(cfg, ref, ticket, probes, explicit=explicit)
         if candidate is not None:
             results.append(candidate)
             continue
@@ -195,8 +254,81 @@ def run_megalaunch(
         started_at=started_at,
         agent_filter=agent_filter,
         directory=directory,
+        selection=tuple(selection) if selection is not None else None,
         results=results,
     )
+
+
+def launchable_candidates(
+    cfg: Config,
+    *,
+    directory: str | None = None,
+    agent_filter: str | None = None,
+) -> list[tuple[TaskRef, Ticket]]:
+    """The tasks the interactive picker offers, oldest-first.
+
+    The operator's own `active` and `in_progress` tickets whose assignee is a
+    configured agent and whose current step isn't script-backed — the set an
+    explicit selection could actually launch. Unreadable tickets are skipped
+    here (the picker offers choices; the run reports failures).
+    """
+    candidates: list[tuple[TaskRef, Ticket]] = []
+    for ref in filter_tasks_under(_tasks_oldest_first(cfg), directory, cfg):
+        try:
+            ticket = read_ticket(ref)
+        except TicketError:
+            continue
+        if ticket.owner != cfg.current_user:
+            continue
+        if ticket.status not in {"active", "in_progress"}:
+            continue
+        if ticket.assignee not in cfg.agents:
+            continue
+        if agent_filter is not None and ticket.assignee != agent_filter:
+            continue
+        if ticket.current_step() is None or is_script_launch(cfg, ticket):
+            continue
+        candidates.append((ref, ticket))
+    return candidates
+
+
+def _selection_path(cfg: Config) -> Path:
+    """Machine-local home of the last confirmed selection.
+
+    Lives under the gitignored `.coga/` (vendored CLI, worktrees) because the
+    selection is operator/machine state, not team state — committing it would
+    make one person's `--relaunch` queue everyone's.
+    """
+    return cfg.repo_root / ".coga" / "megalaunch-selection.json"
+
+
+def save_selection(cfg: Config, slugs: list[str]) -> None:
+    """Persist a confirmed selection for a later `--relaunch`."""
+    path = _selection_path(cfg)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "selected": list(slugs),
+        "saved_at": datetime.now(timezone.utc).isoformat(),
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n")
+
+
+def load_selection(cfg: Config) -> list[str]:
+    """Read the last confirmed selection; `MegalaunchError` when there is none."""
+    path = _selection_path(cfg)
+    if not path.is_file():
+        raise MegalaunchError(
+            "No saved selection to relaunch — confirm a picker run first "
+            "(`coga megalaunch --pick`)."
+        )
+    try:
+        payload = json.loads(path.read_text())
+        slugs = payload["selected"]
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise MegalaunchError(f"Unreadable saved selection at {path}: {exc}") from exc
+    if not isinstance(slugs, list) or not all(isinstance(s, str) for s in slugs):
+        raise MegalaunchError(f"Unreadable saved selection at {path}: not a slug list")
+    return slugs
 
 
 def _tasks_oldest_first(cfg: Config) -> list[TaskRef]:
@@ -220,13 +352,19 @@ def _candidate_result(
     ref: TaskRef,
     ticket: Ticket,
     probes: dict[str, usage_probe.UsageProbe],
+    *,
+    explicit: bool = False,
 ) -> MegalaunchResult | None:
     blockers = open_blockers(ref.ticket_path)
     if ticket.status == "blocked":
         detail = "; ".join(blocker.reason for blocker in blockers) or "status is blocked"
         return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
 
-    if ticket.status != "active":
+    # An explicitly selected `in_progress` ticket goes through the same gates
+    # as an `active` one — a resume must not dodge the script-step or budget
+    # guard just because a prior session already flipped the status.
+    launchable = {"active", "in_progress"} if explicit else {"active"}
+    if ticket.status not in launchable:
         return None
     if blockers:
         detail = "; ".join(blocker.reason for blocker in blockers)
@@ -488,6 +626,8 @@ def render_run_summary(run: MegalaunchRun) -> str:
         lines.extend(["", f"Agent: {run.agent_filter}"])
     if run.directory is not None:
         lines.extend(["", f"Directory: {run.directory}"])
+    if run.selection is not None:
+        lines.extend(["", f"Selection: {', '.join(run.selection)}"])
     lines.extend(["", "Counts:"])
     for key in (
         "launched",
@@ -496,6 +636,7 @@ def render_run_summary(run: MegalaunchRun) -> str:
         "skipped-human-gate",
         "skipped-unresolved-blocker",
         "skipped-budget",
+        "skipped-unlaunchable",
         "failed",
     ):
         lines.append(f"- {key}: {counts[key]}")
@@ -541,8 +682,11 @@ __all__ = [
     "MegalaunchError",
     "MegalaunchResult",
     "MegalaunchRun",
+    "launchable_candidates",
+    "load_selection",
     "render_run_summary",
     "run_megalaunch",
+    "save_selection",
     "trim_megalaunch_blackboard_text",
     "write_run_summary",
 ]

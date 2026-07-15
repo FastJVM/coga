@@ -503,14 +503,34 @@ clear-the-queue counterpart to naming one slug — it takes no slug and rejects
 `--answer` (each task is answered per-ticket at its prompt). After it finishes,
 `coga launch <slug>` each reactivated task.
 
-## coga megalaunch [DIR] [--max-tasks N] [--agent <type>]
+## coga megalaunch [DIR] [--pick] [--relaunch] [--max-tasks N] [--agent <type>]
 
-Attempt launchable active work owned by the configured current user
-sequentially using the shared megalaunch engine. This is not parallel fanout:
-it scans `active` tasks only — an `in_progress` ticket belongs to a session
-some other process started (or that crashed mid-step) and is never grabbed;
-resuming an orphaned one is a deliberate manual `coga launch <slug>`. It
-silently filters out tickets whose `owner` is not
+Attempt launchable work owned by the configured current user sequentially
+using the shared megalaunch engine. Three ways in, one engine:
+
+- **Bare `coga megalaunch`** sweeps every launchable `active` task — the
+  shape the daily `recurring/megalaunch` script task also runs.
+- **`coga megalaunch --pick`** opens an interactive picker: a numbered list
+  of your `active` **and** `in_progress` agent-assigned tickets, all
+  pre-checked. Type numbers to toggle (`3`, `1 3`, `all`, `none`), Enter
+  launches the checked set, `q` quits without launching. The confirmed set
+  runs as an explicit selection and is saved for `--relaunch`.
+- **`coga megalaunch --relaunch`** replays the last confirmed selection
+  (saved machine-locally under the gitignored `.coga/`, since one person's
+  queue is not team state). Saved tasks that no longer exist are skipped
+  with a warning. For a single task, plain `coga launch <slug>` remains the
+  attended one-off.
+
+Explicit selection is the one door to `in_progress` work: the sweep (bare
+megalaunch and the recurring task) never grabs an `in_progress` ticket — that
+status means a session some other process started (or that crashed mid-step)
+— but checking one in the picker **is** the deliberate resume that used to
+require a manual `coga launch <slug>`. An explicitly selected task that turns
+out unlaunchable (someone else's, draft/paused/done, filtered agent) is
+reported as `skipped-unlaunchable` rather than silently dropped — you picked
+it, so its outcome is owed back.
+
+The sweep silently filters out tickets whose `owner` is not
 `load_config().current_user` (including owner-less tickets, so other owners'
 work is not counted as skip noise), skips human gates and open blockers, checks
 the assigned agent's token budget guard, preflights launch requirements, then
@@ -520,23 +540,26 @@ the done-sentinel (`coga bump` / `mark done` / `block`) releases it before the
 sweep moves on — never a headless `claude -p` run, which would buffer all
 output until the run ends. The recurring sweep's idle-timeout / max-session
 backstops are armed so a wedged REPL can't starve the queue; because the REPLs
-are interactive, megalaunch requires a TTY and fails loud without one. The run
-summary distinguishes launched, completed, blocked, skipped-human-gate,
-skipped-unresolved-blocker, skipped-budget, and failed.
+(and the `--pick` prompt) are interactive, megalaunch requires a TTY and fails
+loud without one. The run summary distinguishes launched, completed, blocked,
+skipped-human-gate, skipped-unresolved-blocker, skipped-budget,
+skipped-unlaunchable, and failed.
 
 The daily `recurring/megalaunch` script task calls the same engine and writes a
 bounded `## Megalaunch Run Summary`, replacing old summaries so the recurring
 blackboard does not grow forever.
 
-Pass `--agent <type>` to scope the sweep to tickets currently assigned to that
-configured agent type. Tickets assigned to other agents are outside the run and
-are not counted as skip noise; if a launched task hands off to a different
-agent, megalaunch stops there for that task.
+Pass `--agent <type>` to scope the sweep (and the picker's candidates) to
+tickets currently assigned to that configured agent type. Tickets assigned to
+other agents are outside the run and are not counted as skip noise; if a
+launched task hands off to a different agent, megalaunch stops there for that
+task.
 
-An optional positional `DIR` scopes the sweep to tasks under `tasks/<DIR>/`
-(nested ones included), exactly like `coga status <dir>` — `coga megalaunch
-marketing` drains only that sub-tree, and an unknown directory fails loud
-instead of sweeping nothing silently. It composes with `--agent`.
+An optional positional `DIR` scopes the sweep or the picker to tasks under
+`tasks/<DIR>/` (nested ones included), exactly like `coga status <dir>` —
+`coga megalaunch marketing` drains only that sub-tree, and an unknown
+directory fails loud instead of sweeping nothing silently. It composes with
+`--agent` and `--pick`.
 
 ## coga slack --task \<slug\> --message "..."
 
@@ -721,9 +744,12 @@ only; they don't accept their own flags.
   filter) → `coga recurring --all`.
 - Launching one named recurring task now → `coga recurring launch <name>`.
 - Starting or resuming agent work on a task → `coga launch <slug>`.
-- Attempting your launchable active agent work → `coga megalaunch`
+- Sweeping all your launchable active agent work → `coga megalaunch`
   (`--agent <type>` scopes it to one agent, `coga megalaunch <dir>` to one
   `tasks/` sub-tree).
+- Picking which of your tasks to launch (checkbox list, active +
+  in_progress pre-checked) → `coga megalaunch --pick`; replaying the
+  last confirmed list → `coga megalaunch --relaunch`.
 - Other bootstrap ticket → `coga launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `coga bump`.
 - Catching up tickets after a teammate merged a PR → `coga automerge`
