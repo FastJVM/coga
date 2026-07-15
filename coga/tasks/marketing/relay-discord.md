@@ -2,8 +2,8 @@
 slug: marketing/relay-discord
 title: relay-discord
 status: paused
-owner: zach
-human: zach
+owner: nick
+human: nick
 agent: claude
 assignee: nick
 contexts: []
@@ -25,7 +25,10 @@ step: 1 (brief-and-hand-off)
 
 ## Description
 
-Create a Relay Discord for discussion, questions, and contributions from interested users.
+Create a Coga community channel for discussion, questions, and contributions from
+interested users. Open decision (2026-07-14, reassigned zach → nick): Discord vs
+a public Slack — pick one before the launch post ships, since the post needs a
+"where to go" link.
 
 Set up basic channels (#help, #contributing, #general) and link it prominently from the README.
 
