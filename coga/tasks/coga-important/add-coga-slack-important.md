@@ -43,9 +43,11 @@ What this ticket still owns:
 
 - The alert message shape. `--important` calls `render_text` before the webhook is
   picked, so it still renders the FYI shape the Production notes below call wrong.
-- The recipient mention. `--important` still @'s the ticket owner. The coga.toml
-  recipient key belongs to `coga-important/add-toml-property-for-notification-recipient`,
-  a bare draft with no workflow, so this half is blocked until that lands.
+- The recipient mention. `--important` still @'s the ticket owner. The key is
+  `[notification.slack].important_recipient`, owned by
+  `coga-important/add-toml-property-for-notification-recipient` — authored
+  2026-07-15 and ready to launch, but not implemented, so this half stays blocked
+  until it lands.
 
 ## Production notes
 

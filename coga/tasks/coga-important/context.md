@@ -41,8 +41,12 @@ webhook and the coga.toml recipient field are separate tickets.
 5. By default every `--important` notification @'s the user set in the coga.toml
    property field — the triage owner it all lands on.
 
-6. That user either handles it, or hands it off by running `coga slack --important`
-   again, @'ing whoever should own it.
+6. That user either handles it, @'s someone in the Slack thread, or opens a ticket
+   if it's real work.
+
+7. Handing off stays a plain Slack @ and gets no Coga machinery — a thread reply
+   keeps the alert's context, while a second `coga slack` post would land
+   disconnected from it and add the channel noise point 3 rules out.
 
 ## Context
 

@@ -6,19 +6,34 @@ owner: zach
 human: zach
 agent: claude
 assignee: claude
-contexts: []
+contexts:
+  - coga/sync
 skills: []
-workflow: null
+workflow: code/with-review
 secrets: null
 script: null
 ---
 
 ## Description
 
-Creating a property in coga.toml so a user can be listed as the recipient of
-`coga-important` notifications — the user @'d by default on every notification.
+Add `[notification.slack].important_recipient` to coga.toml, naming the coga user
+@'d on every `coga slack --important` post. Alerts need one triage owner they all
+land on, and `--important` today @'s the ticket owner — whoever filed the ticket,
+not whoever should act. This ticket adds the property and its resolution only;
+`coga-important/add-coga-slack-important` is the consumer that spends it.
 
 ## Context
+
+- The key sits under `[notification.slack]` next to `webhook` and `important_webhook`.
+- `_resolve_notification_slack_important_webhook` in `src/coga/config.py` is the nearest pattern to follow.
+- The value is a coga name, not a Slack member ID.
+- `mention` in `src/coga/notification/slack.py` already resolves a name through `[notification.slack.users]`.
+- The name is not a secret, so it takes no `env:` indirection.
+- `render_text` in `src/coga/notification/slack.py` builds the `[project] [@owner]` prefix the recipient replaces.
+- Unset resolves to None and the owner mention stands, matching the `important_webhook` fallback rule.
+- The key must join `_ALLOWED_SLACK_KEYS` in `src/coga/config.py`, or config load fails loud on it.
+- Keep it out of `_ALLOWED_LEGACY_SLACK_KEYS` so `[slack].important_recipient` is rejected rather than silently ignored; that split lands with PR #553.
+- `coga-important/context` point 5 is the source for recipient-on-`--important`-only.
 
 <!-- coga:blackboard -->
 
