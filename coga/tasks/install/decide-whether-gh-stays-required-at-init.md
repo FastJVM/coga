@@ -1,7 +1,7 @@
 ---
 slug: install/decide-whether-gh-stays-required-at-init
 title: Decide whether gh stays required at init
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
