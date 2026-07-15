@@ -1221,3 +1221,13 @@ fatal: adding files failed
 2026-07-14 20:51 [metrics-human-minutes-script] [human:nick] created (status=draft)
 2026-07-14 20:51 [stabilize-megalaunch-for-daily-use] [human:nick] created (status=draft)
 2026-07-14 20:51 [marketing/rewrite-readme-around-the-wedge] [human:nick] created (status=draft)
+2026-07-14 20:56 [recurring/branch-sweep] [system] created (status=active)
+2026-07-14 20:56 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-W29
+2026-07-14 20:56 [recurring/digest] [system] created (status=active)
+2026-07-14 20:56 [recurring/digest] [system] created recurring/digest for 2026-07-14
+2026-07-14 20:56 [recurring/megalaunch] [system] created (status=active)
+2026-07-14 20:56 [recurring/megalaunch] [system] created recurring/megalaunch for 2026-07-14
+2026-07-14 20:56 [recurring/rebase-stale-worktrees] [system] created (status=active)
+2026-07-14 20:56 [recurring/rebase-stale-worktrees] [system] created recurring/rebase-stale-worktrees for 2026-W29
+2026-07-14 20:56 [recurring/skill-update] [system] created (status=active)
+2026-07-14 20:56 [recurring/skill-update] [system] created recurring/skill-update for 2026-W29
