@@ -1,7 +1,7 @@
 ---
 slug: recurring/rebase-stale-worktrees
 title: Rebase stale worktrees
-status: in_progress
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -83,3 +82,32 @@ abandoned or already-merged residue — branch-sweep's problem, not this task's.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Run notes (2026-W29)
+
+Enumerate done:
+- 20 non-main worktree branches found; ALL are stale vs origin/main (1da0a296).
+  All worktrees clean, none mid-rebase/merge. None have an upstream, so no
+  pushes this run — best outcome per branch is `rebased-local`.
+- 6 branches recorded under not-done tickets' `## Dev` exist neither locally
+  nor on origin: codex/auto-persist-launch-dirt, codex/relay-prompt-scope-report,
+  codex/write-real-coga-documentation, dev-testing-contract,
+  refuse-blackboard-synthesis, retire-deletes-branch. Nothing to rebase;
+  reporting as missing.
+
+Rebase phase done:
+- 3 rebased clean (docs-cleanup, megalaunch-usage-probe,
+  move-read-views-to-views-module) — but all their commits were dropped as
+  already-applied, so the branches are now empty vs main. Nothing to verify
+  (no diff) or push (no upstream).
+- 17 hit conflicts; every one inspected or clearly multi-module semantic —
+  none trivially mechanical. All aborted with `git rebase --abort`; final
+  sweep confirmed all 20 worktrees clean and not mid-op.
+- Several small conflicts showed main already carrying an evolved version of
+  the branch's change (docs-sandbox-dev-loop-friction, docs-with-review-workflow,
+  fix-control-branch-mismatch-guidance, sync-context-nonfatal-git,
+  warn-version-skew) — flagged as likely superseded in the summary.
+
+`## Rebase Run Summary` written to parent blackboard
+(coga/recurring/rebase-stale-worktrees/ticket.md). No open-pr step unblocked
+this run. Marking done.
