@@ -110,6 +110,25 @@ Comms must stay credible. State plainly where Coga is outclassed:
 - **Paperclip**: manages agents *as a workforce* (roles, budgets,
   approvals, dashboards); Coga manages *work as repo state*. Same orbit,
   opposite center of gravity — Paperclip owns the demo, Coga the substrate.
+- **Devin**: the cautionary genre, not a rival — inflated launch claims,
+  publicly debunked, never recovered with our tribe. Our anti-claim
+  posture (pre-registered, recomputable, misses published) is priced
+  against exactly this failure. Quote the claim *genre* ("fully
+  autonomous," "+500%") in comms; never name-and-attack the brand.
+
+## Slogan and metric (headline-level rules)
+
+- **"Agents do. Humans think." collides with Anthropic's "Keep
+  thinking."** They own the megaphone, so in a feed *we* read as the
+  echo. The line is keepable, but any headline placement must pair it
+  with the note Anthropic can't sing — ownership/independence ("on a
+  machine you own", "in your repo, not their cloud"). The humans-think
+  note must never stand alone as the positioning.
+- **The metric Coga owns: human-minutes per shipped task.** Absolute,
+  human-scaled, recomputable from public timestamps — vs the field's
+  relative, unverifiable machine-output numbers. Use it by name across
+  comms; spreading the metric spreads the practice, because computing it
+  requires a legible, self-recording substrate.
 
 ## Open strategic question for the launch
 

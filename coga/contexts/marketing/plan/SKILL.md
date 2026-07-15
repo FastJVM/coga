@@ -32,6 +32,38 @@ records itself — the marketing claim is a consequence of the
 architecture (legible, git-backed, nothing hidden). That is why no
 competitor can run the same play without becoming the same product.
 
+## The hook — rules and known risks
+
+Headline hook: *"Two weeks. Twenty minutes a day. N shipped tasks."*
+Three beats, numbers-forward, falsifiable, story-shaped (a fortnight of
+someone's life, not a feature list). It generates the "wait, how?"
+curiosity gap. Rules that keep it working:
+
+- **The hook holds a hostage: N.** Its power depends on a number we
+  don't have until the run ends. Decide the fallback framing **before**
+  the run (pre-registration spirit): if N disappoints, the post becomes
+  the honest what-broke field report — failure reports also travel.
+  Deciding the frame after seeing the data is the one move that breaks
+  the whole trust story.
+- **Make N concrete fast.** "Tasks" is internal vocabulary a skeptic
+  reads as padding — in the post, resolve N to PRs, artifacts, and links
+  within the first screen.
+- The hook names no category and no product — good for curiosity, bad
+  for recall. **The subtitle must carry the brand** and one fact only we
+  can say (your git / flat cost).
+- **Slogan rule:** "Agents do. Humans think." collides with Anthropic's
+  "Keep thinking" — in a feed, *we* read as the echo, because they own
+  the megaphone. Keep the line, but any headline placement must pair it
+  immediately with a note Anthropic can't sing: ownership/independence
+  ("…on a machine you own", "in your repo, not their cloud"). Never let
+  the humans-think note stand alone as the positioning.
+- **Post structure — the identification beat is mandatory:** hook →
+  **wedge** ("you already run agent sessions as terminal tabs; you're
+  the CPU — become the I/O device answering batched interrupts") →
+  experiment/proof → pitch 2 (cost/ownership) → install. The wedge names
+  the reader's felt pain today; the autonomy argument alone is abstract
+  and the experiment alone is about us, not them.
+
 ## Pitch 1 — measured human input, not claimed machine output
 
 Every other launch in this field measures the **machine's output**
@@ -85,6 +117,53 @@ build it yourself; that's the point — it's simple enough to *own and
 understand*, and nothing hidden means nothing to pay rent for. This is
 the independence/ownership spine (see `marketing/positioning`) in
 economic form, and it converts the no-moat "weakness" into the offer.
+
+**Prepare the "just markdown" judo.** The simplicity pitch invites the
+predictable dismissal: *"so it's markdown files and a CLI — I'll build
+it myself with Claude Code."* The prepared reply is agreement, never
+defensiveness: *yes — that's why you can trust it.* The value isn't the
+mechanism; it's the compounded substrate and the discipline, already
+built and debugged, that a homegrown version spends six months
+re-learning. Bake this into any copy that leans on simplicity.
+
+## Noise strategy — winning attention we can't buy
+
+Judged as raw noise, we lose every contest: rivals have bigger claims
+(Devin "the first AI software engineer", Viktor "a hire, not a tool"),
+bigger megaphones (Symphony's "+500% merged PRs" with OpenAI's
+distribution, Anthropic's "Keep thinking"), or a more famous voice
+(CompanyOS = Brad Feld). The plan does not try to out-shout. Instead:
+
+- **Counter-position against the claim genre.** The anchor sentence
+  ("there is no such thing as full autonomy") attacks the entire field's
+  launch claims at once — and counter-positioning rides distribution the
+  big players paid for. Every future "fully autonomous" launch spike is
+  a moment our pre-registered ledger is the standing rebuttal someone
+  links in the comments.
+- **Ride the wave, don't dodge it.** Time the pre-registration
+  announcement to land as *the reply* to the next autonomy-hype cycle,
+  not in a quiet week. In a quiet field modesty is invisible; in a loud
+  one it's a signal.
+- **Own the metric, not just the number.** Symphony owns "+500% PRs";
+  nobody owns **human-minutes per shipped task** — absolute,
+  human-scaled, recomputable. Introduce it in the post *as a named
+  metric*, not merely as our result. Strategic kicker: computing it
+  requires a legible, self-recording substrate — if the metric spreads
+  ("what's your human-minutes?"), answering it pushes people toward
+  Coga-shaped record-keeping. This is the influence-win made concrete.
+- **Quote the genre, never the brand.** Cite "+500%" and "fully
+  autonomous" as claim *shapes*, without naming Devin/Symphony/anyone.
+  Naming makes us the aggressor and summons their fans; leaving the
+  blank makes the comment section fill it in — more noise, none of the
+  blame.
+- **Pick skeptic-dense channels.** The hook wins where verifiability and
+  contrarianism outperform budget (HN, dev social); it loses the
+  headline-scan war in mass channels by design. Inviting the audit
+  ("check our math") is itself the engagement mechanic there.
+- **Nearest-neighbor hazard:** against CompanyOS ("Feld's markdown
+  company") we lose on recall if the framings blur. The differentiator
+  to foreground is exactly what he doesn't have: the ledger and the
+  human-gated loop — the experiment *is* that difference, demonstrated.
 
 ## Claim discipline (applies to ALL Coga comms, not just the post)
 
