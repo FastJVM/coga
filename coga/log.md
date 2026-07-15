@@ -1252,3 +1252,6 @@ fatal: adding files failed
 2026-07-15 12:10 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-07-15 12:25 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nick] created (status=draft)
 2026-07-15 12:26 [recurring/branch-sweep] [system] started (active → in_progress) via coga launch
+2026-07-15 12:26 [recurring/branch-sweep] [system] launched as a script (skill=coga/branch-sweep/sweep, script=run.py)
+2026-07-15 12:27 [recurring/branch-sweep] [system] script exited with code 0
+2026-07-15 12:27 [recurring/branch-sweep] [system] completed (final script step ran) via coga launch

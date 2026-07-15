@@ -1,7 +1,7 @@
 ---
 slug: recurring/branch-sweep
 title: Branch sweep
-status: in_progress
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 1 (sweep)
 ---
 
 ## Description
