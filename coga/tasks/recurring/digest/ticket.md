@@ -2,8 +2,8 @@
 slug: recurring/digest
 title: Daily digest
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:

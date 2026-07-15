@@ -2,8 +2,8 @@
 slug: v2/register-a-real-domain-for-relay
 title: Register a real domain for Relay
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

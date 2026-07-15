@@ -2,8 +2,8 @@
 slug: v2/sync-support-files-and-bare-ticket-authoring
 title: Sync support files and bare-ticket authoring edits across checkouts
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

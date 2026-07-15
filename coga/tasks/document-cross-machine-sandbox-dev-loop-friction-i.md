@@ -2,10 +2,10 @@
 slug: document-cross-machine-sandbox-dev-loop-friction-i
 title: Document cross-machine/sandbox dev-loop friction in coga/codebase
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:

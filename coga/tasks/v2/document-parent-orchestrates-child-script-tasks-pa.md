@@ -2,8 +2,8 @@
 slug: v2/document-parent-orchestrates-child-script-tasks-pa
 title: Document parent-orchestrates-child-script-tasks pattern in coga/patterns
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

@@ -3,10 +3,10 @@ slug: v2/add-a-first-class-relay-config-directory-for-machi
 title: Add a first-class relay config directory for machine-local config and secret
   files
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

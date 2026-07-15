@@ -2,8 +2,8 @@
 slug: metrics-human-minutes-script
 title: Metrics human minutes script
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:

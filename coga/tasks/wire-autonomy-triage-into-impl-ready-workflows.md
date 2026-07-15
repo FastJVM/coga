@@ -2,10 +2,10 @@
 slug: wire-autonomy-triage-into-impl-ready-workflows
 title: Wire autonomy triage into impl-ready workflows
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
 - autonomy/triage
 skills: []

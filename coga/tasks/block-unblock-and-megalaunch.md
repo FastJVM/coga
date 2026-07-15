@@ -2,10 +2,10 @@
 slug: block-unblock-and-megalaunch
 title: Block, unblock, and megalaunch
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: codex
-assignee: nick
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/cli

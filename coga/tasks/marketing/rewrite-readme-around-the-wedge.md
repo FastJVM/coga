@@ -2,8 +2,8 @@
 slug: marketing/rewrite-readme-around-the-wedge
 title: Rewrite README around the wedge
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:

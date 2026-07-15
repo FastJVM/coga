@@ -2,10 +2,10 @@
 slug: trim-blackboard-eval-once-processed
 title: trim blackboard eval once processed
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
 - coga/codebase
 skills: []

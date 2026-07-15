@@ -2,10 +2,10 @@
 slug: improve-prompt-for-relay-ticket
 title: improve prompt for relay ticket
 status: in_progress
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: codex
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:

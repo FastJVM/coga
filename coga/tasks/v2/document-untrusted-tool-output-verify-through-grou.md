@@ -2,8 +2,8 @@
 slug: v2/document-untrusted-tool-output-verify-through-grou
 title: Document untrusted-tool-output verify-through-ground-truth agent discipline
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

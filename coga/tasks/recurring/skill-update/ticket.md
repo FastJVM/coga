@@ -2,8 +2,8 @@
 slug: recurring/skill-update
 title: Skill update
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:

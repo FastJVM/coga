@@ -2,8 +2,8 @@
 slug: v2/document-workflow-less-concept-capture-drafts-as-s
 title: Document workflow-less concept-capture drafts as supported state
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

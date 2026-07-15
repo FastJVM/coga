@@ -7,7 +7,7 @@ title: "Daily digest"
 # `coga digest`. It runs directly with no agent buffering, so it is safe for
 # unattended recurring runs.
 workflow: digest/post
-owner: nick
+owner: nicktoper
 assignee: claude
 ---
 

@@ -2,8 +2,8 @@
 slug: recurring/blocker-reminders
 title: Blocker reminders
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:

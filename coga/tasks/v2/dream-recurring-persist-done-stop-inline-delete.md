@@ -2,8 +2,8 @@
 slug: v2/dream-recurring-persist-done-stop-inline-delete
 title: Recurring runs persist as done; stop inline deletion
 status: paused
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:

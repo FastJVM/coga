@@ -2,10 +2,10 @@
 slug: move-ticket-authoring-out-of-core
 title: Move ticket authoring out of core
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:

@@ -2,10 +2,10 @@
 slug: v2/op-secret-dependency-init-enforcement
 title: Decide whether `op` should be enforceable at init (vs launch-only)
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

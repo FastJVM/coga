@@ -2,10 +2,10 @@
 slug: drain-pending-auto-tickets-with-leftover-session-b
 title: Drain pending auto tickets with leftover session budget after recurring sweep
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
 - coga/recurring
 - coga/codebase

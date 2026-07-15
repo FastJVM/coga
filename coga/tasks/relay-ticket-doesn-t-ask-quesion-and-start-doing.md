@@ -2,8 +2,8 @@
 slug: relay-ticket-doesn-t-ask-quesion-and-start-doing
 title: coga ticket doesn't ask questions and starts doing the work
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

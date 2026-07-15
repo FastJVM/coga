@@ -2,8 +2,8 @@
 slug: v2/add-dev-testing-setup-skill
 title: Add dev testing setup skill
 status: paused
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:

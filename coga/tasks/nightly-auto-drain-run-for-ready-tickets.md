@@ -2,10 +2,10 @@
 slug: nightly-auto-drain-run-for-ready-tickets
 title: Nightly auto-drain run for ready tickets
 status: in_progress
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/cli

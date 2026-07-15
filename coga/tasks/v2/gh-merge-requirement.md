@@ -2,10 +2,10 @@
 slug: v2/gh-merge-requirement
 title: gh-merge-requirement
 status: paused
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:

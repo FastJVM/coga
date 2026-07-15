@@ -2,10 +2,10 @@
 slug: branch-cleanup-as-recurring-tasks
 title: branch cleanup as recurring tasks
 status: done
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
 - coga/recurring
 - dev/code

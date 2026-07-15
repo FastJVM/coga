@@ -2,10 +2,10 @@
 slug: v2/automerge-ticket
 title: automerge ticket
 status: paused
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []

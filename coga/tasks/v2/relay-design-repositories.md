@@ -5,7 +5,7 @@ status: paused
 owner: zach
 human: zach
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:

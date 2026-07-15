@@ -2,8 +2,8 @@
 slug: stabilize-megalaunch-for-daily-use
 title: Stabilize megalaunch for daily use
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

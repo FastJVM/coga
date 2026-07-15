@@ -2,10 +2,10 @@
 slug: marketing/add-killer-demo
 title: add killer demo
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
   - marketing/plan
   - marketing/positioning
