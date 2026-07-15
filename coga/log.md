@@ -1247,3 +1247,4 @@ fatal: adding files failed
 2026-07-15 12:08 [install/add-migration-errors-for-removed-config-keys] [human:nicktoper] activated (paused → active)
 2026-07-15 12:08 [install/cut-release-to-realign-pypi-with-main] [human:nicktoper] paused (in_progress → paused)
 2026-07-15 12:08 [install/cut-release-to-realign-pypi-with-main] [human:nicktoper] activated (paused → active)
+2026-07-15 12:09 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
