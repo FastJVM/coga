@@ -1220,3 +1220,4 @@ fatal: adding files failed
 2026-07-14 20:51 [marketing/launch-20-minutes-a-day] [human:nick] created (status=draft)
 2026-07-14 20:51 [metrics-human-minutes-script] [human:nick] created (status=draft)
 2026-07-14 20:51 [stabilize-megalaunch-for-daily-use] [human:nick] created (status=draft)
+2026-07-14 20:51 [marketing/rewrite-readme-around-the-wedge] [human:nick] created (status=draft)
