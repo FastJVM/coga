@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -48,6 +48,7 @@ state-transition broadcasts stay in coga-flow.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/553
 branch: important-webhook
 worktree: ../coga-important-webhook
 

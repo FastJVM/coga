@@ -1282,3 +1282,6 @@ Use '--' to separate paths from revisions, like this:
 'git <command> [<revision>...] -- [<file>...]'
 2026-07-15 14:57 [coga-notifications/support-second-webhook] [human:zach] launched (assignee=codex, agent=codex)
 2026-07-15 15:20 [coga-notifications/support-second-webhook] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-15 15:20 [coga-notifications/support-second-webhook] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-15 15:20 [coga-notifications/support-second-webhook] [system] script exited with code 0
+2026-07-15 15:20 [coga-notifications/support-second-webhook] [system] advanced to step 4 (review) → assigned to zach after script step
