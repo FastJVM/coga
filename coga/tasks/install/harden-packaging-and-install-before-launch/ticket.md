@@ -139,3 +139,9 @@ Run the public path in a disposable clean Linux environment, without
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":85878,"cache_read_input_tokens":661972,"cli":"claude","input_tokens":38,"model":"claude-fable-5","output_tokens":18752,"provider":"anthropic","schema":1,"session_id":"f3954962-f1dd-4e15-bb0b-0cebf7bf74f0","slug":"install/harden-packaging-and-install-before-launch","step":"execute","title":"Harden packaging and first-install before launch","ts":"2026-07-13T03:37:12.771174Z","usage_status":"ok"}
+
+---
+
+## Blocker reminders
+
+- 5f5852d1e838 last_reminded: 2026-07-15 12:33
