@@ -512,8 +512,7 @@ clear-the-queue counterpart to naming one slug — it takes no slug and rejects
 Attempt launchable work owned by the configured current user sequentially
 using the shared megalaunch engine. Three ways in, one engine:
 
-- **Bare `coga megalaunch`** sweeps every launchable `active` task — the
-  shape the daily `recurring/megalaunch` script task also runs.
+- **Bare `coga megalaunch`** sweeps every launchable `active` task.
 - **`coga megalaunch --pick`** opens an interactive picker: a numbered list
   of your `active` **and** `in_progress` agent-assigned tickets, all
   pre-checked. Type numbers to toggle (`3`, `1 3`, `all`, `none`), Enter
@@ -525,8 +524,8 @@ using the shared megalaunch engine. Three ways in, one engine:
   with a warning. For a single task, plain `coga launch <slug>` remains the
   attended one-off.
 
-Explicit selection is the one door to `in_progress` work: the sweep (bare
-megalaunch and the recurring task) never grabs an `in_progress` ticket — that
+Explicit selection is the one door to `in_progress` work: the bare-megalaunch
+sweep never grabs an `in_progress` ticket — that
 status means a session some other process started (or that crashed mid-step)
 — but checking one in the picker **is** the deliberate resume that used to
 require a manual `coga launch <slug>`. An explicitly selected task that turns
@@ -542,16 +541,15 @@ runs one eligible agent step at a time. Each step is a normal **interactive**
 launch — the agent REPL streams live to the console under the PTY watcher, and
 the done-sentinel (`coga bump` / `mark done` / `block`) releases it before the
 sweep moves on — never a headless `claude -p` run, which would buffer all
-output until the run ends. The recurring sweep's idle-timeout / max-session
+output until the run ends. The recurring-style idle-timeout / max-session
 backstops are armed so a wedged REPL can't starve the queue; because the REPLs
 (and the `--pick` prompt) are interactive, megalaunch requires a TTY and fails
 loud without one. The run summary distinguishes launched, completed, blocked,
 skipped-human-gate, skipped-unresolved-blocker, skipped-budget,
 skipped-unlaunchable, and failed.
 
-The daily `recurring/megalaunch` script task calls the same engine and writes a
-bounded `## Megalaunch Run Summary`, replacing old summaries so the recurring
-blackboard does not grow forever.
+Megalaunch is on-demand only — there is no shipped recurring template for it;
+you run the sweep when you want the queue drained.
 
 Pass `--agent <type>` to scope the sweep (and the picker's candidates) to
 tickets currently assigned to that configured agent type. Tickets assigned to
