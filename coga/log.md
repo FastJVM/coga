@@ -1275,3 +1275,5 @@ fatal: adding files failed
 2026-07-15 14:07 [move-some-alerts-to-coga-important-instead-of-coga] [human:nick] created (status=draft)
 2026-07-15 14:10 [coga-notifications/support-second-webhook] [human:zach] activated (draft → active) — auto on launch
 2026-07-15 14:10 [coga-notifications/support-second-webhook] [human:zach] started (active → in_progress) via coga launch
+2026-07-15 14:10 [coga-notifications/support-second-webhook] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-15 14:57 [coga-notifications/support-second-webhook] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
