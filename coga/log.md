@@ -1235,3 +1235,4 @@ fatal: adding files failed
 2026-07-15 09:58 [bootstrap/orient] [human:zach] launched in agent mode (assignee=claude, agent=claude)
 2026-07-15 11:03 [coga-notifications/create-coga-notification-channel] [agent:claude] slack: dress rehearsal
 2026-07-15 12:03 [install/add-migration-errors-for-removed-config-keys] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 12:03 [install/add-migration-errors-for-removed-config-keys] [megalaunch] launched via coga megalaunch

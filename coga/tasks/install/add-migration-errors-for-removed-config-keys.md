@@ -54,3 +54,7 @@ only bites because main is unreleased).
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"claude","input_tokens":null,"model":null,"output_tokens":null,"provider":"anthropic","schema":1,"session_id":"a7e5253b-e8a3-4dce-9aa2-54c6d76f7dbc","slug":"install/add-migration-errors-for-removed-config-keys","step":"implement","title":"Add migration errors for removed config keys","ts":"2026-07-15T19:03:34.690748Z","usage_status":"unknown"}
