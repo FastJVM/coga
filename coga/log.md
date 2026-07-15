@@ -1237,3 +1237,4 @@ fatal: adding files failed
 2026-07-15 12:03 [install/add-migration-errors-for-removed-config-keys] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-15 12:03 [install/add-migration-errors-for-removed-config-keys] [megalaunch] launched via coga megalaunch
 2026-07-15 12:03 [install/cut-release-to-realign-pypi-with-main] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 12:03 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
