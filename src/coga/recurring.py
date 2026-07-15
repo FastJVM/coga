@@ -14,6 +14,7 @@ from croniter import CroniterError, croniter
 
 from coga.create import create_task
 from coga.config import Config
+from coga.delete_task import DeleteTaskError, run_delete_task_skill
 from coga.logfile import append_log
 from coga.paths import recurring_dir, resolve_skill_path, resolve_workflow_path
 from coga.period_state import write_snapshot
@@ -90,11 +91,13 @@ class CreateOutcome:
 
     `created` is False when a task already exists for the template — the
     create is idempotent, so two `coga recurring` runs converge on the
-    stable `tasks/recurring/<name>/` directory.
+    stable `tasks/recurring/<name>/` directory. `replaced_done` identifies a
+    prior-period completed task that was deleted before this fresh creation.
     """
 
     ref: TaskRef
     created: bool
+    replaced_done: bool = False
 
 
 # The cleanup template runs last in a bare sweep so its retro/cleanup pass acts
@@ -129,6 +132,7 @@ class DueTask:
     created: bool
     status: str
     period_key: str = ""
+    replaced_done: bool = False
 
     @property
     def launchable(self) -> bool:
@@ -299,7 +303,15 @@ def scan_due(
             continue
 
         try:
-            outcome = create_template(cfg, template, now, allow_agent=allow_interactive)
+            outcome = create_template(
+                cfg,
+                template,
+                now,
+                allow_agent=allow_interactive,
+                # Forced scans defer every status/period mutation until the
+                # sequential launch loop actually reaches that template.
+                replace_done=not force,
+            )
             ticket = read_ticket(outcome.ref)
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps an
@@ -317,6 +329,7 @@ def scan_due(
                 period_key=period_key,
                 created=outcome.created,
                 status=ticket.status,
+                replaced_done=outcome.replaced_done,
             )
         )
     return DueScan(tasks=tasks, errors=errors)
@@ -346,6 +359,7 @@ def create_template(
     now: datetime,
     *,
     allow_agent: bool = True,
+    replace_done: bool = True,
 ) -> CreateOutcome:
     """Create one recurring template for `now`'s firing. Idempotent."""
     last_fire = _last_firing(template.schedule, now)
@@ -367,6 +381,42 @@ def create_template(
 
     existing = _task_with_slug(cfg, target_slug)
     if existing is not None:
+        ticket = read_ticket(existing)
+        if (
+            replace_done
+            and ticket.status == "done"
+            and not _period_already_serviced(template, period_key)
+        ):
+            # A completed task is terminal. If Dream did not reap it, delete
+            # that prior-period artifact through the canonical deletion skill,
+            # then create a genuinely fresh task from the current template.
+            if not allow_agent and not _template_runs_as_script(cfg, template):
+                raise RecurringError(
+                    "an agent run requires a TTY (stdin and stdout must both be "
+                    "terminals). Run `coga recurring --interactive` from a real "
+                    "shell, or give the template a script for unattended runs."
+                )
+            try:
+                run_delete_task_skill(cfg, existing)
+            except DeleteTaskError as exc:
+                raise RecurringError(
+                    f"could not delete stale done task {target_slug}: {exc}"
+                ) from exc
+            outcome = _create_at_slug(
+                cfg,
+                template,
+                target_slug=target_slug,
+                title=_extract_title(template),
+            )
+            outcome.replaced_done = True
+            append_log(
+                cfg,
+                target_slug,
+                "system",
+                f"deleted completed prior-period task before {period_key}",
+            )
+            _advance_serviced_period(cfg, template, period_key, outcome, now)
+            return outcome
         return CreateOutcome(ref=existing, created=False)
 
     if not allow_agent and not _template_runs_as_script(cfg, template):
@@ -457,15 +507,29 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
         next_fire = _next_firing(template.schedule, now)
         period_key = _period_key(template.schedule, last_fire)
         target_slug = _recurring_slug(template.name)
-        instance = _live_task_for_template(cfg, template.name) or _task_with_slug(
-            cfg, target_slug
-        )
+        instance = _live_task_for_template(cfg, template.name)
         instance_status: str | None = None
+        if instance is None:
+            candidate = _task_with_slug(cfg, target_slug)
+            if candidate is not None:
+                try:
+                    candidate_status = read_ticket(candidate).status
+                except Exception:  # half-written / unreadable ticket
+                    candidate_status = "unknown"
+                # A prior-period `done` task will be replaced by scan_due;
+                # it is not evidence that the current period has run.
+                if not (
+                    candidate_status == "done"
+                    and not _period_already_serviced(template, period_key)
+                ):
+                    instance = candidate
+                    instance_status = candidate_status
         if instance is not None:
-            try:
-                instance_status = read_ticket(instance).status
-            except Exception:  # half-written / unreadable ticket — report unknown
-                instance_status = "unknown"
+            if instance_status is None:
+                try:
+                    instance_status = read_ticket(instance).status
+                except Exception:  # half-written / unreadable ticket — report unknown
+                    instance_status = "unknown"
         out.append(
             TemplateStatus(
                 name=template.name,
