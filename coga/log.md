@@ -1273,3 +1273,4 @@ fatal: adding files failed
 2026-07-15 14:02 [coga-notifications/create-coga-notification-channel] [agent:claude] slack: rename check
 2026-07-15 14:04 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
 2026-07-15 14:07 [move-some-alerts-to-coga-important-instead-of-coga] [human:nick] created (status=draft)
+2026-07-15 14:10 [coga-notifications/support-second-webhook] [human:zach] activated (draft → active) — auto on launch
