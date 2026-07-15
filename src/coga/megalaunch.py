@@ -85,7 +85,7 @@ class MegalaunchResult:
 @dataclass(frozen=True)
 class MegalaunchRun:
     started_at: datetime
-    agent_filter: str | None = None
+    agent_override: str | None = None
     directory: str | None = None
     selection: tuple[str, ...] | None = None
     results: list[MegalaunchResult] = field(default_factory=list)
@@ -111,7 +111,7 @@ def run_megalaunch(
     cfg: Config | None = None,
     *,
     max_tasks: int | None = None,
-    agent_filter: str | None = None,
+    agent_override: str | None = None,
     directory: str | None = None,
     selection: list[str] | None = None,
     max_steps_per_task: int = 8,
@@ -123,16 +123,24 @@ def run_megalaunch(
     included), same semantics as `coga status <dir>` — an unknown directory
     raises `UnknownDirectoryError` rather than sweeping nothing silently.
 
+    `agent_override` launches swept tickets with that configured agent type
+    instead of each ticket's `assignee:` — ephemeral, with the same semantics
+    as `coga launch --agent`: the ticket is never rewritten, a human-assigned
+    ticket is not converted into an agent step (still a human gate), and on a
+    chained task the override applies only to the first launched step, so
+    `other-agent` rotation on later steps still lands on the ticket's
+    resolved assignee.
+
     `selection` (exact `id_slug`s) switches to explicit mode: only the named
     tasks run, `in_progress` ones are resumed (naming a task is the deliberate
     act the default sweep refuses to infer), and a named task that can't launch
-    — wrong owner, draft/paused/done, filtered agent — is reported as
+    — wrong owner, draft/paused/done — is reported as
     `skipped-unlaunchable` instead of dropped. A selection slug matching no
     task raises `MegalaunchError`.
     """
     cfg = cfg or load_config()
-    if agent_filter is not None:
-        cfg.agent_type(agent_filter)
+    if agent_override is not None:
+        cfg.agent_type(agent_override)
     if not _interactive_stdio_has_tty():
         raise MegalaunchError(
             "megalaunch spawns interactive agent REPLs and requires a TTY "
@@ -218,20 +226,9 @@ def run_megalaunch(
                     )
                 )
             continue
-        if agent_filter is not None and ticket.assignee != agent_filter:
-            if explicit:
-                results.append(
-                    _result(
-                        ref,
-                        "skipped-unlaunchable",
-                        f"assigned to {ticket.assignee or 'nobody'}, not "
-                        f"{agent_filter}",
-                        ticket.assignee,
-                    )
-                )
-            continue
-
-        candidate = _candidate_result(cfg, ref, ticket, probes, explicit=explicit)
+        candidate = _candidate_result(
+            cfg, ref, ticket, probes, agent_override=agent_override, explicit=explicit
+        )
         if candidate is not None:
             results.append(candidate)
             continue
@@ -243,7 +240,7 @@ def run_megalaunch(
                 ref,
                 ticket,
                 probes,
-                agent_filter=agent_filter,
+                agent_override=agent_override,
                 max_steps_per_task=max_steps_per_task,
                 idle_timeout=idle_timeout,
                 max_session=max_session,
@@ -252,7 +249,7 @@ def run_megalaunch(
 
     return MegalaunchRun(
         started_at=started_at,
-        agent_filter=agent_filter,
+        agent_override=agent_override,
         directory=directory,
         selection=tuple(selection) if selection is not None else None,
         results=results,
@@ -263,7 +260,6 @@ def launchable_candidates(
     cfg: Config,
     *,
     directory: str | None = None,
-    agent_filter: str | None = None,
 ) -> list[tuple[TaskRef, Ticket]]:
     """The tasks the interactive picker offers, oldest-first.
 
@@ -283,8 +279,6 @@ def launchable_candidates(
         if ticket.status not in {"active", "in_progress"}:
             continue
         if ticket.assignee not in cfg.agents:
-            continue
-        if agent_filter is not None and ticket.assignee != agent_filter:
             continue
         if ticket.current_step() is None or is_script_launch(cfg, ticket):
             continue
@@ -353,6 +347,7 @@ def _candidate_result(
     ticket: Ticket,
     probes: dict[str, usage_probe.UsageProbe],
     *,
+    agent_override: str | None = None,
     explicit: bool = False,
 ) -> MegalaunchResult | None:
     blockers = open_blockers(ref.ticket_path)
@@ -388,13 +383,17 @@ def _candidate_result(
             ticket.assignee,
         )
 
-    budget = usage_probe.check_budget(probes, ticket.assignee, cfg.megalaunch)
+    # The override agent is the one that will spend, so its window is the
+    # one the guard reads. Human-gate checks above stay on `ticket.assignee`:
+    # the override never converts a human handoff into an agent step.
+    launch_assignee = agent_override or ticket.assignee
+    budget = usage_probe.check_budget(probes, launch_assignee, cfg.megalaunch)
     if not budget.allowed:
         return _result(
             ref,
             "skipped-budget",
             budget.detail,
-            ticket.assignee,
+            launch_assignee,
             budget=budget,
         )
     return None
@@ -406,7 +405,7 @@ def _launch_until_stop(
     ticket: Ticket,
     probes: dict[str, usage_probe.UsageProbe],
     *,
-    agent_filter: str | None,
+    agent_override: str | None,
     max_steps_per_task: int,
     idle_timeout: float | None = None,
     max_session: float | None = None,
@@ -436,37 +435,34 @@ def _launch_until_stop(
                 launched=launched,
                 budget=last_budget,
             )
-        if agent_filter is not None and ticket.assignee != agent_filter:
-            return _result(
-                ref,
-                "completed",
-                f"handed off to {ticket.assignee}",
-                ticket.assignee,
-                launched=launched,
-                budget=last_budget,
-            )
+        # The override applies only to the task's first launched step — the
+        # same rule as `coga launch --agent` — so `other-agent` rotation on
+        # later steps still lands on the ticket's resolved assignee.
+        launch_assignee = (
+            ticket.assignee if launched else (agent_override or ticket.assignee)
+        )
 
         # Re-probe before every launch — the previous step just spent budget,
         # and the agent's own usage window is the only accounting we trust.
-        budget = usage_probe.check_budget(probes, ticket.assignee, cfg.megalaunch)
+        budget = usage_probe.check_budget(probes, launch_assignee, cfg.megalaunch)
         last_budget = budget
         if not budget.allowed:
             return _result(
                 ref,
                 "skipped-budget",
                 budget.detail,
-                ticket.assignee,
+                launch_assignee,
                 launched=launched,
                 budget=budget,
             )
 
-        preflight = _preflight_agent_launch(cfg, ref, ticket)
+        preflight = _preflight_agent_launch(cfg, ref, ticket, launch_assignee)
         if preflight is not None:
             return _result(
                 ref,
                 "failed",
                 preflight,
-                ticket.assignee,
+                launch_assignee,
                 launched=launched,
                 budget=budget,
             )
@@ -486,7 +482,7 @@ def _launch_until_stop(
 
         before = read_ticket(ref)
         try:
-            agent = cfg.agent_type(before.assignee or "")
+            agent = cfg.agent_type(launch_assignee or "")
             env = build_launch_env(cfg, before.secrets)
             env["COGA_SUPERVISED"] = "1"
             # A normal interactive launch: the REPL streams to the console
@@ -509,13 +505,13 @@ def _launch_until_stop(
                 capture_usage=True,
             )
         except (ComposeError, ConfigError, SecretError) as exc:
-            return _result(ref, "failed", str(exc), before.assignee, budget=budget)
+            return _result(ref, "failed", str(exc), launch_assignee, budget=budget)
         except FileNotFoundError:
             return _result(
                 ref,
                 "failed",
                 f"agent CLI {agent.cli!r} not found",
-                before.assignee,
+                launch_assignee,
                 budget=budget,
             )
 
@@ -576,9 +572,11 @@ def _launch_until_stop(
         ticket = after
 
 
-def _preflight_agent_launch(cfg: Config, ref: TaskRef, ticket: Ticket) -> str | None:
+def _preflight_agent_launch(
+    cfg: Config, ref: TaskRef, ticket: Ticket, launch_assignee: str | None
+) -> str | None:
     try:
-        agent = cfg.agent_type(ticket.assignee or "")
+        agent = cfg.agent_type(launch_assignee or "")
     except ConfigError as exc:
         return str(exc)
     if ticket.status not in {"active", "in_progress"}:
@@ -622,8 +620,8 @@ def render_run_summary(run: MegalaunchRun) -> str:
     lines = [
         f"Run: {run.started_at.isoformat()}",
     ]
-    if run.agent_filter is not None:
-        lines.extend(["", f"Agent: {run.agent_filter}"])
+    if run.agent_override is not None:
+        lines.extend(["", f"Agent override: {run.agent_override}"])
     if run.directory is not None:
         lines.extend(["", f"Directory: {run.directory}"])
     if run.selection is not None:

@@ -69,7 +69,11 @@ def megalaunch(
     agent: str | None = typer.Option(
         None,
         "--agent",
-        help="Only drain tasks currently assigned to this configured agent type.",
+        help=(
+            "Launch swept tasks with this configured agent type regardless "
+            "of each ticket's assignee (ephemeral override, same as "
+            "`coga launch --agent`; human-assigned tickets still skip)."
+        ),
     ),
 ) -> None:
     """Run the shared megalaunch engine once."""
@@ -86,9 +90,7 @@ def megalaunch(
             sys.exit(2)
 
     try:
-        selection = _resolve_selection(
-            cfg, directory, pick=pick, relaunch=relaunch, agent=agent
-        )
+        selection = _resolve_selection(cfg, directory, pick=pick, relaunch=relaunch)
     except (MegalaunchError, UnknownDirectoryError, ConfigError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
@@ -100,7 +102,7 @@ def megalaunch(
         run = run_megalaunch(
             cfg,
             max_tasks=max_tasks,
-            agent_filter=agent,
+            agent_override=agent,
             directory=directory,
             selection=selection,
         )
@@ -123,7 +125,6 @@ def _resolve_selection(
     *,
     pick: bool,
     relaunch: bool,
-    agent: str | None,
 ) -> list[str] | None:
     """Turn the flags into the engine's `selection`.
 
@@ -148,7 +149,7 @@ def _resolve_selection(
             "The megalaunch picker is interactive and requires a TTY. "
             "Drop --pick for the non-interactive sweep."
         )
-    candidates = launchable_candidates(cfg, directory=directory, agent_filter=agent)
+    candidates = launchable_candidates(cfg, directory=directory)
     if not candidates:
         typer.echo("No launchable tasks (active or in_progress, agent-assigned).")
         return []
@@ -286,7 +287,9 @@ def _drain_post_text(run: MegalaunchRun) -> str | None:
         parts.append(f"{not_launchable} not launchable")
     if counts["failed"]:
         parts.append(f"{counts['failed']} failed")
-    scope = [s for s in (run.agent_filter, run.directory) if s is not None]
+    scope = [run.directory] if run.directory is not None else []
+    if run.agent_override is not None:
+        scope.append(f"as {run.agent_override}")
     if run.selection is not None:
         scope.append("selected")
     label = f"Megalaunch drain ({', '.join(scope)})" if scope else "Megalaunch drain"

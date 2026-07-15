@@ -530,7 +530,7 @@ megalaunch and the recurring task) never grabs an `in_progress` ticket — that
 status means a session some other process started (or that crashed mid-step)
 — but checking one in the picker **is** the deliberate resume that used to
 require a manual `coga launch <slug>`. An explicitly selected task that turns
-out unlaunchable (someone else's, draft/paused/done, filtered agent) is
+out unlaunchable (someone else's, draft/paused/done) is
 reported as `skipped-unlaunchable` rather than silently dropped — you picked
 it, so its outcome is owed back.
 
@@ -553,11 +553,14 @@ The daily `recurring/megalaunch` script task calls the same engine and writes a
 bounded `## Megalaunch Run Summary`, replacing old summaries so the recurring
 blackboard does not grow forever.
 
-Pass `--agent <type>` to scope the sweep (and the picker's candidates) to
-tickets currently assigned to that configured agent type. Tickets assigned to
-other agents are outside the run and are not counted as skip noise; if a
-launched task hands off to a different agent, megalaunch stops there for that
-task.
+Pass `--agent <type>` to launch the swept tasks (and the picker's confirmed
+set) with that configured agent type regardless of each ticket's `assignee:`
+— an ephemeral per-launch override with the same semantics as
+`coga launch --agent`: the ticket's `assignee:` is never rewritten, a
+human-assigned ticket is not converted into an agent step (it still skips as
+a human gate), and on a task that chains multiple steps the override applies
+only to the first launched step — later steps follow the ticket's resolved
+assignee, so `other-agent` rotation keeps its meaning.
 
 An optional positional `DIR` scopes the sweep or the picker to tasks under
 `tasks/<DIR>/` (nested ones included), exactly like `coga status <dir>` —
@@ -749,8 +752,8 @@ only; they don't accept their own flags.
 - Launching one named recurring task now → `coga recurring launch <name>`.
 - Starting or resuming agent work on a task → `coga launch <slug>`.
 - Sweeping all your launchable active agent work → `coga megalaunch`
-  (`--agent <type>` scopes it to one agent, `coga megalaunch <dir>` to one
-  `tasks/` sub-tree).
+  (`--agent <type>` runs the sweep with that agent regardless of assignee,
+  `coga megalaunch <dir>` scopes it to one `tasks/` sub-tree).
 - Picking which of your tasks to launch (checkbox list, active +
   in_progress pre-checked) → `coga megalaunch --pick`; replaying the
   last confirmed list → `coga megalaunch --relaunch`.
