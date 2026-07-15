@@ -1184,7 +1184,23 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
     assert len(body[:-1]) <= 3, result.output
 
 
-def test_status_splits_recurring_into_own_table(repo: Path) -> None:
+def _write_recurring_template(repo: Path, name: str = "foo") -> None:
+    _write(
+        repo / "recurring" / name / "ticket.md",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        ---
+
+        ## Description
+        Weekly job.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+
+
+def test_status_renders_recurring_tasks_as_normal_rows(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Normal", workflow_name="code", contexts=[],
@@ -1196,16 +1212,48 @@ def test_status_splits_recurring_into_own_table(repo: Path) -> None:
         owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="recurring/foo",
     )
+    _write_recurring_template(repo, "foo")
     result = CliRunner().invoke(app, ["status"])
     assert result.exit_code == 0, result.output
     out = result.output
-    # The hand-authored task sits in the main table; the recurring period
-    # task lands under the "Recurring" header that follows it.
-    assert (
-        out.index("normal-task")
-        < out.index("Recurring")
-        < out.index("recurring/foo")
+    # Instantiated period tasks are ordinary tasks: both rows share the main
+    # table (and its summary), before the "Recurring" templates footer.
+    footer_at = out.index("Recurring")
+    assert out.index("recurring/foo") < footer_at
+    assert out.index("normal-task") < footer_at
+    assert "2 tasks" in out
+    # The footer lists the template with its schedule and current-period state.
+    footer = out[footer_at:]
+    assert "0 9 * * 1" in footer
+    assert "active" in footer
+
+
+def test_status_shows_templates_even_without_instantiated_tasks(repo: Path) -> None:
+    _write_recurring_template(repo, "foo")
+    result = CliRunner().invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    # No tasks on disk at all — the templates footer still renders, so a
+    # steady-state repo (all period tasks done or not yet created) keeps its
+    # recurring schedule visible in the triage view.
+    assert "(no tasks)" in result.output
+    assert "Recurring" in result.output
+    assert "due — not created" in result.output
+
+
+def test_status_hides_templates_footer_outside_recurring_scope(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Other", workflow_name="code", contexts=[],
+        owner="marc", assignee="claude",
+        watchers=[], status="active", slug_override="marketing/other",
     )
+    _write_recurring_template(repo, "foo")
+    result = CliRunner().invoke(app, ["status", "marketing"])
+    assert result.exit_code == 0, result.output
+    assert "Recurring" not in result.output
+    no_recurse = CliRunner().invoke(app, ["status", "--no-recurse"])
+    assert no_recurse.exit_code == 0, no_recurse.output
+    assert "Recurring" not in no_recurse.output
 
 
 def test_status_does_not_show_title_column(repo: Path) -> None:

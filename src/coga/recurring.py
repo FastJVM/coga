@@ -626,6 +626,16 @@ def _record_run(
     )
 
 
+def firing_stamp(when: datetime | None) -> str:
+    """Compact firing label for template tables (`Mon 06-15 09:00`).
+
+    Shared by `coga recurring list` and the `coga status` templates footer.
+    """
+    if when is None:
+        return "-"
+    return when.strftime("%a %m-%d %H:%M")
+
+
 def _last_firing(cron: str, now: datetime) -> datetime:
     it = croniter(cron, now)
     return it.get_prev(datetime)

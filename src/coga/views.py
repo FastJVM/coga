@@ -28,12 +28,12 @@ from coga.logfile import (
     last_activity_map,
     task_log_lines,
 )
+from coga.recurring import TemplateStatus, firing_stamp, list_templates
 from coga.taskfile import TaskFileError
 from coga.tasks import (
     BootstrapRef,
     UnknownDirectoryError,
     filter_tasks_under,
-    is_under,
     list_task_dirs,
     list_tasks,
     read_ticket,
@@ -246,6 +246,18 @@ def render_status(
     else:
         rows.sort(key=lambda r: r[order_by], reverse=descending)
 
+    now = datetime.now()
+    # Templates in `coga/recurring/` aren't tasks yet, so the main table can't
+    # carry them; the footer shows each template's schedule and current-period
+    # state whenever the view's scope covers `tasks/recurring/`. Instantiated
+    # period tasks are ordinary tasks and render in the main table like any
+    # other row.
+    templates = (
+        list_templates(cfg, now)
+        if _covers_recurring(directory, no_recurse=no_recurse)
+        else []
+    )
+
     if not rows:
         if directory:
             # The directory exists (an unknown one already failed loud above)
@@ -260,28 +272,56 @@ def render_status(
             print(f"(no top-level tasks){_done_hint(hidden_done)}")
         else:
             print(f"(no tasks){_done_hint(hidden_done)}")
+        _print_recurring_templates(console, templates, leading_blank=False)
         return
 
-    now = datetime.now()
-
-    # Recurring period tasks are machine-authored jobs created ahead of
-    # execution; peel them into their own table so the main list stays the
-    # hand-authored backlog. `coga recurring list` is the schedule-aware view.
-    # They live under `tasks/recurring/` (possibly in a deeper sub-directory).
-    recurring_rows = [r for r in rows if is_under(r["directory"], "recurring")]
-    main_rows = [r for r in rows if not is_under(r["directory"], "recurring")]
-
-    if main_rows:
-        console.print(_build_table(main_rows, narrow, now))
-        console.print(_summary_line(main_rows), style="dim")
-    if recurring_rows:
-        if main_rows:
-            console.print()
-        console.print("Recurring", style="bold")
-        console.print(_build_table(recurring_rows, narrow, now))
-        console.print(_summary_line(recurring_rows), style="dim")
+    console.print(_build_table(rows, narrow, now))
+    console.print(_summary_line(rows), style="dim")
+    _print_recurring_templates(console, templates, leading_blank=True)
     if hidden_done:
         console.print(_done_hint(hidden_done).lstrip(), style="dim")
+
+
+def _covers_recurring(directory: str | None, *, no_recurse: bool) -> bool:
+    """True when the status filter's scope includes `tasks/recurring/`.
+
+    That's the bare recursive view or a filter on the recurring sub-tree; a
+    filter on another directory, or the top-level `--no-recurse` slice, never
+    shows recurring period tasks, so the templates footer stays out too.
+    """
+    if directory is None:
+        return not no_recurse
+    target = directory.strip("/")
+    return target == "recurring" or target.startswith("recurring/")
+
+
+def _print_recurring_templates(
+    console: Console, templates: list[TemplateStatus], *, leading_blank: bool
+) -> None:
+    """Footer listing every `coga/recurring/` template with its schedule.
+
+    Templates exist even when no period task is live, so this renders whenever
+    templates exist at all — the schedule-aware `coga recurring list` remains
+    the full view (last fire, picked-task table).
+    """
+    if not templates:
+        return
+    if leading_blank:
+        console.print()
+    console.print("Recurring", style="bold")
+    table = Table(show_lines=False, show_edge=False, pad_edge=False)
+    for col in ("template", "schedule", "next fire", "current period"):
+        table.add_column(col, no_wrap=True, overflow="ellipsis")
+    for s in sorted(templates, key=lambda x: x.name):
+        if s.error:
+            table.add_row(s.name, f"[red]error: {s.error}[/red]", "-", "-")
+            continue
+        if s.instance is not None:
+            period = f"{s.instance_status} · {s.instance.id_slug}"
+        else:
+            period = "[green]due — not created[/green]"
+        table.add_row(s.name, s.schedule or "-", firing_stamp(s.next_fire), period)
+    console.print(table)
 
 
 def _warn_if_control_ahead(cfg: Config) -> None:

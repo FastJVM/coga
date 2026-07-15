@@ -324,10 +324,14 @@ coga/tasks/<dir>` to make one (`mkdir -p` to nest), `mv` a task directory
 to move it, `rm` to remove it. The filter only reads `tasks/`; like the rest of
 `coga status` it mutates nothing and hits no network.
 
-Generated recurring period tasks are machine-authored jobs scaffolded ahead of
-execution under `tasks/recurring/` (`recurring/<name>`), so they render in a
-**second `Recurring` table** below the hand-authored backlog rather than mixed
-in with it. `coga recurring list` is the schedule-aware view of those.
+Generated recurring period tasks under `tasks/recurring/` (`recurring/<name>`)
+are ordinary tasks and render as normal rows in the main table. The templates
+in `coga/recurring/` are not tasks yet, so they get a **`Recurring` footer**
+below the table instead — one row per template with its schedule, next fire,
+and current-period state (`due — not created`, or the live instance's status) —
+shown whenever the view's scope covers `tasks/recurring/` (the bare view or a
+`recurring` directory filter), even when no period task is live. `coga
+recurring list` remains the full schedule-aware view.
 
 `coga status --blocked` is the focused human-answer queue. It shows only
 blocked work and expands multi-blocker tasks to one row per open ask in a

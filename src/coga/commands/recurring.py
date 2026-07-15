@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from coga.config import ConfigError, load_config
-from coga.recurring import TemplateStatus, list_templates
+from coga.recurring import TemplateStatus, firing_stamp, list_templates
 from coga.recurring_runner import run_recurring_named
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import TicketError
@@ -177,8 +177,8 @@ def _print_templates_table(
         table.add_row(
             s.name,
             s.schedule or "-",
-            _firing_stamp(s.last_fire),
-            _firing_stamp(s.next_fire),
+            firing_stamp(s.last_fire),
+            firing_stamp(s.next_fire),
             period,
         )
     console.print(table)
@@ -207,10 +207,3 @@ def _print_picked_table(console: Console, picked: list[TaskRef]) -> None:
             ticket.step or "-",
         )
     console.print(table)
-
-
-def _firing_stamp(when: datetime | None) -> str:
-    """Compact firing label for the templates table (`Mon 06-15 09:00`)."""
-    if when is None:
-        return "-"
-    return when.strftime("%a %m-%d %H:%M")
