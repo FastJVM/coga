@@ -1288,3 +1288,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 15:23 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-15 15:32 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-15 16:34 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 16:34 [bootstrap/orient] [human:nicktoper] launched (assignee=codex, agent=codex)
