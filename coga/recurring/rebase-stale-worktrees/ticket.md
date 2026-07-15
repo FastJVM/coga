@@ -73,3 +73,38 @@ abandoned or already-merged residue — branch-sweep's problem, not this task's.
 section below with its results.
 
 last_serviced_period: 2026-W29
+
+## Rebase Run Summary
+
+Run 2026-W29 (base: origin/main @ 1da0a296). All 20 worktree branches were
+stale; all worktrees clean, none mid-op, none with an upstream (so no pushes).
+
+- docs-cleanup — rebased-local (all commits dropped as already-applied; branch now empty vs main — branch-sweep candidate)
+- megalaunch-usage-probe — rebased-local (same: empty vs main — branch-sweep candidate)
+- move-read-views-to-views-module — rebased-local (same: empty vs main — branch-sweep candidate)
+- branch-sweep — conflict — human needed (10 files: coga+packaged branch-sweep skill/workflow/ticket, src/coga/branchsweep.py, tests/test_branchsweep.py)
+- commit-coga-state-sweep — conflict — human needed (7 files: sync SKILL twins, cli.py, git.py, tests)
+- direct-body-strand-guard — conflict — human needed (4 files: commands/mark.py, git.py, mark.py, test_git.py)
+- docs-sandbox-dev-loop-friction — conflict — human needed (1 file: codebase SKILL.md; main already carries an evolved superset — likely superseded)
+- docs-with-review-workflow — conflict — human needed (2 files: with-review.md twins; main already has an evolved docs/with-review — likely superseded)
+- fix-control-branch-mismatch-guidance — conflict — human needed (git.py, test_git.py; main has an evolved `_git_ref_present` version of the same fix — likely superseded)
+- init-in-subdir — conflict — human needed (4 files: commands/init.py, update.py, cli SKILL twin, test_init.py)
+- launch-blocked-chat — conflict — human needed (5 files: architecture SKILL twins, commands/launch.py, cli SKILL, test_launch.py)
+- launch-end-refresh — conflict — human needed (7 files: sync SKILL twins, launch.py, git.py, views.py, tests)
+- megalaunch-user-specific — conflict — human needed (4 files: config.py, megalaunch.py, tests)
+- open-pr-gate-in-bump — conflict — human needed (13 files: open-pr skill/workflow twins, launch.py, tests)
+- open-pr-script — conflict — human needed (13 files: same open-pr surface as open-pr-gate-in-bump — the two branches collide with main and with each other)
+- recurring-scan-target — conflict — human needed (15 files: recurring/launch surface + contexts + tests)
+- sync-context-nonfatal-git — conflict — human needed (2 files: sync SKILL twins; main text is already more evolved than the branch's fix — likely superseded)
+- telemetry — conflict — human needed (README.md, cli.py, config.py; branch predates the README rewrite)
+- unblock-auto-launch — conflict — human needed (18 files: recurring tickets/templates, launch/recurring/retire commands, tests)
+- warn-version-skew — conflict — human needed (version_skew.py, test_version_skew.py; main has an evolved `_is_running_live_source` version — likely superseded)
+
+Ticket-referenced branches that no longer exist locally or on origin (nothing
+to rebase): codex/auto-persist-launch-dirt, codex/relay-prompt-scope-report,
+codex/write-real-coga-documentation, dev-testing-contract,
+refuse-blackboard-synthesis, retire-deletes-branch.
+
+No ticket's open-pr step was unblocked this run (the only clean rebases left
+empty branches). All conflicted rebases were aborted; every worktree left
+clean, exactly as found.

@@ -55,3 +55,5 @@ consumed_through:
 {"id":"9c53d71a2ad0","ts":"2026-07-05T09:48","project":"coga","kind":"done","detail":"nick finished: review → done ✅","ticket":"move-ticket-authoring-out-of-core","owner":"nick"}
 {"id":"9e63c2bfc979","ts":"2026-07-10T18:25","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"install/init-venv-python-selection-breaks-on-wrong-host-py","owner":"nicktoper"}
 {"id":"bff204efa2e7","ts":"2026-07-12T20:44","project":"51c3008531d3411ab6c13e63d7781107","kind":"done","detail":"claude finished: implement → done ✅","ticket":"install/init-does-not-persist-user-then-blocks-on-reinit","owner":"zach"}
+{"id":"0002ca639e4a","ts":"2026-07-15T12:27","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/branch-sweep","owner":"nick"}
+{"id":"ead023ed5677","ts":"2026-07-15T12:32","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — Rebase run W29: 20 stale branches — 3 rebased clean but empty vs main (already landed), 17 semantic conflicts aborted and reported; no pushes (no upstreams); all worktrees left clean","ticket":"recurring/rebase-stale-worktrees","owner":"nick"}
