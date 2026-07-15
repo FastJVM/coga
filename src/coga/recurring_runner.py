@@ -546,6 +546,7 @@ def _land_recurring_create_on_control_branch(
     force_snapshot_is_fresh: bool,
     force_record_period: bool,
     state_keys: list[str],
+    update_local_ref: bool = True,
 ) -> tuple[str, bool]:
     remote = cfg.git_remote
     branch = cfg.git_control_branch
@@ -602,7 +603,8 @@ def _land_recurring_create_on_control_branch(
         new = git._run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
         result = git._push_ref(root, remote, f"{new}:refs/heads/{branch}")
         if result is None:
-            git._try_update_local_ref(root, branch, new)
+            if update_local_ref:
+                git._try_update_local_ref(root, branch, new)
             return new, False
         if not git._is_non_fast_forward(result):
             raise git.GitError(
@@ -653,6 +655,11 @@ def _sync_recurring_create_on_checked_out_control_branch(
         force_snapshot_is_fresh=force_snapshot_is_fresh,
         force_record_period=force_record_period,
         state_keys=state_keys,
+        # The checked-out control branch is reconciled right below via
+        # restore + rebase; the landing's best-effort ff-merge would always
+        # fail against this checkout's still-dirty create paths and print a
+        # spurious "not fast-forwarded" note.
+        update_local_ref=False,
     )
     _restore_selected_paths_from_ref(root, "HEAD", rels)
     _rebase_checked_out_branch_onto(root, landed)
