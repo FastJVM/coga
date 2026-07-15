@@ -8,7 +8,7 @@ agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: null
+workflow: code/with-review
 secrets: null
 script: null
 ---
@@ -32,6 +32,22 @@ the recipient set in coga.toml instead of the ticket owner.
 <!-- coga:blackboard -->
 
 ## Production notes
+
+Message shape — from the 2026-07-15 rehearsal, which posted through the existing
+`coga slack` path into the live channel:
+
+```
+coga APP  [coga] [@zach] 💬 claude on coga-notifications/create-coga-notification-channel
+          "create-coga-notification-channel": dress rehearsal
+```
+
+That is the FYI shape and it is wrong for an alert. Nobody is "on" a maintenance-fee
+alert, the `[coga]` prefix repeats the app name, and the title repeats the slug.
+`--important` needs its own shape, closer to:
+
+```
+[@zach] ⚠️ patent-fake-widget #9999999 — Window 2 fee not recorded, closes 2027-01-15
+```
 
 Testable offline — `tests/test_notification.py` fakes the webhook with
 `monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)` and asserts

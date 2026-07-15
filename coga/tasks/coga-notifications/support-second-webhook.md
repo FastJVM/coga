@@ -110,3 +110,7 @@ For `add-coga-slack-important`: `post(..., important=True)` is the entry point;
 the flag and the alert message shape are all that's left. That ticket's body still
 says "Coga Notifications" for the channel renamed to coga-important on 2026-07-15
 — worth a pass when it starts.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":337096,"cache_read_input_tokens":12200104,"cli":"claude","input_tokens":236,"model":"claude-opus-4-8","output_tokens":79287,"provider":"anthropic","schema":1,"session_id":"b649bfaf-61d6-46a1-94ad-536fd00a864f","slug":"coga-notifications/support-second-webhook","step":"implement","title":"support-second-webhook","ts":"2026-07-15T21:57:10.009171Z","usage_status":"ok"}
