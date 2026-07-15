@@ -111,3 +111,7 @@ Rebase phase done:
 `## Rebase Run Summary` written to parent blackboard
 (coga/recurring/rebase-stale-worktrees/ticket.md). No open-pr step unblocked
 this run. Marking done.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":194346,"cache_read_input_tokens":3036035,"cli":"claude","input_tokens":103,"model":"claude-fable-5","output_tokens":45389,"provider":"anthropic","schema":1,"session_id":"e8e50dc0-cfe8-48e1-b3f5-8e1f973b90ca","slug":"recurring/rebase-stale-worktrees","step":"execute","title":"Rebase stale worktrees","ts":"2026-07-15T19:32:26.380304Z","usage_status":"ok"}
