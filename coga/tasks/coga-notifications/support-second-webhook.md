@@ -137,3 +137,5 @@ Test plan: `python -m pytest` — 1216 passed, 1 skipped.
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":337096,"cache_read_input_tokens":12200104,"cli":"claude","input_tokens":236,"model":"claude-opus-4-8","output_tokens":79287,"provider":"anthropic","schema":1,"session_id":"b649bfaf-61d6-46a1-94ad-536fd00a864f","slug":"coga-notifications/support-second-webhook","step":"implement","title":"support-second-webhook","ts":"2026-07-15T21:57:10.009171Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1759744,"cli":"codex","input_tokens":81170,"model":"gpt-5.5","output_tokens":7435,"provider":"openai","schema":1,"session_id":"019f67c8-ac7c-7041-b274-a24a547383b6","slug":"coga-notifications/support-second-webhook","step":"peer-review","title":"support-second-webhook","ts":"2026-07-15T22:20:26.284871Z","usage_status":"ok"}
