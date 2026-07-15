@@ -1291,3 +1291,5 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 16:34 [bootstrap/orient] [human:nicktoper] launched (assignee=codex, agent=codex)
 2026-07-15 16:42 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
 2026-07-15 16:55 [install/add-migration-errors-for-removed-config-keys] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 16:55 [install/add-migration-errors-for-removed-config-keys] [megalaunch] launched via coga megalaunch
+2026-07-15 16:55 [install/cut-release-to-realign-pypi-with-main] [megalaunch] started (active → in_progress) via coga megalaunch
