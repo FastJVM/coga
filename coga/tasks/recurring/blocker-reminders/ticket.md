@@ -1,12 +1,24 @@
 ---
-schedule: "0 10 * * *"
-schedule_comment: "Every day at 10am - remind owners about unresolved blocker asks"
-title: "Blocker reminders"
-# A script step runs the reminder sweep directly with no agent: the workflow's
-# one step references the `coga/blockers/remind` skill, whose `script:` calls
-# `coga.blocker_reminders.remind_blocked_tasks`. No agent auto-run buffering, so it is
-# safe for unattended recurring runs because this template runs as a script.
-workflow: blocker-reminders/run
+slug: recurring/blocker-reminders
+title: Blocker reminders
+status: active
+owner: nick
+human: nick
+agent: claude
+assignee: claude
+contexts:
+- coga/period-task
+skills: []
+workflow:
+  name: blocker-reminders/run
+  steps:
+  - name: remind
+    skills:
+    - coga/blockers/remind
+    assignee: agent
+secrets: null
+script: null
+step: 1 (remind)
 ---
 
 ## Description
@@ -33,10 +45,8 @@ travels with the ask and stays inspectable in the same file a human edits to
 answer it. The reminder job does not launch, unblock, or otherwise change task
 selection; it only makes unresolved asks visible again.
 
+## Context
+
 <!-- coga:blackboard -->
 
-This blackboard persists across every run of this recurring task. Reminder
-deduplication state is deliberately not stored here; each blocked task carries
-its own `## Blocker reminders` watermark.
-
-last_serviced_period: 2026-07-14
+The blackboard is a notepad to be written to often as the human and agent works through a task.
