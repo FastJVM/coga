@@ -2,7 +2,7 @@
 slug: coga-notifications/coga-notifications-context
 title: coga-notifications-context
 status: draft
-autonomy: interactive
+mode: agent
 owner: zach
 human: zach
 agent: claude
