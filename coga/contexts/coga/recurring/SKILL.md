@@ -49,7 +49,13 @@ scanner skips it. That is how the starter templates ship without firing.
   `coga launch` re-composes it from `step:`. If an interactive launch returns
   unfinished, the sweep pauses it before continuing, so a frozen `in_progress`
   period task can still mean "dead run's orphan" rather than "human parked it".
-  `done` (finished work) and `paused` (a human parked it) stay skipped. A
+  `done` from the *current* period (finished work) and `paused` (a human
+  parked it) stay skipped. A `done` run left over from a **prior** period —
+  finished but never reaped by Dream's retro pass — is **rolled over**, not
+  skipped: the scan reactivates it for the new firing (`done → active`,
+  workflow restarted at step 1, state-key snapshot re-baselined,
+  `last_serviced_period` advanced), because leaving it alone would shadow
+  every future period while the table read "skip (done)". A live
   stale leftover under `tasks/recurring/<name>/` is resumed before any new
   period work for that template; there is only one instantiated path per
   template. If a script-launched task returns still unfinished, the sweep
