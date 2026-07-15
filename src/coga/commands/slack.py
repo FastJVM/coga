@@ -27,6 +27,11 @@ from coga.tasks import (
 def slack(
     task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
     message: str = typer.Option(..., "--message", help="Short FYI message."),
+    important: bool = typer.Option(
+        False,
+        "--important",
+        help="Route the FYI to the important notification destination.",
+    ),
 ) -> None:
     """Post an FYI through the configured notification channel(s)."""
     if not message.strip():
@@ -52,6 +57,7 @@ def slack(
         task_path=ref.path,
         owner=ticket.owner or cfg.current_user,
         watchers=ticket.watchers,
+        important=important,
     )
     append_log(cfg, ref.id_slug, actor, f"slack: {message}")
     typer.echo("posted")
