@@ -1,5 +1,5 @@
 ---
-slug: coga-notifications/support-second-webhook
+slug: coga-important/support-second-webhook
 title: support-second-webhook
 status: in_progress
 owner: zach
@@ -33,7 +33,7 @@ step: 4 (review)
 ## Description
 
 Coga resolves one Slack webhook today, so every post lands in the same channel.
-Add a second webhook so Coga Notifications posts to its own channel while
+Add a second webhook so important notifications post to `coga-important` while
 state-transition broadcasts stay in coga-flow.
 
 ## Context
@@ -42,7 +42,7 @@ state-transition broadcasts stay in coga-flow.
 - `SlackChannel.send` reads the resolved URL from `cfg.slack_webhook` in `src/coga/notification/slack.py`.
 - The new key sits under `[notification.slack]` next to `webhook`.
 - Use `env:` indirection so the URL stays out of the committed file.
-- `coga-notifications/add-coga-slack-important` is the consumer.
+- `coga-important/add-coga-slack-important` is the consumer.
 
 <!-- coga:blackboard -->
 
@@ -109,9 +109,9 @@ anywhere. The fallback above is what keeps that misconfiguration visible instead
 of fatal.
 
 For `add-coga-slack-important`: `post(..., important=True)` is the entry point;
-the flag and the alert message shape are all that's left. That ticket's body still
-says "Coga Notifications" for the channel renamed to coga-important on 2026-07-15
-— worth a pass when it starts.
+the flag and the alert message shape are all that's left. Its body was renamed to
+`coga-important` on 2026-07-15 along with this directory, so no naming pass is
+owed there.
 
 ## Peer Review
 
@@ -126,6 +126,15 @@ Full verification after rebase: `python -m pytest` — 1216 passed, 1 skipped.
 ## PR
 
 Summary:
+- `coga slack --important` routes to the second webhook and is the only way into
+  coga-important; no state transition posts there.
+- Routing is all this PR ships — `--important` still renders the FYI shape and @'s
+  the ticket owner, so `coga-important/add-coga-slack-important` owns the alert
+  shape and the recipient mention.
+- Each repo that wants its alerts in coga-important sets
+  `[notification.slack].important_webhook` in its own coga.toml *and* exports the
+  referenced var. Miss either and the alert still posts, to the default webhook,
+  with a note on stderr.
 - Add `[notification.slack].important_webhook` resolution with `env:` support and
   no legacy `[slack]` fallback.
 - Route important Slack posts to the second webhook, falling back to the default
