@@ -1231,3 +1231,4 @@ fatal: adding files failed
 2026-07-14 20:56 [recurring/rebase-stale-worktrees] [system] created recurring/rebase-stale-worktrees for 2026-W29
 2026-07-14 20:56 [recurring/skill-update] [system] created (status=active)
 2026-07-14 20:56 [recurring/skill-update] [system] created recurring/skill-update for 2026-W29
+2026-07-14 20:57 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
