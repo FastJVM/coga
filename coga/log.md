@@ -1522,3 +1522,4 @@ Aborting
 2026-07-16 10:15 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] auto-bumped on merge of PR #562 → done
 2026-07-16 10:15 [recurring/autoclose-merged] [system] script exited with code 0
 2026-07-16 10:15 [recurring/autoclose-merged] [system] completed (final script step ran) via coga launch
+2026-07-16 10:15 [recurring/digest] [system] started (active → in_progress) via coga launch
