@@ -131,18 +131,14 @@ marker; a ticket carrying nothing durable is direct-deleted with
 `git restore`. Retro never leaves a processed done ticket on disk and never
 opens a marker-only PR.
 
-A done `recurring/<name>` ticket is an eligible done ticket like any other —
-this is how recurring period tickets get cleaned up. The recurring command does
-not delete real done period tasks; a finished period task sits on disk as
-`status: done` until a Dream run sweeps it here. Period tickets carry nothing
-durable (their output is the notification post or PR they already produced),
-so Retro finds no new knowledge in them and **direct-deletes** them via `coga
-delete recurring/<name>` — no PR, no marker — leaving the recurring template's
-`last_serviced_period` line in the `coga/recurring/<name>/ticket.md`
-blackboard region untouched so the period is not re-created. This includes the **previous
-Dream run's own** `recurring/dream` ticket: Dream does not delete itself
-mid-run, so the last finished Dream period ticket is one of the done tickets
-this pass deletes.
+A done `recurring/<name>` ticket from this sweep is eligible like any other.
+Period tickets carry nothing durable (their output is the notification post or
+PR they already produced), so Retro direct-deletes them via `coga delete
+recurring/<name>` — no PR or marker — while leaving the recurring template's
+`last_serviced_period` untouched. If a completed period ticket survives into a
+later firing, the recurring scanner deletes it before creating that period's
+fresh task. The previous Dream run is removed by that scanner fallback before
+this Dream task is created, so Dream never sees or deletes its own predecessor.
 
 Summarize each knowledge PR — and the directly-deleted no-knowledge tickets —
 in this run's blackboard.
@@ -226,10 +222,9 @@ the Slack summary is posted. That is the last action — **do not delete this
 task.** The run's durable artifacts — every PR, draft ticket, and the Slack
 summary — carry the findings, so this `done` task and its blackboard are
 disposable, but Dream does not delete itself mid-run. It sits on disk as a
-done `recurring/dream` ticket and is cleaned up by the **next** Dream run's
-Phase 4 retro pass, exactly like every other done recurring period ticket.
-Dream is the single deleter of done recurring tickets; it just never turns that
-deleter on itself in the same run.
+done `recurring/dream` ticket; at the next firing, the recurring scanner deletes
+that prior-period artifact and creates a fresh Dream task from this template.
+Git history preserves the completed run.
 
 <!-- coga:blackboard -->
 

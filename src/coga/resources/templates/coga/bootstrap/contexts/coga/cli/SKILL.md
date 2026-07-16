@@ -628,8 +628,11 @@ the template blackboard's `last_serviced_period` line. It launches the due ones
 **sequentially** — orphaned `in_progress` resumes first, then fresh launches,
 each set most-overdue first, one finishing before the next starts. It prints
 a scan table (`→ resume` / `→ launch` / `ready` vs `overdue Nd`) before
-launching. `done` and `paused` tasks are skipped — never relaunched; a stuck
-`in_progress` run defers the next period until it reaches one of those.
+launching. A current-period `done` task and every `paused` task stay skipped.
+A prior-period `done` task that Dream did not reap is deleted before a fresh
+`active` task is created from the current template at the stable path, so stale
+instructions and blackboard residue cannot shadow the new firing. A stuck
+`in_progress` run defers the next period until it reaches `done` or `paused`.
 
 Current period only: it does not chase missed periods. Running `coga
 recurring` once a month for a weekly template produces one run (this
@@ -686,8 +689,9 @@ schedule. `name` is the directory name under `coga/recurring/`. The task
 ref is `recurring/<name>`, so a manual `launch` and a bare `coga recurring`
 converge on one stable task directory (idempotent — a second `launch` reuses
 the existing task). An orphaned `in_progress` run is resumed rather than
-duplicated; a `done` or `paused` run is left alone. This is exactly what the
-`coga dream` alias expands to.
+duplicated; a prior-period `done` run is deleted and replaced, while a
+current-period `done` run or any `paused` run is left alone. This is exactly
+what the `coga dream` alias expands to.
 Unless `--interactive` is set, it passes the same concrete idle-timeout and
 max-session limits as the scheduled sweep. `--interactive` leaves those
 liveness limits unarmed for debugging one template by hand.

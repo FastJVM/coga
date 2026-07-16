@@ -1251,7 +1251,7 @@ def _broadcast_scan(
     reaches that task, so an unreached task is not mutated during the scan.
     """
     for task in list(scan.tasks):
-        if not task.created:
+        if not task.created and not task.replaced_done:
             if sync_existing:
                 _refresh_forced_status_from_control(cfg, task)
             continue
@@ -1262,7 +1262,10 @@ def _broadcast_scan(
             task.template,
             task.ref,
             respect_handled_period=respect_handled_period,
-            respect_existing_task=not sync_existing,
+            # A normal replacement deliberately replaces the prior-period
+            # `done` task at the stable path. The period ledger still guards
+            # against racing another machine that handled this firing first.
+            respect_existing_task=not (sync_existing or task.replaced_done),
             restore_existing_control_task=sync_existing,
             overwrite_dirty_control_task=sync_existing and task.created,
             force_period_key=task.period_key if sync_existing else None,
@@ -1281,7 +1284,9 @@ def _broadcast_scan(
         task.status = ticket.status
         if sync_existing and not created_on_control:
             task.created = False
-        if task.created and created_on_control:
+        if task.replaced_done and created_on_control:
+            typer.echo(f"Replaced completed {task.ref.id_slug}")
+        elif task.created and created_on_control:
             typer.echo(f"Created {task.ref.id_slug}")
 
     if scan.errors:

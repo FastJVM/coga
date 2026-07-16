@@ -51,11 +51,11 @@ scanner skips it. That is how the starter templates ship without firing.
   period task can still mean "dead run's orphan" rather than "human parked it".
   `done` from the *current* period (finished work) and `paused` (a human
   parked it) stay skipped. A `done` run left over from a **prior** period —
-  finished but never reaped by Dream's retro pass — is **rolled over**, not
-  skipped: the scan reactivates it for the new firing (`done → active`,
-  workflow restarted at step 1, state-key snapshot re-baselined,
-  `last_serviced_period` advanced), because leaving it alone would shadow
-  every future period while the table read "skip (done)". A live
+  finished but never reaped by Dream's retro pass — is **deleted before a
+  fresh task is created** from the current template. The new task starts
+  `active` at workflow step 1 with a fresh blackboard, a re-baselined state-key
+  snapshot, and an advanced `last_serviced_period`; reactivating a terminal
+  task would preserve stale run instructions and residue. A live
   stale leftover under `tasks/recurring/<name>/` is resumed before any new
   period work for that template; there is only one instantiated path per
   template. If a script-launched task returns still unfinished, the sweep
@@ -136,25 +136,18 @@ task, which carries that rule.
 
 ## Dream is the recurring janitor
 
-A finished period task is **not** deleted by the recurring command — it sits on
-disk as an ordinary `status: done` ticket at `tasks/recurring/<name>/`. The
-single deleter of done recurring period tickets is **Dream**: its Phase 4 retro
-pass (`retro/done-ticket`) processes every eligible done ticket, and a done
-`recurring/<name>` task is eligible like any other. Period tasks carry nothing
-durable — their output is the notification post or PR they already produced —
-so Retro extracts no new knowledge and **direct-deletes** them via `coga
-delete recurring/<name>` (working-tree `git rm` plus a `Ticket:
-recurring/<name> — deleted` commit), with no PR and no marker. The template's
-`last_serviced_period` line is left untouched, so a completed period is not
-re-created; deletion is idempotent (a ticket whose directory is already gone
-is never a candidate).
+A finished current-period task normally sits on disk as an ordinary
+`status: done` ticket at `tasks/recurring/<name>/` until Dream runs at the end
+of the same sweep. Dream's Phase 4 retro pass processes each eligible done
+ticket; recurring period tasks carry nothing durable, so Retro direct-deletes
+them via `coga delete recurring/<name>` with no PR or marker.
 
-Each Dream run is itself the `recurring/dream` task. Dream does **not** delete
-itself mid-run: it marks itself `done` and stops, and the **next** Dream run's
-retro pass cleans up the previous done Dream task — exactly like every other
-done recurring period task. For real done recurring period tickets, there is no
-self-delete and no recurring-command deletion; Dream-acting-on-`done` is the
-only cleanup path.
+The scheduler is the liveness fallback. If any completed recurring task
+survives into a later period, it deletes that stale artifact before creating
+the fresh task at the stable path. This is also how Dream's own completed task
+is removed: Dream marks itself `done` and stops, then the next firing's scan
+deletes that prior-period task before creating the new Dream run. Git history
+is the audit trail; the template's `last_serviced_period` remains persistent.
 
 ## Gotchas
 
