@@ -23,3 +23,10 @@ consumed_through: 5395a45530c4
 {"id":"c74322881d74","ts":"2026-07-16T10:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nicktoper"}
 {"id":"8f2a92e28596","ts":"2026-07-16T10:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
 {"id":"a24c6c948452","ts":"2026-07-16T10:30","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"install/retest-ssh-https-and-init-reclone-on-fresh-machine","owner":"nicktoper"}
+consumed_through: 8e32b965dc04
+{"id":"8e32b965dc04","ts":"2026-07-15T20:14","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
+{"id":"b99a93978ecd","ts":"2026-07-15T20:14","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nicktoper"}
+{"id":"bef10e3dc37c","ts":"2026-07-15T20:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+{"id":"803cb28175e9","ts":"2026-07-15T20:36","project":"coga","kind":"done","detail":"→ done (script)","ticket":"dream-validate-drift-w29","owner":"nicktoper"}
+{"id":"88c1b04d9318","ts":"2026-07-15T21:19","project":"coga","kind":"done","detail":"→ done (script)","ticket":"dream-cleanup-orphan-markers-w29","owner":"nicktoper"}
+{"id":"efdb0827ab26","ts":"2026-07-16T11:23","project":"coga","kind":"done","detail":"zach finished: review → done ✅","ticket":"coga-important/support-second-webhook","owner":"zach"}
