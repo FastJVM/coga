@@ -110,6 +110,12 @@ class Config:
     # stays on `slack_webhook`. None when unconfigured — `SlackChannel.send` then
     # crashes an `--important` post rather than rerouting it to `slack_webhook`.
     slack_important_webhook: str | None = None
+    # The coga-important triage owner: the coga name `coga slack --important` @'s
+    # in place of the ticket owner, resolved through `[notification.slack.users]`
+    # at post time. A name, not a member ID, so no `env:` indirection. None when
+    # unset — the owner mention stands (the `slack_important_webhook` fallback rule).
+    # This field only carries the resolved value; spending it is the consumer's job.
+    slack_important_recipient: str | None = None
     notification_channels: tuple[str, ...] = ("slack",)
     notification_deprecation_notes: tuple[str, ...] = ()
     slack_gifs: dict[str, list[str]] = field(default_factory=dict)
@@ -261,6 +267,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     (
         slack_webhook,
         slack_important_webhook,
+        slack_important_recipient,
         slack_enabled,
         slack_gifs,
         slack_users,
@@ -317,6 +324,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         agents=agents,
         slack_webhook=slack_webhook,
         slack_important_webhook=slack_important_webhook,
+        slack_important_recipient=slack_important_recipient,
         slack_enabled=slack_enabled,
         notification_channels=notification_channels,
         notification_deprecation_notes=notification_deprecation_notes,
@@ -410,10 +418,14 @@ _ALLOWED_LEGACY_SLACK_KEYS: frozenset[str] = frozenset({
 })
 # `[notification.slack]` takes everything the legacy `[slack]` table does, plus the
 # keys added after `[slack]` was deprecated. Keeping the two sets distinct is what
-# stops `[slack].important_webhook` from being accepted and then silently ignored —
-# no legacy resolver reads it, so a repo would post its alerts to the wrong channel
+# stops the post-deprecation keys (`important_webhook`, `important_recipient`) from
+# being accepted in `[slack]` and then silently ignored — no legacy resolver reads
+# them, so a repo would post its alerts to the wrong channel, or @ the wrong person,
 # with no error to explain why.
-_ALLOWED_SLACK_KEYS: frozenset[str] = _ALLOWED_LEGACY_SLACK_KEYS | {"important_webhook"}
+_ALLOWED_SLACK_KEYS: frozenset[str] = _ALLOWED_LEGACY_SLACK_KEYS | {
+    "important_webhook",
+    "important_recipient",
+}
 _ALLOWED_SHARED_GIT_KEYS: frozenset[str] = frozenset({
     "enabled",
     "remote",
@@ -833,7 +845,13 @@ def _parse_slack_notification(
     shared_legacy_slack: dict | None,
     local_legacy_slack: dict | None,
 ) -> tuple[
-    str | None, str | None, bool, dict[str, list[str]], dict[str, str], tuple[str, ...]
+    str | None,
+    str | None,
+    str | None,
+    bool,
+    dict[str, list[str]],
+    dict[str, str],
+    tuple[str, ...],
 ]:
     """Parse the effective Slack channel config.
 
@@ -860,6 +878,10 @@ def _parse_slack_notification(
         shared_slack,
         local_slack,
     )
+    important_recipient = _resolve_notification_slack_important_recipient(
+        shared_slack,
+        local_slack,
+    )
     enabled = _resolve_notification_slack_enabled(
         shared_slack,
         local_slack,
@@ -881,7 +903,15 @@ def _parse_slack_notification(
         local_legacy_slack,
         notes,
     )
-    return webhook, important_webhook, enabled, gifs, users, tuple(dict.fromkeys(notes))
+    return (
+        webhook,
+        important_webhook,
+        important_recipient,
+        enabled,
+        gifs,
+        users,
+        tuple(dict.fromkeys(notes)),
+    )
 
 
 def _legacy_note(notes: list[str], key: str) -> None:
@@ -948,6 +978,32 @@ def _resolve_notification_slack_important_webhook(
                     f"(got {type(value).__name__})"
                 )
             return _resolve_secret_value(value) or None
+    return None
+
+
+def _resolve_notification_slack_important_recipient(
+    shared: dict | None,
+    local: dict | None,
+) -> str | None:
+    """Resolve the coga-important triage recipient, with local overriding shared.
+
+    Like `important_webhook`, this key has no legacy `[slack]` table or bare-env
+    fallback — it postdates both, so there is no old config to stay compatible
+    with. Unlike the webhook it is a coga name, not a secret bearer token, so it
+    takes no `env:` indirection: the value passes through verbatim (a member ID is
+    resolved from it later, at post time, through `[notification.slack.users]`).
+    Absent — or an empty string — resolves to None, and the ordinary owner mention
+    stands, matching the `important_webhook` fallback rule.
+    """
+    for table in (local, shared):
+        if isinstance(table, dict) and "important_recipient" in table:
+            value = table["important_recipient"]
+            if not isinstance(value, str):
+                raise ConfigError(
+                    "[notification.slack].important_recipient must be a string "
+                    f"(got {type(value).__name__})"
+                )
+            return value or None
     return None
 
 
