@@ -2,10 +2,10 @@
 slug: v2/debug-surface-for-recurring-tasks-streamed-output
 title: 'Debug surface for recurring tasks: streamed output + step-through'
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:

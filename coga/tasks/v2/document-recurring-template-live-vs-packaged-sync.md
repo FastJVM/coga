@@ -2,8 +2,8 @@
 slug: v2/document-recurring-template-live-vs-packaged-sync
 title: Document recurring template live-vs-packaged sync rule
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

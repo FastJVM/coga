@@ -2,10 +2,10 @@
 slug: launch-prompt/review-and-edit-the-relay-launch-prompt-editorial
 title: review and edit the relay launch prompt (editorial pass)
 status: paused
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/principles

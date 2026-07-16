@@ -123,7 +123,7 @@ block = [
 # An incoming webhook can't look an ID up itself, so it has to be listed
 # here. Grab an ID from Slack: profile → ⋮ (More) → Copy member ID.
 [notification.slack.users]
-nick = "U0AG1BASFJ7"
+nicktoper = "U0AG1BASFJ7"
 zach = "U0AG5LKCK8E"
 
 # --- Git sync ---

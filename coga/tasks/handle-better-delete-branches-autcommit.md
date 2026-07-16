@@ -2,10 +2,10 @@
 slug: handle-better-delete-branches-autcommit
 title: handle better delete branches + autcommit
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
   - dev/code
 skills: []

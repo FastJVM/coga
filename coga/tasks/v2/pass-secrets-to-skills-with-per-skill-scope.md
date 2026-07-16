@@ -2,8 +2,8 @@
 slug: v2/pass-secrets-to-skills-with-per-skill-scope
 title: Pass secrets to skills with per-skill scope
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

@@ -1,11 +1,11 @@
 ---
 slug: install/vendor-cli-from-installed-package-not-git-clone
 title: Vendor CLI from installed package not git clone
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -64,4 +64,95 @@ re-clone surprise). Touchpoints: `src/coga/commands/init.py` (`_do_init`),
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: vendor-cli-from-package
+worktree: /home/n/Code/claude/coga-vendor-cli
+
+## Plan (implement step)
+
+Replace `coga init`'s shallow git clone with vendoring from the running
+distribution. Design:
+
+- New `InstallSource` (dataclass in `commands/update.py`): `kind`
+  (`release` | `checkout` | `url`), `pip_spec` (what pip installs),
+  `display` (redacted provenance for pin/echo), `requires_python`.
+- `resolve_install_source()` resolution order:
+  1. `COGA_REPO_URL` env override — existing dir ⇒ checkout install from
+     that path (sanctions the old workaround); otherwise a git URL ⇒
+     `pip install git+<url>` via existing `pip_git_source`.
+  2. Running package imported from a source checkout
+     (`src/coga/…` under a root with a `pyproject.toml` naming `coga`)
+     ⇒ install from that checkout path. Covers `pip install -e .`.
+  3. Otherwise ⇒ `pip install coga==<running version>` (PyPI release).
+- `install_venv(coga_os, source)` no longer needs `.coga/pyproject.toml`;
+  requires-python validation comes from the source (checkout pyproject /
+  running dist metadata; skipped for git URLs — pip enforces there).
+- `refresh_cli`, `clone_upstream`, `upstream_sha`, `resolve_coga_repo_url`,
+  remote detection, and `read_pin_url` are deleted — nothing copies source
+  into `coga/.coga/` anymore; `.coga/` holds only `.venv/`, `bin/`, COGA_PIN.
+- `COGA_PIN` becomes `<source display>\n<installed version>` where the
+  version is read back from the built venv (`vendored_cli_version`), so it
+  records what pip actually installed. `coga --version` prints
+  `vendored CLI <version> (from <source>)`.
+- Docs: packaged `cli` context init + `--version` sections, README init
+  notes, `docs/cli-extension-audit.md` init row. Architecture context only
+  mentions offline-init in passing — checked, no clone description there.
+
+Findings so far:
+- `resolve_coga_repo_url`'s ssh-remote detection existed purely to pick a
+  git transport for the clone; with pip there is no transport concern, so
+  it goes away rather than being ported.
+- `uninstall.py` imports the `COGA_REPO_URL` constant (kept) and
+  `running_cli_location` (unchanged).
+- Tests: `tests/test_init.py` `fake_clone` fixture + clone/pin/install_venv
+  tests need rework; `_venv_fixture_coga_os` no longer needs the fake
+  `.coga/pyproject.toml`.
+
+## Implement step — done
+
+Committed on `vendor-cli-from-package` (single commit, rebased onto
+origin/main 3aeb6dfe). What landed, matching the plan above:
+
+- `commands/update.py`: `InstallSource` + `resolve_install_source()` +
+  `_running_checkout_root()` (filesystem probe: `coga.__file__` under
+  `<root>/src/coga` with a pyproject naming `coga`) +
+  `vendored_cli_version()` (reads the installed version back from the built
+  venv). `clone_upstream` / `upstream_sha` / `refresh_cli` /
+  `resolve_coga_repo_url` / remote detection / `read_pin_url` deleted;
+  `read_pin_source` replaces `read_pin_url`. `install_venv(coga_os, source)`
+  pip-installs `source.pip_spec` and validates requires-python from the
+  source (skipped for git-URL sources — pip enforces); pip failure output
+  redacts a credentialed URL spec.
+- `commands/init.py`: source resolved before any writes (bad COGA_REPO_URL
+  leaves nothing on disk); no tempdir/clone; pin written from
+  source + actually-installed version; echoes
+  `Vendored CLI coga <version> from <source>`.
+- `cli.py --version`: `vendored CLI <version> (from <source>)`; old
+  SHA-format pins still print (line 2 shown as-is, documented in
+  `read_pin`).
+- COGA_PIN format: `<source display>\n<installed version>`.
+- Docs: packaged `coga/cli` context (init paragraph + `--version` section),
+  live `coga/codebase` context (requires-python wording),
+  `docs/cli-extension-audit.md` init row. README does **not** describe the
+  clone anywhere (its only clone mentions are the dev-install instructions),
+  and the architecture context never describes init vendoring beyond the
+  still-true bundled-batteries bullet — checked both; no edits needed there.
+
+Verification:
+- `python3.12 -m pytest`: 1211 passed, 1 failed —
+  `test_launch_script.py::test_bootstrap_script_launch_is_stateless` fails
+  identically on untouched main (environment: the subprocess interpreter
+  has no coga installed), pre-existing, not caused by this change.
+- End-to-end smoke in a fresh temp git repo:
+  `PYTHONPATH=src python3.12 -m coga.cli init --user tester` → no clone, no
+  `Cloning …` line, venv pip-installed from the checkout path,
+  COGA_PIN = `<checkout path>\n0.2.0`, `.coga/` contains only
+  `.venv/ bin/ COGA_PIN` (no `src/`), and the vendored
+  `./coga/.coga/bin/coga --version` / `coga status` run cleanly against the
+  scaffolded coga.toml — the original 0.2.0 breakage scenario.
+
+Note for review: the release path (`pip install coga==<version>` from PyPI)
+is covered by unit tests only — it can't be exercised end-to-end until the
+running version exists on PyPI. A non-editable `pip install /path/to/checkout`
+(frozen copy in site-packages) resolves as a release install of its version;
+`COGA_REPO_URL=<path>` is the explicit escape hatch there.

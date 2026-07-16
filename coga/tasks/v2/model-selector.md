@@ -2,10 +2,10 @@
 slug: v2/model-selector
 title: model selector
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

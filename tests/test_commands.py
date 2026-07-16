@@ -592,7 +592,7 @@ def test_delete_missing_skill_exits_nonzero(
     # The skill is the implementation; without it `coga delete` fails loud
     # rather than silently falling back to a private rmtree.
     slug, task_path = _make_task(repo, force_directory=True)
-    monkeypatch.setattr(delete_cmd, "resolve_skill_path", lambda cfg, ref: None)
+    monkeypatch.setattr("coga.delete_task.resolve_skill_path", lambda cfg, ref: None)
     result = CliRunner().invoke(app, ["delete", slug])
     assert result.exit_code == 2
     assert task_path.is_dir()

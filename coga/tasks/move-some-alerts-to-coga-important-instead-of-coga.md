@@ -2,10 +2,10 @@
 slug: move-some-alerts-to-coga-important-instead-of-coga
 title: move some alerts to coga important instead of coga flow
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

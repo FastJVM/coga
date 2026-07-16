@@ -2,10 +2,10 @@
 slug: why-browser-autoamtion-as-a-ticket
 title: why browser autoamtion as a ticket
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

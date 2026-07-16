@@ -2,10 +2,10 @@
 slug: log-md-coga-chat-too-so-we-have-a-full-view-of-the
 title: log.md coga chat too so we have a full view of the work
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

@@ -16,7 +16,10 @@ context. The git high-water mark lives separately in the digest ticket's
 
 
 
-consumed_through: 4f676e9ca380
-{"id":"4f676e9ca380","ts":"2026-07-15T12:32","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/skill-update","owner":"nick"}
-{"id":"701102bd50d8","ts":"2026-07-15T12:32","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nick"}
-{"id":"64832a75819d","ts":"2026-07-15T12:33","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nick"}
+
+consumed_through: 8e32b965dc04
+{"id":"8e32b965dc04","ts":"2026-07-15T20:14","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
+{"id":"b99a93978ecd","ts":"2026-07-15T20:14","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nicktoper"}
+{"id":"bef10e3dc37c","ts":"2026-07-15T20:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+{"id":"803cb28175e9","ts":"2026-07-15T20:36","project":"coga","kind":"done","detail":"→ done (script)","ticket":"dream-validate-drift-w29","owner":"nicktoper"}
+{"id":"88c1b04d9318","ts":"2026-07-15T21:19","project":"coga","kind":"done","detail":"→ done (script)","ticket":"dream-cleanup-orphan-markers-w29","owner":"nicktoper"}

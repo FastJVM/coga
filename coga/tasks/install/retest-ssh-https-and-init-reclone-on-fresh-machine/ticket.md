@@ -59,6 +59,12 @@ escalated — the clone vendors *main HEAD*, not the installed version, and is
 slated for removal in `install/vendor-cli-from-installed-package-not-git-clone`.
 If that ticket lands first, only the SSH-machine verification remains.
 
+**Added 2026-07-15 (nick, launch prep):** while on the fresh machine, also
+time the full path from `pip install` to first felt success (init → build →
+first ticket → something visibly works). If it exceeds ~10 minutes or ends
+at "installed, now what?", that's a launch blocker — file it against the
+launch gates, not here. One measurement, no new scope.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

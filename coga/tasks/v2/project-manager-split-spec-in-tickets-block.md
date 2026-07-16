@@ -2,10 +2,10 @@
 slug: v2/project-manager-split-spec-in-tickets-block
 title: 'project manager: split spec in tickets + block'
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

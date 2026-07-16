@@ -88,9 +88,3 @@ verb migration unless it is required to prove the launch split.
 <!-- coga:blackboard -->
 
 Created under `cleanup-core-commands/` as part of the command-surface breakdown.
-
-## Usage
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"codex","input_tokens":null,"model":null,"output_tokens":null,"provider":"openai","schema":1,"session_id":null,"slug":"cleanup-core-commands/launch-decomposition","step":"design","title":"Decompose launch into substrate plus ticket orchestration","ts":"2026-07-09T22:08:16.330137Z","usage_status":"unknown"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"codex","input_tokens":null,"model":null,"output_tokens":null,"provider":"openai","schema":1,"session_id":null,"slug":"cleanup-core-commands/launch-decomposition","step":"design","title":"Decompose launch into substrate plus ticket orchestration","ts":"2026-07-09T22:08:40.865905Z","usage_status":"unknown"}

@@ -2,10 +2,10 @@
 slug: v2/docs-and-contt-block-should-be-merged
 title: docs and contt block should be merged
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

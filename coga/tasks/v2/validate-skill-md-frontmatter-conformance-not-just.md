@@ -2,10 +2,10 @@
 slug: v2/validate-skill-md-frontmatter-conformance-not-just
 title: Validate SKILL.md frontmatter conformance not just ref existence
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

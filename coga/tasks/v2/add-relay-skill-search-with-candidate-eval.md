@@ -2,8 +2,8 @@
 slug: v2/add-relay-skill-search-with-candidate-eval
 title: Add relay skill search with candidate eval
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:

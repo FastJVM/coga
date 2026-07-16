@@ -529,7 +529,7 @@ sweep never grabs an `in_progress` ticket — that
 status means a session some other process started (or that crashed mid-step)
 — but checking one in the picker **is** the deliberate resume that used to
 require a manual `coga launch <slug>`. An explicitly selected task that turns
-out unlaunchable (someone else's, draft/paused/done, filtered agent) is
+out unlaunchable (someone else's, draft/paused/done) is
 reported as `skipped-unlaunchable` rather than silently dropped — you picked
 it, so its outcome is owed back.
 
@@ -551,11 +551,14 @@ skipped-unlaunchable, and failed.
 Megalaunch is on-demand only — there is no shipped recurring template for it;
 you run the sweep when you want the queue drained.
 
-Pass `--agent <type>` to scope the sweep (and the picker's candidates) to
-tickets currently assigned to that configured agent type. Tickets assigned to
-other agents are outside the run and are not counted as skip noise; if a
-launched task hands off to a different agent, megalaunch stops there for that
-task.
+Pass `--agent <type>` to launch the swept tasks (and the picker's confirmed
+set) with that configured agent type regardless of each ticket's `assignee:`
+— an ephemeral per-launch override with the same semantics as
+`coga launch --agent`: the ticket's `assignee:` is never rewritten, a
+human-assigned ticket is not converted into an agent step (it still skips as
+a human gate), and on a task that chains multiple steps the override applies
+only to the first launched step — later steps follow the ticket's resolved
+assignee, so `other-agent` rotation keeps its meaning.
 
 An optional positional `DIR` scopes the sweep or the picker to tasks under
 `tasks/<DIR>/` (nested ones included), exactly like `coga status <dir>` —
@@ -609,12 +612,18 @@ the blackboard region of `coga/recurring/dream/ticket.md` as
 scans current task state, runs the known Coga housekeeping pass, writes
 results to that run's blackboard, and finishes with `coga mark done`.
 
-## coga recurring
+## coga recurring [--agent <type>]
 
 Scan `coga/recurring/`, then create and launch every task that is due.
-The Typer command head only parses `--interactive` / `--all` and launches the
-stateless package-backed `bootstrap/recurring-scan` script target, passing
-those flags as `COGA_RECURRING_INTERACTIVE` / `COGA_RECURRING_FORCE`.
+The Typer command head parses `--interactive` / `--all` / `--agent` and
+launches the stateless package-backed `bootstrap/recurring-scan` script target,
+passing those values through an explicit environment contract.
+
+Pass `--agent <type>` to run every agent-backed task in the sweep with that
+configured agent type. The override is ephemeral: it does not rewrite ticket
+assignees, human handoffs remain protected, and script-backed recurring tasks
+still run as scripts. The command threads the override through the stateless
+scan target as `COGA_RECURRING_AGENT`.
 
 For each template (skipping `_`-prefixed files) `coga recurring` enforces
 **one live task per template**: if the generated task at `recurring/<name>` is
@@ -625,8 +634,11 @@ the template blackboard's `last_serviced_period` line. It launches the due ones
 **sequentially** — orphaned `in_progress` resumes first, then fresh launches,
 each set most-overdue first, one finishing before the next starts. It prints
 a scan table (`→ resume` / `→ launch` / `ready` vs `overdue Nd`) before
-launching. `done` and `paused` tasks are skipped — never relaunched; a stuck
-`in_progress` run defers the next period until it reaches one of those.
+launching. A current-period `done` task and every `paused` task stay skipped.
+A prior-period `done` task that Dream did not reap is deleted before a fresh
+`active` task is created from the current template at the stable path, so stale
+instructions and blackboard residue cannot shadow the new firing. A stuck
+`in_progress` run defers the next period until it reaches `done` or `paused`.
 
 Current period only: it does not chase missed periods. Running `coga
 recurring` once a month for a weekly template produces one run (this
@@ -676,18 +688,22 @@ way as a wall-clock cap.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 
-## coga recurring launch \<name\>
+## coga recurring launch \<name\> [--agent <type>]
 
 Create one named recurring template now and launch it, ignoring its
 schedule. `name` is the directory name under `coga/recurring/`. The task
 ref is `recurring/<name>`, so a manual `launch` and a bare `coga recurring`
 converge on one stable task directory (idempotent — a second `launch` reuses
 the existing task). An orphaned `in_progress` run is resumed rather than
-duplicated; a `done` or `paused` run is left alone. This is exactly what the
-`coga dream` alias expands to.
+duplicated; a prior-period `done` run is deleted and replaced, while a
+current-period `done` run or any `paused` run is left alone. This is exactly
+what the `coga dream` alias expands to.
 Unless `--interactive` is set, it passes the same concrete idle-timeout and
 max-session limits as the scheduled sweep. `--interactive` leaves those
 liveness limits unarmed for debugging one template by hand.
+`--agent <type>` applies the same ephemeral override as the full sweep when the
+named task is agent-backed; script-backed tasks ignore it and still run as
+scripts. This also makes `coga dream --agent <type>` work through the alias.
 
 ## coga recurring list
 
@@ -743,12 +759,14 @@ only; they don't accept their own flags.
 - Inspecting recurring templates + schedules + instantiated tasks (read-only)
   → `coga recurring list`.
 - Forcing a real full run of every template now (ignore schedule + status
-  filter) → `coga recurring --all`.
-- Launching one named recurring task now → `coga recurring launch <name>`.
+  filter) → `coga recurring --all` (`--agent <type>` temporarily selects the
+  agent for agent-backed tasks).
+- Launching one named recurring task now → `coga recurring launch <name>`
+  (`--agent <type>` temporarily selects its agent when agent-backed).
 - Starting or resuming agent work on a task → `coga launch <slug>`.
 - Sweeping all your launchable active agent work → `coga megalaunch`
-  (`--agent <type>` scopes it to one agent, `coga megalaunch <dir>` to one
-  `tasks/` sub-tree).
+  (`--agent <type>` runs the sweep with that agent regardless of assignee,
+  `coga megalaunch <dir>` scopes it to one `tasks/` sub-tree).
 - Picking which of your tasks to launch (checkbox list, active +
   in_progress pre-checked) → `coga megalaunch --pick`; replaying the
   last confirmed list → `coga megalaunch --relaunch`.

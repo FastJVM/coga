@@ -8,6 +8,7 @@ from textwrap import dedent
 from typer.testing import CliRunner
 
 from coga.cli import app
+from coga.config import load_config
 from coga.usage import UsageRecord, append_record, load_records, parse_session, rollup
 
 
@@ -180,10 +181,19 @@ def test_parse_codex_rollout_ignores_matches_outside_launch_window(
     assert parsed.reason == f"codex rollout not found for cwd: {cwd.resolve()}"
 
 
-def test_append_and_load_records_from_usage_section(tmp_path: Path) -> None:
+def test_append_and_load_records_from_log(tmp_path: Path) -> None:
     coga_os = tmp_path / "coga"
-    blackboard = coga_os / "tasks" / "work" / "blackboard.md"
-    _write(blackboard, "Notes before usage\n")
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    cfg = load_config(coga_os)
     record = UsageRecord(
         ts="2026-06-23T12:00:00Z",
         title="Work",
@@ -201,11 +211,17 @@ def test_append_and_load_records_from_usage_section(tmp_path: Path) -> None:
         usage_status="ok",
     )
 
-    append_record(blackboard, record)
-    text = blackboard.read_text()
-    _write(blackboard, text + "\nThis prose is ignored.\n")
+    append_record(cfg, record)
+    log = coga_os / "log.md"
+    with log.open("a") as f:
+        f.write("2026-06-23 12:01 [work] [human:marc] bumped to step 2\n")
 
-    assert load_records(coga_os) == [record]
+    # The record rides one standard tagged log line, JSON as the message.
+    first = log.read_text().splitlines()[0]
+    assert "[work] [system] " in first
+    assert first.endswith(record.to_json())
+    # Non-record log lines are skipped, not errors.
+    assert load_records(cfg) == [record]
 
 
 def test_rollup_filters_and_groups_records() -> None:
@@ -279,10 +295,8 @@ def test_usage_command_outputs_json(tmp_path: Path, monkeypatch) -> None:
         """,
     )
     _write(coga_os / "coga.local.toml", 'user = "marc"\n')
-    blackboard = coga_os / "tasks" / "work" / "blackboard.md"
-    _write(blackboard, "# Blackboard\n")
     append_record(
-        blackboard,
+        load_config(coga_os),
         UsageRecord(
             ts="2026-06-23T12:00:00Z",
             title="Work",

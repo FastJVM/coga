@@ -2,8 +2,8 @@
 slug: v2/measure-relay-prompt-scope-and-agent-precision
 title: Measure Relay prompt scope (precision comparison scoped, not measured)
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: codex
 assignee: codex
 contexts:

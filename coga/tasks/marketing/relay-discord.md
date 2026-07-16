@@ -2,10 +2,10 @@
 slug: marketing/relay-discord
 title: relay-discord
 status: paused
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
   - marketing/plan
   - marketing/positioning

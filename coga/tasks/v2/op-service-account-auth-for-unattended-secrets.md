@@ -2,10 +2,10 @@
 slug: v2/op-service-account-auth-for-unattended-secrets
 title: Support 1Password service-account auth for op:// secrets (unattended, no prompt)
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

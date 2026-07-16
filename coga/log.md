@@ -1277,3 +1277,211 @@ fatal: adding files failed
 2026-07-15 14:10 [coga-notifications/support-second-webhook] [human:zach] started (active → in_progress) via coga launch
 2026-07-15 14:10 [coga-notifications/support-second-webhook] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-15 14:57 [coga-notifications/support-second-webhook] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 14:57 [coga] [git] sync failed: `git rev-parse FETCH_HEAD` failed (exit 128): fatal: ambiguous argument 'FETCH_HEAD': unknown revision or path not in the working tree.
+Use '--' to separate paths from revisions, like this:
+'git <command> [<revision>...] -- [<file>...]'
+2026-07-15 14:57 [coga-notifications/support-second-webhook] [human:zach] launched (assignee=codex, agent=codex)
+2026-07-15 15:20 [coga-notifications/support-second-webhook] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-15 15:20 [coga-notifications/support-second-webhook] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-15 15:20 [coga-notifications/support-second-webhook] [system] script exited with code 0
+2026-07-15 15:20 [coga-notifications/support-second-webhook] [system] advanced to step 4 (review) → assigned to zach after script step
+2026-07-15 15:23 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-15 15:32 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-15 16:34 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 16:34 [bootstrap/orient] [human:nicktoper] launched (assignee=codex, agent=codex)
+2026-07-15 16:42 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
+2026-07-15 16:55 [install/add-migration-errors-for-removed-config-keys] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 16:55 [install/add-migration-errors-for-removed-config-keys] [megalaunch] launched via coga megalaunch
+2026-07-15 16:55 [install/cut-release-to-realign-pypi-with-main] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 16:55 [install/cut-release-to-realign-pypi-with-main] [megalaunch] launched via coga megalaunch
+2026-07-15 17:00 [install/cut-release-to-realign-pypi-with-main] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — 0.3.0 bump committed on release-0.3.0; do NOT merge/release until install/add-migration-errors-for-removed-config-keys lands
+2026-07-15 17:00 [install/decide-whether-gh-stays-required-at-init] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 17:00 [install/decide-whether-gh-stays-required-at-init] [megalaunch] launched via coga megalaunch
+2026-07-15 17:10 [install/decide-whether-gh-stays-required-at-init] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — Decided: gh demoted to point-of-need; branch gh-optional-at-init ready for peer review
+2026-07-15 17:10 [install/gh-auth-hint-on-managed-skill-rate-limit] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 17:10 [install/gh-auth-hint-on-managed-skill-rate-limit] [megalaunch] launched via coga megalaunch
+2026-07-15 17:22 [install/gh-auth-hint-on-managed-skill-rate-limit] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 17:22 [install/improve-reinit-already-exists-message] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 17:22 [install/improve-reinit-already-exists-message] [megalaunch] launched via coga megalaunch
+2026-07-15 17:28 [install/improve-reinit-already-exists-message] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 17:28 [install/init-next-steps-should-mention-agent-cli-requireme] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 17:28 [install/init-next-steps-should-mention-agent-cli-requireme] [megalaunch] launched via coga megalaunch
+2026-07-15 17:44 [install/init-next-steps-should-mention-agent-cli-requireme] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 17:45 [install/vendor-cli-from-installed-package-not-git-clone] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 17:49 [coga-important/context] [human:zach] activated (draft → active) — auto on launch
+2026-07-15 17:49 [coga-important/context] [human:zach] started (active → in_progress) via coga launch
+2026-07-15 17:49 [coga-important/context] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-15 17:51 [coga-important/add-toml-property-for-notification-recipient] [human:zach] activated (draft → active) — auto on launch
+2026-07-15 17:51 [coga-important/add-toml-property-for-notification-recipient] [human:zach] started (active → in_progress) via coga launch
+2026-07-15 17:51 [coga-important/add-toml-property-for-notification-recipient] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-15 17:55 [coga-important/add-toml-property-for-notification-recipient] [agent:claude] blocked: Depends on unmerged PR #553 (support-second-webhook). The ticket's three named anchors — _resolve_notification_slack_important_webhook, _ALLOWED_LEGACY_SLACK_KEYS, and the coga slack --important flag — exist only on that branch, not on main. Owner chose (2026-07-15) to wait for #553 to merge rather than stack or duplicate the split. Unblock with 'coga unblock add-toml-property-for-notification-recipient --answer "#553 merged"' once it lands; the blackboard records the ready-to-implement shape.
+2026-07-15 17:56 [coga-important/context] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 17:45 [install/vendor-cli-from-installed-package-not-git-clone] [megalaunch] launched via coga megalaunch
+2026-07-15 18:08 [install/vendor-cli-from-installed-package-not-git-clone] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 18:08 [install/warn-loud-when-init-commit-is-skipped] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 17:56 [coga-important/context] [human:zach] launched (assignee=codex, agent=codex)
+2026-07-15 18:17 [coga-important/context] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-15 18:17 [coga-important/context] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-15 18:19 [coga-important/context] [agent:claude] advanced to step 4 (review) → assigned to zach — PR opened: https://github.com/FastJVM/coga/pull/557
+2026-07-15 18:08 [install/warn-loud-when-init-commit-is-skipped] [megalaunch] launched via coga megalaunch
+2026-07-15 18:22 [install/warn-loud-when-init-commit-is-skipped] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 18:37 [coga-important/add-coga-slack-important] [human:zach] activated (draft → active) — auto on launch
+2026-07-15 18:37 [coga-important/add-coga-slack-important] [human:zach] started (active → in_progress) via coga launch
+2026-07-15 18:37 [coga-important/add-coga-slack-important] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-15 18:39 [coga-important/add-coga-slack-important] [agent:claude] blocked: Depends on unmerged PR #553 (support-second-webhook) and on the unimplemented sibling coga-important/add-toml-property-for-notification-recipient. Neither half is buildable from main: the alert-message-shape half needs the 'coga slack --important' flag, which exists only on the open important-webhook branch; the recipient half needs [notification.slack].important_recipient, which exists nowhere (the sibling that owns it is itself status:blocked on #553, no branch, no code). #553 is OPEN at its ticket's step 4 (review) awaiting your review. Owner already chose option 1 on the sibling (2026-07-15): wait for #553 rather than stack or duplicate; same reasoning applies here. Unblock with 'coga unblock add-coga-slack-important --answer "#553 merged and important_recipient landed"' once both land.
+2026-07-15 19:03 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 19:20 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] created (status=draft)
+2026-07-15 19:24 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] created (status=draft)
+2026-07-15 19:28 [recurring/autoclose-merged] [system] created (status=active)
+2026-07-15 19:28 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-07-15
+2026-07-15 19:28 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-07-15
+2026-07-15 19:28 [recurring/blocker-reminders] [system] created (status=active)
+2026-07-15 19:28 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-07-15
+2026-07-15 19:28 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-07-15
+2026-07-15 19:28 [recurring/digest] [system] created (status=active)
+2026-07-15 19:28 [recurring/digest] [system] deleted completed prior-period task before 2026-07-15
+2026-07-15 19:28 [recurring/digest] [system] created recurring/digest for 2026-07-15
+2026-07-15 19:28 [recurring/dream] [system] created (status=active)
+2026-07-15 19:28 [recurring/dream] [system] deleted completed prior-period task before 2026-W29
+2026-07-15 19:28 [recurring/dream] [system] created recurring/dream for 2026-W29
+2026-07-15 19:28 [recurring/blocker-reminders] [git] sync refused: coga/tasks/recurring/blocker-reminders/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [recurring/digest] [git] sync refused: coga/tasks/recurring/digest/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [recurring/dream] [git] sync refused: coga/tasks/recurring/dream/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [bootstrap/orient] [human:nicktoper] launched (assignee=codex, agent=codex)
+2026-07-15 19:33 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-15 19:35 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-15 19:35 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 19:47 [remove-megalaunch-token-budget-guard-and-usage-pro] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 19:54 [recurring/blocker-reminders] [git] sync refused: coga/tasks/recurring/blocker-reminders/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:54 [recurring/digest] [git] sync refused: coga/tasks/recurring/digest/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:54 [recurring/dream] [git] sync refused: coga/tasks/recurring/dream/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:54 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 19:47 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] launched (assignee=codex, agent=codex)
+2026-07-15 19:55 [remove-megalaunch-token-budget-guard-and-usage-pro] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review clean at c23738cc; 1192 passed, 1 skipped; PR body ready.
+2026-07-15 19:55 [remove-megalaunch-token-budget-guard-and-usage-pro] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-15 19:55 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-15 20:01 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] task done — PR merged; task complete.
+2026-07-15 20:02 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-15 20:02 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-15 19:57 [recurring/blocker-reminders] [git] sync refused: coga/tasks/recurring/blocker-reminders/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:57 [recurring/digest] [git] sync refused: coga/tasks/recurring/digest/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:57 [recurring/dream] [git] sync refused: coga/tasks/recurring/dream/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 20:14 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
+2026-07-15 20:14 [recurring/autoclose-merged] [system] launched as a script (skill=coga/autoclose/sweep, script=run.py)
+2026-07-15 20:14 [recurring/autoclose-merged] [system] script exited with code 0
+2026-07-15 20:14 [recurring/autoclose-merged] [system] completed (final script step ran) via coga launch
+2026-07-15 20:14 [recurring/digest] [system] started (active → in_progress) via coga launch
+2026-07-15 20:14 [recurring/digest] [system] launched as a script (skill=coga/digest/flush, script=run.py)
+2026-07-15 20:14 [recurring/digest] [system] script exited with code 0
+2026-07-15 20:14 [recurring/digest] [system] completed (final script step ran) via coga launch
+2026-07-15 20:14 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
+2026-07-15 20:14 [recurring/blocker-reminders] [system] launched as a script (skill=coga/blockers/remind, script=run.py)
+2026-07-15 20:15 [recurring/blocker-reminders] [system] script exited with code 0
+2026-07-15 20:15 [recurring/blocker-reminders] [system] completed (final script step ran) via coga launch
+2026-07-15 20:15 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-15 20:02 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 20:19 [move-per-session-usage-records-from-ticket-blackbo] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 20:15 [recurring/dream] [human:nicktoper] launched (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-15 20:16 [dream-validate-drift-w29] [human:nicktoper] created (status=draft)
+2026-07-15 20:16 [dream-validate-drift-w29] [git] sync failed: `git add -- coga/tasks/dream-validate-drift-w29.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-07-15 20:16 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-15 20:16 [dream-validate-drift-w29] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-15 20:16 [dream-validate-drift-w29] [git] sync failed: `git add -- coga/tasks/dream-validate-drift-w29.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-07-15 20:16 [dream-validate-drift-w29] [system] started (active → in_progress) via coga launch
+2026-07-15 20:16 [dream-validate-drift-w29] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-15 20:16 [coga] [git] refresh failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-15 20:16 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-15 20:36 [dream-validate-drift-w29] [system] launched as a script (skill=bootstrap/dream/tasks/validate-drift, script=run.py)
+2026-07-15 20:36 [dream-validate-drift-w29] [system] script exited with code 0
+2026-07-15 20:36 [dream-validate-drift-w29] [system] completed (final script step ran) via coga launch
+2026-07-15 20:19 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] launched (assignee=codex, agent=codex)
+2026-07-15 20:43 [move-per-session-usage-records-from-ticket-blackbo] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-15 20:43 [move-per-session-usage-records-from-ticket-blackbo] [git] sync failed: `git add -- coga/tasks/move-per-session-usage-records-from-ticket-blackbo.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-07-15 20:43 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-15 20:43 [move-per-session-usage-records-from-ticket-blackbo] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-15 20:43 [move-per-session-usage-records-from-ticket-blackbo] [system] script exited with code 2
+2026-07-15 20:47 [move-per-session-usage-records-from-ticket-blackbo] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-15 20:47 [move-per-session-usage-records-from-ticket-blackbo] [system] script exited with code 2
+2026-07-15 20:47 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 20:50 [move-per-session-usage-records-from-ticket-blackbo] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-15 20:50 [move-per-session-usage-records-from-ticket-blackbo] [system] script exited with code 0
+2026-07-15 20:50 [move-per-session-usage-records-from-ticket-blackbo] [system] advanced to step 4 (review) → assigned to nicktoper after script step
+2026-07-15 20:55 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 21:00 [install/harden-packaging-and-install-before-launch] [human:nicktoper] unblocked (blocked → active): Owner reset 2026-07-15: nicktoper is taking over all install/ tickets; this gate is reset to active on code/with-review at step 1 alongside its siblings, overriding the 2026-07-12 direct/body scope decision.
+2026-07-15 21:00 [install/add-migration-errors-for-removed-config-keys] [git] sync refused: coga/tasks/install/add-migration-errors-for-removed-config-keys.md: status would move backward from 'in_progress' to 'active'
+2026-07-15 21:00 [install/cut-release-to-realign-pypi-with-main] [git] sync refused: coga/tasks/install/cut-release-to-realign-pypi-with-main.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:00 [install/decide-whether-gh-stays-required-at-init] [git] sync refused: coga/tasks/install/decide-whether-gh-stays-required-at-init.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:00 [install/gh-auth-hint-on-managed-skill-rate-limit] [git] sync refused: coga/tasks/install/gh-auth-hint-on-managed-skill-rate-limit.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:00 [install/improve-reinit-already-exists-message] [git] sync refused: coga/tasks/install/improve-reinit-already-exists-message.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:00 [install/init-next-steps-should-mention-agent-cli-requireme] [git] sync refused: coga/tasks/install/init-next-steps-should-mention-agent-cli-requireme.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:00 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:00 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:02 [install/add-migration-errors-for-removed-config-keys] [git] sync refused: coga/tasks/install/add-migration-errors-for-removed-config-keys.md: status would move backward from 'in_progress' to 'active'
+2026-07-15 21:02 [install/cut-release-to-realign-pypi-with-main] [git] sync refused: coga/tasks/install/cut-release-to-realign-pypi-with-main.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:02 [install/decide-whether-gh-stays-required-at-init] [git] sync refused: coga/tasks/install/decide-whether-gh-stays-required-at-init.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:02 [install/gh-auth-hint-on-managed-skill-rate-limit] [git] sync refused: coga/tasks/install/gh-auth-hint-on-managed-skill-rate-limit.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:02 [install/improve-reinit-already-exists-message] [git] sync refused: coga/tasks/install/improve-reinit-already-exists-message.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:02 [install/init-next-steps-should-mention-agent-cli-requireme] [git] sync refused: coga/tasks/install/init-next-steps-should-mention-agent-cli-requireme.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:02 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:02 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:02 [install/add-migration-errors-for-removed-config-keys] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 21:02 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-15 21:02 [install/add-migration-errors-for-removed-config-keys] [megalaunch] launched via coga megalaunch
+2026-07-15 21:12 [install/add-migration-errors-for-removed-config-keys] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 21:12 [install/cut-release-to-realign-pypi-with-main] [git] sync refused: coga/tasks/install/cut-release-to-realign-pypi-with-main.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:12 [install/decide-whether-gh-stays-required-at-init] [git] sync refused: coga/tasks/install/decide-whether-gh-stays-required-at-init.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:12 [install/gh-auth-hint-on-managed-skill-rate-limit] [git] sync refused: coga/tasks/install/gh-auth-hint-on-managed-skill-rate-limit.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:12 [install/improve-reinit-already-exists-message] [git] sync refused: coga/tasks/install/improve-reinit-already-exists-message.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:12 [install/init-next-steps-should-mention-agent-cli-requireme] [git] sync refused: coga/tasks/install/init-next-steps-should-mention-agent-cli-requireme.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:12 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:12 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:12 [install/cut-release-to-realign-pypi-with-main] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 21:12 [install/cut-release-to-realign-pypi-with-main] [megalaunch] launched via coga megalaunch
+2026-07-15 21:14 [install/cut-release-to-realign-pypi-with-main] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 21:14 [install/decide-whether-gh-stays-required-at-init] [git] sync refused: coga/tasks/install/decide-whether-gh-stays-required-at-init.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/gh-auth-hint-on-managed-skill-rate-limit] [git] sync refused: coga/tasks/install/gh-auth-hint-on-managed-skill-rate-limit.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/improve-reinit-already-exists-message] [git] sync refused: coga/tasks/install/improve-reinit-already-exists-message.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/init-next-steps-should-mention-agent-cli-requireme] [git] sync refused: coga/tasks/install/init-next-steps-should-mention-agent-cli-requireme.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/decide-whether-gh-stays-required-at-init] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 21:15 [dream-cleanup-orphan-markers-w29] [human:nicktoper] created (status=draft)
+2026-07-15 21:14 [install/decide-whether-gh-stays-required-at-init] [megalaunch] launched via coga megalaunch
+2026-07-15 21:16 [install/decide-whether-gh-stays-required-at-init] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 21:16 [install/gh-auth-hint-on-managed-skill-rate-limit] [git] sync refused: coga/tasks/install/gh-auth-hint-on-managed-skill-rate-limit.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:16 [install/improve-reinit-already-exists-message] [git] sync refused: coga/tasks/install/improve-reinit-already-exists-message.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:16 [install/init-next-steps-should-mention-agent-cli-requireme] [git] sync refused: coga/tasks/install/init-next-steps-should-mention-agent-cli-requireme.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:16 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:16 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:16 [install/gh-auth-hint-on-managed-skill-rate-limit] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 21:16 [install/gh-auth-hint-on-managed-skill-rate-limit] [megalaunch] launched via coga megalaunch
+2026-07-15 21:19 [install/gh-auth-hint-on-managed-skill-rate-limit] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 21:19 [install/improve-reinit-already-exists-message] [git] sync refused: coga/tasks/install/improve-reinit-already-exists-message.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:19 [install/init-next-steps-should-mention-agent-cli-requireme] [git] sync refused: coga/tasks/install/init-next-steps-should-mention-agent-cli-requireme.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:19 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:19 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:19 [install/improve-reinit-already-exists-message] [git] sync refused: coga/tasks/install/improve-reinit-already-exists-message.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:19 [install/init-next-steps-should-mention-agent-cli-requireme] [git] sync refused: coga/tasks/install/init-next-steps-should-mention-agent-cli-requireme.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:19 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:19 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:19 [install/improve-reinit-already-exists-message] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 21:19 [dream-cleanup-orphan-markers-w29] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-15 21:19 [dream-cleanup-orphan-markers-w29] [system] started (active → in_progress) via coga launch
+2026-07-15 21:19 [dream-cleanup-orphan-markers-w29] [system] launched as a script (skill=bootstrap/dream/tasks/cleanup-orphan-markers, script=run.py)
+2026-07-15 21:19 [dream-cleanup-orphan-markers-w29] [system] script exited with code 0
+2026-07-15 21:19 [dream-cleanup-orphan-markers-w29] [system] completed (final script step ran) via coga launch
+2026-07-15 21:19 [install/improve-reinit-already-exists-message] [megalaunch] launched via coga megalaunch
+2026-07-15 21:23 [install/improve-reinit-already-exists-message] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 21:23 [install/init-next-steps-should-mention-agent-cli-requireme] [git] sync refused: coga/tasks/install/init-next-steps-should-mention-agent-cli-requireme.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:23 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:23 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:23 [install/init-next-steps-should-mention-agent-cli-requireme] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 21:23 [install/init-next-steps-should-mention-agent-cli-requireme] [megalaunch] launched via coga megalaunch
+2026-07-15 21:26 [install/init-next-steps-should-mention-agent-cli-requireme] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 21:26 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:26 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:26 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:26 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:26 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:26 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:29 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)

@@ -241,9 +241,3 @@ Tests: full suite `1093 passed, 1 skipped` (the one environmental
 `test_bootstrap_script_launch_is_stateless` failure is a sandbox artifact —
 no editable install, so a spawned subprocess can't import `coga`; it fails
 identically on the pre-QA base and passes with `PYTHONPATH=…/src`).
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":394815,"cache_read_input_tokens":10977336,"cli":"claude","input_tokens":18490,"model":"claude-opus-4-8","output_tokens":136328,"provider":"anthropic","schema":1,"session_id":"3a0bed16-baad-42e8-a0e8-ad1dc0f94210","slug":"stop-direct-body-tickets-from-stranding-committed","step":"self-qa","title":"Stop direct-body tickets from stranding committed code off-main","ts":"2026-07-08T01:16:52.286911Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":219571,"cache_read_input_tokens":5731265,"cli":"claude","input_tokens":21407,"model":"claude-opus-4-8","output_tokens":93756,"provider":"anthropic","schema":1,"session_id":"a553244f-391a-4570-8e72-81ee7340c6dc","slug":"stop-direct-body-tickets-from-stranding-committed","step":"pr","title":"Stop direct-body tickets from stranding committed code off-main","ts":"2026-07-08T01:26:56.846490Z","usage_status":"ok"}

@@ -2,8 +2,8 @@
 slug: v2/skill-for-split-into-sibling-ticket-discipline
 title: Skill for split-into-sibling-ticket discipline
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

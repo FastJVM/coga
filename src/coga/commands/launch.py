@@ -834,14 +834,7 @@ def spawn_agent_session(
             f"{prompt_file}"
         )
 
-    # Single-file format: usage records live in the `## Usage` section of the
-    # ticket's blackboard region, so the usage "blackboard" is the ticket itself.
-    usage_blackboard = ref.ticket_path
-    should_capture_usage = (
-        capture_usage
-        and isinstance(ref, TaskRef)
-        and usage_blackboard.is_file()
-    )
+    should_capture_usage = capture_usage and isinstance(ref, TaskRef)
     usage_provider = usage_tracking.parser_key_for_cli(agent.cli)
     usage_session_id = (
         str(uuid4()) if should_capture_usage and agent.session_id_flag else None
@@ -908,7 +901,7 @@ def spawn_agent_session(
         usage_window_end = datetime.now(timezone.utc)
         if should_capture_usage and spawn_started:
             usage_tracking.capture_session(
-                blackboard=usage_blackboard,
+                cfg=cfg,
                 title=ticket.title or "",
                 slug=ref.id_slug,
                 step=_current_step_name(ticket),
@@ -920,13 +913,14 @@ def spawn_agent_session(
                 window_start=usage_window_start,
                 window_end=usage_window_end,
             )
-            # The `## Usage` record is appended *past* the agent's final
-            # `bump`/`mark` sync, so without this it lingers uncommitted on the
-            # working tree forever. Commit it (and anything else dirty under
-            # `coga/`) now. A supervised chain reaches this finally per step but
-            # the CLI-dispatch sweep only once at the end of the whole launch, so
-            # this is what commits each step's usage promptly. Non-fatal.
-            git.sync_coga_state(cfg)
+            # The usage record lands in `log.md` *past* the agent's final
+            # `bump`/`mark` sync, so without this it lingers uncommitted (and,
+            # dirty, blocks the next `git pull` at the checkout gate —
+            # merge=union only saves committed content). Commit exactly the
+            # log via its union-safe path; it also carries this launch's own
+            # log line. A supervised chain reaches this finally per step, so
+            # each step's record commits promptly. Non-fatal.
+            git.sync_log(cfg, message=f"Log: {ref.id_slug}")
         try:
             prompt_file.unlink()
         except FileNotFoundError:

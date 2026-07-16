@@ -2,8 +2,8 @@
 slug: v2/autotrigger-ticket-type
 title: autotrigger ticket type
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []

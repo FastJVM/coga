@@ -2,10 +2,10 @@
 slug: marketing/launch-20-minutes-a-day
 title: Launch 20 minutes a day
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts:
   - marketing/plan
   - marketing/positioning

@@ -201,9 +201,12 @@ def test_megalaunch_chains_agent_owned_steps(
     assert Ticket.read(ref["path"]).status == "done"
 
 
-def test_megalaunch_agent_filter_only_drains_matching_assignee(
+def test_megalaunch_agent_override_launches_regardless_of_assignee(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """`agent_override` is ephemeral: every swept ticket launches with the
+    named agent, whatever its `assignee:` says, and the ticket is never
+    rewritten — the same semantics as `coga launch --agent`."""
     cfg = load_config(repo)
     claude_ref = create_task(
         cfg=cfg,
@@ -234,10 +237,12 @@ def test_megalaunch_agent_filter_only_drains_matching_assignee(
         exit_code = 0
         termination_kind = "natural"
 
-    launched: list[str] = []
+    launched: list[tuple[str, str]] = []
 
     def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
-        launched.append(ref_obj.id_slug)
+        launched.append((ref_obj.id_slug, agent.cli))
+        assignee_on_disk = Ticket.read(ref_obj.ticket_path).assignee
+        assert assignee_on_disk == ticket.assignee, "override must not rewrite assignee"
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)
@@ -248,17 +253,19 @@ def test_megalaunch_agent_filter_only_drains_matching_assignee(
 
     run = run_megalaunch(
         cfg,
-        agent_filter="codex",
+        agent_override="codex",
         probes={"codex": _FakeProbe([_snapshot(agent="codex")])},
     )
 
-    assert run.agent_filter == "codex"
-    assert launched == [codex_ref["slug"]]
-    assert [result.slug for result in run.results] == [codex_ref["slug"]]
-    assert run.counts["launched"] == 1
-    assert run.counts["completed"] == 1
+    assert run.agent_override == "codex"
+    # Both tickets launch — the claude-assigned one included — and both as codex.
+    assert sorted(launched) == sorted(
+        [(claude_ref["slug"], "codex"), (codex_ref["slug"], "codex")]
+    )
+    assert run.counts["launched"] == 2
+    assert run.counts["completed"] == 2
+    assert Ticket.read(claude_ref["path"]).status == "done"
     assert Ticket.read(codex_ref["path"]).status == "done"
-    assert Ticket.read(claude_ref["path"]).status == "active"
 
 
 def test_megalaunch_only_sweeps_current_users_tickets(
@@ -320,9 +327,12 @@ def test_megalaunch_only_sweeps_current_users_tickets(
     assert Ticket.read(theirs["path"]).status == "active"
 
 
-def test_megalaunch_agent_filter_stops_at_agent_handoff(
+def test_megalaunch_agent_override_applies_to_first_step_only(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Like `coga launch --agent`, the override covers only the task's first
+    launched step; a chained later step runs the ticket's resolved assignee,
+    so `other-agent` rotation keeps its meaning."""
     _write(
         repo / "workflows" / "two-agent.md",
         """
@@ -340,11 +350,11 @@ def test_megalaunch_agent_filter_stops_at_agent_handoff(
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg,
-        title="Handoff",
+        title="Chained",
         workflow_name="two-agent",
         contexts=[],
         owner="marc",
-        assignee="codex",
+        assignee="claude",
         status="active",
         watchers=[],
     )
@@ -354,13 +364,16 @@ def test_megalaunch_agent_filter_stops_at_agent_handoff(
         exit_code = 0
         termination_kind = "natural"
 
-    seen_steps: list[str] = []
+    seen: list[tuple[str, str]] = []
 
     def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         updated = Ticket.read(ref_obj.ticket_path)
-        seen_steps.append(updated.step or "")
-        updated.frontmatter["step"] = "2 (verify)"
-        updated.frontmatter["assignee"] = "claude"
+        seen.append((updated.step or "", agent.cli))
+        if updated.step == "1 (implement)":
+            updated.frontmatter["step"] = "2 (verify)"
+        else:
+            updated.frontmatter["status"] = "done"
+            updated.frontmatter.pop("step", None)
         updated.write(ref_obj.ticket_path)
         return _Session()
 
@@ -368,22 +381,23 @@ def test_megalaunch_agent_filter_stops_at_agent_handoff(
 
     run = run_megalaunch(
         cfg,
-        agent_filter="codex",
-        probes={"codex": _FakeProbe([_snapshot(agent="codex")])},
+        agent_override="codex",
+        probes={
+            "codex": _FakeProbe([_snapshot(agent="codex")]),
+            "claude": _FakeProbe([_snapshot()]),
+        },
     )
 
-    assert seen_steps == ["1 (implement)"]
+    assert seen == [("1 (implement)", "codex"), ("2 (verify)", "claude")]
     assert run.counts["launched"] == 1
     assert run.counts["completed"] == 1
-    assert run.results[0].detail == "handed off to claude"
-    ticket = Ticket.read(ref["path"])
-    assert ticket.status == "in_progress"
-    assert ticket.assignee == "claude"
+    assert Ticket.read(ref["path"]).status == "done"
 
 
-def test_megalaunch_cli_accepts_agent_filter(
+def test_megalaunch_cli_accepts_agent_override(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """`--agent codex` drains a claude-assigned ticket by running it as codex."""
     from typer.testing import CliRunner
 
     cfg = load_config(repo)
@@ -394,16 +408,6 @@ def test_megalaunch_cli_accepts_agent_filter(
         contexts=[],
         owner="marc",
         assignee="claude",
-        status="active",
-        watchers=[],
-    )
-    codex_ref = create_task(
-        cfg=cfg,
-        title="Codex CLI work",
-        workflow_name="code",
-        contexts=[],
-        owner="marc",
-        assignee="codex",
         status="active",
         watchers=[],
     )
@@ -421,9 +425,12 @@ def test_megalaunch_cli_accepts_agent_filter(
         exit_code = 0
         termination_kind = "natural"
 
+    launched_cli: list[str] = []
+
     def fake_spawn(  # type: ignore[no-untyped-def]
         cfg, ref_obj, ticket, agent, **kwargs
     ):
+        launched_cli.append(agent.cli)
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)
@@ -435,11 +442,46 @@ def test_megalaunch_cli_accepts_agent_filter(
     result = CliRunner().invoke(app, ["megalaunch", "--agent", "codex"])
 
     assert result.exit_code == 0, result.output
-    assert "Agent: codex" in result.output
-    assert codex_ref["slug"] in result.output
-    assert claude_ref["slug"] not in result.output
-    assert Ticket.read(codex_ref["path"]).status == "done"
-    assert Ticket.read(claude_ref["path"]).status == "active"
+    assert "Agent override: codex" in result.output
+    assert claude_ref["slug"] in result.output
+    assert launched_cli == ["codex"]
+    assert Ticket.read(claude_ref["path"]).status == "done"
+
+
+def test_megalaunch_agent_override_keeps_human_gate(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The override never converts a human-assigned ticket into an agent step."""
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Parked on a human",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(ref["path"])
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ref["path"])
+
+    def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("override must not launch a human-assigned ticket")
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    run = run_megalaunch(
+        cfg,
+        agent_override="codex",
+        probes={"codex": _FakeProbe([_snapshot(agent="codex")])},
+    )
+
+    assert run.counts["launched"] == 0
+    assert run.counts["skipped-human-gate"] == 1
+    assert "marc" in run.results[0].detail
 
 
 def test_megalaunch_directory_scopes_the_sweep(

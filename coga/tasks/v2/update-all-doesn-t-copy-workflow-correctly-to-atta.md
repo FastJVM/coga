@@ -2,10 +2,10 @@
 slug: v2/update-all-doesn-t-copy-workflow-correctly-to-atta
 title: update all doesn't copy workflow correctly to attached repo
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

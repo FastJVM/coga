@@ -2,10 +2,10 @@
 slug: v2/generic-lib-to-use-e-g-patent-models
 title: generic lib to use e.g. patent models
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

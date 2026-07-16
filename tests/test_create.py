@@ -36,6 +36,7 @@ def _patch_recurring_command_launch(
                 load_config(repo),
                 force=os.environ.get("COGA_RECURRING_FORCE") == "1",
                 interactive=os.environ.get("COGA_RECURRING_INTERACTIVE") == "1",
+                agent_override=os.environ.get("COGA_RECURRING_AGENT") or None,
             )
         return child_launch(task, **kwargs)
 

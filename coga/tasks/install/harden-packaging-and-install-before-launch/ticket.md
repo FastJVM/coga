@@ -1,7 +1,7 @@
 ---
 slug: install/harden-packaging-and-install-before-launch
 title: Harden packaging and first-install before launch
-status: blocked
+status: active
 owner: zach
 human: zach
 agent: claude
@@ -134,13 +134,8 @@ Run the public path in a disposable clean Linux environment, without
 - [x] [2026-07-11 10:52] [agent:claude] id=20260711T105203 This umbrella ticket has no standalone implementation acceptance: its concrete fixes are owned by still-active install/ siblings. Please approve converting it into the final clean-machine end-to-end verification gate after those fixes land, or name the specific standalone deliverable for this step.
   resolved: [2026-07-12 18:04] [human:nicktoper] Approved: convert this ticket to the final clean-machine end-to-end verification gate, using a one-step direct/body workflow and no implementation PR.
 
-- [ ] [2026-07-12 20:37] [agent:claude] id=20260712T203710 Verification gate prerequisites unmet: PyPI latest is coga 0.2.0 (uploaded 2026-06-27, predating the 2026-07-08 retest fixes) and the named install/ siblings (vendor-cli-from-installed-package, warn-loud-when-init-commit-is-skipped, agent-CLI guidance, migration errors, external-users-cannot-install-managed-skills) plus cut-release-to-realign-pypi-with-main are still active/in_progress. Relaunch this gate after those tickets are done and the realigned version is published to PyPI.
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":85878,"cache_read_input_tokens":661972,"cli":"claude","input_tokens":38,"model":"claude-fable-5","output_tokens":18752,"provider":"anthropic","schema":1,"session_id":"f3954962-f1dd-4e15-bb0b-0cebf7bf74f0","slug":"install/harden-packaging-and-install-before-launch","step":"execute","title":"Harden packaging and first-install before launch","ts":"2026-07-13T03:37:12.771174Z","usage_status":"ok"}
-
----
+- [x] [2026-07-12 20:37] [agent:claude] id=20260712T203710 Verification gate prerequisites unmet: PyPI latest is coga 0.2.0 (uploaded 2026-06-27, predating the 2026-07-08 retest fixes) and the named install/ siblings (vendor-cli-from-installed-package, warn-loud-when-init-commit-is-skipped, agent-CLI guidance, migration errors, external-users-cannot-install-managed-skills) plus cut-release-to-realign-pypi-with-main are still active/in_progress. Relaunch this gate after those tickets are done and the realigned version is published to PyPI.
+  resolved: [2026-07-15 21:00] [human:nicktoper] Owner reset 2026-07-15: nicktoper is taking over all install/ tickets; this gate is reset to active on code/with-review at step 1 alongside its siblings, overriding the 2026-07-12 direct/body scope decision.
 
 ## Blocker reminders
 
