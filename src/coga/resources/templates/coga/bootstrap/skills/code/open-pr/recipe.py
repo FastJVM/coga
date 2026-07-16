@@ -240,6 +240,19 @@ def open_pr(cfg: Config, *, slug: str, blackboard_path: Path) -> str:
     if freshness.value == "state-only-drift":
         print(f"[open-pr] {freshness.detail}")
 
+    # `gh` is optional at init, so the PR step owns the point-of-need check.
+    # Run it before pushing: a missing or logged-out CLI should produce the
+    # actionable preflight hint without leaving a remote branch behind first.
+    remote_url = _git(["remote", "get-url", remote], cwd=worktree)
+    host = (
+        _remote_host(remote_url.stdout.strip())
+        if remote_url.returncode == 0
+        else None
+    )
+    gh_auth = check_gh_auth(host)
+    if not gh_auth.ok:
+        raise OpenPrError(gh_auth.detail)
+
     # --- push ----------------------------------------------------------------
     push = _git(["push", "-u", remote, branch], cwd=worktree)
     if push.returncode != 0:

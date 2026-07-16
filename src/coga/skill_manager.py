@@ -628,6 +628,16 @@ def open_or_update_pr(
     runner: Runner | None = None,
     cwd: Path | None = None,
 ) -> str:
+    def run_gh(args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        try:
+            return (runner or run_subprocess)(["gh", *args], cwd)
+        except FileNotFoundError as exc:
+            raise SkillManagerError(
+                "GitHub CLI (`gh`) is required to open a skill-update PR. "
+                "Install it from https://cli.github.com, run `gh auth login`, "
+                "then retry."
+            ) from exc
+
     if branch is None:
         branch_result = (runner or run_subprocess)(["git", "branch", "--show-current"], cwd)
         if branch_result.returncode != 0 or not branch_result.stdout.strip():
@@ -645,9 +655,8 @@ def open_or_update_pr(
         )
         if pushed.returncode != 0:
             raise SkillManagerError((pushed.stderr or pushed.stdout).strip())
-        existing = (runner or run_subprocess)(
+        existing = run_gh(
             [
-                "gh",
                 "pr",
                 "list",
                 "--head",
@@ -658,23 +667,36 @@ def open_or_update_pr(
                 "url",
                 "--jq",
                 ".[0].url // \"\"",
-            ],
-            cwd,
+            ]
         )
         if existing.returncode != 0:
             raise SkillManagerError((existing.stderr or existing.stdout).strip())
         existing_url = existing.stdout.strip()
         if existing_url:
-            edited = (runner or run_subprocess)(
-                ["gh", "pr", "edit", existing_url, "--title", title, "--body-file", body_file],
-                cwd,
+            edited = run_gh(
+                [
+                    "pr",
+                    "edit",
+                    existing_url,
+                    "--title",
+                    title,
+                    "--body-file",
+                    body_file,
+                ]
             )
             if edited.returncode != 0:
                 raise SkillManagerError((edited.stderr or edited.stdout).strip())
             return existing_url
-        created = (runner or run_subprocess)(
-            ["gh", "pr", "create", "--draft", "--title", title, "--body-file", body_file],
-            cwd,
+        created = run_gh(
+            [
+                "pr",
+                "create",
+                "--draft",
+                "--title",
+                title,
+                "--body-file",
+                body_file,
+            ]
         )
         if created.returncode != 0:
             raise SkillManagerError((created.stderr or created.stdout).strip())

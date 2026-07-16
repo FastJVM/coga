@@ -21,6 +21,7 @@ import pytest
 from conftest import init_git_repo
 from coga.autoclose import parse_pr_url, parse_worktree_path
 from coga.config import load_config
+from coga.github_preflight import CheckResult
 from coga.taskfile import read_blackboard
 
 # The open-pr recipe lives beside the skill's run.py in the skill dir (the skill
@@ -264,6 +265,34 @@ def test_open_pr_fails_when_worktree_dirty(tmp_path, monkeypatch):
     cfg = load_config(repo.coga_os)
     with pytest.raises(OpenPrError, match="uncommitted changes"):
         open_pr(cfg, slug="dirty", blackboard_path=ticket)
+
+
+def test_open_pr_fails_with_setup_hint_before_push_when_gh_missing(
+    tmp_path, monkeypatch
+):
+    repo = init_git_repo(tmp_path)
+    wt = _feature_worktree(repo, tmp_path, "missing-gh", commit=True)
+    ticket = _write_ticket(
+        repo.coga_os, "missing-gh", branch="missing-gh", worktree=wt
+    )
+    monkeypatch.setattr(
+        "recipe.check_gh_auth",
+        lambda _host: CheckResult(
+            "gh-auth",
+            False,
+            "`gh` is not installed — install it from https://cli.github.com "
+            "and run `gh auth login`.",
+        ),
+    )
+
+    with pytest.raises(OpenPrError, match="cli.github.com"):
+        open_pr(load_config(repo.coga_os), slug="missing-gh", blackboard_path=ticket)
+
+    # Point-of-need failure happens before the feature branch is pushed.
+    remote_branches = repo.git(
+        "for-each-ref", "--format=%(refname:short)", "refs/heads", cwd=repo.origin
+    ).splitlines()
+    assert "missing-gh" not in remote_branches
 
 
 def test_open_pr_fails_when_branch_has_material_stale_drift(tmp_path, monkeypatch):
