@@ -1403,3 +1403,6 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 20:47 [move-per-session-usage-records-from-ticket-blackbo] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-15 20:47 [move-per-session-usage-records-from-ticket-blackbo] [system] script exited with code 2
 2026-07-15 20:47 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 20:50 [move-per-session-usage-records-from-ticket-blackbo] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-15 20:50 [move-per-session-usage-records-from-ticket-blackbo] [system] script exited with code 0
+2026-07-15 20:50 [move-per-session-usage-records-from-ticket-blackbo] [system] advanced to step 4 (review) → assigned to nicktoper after script step
