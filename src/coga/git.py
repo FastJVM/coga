@@ -362,12 +362,13 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
     command *intended* to change, with a human-readable per-transition message;
     this sweep mops up the rest of the `coga/` subtree so the working tree never
     accumulates dirty OS state. Two structural sources motivate it: machine
-    side-effects written *past* the last per-command sync (the per-session
-    `## Usage` record `coga launch` appends after the agent's final
-    `bump`/`mark`, the digest spool, stray launch log lines) and human
-    hand-edits to tickets/blackboards/contexts that no command touched. Both
-    converge on git at the *next* coga invocation — lazy, on-access, no daemon
-    (see `coga/architecture`'s "no database, no daemon, no in-memory state").
+    side-effects written *past* the last per-command sync (the digest spool and
+    stray log lines) and human hand-edits to tickets/blackboards/contexts that
+    no command touched. Per-session usage records are not part of this sweep:
+    launch appends them to `log.md` and commits that file directly with
+    `sync_log`. The remaining side effects and hand-edits converge on git at the
+    *next* coga invocation — lazy, on-access, no daemon (see
+    `coga/architecture`'s "no database, no daemon, no in-memory state").
 
     Scope is the `coga/` subtree (`cfg.repo_root`, where `coga.toml` lives), the
     OS-state boundary. This is *not* the forbidden `git add -A`: it stages only

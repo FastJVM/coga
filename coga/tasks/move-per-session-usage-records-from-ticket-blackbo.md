@@ -152,11 +152,6 @@ Decisions / notes:
   had landed on main); resolved by taking main's version and re-running the
   strip, so records appended after the branch point are also removed.
 
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":457566,"cache_read_input_tokens":17980393,"cli":"claude","input_tokens":272,"model":"claude-fable-5","output_tokens":123633,"provider":"anthropic","schema":1,"session_id":"feab4582-f731-4d1e-b1d6-965101db91e4","slug":"move-per-session-usage-records-from-ticket-blackbo","step":"implement","title":"Move per-session usage records from ticket blackboards to log.md","ts":"2026-07-16T03:19:21.031947Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":5397248,"cli":"codex","input_tokens":146818,"model":"gpt-5.6-sol","output_tokens":10072,"provider":"openai","schema":1,"session_id":"019f68ef-a294-7063-b3aa-cc6c222e7555","slug":"move-per-session-usage-records-from-ticket-blackbo","step":"peer-review","title":"Move per-session usage records from ticket blackboards to log.md","ts":"2026-07-16T03:43:19.902694Z","usage_status":"ok"}
 ## Peer review (2026-07-15)
 
 - Native `codex review --base main` found no functional regressions.
