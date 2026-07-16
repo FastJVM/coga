@@ -6,6 +6,7 @@ import os
 import sys
 from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Iterator
 
 import typer
@@ -14,7 +15,7 @@ from rich.table import Table
 
 from coga.config import ConfigError, load_config
 from coga.recurring import TemplateStatus, firing_stamp, list_templates
-from coga.recurring_runner import run_recurring_named
+from coga.recurring_runner import run_recurring_all_repos, run_recurring_named
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import TicketError
 
@@ -41,9 +42,16 @@ def main(
         help="Launch due agent tasks as a human-stepped run, leaving REPL "
         "liveness backstops unarmed. Ticket files are not modified.",
     ),
-    all_: bool = typer.Option(
-        False,
+    all_root: Path | None = typer.Option(
+        None,
         "--all",
+        metavar="PATH",
+        help="Discover every Coga repo below PATH and run each repo's due "
+        "recurring sweep once. May be combined with --force.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
         help="Force a real, full run of EVERY template: bypass the schedule "
         "and the already-serviced/done/paused status filter, then get-or-create "
         "and launch each template's real `recurring/<name>` task. Identical to a "
@@ -68,6 +76,25 @@ def main(
     """
     ctx.ensure_object(dict)["agent_override"] = agent
     if ctx.invoked_subcommand is not None:
+        if all_root is not None or force:
+            typer.secho(
+                "--all and --force apply to recurring sweeps, not recurring "
+                "subcommands.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            sys.exit(2)
+        return
+
+    if all_root is not None:
+        code = run_recurring_all_repos(
+            all_root,
+            force=force,
+            interactive=interactive,
+            agent_override=agent,
+        )
+        if code:
+            sys.exit(code)
         return
 
     try:
@@ -78,7 +105,7 @@ def main(
 
     from coga.commands.launch import launch as launch_cmd
 
-    with _scan_env(force=all_, interactive=interactive, agent_override=agent):
+    with _scan_env(force=force, interactive=interactive, agent_override=agent):
         launch_cmd(
             _SCAN_TARGET,
             agent_override=None,

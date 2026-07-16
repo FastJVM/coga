@@ -290,6 +290,57 @@ def test_main_missing_repo_points_to_init(
     assert "`coga init --user NAME`" in err
 
 
+def test_main_allows_cross_repo_recurring_sweep_outside_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The parent sweep starts above its repos, so eager config loading yields."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sys.argv", ["coga", "recurring", "--all", str(tmp_path)]
+    )
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("coga.cli.app", fake_app)
+
+    main()
+
+    assert captured["argv"] == ["coga", "recurring", "--all", str(tmp_path)]
+
+
+def test_main_allows_cross_repo_sweep_from_broken_current_repo(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One broken repo is a child failure, not a parent-dispatch failure."""
+    (repo / "coga.toml").write_text("unknown_top_level_key = true\n")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "sys.argv", ["coga", "recurring", "--all", str(tmp_path)]
+    )
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("coga.cli.app", fake_app)
+
+    main()
+
+    assert captured["argv"] == ["coga", "recurring", "--all", str(tmp_path)]
+    assert "ignoring current config error" in capsys.readouterr().err
+
+
 def test_default_aliases_pass_validation() -> None:
     """The hardcoded defaults must satisfy `_validate_aliases` themselves."""
     _validate_aliases(_DEFAULT_ALIASES)

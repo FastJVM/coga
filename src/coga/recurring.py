@@ -198,10 +198,10 @@ class DueScan:
     @property
     def forced(self) -> list[DueTask]:
         """Every materialized template task in launch order — for `coga
-        recurring --all`.
+        recurring --force`.
 
         Unlike `due`, this does **not** filter to launchable status: a `done`
-        or `paused` period task is still included, because `--all` force-runs
+        or `paused` period task is still included, because `--force` force-runs
         every template and `coga launch` re-activates a finished/parked ticket
         (restarting its workflow at step 1). The same Dream-last / resume-first
         ordering as `due` applies.
@@ -233,11 +233,11 @@ def scan_due(
     no-op. The caller (`coga recurring`) launches the `active` results
     sequentially.
 
-    `force` (the `coga recurring --all` knob) bypasses the
+    `force` (the `coga recurring --force` knob) bypasses the
     "period already serviced this period" skip, so every template's real
     `recurring/<name>` task is get-or-created and surfaced for launch even when
     it already ran — `coga launch` re-activates a finished one. It does not
-    invent a separate scratch task; `--all` is a forced real run, not a sandbox.
+    invent a separate scratch task; `--force` is a real run, not a sandbox.
     """
     now = now or datetime.now()
     root = recurring_dir(cfg)
@@ -282,7 +282,7 @@ def scan_due(
         # The template's persistent blackboard carries the serviced-period
         # high-water mark. If it has already advanced through this period and
         # the task directory is gone, the period was handled — do not
-        # re-create what already ran. `--all` (`force`) overrides this: it
+        # re-create what already ran. `--force` overrides this: it
         # re-runs every template for real regardless of the high-water mark.
         if (
             not force

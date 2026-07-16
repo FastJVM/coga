@@ -376,7 +376,7 @@ def test_bare_recurring_head_launches_bootstrap_scan_with_env(
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(
-        app, ["recurring", "--all", "--interactive", "--agent", "claude"]
+        app, ["recurring", "--force", "--interactive", "--agent", "claude"]
     )
 
     assert result.exit_code == 0, result.output
@@ -398,6 +398,148 @@ def test_bare_recurring_head_launches_bootstrap_scan_with_env(
     assert os.environ.get("COGA_RECURRING_FORCE") is None
     assert os.environ.get("COGA_RECURRING_INTERACTIVE") is None
     assert os.environ.get("COGA_RECURRING_AGENT") is None
+
+
+def test_recurring_all_runs_each_discovered_repo_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "workspaces"
+    first = root / "alpha" / "coga"
+    second = root / "teams" / "beta" / "coga"
+    ignored = root / "node_modules" / "fixture" / "coga"
+    nested_fixture = first.parent / "example" / "coga"
+    for coga_os in (first, second, ignored, nested_fixture):
+        _write(coga_os / "coga.toml", "version = 1\n")
+
+    calls: list[tuple[Path, bool, bool, str | None]] = []
+
+    def fake_run(
+        coga_os: Path,
+        *,
+        force: bool,
+        interactive: bool,
+        agent_override: str | None,
+    ) -> int:
+        calls.append((coga_os, force, interactive, agent_override))
+        return 0
+
+    monkeypatch.setattr(recurring_cmd, "_run_repo_recurring", fake_run)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "recurring",
+            "--all",
+            str(root),
+            "--force",
+            "--interactive",
+            "--agent",
+            "codex",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls == [
+        (first, True, True, "codex"),
+        (second, True, True, "codex"),
+    ]
+    assert "Found 2 Coga repo(s)" in result.output
+    assert "Swept 2 of 2 Coga repo(s)." in result.output
+
+
+def test_recurring_all_continues_after_repo_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "workspaces"
+    first = root / "alpha" / "coga"
+    second = root / "beta" / "coga"
+    for coga_os in (first, second):
+        _write(coga_os / "coga.toml", "version = 1\n")
+
+    seen: list[Path] = []
+
+    def fake_run(coga_os: Path, **kwargs) -> int:  # type: ignore[no-untyped-def]
+        seen.append(coga_os)
+        return 7 if coga_os == first else 0
+
+    monkeypatch.setattr(recurring_cmd, "_run_repo_recurring", fake_run)
+
+    result = CliRunner().invoke(app, ["recurring", "--all", str(root)])
+
+    assert result.exit_code == 1
+    assert seen == [first, second]
+    assert "Swept 1 of 2 Coga repo(s)." in result.output
+    assert "alpha — recurring exited 7" in result.output
+
+
+def test_recurring_all_accepts_coga_workspace_as_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    coga_os = tmp_path / "project" / "coga"
+    _write(coga_os / "coga.toml", "version = 1\n")
+    seen: list[Path] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_repo_recurring",
+        lambda found, **kwargs: seen.append(found) or 0,
+    )
+
+    result = CliRunner().invoke(app, ["recurring", "--all", str(coga_os)])
+
+    assert result.exit_code == 0, result.output
+    assert seen == [coga_os]
+
+
+def test_recurring_all_fails_loud_when_no_repos_exist(tmp_path: Path) -> None:
+    result = CliRunner().invoke(app, ["recurring", "--all", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "No Coga repos found" in result.output
+
+
+def test_recurring_sweep_flags_are_rejected_for_subcommands(repo: Path) -> None:
+    result = CliRunner().invoke(app, ["recurring", "--force", "list"])
+
+    assert result.exit_code == 2
+    assert "apply to recurring sweeps" in result.output
+
+
+def test_repo_recurring_dispatch_uses_current_python_and_clears_scan_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    coga_os = tmp_path / "project" / "coga"
+    _write(coga_os / "coga.toml", "version = 1\n")
+    monkeypatch.setenv("COGA_RECURRING_FORCE", "stale")
+    captured: dict[str, object] = {}
+
+    def fake_subprocess_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        captured["command"] = command
+        captured.update(kwargs)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(recurring_cmd.subprocess, "run", fake_subprocess_run)
+
+    code = recurring_cmd._run_repo_recurring(
+        coga_os,
+        force=True,
+        interactive=True,
+        agent_override="codex",
+    )
+
+    assert code == 0
+    assert captured["command"] == [
+        recurring_cmd.sys.executable,
+        "-m",
+        "coga.cli",
+        "recurring",
+        "--force",
+        "--interactive",
+        "--agent",
+        "codex",
+    ]
+    assert captured["cwd"] == coga_os.parent
+    assert captured["check"] is False
+    assert "COGA_RECURRING_FORCE" not in captured["env"]
 
 
 def test_recurring_list_is_read_only_and_shows_schedule(
@@ -2659,11 +2801,11 @@ def test_recurring_launch_and_scan_converge(dream_repo: Path) -> None:
     assert len(list_tasks(cfg)) == 1
 
 
-# --- coga recurring --all (forced full run) ----------------------------------
+# --- coga recurring --force (forced full run) ----------------------------------
 
 
 def test_scan_due_force_reruns_already_done_period(repo: Path) -> None:
-    """`--all` (`force=True`) surfaces the real `recurring/<name>` task for
+    """`--force` (`force=True`) surfaces the real `recurring/<name>` task for
     launch even after it ran and moved to `done` — no `-dbg-` scratch run, and
     the real task is reused, not duplicated."""
     cfg = load_config(repo)
@@ -2788,7 +2930,7 @@ def test_scan_due_force_does_not_advance_live_prior_period_task(
 
 
 def test_scan_due_force_recreates_serviced_deleted_period(repo: Path) -> None:
-    """`--all` bypasses the `last_serviced_period` high-water: a period that
+    """`--force` bypasses the `last_serviced_period` high-water: a period that
     already ran and had its task dir deleted is re-created as a real run."""
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)
@@ -2813,10 +2955,10 @@ def test_scan_due_force_recreates_serviced_deleted_period(repo: Path) -> None:
     assert log.count("created recurring/weekly-check for 2026-W17") == 1
 
 
-def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
+def test_recurring_force_syncs_forced_recreated_period_on_control_branch(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--all` must not let the control high-water discard a forced recreate."""
+    """`--force` must not let the control high-water discard a forced recreate."""
     coga_os = git_repo.coga_os
     _seed_period_task_context(coga_os)
     _seed_script_workflow(coga_os)
@@ -2865,7 +3007,7 @@ def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 0, result.output
     assert launched == [ref.id_slug]
@@ -2873,7 +3015,7 @@ def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
     assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
 
 
-def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
+def test_recurring_force_preserves_existing_control_task_from_stale_checkout(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A forced stale local create must not overwrite a newer control task."""
@@ -2922,7 +3064,7 @@ def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 0, result.output
     assert launched == [remote.ref.id_slug]
@@ -2943,7 +3085,7 @@ def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
     assert "last_serviced_period: 2026-W18" in control_template
 
 
-def test_recurring_all_restores_clean_stale_existing_task_from_control(
+def test_recurring_force_restores_clean_stale_existing_task_from_control(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A clean local task dir may be stale; force mode should use control."""
@@ -3000,7 +3142,7 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 0, result.output
     assert launched == [stale.ref.id_slug]
@@ -3021,7 +3163,7 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
     assert '"cursor": "new"' in (stale.ref.path / ".state-snapshot.json").read_text()
 
 
-def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
+def test_recurring_force_preserves_existing_local_task_state_during_force_sync(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Force-syncing an existing local task must not replace unsynced state."""
@@ -3070,14 +3212,14 @@ def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 0, result.output
     assert launched == [first.ref.id_slug]
     assert read_blackboard(first.ref.path / "ticket.md") == "\nlocal unsynced state\n"
 
 
-def test_recurring_all_snapshot_does_not_block_control_restore(
+def test_recurring_force_snapshot_does_not_block_control_restore(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A generated state snapshot is not a local edit worth preserving."""
@@ -3138,7 +3280,7 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 0, result.output
     assert launched == [first.ref.id_slug]
@@ -3152,7 +3294,7 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
     assert '"cursor": "new"' in (first.ref.path / ".state-snapshot.json").read_text()
 
 
-def test_recurring_all_does_not_mark_new_period_for_control_live_task(
+def test_recurring_force_does_not_mark_new_period_for_control_live_task(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A stale checkout must resume control's live task without W18 high-water."""
@@ -3197,7 +3339,7 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 1, result.output
     assert launched == [remote.ref.id_slug]
@@ -3210,7 +3352,7 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
     assert "last_serviced_period: 2026-W18" not in control_template
 
 
-def test_recurring_all_reconciles_existing_tasks_before_launch_order(
+def test_recurring_force_reconciles_existing_tasks_before_launch_order(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A control-branch orphan must resume before stale local fresh work."""
@@ -3267,7 +3409,7 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 1, result.output
     assert launched == [live.ref.id_slug]
@@ -3275,7 +3417,7 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     assert "recurring launch returned with status='in_progress'" in result.output
 
 
-def test_recurring_all_does_not_service_unreached_existing_task(
+def test_recurring_force_does_not_service_unreached_existing_task(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A forced done task is serviced only once the launch loop reaches it."""
@@ -3303,7 +3445,7 @@ def test_recurring_all_does_not_service_unreached_existing_task(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(repo)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 1
     assert launched == ["recurring/aaa-first"]
@@ -3313,7 +3455,7 @@ def test_recurring_all_does_not_service_unreached_existing_task(
     assert Ticket.read(second.ref.path / "ticket.md").status == "done"
 
 
-def test_recurring_all_syncs_forced_existing_period_state(
+def test_recurring_force_syncs_forced_existing_period_state(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A forced relaunch of an existing task still syncs parent period state."""
@@ -3362,7 +3504,7 @@ def test_recurring_all_syncs_forced_existing_period_state(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 0, result.output
     assert launched == [ref.id_slug]
@@ -3376,7 +3518,7 @@ def test_recurring_all_syncs_forced_existing_period_state(
     assert "last_serviced_period: 2026-W18" in control_template
 
 
-def test_recurring_all_launches_every_template(
+def test_recurring_force_launches_every_template(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     launched: list[str] = []
@@ -3385,7 +3527,7 @@ def test_recurring_all_launches_every_template(
         monkeypatch, repo, lambda slug, **k: launched.append(slug)
     )
     monkeypatch.chdir(repo)
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 0, result.output
     assert len(launched) == 1
@@ -3399,7 +3541,7 @@ def test_recurring_all_launches_every_template(
     assert not any("-dbg-" in p.name for p in (repo / "tasks").iterdir())
 
 
-def test_recurring_all_skips_interactive_template_without_tty(
+def test_recurring_force_skips_interactive_template_without_tty(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     launched: list[str] = []
@@ -3411,7 +3553,7 @@ def test_recurring_all_skips_interactive_template_without_tty(
     )
     monkeypatch.chdir(repo)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = CliRunner().invoke(app, ["recurring", "--force"])
 
     assert result.exit_code == 0, result.output
     assert launched == []

@@ -28,7 +28,7 @@ A directory whose name starts with `_` (`_template/`, `_rem/`) is inert — the
 scanner skips it. That is how the starter templates ship without firing.
 
 - `coga recurring` (bare) — the public command head parses `--interactive`
-  and `--all`, then launches the package-backed `bootstrap/recurring-scan`
+  and `--force`, then launches the package-backed `bootstrap/recurring-scan`
   script target with those values in `COGA_RECURRING_INTERACTIVE` and
   `COGA_RECURRING_FORCE`. That target scans every recurring task,
   get-or-creates the stable instantiated task at
@@ -60,6 +60,14 @@ scanner skips it. That is how the starter templates ship without firing.
   period work for that template; there is only one instantiated path per
   template. If a script-launched task returns still unfinished, the sweep
   stops before the next due task.
+- `coga recurring --all <path>` — discovers every Coga repo below an explicit
+  parent directory and runs the ordinary due sweep in each one, sequentially.
+  It is the one-entry scheduler surface for operators with several repos.
+  Each repo runs in a fresh CLI process so its config, launch supervision, and
+  end-of-command git sync stay repo-local. A failed repo is reported without
+  preventing later repos from running; the parent command exits non-zero after
+  the sweep. `--force` may be combined with `--all <path>` to force every
+  template in every discovered repo.
 - `coga recurring launch <name>` — creates one named recurring task now,
   ignoring its schedule. `<name>` is the directory name. Unless
   `--interactive` is set, the launched REPL receives the same concrete
@@ -163,4 +171,4 @@ is the audit trail; the template's `last_serviced_period` remains persistent.
 
 Scheduler wiring, how to write a run's skill or body
 logic, and notification posting mechanics (see `coga/sync`). Implementation lives
-in `src/coga/recurring.py`.
+in `src/coga/recurring.py` and `src/coga/recurring_runner.py`.

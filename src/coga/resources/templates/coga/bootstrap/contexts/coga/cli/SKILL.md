@@ -604,12 +604,23 @@ the blackboard region of `coga/recurring/dream/ticket.md` as
 scans current task state, runs the known Coga housekeeping pass, writes
 results to that run's blackboard, and finishes with `coga mark done`.
 
-## coga recurring [--agent <type>]
+## coga recurring [--force] [--agent <type>]
+
+## coga recurring --all <path> [--force] [--agent <type>]
 
 Scan `coga/recurring/`, then create and launch every task that is due.
-The Typer command head parses `--interactive` / `--all` / `--agent` and
+The Typer command head parses `--interactive` / `--force` / `--agent` and
 launches the stateless package-backed `bootstrap/recurring-scan` script target,
 passing those values through an explicit environment contract.
+
+`--all <path>` is the multi-repo scheduler entry point. It may run from outside
+a Coga repo: it recursively finds `coga/` directories containing `coga.toml`
+below the explicit path, skips dependency/tool trees, and stops descending once
+it finds a workspace. Each discovered repo runs its ordinary recurring command
+in a fresh CLI process, sequentially. One repo's failure does not starve later
+repos, but the parent exits non-zero after reporting the aggregate. This keeps
+schedules, task state, config, Slack, and git sync owned by each repo while
+allowing one cron entry such as `coga recurring --all ~/Code`.
 
 Pass `--agent <type>` to run every agent-backed task in the sweep with that
 configured agent type. The override is ephemeral: it does not rewrite ticket
@@ -646,7 +657,7 @@ run. It requires an attended TTY and leaves the recurring liveness backstops
 unarmed; each template still launches according to its deduced substance
 (script when its `script:` or workflow step 1 is script-backed, else agent).
 
-`coga recurring --all` **forces a real, full run of every template**. It is
+`coga recurring --force` **forces a real, full run of every template**. It is
 *not* a sandbox: the only difference from a bare `coga recurring` is that it
 ignores the schedule and the status filter that skips already-serviced / done /
 paused templates this period. For every template it get-or-creates the real
@@ -667,7 +678,7 @@ should carry a script.
 **Idle-timeout backstop.** An agent template that *does* launch (a TTY is
 present) but whose agent stalls or crashes before signalling done — never
 reaching `coga bump` / `mark done` / `block` — would otherwise block the
-sequential sweep forever. Both the bare sweep and `coga recurring --all` arm a
+sequential sweep forever. Both the bare sweep and `coga recurring --force` arm a
 generous idle timeout on each spawned REPL (passed through as `coga launch
 --idle-timeout`): if it produces no output and takes no input for that long,
 the supervisor tears it down (reported as a clean exit) so the sweep moves on.
@@ -749,10 +760,12 @@ only; they don't accept their own flags.
   `launch bootstrap/orient`).
 - Running Coga cleanup now → `coga dream`.
 - Launching every due recurring task → `coga recurring`.
+- Launching due recurring tasks across every Coga repo below a parent path →
+  `coga recurring --all <path>`.
 - Inspecting recurring templates + schedules + instantiated tasks (read-only)
   → `coga recurring list`.
 - Forcing a real full run of every template now (ignore schedule + status
-  filter) → `coga recurring --all` (`--agent <type>` temporarily selects the
+  filter) → `coga recurring --force` (`--agent <type>` temporarily selects the
   agent for agent-backed tasks).
 - Launching one named recurring task now → `coga recurring launch <name>`
   (`--agent <type>` temporarily selects its agent when agent-backed).

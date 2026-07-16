@@ -234,6 +234,10 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
         subcommand = args[1] if len(args) > 1 else None
         return subcommand in _SWEEPING_MARK_SUBCOMMANDS
     if command == "recurring":
+        if "--all" in args[1:]:
+            # The parent dispatcher owns no repo state; each child recurring
+            # CLI performs its normal end-of-command sweep in its own repo.
+            return False
         subcommand = args[1] if len(args) > 1 else None
         return subcommand is None or subcommand.startswith("-") or subcommand == "launch"
     if command == "secret":
@@ -318,6 +322,9 @@ def main() -> None:
     """Console-script entry point. Loads config, registers aliases, dispatches."""
     _restore_default_sigpipe()
     invoked_command = sys.argv[1] if len(sys.argv) > 1 else None
+    recurring_all_invoked = (
+        invoked_command == "recurring" and "--all" in sys.argv[2:]
+    )
     # `coga init` (fresh or `--update`) is the create/recovery command — it
     # must run even when the current config is missing, legacy, or broken,
     # since repairing exactly that is often why it's invoked. A stale CLI plus
@@ -343,7 +350,12 @@ def main() -> None:
                 invoked_command in _BUILTIN_COMMANDS
                 or invoked_command in _DEFAULT_ALIASES
             )
-            if known_command and not init_invoked and not help_invoked:
+            if (
+                known_command
+                and not init_invoked
+                and not recurring_all_invoked
+                and not help_invoked
+            ):
                 typer.secho(
                     f"{msg}\nTo adopt an existing project, go to the project's "
                     "git root and run `coga init --user NAME`.",
@@ -352,9 +364,15 @@ def main() -> None:
                 )
                 sys.exit(2)
             cfg = None
-        elif init_invoked:
+        elif init_invoked or recurring_all_invoked:
+            prefix = (
+                f"Note: ignoring config error so `{sys.argv[1]}` can run"
+                if init_invoked
+                else "Note: ignoring current config error so the cross-repo "
+                "recurring sweep can run"
+            )
             typer.secho(
-                f"Note: ignoring config error so `{sys.argv[1]}` can run — {msg}",
+                f"{prefix} — {msg}",
                 fg=typer.colors.YELLOW,
                 err=True,
             )

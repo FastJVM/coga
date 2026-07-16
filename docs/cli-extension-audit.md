@@ -97,7 +97,7 @@ implementation, not a fixed rewrite to another command.
 | `orient` | `chat` default alias → `launch bootstrap/orient` | Yes — already aliased | Pure `launch bootstrap/orient`; no pre/post logic. |
 | `ticket` | `coga ticket` command head + `coga/ticket/finalize` | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. The validate/sync substance is script-shaped, not an alias hook. |
 | `project` | `coga project` built-in | No | Interview + multi-draft scaffold + TTY guard; not a passthrough. |
-| `recurring-scan` | `coga recurring` command head + `coga.recurring_runner` | No | The bootstrap script target exists, but the public command parses `--interactive` / `--all` and passes them through an explicit env contract before launch. |
+| `recurring-scan` | `coga recurring` command head + `coga.recurring_runner` | No | The bootstrap script target exists, but the public command parses `--interactive` / `--force` and passes them through an explicit env contract before launch; `--all <path>` dispatches that normal command across discovered repos. |
 
 Only `orient`, `project`, `ticket`, and `recurring-scan` are bootstrap tickets
 (`resolve_bootstrap`); `orient` is already the `chat` alias, `recurring-scan`
