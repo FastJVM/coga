@@ -1367,3 +1367,6 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 19:57 [recurring/digest] [git] sync refused: coga/tasks/recurring/digest/ticket.md: status would move backward from 'done' to 'active'
 2026-07-15 19:57 [recurring/dream] [git] sync refused: coga/tasks/recurring/dream/ticket.md: status would move backward from 'done' to 'active'
 2026-07-15 20:14 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
+2026-07-15 20:14 [recurring/autoclose-merged] [system] launched as a script (skill=coga/autoclose/sweep, script=run.py)
+2026-07-15 20:14 [recurring/autoclose-merged] [system] script exited with code 0
+2026-07-15 20:14 [recurring/autoclose-merged] [system] completed (final script step ran) via coga launch
