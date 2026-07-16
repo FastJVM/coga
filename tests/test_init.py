@@ -912,6 +912,10 @@ def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_clone, fake_venv) 
 
 
 def test_init_refuses_existing_coga_os(tmp_path: Path, fake_clone, fake_venv) -> None:
+    """The refusal names the actual remedies — `--update` is gone, so the
+    message must say what re-running init was probably reaching for: upgrade
+    the CLI via pip, recover a broken coga/ by fixing/removing it, or
+    `coga uninstall` to drop the footprint."""
     target = tmp_path / "occupied"
     target.mkdir()
     (target / "coga").mkdir()
@@ -919,6 +923,9 @@ def test_init_refuses_existing_coga_os(tmp_path: Path, fake_clone, fake_venv) ->
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
     assert "already exists" in result.output
+    assert "pip install --upgrade coga" in result.output
+    assert "coga uninstall" in result.output
+    assert "remove the dir" in result.output
 
 
 def test_init_into_missing_dir_errors_not_git_repo(

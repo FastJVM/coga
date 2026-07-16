@@ -410,7 +410,12 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
 
     if coga_os.exists():
         typer.secho(
-            f"{coga_os} already exists.",
+            f"{coga_os} already exists — this repo is already initialized.\n"
+            f"To upgrade the CLI, run `pip install --upgrade coga` — batteries "
+            f"resolve from the installed package, no re-init needed.\n"
+            f"If {coga_os} is broken or partial, fix the cause or remove the "
+            f"dir, then re-run `coga init`.\n"
+            f"To remove coga from this repo entirely, run `coga uninstall`.",
             fg=typer.colors.RED,
             err=True,
         )
