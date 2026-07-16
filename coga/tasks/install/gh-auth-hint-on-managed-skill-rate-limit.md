@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -50,4 +50,60 @@ gh 2.96 unauthenticated). Touchpoints: `src/coga/managed_skills.py` /
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: gh-rate-limit-hint
+worktree: /home/n/Code/claude/coga-gh-rate-limit-hint
+
+## Plan (implement step)
+
+Failure path today: a rate-limit 403 from `gh skill install` raises
+`SkillManagerError` with the raw stderr blob; `_github_access_denial_reason`
+(src/coga/managed_skills.py) doesn't match it, so it lands in
+`_failure_result` → status `failed`, message = full blob, remediation =
+`coga skill install …` (the command that hits the same limit). Only
+`coga init` renders these summaries (`_print_managed_skill_summary` in
+src/coga/commands/init.py); `reconcile_managed_skills` has no CLI caller yet.
+
+Changes:
+- managed_skills.py: add `_github_rate_limit_reason(output)` (line-scan like
+  the access-denial classifier; markers: "api rate limit exceeded",
+  "secondary rate limit", "rate limit exceeded"; returns the one matching
+  line → trims the ToS/request-ID blob). Check it *before* the access-denial
+  classifier in `_run_install` (gh's rate-limit text can mention
+  `gh auth login`, which would misclassify as no-access). New status
+  `skipped-rate-limited` with `remediation: gh auth login`; per-source cache
+  extended to carry (kind, reason) so later skills from the same source skip
+  without re-hitting the exhausted quota (mirrors the no-access cache).
+  Required skills fail loud with `Remediation: gh auth login`.
+- init.py: consolidated one-note-per-source rendering for
+  `skipped-rate-limited`, mirroring `_print_no_access_skill_notes`.
+- Tests mirroring existing style in tests/test_managed_skills.py and
+  tests/test_init.py.
+
+Noted, out of scope: the reconcile/update path (`reconcile_managed_skills`
+line ~243) still reports raw blobs on rate-limited `gh skill update`; no CLI
+caller today, follow-up ticket material if one appears.
+
+## Implemented (commit 942c7eb0 on gh-rate-limit-hint)
+
+- `src/coga/managed_skills.py`: `_github_rate_limit_reason()` scans stderr
+  lines for "api rate limit exceeded" / "secondary rate limit" / "rate limit
+  exceeded" and returns just that line (trims the ToS/request-ID blob).
+  Checked before the access-denial classifier in `_run_install`. New result
+  status `skipped-rate-limited` with `remediation: gh auth login`
+  (`GH_AUTH_REMEDIATION`). Per-source failure cache now stores
+  `(kind, reason)` tuples ("no-access" | "rate-limit") so later skills from
+  the same source skip without another API call. Required skills fail loud
+  with `Remediation: gh auth login`.
+- `src/coga/commands/init.py`: `_print_rate_limited_skill_notes()` — one
+  consolidated yellow note per source, mirroring the no-access notes, naming
+  `gh auth login` and a `coga skill install <source> <skill>` retry example.
+- `src/coga/resources/managed-skills.toml`: header comment documents the
+  rate-limit skip behavior.
+- Tests: 2 new in tests/test_managed_skills.py (skip + trim + remediation;
+  required fails loud), 1 new in tests/test_init.py (consolidated note).
+
+Verification: full suite `python -m pytest` → 1210 passed, 1 skipped, in a
+python3.12 venv with the worktree installed editable. (Bare python3.12
+without the editable install fails test_launch_script.py's stateless test
+identically on main — environment setup, not this change.)
