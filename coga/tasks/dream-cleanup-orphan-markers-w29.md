@@ -1,7 +1,7 @@
 ---
 slug: dream-cleanup-orphan-markers-w29
 title: Dream cleanup orphan markers W29
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
