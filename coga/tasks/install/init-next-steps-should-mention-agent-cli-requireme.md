@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -52,4 +52,48 @@ Getting Started gap).
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: init-agent-cli-hint
+worktree: /home/n/Code/claude/coga-init-agent-cli-hint
+
+## Implement step — done (commit d0f3287b, rebased onto a546501f)
+
+All three ticket asks landed:
+
+- `src/coga/dependencies.py`: `claude` (https://claude.com/claude-code) and
+  `codex` (https://github.com/openai/codex) added as `required_at_init=False`
+  manifest entries. New helpers: `install_hint(name)` and
+  `agent_cli_missing_message(cli)` — the latter appends the install hint when
+  the manifest knows the binary, and still fails loud (no URL) for a custom
+  `cli` value. Docstring's stale README-section name fixed ("External CLI
+  Tools" → "Getting Started").
+- Point-of-need sites now share that message: `commands/launch.py`,
+  `commands/ticket.py`, `commands/project.py`, `megalaunch.py` (megalaunch's
+  preflight detail string included — its casing changed from "agent CLI" to
+  "Agent CLI"; no test asserted the old casing).
+- `commands/init.py`: next-steps line "Install an agent CLI, if you haven't…"
+  inserted before the `coga build`/`coga ticket` coax, URLs pulled from the
+  manifest via `install_hint()` so docs can't drift.
+- `README.md` Getting Started: names the prerequisite and that init itself
+  works without it.
+- Tests: new `tests/test_dependencies.py` (helpers + not-required-at-init);
+  `test_init.py` gains dep-check-ignores-missing-agent-CLIs and
+  next-steps-name-the-prerequisite; `test_launch.py`'s not-in-PATH test now
+  asserts the install hint.
+
+Verification: full suite green after rebase — 1214 passed, 1 skipped — via a
+scratch venv with the worktree installed editable (`pip install -e`), because
+this machine has no py3.11+ editable install and pytest's `pythonpath=src`
+doesn't reach script subprocesses.
+
+Adjacent issues found (for follow-up tickets, not fixed here):
+
+- `tests/test_usage_probe.py` codex-probe tests are flaky under full-suite
+  load (different ones failed on two runs: `..._primes_once_across_reads`,
+  `..._primes_then_reads_fresh_rollout`; both pass 5/5 in isolation —
+  likely an mtime/freshness timing race).
+- `tests/test_launch_script.py::test_bootstrap_script_launch_is_stateless`
+  fails on any checkout without a real editable install: the bootstrap
+  script's subprocess can't import `coga` since pytest's `pythonpath` config
+  doesn't propagate to child processes. Environmental, but a dev-setup trap
+  worth documenting.
