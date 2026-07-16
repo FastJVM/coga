@@ -1543,3 +1543,4 @@ Aborting
 2026-07-16 11:25 [coga-important/add-toml-property-for-notification-recipient] [human:zach] started (active → in_progress) via coga launch
 2026-07-16 11:25 [coga-important/add-toml-property-for-notification-recipient] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-16 11:35 [coga-important/add-coga-slack-important] [human:zach] activated (blocked → active) — auto on launch
+2026-07-16 11:35 [coga-important/add-coga-slack-important] [human:zach] started (active → in_progress) via coga launch
