@@ -82,3 +82,7 @@ worktree: /home/n/Code/claude/coga-reinit-message
   test_bootstrap_script_launch_is_stateless` fails without one (its subprocess
   imports `coga`), on unmodified main too. Green once coga is pip-installed
   editable (per CLAUDE.md dev setup).
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":98068,"cache_read_input_tokens":2513438,"cli":"claude","input_tokens":103,"model":"claude-fable-5","output_tokens":21985,"provider":"anthropic","schema":1,"session_id":"5cc4dad8-ad6a-4744-9bd6-120bbc844cf9","slug":"install/improve-reinit-already-exists-message","step":"implement","title":"Improve reinit already-exists message","ts":"2026-07-16T00:28:32.799154Z","usage_status":"ok"}
