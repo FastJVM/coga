@@ -154,3 +154,7 @@ Verification (scratch venv, python3.12, worktree installed editable):
   (`test_bootstrap_script_launch_is_stateless` — spawned script needs an
   installed `coga`); it fails identically on unmodified main and passes
   with the editable install, so it is environmental, not from this change.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":422369,"cache_read_input_tokens":13112355,"cli":"claude","input_tokens":246,"model":"claude-fable-5","output_tokens":141668,"provider":"anthropic","schema":1,"session_id":"fb42e30c-579e-460f-8e7d-9ecd9b4402d5","slug":"remove-megalaunch-token-budget-guard-and-usage-pro","step":"implement","title":"Remove megalaunch token-budget guard and usage probe","ts":"2026-07-16T02:47:44.756349Z","usage_status":"ok"}
