@@ -612,12 +612,18 @@ the blackboard region of `coga/recurring/dream/ticket.md` as
 scans current task state, runs the known Coga housekeeping pass, writes
 results to that run's blackboard, and finishes with `coga mark done`.
 
-## coga recurring
+## coga recurring [--agent <type>]
 
 Scan `coga/recurring/`, then create and launch every task that is due.
-The Typer command head only parses `--interactive` / `--all` and launches the
-stateless package-backed `bootstrap/recurring-scan` script target, passing
-those flags as `COGA_RECURRING_INTERACTIVE` / `COGA_RECURRING_FORCE`.
+The Typer command head parses `--interactive` / `--all` / `--agent` and
+launches the stateless package-backed `bootstrap/recurring-scan` script target,
+passing those values through an explicit environment contract.
+
+Pass `--agent <type>` to run every agent-backed task in the sweep with that
+configured agent type. The override is ephemeral: it does not rewrite ticket
+assignees, human handoffs remain protected, and script-backed recurring tasks
+still run as scripts. The command threads the override through the stateless
+scan target as `COGA_RECURRING_AGENT`.
 
 For each template (skipping `_`-prefixed files) `coga recurring` enforces
 **one live task per template**: if the generated task at `recurring/<name>` is
@@ -682,7 +688,7 @@ way as a wall-clock cap.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 
-## coga recurring launch \<name\>
+## coga recurring launch \<name\> [--agent <type>]
 
 Create one named recurring template now and launch it, ignoring its
 schedule. `name` is the directory name under `coga/recurring/`. The task
@@ -695,6 +701,9 @@ what the `coga dream` alias expands to.
 Unless `--interactive` is set, it passes the same concrete idle-timeout and
 max-session limits as the scheduled sweep. `--interactive` leaves those
 liveness limits unarmed for debugging one template by hand.
+`--agent <type>` applies the same ephemeral override as the full sweep when the
+named task is agent-backed; script-backed tasks ignore it and still run as
+scripts. This also makes `coga dream --agent <type>` work through the alias.
 
 ## coga recurring list
 
@@ -750,8 +759,10 @@ only; they don't accept their own flags.
 - Inspecting recurring templates + schedules + instantiated tasks (read-only)
   → `coga recurring list`.
 - Forcing a real full run of every template now (ignore schedule + status
-  filter) → `coga recurring --all`.
-- Launching one named recurring task now → `coga recurring launch <name>`.
+  filter) → `coga recurring --all` (`--agent <type>` temporarily selects the
+  agent for agent-backed tasks).
+- Launching one named recurring task now → `coga recurring launch <name>`
+  (`--agent <type>` temporarily selects its agent when agent-backed).
 - Starting or resuming agent work on a task → `coga launch <slug>`.
 - Sweeping all your launchable active agent work → `coga megalaunch`
   (`--agent <type>` runs the sweep with that agent regardless of assignee,

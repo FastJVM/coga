@@ -16,7 +16,7 @@ import typer
 from coga import git
 from coga.commands.launch import _interactive_stdio_has_tty
 from coga.commands.launch_script import is_script_launch
-from coga.config import Config
+from coga.config import Config, ConfigError
 from coga.logfile import append_log, ref_tag_for_path, task_log_lines
 from coga.paths import log_path
 from coga.taskfile import read_blackboard
@@ -51,7 +51,11 @@ _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
 
 
 def run_recurring_scan(
-    cfg: Config, *, force: bool = False, interactive: bool = False
+    cfg: Config,
+    *,
+    force: bool = False,
+    interactive: bool = False,
+    agent_override: str | None = None,
 ) -> int:
     """Scan every recurring template and launch any due tasks, sequentially.
 
@@ -74,8 +78,14 @@ def run_recurring_scan(
     Slack, the digest spool, git task-state sync, the `last_serviced_period`
     high-water advance — is identical to a normal run.
 
+    `agent_override` temporarily selects the configured agent for agent-backed
+    tasks. It never rewrites the ticket, and script tasks still run as scripts.
+
     `coga recurring launch <name>` force-runs one named template now.
     """
+    if not _valid_agent_override(cfg, agent_override):
+        return 2
+
     _sync_control_checkout_ahead(cfg)
     scan = scan_due(
         cfg, allow_interactive=_interactive_stdio_has_tty(), force=force
@@ -120,7 +130,11 @@ def run_recurring_scan(
         # below instead of pausing it as a human would.
         kind = launch_cmd(
             task.ref.id_slug,
-            agent_override=None,
+            agent_override=(
+                None
+                if is_script_launch(cfg, read_ticket(task.ref))
+                else agent_override
+            ),
             prompt_report=False,
             idle_timeout=idle_timeout,
             max_session=max_session,
@@ -133,7 +147,11 @@ def run_recurring_scan(
 
 
 def run_recurring_named(
-    cfg: Config, name: str, *, interactive: bool = False
+    cfg: Config,
+    name: str,
+    *,
+    interactive: bool = False,
+    agent_override: str | None = None,
 ) -> int:
     """Create a named recurring template now and launch it.
 
@@ -141,7 +159,13 @@ def run_recurring_named(
     aliases like `coga dream`. The task slug is the stable qualified
     `recurring/<name>`, so this and a bare `coga recurring` converge on one
     instantiated task directory.
+
+    `agent_override` has the same ephemeral, agent-only semantics as the full
+    recurring sweep.
     """
+    if not _valid_agent_override(cfg, agent_override):
+        return 2
+
     _sync_control_checkout_ahead(cfg)
     try:
         outcome = create_named(cfg, name)
@@ -166,7 +190,9 @@ def run_recurring_named(
     else:
         typer.echo(f"{ref.id_slug} already created for this period")
 
-    _launch_created(cfg, ref, interactive=interactive)
+    _launch_created(
+        cfg, ref, interactive=interactive, agent_override=agent_override
+    )
     return 0
 
 
@@ -197,7 +223,13 @@ def _sync_control_checkout_ahead(cfg: Config) -> None:
         sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {exc}\n")
 
 
-def _launch_created(cfg: Config, ref: TaskRef, *, interactive: bool = False) -> None:
+def _launch_created(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    interactive: bool = False,
+    agent_override: str | None = None,
+) -> None:
     """Launch (or resume) a created recurring task.
 
     Recurring tasks create straight to `active` — machine-authored ready
@@ -231,12 +263,24 @@ def _launch_created(cfg: Config, ref: TaskRef, *, interactive: bool = False) -> 
     max_session = None if interactive else _recurring_max_session(cfg)
     launch_cmd(
         ref.id_slug,
-        agent_override=None,
+        agent_override=None if is_script_launch(cfg, ticket) else agent_override,
         prompt_report=False,
         idle_timeout=idle_timeout,
         max_session=max_session,
         return_timeout=False,
     )
+
+
+def _valid_agent_override(cfg: Config, agent_override: str | None) -> bool:
+    """Fail loud on an unknown recurring agent, even when no task is due."""
+    if agent_override is None:
+        return True
+    try:
+        cfg.agent_type(agent_override)
+    except ConfigError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return False
+    return True
 
 
 def _sync_recurring_create(

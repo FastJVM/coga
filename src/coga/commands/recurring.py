@@ -22,6 +22,7 @@ from coga.ticket import TicketError
 _SCAN_TARGET = "bootstrap/recurring-scan"
 _FORCE_ENV = "COGA_RECURRING_FORCE"
 _INTERACTIVE_ENV = "COGA_RECURRING_INTERACTIVE"
+_AGENT_ENV = "COGA_RECURRING_AGENT"
 
 
 app = typer.Typer(
@@ -51,6 +52,13 @@ def main(
         "ran this period is re-launched (coga launch re-activates a finished "
         "ticket).",
     ),
+    agent: str | None = typer.Option(
+        None,
+        "--agent",
+        help="Agent type to use for agent-backed recurring tasks in this "
+        "sweep. Script tasks still run as scripts; ticket assignees are not "
+        "rewritten.",
+    ),
 ) -> None:
     """Launch the stateless bootstrap recurring scan target.
 
@@ -58,6 +66,7 @@ def main(
     env contract. The scan/get-or-create/sync/launch body lives in
     `coga.recurring_runner`, reached through `bootstrap/recurring-scan`.
     """
+    ctx.ensure_object(dict)["agent_override"] = agent
     if ctx.invoked_subcommand is not None:
         return
 
@@ -69,7 +78,7 @@ def main(
 
     from coga.commands.launch import launch as launch_cmd
 
-    with _scan_env(force=all_, interactive=interactive):
+    with _scan_env(force=all_, interactive=interactive, agent_override=agent):
         launch_cmd(
             _SCAN_TARGET,
             agent_override=None,
@@ -82,6 +91,7 @@ def main(
 
 @app.command("launch")
 def launch(
+    ctx: typer.Context,
     name: str = typer.Argument(
         ...,
         help="Recurring task name — the directory under coga/recurring/.",
@@ -92,21 +102,45 @@ def launch(
         help="Launch as a human-stepped run, leaving REPL liveness backstops "
         "unarmed. Ticket files are not modified.",
     ),
+    agent: str | None = typer.Option(
+        None,
+        "--agent",
+        help="Agent type to use for this agent-backed recurring launch. "
+        "Script tasks still run as scripts; the ticket assignee is not "
+        "rewritten.",
+    ),
 ) -> None:
     """Create a named recurring template now and launch it."""
+    inherited_agent = (ctx.obj or {}).get("agent_override")
+    if (
+        agent is not None
+        and inherited_agent is not None
+        and agent != inherited_agent
+    ):
+        typer.secho(
+            f"Conflicting recurring agent overrides: {inherited_agent!r} and "
+            f"{agent!r}.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    agent_override = agent or inherited_agent
+
     try:
         cfg = load_config()
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
-    code = run_recurring_named(cfg, name, interactive=interactive)
+    code = run_recurring_named(
+        cfg, name, interactive=interactive, agent_override=agent_override
+    )
     if code:
         sys.exit(code)
 
 
 @app.command("list")
-def list_recurring() -> None:
+def list_recurring(ctx: typer.Context) -> None:
     """List recurring templates with their schedules, plus instantiated tasks.
 
     Read-only — the inspectable counterpart of a bare `coga recurring`, which
@@ -115,6 +149,14 @@ def list_recurring() -> None:
     tables: every template with its schedule and the current period's state,
     then the picked tasks — the recurring period tasks already on disk.
     """
+    if (ctx.obj or {}).get("agent_override") is not None:
+        typer.secho(
+            "--agent is only supported when recurring launches work.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
     try:
         cfg = load_config(require_user=False)
     except ConfigError as exc:
@@ -135,10 +177,13 @@ def list_recurring() -> None:
 
 
 @contextmanager
-def _scan_env(*, force: bool, interactive: bool) -> Iterator[None]:
+def _scan_env(
+    *, force: bool, interactive: bool, agent_override: str | None
+) -> Iterator[None]:
     updates = {
         _FORCE_ENV: _bool_env(force),
         _INTERACTIVE_ENV: _bool_env(interactive),
+        _AGENT_ENV: agent_override or "",
     }
     previous = {name: os.environ.get(name) for name in updates}
     os.environ.update(updates)

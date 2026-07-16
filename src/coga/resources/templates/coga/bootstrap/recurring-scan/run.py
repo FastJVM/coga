@@ -20,6 +20,7 @@ def main() -> int:
         cfg,
         force=_env_flag("COGA_RECURRING_FORCE"),
         interactive=_env_flag("COGA_RECURRING_INTERACTIVE"),
+        agent_override=os.environ.get("COGA_RECURRING_AGENT") or None,
     )
 
 
