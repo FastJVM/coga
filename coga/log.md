@@ -1332,3 +1332,19 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 19:03 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-07-15 19:20 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] created (status=draft)
 2026-07-15 19:24 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] created (status=draft)
+2026-07-15 19:28 [recurring/autoclose-merged] [system] created (status=active)
+2026-07-15 19:28 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-07-15
+2026-07-15 19:28 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-07-15
+2026-07-15 19:28 [recurring/blocker-reminders] [system] created (status=active)
+2026-07-15 19:28 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-07-15
+2026-07-15 19:28 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-07-15
+2026-07-15 19:28 [recurring/digest] [system] created (status=active)
+2026-07-15 19:28 [recurring/digest] [system] deleted completed prior-period task before 2026-07-15
+2026-07-15 19:28 [recurring/digest] [system] created recurring/digest for 2026-07-15
+2026-07-15 19:28 [recurring/dream] [system] created (status=active)
+2026-07-15 19:28 [recurring/dream] [system] deleted completed prior-period task before 2026-W29
+2026-07-15 19:28 [recurring/dream] [system] created recurring/dream for 2026-W29
+2026-07-15 19:28 [recurring/blocker-reminders] [git] sync refused: coga/tasks/recurring/blocker-reminders/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [recurring/digest] [git] sync refused: coga/tasks/recurring/digest/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [recurring/dream] [git] sync refused: coga/tasks/recurring/dream/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [bootstrap/orient] [human:nicktoper] launched (assignee=codex, agent=codex)
