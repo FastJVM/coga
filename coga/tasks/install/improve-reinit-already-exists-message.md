@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 1 (implement)
 ---
 
 ## Description
