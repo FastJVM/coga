@@ -22,3 +22,4 @@ consumed_through: 5395a45530c4
 {"id":"5395a45530c4","ts":"2026-07-16T10:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
 {"id":"c74322881d74","ts":"2026-07-16T10:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nicktoper"}
 {"id":"8f2a92e28596","ts":"2026-07-16T10:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+{"id":"a24c6c948452","ts":"2026-07-16T10:30","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"install/retest-ssh-https-and-init-reclone-on-fresh-machine","owner":"nicktoper"}
