@@ -151,3 +151,7 @@ Decisions / notes:
 - Rebase onto 981047ad conflicted on 3 migrated tickets (new usage records
   had landed on main); resolved by taking main's version and re-running the
   strip, so records appended after the branch point are also removed.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":457566,"cache_read_input_tokens":17980393,"cli":"claude","input_tokens":272,"model":"claude-fable-5","output_tokens":123633,"provider":"anthropic","schema":1,"session_id":"feab4582-f731-4d1e-b1d6-965101db91e4","slug":"move-per-session-usage-records-from-ticket-blackbo","step":"implement","title":"Move per-session usage records from ticket blackboards to log.md","ts":"2026-07-16T03:19:21.031947Z","usage_status":"ok"}
