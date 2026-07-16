@@ -510,6 +510,18 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
             session_id_flag=session_id_flag,
             discussion=discussion,
         )
+    for name, data in (local_raw or {}).items():
+        if not isinstance(data, Mapping):
+            continue
+        removed = [key for key in _REMOVED_AGENT_KEYS if key in data]
+        if removed:
+            raise ConfigError(
+                f"[agents.{name}] in coga.local.toml has removed key(s) "
+                f"{removed}. Launches are interactive-only now: the headless "
+                "`auto` argv and the `skip_permissions` / "
+                "`skip_permissions_argv` policy are gone with no replacement. "
+                "Delete those line(s) from coga.local.toml."
+            )
     if local_raw:
         raise ConfigError(
             "coga.local.toml no longer supports [agents.<name>] overrides; "

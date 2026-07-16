@@ -189,6 +189,44 @@ def test_agent_unknown_key_error_survives_removed_keys(repo: Path) -> None:
         load_config(repo)
 
 
+def test_agent_skip_key_rejected_in_local_toml_with_migration_error(
+    repo: Path,
+) -> None:
+    _write(
+        repo / "coga.local.toml",
+        """
+        user = "marc"
+
+        [agents.claude]
+        skip_permissions = "auto"
+        """,
+    )
+    with pytest.raises(
+        ConfigError,
+        match=r"coga\.local\.toml has removed key\(s\).*skip_permissions.*Delete",
+    ):
+        load_config(repo)
+
+
+def test_agent_skip_argv_rejected_in_local_toml_with_migration_error(
+    repo: Path,
+) -> None:
+    _write(
+        repo / "coga.local.toml",
+        """
+        user = "marc"
+
+        [agents.claude]
+        skip_permissions_argv = "--dangerously-skip-permissions"
+        """,
+    )
+    with pytest.raises(
+        ConfigError,
+        match=r"coga\.local\.toml has removed key\(s\).*skip_permissions_argv.*Delete",
+    ):
+        load_config(repo)
+
+
 def test_local_agent_overrides_are_rejected(repo: Path) -> None:
     _write(
         repo / "coga.local.toml",
