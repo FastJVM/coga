@@ -1438,3 +1438,10 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 21:12 [install/cut-release-to-realign-pypi-with-main] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-15 21:12 [install/cut-release-to-realign-pypi-with-main] [megalaunch] launched via coga megalaunch
 2026-07-15 21:14 [install/cut-release-to-realign-pypi-with-main] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 21:14 [install/decide-whether-gh-stays-required-at-init] [git] sync refused: coga/tasks/install/decide-whether-gh-stays-required-at-init.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/gh-auth-hint-on-managed-skill-rate-limit] [git] sync refused: coga/tasks/install/gh-auth-hint-on-managed-skill-rate-limit.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/improve-reinit-already-exists-message] [git] sync refused: coga/tasks/install/improve-reinit-already-exists-message.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/init-next-steps-should-mention-agent-cli-requireme] [git] sync refused: coga/tasks/install/init-next-steps-should-mention-agent-cli-requireme.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-15 21:14 [install/decide-whether-gh-stays-required-at-init] [megalaunch] started (active → in_progress) via coga megalaunch
