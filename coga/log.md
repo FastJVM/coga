@@ -1318,3 +1318,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 17:56 [coga-important/context] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
 2026-07-15 17:45 [install/vendor-cli-from-installed-package-not-git-clone] [megalaunch] launched via coga megalaunch
 2026-07-15 18:08 [install/vendor-cli-from-installed-package-not-git-clone] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 18:08 [install/warn-loud-when-init-commit-is-skipped] [megalaunch] started (active → in_progress) via coga megalaunch
