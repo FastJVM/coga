@@ -56,6 +56,29 @@ not whoever should act. This ticket adds the property and its resolution only;
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+- branch: important-recipient
+- worktree: ../coga-important-recipient
+- commit: fa892703 (rebased onto origin/main 82631ba2 — picked up doc-refresh
+  PRs #565–#574; only #569 touched a file I edited, sync SKILL.md, and replayed
+  clean)
+- tests: full suite green (1236 passed pre-rebase; config+notification 131
+  passed post-rebase)
+
+## Implementation (2026-07-16, from main after #553 merged)
+
+Followed the "Ready to implement" shape below. Landed in `src/coga/config.py`:
+`"important_recipient"` added to `_ALLOWED_SLACK_KEYS` only (not the legacy set);
+new `_resolve_notification_slack_important_recipient` mirroring the webhook
+resolver but with no `_resolve_secret_value`, no legacy/env fallback, empty
+string collapsing to None; `slack_important_recipient` field on `Config`, plumbed
+through `_parse_slack_notification`'s return tuple (placed right after
+`important_webhook`) and `load_config`. Docs in both `coga.toml` copies and both
+`coga/sync` SKILL.md copies. Config-resolution tests in
+`tests/test_notification.py`, mirroring the `important_webhook` cases. Value is
+not spent in `slack.py` — `coga-important/add-coga-slack-important` is the consumer.
+
 ## Blocked: this ticket's base does not exist on main
 
 Every anchor the ticket's Context names lives only on PR #553's unmerged
