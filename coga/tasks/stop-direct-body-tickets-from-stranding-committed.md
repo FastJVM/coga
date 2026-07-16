@@ -241,3 +241,10 @@ Tests: full suite `1093 passed, 1 skipped` (the one environmental
 `test_bootstrap_script_launch_is_stateless` failure is a sandbox artifact —
 no editable install, so a spawned subprocess can't import `coga`; it fails
 identically on the pre-QA base and passes with `PYTHONPATH=…/src`).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Document the direct/body product-code boundary
