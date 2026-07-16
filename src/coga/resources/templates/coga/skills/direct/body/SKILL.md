@@ -37,6 +37,24 @@ every task past `draft` carries a workflow.
   follow it. If you are blocked before completion, `coga block` with a
   reason; never stop silently.
 
+## Product-code boundary
+
+`direct/body` has no branch-push or PR step. Use it for work whose body owns
+its complete side-effect and handoff contract, not for landing committed
+product files. A ticket that produces code or other tracked product artifacts
+belongs on a `code/*` workflow so its branch is pushed and reviewed before the
+ticket finishes.
+
+As a last-line guard, `coga mark done` refuses to finish a `direct/body` ticket
+when the current checkout has committed paths outside Coga's state subtree that
+are absent from the control branch. The error names those paths and points the
+work to a `code/*` workflow. `--force` is an explicit escape hatch for a human
+who has independently made the commits durable.
+
+The guard is worktree-local: it can see product commits only when `mark done`
+runs from the checkout that contains them. It does not make `direct/body` a
+code-delivery workflow or recover commits stranded in another checkout.
+
 ## What this skill does NOT do
 
 - It does not add process on top of the body. The body governs; this skill
