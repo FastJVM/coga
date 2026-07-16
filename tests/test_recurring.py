@@ -298,6 +298,7 @@ def _patch_recurring_command_launch(
                 load_config(repo),
                 force=os.environ.get("COGA_RECURRING_FORCE") == "1",
                 interactive=os.environ.get("COGA_RECURRING_INTERACTIVE") == "1",
+                agent_override=os.environ.get("COGA_RECURRING_AGENT") or None,
             )
         return child_launch(task, **kwargs)
 
@@ -356,7 +357,7 @@ def repo(tmp_path: Path):
 def test_bare_recurring_head_launches_bootstrap_scan_with_env(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    calls: list[tuple[str, dict, str | None, str | None]] = []
+    calls: list[tuple[str, dict, str | None, str | None, str | None]] = []
 
     def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
         calls.append(
@@ -365,13 +366,16 @@ def test_bare_recurring_head_launches_bootstrap_scan_with_env(
                 kwargs,
                 os.environ.get("COGA_RECURRING_FORCE"),
                 os.environ.get("COGA_RECURRING_INTERACTIVE"),
+                os.environ.get("COGA_RECURRING_AGENT"),
             )
         )
 
     monkeypatch.chdir(repo)
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
-    result = CliRunner().invoke(app, ["recurring", "--all", "--interactive"])
+    result = CliRunner().invoke(
+        app, ["recurring", "--all", "--interactive", "--agent", "claude"]
+    )
 
     assert result.exit_code == 0, result.output
     assert calls == [
@@ -386,10 +390,12 @@ def test_bare_recurring_head_launches_bootstrap_scan_with_env(
             },
             "1",
             "1",
+            "claude",
         )
     ]
     assert os.environ.get("COGA_RECURRING_FORCE") is None
     assert os.environ.get("COGA_RECURRING_INTERACTIVE") is None
+    assert os.environ.get("COGA_RECURRING_AGENT") is None
 
 
 def test_recurring_list_is_read_only_and_shows_schedule(
@@ -3309,6 +3315,68 @@ def test_recurring_launch_invokes_launch(
     assert calls == ["recurring/dream"]
 
 
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["recurring", "launch", "dream", "--agent", "codex"],
+        ["recurring", "--agent", "codex", "launch", "dream"],
+    ],
+)
+def test_recurring_launch_passes_ephemeral_agent_override(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch, args: list[str]
+) -> None:
+    """A named recurring launch can use another configured agent temporarily."""
+    coga_toml = dream_repo / "coga.toml"
+    coga_toml.write_text(
+        coga_toml.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    seen: list[str | None] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.launch",
+        lambda task, **kwargs: seen.append(kwargs.get("agent_override")),
+    )
+
+    result = CliRunner().invoke(app, args)
+
+    assert result.exit_code == 0, result.output
+    assert seen == ["codex"]
+    ticket = Ticket.read(dream_repo / "tasks" / "recurring" / "dream" / "ticket.md")
+    assert ticket.assignee == "claude"
+
+
+def test_recurring_launch_agent_override_leaves_script_task_as_script(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--agent` scopes agent launches without breaking script templates."""
+    _seed_script_workflow(repo)
+    _write_recurring_script(
+        repo, "script-check", schedule="* * * * *", title="Script check"
+    )
+    monkeypatch.chdir(repo)
+    seen: list[str | None] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.launch",
+        lambda task, **kwargs: seen.append(kwargs.get("agent_override")),
+    )
+
+    result = CliRunner().invoke(
+        app, ["recurring", "launch", "script-check", "--agent", "claude"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert seen == [None]
+
+
+def test_recurring_rejects_unknown_agent_even_when_nothing_is_due(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert recurring_cmd.run_recurring_scan(
+        load_config(repo), agent_override="goat"
+    ) == 2
+    assert "Agent type 'goat' is not defined" in capsys.readouterr().err
+
+
 def test_recurring_launch_threads_configured_timeout_limits(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3432,6 +3500,32 @@ def test_bare_recurring_scans_and_launches_due(
     assert "Recurring scan" in result.output
     assert len(calls) == 1
     assert calls == ["recurring/dream"]
+
+
+def test_bare_recurring_passes_agent_override_to_agent_tasks(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sweep threads `--agent` through the bootstrap script boundary."""
+    coga_toml = dream_repo / "coga.toml"
+    coga_toml.write_text(
+        coga_toml.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    _allow_interactive_recurring(monkeypatch)
+    seen: list[str | None] = []
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        seen.append(kwargs.get("agent_override"))
+        ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(dream_repo / "tasks" / task / "ticket.md")
+
+    _patch_recurring_command_launch(monkeypatch, dream_repo, fake_launch)
+
+    result = CliRunner().invoke(app, ["recurring", "--agent", "codex"])
+
+    assert result.exit_code == 0, result.output
+    assert seen == ["codex"]
 
 
 def test_bare_recurring_skips_interactive_without_tty_and_continues(
