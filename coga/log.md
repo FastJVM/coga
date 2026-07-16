@@ -1500,3 +1500,9 @@ Aborting
 2026-07-16 10:02 [install/vendor-cli-from-installed-package-not-git-clone] [megalaunch] launched via coga megalaunch
 2026-07-16 10:03 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
 2026-07-16 10:08 [install/warn-loud-when-init-commit-is-skipped] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-16 10:09 [recurring/autoclose-merged] [system] created (status=active)
+2026-07-16 10:09 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-07-16
+2026-07-16 10:09 [recurring/blocker-reminders] [system] created (status=active)
+2026-07-16 10:09 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-07-16
+2026-07-16 10:09 [recurring/digest] [system] created (status=active)
+2026-07-16 10:09 [recurring/digest] [system] created recurring/digest for 2026-07-16
