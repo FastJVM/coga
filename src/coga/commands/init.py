@@ -300,12 +300,15 @@ def _check_external_dependencies() -> None:
     """Fail loud if an external CLI coga *requires at init* is not on PATH.
 
     Enforces only the `required_at_init` dependencies in the `coga.dependencies`
-    manifest — `git` and `gh` — at the start of every `coga init` invocation
-    (fresh, update, update-all). `op` is deliberately not enforced here: it is
-    only needed when a ticket actually declares an `op://` secret, and that
-    launch fails loud on its own if `op` is missing — so a missing `op` never
-    blocks init (it would force the 1Password CLI on operators who never use an
-    op secret). Missing tools are reported together, each with an install hint.
+    manifest — just `git` — at the start of every `coga init` invocation
+    (fresh, update, update-all). `gh` and `op` are deliberately not enforced
+    here: each is enforced at its point of need (`gh` by managed-skill
+    installs, the open-pr step, and the autoclose sweep; `op` by a launch
+    that resolves an `op://` secret), and each failure there is loud with its
+    own install hint — so a missing `gh`/`op` never blocks init on a machine
+    that doesn't use those features. The per-tool rationale lives on each
+    manifest entry. Missing tools are reported together, each with an install
+    hint.
     """
     missing = [
         dep

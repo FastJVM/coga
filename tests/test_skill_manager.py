@@ -27,6 +27,7 @@ from coga.skill_manager import (
     install_github_skill,
     install_local_skill,
     install_url_skill,
+    open_or_update_pr,
     read_source_metadata,
     remove_skill,
     render_update_pr_body,
@@ -1014,6 +1015,28 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
     assert result.pr_url == existing_url
     assert commands.index(push) < commands.index(edit)
     assert not any(command[:4] == ["gh", "pr", "create", "--draft"] for command in commands)
+
+
+def test_skill_update_pr_reports_missing_gh_with_setup_hint(tmp_path: Path) -> None:
+    commands: list[list[str]] = []
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command[:2] == ["git", "push"]:
+            return _completed(command)
+        if command[:2] == ["gh", "pr"]:
+            raise FileNotFoundError("gh")
+        raise AssertionError(f"unexpected command: {command}")
+
+    with pytest.raises(SkillManagerError, match="https://cli.github.com"):
+        open_or_update_pr(
+            "Update Coga-managed skills",
+            "summary",
+            branch="coga/skill-update",
+            runner=runner,
+            cwd=tmp_path,
+        )
 
 
 def test_dream_pr_summary_restores_branch_when_commit_fails(
