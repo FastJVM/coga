@@ -261,7 +261,7 @@ def _picker_table(
 
 
 def _drain_post_text(run: MegalaunchRun) -> str | None:
-    """One live line: what was drained, or that budget skipped everything.
+    """One live line: what was drained.
 
     Silent when the run had no results at all — an empty repo is lifecycle
     noise, not an outcome a teammate needs within minutes.
@@ -275,8 +275,6 @@ def _drain_post_text(run: MegalaunchRun) -> str | None:
         if launched
         else "nothing launched"
     ]
-    if counts["skipped-budget"]:
-        parts.append(f"{counts['skipped-budget']} skipped for budget")
     not_launchable = (
         counts["skipped-unresolved-blocker"]
         + counts["skipped-human-gate"]

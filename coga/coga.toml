@@ -149,15 +149,6 @@ zach = "U0AG5LKCK8E"
 #   remote = "origin"
 #   control_branch = "main"
 
-# --- Megalaunch ---
-# Per-agent token budget over the trailing 24h window, from the `## Usage`
-# records in task blackboards. Cache-read tokens count at 1/10th weight (they
-# cost ~10% of input tokens); a busy day still lands around 9M weighted tokens
-# per agent, so the shipped 2M default blocks all launches. 20M gives real
-# headroom while still catching runaway spend.
-[megalaunch]
-default_token_budget = 20_000_000
-
 # --- Aliases ---
 # Thin sugar over often-used commands (typically bootstrap-ticket launches).
 # Aliases forward positional args after the alias name to the expanded form.

@@ -956,35 +956,11 @@ def test_extensions_non_table_rejected(repo: Path) -> None:
         load_config(repo)
 
 
-def test_megalaunch_usage_reserve_keys_load(repo: Path) -> None:
-    with (repo / "coga.toml").open("a") as f:
-        f.write(
-            "[megalaunch]\n"
-            "min_session_remaining_percent = 10\n"
-            "min_weekly_remaining_percent = 8.5\n"
-            "weekly_final_window_hours = 12\n"
-        )
-
-    cfg = load_config(repo)
-
-    assert cfg.megalaunch.min_session_remaining_percent == 10.0
-    assert cfg.megalaunch.min_weekly_remaining_percent == 8.5
-    assert cfg.megalaunch.weekly_final_window_hours == 12.0
-
-
-def test_megalaunch_reserve_percent_rejects_out_of_range(repo: Path) -> None:
-    with (repo / "coga.toml").open("a") as f:
-        f.write("[megalaunch]\nmin_session_remaining_percent = 250\n")
-
-    with pytest.raises(ConfigError, match="between 0 and 100"):
-        load_config(repo)
-
-
-def test_megalaunch_deprecated_token_keys_still_load(repo: Path) -> None:
-    """Live configs still set the replaced token-budget keys; they must parse."""
+def test_megalaunch_table_gets_migration_error(repo: Path) -> None:
+    """The budget guard is gone; a leftover [megalaunch] table fails loud
+    with the tailored removal message, not a generic unknown-key error."""
     with (repo / "coga.toml").open("a") as f:
         f.write("[megalaunch]\ndefault_token_budget = 20_000_000\n")
 
-    cfg = load_config(repo)
-
-    assert cfg.megalaunch.default_token_budget == 20_000_000
+    with pytest.raises(ConfigError, match="budget guard was removed"):
+        load_config(repo)
