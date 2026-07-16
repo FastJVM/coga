@@ -72,29 +72,6 @@ class TicketField:
 
 
 @dataclass(frozen=True)
-class MegalaunchConfig:
-    """Budget guard for unattended sequential launches.
-
-    The live guard reads each agent's own subscription usage windows (see
-    `coga.usage_probe`): a fixed session (5h-window) reserve floor, plus a
-    weekly pacing reserve that requires ~100% remaining at the start of the
-    weekly window and relaxes linearly down to the hard floor inside the
-    final `weekly_final_window_hours`.
-    """
-
-    min_session_remaining_percent: float = 5.0
-    min_weekly_remaining_percent: float = 5.0
-    weekly_final_window_hours: float = 24.0
-    # Deprecated, unused: the coga-tracked token budget the usage-window guard
-    # replaced. Still parsed so existing coga.toml files keep loading; drop
-    # these once live configs no longer set them.
-    token_guard: int = 200_000
-    default_token_budget: int = 2_000_000
-    window_hours: int = 24
-    agent_token_budgets: dict[str, int] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
 class Config:
     repo_root: Path
     current_user: str
@@ -145,7 +122,6 @@ class Config:
     launch_idle_timeout: float | None = None
     launch_idle_timeout_present: bool = False
     launch_max_session: float | None = None
-    megalaunch: MegalaunchConfig = field(default_factory=MegalaunchConfig)
 
     # --- convenience accessors -------------------------------------------------
 
@@ -242,6 +218,15 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
             "[assignees.*] tables — ticket `assignee:` now names an agent "
             "type (e.g. `claude`) or a human directly. See docs/spec.md."
         )
+    # `megalaunch` also gets a dedicated migration message ahead of the
+    # generic check: the usage-window budget guard was removed, so the whole
+    # table is dead config.
+    if "megalaunch" in shared:
+        raise ConfigError(
+            "[megalaunch] is no longer supported in coga.toml. The megalaunch "
+            "budget guard was removed — the sweep no longer reads agent usage "
+            "windows or token budgets. Delete the [megalaunch] table."
+        )
     # Tailored migration error before the generic unknown-section check, so a
     # leftover `[secrets]` table gets the actionable "declare inline" message
     # rather than a bare "unknown key" one.
@@ -288,7 +273,6 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         launch_idle_timeout_present,
         launch_max_session,
     ) = _parse_launch(shared.get("launch"))
-    megalaunch = _parse_megalaunch(shared.get("megalaunch"))
 
     # The operator's `user` must be set explicitly in `coga.local.toml` — coga
     # never guesses it. A guessed name (git `user.name`, OS username) can
@@ -339,7 +323,6 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         launch_idle_timeout=launch_idle_timeout,
         launch_idle_timeout_present=launch_idle_timeout_present,
         launch_max_session=launch_max_session,
-        megalaunch=megalaunch,
     )
 
 
@@ -389,7 +372,6 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "slack",
     "git",
     "launch",
-    "megalaunch",
     "ticket",
     "aliases",
     "extensions",
@@ -437,16 +419,6 @@ _ALLOWED_LOCAL_GIT_KEYS: frozenset[str] = frozenset({"enabled"})
 _ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset(
     {"idle_timeout", "max_session"}
 )
-_ALLOWED_MEGALAUNCH_KEYS: frozenset[str] = frozenset({
-    "min_session_remaining_percent",
-    "min_weekly_remaining_percent",
-    "weekly_final_window_hours",
-    # Deprecated token-budget keys — parsed but unused (see MegalaunchConfig).
-    "token_guard",
-    "default_token_budget",
-    "window_hours",
-    "agent_token_budgets",
-})
 _ALLOWED_TICKET_KEYS: frozenset[str] = frozenset({"fields"})
 
 
@@ -484,78 +456,6 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
     )
     _reject_unknown_keys(
         local.get("git"), _ALLOWED_LOCAL_GIT_KEYS, "[git] in coga.local.toml"
-    )
-
-
-def _parse_positive_int(value: object, label: str) -> int:
-    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-        raise ConfigError(f"{label} must be a positive integer")
-    return value
-
-
-def _parse_percent(value: object, label: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ConfigError(f"{label} must be a number between 0 and 100")
-    if not 0 <= value <= 100:
-        raise ConfigError(f"{label} must be a number between 0 and 100")
-    return float(value)
-
-
-def _parse_positive_number(value: object, label: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
-        raise ConfigError(f"{label} must be a positive number")
-    return float(value)
-
-
-def _parse_megalaunch(raw: object) -> MegalaunchConfig:
-    """Parse `[megalaunch]` budget guard settings."""
-    if raw is None:
-        return MegalaunchConfig()
-    if not isinstance(raw, dict):
-        raise ConfigError(f"[megalaunch] must be a table (got {type(raw).__name__})")
-    _reject_unknown_keys(raw, _ALLOWED_MEGALAUNCH_KEYS, "[megalaunch]")
-    budgets_raw = raw.get("agent_token_budgets", {})
-    if not isinstance(budgets_raw, dict):
-        raise ConfigError("[megalaunch].agent_token_budgets must be a table")
-    budgets = {
-        str(name): _parse_positive_int(value, f"[megalaunch.agent_token_budgets].{name}")
-        for name, value in budgets_raw.items()
-    }
-    return MegalaunchConfig(
-        min_session_remaining_percent=_parse_percent(
-            raw.get(
-                "min_session_remaining_percent",
-                MegalaunchConfig.min_session_remaining_percent,
-            ),
-            "[megalaunch].min_session_remaining_percent",
-        ),
-        min_weekly_remaining_percent=_parse_percent(
-            raw.get(
-                "min_weekly_remaining_percent",
-                MegalaunchConfig.min_weekly_remaining_percent,
-            ),
-            "[megalaunch].min_weekly_remaining_percent",
-        ),
-        weekly_final_window_hours=_parse_positive_number(
-            raw.get(
-                "weekly_final_window_hours",
-                MegalaunchConfig.weekly_final_window_hours,
-            ),
-            "[megalaunch].weekly_final_window_hours",
-        ),
-        token_guard=_parse_positive_int(
-            raw.get("token_guard", MegalaunchConfig.token_guard),
-            "[megalaunch].token_guard",
-        ),
-        default_token_budget=_parse_positive_int(
-            raw.get("default_token_budget", MegalaunchConfig.default_token_budget),
-            "[megalaunch].default_token_budget",
-        ),
-        window_hours=_parse_positive_int(
-            raw.get("window_hours", MegalaunchConfig.window_hours),
-            "[megalaunch].window_hours",
-        ),
-        agent_token_budgets=budgets,
     )
 
 

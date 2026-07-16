@@ -19,11 +19,7 @@ so one wedged agent can't starve the rest of the queue. Because the spawned
 REPLs are interactive, the whole run requires a TTY — fail loud otherwise.
 
 Tasks are serviced oldest-first (first `coga/log.md` line per ref — committed
-content, so the order survives clones where file mtimes don't). The budget
-guard reads each agent's own subscription usage windows via
-`coga.usage_probe` — the 5h/session window plus the weekly window, re-probed
-before every launch — instead of coga summing its own token records. An agent
-whose windows can't be read is skipped conservatively, never launched blind.
+content, so the order survives clones where file mtimes don't).
 """
 
 from __future__ import annotations
@@ -35,7 +31,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from coga import usage_probe
 from coga.blackboard import open_blockers
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
@@ -66,7 +61,6 @@ MegalaunchOutcome = Literal[
     "blocked",
     "skipped-human-gate",
     "skipped-unresolved-blocker",
-    "skipped-budget",
     "skipped-unlaunchable",
     "failed",
 ]
@@ -79,7 +73,6 @@ class MegalaunchResult:
     detail: str
     agent: str | None = None
     launched: bool = False
-    budget: usage_probe.BudgetDecision | None = None
 
 
 @dataclass(frozen=True)
@@ -98,7 +91,6 @@ class MegalaunchRun:
             "blocked": 0,
             "skipped-human-gate": 0,
             "skipped-unresolved-blocker": 0,
-            "skipped-budget": 0,
             "skipped-unlaunchable": 0,
             "failed": 0,
         }
@@ -115,9 +107,8 @@ def run_megalaunch(
     directory: str | None = None,
     selection: list[str] | None = None,
     max_steps_per_task: int = 8,
-    probes: dict[str, usage_probe.UsageProbe] | None = None,
 ) -> MegalaunchRun:
-    """Attempt launchable `active` tasks sequentially, each under the budget guard.
+    """Attempt launchable `active` tasks sequentially.
 
     `directory` narrows the sweep to that `tasks/` sub-tree (nested tasks
     included), same semantics as `coga status <dir>` — an unknown directory
@@ -156,10 +147,6 @@ def run_megalaunch(
     # is only torn down when it is genuinely idle.
     idle_timeout = _recurring_idle_timeout(cfg)
     max_session = _recurring_max_session(cfg)
-    # One probe per configured agent for the whole run; each budget check
-    # re-reads through it, so a launch's spend shows up in the next decision.
-    if probes is None:
-        probes = usage_probe.build_probes(cfg)
 
     # Validates the directory up front (fail loud on a typo) and narrows the
     # queue before any ticket is read, so out-of-scope work is never counted.
@@ -193,7 +180,7 @@ def run_megalaunch(
             continue
 
         # Scope the sweep to the running operator's own work. On a shared repo a
-        # daily sweep must not launch (and spend budget on) other people's
+        # daily sweep must not launch other people's
         # tickets, so a ticket owned by anyone but `cfg.current_user` is skipped
         # silently — like the status skip below, it never enters `results`, so
         # other owners' work doesn't inflate the summary counts. `ticket.owner`
@@ -236,9 +223,7 @@ def run_megalaunch(
                     )
                 )
             continue
-        candidate = _candidate_result(
-            cfg, ref, ticket, probes, agent_override=agent_override, explicit=explicit
-        )
+        candidate = _candidate_result(cfg, ref, ticket, explicit=explicit)
         if candidate is not None:
             results.append(candidate)
             continue
@@ -249,7 +234,6 @@ def run_megalaunch(
                 cfg,
                 ref,
                 ticket,
-                probes,
                 agent_override=agent_override,
                 max_steps_per_task=max_steps_per_task,
                 idle_timeout=idle_timeout,
@@ -355,9 +339,7 @@ def _candidate_result(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
-    probes: dict[str, usage_probe.UsageProbe],
     *,
-    agent_override: str | None = None,
     explicit: bool = False,
 ) -> MegalaunchResult | None:
     blockers = open_blockers(ref.ticket_path)
@@ -366,8 +348,8 @@ def _candidate_result(
         return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
 
     # An explicitly selected `in_progress` ticket goes through the same gates
-    # as an `active` one — a resume must not dodge the script-step or budget
-    # guard just because a prior session already flipped the status.
+    # as an `active` one — a resume must not dodge the script-step gate
+    # just because a prior session already flipped the status.
     launchable = {"active", "in_progress"} if explicit else {"active"}
     if ticket.status not in launchable:
         return None
@@ -392,20 +374,6 @@ def _candidate_result(
             "current step is script-backed; recurring/script launch owns it",
             ticket.assignee,
         )
-
-    # The override agent is the one that will spend, so its window is the
-    # one the guard reads. Human-gate checks above stay on `ticket.assignee`:
-    # the override never converts a human handoff into an agent step.
-    launch_assignee = agent_override or ticket.assignee
-    budget = usage_probe.check_budget(probes, launch_assignee, cfg.megalaunch)
-    if not budget.allowed:
-        return _result(
-            ref,
-            "skipped-budget",
-            budget.detail,
-            launch_assignee,
-            budget=budget,
-        )
     return None
 
 
@@ -413,7 +381,6 @@ def _launch_until_stop(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
-    probes: dict[str, usage_probe.UsageProbe],
     *,
     agent_override: str | None,
     max_steps_per_task: int,
@@ -421,7 +388,6 @@ def _launch_until_stop(
     max_session: float | None = None,
 ) -> MegalaunchResult:
     launched = False
-    last_budget: usage_probe.BudgetDecision | None = None
     step_count = 0
 
     while True:
@@ -433,7 +399,6 @@ def _launch_until_stop(
                 f"exceeded {max_steps_per_task} unattended steps",
                 ticket.assignee,
                 launched=launched,
-                budget=last_budget,
             )
 
         if ticket.assignee not in cfg.agents:
@@ -443,7 +408,6 @@ def _launch_until_stop(
                 f"handed off to {ticket.assignee or 'unassigned'}",
                 ticket.assignee,
                 launched=launched,
-                budget=last_budget,
             )
         # The override applies only to the task's first launched step — the
         # same rule as `coga launch --agent` — so `other-agent` rotation on
@@ -451,20 +415,6 @@ def _launch_until_stop(
         launch_assignee = (
             ticket.assignee if launched else (agent_override or ticket.assignee)
         )
-
-        # Re-probe before every launch — the previous step just spent budget,
-        # and the agent's own usage window is the only accounting we trust.
-        budget = usage_probe.check_budget(probes, launch_assignee, cfg.megalaunch)
-        last_budget = budget
-        if not budget.allowed:
-            return _result(
-                ref,
-                "skipped-budget",
-                budget.detail,
-                launch_assignee,
-                launched=launched,
-                budget=budget,
-            )
 
         preflight = _preflight_agent_launch(cfg, ref, ticket, launch_assignee)
         if preflight is not None:
@@ -474,7 +424,6 @@ def _launch_until_stop(
                 preflight,
                 launch_assignee,
                 launched=launched,
-                budget=budget,
             )
 
         if ticket.status == "active":
@@ -488,7 +437,7 @@ def _launch_until_stop(
                     echo=None,
                 )
             except TaskValidationError as exc:
-                return _result(ref, "failed", str(exc), ticket.assignee, budget=budget)
+                return _result(ref, "failed", str(exc), ticket.assignee)
 
         before = read_ticket(ref)
         try:
@@ -515,14 +464,13 @@ def _launch_until_stop(
                 capture_usage=True,
             )
         except (ComposeError, ConfigError, SecretError) as exc:
-            return _result(ref, "failed", str(exc), launch_assignee, budget=budget)
+            return _result(ref, "failed", str(exc), launch_assignee)
         except FileNotFoundError:
             return _result(
                 ref,
                 "failed",
                 f"agent CLI {agent.cli!r} not found",
                 launch_assignee,
-                budget=budget,
             )
 
         launched = True
@@ -530,7 +478,7 @@ def _launch_until_stop(
         if after.status == "blocked":
             blockers = open_blockers(ref.ticket_path)
             detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
-            return _result(ref, "blocked", detail, after.assignee, launched=True, budget=budget)
+            return _result(ref, "blocked", detail, after.assignee, launched=True)
         if session.termination_kind == "timeout":
             return _result(
                 ref,
@@ -539,7 +487,6 @@ def _launch_until_stop(
                 "signalling done",
                 after.assignee,
                 launched=True,
-                budget=budget,
             )
         if session.exit_code != 0:
             return _result(
@@ -548,10 +495,9 @@ def _launch_until_stop(
                 f"agent exited with code {session.exit_code}",
                 after.assignee,
                 launched=True,
-                budget=budget,
             )
         if after.status == "done":
-            return _result(ref, "completed", "task done", after.assignee, launched=True, budget=budget)
+            return _result(ref, "completed", "task done", after.assignee, launched=True)
         if after.status != "in_progress":
             return _result(
                 ref,
@@ -559,7 +505,6 @@ def _launch_until_stop(
                 f"status is {after.status}",
                 after.assignee,
                 launched=True,
-                budget=budget,
             )
         if after.assignee not in cfg.agents:
             return _result(
@@ -568,7 +513,6 @@ def _launch_until_stop(
                 f"handed off to {after.assignee or 'unassigned'}",
                 after.assignee,
                 launched=True,
-                budget=budget,
             )
         if (after.step, after.status) == (before.step, before.status):
             return _result(
@@ -577,7 +521,6 @@ def _launch_until_stop(
                 "agent exited without changing task state",
                 after.assignee,
                 launched=True,
-                budget=budget,
             )
         ticket = after
 
@@ -612,7 +555,6 @@ def _result(
     agent: str | None = None,
     *,
     launched: bool = False,
-    budget: usage_probe.BudgetDecision | None = None,
 ) -> MegalaunchResult:
     return MegalaunchResult(
         slug=ref.id_slug,
@@ -620,7 +562,6 @@ def _result(
         detail=detail,
         agent=agent,
         launched=launched,
-        budget=budget,
     )
 
 
@@ -643,7 +584,6 @@ def render_run_summary(run: MegalaunchRun) -> str:
         "blocked",
         "skipped-human-gate",
         "skipped-unresolved-blocker",
-        "skipped-budget",
         "skipped-unlaunchable",
         "failed",
     ):
@@ -652,10 +592,7 @@ def render_run_summary(run: MegalaunchRun) -> str:
     if not run.results:
         lines.append("- none")
     for result in run.results:
-        budget = ""
-        if result.budget is not None and result.budget.detail != result.detail:
-            budget = f" (budget: {result.budget.detail})"
-        lines.append(f"- {result.slug}: {result.outcome} - {result.detail}{budget}")
+        lines.append(f"- {result.slug}: {result.outcome} - {result.detail}")
     return "\n".join(lines) + "\n"
 
 

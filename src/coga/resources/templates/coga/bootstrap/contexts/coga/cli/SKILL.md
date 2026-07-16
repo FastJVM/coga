@@ -525,8 +525,8 @@ it, so its outcome is owed back.
 
 The sweep silently filters out tickets whose `owner` is not
 `load_config().current_user` (including owner-less tickets, so other owners'
-work is not counted as skip noise), skips human gates and open blockers, checks
-the assigned agent's token budget guard, preflights launch requirements, then
+work is not counted as skip noise), skips human gates and open blockers,
+preflights launch requirements, then
 runs one eligible agent step at a time. Each step is a normal **interactive**
 launch — the agent REPL streams live to the console under the PTY watcher, and
 the done-sentinel (`coga bump` / `mark done` / `block`) releases it before the
@@ -535,7 +535,7 @@ output until the run ends. The recurring-style idle-timeout / max-session
 backstops are armed so a wedged REPL can't starve the queue; because the REPLs
 (and the `--pick` prompt) are interactive, megalaunch requires a TTY and fails
 loud without one. The run summary distinguishes launched, completed, blocked,
-skipped-human-gate, skipped-unresolved-blocker, skipped-budget,
+skipped-human-gate, skipped-unresolved-blocker,
 skipped-unlaunchable, and failed.
 
 Megalaunch is on-demand only — there is no shipped recurring template for it;
