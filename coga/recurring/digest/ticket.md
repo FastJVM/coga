@@ -62,6 +62,3 @@ last_serviced_period: 2026-07-16
 last_commit: 074c205e405c43463bcda9c0c16b4290237faee9
 range: 20979cd..074c205 (121 commit(s), 16 reported)
 posted: yes
-## Spool (pending)
-
-{"ts":"2026-06-24T21:13","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nick"}
