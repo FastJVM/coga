@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -84,14 +84,14 @@ Noted, out of scope: the reconcile/update path (`reconcile_managed_skills`
 line ~243) still reports raw blobs on rate-limited `gh skill update`; no CLI
 caller today, follow-up ticket material if one appears.
 
-## Implemented (commit cd8500b2 on gh-rate-limit-hint)
+## Implemented (commit 7f3b758c on gh-rate-limit-hint)
 
-- `src/coga/managed_skills.py`: `_github_rate_limit_reason()` scans stderr
-  lines for "api rate limit exceeded" / "secondary rate limit" / "rate limit
-  exceeded" and returns just that line (trims the ToS/request-ID blob).
-  Checked before the access-denial classifier in `_run_install`. New result
-  status `skipped-rate-limited` with `remediation: gh auth login`
-  (`GH_AUTH_REMEDIATION`). Per-source failure cache now stores
+- `src/coga/managed_skills.py`: `_github_rate_limit_reason()` recognizes an
+  anonymous API limit only when GitHub explicitly says authenticated requests
+  get a higher limit, then returns just the API-limit line (trims the
+  ToS/request-ID blob). Checked before the access-denial classifier in
+  `_run_install`. New result status `skipped-rate-limited` with `remediation:
+  gh auth login` (`GH_AUTH_REMEDIATION`). Per-source failure cache now stores
   `(kind, reason)` tuples ("no-access" | "rate-limit") so later skills from
   the same source skip without another API call. Required skills fail loud
   with `Remediation: gh auth login`.
@@ -108,9 +108,30 @@ python3.12 venv with the worktree installed editable. (Bare python3.12
 without the editable install fails test_launch_script.py's stateless test
 identically on main — environment setup, not this change.)
 
-Freshened before handoff: rebased onto origin/main (0401ca12; only
-ticket-state commits came in), commit is now cd8500b2, re-ran the full
-suite → 1223 passed, 1 skipped.
+Freshened before handoff: rebased onto origin/main (7aa23108), implementation
+commit is now 7f3b758c, peer-review fix is 23d31ba2, and the full suite passed
+with 1237 passed, 1 skipped.
+
+## Peer review
+
+`codex review --base main` found one must-fix P2: the original broad classifier
+also treated authenticated primary limits and secondary limits as anonymous,
+then incorrectly prescribed `gh auth login`. Fixed in 23d31ba2 by requiring
+GitHub's explicit "authenticated requests get a higher rate limit" signal;
+added regressions proving authenticated and secondary limits retain the generic
+failure path. Focused managed-skill/init suite: 118 passed. Post-rebase full
+suite in an editable Python 3.12 environment: 1237 passed, 1 skipped. Branch is
+clean and two commits ahead of origin/main.
+
+## PR
+
+Detect anonymous GitHub API rate limits during managed-skill installation,
+trim the raw support/request-ID blob, cache the exhausted source, and point the
+operator at `gh auth login` with one consolidated init note. Keep authenticated
+and secondary rate limits on the generic failure path so Coga does not offer an
+incorrect authentication remedy.
+
+Test plan: `python -m pytest -q` (1237 passed, 1 skipped).
 
 ## Usage
 
