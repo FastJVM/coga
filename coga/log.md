@@ -1425,3 +1425,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 21:02 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
 2026-07-15 21:02 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
 2026-07-15 21:02 [install/add-migration-errors-for-removed-config-keys] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 21:02 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
