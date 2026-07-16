@@ -1487,3 +1487,12 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 21:29 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-07-16 09:59 [install/actionable-hint-when-recurring-template-references] [human:nicktoper] created (status=draft)
 2026-07-16 10:02 [recurring/dream] [agent:claude] slack: Dream: 31 validator issues need review, 2 knowledge PRs, 9 contract-fix PRs, 50 direct deletes.
+2026-07-16 09:59 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-16 09:59 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-16 10:02 [coga] [git] refresh failed: `git merge --ff-only --quiet 58cd0d018a872401649f3c6416c628ccb8691e30` failed (exit 1): error: Your local changes to the following files would be overwritten by merge:
+	coga/log.md
+Please commit your changes or stash them before you merge.
+Aborting
+2026-07-16 10:02 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-16 10:02 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
+2026-07-16 10:02 [install/vendor-cli-from-installed-package-not-git-clone] [megalaunch] started (active → in_progress) via coga megalaunch
