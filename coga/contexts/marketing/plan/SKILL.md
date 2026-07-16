@@ -204,6 +204,34 @@ distribution, Anthropic's "Keep thinking"), or a more famous voice
    Slack) must land first; the post needs a "where to go" link.
 5. **The post.**
 
+## Distribution — phase 1 (decided 2026-07-15)
+
+Three channels, one of each kind — a public spike, an owned audience,
+and a high-trust private room. Same dataset, a distinct framing per
+channel. (Fuller distribution & conversion work is a later ticket; this
+is the decided phase-1 scope.)
+
+- **The blog is the hub.** The canonical post lives on the founder's
+  blog; every other channel points at it. The HN spike doubles as
+  newsletter acquisition — the owned audience compounds.
+- **Newsletter (~300 subs): the serialized channel.** Runs the two-spike
+  play: pre-registration announcement first ("here's the locked
+  methodology — watch the repo"), then the results post. Warm readers
+  are launch-day commenters. **Never ask for upvotes** — HN vote-ring
+  detection buries posts for it; share the link, let them act.
+- **HN: the main public spike.** Field-report framing ("here's how I did
+  it"), plain title, no marketing language; weekday morning US timing.
+  Be present in the thread answering skeptics with ledger links —
+  the comment section is where "check our math" pays off.
+- **Bookface: zero public noise, highest conversion quality.** YC
+  founders are the exact buyer (small team, wants leverage, tolerates
+  rough edges). Founder framing: "how I run my company in 20 min/day."
+  Early YC adopters become phase-2 credibility. Private — nothing posted
+  there can be quoted publicly.
+
+Deliberately out of phase 1: X/dev-social, Product Hunt, reddit — later
+ticket, if at all.
+
 ## Success metric and tone
 
 Success = **influence or a fan base**, not commercial dominance
