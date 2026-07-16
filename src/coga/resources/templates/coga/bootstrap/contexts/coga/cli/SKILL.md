@@ -257,27 +257,17 @@ concrete assignee did not change. It stops at human/no-skill steps, assignee
 handoffs, done, paused, or blocked tasks, no-progress exits, and non-zero exits.
 
 That supervisor loop only exists when a live `coga launch` process is
-running around the agent. API/manual sessions still follow the base prompt:
-after `coga bump`, inspect the new ticket state and continue any still
-`in_progress`, same-assignee next step with a `skill:` directly instead of
-stopping after the first bump.
+running around the agent. API/manual sessions do not chain: after `coga bump`,
+stop cleanly and let the human relaunch the next step. Only the launch
+supervisor re-reads the ticket and starts a fresh step session.
 
 ### Releasing an interactive REPL
 
-Interactive agent REPLs (`claude`, `codex`) don't terminate on their own —
-they wait for the human to type `/exit`. To let `coga recurring
---interactive` (and any other unattended caller of an interactive launch)
-move on without manual intervention, **emit `<<<COGA_SESSION_DONE_a9f3c41e>>>`
-on a line by itself** as your final action once the task is finished.
-`coga launch`'s PTY supervisor watches for that marker and SIGTERMs the
-REPL when it appears (escalating to SIGKILL after a short grace period if
-the REPL ignores the signal).
-
-Emit it after `coga mark done`, after `coga block`, or any other
-end-of-session signal — anywhere the next iteration would belong to a
-different task or to the human. Don't emit it mid-work; it terminates the
-session immediately. Don't quote the literal in prose unless you actually
-mean to release the REPL.
+Interactive agent REPLs terminate through a session-scoped side channel:
+`coga bump`, `coga mark done`, and `coga block` write the launched task to
+`$COGA_DONE_SENTINEL`, and the PTY supervisor tears the REPL down. PTY output
+is never a completion channel, so reading or printing prompt text cannot end a
+session accidentally.
 
 `--prompt-report` is for prompt-scope inspection. Its token counts use a
 dependency-light `characters / 4` estimate, so treat them as a prompt-bloat
@@ -790,11 +780,13 @@ There's also `coga validate [--task <slug>] [--json] [--fix] [--check-slack]
 [--check-github]`, a static repo + config diagnostic. By default it scans every task; `--task
 <slug>` validates exactly one task directory (files plus strict frontmatter
 schema) and is what a human or agent runs after a direct hand-edit to a single
-ticket. Coga-owned commands that mutate a task — draft, ticket-authoring exit,
-mark, bump, launch-time transitions, recurring/retire scaffolding — run that
-same task-scoped check after the write and before reporting success, so
-malformed frontmatter fails at the edge of the edit instead of drifting until
-launch. `--fix` is deliberately narrow: it appends a missing blackboard fence +
+ticket. Guided ticket-authoring exit and lifecycle commands such as mark, bump,
+launch-time transitions, and recurring/retire creation run that task-scoped
+check at their write boundary. Raw `coga create` intentionally only scaffolds
+a draft; validate it after direct authoring with `coga validate --task <slug>`.
+That keeps malformed frontmatter from drifting past the point where a draft is
+approved or launched without pretending raw creation is a full authoring pass.
+`--fix` is deliberately narrow: it appends a missing blackboard fence +
 rendered region to a `ticket.md` that lacks one, then reports the remaining issues. It does not rewrite
 existing files, freeze workflows, delete locks, or push git state. `--check-github`
 is an opt-in preflight that mirrors `--check-slack`: it probes git/GitHub auth
