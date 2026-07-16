@@ -1,7 +1,7 @@
 ---
 slug: coga-important/add-coga-slack-important
 title: add-coga-slack-important
-status: blocked
+status: active
 owner: zach
 human: zach
 agent: claude

@@ -1541,3 +1541,5 @@ Aborting
 2026-07-16 11:23 [retire-coga-important-support-second-webhook] [system] {"agent":"claude","cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"claude","input_tokens":null,"model":null,"output_tokens":null,"provider":"anthropic","schema":1,"session_id":"7843299c-5250-44f8-be22-d37444d2bae6","slug":"retire-coga-important-support-second-webhook","step":"execute","title":"Retire coga-important/support-second-webhook","ts":"2026-07-16T18:23:47.282645Z","usage_status":"unknown"}
 2026-07-16 11:25 [coga-important/add-toml-property-for-notification-recipient] [human:zach] activated (blocked → active) — auto on launch
 2026-07-16 11:25 [coga-important/add-toml-property-for-notification-recipient] [human:zach] started (active → in_progress) via coga launch
+2026-07-16 11:25 [coga-important/add-toml-property-for-notification-recipient] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-16 11:35 [coga-important/add-coga-slack-important] [human:zach] activated (blocked → active) — auto on launch
