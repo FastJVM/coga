@@ -327,7 +327,10 @@ def test_required_managed_skill_rate_limited_fails_loud(tmp_path: Path) -> None:
             command,
             1,
             stdout="",
-            stderr="HTTP 403: API rate limit exceeded for 203.0.113.9.",
+            stderr=(
+                "HTTP 403: API rate limit exceeded for 203.0.113.9. "
+                "Authenticated requests get a higher rate limit."
+            ),
         )
 
     with pytest.raises(ManagedSkillError) as exc:
@@ -345,6 +348,39 @@ def test_required_managed_skill_rate_limited_fails_loud(tmp_path: Path) -> None:
 
     assert "GitHub API rate limit" in str(exc.value)
     assert "Remediation: gh auth login" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "HTTP 403: API rate limit exceeded for authenticated-user.",
+        "You have exceeded a secondary rate limit. Please wait a few minutes.",
+    ],
+)
+def test_install_managed_skills_does_not_prescribe_login_for_other_rate_limits(
+    tmp_path: Path,
+    message: str,
+) -> None:
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr=message,
+        )
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[ManagedSkillSpec(ref="tools/example", source="owner/repo")],
+        runner=runner,
+    )
+
+    assert summary.counts() == {"failed": 1}
+    [result] = summary.results
+    assert result.details["remediation"] != "gh auth login"
 
 
 def test_required_managed_skill_from_inaccessible_source_fails_loud(

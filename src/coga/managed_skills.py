@@ -382,16 +382,14 @@ def _github_access_denial_reason(output: str) -> str | None:
 
 
 def _github_rate_limit_reason(output: str) -> str | None:
-    """Return the actionable rate-limit line, dropping the ToS/request-ID blob."""
+    """Return an anonymous rate-limit line, dropping the request-ID blob."""
     lines = [line.strip() for line in output.splitlines() if line.strip()]
-    rate_limit_markers = (
-        "api rate limit exceeded",
-        "secondary rate limit",
-        "rate limit exceeded",
-    )
+    normalized_output = " ".join(lines).casefold()
+    if "authenticated requests get a higher rate limit" not in normalized_output:
+        return None
     for line in lines:
         normalized = line.casefold()
-        if any(marker in normalized for marker in rate_limit_markers):
+        if "api rate limit exceeded" in normalized:
             return line
     return None
 
