@@ -2114,8 +2114,9 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
 
 # --- external dependency check --------------------------------------------------
 #
-# `coga init` fails loud when a required external CLI (`git`/`gh`/`op`) is not
-# on PATH. Captured before the autouse `_stub_init_dep_check` fixture replaces
+# `coga init` fails loud when a required-at-init external CLI (only `git`) is
+# not on PATH; `gh` and `op` are enforced at their points of need instead.
+# Captured before the autouse `_stub_init_dep_check` fixture replaces
 # the module attribute, so these tests exercise the real implementation.
 _real_dep_check = init_cmd._check_external_dependencies
 
@@ -2139,16 +2140,14 @@ def test_dep_check_ignores_missing_op(
     _real_dep_check()  # must not raise
 
 
-def test_dep_check_crashes_on_missing_gh(
-    monkeypatch: pytest.MonkeyPatch, capsys
+def test_dep_check_ignores_missing_gh(
+    monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """`gh` is not required at init (managed skill installs degrade to a
+    warn-with-hint skip, and the open-pr step / autoclose sweep fail loud at
+    their point of need), so a missing `gh` must not crash init."""
     monkeypatch.setattr("coga.commands.init.shutil.which", _which_missing({"gh"}))
-    with pytest.raises(SystemExit) as exc:
-        _real_dep_check()
-    assert exc.value.code == 2
-    err = capsys.readouterr().err
-    assert "gh" in err and "cli.github.com" in err
-    assert "op" not in err  # the optional tool isn't dragged into the crash
+    _real_dep_check()  # must not raise
 
 
 def test_dep_check_crashes_on_missing_git(
@@ -2161,7 +2160,7 @@ def test_dep_check_crashes_on_missing_git(
     assert "git" in capsys.readouterr().err
 
 
-def test_dep_check_reports_all_required_missing_together(
+def test_dep_check_omits_optional_tools_from_crash(
     monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
     monkeypatch.setattr(
@@ -2170,22 +2169,24 @@ def test_dep_check_reports_all_required_missing_together(
     with pytest.raises(SystemExit):
         _real_dep_check()
     err = capsys.readouterr().err
-    # Both required-at-init tools are reported; the optional `op` is omitted.
-    assert "git" in err and "gh" in err
+    # Only the required-at-init tool is reported; point-of-need tools are
+    # omitted even when they are also missing.
+    assert "git" in err
+    assert "gh" not in err
     assert "op" not in err
 
 
 def test_init_bails_before_scaffolding_when_required_dep_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A missing required dep (gh) stops `coga init` before it writes anything."""
-    # Restore the real check (autouse no-ops it), then make `gh` absent.
+    """A missing required dep (git) stops `coga init` before it writes anything."""
+    # Restore the real check (autouse no-ops it), then make `git` absent.
     monkeypatch.setattr(init_cmd, "_check_external_dependencies", _real_dep_check)
-    monkeypatch.setattr("coga.commands.init.shutil.which", _which_missing({"gh"}))
+    monkeypatch.setattr("coga.commands.init.shutil.which", _which_missing({"git"}))
 
     target = tmp_path / "fresh"
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
 
     assert result.exit_code == 2
-    assert "gh" in result.output
+    assert "git" in result.output
     assert not (target / "coga").exists()  # bailed before scaffolding

@@ -66,8 +66,11 @@ coga --help
 ## Getting Started
 
 Coga is adopted into an existing project, not set up in a separate workspace.
-Install Git and the GitHub CLI (`gh`) first; `coga init` requires both. Then run
-init from the root of the Git repository you want Coga to manage:
+Install Git first; `coga init` requires it. The GitHub CLI
+([`gh`](https://cli.github.com), then `gh auth login`) is recommended but not
+required at init — PR workflows, the merged-ticket autoclose sweep, and managed
+skill installs need it and will tell you when it's missing. Run init from the
+root of the Git repository you want Coga to manage:
 
 ```sh
 cd /path/to/your/project
