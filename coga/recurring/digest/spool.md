@@ -22,3 +22,4 @@ consumed_through: 8e32b965dc04
 {"id":"b99a93978ecd","ts":"2026-07-15T20:14","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nicktoper"}
 {"id":"bef10e3dc37c","ts":"2026-07-15T20:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
 {"id":"803cb28175e9","ts":"2026-07-15T20:36","project":"coga","kind":"done","detail":"→ done (script)","ticket":"dream-validate-drift-w29","owner":"nicktoper"}
+{"id":"88c1b04d9318","ts":"2026-07-15T21:19","project":"coga","kind":"done","detail":"→ done (script)","ticket":"dream-cleanup-orphan-markers-w29","owner":"nicktoper"}
