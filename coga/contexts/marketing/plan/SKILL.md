@@ -204,6 +204,65 @@ distribution, Anthropic's "Keep thinking"), or a more famous voice
    Slack) must land first; the post needs a "where to go" link.
 5. **The post.**
 
+## Distribution — phase 1 (decided 2026-07-15)
+
+Three channels, one of each kind — a public spike (HN), an owned
+audience (blog/newsletter), and a high-trust private room (Bookface).
+Same dataset, a distinct framing per channel. Realistic bet: BF +
+newsletter + HN together get the first users; nothing here is counted
+on to go wide. (Fuller distribution & conversion work is a later
+ticket; this is the decided phase-1 scope.)
+
+**Sequencing (deliberate):**
+
+1. **Newsletter** — pre-registration announcement ("here's the locked
+   methodology — watch the repo"). The ~300 subs are the serialized
+   audience with stakes in the outcome, not an amplifier (realism:
+   ~40% open → ~120 readers → a handful of launch-day clicks).
+2. **Bookface, a few days before HN.** Lower-variance than HN and the
+   exact buyer (small team, wants leverage, tolerates rough edges).
+   Founder framing: "how I run my company in 20 min/day." Two jobs:
+   friendly-fire feedback that hardens the post before skeptics see
+   it, and YC founders who arrive in the HN thread already convinced.
+   Private — nothing there is publicly quotable. Early YC adopters
+   become phase-2 credibility.
+3. **HN — the results post, as a story submission ONLY.** The field
+   report ("here's how I did it"), never a Show HN / product
+   submission — product submissions are a lottery; the story is the
+   asset. Plain title, no marketing language, weekday morning US.
+   Founder has front-paged HN before: execution (title, timing,
+   presence) beats the base rate. Be present in the thread answering
+   skeptics with ledger links — the comment section is where "check
+   our math" pays off.
+
+**HN failure branch (decide nothing on the day):** if the submission
+dies in /new, use the second-chance pool (a polite mail to
+hn@ycombinator.com re-ups good field reports surprisingly often), then
+resubmission after a decent interval. **Never solicit upvotes** from
+the newsletter or anywhere — vote-ring detection buries posts; share
+the link, let people act.
+
+**The blog is the hub.** The canonical post lives on the founder's
+blog; every channel points at it, so even a modest spike converts into
+subscribers and a permanent, linkable artifact.
+
+**Attribution without telemetry.** Coga never phones home (principles);
+attribution is external: distinct per-channel URLs into the blog
+(first-party analytics only), laid against public proxies — the PyPI
+download curve (pypistats) and the GitHub star timeline vs post
+timestamps. Phase 2 channel decisions get made from this, not vibes.
+
+**Pre-register distribution expectations too.** Before launch, write
+success thresholds into the pre-registration commit (front-page vs
+died-in-new; star/download/install-proxy targets) with the phase-2
+consequence of each scenario — so the retro can't be post-hoc
+rationalization.
+
+Deliberately out of phase 1: X/dev-social, Product Hunt, reddit — later
+ticket, if at all. Honest cost: phase 1 has no venue for the
+ride-the-hype-wave tactic (that discourse lives on X); in phase 1,
+counter-positioning happens inside the HN thread only.
+
 ## Success metric and tone
 
 Success = **influence or a fan base**, not commercial dominance

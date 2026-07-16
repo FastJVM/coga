@@ -20,6 +20,7 @@ from coga.recurring import (
     list_templates,
     read_last_serviced_period,
     create_named,
+    list_templates,
     scan_due,
 )
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
@@ -419,6 +420,36 @@ def test_recurring_list_shows_picked_tasks(
     assert "recurring/weekly-check" in result.output
 
 
+def test_recurring_list_reports_prior_period_done_task_as_due(repo: Path) -> None:
+    """A stale stable-path task must not masquerade as this period's run."""
+    cfg = load_config(repo)
+    week_17 = datetime(2026, 4, 22, 10, 0, 0)
+    first = scan_due(cfg, now=week_17)
+    ticket = Ticket.read(first.tasks[0].ref.ticket_path)
+    ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(first.tasks[0].ref.ticket_path)
+
+    current = list_templates(cfg, now=week_17)[0]
+    assert current.instance == first.tasks[0].ref
+    assert current.instance_status == "done"
+    assert current.stale_done is False
+    assert current.due is False
+
+    next_period = list_templates(
+        cfg, now=datetime(2026, 4, 29, 10, 0, 0)
+    )[0]
+    assert next_period.instance == first.tasks[0].ref
+    assert next_period.instance_status == "done"
+    assert next_period.stale_done is True
+    assert next_period.due is True
+    # The read-only view does not perform the replacement itself.
+    assert Ticket.read(first.tasks[0].ref.ticket_path).status == "done"
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W17"
+
+
 # --- scan_due: the bare `coga recurring` library layer -----------------------
 
 
@@ -589,6 +620,131 @@ def test_scan_due_different_period_creates_new(repo: Path) -> None:
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W18"
     assert len(list_tasks(cfg)) == 1
+
+
+def test_scan_due_replaces_prior_period_done_task(repo: Path) -> None:
+    """A stale done task is deleted before a fresh current-period task."""
+    _write_recurring(
+        repo,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly deliverability check"
+        assignee: claude
+        owner: marc
+        state_keys:
+        - cursor
+        ---
+
+        ## Description
+
+        Run the full deliverability diagnostic suite.
+        """,
+    )
+    _seed_template_blackboard(repo, "weekly-check", "cursor: old\n")
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    ref = first.tasks[0].ref
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.ticket_path)
+    replace_blackboard(ref.ticket_path, "\nold run residue\n")
+    _seed_template_blackboard(
+        repo,
+        "weekly-check",
+        "cursor: new\n\nlast_serviced_period: 2026-W17\n",
+    )
+
+    scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))
+
+    assert scan.errors == []
+    assert len(scan.tasks) == 1
+    replacement = scan.tasks[0]
+    assert replacement.ref == ref
+    assert replacement.created is True
+    assert replacement.replaced_done is True
+    assert replacement.launchable is True
+    assert replacement in scan.due
+    ticket = Ticket.read(ref.ticket_path)
+    assert ticket.status == "active"
+    assert ticket.step == "1 (execute)"
+    assert "old run residue" not in read_blackboard(ref.ticket_path)
+    assert '"cursor": "new"' in (ref.path / ".state-snapshot.json").read_text()
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W18"
+    log = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
+    assert "deleted completed prior-period task before 2026-W18" in log
+    assert "created recurring/weekly-check for 2026-W18" in log
+    assert len(list_tasks(cfg)) == 1
+
+
+def test_scan_due_keeps_current_period_done_task_finished(repo: Path) -> None:
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)
+    first = scan_due(cfg, now=now)
+    ticket = Ticket.read(first.tasks[0].ref.ticket_path)
+    ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(first.tasks[0].ref.ticket_path)
+
+    scan = scan_due(cfg, now=now)
+
+    assert scan.tasks[0].status == "done"
+    assert scan.tasks[0].replaced_done is False
+    assert scan.due == []
+
+
+def test_scan_due_keeps_prior_period_paused_task_parked(repo: Path) -> None:
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    ticket = Ticket.read(first.tasks[0].ref.ticket_path)
+    ticket.frontmatter["status"] = "paused"
+    ticket.write(first.tasks[0].ref.ticket_path)
+
+    scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))
+
+    assert scan.tasks[0].status == "paused"
+    assert scan.tasks[0].replaced_done is False
+    assert scan.due == []
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W17"
+
+
+def test_recurring_scan_launches_replacement_task(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The runner syncs and launches the fresh replacement task."""
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    ticket = Ticket.read(first.tasks[0].ref.ticket_path)
+    ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(first.tasks[0].ref.ticket_path)
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        finished = Ticket.read(first.tasks[0].ref.ticket_path)
+        finished.frontmatter["status"] = "done"
+        finished.frontmatter.pop("step", None)
+        finished.write(first.tasks[0].ref.ticket_path)
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+
+    assert launched == ["recurring/weekly-check"]
+    assert "Replaced completed recurring/weekly-check" in capsys.readouterr().out
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W18"
 
 
 def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(
@@ -1181,90 +1337,12 @@ def test_scan_due_skips_paused_task(repo: Path) -> None:
     assert second.due == []
 
 
-def test_scan_due_rolls_over_stale_done_run(repo: Path) -> None:
-    """A `done` run left over from a prior period is reactivated, not skipped.
-
-    Dream's retro pass is supposed to reap done period tickets; when that
-    never happened, the finished run still occupies the stable
-    `recurring/<name>` slug. Without the rollover it would shadow every
-    future period forever while the scan table read "skip (done)".
-    """
-    cfg = load_config(repo)
-    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
-    ref = first.tasks[0].ref
-    ticket = Ticket.read(ref.path / "ticket.md")
-    ticket.frontmatter["status"] = "done"
-    ticket.write(ref.path / "ticket.md")
-
-    scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
-
-    assert scan.errors == []
-    assert len(scan.tasks) == 1
-    rolled = scan.tasks[0]
-    assert rolled.created is False
-    assert rolled.rolled_over is True
-    assert rolled.status == "active"
-    assert rolled.launchable is True
-    assert rolled.resuming is False
-    assert rolled in scan.due
-    # Same stable directory — the engine deletes nothing.
-    assert rolled.ref.id_slug == ref.id_slug
-    assert {r.id_slug for r in list_tasks(cfg)} == {"recurring/weekly-check"}
-    assert Ticket.read(ref.path / "ticket.md").status == "active"
-    # The new period is claimed and the rollover is auditable.
-    assert read_last_serviced_period(
-        repo / "recurring" / "weekly-check" / "ticket.md"
-    ) == "2026-W18"
-    log = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
-    assert "rolled over stale done run recurring/weekly-check for 2026-W18" in log
-    assert "stale done run from 2026-W17 rolled over to 2026-W18" in log
-
-
-def test_scan_due_same_period_done_run_stays_skipped(repo: Path) -> None:
-    """A run that finished *this* period is not rolled over or re-run."""
-    cfg = load_config(repo)
-    now = datetime(2026, 4, 22, 10, 0, 0)
-    first = scan_due(cfg, now=now)
-    ref = first.tasks[0].ref
-    ticket = Ticket.read(ref.path / "ticket.md")
-    ticket.frontmatter["status"] = "done"
-    ticket.write(ref.path / "ticket.md")
-
-    second = scan_due(cfg, now=now)
-    assert second.tasks[0].status == "done"
-    assert second.tasks[0].rolled_over is False
-    assert second.tasks[0].launchable is False
-    assert second.due == []
-    assert read_last_serviced_period(
-        repo / "recurring" / "weekly-check" / "ticket.md"
-    ) == "2026-W17"
-
-
-def test_scan_due_stale_paused_run_stays_parked(repo: Path) -> None:
-    """A prior-period `paused` run still defers the new period — a human
-    deliberately parked it, so the rollover applies to `done` only."""
-    cfg = load_config(repo)
-    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
-    ref = first.tasks[0].ref
-    ticket = Ticket.read(ref.path / "ticket.md")
-    ticket.frontmatter["status"] = "paused"
-    ticket.write(ref.path / "ticket.md")
-
-    scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
-    assert scan.tasks[0].status == "paused"
-    assert scan.tasks[0].rolled_over is False
-    assert scan.tasks[0].launchable is False
-    assert scan.due == []
-    assert read_last_serviced_period(
-        repo / "recurring" / "weekly-check" / "ticket.md"
-    ) == "2026-W17"
-
-
-def test_scan_due_stale_done_rollover_respects_tty_gate(
+def test_scan_due_stale_done_replacement_respects_tty_gate(
     repo: Path, capsys
 ) -> None:
-    """A rollover puts an agent run in front of the sweep, so a TTY-less scan
-    refuses it exactly like a fresh create — the run stays `done`, untouched."""
+    """Replacing a stale done run puts an agent run in front of the sweep, so
+    a TTY-less scan refuses it exactly like a fresh create — the stale run
+    stays `done`, untouched."""
     cfg = load_config(repo)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
     ref = first.tasks[0].ref
@@ -1284,8 +1362,8 @@ def test_scan_due_stale_done_rollover_respects_tty_gate(
     ) == "2026-W17"
 
 
-def test_create_named_rolls_over_stale_done_run(repo: Path) -> None:
-    """`coga recurring launch <name>` (and the `dream` alias) roll over a
+def test_create_named_replaces_stale_done_run(repo: Path) -> None:
+    """`coga recurring launch <name>` (and the `dream` alias) replace a
     stale done run too — both entry points share `create_template`."""
     cfg = load_config(repo)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
@@ -1295,32 +1373,13 @@ def test_create_named_rolls_over_stale_done_run(repo: Path) -> None:
     ticket.write(ref.path / "ticket.md")
 
     outcome = create_named(cfg, "weekly-check", now=datetime(2026, 4, 29, 10, 0, 0))
-    assert outcome.created is False
-    assert outcome.rolled_over is True
+    assert outcome.created is True
+    assert outcome.replaced_done is True
     assert outcome.ref.id_slug == ref.id_slug
-    assert Ticket.read(ref.path / "ticket.md").status == "active"
+    assert Ticket.read(outcome.ref.path / "ticket.md").status == "active"
     assert read_last_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W18"
-
-
-def test_list_templates_flags_stale_done_run(repo: Path) -> None:
-    """The read-only list reports a stale done run as due, not serviced."""
-    cfg = load_config(repo)
-    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
-    ref = first.tasks[0].ref
-    ticket = Ticket.read(ref.path / "ticket.md")
-    ticket.frontmatter["status"] = "done"
-    ticket.write(ref.path / "ticket.md")
-
-    same_period = list_templates(cfg, now=datetime(2026, 4, 22, 11, 0, 0))
-    assert same_period[0].stale_done is False
-
-    next_period = list_templates(cfg, now=datetime(2026, 4, 29, 10, 0, 0))
-    assert next_period[0].instance_status == "done"
-    assert next_period[0].stale_done is True
-    # Read-only: flagging changed nothing on disk.
-    assert Ticket.read(ref.path / "ticket.md").status == "done"
 
 
 # --- coga recurring launch / the `dream` alias path --------------------------
@@ -1460,6 +1519,79 @@ def test_recurring_scan_catches_checkout_up_to_origin_before_scanning(
 
     assert (git_repo.root / "notes.md").is_file()
     assert "not fast-forwarded" not in capsys.readouterr().err
+
+
+def test_recurring_scan_replaces_stale_done_task_on_control(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prior-period deletion and fresh creation land together on control."""
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Current template body.
+        """,
+    )
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(coga_os)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", first.ref)
+    ticket = Ticket.read(first.ref.ticket_path)
+    ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(first.ref.ticket_path)
+    replace_blackboard(first.ref.ticket_path, "\nold run residue\n")
+    coga_git.sync_task_state(
+        cfg,
+        first.ref.path,
+        message="Ticket: recurring/weekly-check — done",
+    )
+
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        landed = git_repo.git(
+            "show",
+            "main:coga/tasks/recurring/weekly-check/ticket.md",
+            cwd=git_repo.origin,
+        )
+        assert "status: active" in landed
+        assert "Current template body." in landed
+        assert "old run residue" not in landed
+        finished = Ticket.read(first.ref.ticket_path)
+        finished.frontmatter["status"] = "done"
+        finished.frontmatter.pop("step", None)
+        finished.write(first.ref.ticket_path)
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+    assert launched == ["recurring/weekly-check"]
+    control_template = git_repo.git(
+        "show",
+        "main:coga/recurring/weekly-check/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "last_serviced_period: 2026-W18" in control_template
 
 
 def test_recurring_launch_lands_create_without_ff_noise(

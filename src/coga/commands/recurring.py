@@ -170,7 +170,7 @@ def _print_templates_table(
             continue
         if s.instance is not None and s.stale_done:
             period = (
-                f"[yellow]stale done run — due, rolls over"
+                f"[yellow]stale done run — due, replaced next sweep"
                 f" · {s.instance.id_slug}[/yellow]"
             )
         elif s.instance is not None:

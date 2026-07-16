@@ -62,11 +62,8 @@ def run_recurring_scan(
     sweep whose supervisor died mid-run (laptop sleep, SSH drop) is **resumed**
     from its current step on the next sweep. If an interactive launch returns
     unfinished, the sweep pauses it before continuing, so a frozen
-    `in_progress` can still mean "dead run's orphan". A `done` task from the
-    *current* period is skipped; a stale `done` run from a prior period
-    (finished but never reaped) is rolled over — reactivated for the new
-    firing — so it cannot shadow future periods. `paused` tasks are skipped:
-    a human parked them. Current period only: running this once a month for a weekly
+    `in_progress` can still mean "dead run's orphan". `done` and `paused` tasks
+    are skipped. Current period only: running this once a month for a weekly
     template produces one run, not a backlog. It does not install or manage
     system cron; nothing runs unless you invoke it.
 
@@ -153,15 +150,9 @@ def run_recurring_named(
         return 2
 
     ref = outcome.ref
-    if outcome.created or outcome.rolled_over:
+    if outcome.created:
         created_on_control = _sync_recurring_create(
-            cfg,
-            name,
-            ref,
-            respect_handled_period=False,
-            # A rolled-over stale done run legitimately pre-exists on the
-            # control branch, so its presence there is not a create race.
-            respect_existing_task=not outcome.rolled_over,
+            cfg, name, ref, respect_handled_period=False
         )
         if not (ref.ticket_path).is_file():
             typer.secho(
@@ -171,8 +162,7 @@ def run_recurring_named(
             )
             return 0
         if created_on_control:
-            verb = "Rolled over" if outcome.rolled_over else "Created"
-            typer.echo(f"{verb} {ref.id_slug}")
+            typer.echo(f"Created {ref.id_slug}")
     else:
         typer.echo(f"{ref.id_slug} already created for this period")
 
@@ -1261,7 +1251,7 @@ def _broadcast_scan(
     reaches that task, so an unreached task is not mutated during the scan.
     """
     for task in list(scan.tasks):
-        if not task.created and not task.rolled_over:
+        if not task.created and not task.replaced_done:
             if sync_existing:
                 _refresh_forced_status_from_control(cfg, task)
             continue
@@ -1272,9 +1262,10 @@ def _broadcast_scan(
             task.template,
             task.ref,
             respect_handled_period=respect_handled_period,
-            # A rolled-over stale done run legitimately pre-exists on the
-            # control branch, so its presence there is not a create race.
-            respect_existing_task=not sync_existing and not task.rolled_over,
+            # A normal replacement deliberately replaces the prior-period
+            # `done` task at the stable path. The period ledger still guards
+            # against racing another machine that handled this firing first.
+            respect_existing_task=not (sync_existing or task.replaced_done),
             restore_existing_control_task=sync_existing,
             overwrite_dirty_control_task=sync_existing and task.created,
             force_period_key=task.period_key if sync_existing else None,
@@ -1293,7 +1284,9 @@ def _broadcast_scan(
         task.status = ticket.status
         if sync_existing and not created_on_control:
             task.created = False
-        if task.created and created_on_control:
+        if task.replaced_done and created_on_control:
+            typer.echo(f"Replaced completed {task.ref.id_slug}")
+        elif task.created and created_on_control:
             typer.echo(f"Created {task.ref.id_slug}")
 
     if scan.errors:
@@ -1355,12 +1348,7 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
             # resumes its current step rather than starting a fresh run.
             action = typer.style("→ resume", fg=typer.colors.YELLOW)
         elif task.launchable or force:
-            label = (
-                "→ launch (stale done run rolled over)"
-                if task.rolled_over
-                else "→ launch"
-            )
-            action = typer.style(label, fg=typer.colors.GREEN)
+            action = typer.style("→ launch", fg=typer.colors.GREEN)
         else:
             action = typer.style(
                 f"skip ({task.status})", fg=typer.colors.BRIGHT_BLACK

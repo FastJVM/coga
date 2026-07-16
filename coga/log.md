@@ -1330,3 +1330,29 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 18:37 [coga-important/add-coga-slack-important] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-15 18:39 [coga-important/add-coga-slack-important] [agent:claude] blocked: Depends on unmerged PR #553 (support-second-webhook) and on the unimplemented sibling coga-important/add-toml-property-for-notification-recipient. Neither half is buildable from main: the alert-message-shape half needs the 'coga slack --important' flag, which exists only on the open important-webhook branch; the recipient half needs [notification.slack].important_recipient, which exists nowhere (the sibling that owns it is itself status:blocked on #553, no branch, no code). #553 is OPEN at its ticket's step 4 (review) awaiting your review. Owner already chose option 1 on the sibling (2026-07-15): wait for #553 rather than stack or duplicate; same reasoning applies here. Unblock with 'coga unblock add-coga-slack-important --answer "#553 merged and important_recipient landed"' once both land.
 2026-07-15 19:03 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 19:20 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] created (status=draft)
+2026-07-15 19:24 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] created (status=draft)
+2026-07-15 19:28 [recurring/autoclose-merged] [system] created (status=active)
+2026-07-15 19:28 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-07-15
+2026-07-15 19:28 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-07-15
+2026-07-15 19:28 [recurring/blocker-reminders] [system] created (status=active)
+2026-07-15 19:28 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-07-15
+2026-07-15 19:28 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-07-15
+2026-07-15 19:28 [recurring/digest] [system] created (status=active)
+2026-07-15 19:28 [recurring/digest] [system] deleted completed prior-period task before 2026-07-15
+2026-07-15 19:28 [recurring/digest] [system] created recurring/digest for 2026-07-15
+2026-07-15 19:28 [recurring/dream] [system] created (status=active)
+2026-07-15 19:28 [recurring/dream] [system] deleted completed prior-period task before 2026-W29
+2026-07-15 19:28 [recurring/dream] [system] created recurring/dream for 2026-W29
+2026-07-15 19:28 [recurring/blocker-reminders] [git] sync refused: coga/tasks/recurring/blocker-reminders/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [recurring/digest] [git] sync refused: coga/tasks/recurring/digest/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [recurring/dream] [git] sync refused: coga/tasks/recurring/dream/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [bootstrap/orient] [human:nicktoper] launched (assignee=codex, agent=codex)
+2026-07-15 19:33 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-15 19:35 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-15 19:35 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 19:47 [remove-megalaunch-token-budget-guard-and-usage-pro] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 19:54 [recurring/blocker-reminders] [git] sync refused: coga/tasks/recurring/blocker-reminders/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:54 [recurring/digest] [git] sync refused: coga/tasks/recurring/digest/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:54 [recurring/dream] [git] sync refused: coga/tasks/recurring/dream/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:54 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
