@@ -1312,3 +1312,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 17:49 [coga-important/context] [human:zach] started (active → in_progress) via coga launch
 2026-07-15 17:49 [coga-important/context] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-15 17:51 [coga-important/add-toml-property-for-notification-recipient] [human:zach] activated (draft → active) — auto on launch
+2026-07-15 17:51 [coga-important/add-toml-property-for-notification-recipient] [human:zach] started (active → in_progress) via coga launch
