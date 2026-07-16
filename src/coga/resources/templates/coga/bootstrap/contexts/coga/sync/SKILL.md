@@ -306,11 +306,12 @@ mechanism:
 ### Why the spool is a contended file, and how it stays mergeable
 
 State-plane writes — ticket transitions, the digest spool, recurring markers,
-dream logs — are committed **directly to `origin/main`** by `sync_task_state` /
+dream logs — are committed **directly to the configured control ref**
+(`[git].remote` + `[git].control_branch`) by `sync_task_state` /
 `_push_control_branch`, with no branch and no PR. (Only `(#NN)` commits go
 through PRs; those are the code plane.) So any number of coga processes — in
-this repo, in another clone, on another machine — push state straight to the
-same `main`. The digest spool (`recurring/digest/spool.md`'s
+this repo, in another clone, on another machine — push state straight to that
+same control branch. The digest spool (`recurring/digest/spool.md`'s
 `## Spool (pending)`) is the hottest such file: every done/error event appends
 to it, and the daily `coga digest` drains it. Two writers therefore routinely
 collide on it during a rejected-push → `rebase --autostash` recovery.
@@ -375,7 +376,8 @@ Notifications tell the team what changed; git makes the markdown state durable
 and shareable. Coga-owned commands that mutate a task directory should commit
 the resolved task directory path under `coga/tasks/` (top-level or nested
 in a sub-directory) and push it after the live notification post, so
-`origin/main` does not drift from the state humans saw in the channel.
+the configured control ref does not drift from the state humans saw in the
+channel.
 
 Current surface:
 
