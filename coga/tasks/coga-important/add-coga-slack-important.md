@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -81,6 +81,33 @@ No fixture change: this is notification formatting, not task layout.
   (at `post()` level); `test_commands.py` — alert shape + FYI shape unchanged.
 - Full suite green (1243 passed, 1 skipped). Rebased onto current `origin/main`,
   clean tree, no push/PR. Bumping to peer-review.
+
+## Peer Review 2026-07-16
+
+Reviewed with `codex review --base main`. It found one must-fix issue: important
+alerts still carried mapped watcher cc trailers, which violates the coga-important
+single-triage-recipient contract.
+
+Applied fix in feature worktree commit `b8b738fa`: `SlackChannel.render_text`
+now suppresses watcher cc when `important=True`, with a regression test proving a
+watched important post pings only `important_recipient`. Rebased cleanly onto
+fresh `origin/main` (`5c68a5cc`); branch is 2 commits ahead / 0 behind and clean.
+
+Verification:
+- `codex review --base main`
+- `python -m pytest tests/test_notification.py tests/test_commands.py` — 132 passed
+- `python -m pytest` — 1225 passed, 1 skipped; only warning was pytest cache write
+  permission for `.pytest_cache`
+
+## PR
+
+Summary:
+- Give `coga slack --important` a dedicated alert shape: `⚠️ *slug* — message`.
+- Render important Slack posts with configured `important_recipient` instead of the
+  ticket owner, falling back to the owner when unset.
+- Suppress watcher cc on important posts so alerts ping exactly one triage recipient.
+
+Test plan: `python -m pytest` — 1225 passed, 1 skipped.
 
 ## Update 2026-07-16 — #553 merged, half the blocker cleared
 
