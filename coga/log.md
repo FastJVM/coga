@@ -1579,3 +1579,4 @@ Aborting
 2026-07-16 14:54 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-16 14:36 [install/add-migration-errors-for-removed-config-keys] [megalaunch] launched via coga megalaunch
 2026-07-16 15:10 [install/add-migration-errors-for-removed-config-keys] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-16 15:10 [install/add-migration-errors-for-removed-config-keys] [system] {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":6971648,"cli":"codex","input_tokens":173318,"model":"gpt-5.6-sol","output_tokens":15324,"provider":"openai","schema":1,"session_id":"019f6cdb-ab6c-7a40-a789-2c9c8b378c0d","slug":"install/add-migration-errors-for-removed-config-keys","step":"peer-review","title":"Add migration errors for removed config keys","ts":"2026-07-16T22:10:16.514199Z","usage_status":"ok"}
