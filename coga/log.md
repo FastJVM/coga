@@ -1385,3 +1385,12 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 20:16 [dream-validate-drift-w29] [human:nicktoper] created (status=draft)
 2026-07-15 20:16 [dream-validate-drift-w29] [git] sync failed: `git add -- coga/tasks/dream-validate-drift-w29.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
 2026-07-15 20:16 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-15 20:16 [dream-validate-drift-w29] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-15 20:16 [dream-validate-drift-w29] [git] sync failed: `git add -- coga/tasks/dream-validate-drift-w29.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-07-15 20:16 [dream-validate-drift-w29] [system] started (active → in_progress) via coga launch
+2026-07-15 20:16 [dream-validate-drift-w29] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-15 20:16 [coga] [git] refresh failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-15 20:16 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-15 20:36 [dream-validate-drift-w29] [system] launched as a script (skill=bootstrap/dream/tasks/validate-drift, script=run.py)
+2026-07-15 20:36 [dream-validate-drift-w29] [system] script exited with code 0
+2026-07-15 20:36 [dream-validate-drift-w29] [system] completed (final script step ran) via coga launch
