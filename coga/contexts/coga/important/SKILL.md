@@ -6,13 +6,16 @@ description: The coga-important Slack channel — what earns a notification ther
 # coga-important — notifications that need human action
 
 `coga-important` is the Slack channel for notifications that need a human to
-act. Nothing else goes there. Coga's automatic state-transition broadcasts —
-create, bump, mark — stay in coga-flow.
+act. Nothing else goes there. Normal Coga sync traffic stays on the regular
+path described by `coga/sync`: routine lifecycle churn is silent audit-log/git
+state, explicit FYIs and urgent exceptions are live, and outcomes go through the
+daily digest path. None of that becomes an important alert just because Coga
+sent it.
 
 The two channels split by what the message asks of the reader, not by urgency
-or by who sent it. coga-flow is a record: agents moved a ticket, and you read
-it when you want to know where things stand. coga-important is a queue: an
-unread message there is work nobody has done yet.
+or by who sent it. coga-flow is the ordinary operating feed: read it for
+awareness and status. coga-important is a queue: an unread message there is
+work nobody has done yet.
 
 ## Raising an alert
 
@@ -26,10 +29,10 @@ throw at it is not a safety net.
 
 ## Triage
 
-Every `--important` post @'s one recipient: the coga user named by
-`[notification.slack].important_recipient` in coga.toml. That user is the
-triage owner. Every alert lands on them, whether or not they are the one who
-ends up acting.
+Every `--important` post should @ one recipient: the coga user named by the
+important-recipient coga.toml key once that sibling config work lands. That
+user is the triage owner. Every alert lands on them, whether or not they are
+the one who ends up acting.
 
 From there they do one of three things:
 
@@ -63,7 +66,8 @@ channel.
 
 - How notifications reach Slack at all, the live/digest tiers, and git sync —
   `coga/sync`.
-- Configuring the channel. `[notification.slack].important_webhook` and
-  `important_recipient` are coga.toml keys; see `coga/sync`.
+- Configuring the channel. The important webhook and important recipient
+  coga.toml keys are owned by sibling implementation tickets; see `coga/sync`
+  once those keys land.
 - What any given script should treat as action-needed. That judgment belongs to
   the script and its own context.
