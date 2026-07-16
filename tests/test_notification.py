@@ -535,15 +535,16 @@ def test_routine_post_still_uses_default_webhook(
     assert calls[0]["url"] == "https://hooks.slack.com/services/flow"
 
 
-def test_important_post_without_important_webhook_falls_back(
+def test_important_post_without_important_webhook_crashes(
     cfg_with_webhook,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """An alert still lands — on the default webhook — when the key is unset.
+    """An `--important` post crashes when the key is unset — never reroutes.
 
-    Delivering to the wrong channel beats dropping a human-action alert, so this
-    warns on stderr rather than raising. See the ticket blackboard.
+    Delivering a human-action alert to the wrong channel while reporting success
+    is worse than crashing; the crash is what gets the config fixed. See the
+    ticket blackboard.
     """
     calls: list[dict] = []
 
@@ -552,10 +553,11 @@ def test_important_post_without_important_webhook_falls_back(
         return _SlackResponse()
 
     monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
-    post(cfg_with_webhook, "fee window closes 2027-01-15", important=True)
-    assert len(calls) == 1
-    assert calls[0]["url"] == "https://hooks.slack.com/services/test"
-    assert "no important_webhook resolved" in capsys.readouterr().err
+    with pytest.raises(typer.Exit) as exc:
+        post(cfg_with_webhook, "fee window closes 2027-01-15", important=True)
+    assert exc.value.exit_code == 1
+    assert calls == []
+    assert "important_webhook" in capsys.readouterr().err
 
 
 def test_local_important_webhook_overrides_shared(

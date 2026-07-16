@@ -225,12 +225,14 @@ new string:
   `config._resolve_notification_slack_important_webhook` with the same `env:`
   indirection and local-overrides-shared rule, but with no legacy `[slack]` or
   bare-env fallback — the key postdates both, so there is no old config to stay
-  compatible with. Unset resolves to None and `SlackChannel.webhook_for` falls
-  back to `webhook` with a note on stderr: dropping a human-action alert is
-  worse than delivering it to the wrong channel, and each downstream repo
-  carries its own `coga.toml`, so the unconfigured case is live. Legal only in
-  `[notification.slack]` — `[slack].important_webhook` is rejected rather than
-  silently ignored, since no legacy resolver reads it.
+  compatible with. Unset resolves to None and `SlackChannel.webhook_for`
+  crashes an `--important` post (exit 1, stderr note) rather than rerouting it
+  to `webhook`: delivering a human-action alert to the wrong channel while
+  reporting success is worse than crashing, and the crash is what gets the
+  config fixed. Each downstream repo carries its own `coga.toml`, so the
+  unconfigured case is live. Legal only in `[notification.slack]` —
+  `[slack].important_webhook` is rejected rather than silently ignored, since
+  no legacy resolver reads it.
 - `cfg.slack_enabled` (`bool`, default `True`), `cfg.slack_webhook` and
   `cfg.slack_important_webhook` (`str | None`) — compatibility fields holding
   the effective Slack-channel config. `[notification.slack].enabled`,

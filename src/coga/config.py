@@ -108,7 +108,7 @@ class Config:
     # Second webhook, pointing at the coga-important channel. Alerts that need a
     # human to act (`coga slack --important`) post here; state-transition traffic
     # stays on `slack_webhook`. None when unconfigured — `SlackChannel.send` then
-    # falls back to `slack_webhook` rather than dropping the alert.
+    # crashes an `--important` post rather than rerouting it to `slack_webhook`.
     slack_important_webhook: str | None = None
     notification_channels: tuple[str, ...] = ("slack",)
     notification_deprecation_notes: tuple[str, ...] = ()
@@ -936,8 +936,8 @@ def _resolve_notification_slack_important_webhook(
     `SLACK_WEBHOOK_URL` fallback: both exist to keep configs written before
     `[notification.slack]` working, and nothing was ever written against a key
     that did not exist. Absent — or an `env:` reference whose var isn't exported
-    — resolves to None, and `SlackChannel.send` posts to the primary webhook
-    instead.
+    — resolves to None, and `SlackChannel.send` crashes an `--important` post
+    rather than rerouting it to the primary webhook.
     """
     for table in (local, shared):
         if isinstance(table, dict) and "important_webhook" in table:

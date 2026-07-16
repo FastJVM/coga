@@ -52,25 +52,26 @@ class SlackChannel:
     def webhook_for(self, *, important: bool) -> str | None:
         """The webhook an important / routine post should go to.
 
-        An important post wants the coga-important channel, but a repo that has
-        not configured `important_webhook` still gets the alert: it falls back
-        to the primary webhook and says so on stderr. Losing a human-action
-        alert — an unpaid maintenance fee, say — is worse than delivering it to
-        the wrong channel. Downstream repos each carry their own `coga.toml`,
-        so the unconfigured case is live, not theoretical.
+        An important post must reach the coga-important channel or fail — it is
+        never silently rerouted to the default webhook. A repo that asks for
+        `--important` without a resolved `important_webhook` is misconfigured,
+        and delivering a human-action alert to the wrong channel while reporting
+        success is worse than crashing: the crash is what gets the config fixed.
+        Downstream repos each carry their own `coga.toml`, so the unconfigured
+        case is live, not theoretical.
         """
         if not important:
             return self.cfg.slack_webhook
         if self.cfg.slack_important_webhook:
             return self.cfg.slack_important_webhook
         sys.stderr.write(
-            "[notification.slack] no important_webhook resolved — posting this "
-            "alert to the default webhook instead. To route it to coga-important, "
-            'set [notification.slack].important_webhook = "env:VAR" in this '
+            "[notification.slack] --important was requested but no "
+            "important_webhook is resolved, so this alert has nowhere to go. "
+            'Set [notification.slack].important_webhook = "env:VAR" in this '
             "repo's coga.toml and export VAR (the key and the exported variable "
             "are two separate steps; either one missing lands you here).\n"
         )
-        return self.cfg.slack_webhook
+        raise typer.Exit(1)
 
     def send(
         self,
