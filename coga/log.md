@@ -1379,3 +1379,5 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 20:15 [recurring/blocker-reminders] [system] script exited with code 0
 2026-07-15 20:15 [recurring/blocker-reminders] [system] completed (final script step ran) via coga launch
 2026-07-15 20:15 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-15 20:02 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 20:19 [move-per-session-usage-records-from-ticket-blackbo] [agent:claude] advanced to step 2 (peer-review) → assigned to codex

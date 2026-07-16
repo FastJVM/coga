@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -77,3 +77,77 @@ Scope:
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Plan (implement step)
+
+- `src/coga/usage.py`: drop `USAGE_HEADING` / `_USAGE_SECTION_RE` /
+  `_SECTION_RE` / `_usage_blackboards`. `append_record(cfg, record)` writes
+  `record.to_json()` via `logfile.append_log(cfg, record.slug, "system", ...)`
+  so the line gets standard timestamp+ref+actor tagging. `capture_session`
+  takes `cfg: Config` instead of `blackboard: Path`. `load_records(cfg)`
+  reads `log.md` (via `paths.log_path`), strips the
+  `YYYY-MM-DD HH:MM [ref] [actor] ` prefix with a regex, and feeds the
+  payload to `UsageRecord.from_json`; non-JSON log lines are skipped.
+- `src/coga/commands/launch.py`: `should_capture_usage` no longer checks the
+  ticket file; capture passes `cfg`; post-capture `git.sync_coga_state(cfg)`
+  becomes `git.sync_log(cfg, message=f"Log: {ref.id_slug}")` (union-safe,
+  also carries the launch line for task launches).
+- `src/coga/commands/usage.py`: `load_records(cfg)`; wording updated.
+- Contexts: rewrite store/capture/read/tradeoff sections of
+  `coga/contexts/coga/usage/SKILL.md` (live only — no packaged copy exists);
+  update `coga/contexts/coga/sync/SKILL.md` + packaged copy (usage record is
+  now a `log.md` append committed by `sync_log` at launch teardown;
+  `sync_coga_state` stays wired only at the CLI dispatch boundary).
+  Note: ticket asks to update the `coga/cli` context's `coga usage`
+  description, but no live `coga/cli` context exists and the packaged one
+  never mentions usage — nothing to change there.
+- Migration: strip `## Usage` sections (heading + records) from all live
+  tickets under `coga/tasks/` (~60 files). No back-compat parsing.
+- Tests: rework `tests/test_usage.py` append/load tests around `log.md`;
+  rework `tests/test_launch.py::test_spawn_sweeps_usage_record_at_teardown`
+  (now asserts the log commit+push, ticket untouched) and the
+  captures-usage-with-session-id test (`cfg` kwarg instead of `blackboard`).
+
+## Dev
+
+branch: usage-records-to-log
+worktree: /home/n/Code/claude/coga-usage-to-log
+
+## Implemented (implement step, 2026-07-15)
+
+Two commits on the branch, rebased onto origin/main (981047ad):
+
+- `Move per-session usage records from ticket blackboards to log.md` —
+  `usage.py`: `append_record(cfg, record)` writes the record JSON through
+  `logfile.append_log` (line shape `YYYY-MM-DD HH:MM [<slug>] [system]
+  <json>`); `capture_session` takes `cfg` instead of `blackboard`;
+  `load_records(cfg)` parses `log.md` lines, skipping any whose message
+  isn't a valid record. Launch teardown now runs `git.sync_log` (not
+  `sync_coga_state`); the `## Usage`/section machinery and
+  `_usage_blackboards` glob are gone. Contexts: `coga/usage` rewritten,
+  `coga/sync` rewired (live + packaged copy kept identical).
+- `Drop migrated ## Usage sections from live tickets` — stripped 61 ticket
+  files; zero `^## Usage` matches remain anywhere under `coga/`.
+
+Decisions / notes:
+
+- Log-line actor for usage records is `system` (capture is launcher
+  machinery, not an agent act); the task ref tag is the record's slug, so
+  `coga show` history picks usage lines up too.
+- Behavior change pinned in tests: launch teardown commits *only* `log.md`;
+  human hand-edits under `coga/` now commit at the next CLI dispatch
+  boundary instead of being swept at teardown
+  (`test_spawn_commits_usage_log_at_teardown`).
+- Ticket's `coga/cli` context touchpoint was a no-op: no live `coga/cli`
+  context exists and the packaged one never mentions usage.
+- Verified end-to-end: append→`coga usage` rollup round-trip through
+  `log.md` in the worktree, plus `coga usage --json` on the migrated repo
+  (empty rollup, as expected post-migration).
+- Tests: `python -m pytest` → 1219 passed, 1 skipped, 1 failed —
+  `test_bootstrap_script_launch_is_stateless`, which also fails on clean
+  main in this environment (subprocess `run.py` cannot `import coga`;
+  same known env-only failure recorded on make-megalaunch-user-specific's
+  blackboard). Not caused by this change.
+- Rebase onto 981047ad conflicted on 3 migrated tickets (new usage records
+  had landed on main); resolved by taking main's version and re-running the
+  strip, so records appended after the branch point are also removed.
