@@ -65,17 +65,12 @@ job).
 
 ## Why a section, not frontmatter
 
-YAML frontmatter is for fields the coga CLI reads (`status`, `step`,
-`assignee`, `workflow`). Putting `branch:` / `pr:` there would imply
-coga-the-CLI parses them, which it doesn't (yet). The blackboard is
-the right home: human- and agent-readable plain text, and any tool
-that wants the link can grep for `branch:` / `pr:` under `## Dev`
-without a config plumbing change.
-
-If a future feature needs first-class linkage (e.g. an auto-bump
-hook firing off PR merge), it can either continue grepping the
-blackboard or graduate the fields to frontmatter. The convention
-here is forward-compatible with both.
+YAML frontmatter is reserved for canonical task state (`status`, `step`,
+`assignee`, `workflow`). Branch and PR linkage remains legible working state
+under `## Dev`. Several focused Coga consumers deliberately parse those lines:
+the `code/open-pr` runner writes `pr:`, autoclose reads PR linkage, and branch
+sweep protects recorded branches. That does not make them frontmatter fields or
+general config; each consumer reads the narrow blackboard convention it needs.
 
 ## Multi-ticket PRs
 
