@@ -215,10 +215,20 @@ ticket; this is the decided phase-1 scope.)
 
 **Sequencing (deliberate):**
 
-1. **Newsletter** — pre-registration announcement ("here's the locked
-   methodology — watch the repo"). The ~300 subs are the serialized
-   audience with stakes in the outcome, not an amplifier (realism:
-   ~40% open → ~120 readers → a handful of launch-day clicks).
+1. **The pre-registration is itself the first launch (spike one).**
+   Not newsletter-only: it goes to HN too, as its own story — "I
+   pre-registered my launch like a clinical trial; locked methodology,
+   public repo, watch it live." A genre HN hasn't seen, undebunkable
+   by construction (no results yet — only methodology, and methodology
+   critique in the comments is free peer review). It converts
+   spectators into stakeholders with a two-week open loop, and the
+   public repo doubles as a live demo for the duration. This is also
+   the wave-riding venue: the announcement is *timeable* — hold it for
+   the next autonomy-hype moment and post it as the counter. The
+   newsletter (~300 subs, realistically ~120 readers) gets it first or
+   same-day; they're the serialized audience with stakes, not an
+   amplifier. Announce only once the megalaunch gate is already met —
+   the announcement trails the gate, never leads it.
 2. **Bookface, a few days before HN.** Lower-variance than HN and the
    exact buyer (small team, wants leverage, tolerates rough edges).
    Founder framing: "how I run my company in 20 min/day." Two jobs:
@@ -226,14 +236,18 @@ ticket; this is the decided phase-1 scope.)
    it, and YC founders who arrive in the HN thread already convinced.
    Private — nothing there is publicly quotable. Early YC adopters
    become phase-2 credibility.
-3. **HN — the results post, as a story submission ONLY.** The field
-   report ("here's how I did it"), never a Show HN / product
+3. **HN — the results post (spike two), as a story submission ONLY.**
+   The field report ("here's how I did it"), never a Show HN / product
    submission — product submissions are a lottery; the story is the
    asset. Plain title, no marketing language, weekday morning US.
    Founder has front-paged HN before: execution (title, timing,
    presence) beats the base rate. Be present in the thread answering
    skeptics with ledger links — the comment section is where "check
-   our math" pays off.
+   our math" pays off. Spike two lands on the audience spike one
+   recruited; the added stake — a public spike one means a mediocre
+   fortnight fails in front of an audience — is priced in: the
+   fallback framing (what-broke field report) covers it, and the
+   exposure IS the credibility mechanism.
 
 **HN failure branch (decide nothing on the day):** if the submission
 dies in /new, use the second-chance pool (a polite mail to
@@ -259,9 +273,9 @@ consequence of each scenario — so the retro can't be post-hoc
 rationalization.
 
 Deliberately out of phase 1: X/dev-social, Product Hunt, reddit — later
-ticket, if at all. Honest cost: phase 1 has no venue for the
-ride-the-hype-wave tactic (that discourse lives on X); in phase 1,
-counter-positioning happens inside the HN thread only.
+ticket, if at all. The ride-the-hype-wave tactic has its phase-1 venue
+in spike one (the timeable pre-registration announcement); sustained
+wave-riding between spikes still has no venue until X exists.
 
 ## Success metric and tone
 
