@@ -68,7 +68,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 | Verb | Mechanism | Alias-able? | Why |
 |------|-----------|-------------|-----|
 | `init` | built-in | No | Scaffolds/refreshes `coga/`, clones upstream, installs venv deps. Heavy side effects. |
-| `create` / `draft` | built-in | No | Scaffolds a `draft` ticket dir + posts `✨` to Slack + post-write validate. |
+| `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket + posts `✨`; validation belongs to authoring/activation or an explicit `coga validate --task`. |
 | `ticket` | thin built-in head + `coga.authoring` finalize | No | **Canonical proof.** Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. |
 | `project` | built-in | No | Interview → scaffold many drafts → post-validate; TTY guard. |
 | `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |
@@ -78,7 +78,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 | `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (`coga/autoclose/sweep` skill → `coga.autoclose.sweep_merged`). (See gotcha.) |
 | `delete` | built-in | No | Resolves slug → runs `bootstrap/delete-task` skill with injected env. Thin, but resolves + executes a script. |
 | `retire` | built-in | No | Scaffolds a one-shot `retire-<slug>` task straight to `active` + launches it. |
-| `panic` | built-in | No | Writes blackboard marker + Slack + non-zero exit. |
+| `block` / `unblock` | built-in | No | Records/resolves concrete blocker asks, owns blocked-state transitions, syncs state, and notifies. |
 | `slack` | built-in | No | Posts FYI to Slack. |
 | `digest` | built-in | No | Spool read → git fetch → render → post → state update. (See digest disambiguation.) |
 | `validate` | built-in | No | Static repo/config diagnostic, `--fix` creates missing files. |
@@ -109,8 +109,8 @@ is already behind the `coga recurring` head, and the other two need built-ins.
 | Template | Mode | Mechanism today | Alias-able? | Why |
 |----------|------|-----------------|-------------|-----|
 | `dream` | interactive | `dream` default alias → `recurring launch dream` | Yes — already aliased | Pure passthrough. |
-| `skill-update` | script | none | **Yes — un-aliased candidate** | Pure `recurring launch skill-update`; no pre/post logic. |
-| `autoclose-merged` | script | none | **Yes — un-aliased candidate** | Pure `recurring launch autoclose-merged`; no pre/post logic. (Watch the naming gotcha.) |
+| `skill-update` | script | `skill-update` default alias → `recurring launch skill-update` | Yes — already aliased | Pure passthrough. |
+| `autoclose-merged` | script | `autoclose` default alias → `recurring launch autoclose-merged` | Yes — already aliased | Pure passthrough under the shorter public name. |
 | `digest` | script | name occupied by `coga digest` built-in | **No — disqualified by name collision** | `recurring launch digest` *is* a pure passthrough, but the natural alias name `digest` is already a built-in (a different operation). See below. |
 
 (`_rem` and `_template` are `_`-prefixed scaffolding that `coga recurring`
@@ -118,13 +118,10 @@ skips — not launchable templates.)
 
 ## The concrete finding (verified, not assumed)
 
-**The only un-aliased pure passthroughs available to alias are `skill-update`
-and `autoclose-merged`** (both recurring launches). Verified against the code:
-`_DEFAULT_ALIASES` already covers `dream`; the three bootstrap tickets are either
-aliased (`orient`/`chat`) or backed by a logic-bearing built-in
-(`ticket`, `project`); and every CLI verb has pre/post logic. That leaves the
-two script recurring templates with no shorthand. **This is what tickets 2 and
-3 are built on.**
+**No un-aliased pure passthrough remains.** Verified against the code:
+`_DEFAULT_ALIASES` covers `chat`, `dream`, `build`, `skill-update`, and
+`autoclose`; the bootstrap tickets are either aliased or backed by a
+logic-bearing built-in, and every CLI verb has pre/post logic.
 
 ### The third candidate, and why it's disqualified
 
@@ -168,10 +165,9 @@ pure-passthrough set for aliasing is exactly the two named above.
   not a launchable thing. Do not mistake a `bootstrap/skills/...` path for an
   aliasable bootstrap ticket.
 
-- **`_DEFAULT_ALIASES` already ships three, not two.** `chat`, `dream`, **and
-  `build`** (`build` → `launch coga-build`). The `coga/cli` context's
-  Aliases section still documents only `chat` + `dream` — pre-existing doc
-  drift, out of scope for this ticket but worth a follow-up.
+- **`_DEFAULT_ALIASES` ships five.** `chat`, `dream`, `build`, `skill-update`,
+  and `autoclose`; the last two are ordinary recurring launches exposed under
+  concise on-demand names.
 
 ## Architecture: how far the ticket model reaches
 

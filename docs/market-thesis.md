@@ -14,7 +14,10 @@ Everything below is the argument for that sentence and its consequences.
 > 1. **No moat in this layer — only taste** (legibility ⊥ defensibility; the mechanism is commodity, proven by OpenAI open-sourcing it as Symphony).
 > 2. **Taste hardens into metaphor + brand** — the only durable thing (the Jira→Linear proof). Ours is *independence/ownership*, the one note an incumbent can't play credibly.
 > 3. **We're fork A today** (internal infra), not fork B (a branded category) — fork B is available but needs adoption work we haven't started.
-> 4. **The taste is real but *read*, not yet *felt*** — and the felt layer is gated behind a handful of maturity bugs (Slack drops posts, no ticket-level auto mode, no watchdog). **Shipping the bug backlog *is* the strategy.** See [What's missing — the 80/20](#whats-missing--the-8020).
+> 4. **The reliability substrate now exists** — checked Slack delivery,
+> recurring tasks, supervised liveness limits, and atomic writes have shipped.
+> The open strategic question is whether outsiders feel the correction loop,
+> not whether those primitives exist. See [What's missing — the 80/20](#whats-missing--the-8020).
 
 ---
 
@@ -256,32 +259,43 @@ Honest read, because the thesis cuts both ways:
 
 **Where felt taste lives for an agent-mediated tool.** Not in pixels — in two moments the human *does* experience: (1) **the correction loop** — catching the agent doing something wrong, opening the context, fixing one line, re-running, and watching it do the right thing in two minutes; and (2) **the steered-agent behavior** — the agent reliably doing the right thing *because* the substrate (contexts, workflow, blackboard) directed it well. Plus the ambient layer: the Slack feed feeling like calm control over many parallel agents. Linear's "you'll just feel it" happens in seconds of UI; Coga's equivalent happens the first time the correction loop snaps shut cleanly. *That* is the sensory moment, and it's a real one.
 
-**So "not felt yet" splits in two:**
-- **Mostly: not there yet (maturity).** The surfaces that carry the felt experience are exactly the ones still maturing — Slack silently dropping posts (ambient awareness dead), megalaunch/watchdog polish, and script-shaped recurring work for unattended operation. The felt layer is gated behind the very bugs in the backlog. Fix those and the correction-loop moment comes online. This is the dominant cause and it's fixable.
-- **Partly: structural (permanent).** Coga will never have Linear-style pixel-craft because it owns no UI by design. Its felt taste *must* live in the loop and the agent's steered behavior, not in a surface it controls. That's a constraint to embrace, not fix — and it means the felt-taste playbook for agent-mediated tools is unwritten (nobody's nailed it yet), so it's a real but *unproven* moat surface.
+**So "not felt yet" now splits in two:**
+- **Operational calibration.** The substrate for unattended work has shipped;
+  the remaining work is proving it repeatedly, tightening noisy or confusing
+  moments, and making failures easy to correct.
+- **Structural (permanent).** Coga will never have Linear-style pixel-craft
+  because it owns no UI by design. Its felt taste must live in the correction
+  loop and the agent's steered behavior.
 
-**Verdict:** we are *not* drifting into feature-talk — that was never the risk; if anything we out-taste everyone on conviction. The real gaps: (a) the felt layer is *gated by maturity bugs* (the correction loop can't be felt while Slack drops and agent launches require a TTY) — so shipping the backlog *is* the taste work; (b) make the metaphor *legible to outsiders* without the Pirsig/Lisp/GEB reading list; (c) anchor on **independence/ownership**, the one taste an incumbent can't copy. Until (a) lands we are fork A: high-craft internal infra with an unusually good essay — taste that's *read*, not yet taste that's *felt* — and the path from read to felt runs straight through the bug backlog, not through a design system.
+**Verdict:** the reliability backlog is no longer the main strategic gate. The
+real gaps are making the correction-loop payoff legible to outsiders, proving
+the shipped unattended path under real use, and anchoring the story on
+**independence/ownership** rather than a feature checklist.
 
 ---
 
 ## What's missing — the 80/20
 
-The product is ~80% there, and the 80% is real: the **classical substrate works for attended, single-operator use.** Built and tested today — the primitives (tasks / contexts / skills / workflows / blackboard), prompt composition, the task state machine, a real schema validator, the supervised interactive REPL with done/panic detection, git-backed everything, cross-vendor chaining (claude ↔ codex), and genuine SKILL.md-format adoption. That is the original stance *built*: you can run real work through Coga, watch it, correct it, and own every artifact.
+The product is ~80% there, and the 80% is real: the classical substrate works
+for attended and unattended local operation. Built and tested today are the
+primitives, prompt composition, task state machine, schema validation,
+supervised interactive REPL with done/block signaling and liveness limits,
+script-backed recurring work, checked notifications, atomic writes,
+git-backed state, cross-vendor chaining, and SKILL.md-format adoption.
 
-The missing 20% is not evenly spread — it clusters in one place, and it is exactly the part that turns the stance from *stated* into *lived*. **It is the transition from "watch it" to "trust it."** Coga nails *watch it* (attended interactive). It does not yet do *trust it* (unattended, recurring, reliable) — which is the half that converts Coga from "a way I work with agents" into "the substrate that runs my company," i.e. the actual thesis.
+The missing 20% is the move from shipped mechanism to trusted habit: proving
+the system under repeated real runs, reducing operator confusion, and making
+the correction loop obvious to someone who did not build it.
 
 Three buckets, in priority order:
 
-**Bucket A — the loop isn't *felt* (the felt-taste gap).** The correction loop is the sensory payoff, and it's currently broken by maturity bugs, not design:
-- **Slack silently drops posts** (`slack.py:97` ignores the HTTP response) → the ambient-awareness layer is dead. *(ticket: `slack-post-ignores-http-response…`, HIGH)*
-- **Agent launches require a TTY** → unattended drain depends on megalaunch, blockers, liveness limits, and script-backed work rather than a headless prompt flag.
-- Fixing these is the difference between taste-that's-read and taste-that's-felt.
+**Bucket A — make the loop felt.** Show the two-minute context correction and
+the resulting changed agent behavior plainly; the checked notification path is
+part of that experience, not an unimplemented prerequisite.
 
-**Bucket B — can't be *trusted unattended* yet (the maturation arc).** The vision's whole arc is attended → trusted-automation → cloud. The graduation is blocked:
-- **recurring** not landed (lands ~next week, now that autobump works) — without it there is no real automation story.
-- **no liveness watchdog** → a wedged task stalls the sequential sweep forever. *(ticket: `supervisor-liveness-watchdog…`)*
-- **non-atomic writes** → a 3am crash corrupts the ticket the next sweep reads. *(ticket: `atomic-writes…`, low — git is the backstop)*
-- This bucket is the 20% that matters most: it's the entire right half of the spectrum (`watch it → trust it`).
+**Bucket B — earn unattended trust.** Recurring tasks, idle/max-session
+watchdogs, and atomic writes have shipped. The remaining maturation work is
+calibration, failure recovery, and evidence from sustained use.
 
 **Bucket C — format bet not enforced / prompt hygiene (credibility polish).**
 - **no SKILL.md conformance validation** — `coga validate` checks only that refs resolve, never that the files conform to the format we bet on. *(ticket: `validate-skill-md-frontmatter…`)*

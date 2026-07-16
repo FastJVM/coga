@@ -78,8 +78,9 @@ Then inspect and update the remaining local files:
   `relay/<name>` with `coga/<name>` in tickets and workflow definitions.
 - In config and `.gitignore`, replace structural tokens such as
   `RELAY_REPO_URL`, `relay.local.toml`, and `relay-os` with the Coga spellings.
-- Remove regenerated Relay-era support dirs if present:
-  `coga/.relay/` and `coga/.agent-skills/`.
+- Remove the Relay-era `coga/.relay/` support directory if present. Keep
+  `coga/.agent-skills/`: Coga generates that local-plus-bundled skill view for
+  Claude and Codex.
 
 Do not rewrite prose, historical PR URLs, or source-path references in task
 bodies just because they contain `relay`; GitHub redirects old repository URLs.
