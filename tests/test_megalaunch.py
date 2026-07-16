@@ -731,13 +731,12 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
 def test_megalaunch_ignores_non_active_tickets(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """done/draft/paused/in_progress tickets are ignored — never launched, never `failed`."""
+    """done/draft/paused tickets are ignored — never launched, never `failed`."""
     cfg = load_config(repo)
     for title, status in (
         ("Done", "done"),
         ("Draft", "draft"),
         ("Paused", "paused"),
-        ("Running", "in_progress"),
     ):
         ref = create_task(
             cfg=cfg,
@@ -768,14 +767,14 @@ def test_megalaunch_ignores_non_active_tickets(
     assert run.counts["failed"] == 0
 
 
-def test_megalaunch_leaves_in_progress_tickets_alone(
+def test_megalaunch_sweep_resumes_in_progress_tickets(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An in_progress ticket belongs to another session — never grabbed, never counted."""
+    """The bare sweep resumes an in_progress ticket like `coga launch` would."""
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg,
-        title="Someone else's step",
+        title="Crashed mid-step",
         workflow_name="code",
         contexts=[],
         owner="marc",
@@ -787,18 +786,14 @@ def test_megalaunch_leaves_in_progress_tickets_alone(
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(ref["path"])
 
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
-
-    def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise AssertionError("megalaunch must not touch an in_progress ticket")
-
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    launched = _done_on_spawn(monkeypatch)
 
     run = run_megalaunch(cfg)
 
-    assert run.results == []
-    assert run.counts["launched"] == 0
-    assert Ticket.read(ref["path"]).status == "in_progress"
+    assert launched == [ref["slug"]]
+    assert run.counts["launched"] == 1
+    assert run.counts["completed"] == 1
+    assert Ticket.read(ref["path"]).status == "done"
 
 
 def test_megalaunch_human_assignee_is_human_gate(

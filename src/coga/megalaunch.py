@@ -1,14 +1,14 @@
 """Sequential console launcher for launchable, agent-owned Coga work.
 
-Only `active` tickets enter the default sweep. An `in_progress` ticket
-belongs to a session some other process started — the sweep never grabs one;
-resuming it must be deliberate. An **explicit selection** (the `--pick`
-picker or `--relaunch`) is that deliberate act: selected tickets may be
-`active` or `in_progress`, and a selected ticket
-that turns out unlaunchable (wrong owner, draft/paused/done, script step) is
-reported loudly instead of silently skipped — the human named it, so its
-outcome is owed back. An optional directory narrows either mode to a `tasks/`
-sub-tree, exactly like `coga status <dir>`.
+The default sweep covers the operator's `active` and `in_progress` tickets:
+`active` work starts, `in_progress` work — a session another process started
+that has since crashed or been torn down mid-step — resumes, exactly like a
+manual `coga launch <slug>`. An **explicit selection** (the `--pick` picker
+or `--relaunch`) runs only the named tasks, and a selected ticket that turns
+out unlaunchable (wrong owner, draft/paused/done, script step) is reported
+loudly instead of silently skipped — the human named it, so its outcome is
+owed back. An optional directory narrows either mode to a `tasks/` sub-tree,
+exactly like `coga status <dir>`.
 
 Megalaunch is a set of normal interactive launches, not a headless drain: each
 eligible step spawns the agent REPL under the PTY watcher exactly like
@@ -108,7 +108,7 @@ def run_megalaunch(
     selection: list[str] | None = None,
     max_steps_per_task: int = 8,
 ) -> MegalaunchRun:
-    """Attempt launchable `active` tasks sequentially.
+    """Attempt launchable `active` and `in_progress` tasks sequentially.
 
     `directory` narrows the sweep to that `tasks/` sub-tree (nested tasks
     included), same semantics as `coga status <dir>` — an unknown directory
@@ -123,11 +123,9 @@ def run_megalaunch(
     resolved assignee.
 
     `selection` (exact `id_slug`s) switches to explicit mode: only the named
-    tasks run, `in_progress` ones are resumed (naming a task is the deliberate
-    act the default sweep refuses to infer), and a named task that can't launch
-    — wrong owner, draft/paused/done — is reported as
-    `skipped-unlaunchable` instead of dropped. A selection slug matching no
-    task raises `MegalaunchError`.
+    tasks run, and a named task that can't launch — wrong owner,
+    draft/paused/done — is reported as `skipped-unlaunchable` instead of
+    dropped. A selection slug matching no task raises `MegalaunchError`.
     """
     cfg = cfg or load_config()
     if agent_override is not None:
@@ -203,15 +201,14 @@ def run_megalaunch(
                 )
             continue
 
-        # `active` (launchable) and `blocked` (reportable) tickets are in
-        # scope. In the default sweep, draft/paused/done are ignored — never
-        # launched and never counted as a result — and `in_progress` is
-        # ignored too: that status means some other session owns the step
-        # right now (or crashed mid-step), and neither is the sweep's to grab.
-        # An explicit selection is the deliberate resume the sweep refuses to
-        # infer: `in_progress` launches, everything else unlaunchable is
-        # reported loudly.
-        launchable = {"active", "in_progress", "blocked"} if explicit else {"active", "blocked"}
+        # `active` / `in_progress` (launchable) and `blocked` (reportable)
+        # tickets are in scope: the sweep starts active work and resumes
+        # in_progress work — a crashed or torn-down session leaves that
+        # status behind, and the resume works exactly like a manual
+        # `coga launch <slug>`. Draft/paused/done are ignored in the default
+        # sweep — never launched and never counted as a result — while an
+        # explicit selection reports them loudly as unlaunchable.
+        launchable = {"active", "in_progress", "blocked"}
         if ticket.status not in launchable:
             if explicit:
                 results.append(
@@ -223,7 +220,7 @@ def run_megalaunch(
                     )
                 )
             continue
-        candidate = _candidate_result(cfg, ref, ticket, explicit=explicit)
+        candidate = _candidate_result(cfg, ref, ticket)
         if candidate is not None:
             results.append(candidate)
             continue
@@ -339,19 +336,16 @@ def _candidate_result(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
-    *,
-    explicit: bool = False,
 ) -> MegalaunchResult | None:
     blockers = open_blockers(ref.ticket_path)
     if ticket.status == "blocked":
         detail = "; ".join(blocker.reason for blocker in blockers) or "status is blocked"
         return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
 
-    # An explicitly selected `in_progress` ticket goes through the same gates
-    # as an `active` one — a resume must not dodge the script-step gate
-    # just because a prior session already flipped the status.
-    launchable = {"active", "in_progress"} if explicit else {"active"}
-    if ticket.status not in launchable:
+    # An `in_progress` resume goes through the same gates as an `active`
+    # start — it must not dodge the script-step gate just because a prior
+    # session already flipped the status.
+    if ticket.status not in {"active", "in_progress"}:
         return None
     if blockers:
         detail = "; ".join(blocker.reason for blocker in blockers)

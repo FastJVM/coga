@@ -2,7 +2,8 @@
 
 Three ways in, one engine:
 
-- bare `coga megalaunch` — sweep every launchable `active` task.
+- bare `coga megalaunch` — sweep every launchable `active` or `in_progress`
+  task (`active` starts, `in_progress` resumes).
 - `coga megalaunch --pick` — interactive picker over the operator's `active`
   + `in_progress` agent tickets, all pre-checked; the confirmed set runs as
   an explicit selection (and is saved for `--relaunch`).
