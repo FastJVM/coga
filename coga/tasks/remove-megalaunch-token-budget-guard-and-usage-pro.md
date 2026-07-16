@@ -1,7 +1,7 @@
 ---
 slug: remove-megalaunch-token-budget-guard-and-usage-pro
 title: Remove megalaunch token-budget guard and usage probe
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
