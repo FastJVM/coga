@@ -1,7 +1,7 @@
 ---
 slug: coga-important/context
 title: context
-status: active
+status: in_progress
 owner: zach
 human: zach
 agent: claude
