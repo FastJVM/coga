@@ -181,3 +181,5 @@ Peer-review verification:
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":145839,"cache_read_input_tokens":4474969,"cli":"claude","input_tokens":144,"model":"claude-opus-4-8","output_tokens":46893,"provider":"anthropic","schema":1,"session_id":"5eb690c3-4775-41e0-b737-52a5b8bf430e","slug":"coga-important/context","step":"implement","title":"context","ts":"2026-07-16T00:56:09.529638Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1751168,"cli":"codex","input_tokens":201611,"model":"gpt-5.5","output_tokens":12678,"provider":"openai","schema":1,"session_id":"019f686c-9035-7173-9e40-f60b4ffcf5e7","slug":"coga-important/context","step":"peer-review","title":"context","ts":"2026-07-16T01:17:29.795708Z","usage_status":"ok"}
