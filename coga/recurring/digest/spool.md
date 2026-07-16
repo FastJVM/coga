@@ -20,3 +20,4 @@ consumed_through: 4f676e9ca380
 {"id":"4f676e9ca380","ts":"2026-07-15T12:32","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/skill-update","owner":"nick"}
 {"id":"701102bd50d8","ts":"2026-07-15T12:32","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nick"}
 {"id":"64832a75819d","ts":"2026-07-15T12:33","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nick"}
+{"id":"c2166e860b5b","ts":"2026-07-15T20:01","project":"coga","kind":"done","detail":"claude finished: open-pr → done ✅ — PR merged; task complete.","ticket":"remove-megalaunch-token-budget-guard-and-usage-pro","owner":"nicktoper"}
