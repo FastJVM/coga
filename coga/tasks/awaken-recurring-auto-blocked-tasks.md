@@ -147,13 +147,3 @@ Peer review:
 - [2026-07-01] That peer-review fix is historical for the superseded parser
   design. PR-comment fix rebased the branch onto current main and removed the
   duplicate parser/status-table path instead of carrying that shape forward.
-
-## Usage
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":852736,"cli":"codex","input_tokens":229218,"model":"gpt-5.5","output_tokens":7989,"provider":"openai","schema":1,"session_id":"019f1a9b-efdc-7d02-84bb-575d0705e997","slug":"awaken-recurring-auto-blocked-tasks","step":"implement","title":"Awaken recurring auto blocked tasks","ts":"2026-06-30T22:42:53.272515Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":8725888,"cli":"codex","input_tokens":373990,"model":"gpt-5.5","output_tokens":32935,"provider":"openai","schema":1,"session_id":"019f1ab6-2928-70c0-8dc8-24549642ea34","slug":"awaken-recurring-auto-blocked-tasks","step":"implement","title":"Awaken recurring auto blocked tasks","ts":"2026-06-30T23:15:36.431722Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2627072,"cli":"codex","input_tokens":125351,"model":"gpt-5.5","output_tokens":5973,"provider":"openai","schema":1,"session_id":"019f1ad1-1abf-7921-93c4-5fcf616eb792","slug":"awaken-recurring-auto-blocked-tasks","step":"peer-review","title":"Awaken recurring auto blocked tasks","ts":"2026-06-30T23:44:30.059633Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":211461,"cache_read_input_tokens":1655691,"cli":"claude","input_tokens":16884,"model":"claude-opus-4-8","output_tokens":11450,"provider":"anthropic","schema":1,"session_id":"2c669351-5850-411d-b849-e6ea4a129c68","slug":"awaken-recurring-auto-blocked-tasks","step":"open-pr","title":"Awaken recurring auto blocked tasks","ts":"2026-06-30T23:46:17.079890Z","usage_status":"ok"}

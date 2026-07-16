@@ -167,11 +167,6 @@ worktree: /home/n/Code/codex/coga-remove-ticket-mode
 - `coga/tasks/*` body text and `coga/log.md` history mentioning the old
   `mode:` field left untouched (historical record).
 
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":660827,"cache_read_input_tokens":56303156,"cli":"claude","input_tokens":593,"model":"claude-fable-5","output_tokens":227861,"provider":"anthropic","schema":1,"session_id":"98eb70fc-7cb4-46c9-9447-255c77bfdc0f","slug":"remove-mode-from-ticket-frontmatter-and-deduce-scr","step":"implement","title":"Remove mode from ticket frontmatter and deduce script-vs-agent from context","ts":"2026-07-14T02:56:53.900933Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":18570752,"cli":"codex","input_tokens":297043,"model":"gpt-5.6-sol","output_tokens":28162,"provider":"openai","schema":1,"session_id":"019f5e8e-5c28-7861-b48a-cd55e216e410","slug":"remove-mode-from-ticket-frontmatter-and-deduce-scr","step":"peer-review","title":"Remove mode from ticket frontmatter and deduce script-vs-agent from context","ts":"2026-07-14T03:49:22.044276Z","usage_status":"ok"}
 ## Peer Review (2026-07-13)
 
 - Native `codex review --base main` completed after rerunning outside the

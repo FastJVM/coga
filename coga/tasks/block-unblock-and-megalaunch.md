@@ -193,17 +193,3 @@ Owner review assist:
 - [2026-06-26 21:59] [agent:claude] Implementation is committed on branch async-park-continue at d92bd679, but coga bump cannot advance because the live ticket frontmatter is status: draft. Launch/activate the task into in_progress, then rerun coga bump to hand off to peer-review.
 
 - [2026-06-26 22:03] [agent:claude] Implementation is committed on branch async-park-continue at d92bd679, but coga bump cannot advance because the live ticket frontmatter is status: draft. Launch/activate the task into in_progress, then rerun coga bump to hand off to peer-review.
-
-## Usage
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2934400,"cli":"codex","input_tokens":154521,"model":"gpt-5.5","output_tokens":7115,"provider":"openai","schema":1,"session_id":"019f077c-30e3-7d92-82f1-ccb41abd64e2","slug":"async-park-and-continue-on-block","step":"peer-review","title":"Async park-and-continue on block","ts":"2026-06-27T05:24:44.583580Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":291708,"cache_read_input_tokens":1575817,"cli":"claude","input_tokens":19315,"model":"claude-opus-4-8","output_tokens":16395,"provider":"anthropic","schema":1,"session_id":"4bd8aa99-3833-4809-a2bb-042dbb0cce43","slug":"async-park-and-continue-on-block","step":"open-pr","title":"Async park-and-continue on block","ts":"2026-06-27T22:05:12.337734Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1997696,"cli":"codex","input_tokens":239243,"model":"gpt-5.5","output_tokens":11470,"provider":"openai","schema":1,"session_id":"019f0b21-3288-72a1-9c69-5f50041dca88","slug":"async-park-and-continue-on-block","step":"review","title":"Async park-and-continue on block","ts":"2026-06-28T21:25:25.031685Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":501120,"cli":"codex","input_tokens":169078,"model":"gpt-5.5","output_tokens":5135,"provider":"openai","schema":1,"session_id":"019f1576-32f3-7bd3-80a1-7ac32fddb9cc","slug":"block-unblock-and-megalaunch","step":"review","title":"Block, unblock, and megalaunch","ts":"2026-06-29T22:21:58.534443Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3428224,"cli":"codex","input_tokens":119900,"model":"gpt-5.5","output_tokens":15047,"provider":"openai","schema":1,"session_id":"019f1a85-6be6-71c1-8ced-fbde4f702dab","slug":"block-unblock-and-megalaunch","step":"open-pr","title":"Block, unblock, and megalaunch","ts":"2026-06-30T22:07:20.813901Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1652096,"cli":"codex","input_tokens":148629,"model":"gpt-5.5","output_tokens":11273,"provider":"openai","schema":1,"session_id":"019f1a92-f8a1-7200-90e7-46f00924fed4","slug":"block-unblock-and-megalaunch","step":"review","title":"Block, unblock, and megalaunch","ts":"2026-06-30T22:16:51.655286Z","usage_status":"ok"}

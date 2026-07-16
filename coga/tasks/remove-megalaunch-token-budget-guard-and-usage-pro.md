@@ -183,9 +183,3 @@ fail loudly with instructions to delete them, while per-session `## Usage`
 capture remains unchanged.
 
 Test plan: `PYTHONPATH=/home/n/Code/claude/coga-remove-budget-guard/src python -m pytest` (1192 passed, 1 skipped).
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":422369,"cache_read_input_tokens":13112355,"cli":"claude","input_tokens":246,"model":"claude-fable-5","output_tokens":141668,"provider":"anthropic","schema":1,"session_id":"fb42e30c-579e-460f-8e7d-9ecd9b4402d5","slug":"remove-megalaunch-token-budget-guard-and-usage-pro","step":"implement","title":"Remove megalaunch token-budget guard and usage probe","ts":"2026-07-16T02:47:44.756349Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3358976,"cli":"codex","input_tokens":131676,"model":"gpt-5.6-sol","output_tokens":7322,"provider":"openai","schema":1,"session_id":"019f68d2-b374-72b2-9472-b0dbd686ba6a","slug":"remove-megalaunch-token-budget-guard-and-usage-pro","step":"peer-review","title":"Remove megalaunch token-budget guard and usage probe","ts":"2026-07-16T03:01:14.921251Z","usage_status":"ok"}

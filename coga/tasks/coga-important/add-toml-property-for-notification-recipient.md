@@ -134,12 +134,6 @@ The shape, for whoever picks this up:
 
 - [ ] [2026-07-15 17:55] [agent:claude] id=20260715T175503 Depends on unmerged PR #553 (support-second-webhook). The ticket's three named anchors — _resolve_notification_slack_important_webhook, _ALLOWED_LEGACY_SLACK_KEYS, and the coga slack --important flag — exist only on that branch, not on main. Owner chose (2026-07-15) to wait for #553 to merge rather than stack or duplicate the split. Unblock with 'coga unblock add-toml-property-for-notification-recipient --answer "#553 merged"' once it lands; the blackboard records the ready-to-implement shape.
 
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":145552,"cache_read_input_tokens":2596658,"cli":"claude","input_tokens":80,"model":"claude-opus-4-8","output_tokens":39010,"provider":"anthropic","schema":1,"session_id":"a2210a73-4970-4b4f-bd95-844ca5780a9d","slug":"coga-important/add-toml-property-for-notification-recipient","step":"implement","title":"add-toml-property-for-notification-recipient","ts":"2026-07-16T00:55:05.813649Z","usage_status":"ok"}
-
----
-
 ## Blocker reminders
 
 - 345ef866cdda last_reminded: 2026-07-15 20:14

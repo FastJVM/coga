@@ -112,11 +112,3 @@ true for coga. What is true: the ambient `python3` is 3.9.12 (no `tomllib`)
 and `python3.12` is available. Durable framing: don't trust the default
 `python3`; name a 3.11+ interpreter explicitly (covers a stale/missing venv
 too). Human confirmed: fold (a) into Daily commands; new section for (b/c/d).
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":89250,"cache_read_input_tokens":340878,"cli":"claude","input_tokens":16337,"model":"claude-opus-4-8","output_tokens":8416,"provider":"anthropic","schema":1,"session_id":"39deb049-6fb3-4b4b-8a3d-32aacb1cdbe5","slug":"document-cross-machine-sandbox-dev-loop-friction-i","step":"implement","title":"Document cross-machine/sandbox dev-loop friction in coga/codebase","ts":"2026-06-30T05:11:00.381535Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":676480,"cli":"codex","input_tokens":171139,"model":"gpt-5.5","output_tokens":5500,"provider":"openai","schema":1,"session_id":"019f16f0-1852-75d2-9ea3-663483462423","slug":"document-cross-machine-sandbox-dev-loop-friction-i","step":"peer-review","title":"Document cross-machine/sandbox dev-loop friction in coga/codebase","ts":"2026-06-30T05:25:28.788594Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":92303,"cache_read_input_tokens":427007,"cli":"claude","input_tokens":14830,"model":"claude-opus-4-8","output_tokens":5966,"provider":"anthropic","schema":1,"session_id":"202cea6a-15b6-4003-bcdb-833ebacab0e3","slug":"document-cross-machine-sandbox-dev-loop-friction-i","step":"open-pr","title":"Document cross-machine/sandbox dev-loop friction in coga/codebase","ts":"2026-06-30T05:26:30.656280Z","usage_status":"ok"}

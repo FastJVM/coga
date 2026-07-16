@@ -119,9 +119,3 @@ worktree: /home/n/Code/claude/coga/.coga/worktrees/coga-readme-venv-install
 ### Test plan
 
 `PYTHONPATH=src python -m pytest` — 1170 passed, 1 skipped.
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":123250,"cache_read_input_tokens":2185750,"cli":"claude","input_tokens":90,"model":"claude-fable-5","output_tokens":34190,"provider":"anthropic","schema":1,"session_id":"4a5cc6bf-320d-40c4-b0a0-c0a411e32313","slug":"install/recommend-virtualenv-not-system-python","step":"implement","title":"Onboarding install should use a virtualenv, not system Python","ts":"2026-07-14T01:07:40.433781Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3733504,"cli":"codex","input_tokens":118702,"model":"gpt-5.6-sol","output_tokens":11429,"provider":"openai","schema":1,"session_id":"019f5e2a-5bf9-7f41-b66f-805a29579f96","slug":"install/recommend-virtualenv-not-system-python","step":"peer-review","title":"Onboarding install should use a virtualenv, not system Python","ts":"2026-07-14T01:17:32.718888Z","usage_status":"ok"}

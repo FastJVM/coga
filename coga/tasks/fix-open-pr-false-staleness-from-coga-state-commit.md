@@ -121,9 +121,3 @@ mis-scoped drift. Surface the accepted exception and cover nested/root Coga
 layouts plus rename overlap in regression tests.
 
 Test plan: `PYTHONPATH=$PWD/src python3.12 -m pytest -q` (1149 passed, 1 skipped).
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":153065,"cache_read_input_tokens":755742,"cli":"claude","input_tokens":31,"model":"claude-fable-5","output_tokens":7359,"provider":"anthropic","schema":1,"session_id":"b2904d8a-57f3-438c-9079-4d25062900c5","slug":"fix-open-pr-false-staleness-from-coga-state-commit","step":"implement","title":"Fix open-pr false staleness from Coga state commits","ts":"2026-07-11T03:51:25.285230Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3105536,"cli":"codex","input_tokens":120694,"model":"gpt-5.6-sol","output_tokens":10357,"provider":"openai","schema":1,"session_id":"019f4f4d-3232-74c1-8f78-18cb21970751","slug":"fix-open-pr-false-staleness-from-coga-state-commit","step":"peer-review","title":"Fix open-pr false staleness from Coga state commits","ts":"2026-07-11T04:23:11.618272Z","usage_status":"ok"}

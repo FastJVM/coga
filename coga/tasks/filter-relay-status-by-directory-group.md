@@ -260,7 +260,3 @@ scope, and a rebase is a design call).
 - contexts/relay/architecture (override + template) — task-directory paragraph note
 - recurring/period/current-direction contexts + tests — remove remaining
   task-directory "group" wording
-
-## Usage
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":222592,"cli":"codex","input_tokens":68571,"model":"gpt-5.5","output_tokens":4071,"provider":"openai","schema":1,"session_id":"019f0732-5830-72a2-b661-29559f983110","slug":"filter-relay-status-by-directory-group","step":"implement","title":"Filter relay status by directory/group","ts":"2026-06-27T03:50:57.770545Z","usage_status":"ok"}

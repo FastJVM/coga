@@ -86,7 +86,3 @@ migration-errors PR is on main.**
 2. Releases → Draft a new release → tag `v0.3.0`, target `main`, publish.
 3. Workflow publishes to PyPI via Trusted Publishing; verify with
    `pipx install coga && coga --version`.
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":117699,"cache_read_input_tokens":1721738,"cli":"claude","input_tokens":76,"model":"claude-fable-5","output_tokens":23284,"provider":"anthropic","schema":1,"session_id":"52115c07-7d44-4bf0-b3fe-cb97b1c67a16","slug":"install/cut-release-to-realign-pypi-with-main","step":"implement","title":"Cut release to realign PyPI with main","ts":"2026-07-16T00:00:04.545170Z","usage_status":"ok"}
