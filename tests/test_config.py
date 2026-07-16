@@ -150,7 +150,7 @@ def test_agent_skip_keys_rejected_in_shared_toml(repo: Path) -> None:
     text = (repo / "coga.toml").read_text()
     (repo / "coga.toml").write_text(text + 'skip_permissions = "auto"\n')
     with pytest.raises(
-        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*skip_permissions"
+        ConfigError, match=r"\[agents.claude\] has removed key\(s\).*skip_permissions"
     ):
         load_config(repo)
 
@@ -161,16 +161,30 @@ def test_agent_skip_argv_rejected_in_shared_toml(repo: Path) -> None:
         text + 'skip_permissions_argv = "--dangerously-skip-permissions"\n'
     )
     with pytest.raises(
-        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*skip_permissions_argv"
+        ConfigError, match=r"\[agents.claude\] has removed key\(s\).*skip_permissions_argv"
     ):
         load_config(repo)
 
 
 def test_agent_auto_argv_rejected_in_shared_toml(repo: Path) -> None:
+    """`auto` was scaffolded into every 0.2.0-initialized coga.toml, so it must
+    get the tailored migration error (delete the line), not the generic
+    unknown-key one — otherwise upgrading the CLI bricks the repo with no hint."""
     text = (repo / "coga.toml").read_text()
     (repo / "coga.toml").write_text(text + 'auto = "-p"\n')
     with pytest.raises(
-        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*auto"
+        ConfigError, match=r"\[agents.claude\] has removed key\(s\).*auto.*Delete"
+    ):
+        load_config(repo)
+
+
+def test_agent_unknown_key_error_survives_removed_keys(repo: Path) -> None:
+    """A genuinely unknown key still gets the generic unknown-key error when no
+    removed key is present — the migration carve-out narrows nothing."""
+    text = (repo / "coga.toml").read_text()
+    (repo / "coga.toml").write_text(text + 'clii = "claude"\n')
+    with pytest.raises(
+        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*clii"
     ):
         load_config(repo)
 

@@ -293,7 +293,10 @@ Package-backed bootstrap tickets may also name a ticket-owned script; those
 run through the same script path with stateless launch semantics, so the
 bootstrap target itself gets no task lifecycle or log writes.
 
-There is no `autonomy:` field. The old `skip_permissions` / `skip_permissions_argv` keys are removed and rejected as unknown config.
+There is no `autonomy:` field. The old `auto`, `skip_permissions`, and
+`skip_permissions_argv` agent keys are removed; config load rejects them with
+a dedicated migration error saying to delete the lines (they beat the generic
+unknown-key check, since the 0.2.0 scaffold wrote `auto` into every repo).
 
 ### Script steps inside an agent workflow
 
