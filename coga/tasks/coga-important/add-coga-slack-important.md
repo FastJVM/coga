@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -50,6 +50,7 @@ the recipient set in coga.toml instead of the ticket owner.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/578
 branch: slack-important-alert
 worktree: /Users/zach2179/dev/coga-slack-important-alert
 
