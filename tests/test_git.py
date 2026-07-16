@@ -1560,9 +1560,16 @@ def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
     assert calls == [cfg]  # mutating nested command swept
 
     calls.clear()
-    monkeypatch.setattr(cli.sys, "argv", ["coga", "recurring", "--all"])
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "recurring", "--force"])
     cli._sweep_coga_state(cfg)
     assert calls == [cfg]  # bare recurring scan with options mutates
+
+    calls.clear()
+    monkeypatch.setattr(
+        cli.sys, "argv", ["coga", "recurring", "--all", "/tmp/workspaces"]
+    )
+    cli._sweep_coga_state(cfg)
+    assert calls == []  # child CLIs sweep their own repos
 
     calls.clear()
     monkeypatch.setattr(cli.sys, "argv", ["coga", "mark", "done", "demo"])

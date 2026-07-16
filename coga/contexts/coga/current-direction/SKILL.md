@@ -5,7 +5,7 @@ description: What we're building right now in coga. Recent decisions, open ticke
 
 # Coga — current direction
 
-Last updated: 2026-06-13.
+Last updated: 2026-07-16.
 
 ## Current redesign (recurring lifecycle and identity)
 
@@ -25,13 +25,19 @@ Last updated: 2026-06-13.
   human-parked. A missing task dir plus `last_serviced_period >= current
   period_key` means this period already ran.
 
-- **`coga recurring --all` is a forced real run, not a debug sandbox.** The
+- **`coga recurring --force` is a forced real run, not a debug sandbox.** The
   old `<name>-dbg-<timestamp>` scratch machinery (slug-based Slack/git
-  suppression, orphan reaping, fold-back-to-template-log) is gone. `--all` now
+  suppression, orphan reaping, fold-back-to-template-log) is gone. `--force` now
   get-or-creates and launches each template's real `recurring/<name>` task,
   bypassing only the schedule and the status filter — every other effect (Slack,
   spool drain, git sync, `last_serviced_period` advance) is identical to a bare
   sweep.
+
+- **`coga recurring --all <path>` is the one-entry scheduler surface.** It
+  discovers every Coga repo below the explicit parent path and runs each repo's
+  ordinary due sweep once, sequentially. The old force-every-template behavior
+  moved to `--force`; combining both flags deliberately force-runs every
+  template in every discovered repo.
 
 ## Open rename (workflow → playbook)
 

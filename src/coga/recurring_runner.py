@@ -49,6 +49,144 @@ from coga.validate import TaskValidationError
 # the window or, at `<= 0` / non-finite, disarms it.
 _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
 
+# A parent-directory sweep discovers real Coga workspaces, not dependency or
+# tool-state trees. Once one workspace is found its subtree is a unit: Coga
+# refuses nested workspaces, and descending would only find fixtures or
+# packaged templates inside the repo.
+_REPO_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
+    {".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"}
+)
+
+
+def discover_coga_repos(root: Path) -> list[Path]:
+    """Return every ``coga/`` workspace at or below ``root``.
+
+    A workspace is identified by a directory named ``coga`` containing
+    ``coga.toml``. A host repo may itself be named ``coga``, so a same-named
+    directory without that file is still traversed.
+    """
+    if root.name == "coga" and (root / "coga.toml").is_file():
+        return [root]
+
+    found: list[Path] = []
+    for dirpath, dirnames, _ in os.walk(root):
+        dirnames[:] = [name for name in dirnames if name not in _REPO_SCAN_SKIP_DIRS]
+        if "coga" not in dirnames:
+            continue
+        coga_os = Path(dirpath) / "coga"
+        if not (coga_os / "coga.toml").is_file():
+            continue
+        found.append(coga_os)
+        dirnames[:] = []
+    return sorted(found)
+
+
+def run_recurring_all_repos(
+    scan_root: Path,
+    *,
+    force: bool = False,
+    interactive: bool = False,
+    agent_override: str | None = None,
+) -> int:
+    """Run one normal recurring sweep in every Coga repo below ``scan_root``.
+
+    Each repo runs in a fresh CLI process so config discovery, aliases, launch
+    supervision, and the end-of-command Coga-state sync have exactly their
+    ordinary single-repo behavior. Failures are isolated: the sweep continues
+    through later repos and returns non-zero after reporting the aggregate.
+    """
+    root = scan_root.expanduser().resolve()
+    if not root.is_dir():
+        typer.secho(f"{root} is not a directory.", fg=typer.colors.RED, err=True)
+        return 2
+
+    repos = discover_coga_repos(root)
+    if not repos:
+        typer.secho(
+            f"No Coga repos found under {root} "
+            "(looked for coga/ directories with a coga.toml).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return 1
+
+    typer.echo(f"Found {len(repos)} Coga repo(s) under {root}:")
+    for coga_os in repos:
+        typer.echo(f"  {_repo_label(coga_os, root)}")
+
+    failed: list[str] = []
+    for index, coga_os in enumerate(repos, 1):
+        label = _repo_label(coga_os, root)
+        typer.secho(
+            f"\n[{index}/{len(repos)}] {label}", fg=typer.colors.CYAN, bold=True
+        )
+        process_started = True
+        try:
+            code = _run_repo_recurring(
+                coga_os,
+                force=force,
+                interactive=interactive,
+                agent_override=agent_override,
+            )
+        except OSError as exc:
+            process_started = False
+            code = 1
+            typer.secho(f"  ✗ {label} — {exc}", fg=typer.colors.RED, err=True)
+        if code:
+            failed.append(label)
+            if process_started:
+                typer.secho(
+                    f"  ✗ {label} — recurring exited {code}",
+                    fg=typer.colors.RED,
+                    err=True,
+                )
+
+    typer.echo(f"\nSwept {len(repos) - len(failed)} of {len(repos)} Coga repo(s).")
+    if failed:
+        typer.secho(
+            f"{len(failed)} repo(s) failed — see above.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return 1
+    return 0
+
+
+def _repo_label(coga_os: Path, root: Path) -> str:
+    host_repo = coga_os.parent
+    try:
+        relative = host_repo.relative_to(root)
+    except ValueError:
+        return str(host_repo)
+    return host_repo.name if relative == Path(".") else str(relative)
+
+
+def _run_repo_recurring(
+    coga_os: Path,
+    *,
+    force: bool,
+    interactive: bool,
+    agent_override: str | None,
+) -> int:
+    """Dispatch the ordinary recurring CLI once from ``coga_os``'s host."""
+    command = [sys.executable, "-m", "coga.cli", "recurring"]
+    if force:
+        command.append("--force")
+    if interactive:
+        command.append("--interactive")
+    if agent_override:
+        command.extend(("--agent", agent_override))
+
+    env = os.environ.copy()
+    for name in (
+        "COGA_RECURRING_FORCE",
+        "COGA_RECURRING_INTERACTIVE",
+        "COGA_RECURRING_AGENT",
+    ):
+        env.pop(name, None)
+    result = subprocess.run(command, cwd=coga_os.parent, env=env, check=False)
+    return result.returncode
+
 
 def run_recurring_scan(
     cfg: Config,
@@ -71,7 +209,7 @@ def run_recurring_scan(
     template produces one run, not a backlog. It does not install or manage
     system cron; nothing runs unless you invoke it.
 
-    `--all` forces a real, full run: the only difference from the bare sweep is
+    `--force` forces a real, full run: the only difference from the bare sweep is
     that it ignores the schedule and the status filter, so every template is
     launched — including ones already serviced this period (re-launched) and
     `done`/`paused` ones (`coga launch` re-activates them). Everything else —
@@ -1203,7 +1341,7 @@ def _recurring_max_session(cfg) -> float | None:
 def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
     """Record a forced rerun only once the sweep reaches this task.
 
-    `coga recurring --all` includes existing `done`/`paused` period tasks.
+    `coga recurring --force` includes existing `done`/`paused` period tasks.
     Those tasks must not advance the parent high-water during scan: a prior
     task might stop the sequential sweep first. Once we reach the task, flip it
     back to `active`, then record the forced period and sync the real task.

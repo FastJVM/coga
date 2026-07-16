@@ -70,6 +70,11 @@ no in-memory state.
   `last_serviced_period` in the template blackboard, and launches the due
   ones. The created tasks then use the same ticket, workflow, launch, bump,
   and blackboard machinery as any other task.
+  `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
+  repos below the path and invokes each repo's ordinary recurring sweep once,
+  so one scheduler entry can serve several repos without centralizing their
+  schedules or state. `--force` is the explicit schedule/status bypass and
+  composes with the parent sweep.
 - **Bootstrap tickets** in package `bootstrap/<name>/ticket.md` resources
   are stateless launch targets for skills or ticket-owned scripts. No status,
   no workflow. Used for ticket-less re-entry points like `coga launch
