@@ -1,7 +1,7 @@
 ---
 slug: coga-important/add-coga-slack-important
 title: add-coga-slack-important
-status: in_progress
+status: blocked
 owner: zach
 human: zach
 agent: claude
@@ -142,6 +142,7 @@ post still goes to `webhook`, and the recipient mention renders as `<@UID>`.
 - [x] [2026-07-15 18:39] [agent:claude] id=20260715T183957 Depends on unmerged PR #553 (support-second-webhook) and on the unimplemented sibling coga-important/add-toml-property-for-notification-recipient. Neither half is buildable from main: the alert-message-shape half needs the 'coga slack --important' flag, which exists only on the open important-webhook branch; the recipient half needs [notification.slack].important_recipient, which exists nowhere (the sibling that owns it is itself status:blocked on #553, no branch, no code). #553 is OPEN at its ticket's step 4 (review) awaiting your review. Owner already chose option 1 on the sibling (2026-07-15): wait for #553 rather than stack or duplicate; same reasoning applies here. Unblock with 'coga unblock add-coga-slack-important --answer "#553 merged and important_recipient landed"' once both land.
   resolved: [2026-07-16 11:52] [human:zach] #553 (support-second-webhook) merged 2026-07-16; --important + second-webhook routing now on main. That half is resolved. Still waiting on important_recipient — re-blocking narrowed to just that.
 
+- [ ] [2026-07-16 11:53] [agent:claude] id=20260716T115308 #553 merged 2026-07-16, so 'coga slack --important' + second-webhook routing are on main. Now blocked only on [notification.slack].important_recipient, which the owner is implementing in the sibling add-toml-property-for-notification-recipient (in_progress, no code landed yet). Resume once important_recipient lands on main, then implement the recipient mention (@ recipient instead of ticket owner) + the alert message shape. Unblock with: coga unblock add-coga-slack-important --answer "important_recipient landed".
 ## Blocker reminders
 
 - 1cb3cae66a09 last_reminded: 2026-07-15 20:14
