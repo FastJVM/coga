@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -75,12 +75,28 @@ worktree: /home/n/Code/claude/coga-release-0.3.0
 ## ⚠ Merge/publish ordering constraint
 
 The dependency ticket `install/add-migration-errors-for-removed-config-keys`
-has NOT landed yet (now at step 2, peer-review; `src/coga/config.py` on main
-has no migration carve-out for the removed `[agents.*] auto` key). Per this
-ticket's description, 0.3.0 must be **published after** that ticket lands so
-upgraders get actionable errors. The version bump itself is safe to review
-now, but **do not merge this PR / cut the GitHub release until the
-migration-errors PR is on main.**
+has NOT landed yet. Its PR [#579](https://github.com/FastJVM/coga/pull/579) is
+open at the human-review step, and `src/coga/config.py` on `origin/main`
+still has no migration carve-out for the removed `[agents.*] auto` key. Per
+this ticket's description, 0.3.0 must be **published after** that PR lands so
+upgraders get actionable errors. The version bump itself is safe to review,
+but **do not merge this PR / cut the GitHub release until PR #579 is on
+main.**
+
+## Peer review (2026-07-16)
+
+- Native `codex review --base main` found no actionable regression in the
+  one-line package metadata change.
+- Rebased unconditionally onto fresh `origin/main` at `0e8dc536`; the branch
+  is clean, exactly one commit ahead, and its only diff is the
+  `pyproject.toml` version change. `git diff --check` passes.
+- Full suite after rebase, with the packaging backend and `pip` present:
+  `uv run --python 3.12 --extra test --with pip python -m pytest -q` — 1220
+  passed. Source-backed smoke check reports `coga 0.3.0`.
+- The first packaging-enabled run omitted `pip`, so the wheel test failed
+  because its subprocess could not run `python -m pip`; the complete rerun
+  above includes `pip` and passes. This was a test-environment issue, not a
+  branch regression.
 
 ## Remaining after merge (human, per docs/releasing.md)
 
@@ -89,6 +105,15 @@ migration-errors PR is on main.**
 3. Workflow publishes to PyPI via Trusted Publishing; verify with
    `pipx install coga && coga --version`.
 
-## Usage
+## PR
 
-{"agent":"claude","cache_creation_input_tokens":62973,"cache_read_input_tokens":685251,"cli":"claude","input_tokens":35,"model":"claude-fable-5","output_tokens":5724,"provider":"anthropic","schema":1,"session_id":"f8ad1838-8e68-409f-9dca-18d5937760e5","slug":"install/cut-release-to-realign-pypi-with-main","step":"implement","title":"Cut release to realign PyPI with main","ts":"2026-07-16T04:14:34.778056Z","usage_status":"ok"}
+### Summary
+
+- Bump the package version from 0.2.0 to 0.3.0 so the next PyPI release
+  accurately identifies the breaking behavior already on `main`.
+- Keep merge and release gated on migration-errors PR #579 so existing 0.2.0
+  repositories receive actionable removed-key guidance when they upgrade.
+
+### Test plan
+
+- `uv run --python 3.12 --extra test --with pip python -m pytest -q` — 1220 passed.
