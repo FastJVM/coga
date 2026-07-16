@@ -1,12 +1,24 @@
 ---
-schedule: "0 8 * * *"
-schedule_comment: "Every day at 8am - close merged final-step tickets before the 9am digest"
-title: "Autoclose merged tickets"
-# A script step runs the sweep directly with no agent: the workflow's one
-# step references the `coga/autoclose/sweep` skill, whose `script:` calls
-# `coga.autoclose.sweep_merged`. It runs directly with no agent buffering, so
-# it is safe for unattended recurring runs.
-workflow: autoclose-merged/sweep
+slug: recurring/autoclose-merged
+title: Autoclose merged tickets
+status: active
+owner: nicktoper
+human: nicktoper
+agent: claude
+assignee: claude
+contexts:
+- coga/period-task
+skills: []
+workflow:
+  name: autoclose-merged/sweep
+  steps:
+  - name: sweep
+    skills:
+    - coga/autoclose/sweep
+    assignee: agent
+secrets: null
+script: null
+step: 1 (sweep)
 ---
 
 ## Description
@@ -34,10 +46,8 @@ spooled into the daily digest when `recurring/digest/` is installed. Running at
 8am keeps those closures visible in the same day's 9am digest. A quiet day with
 no merged final-step tickets exits successfully and changes nothing.
 
+## Context
+
 <!-- coga:blackboard -->
 
-This blackboard persists across every run of this recurring task. The
-`coga/autoclose/sweep` script keeps no durable state here - every run's output
-is the tickets it marks done and the resulting digest spool records.
-
-last_serviced_period: 2026-07-16
+The blackboard is a notepad to be written to often as the human and agent works through a task.
