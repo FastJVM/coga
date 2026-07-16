@@ -1,11 +1,11 @@
 ---
 slug: remove-megalaunch-token-budget-guard-and-usage-pro
 title: Remove megalaunch token-budget guard and usage probe
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
 ---
 
 ## Description
@@ -154,6 +153,36 @@ Verification (scratch venv, python3.12, worktree installed editable):
   (`test_bootstrap_script_launch_is_stateless` — spawned script needs an
   installed `coga`); it fails identically on unmodified main and passes
   with the editable install, so it is environmental, not from this change.
+
+## Peer review (2026-07-15)
+
+- Native `codex review --base main`: no must-fix findings. It confirmed the
+  budget guard, probe plumbing, outcome/config/test surface, and packaged CLI
+  context were removed consistently.
+- Confirmed the separate per-session usage path remains intact:
+  megalaunch still calls `spawn_agent_session(..., capture_usage=True)`.
+- Confirmed `requests` remains a runtime dependency of Slack notification and
+  webhook validation code, so keeping it is correct.
+- Fetched `origin/main` and rebased unconditionally. The rebased feature commit
+  is `c23738cc`; the worktree is clean and exactly one commit ahead of the
+  fetched base.
+- Post-rebase verification:
+  `PYTHONPATH=/home/n/Code/claude/coga-remove-budget-guard/src python -m pytest`
+  -> 1192 passed, 1 skipped. A literal uninstalled `python -m pytest` reproduced
+  only the documented subprocess import environment failure (1191 passed,
+  1 skipped); the absolute source path is the codebase context's prescribed
+  sibling-worktree workaround.
+
+## PR
+
+Remove the obsolete megalaunch pre-launch token-budget gate and its per-agent
+usage probes. Megalaunch is now an attended, on-demand sweep, so it launches
+eligible work without spending a throwaway probe session or silently skipping
+agents when vendor usage-window formats drift. Removed reserve config keys now
+fail loudly with instructions to delete them, while per-session `## Usage`
+capture remains unchanged.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-remove-budget-guard/src python -m pytest` (1192 passed, 1 skipped).
 
 ## Usage
 
