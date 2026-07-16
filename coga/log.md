@@ -1308,3 +1308,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 17:28 [install/init-next-steps-should-mention-agent-cli-requireme] [megalaunch] launched via coga megalaunch
 2026-07-15 17:44 [install/init-next-steps-should-mention-agent-cli-requireme] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
 2026-07-15 17:45 [install/vendor-cli-from-installed-package-not-git-clone] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 17:49 [coga-important/context] [human:zach] activated (draft → active) — auto on launch

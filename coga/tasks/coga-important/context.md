@@ -1,16 +1,31 @@
 ---
 slug: coga-important/context
 title: context
-status: draft
+status: active
 owner: zach
 human: zach
 agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: docs/with-review
+workflow:
+  name: docs/with-review
+  steps:
+  - name: implement
+    skills: []
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills: []
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
