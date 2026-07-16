@@ -1528,3 +1528,5 @@ Aborting
 2026-07-16 10:15 [recurring/digest] [system] completed (final script step ran) via coga launch
 2026-07-16 10:15 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
 2026-07-16 10:15 [recurring/blocker-reminders] [system] launched as a script (skill=coga/blockers/remind, script=run.py)
+2026-07-16 10:15 [recurring/blocker-reminders] [system] script exited with code 0
+2026-07-16 10:15 [recurring/blocker-reminders] [system] completed (final script step ran) via coga launch
