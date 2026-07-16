@@ -5,7 +5,7 @@ status: draft
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts: []
 skills: []
 workflow: code/with-review
