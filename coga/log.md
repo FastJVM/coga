@@ -1516,3 +1516,5 @@ Aborting
 2026-07-16 10:14 [install/harden-packaging-and-install-before-launch] [system] {"agent":"claude","cache_creation_input_tokens":124548,"cache_read_input_tokens":975531,"cli":"claude","input_tokens":45,"model":"claude-fable-5","output_tokens":38334,"provider":"anthropic","schema":1,"session_id":"d50787e4-9c14-4649-b2b8-6016733357cb","slug":"install/harden-packaging-and-install-before-launch","step":"implement","title":"Harden packaging and first-install before launch","ts":"2026-07-16T17:14:41.723628Z","usage_status":"ok"}
 2026-07-16 10:14 [install/retest-ssh-https-and-init-reclone-on-fresh-machine] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-16 10:14 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
+2026-07-16 10:14 [recurring/autoclose-merged] [system] launched as a script (skill=coga/autoclose/sweep, script=run.py)
+2026-07-16 10:14 [coga-important/context] [human:nicktoper] auto-bumped on merge of PR #557 → done
