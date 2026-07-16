@@ -166,6 +166,23 @@ Two non-obvious requirements:
   or a stale/absent `.coga/.venv` (which may itself be 3.9 or missing on a
   fresh checkout).
 
+## Installed-versus-source skew warning
+
+`coga launch` and `coga validate` perform a warn-only diagnostic when they
+operate on a Coga source checkout. The check compares the installed package's
+file mtime with the latest committed change under `src/coga/`; if source is
+newer, stderr names both timestamps and recommends upgrading or reinstalling
+Coga. It never blocks the command and silently skips non-Coga repos, missing
+git metadata, and implausible package timestamps.
+
+A true editable source install is skipped even when its package comes from a
+different checkout: package code under that checkout's `src/` is already live
+source, whereas a frozen venv copy inside a checkout is still eligible for the
+warning. Interpret the signal as a diagnostic rather than proof of skew. A
+future-dated commit can cause a harmless clock-skew warning, and uncommitted
+`src/coga` edits are invisible because the source side intentionally uses git
+commit time.
+
 ## Sandbox and cross-machine dev loop
 
 Running the suite or CLI inside a restricted agent sandbox (e.g. Codex's) hits
