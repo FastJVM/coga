@@ -1485,3 +1485,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 21:26 [install/vendor-cli-from-installed-package-not-git-clone] [git] sync refused: coga/tasks/install/vendor-cli-from-installed-package-not-git-clone.md: step would move backward from '2 (peer-review)' to '1 (implement)'
 2026-07-15 21:26 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
 2026-07-15 21:29 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-16 09:59 [install/actionable-hint-when-recurring-template-references] [human:nicktoper] created (status=draft)
