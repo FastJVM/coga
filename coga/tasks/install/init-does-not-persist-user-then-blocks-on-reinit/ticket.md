@@ -87,7 +87,3 @@ Verification: `python3.12 -m pytest tests/test_init.py -q` — 94 passed
 Adjacent finding (not fixed here, per scope rules): `src/coga/cli.py:321` has a
 stale comment still describing "`coga init` (fresh or `--update`)" — `--update`
 was removed in #461. One-line comment cleanup for a follow-up or drive-by.
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":207287,"cache_read_input_tokens":2381919,"cli":"claude","input_tokens":73,"model":"claude-fable-5","output_tokens":33256,"provider":"anthropic","schema":1,"session_id":"9479cb4f-983d-4109-9b82-82e1948451f3","slug":"install/init-does-not-persist-user-then-blocks-on-reinit","step":"implement","title":"relay init doesn't persist user on first run, then wedges on re-init","ts":"2026-07-13T03:44:07.011916Z","usage_status":"ok"}

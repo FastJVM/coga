@@ -425,10 +425,10 @@ def test_spawn_leaves_log_dirty_when_commit_log_unset(git_repo, monkeypatch):
     assert "log.md" in git_repo.git("status", "--porcelain")
 
 
-def test_spawn_sweeps_usage_record_at_teardown(git_repo, monkeypatch):
-    """The teardown commits the `## Usage` record `capture_session` appends past
-    the agent's final `bump`/`mark` sync — the structural root cause of the
-    permanently-dirty tree — while product code outside `coga/` is left alone."""
+def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
+    """The teardown commits the usage record `capture_session` appends to the
+    global log past the agent's final `bump`/`mark` sync — via the log's own
+    union-safe sync, so the ticket and product code are left alone."""
     cfg = load_config(git_repo.coga_os)
     task = git_repo.coga_os / "tasks" / "demo"
     task.mkdir(parents=True)
@@ -438,7 +438,7 @@ def test_spawn_sweeps_usage_record_at_teardown(git_repo, monkeypatch):
     git_repo.git("push", "origin", "main")
     ref = TaskRef(slug="demo", path=task)
 
-    # A tracked code file outside coga/, dirtied — must survive the sweep.
+    # A tracked code file outside coga/, dirtied — must survive the teardown.
     outside = git_repo.root / "outside.txt"
     outside.write_text("original\n")
     git_repo.git("add", "outside.txt")
@@ -455,13 +455,22 @@ def test_spawn_sweeps_usage_record_at_teardown(git_repo, monkeypatch):
         lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
     )
 
-    def fake_capture(*, blackboard, **kwargs):  # type: ignore[no-untyped-def]
-        # Mirror the real append: a `## Usage` line written into the ticket
-        # blackboard, *past* the agent's last sync.
-        blackboard.write_text(blackboard.read_text() + '\n## Usage\n{"tokens": 1}\n')
+    def fake_capture(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        # Mirror the real append: a usage JSON line tagged onto the global
+        # log, *past* the agent's last sync.
+        log = git_repo.coga_os / "log.md"
+        log.write_text(
+            log.read_text() + '2026-06-23 12:00 [demo] [system] {"tokens": 1}\n'
+        )
 
     monkeypatch.setattr(
         "coga.commands.launch.usage_tracking.capture_session", fake_capture
+    )
+
+    # A hand-edit elsewhere under coga/ must NOT be swept in by the teardown —
+    # it commits at the next CLI dispatch boundary instead.
+    (task / "ticket.md").write_text(
+        "---\ntitle: demo\nstatus: active\n---\n\nbody\nhand edit\n"
     )
 
     spawn_agent_session(
@@ -475,13 +484,13 @@ def test_spawn_sweeps_usage_record_at_teardown(git_repo, monkeypatch):
         capture_usage=True,
     )
 
-    # The usage record is committed (clean coga/ tree) and pushed to the control
-    # branch — no dangling line left behind.
-    assert "coga/" not in git_repo.git("status", "--porcelain")
-    assert "## Usage" in git_repo.git(
-        "show", "origin/main:coga/tasks/demo/ticket.md"
-    )
-    # Product code outside coga/ stays dirty and unpushed.
+    # The usage record (and the launch line) is committed and pushed to the
+    # control branch — no dangling log line left behind.
+    assert "log.md" not in git_repo.git("status", "--porcelain")
+    assert '{"tokens": 1}' in git_repo.git("show", "origin/main:coga/log.md")
+    # The teardown commits exactly the log: the ticket hand-edit and product
+    # code outside coga/ stay dirty and unpushed.
+    assert "ticket.md" in git_repo.git("status", "--porcelain")
     assert "outside.txt" in git_repo.git("status", "--porcelain")
 
 

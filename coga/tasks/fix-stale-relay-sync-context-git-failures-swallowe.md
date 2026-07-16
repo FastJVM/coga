@@ -172,11 +172,3 @@ Notes for the human reviewer (out of scope for this docs PR, not fixed):
 
 Tests after fixes: `python3.12 -m pytest -q` — 1033 passed, 1 skipped.
 Working tree clean.
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":207637,"cache_read_input_tokens":4401901,"cli":"claude","input_tokens":21688,"model":"claude-fable-5","output_tokens":57798,"provider":"anthropic","schema":1,"session_id":"f23b9e02-a597-4a9c-a7ac-1960b6ce26cd","slug":"fix-stale-relay-sync-context-git-failures-swallowe","step":"implement","title":"Fix stale coga/sync context: git failures swallowed (exit 0), not typer.Exit(1)","ts":"2026-07-03T19:09:45.766527Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":415792,"cache_read_input_tokens":6517042,"cli":"claude","input_tokens":33562,"model":"claude-fable-5","output_tokens":188115,"provider":"anthropic","schema":1,"session_id":"c4a2f981-f287-4bb6-9a2b-92acc342df8d","slug":"fix-stale-relay-sync-context-git-failures-swallowe","step":"self-qa","title":"Fix stale coga/sync context: git failures swallowed (exit 0), not typer.Exit(1)","ts":"2026-07-03T19:21:04.078874Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":75899,"cache_read_input_tokens":671939,"cli":"claude","input_tokens":14978,"model":"claude-fable-5","output_tokens":6650,"provider":"anthropic","schema":1,"session_id":"d3415bc3-115a-41fd-a875-ece2274bb767","slug":"fix-stale-relay-sync-context-git-failures-swallowe","step":"pr","title":"Fix stale coga/sync context: git failures swallowed (exit 0), not typer.Exit(1)","ts":"2026-07-03T19:22:41.643134Z","usage_status":"ok"}

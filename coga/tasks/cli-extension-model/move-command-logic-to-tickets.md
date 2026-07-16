@@ -242,7 +242,3 @@ routes through — it touched only the SPAWN (compose → spawn → log), NOT th
 (`arg → create-draft`) or back (`validate/sync`) this shim owns. So the shim's scope
 is unchanged and its launch dependency is now built. Greet-first is no longer in this
 ticket's scope (the earlier "shim first → greet-first second" plan is moot).
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":263093,"cache_read_input_tokens":4014751,"cli":"claude","input_tokens":20950,"model":"claude-fable-5","output_tokens":61591,"provider":"anthropic","schema":1,"session_id":"71b9d8a4-50fd-43d8-bddd-97f1c308d445","slug":"cli-extension-model/move-command-logic-to-tickets","step":"execute","title":"Move command logic into tickets","ts":"2026-07-02T04:15:04.507261Z","usage_status":"ok"}

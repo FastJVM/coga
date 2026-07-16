@@ -141,9 +141,3 @@ hint, and required managed skills remain fail-loud.
 
 Tests: `/tmp/coga-managed-skills-review-venv/bin/python -m pytest -q` — 1150
 passed, 1 skipped.
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":255785,"cache_read_input_tokens":8398095,"cli":"claude","input_tokens":194,"model":"claude-fable-5","output_tokens":75281,"provider":"anthropic","schema":1,"session_id":"7ac00306-fdf1-45d7-89ea-78a362599c5f","slug":"install/external-users-cannot-install-managed-skills","step":"implement","title":"External users can't install managed skills (relay-skills access)","ts":"2026-07-11T01:48:08.284853Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":13059840,"cli":"codex","input_tokens":644595,"model":"gpt-5.6-sol","output_tokens":19952,"provider":"openai","schema":1,"session_id":"019f4edc-53ce-7dc0-a7ea-6b444323a298","slug":"install/external-users-cannot-install-managed-skills","step":"peer-review","title":"External users can't install managed skills (relay-skills access)","ts":"2026-07-13T00:50:19.909563Z","usage_status":"ok"}

@@ -136,12 +136,6 @@ Run the public path in a disposable clean Linux environment, without
 
 - [ ] [2026-07-12 20:37] [agent:claude] id=20260712T203710 Verification gate prerequisites unmet: PyPI latest is coga 0.2.0 (uploaded 2026-06-27, predating the 2026-07-08 retest fixes) and the named install/ siblings (vendor-cli-from-installed-package, warn-loud-when-init-commit-is-skipped, agent-CLI guidance, migration errors, external-users-cannot-install-managed-skills) plus cut-release-to-realign-pypi-with-main are still active/in_progress. Relaunch this gate after those tickets are done and the realigned version is published to PyPI.
 
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":85878,"cache_read_input_tokens":661972,"cli":"claude","input_tokens":38,"model":"claude-fable-5","output_tokens":18752,"provider":"anthropic","schema":1,"session_id":"f3954962-f1dd-4e15-bb0b-0cebf7bf74f0","slug":"install/harden-packaging-and-install-before-launch","step":"execute","title":"Harden packaging and first-install before launch","ts":"2026-07-13T03:37:12.771174Z","usage_status":"ok"}
-
----
-
 ## Blocker reminders
 
 - 5f5852d1e838 last_reminded: 2026-07-15 12:33

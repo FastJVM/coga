@@ -431,10 +431,10 @@ The per-transition syncs above each commit the *one* file a command intended to
 change, with a human-readable message. But two classes of write land *past* the
 last per-command sync and would otherwise sit dirty forever:
 
-- **Machine side-effects.** The dominant one is the per-session `## Usage`
-  record `coga launch` appends *after* the agent's final `bump`/`mark` (so
-  after the last sync). The digest spool and stray launch log lines are the same
-  shape.
+- **Machine side-effects.** The digest spool and stray log lines appended
+  past a command's own sync. (The per-session usage record used to be the
+  dominant case; it now lands in `log.md` and the launch teardown commits it
+  directly with the narrower `sync_log`, so it never waits for a sweep.)
 - **Human hand-edits.** A person editing a ticket body, blackboard, or context
   directly in the working tree — no command ran, so nothing committed it.
 
@@ -459,13 +459,9 @@ membership is asked of git directly via `git check-attr merge`, so any future
 sweep that can't reach the control branch is surfaced (stderr + `coga/log.md`),
 never a crash.
 
-It is wired at two boundaries, *in addition to* — never replacing — the
+It is wired at one boundary, *in addition to* — never replacing — the
 per-transition syncs, which keep the readable git history and digest filtering:
 
-- **Launch teardown**, after `usage_tracking.capture_session`, so each step's
-  usage record commits promptly. A supervised chain reaches this finally once
-  per step, where the CLI-dispatch boundary fires only once for the whole
-  launch.
 - **The CLI dispatch boundary** (`cli.py::main`'s `finally` around `app()`),
   for mutating commands only. Read-only commands (`status`, `show`, `validate`,
   `usage`), read-only group subcommands (`skill status`, `recurring list`,

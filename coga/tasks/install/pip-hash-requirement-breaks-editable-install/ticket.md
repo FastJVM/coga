@@ -144,9 +144,3 @@ remediation without silently overriding managed-machine policy, and document
 the `uv` and `PIP_REQUIRE_HASHES=0` escape hatches in the README.
 
 Test plan: `PYTHONPATH=/home/n/Code/claude/coga/.coga/worktrees/coga-pip-hash-hint/src python -m pytest` (1152 passed, 1 skipped).
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":151786,"cache_read_input_tokens":3943753,"cli":"claude","input_tokens":134,"model":"claude-fable-5","output_tokens":52554,"provider":"anthropic","schema":1,"session_id":"675077ec-11cc-4aa1-9bf5-c99457a88680","slug":"install/pip-hash-requirement-breaks-editable-install","step":"implement","title":"pip hash-checking mode breaks editable install","ts":"2026-07-13T03:54:01.150260Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1643008,"cli":"codex","input_tokens":151644,"model":"gpt-5.6-sol","output_tokens":5302,"provider":"openai","schema":1,"session_id":"019f599c-4cc7-7a20-ab87-316d26329d3a","slug":"install/pip-hash-requirement-breaks-editable-install","step":"peer-review","title":"pip hash-checking mode breaks editable install","ts":"2026-07-13T04:02:45.086243Z","usage_status":"ok"}

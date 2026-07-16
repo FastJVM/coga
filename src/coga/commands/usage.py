@@ -1,4 +1,4 @@
-"""`coga usage` — read token-usage records from task blackboards."""
+"""`coga usage` — read token-usage records from the repo-global log."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def usage(
         help="Emit structured JSON for downstream consumers.",
     ),
 ) -> None:
-    """Show agent token usage recorded under task blackboards."""
+    """Show agent token usage recorded in `coga/log.md`."""
     if by not in BY_CHOICES:
         typer.secho(
             f"--by must be one of: {', '.join(BY_CHOICES)}",
@@ -57,7 +57,7 @@ def usage(
 
     try:
         result = rollup(
-            load_records(cfg.repo_root),
+            load_records(cfg),
             by=by,
             since=since,
             until=until,

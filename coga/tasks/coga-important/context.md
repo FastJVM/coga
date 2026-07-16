@@ -182,11 +182,3 @@ Peer-review verification:
   errors on `v2/autotrigger-ticket-type`,
   `v2/split-context-to-doc-user-accessible-and-editable`, and
   `v2/use-worktree-when-starting-a-dev-task`.
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":145839,"cache_read_input_tokens":4474969,"cli":"claude","input_tokens":144,"model":"claude-opus-4-8","output_tokens":46893,"provider":"anthropic","schema":1,"session_id":"5eb690c3-4775-41e0-b737-52a5b8bf430e","slug":"coga-important/context","step":"implement","title":"context","ts":"2026-07-16T00:56:09.529638Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1751168,"cli":"codex","input_tokens":201611,"model":"gpt-5.5","output_tokens":12678,"provider":"openai","schema":1,"session_id":"019f686c-9035-7173-9e40-f60b4ffcf5e7","slug":"coga-important/context","step":"peer-review","title":"context","ts":"2026-07-16T01:17:29.795708Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":100420,"cache_read_input_tokens":1016180,"cli":"claude","input_tokens":46,"model":"claude-opus-4-8","output_tokens":7874,"provider":"anthropic","schema":1,"session_id":"de4aa74e-8c99-4883-8953-7598e5fc8767","slug":"coga-important/context","step":"open-pr","title":"context","ts":"2026-07-16T01:19:11.270886Z","usage_status":"ok"}

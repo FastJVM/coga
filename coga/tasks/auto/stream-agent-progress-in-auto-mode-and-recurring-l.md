@@ -150,7 +150,3 @@ The blackboard is a notepad to be written to often as the human and agent works 
   wanted for now — every remaining scope item is resolved or rejected, so
   the ticket is done. If headless/auto launches ever unfreeze, streaming
   gets a fresh ticket; approach (1) in the body above is the starting point.
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":236825,"cache_read_input_tokens":445042,"cli":"claude","input_tokens":11292,"model":"claude-fable-5","output_tokens":7784,"provider":"anthropic","schema":1,"session_id":"286bdd5c-736e-46ac-b707-9018394c3a19","slug":"auto/stream-agent-progress-in-auto-mode-and-recurring-l","step":"implement","title":"Stream agent progress in auto-mode and recurring launches","ts":"2026-07-01T22:37:35.301690Z","usage_status":"ok"}

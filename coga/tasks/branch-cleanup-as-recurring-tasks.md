@@ -269,11 +269,3 @@ Built all four deliverables, mirroring `autoclose-merged` end to end:
 - Minor: building the live-ticket skip-list requires enumerating not-`done` tickets' blackboards; the ticket names `parse_branch_name()` for parsing but not the enumeration mechanism (presumably the same task iteration `sweep_merged()` uses — worth confirming in `autoclose.py` line 193ff before writing new listing code).
 
 **Bottom line:** Launchable as written. Well-scoped, factually accurate (every named file/function verified), and it explicitly answers the objections that killed the earlier sweep design. Before implementation: decide the private-helper reuse strategy, close the branch-reuse hole in the merged-PR gate (check for open PRs too), and optionally attach `dev/code`.
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":280530,"cache_read_input_tokens":13778677,"cli":"claude","input_tokens":27140,"model":"claude-sonnet-5","output_tokens":100233,"provider":"anthropic","schema":1,"session_id":"43f102f5-136b-4a6a-ac30-8c703be92aae","slug":"branch-cleanup-as-recurring-tasks","step":"implement","title":"branch cleanup as recurring tasks","ts":"2026-07-02T22:30:15.230571Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3148160,"cli":"codex","input_tokens":185425,"model":"gpt-5.5","output_tokens":21227,"provider":"openai","schema":1,"session_id":"019f24f4-47fe-7790-9bf5-c87ae03a3f32","slug":"branch-cleanup-as-recurring-tasks","step":"peer-review","title":"branch cleanup as recurring tasks","ts":"2026-07-03T00:06:24.052348Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":78247,"cache_read_input_tokens":982419,"cli":"claude","input_tokens":14430,"model":"claude-sonnet-5","output_tokens":5073,"provider":"anthropic","schema":1,"session_id":"5198e722-f26b-4fbb-b7fc-526e436a6440","slug":"branch-cleanup-as-recurring-tasks","step":"open-pr","title":"branch cleanup as recurring tasks","ts":"2026-07-03T00:07:23.714550Z","usage_status":"ok"}

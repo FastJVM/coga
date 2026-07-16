@@ -209,11 +209,3 @@ main's advance (git.py/bump.py refactors, #509/#510). The actual change is only
 the 4 files in `merge-base..HEAD`. A rebase onto `main` before merge is likely
 wanted; version_skew.py is new so conflicts should be minimal, but launch.py /
 validate.py import lines may need reseating.
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":494177,"cache_read_input_tokens":14805982,"cli":"claude","input_tokens":23096,"model":"claude-opus-4-8","output_tokens":158530,"provider":"anthropic","schema":1,"session_id":"183c4002-70d9-49f1-9292-146bff66235f","slug":"warn-on-launch-when-the-installed-coga-predates-th","step":"implement","title":"Warn on launch when the installed coga predates the source tree","ts":"2026-07-03T21:48:56.624528Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":274747,"cache_read_input_tokens":6949393,"cli":"claude","input_tokens":16939,"model":"claude-opus-4-8","output_tokens":86721,"provider":"anthropic","schema":1,"session_id":"ca0aadda-6aeb-4f46-b992-e794c393f88e","slug":"warn-on-launch-when-the-installed-coga-predates-th","step":"self-qa","title":"Warn on launch when the installed coga predates the source tree","ts":"2026-07-03T22:06:37.672031Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":70604,"cache_read_input_tokens":720229,"cli":"claude","input_tokens":18866,"model":"claude-opus-4-8","output_tokens":8055,"provider":"anthropic","schema":1,"session_id":"90992b33-7a19-4667-b45a-22cbaeee905c","slug":"warn-on-launch-when-the-installed-coga-predates-th","step":"pr","title":"Warn on launch when the installed coga predates the source tree","ts":"2026-07-03T22:07:59.004745Z","usage_status":"ok"}

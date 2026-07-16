@@ -150,9 +150,3 @@ Coga deliberately still does not guess from `$USER` because ticket identity
 tokens must match explicit team names.
 
 Test plan: `python -m pytest` (1206 passed, 1 skipped).
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":347176,"cache_read_input_tokens":13469634,"cli":"claude","input_tokens":243,"model":"claude-fable-5","output_tokens":108284,"provider":"anthropic","schema":1,"session_id":"f7ed48e2-b6f3-4524-ab69-d8492f706220","slug":"install/relay-help-and-cli-should-not-require-user","step":"implement","title":"relay CLI should not require user to be set (default to $USER)","ts":"2026-07-14T19:09:16.834906Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":4739072,"cli":"codex","input_tokens":143229,"model":"gpt-5.6-sol","output_tokens":12475,"provider":"openai","schema":1,"session_id":"019f6208-9bef-7053-af35-eb075d462a9b","slug":"install/relay-help-and-cli-should-not-require-user","step":"peer-review","title":"relay CLI should not require user to be set (default to $USER)","ts":"2026-07-14T19:23:35.945110Z","usage_status":"ok"}

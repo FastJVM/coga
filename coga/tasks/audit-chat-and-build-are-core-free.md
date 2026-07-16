@@ -70,7 +70,3 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Decision
 
 - Close as already satisfied/no-op. There is no residual core handling to remove for `chat` or `build`.
-
-## Usage
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2328320,"cli":"codex","input_tokens":286841,"model":"gpt-5.5","output_tokens":15403,"provider":"openai","schema":1,"session_id":"019f33f8-d4a0-7230-bb6f-85e12d123f1d","slug":"audit-chat-and-build-are-core-free","step":"implement","title":"Audit chat and build are core-free","ts":"2026-07-05T20:37:54.568328Z","usage_status":"ok"}

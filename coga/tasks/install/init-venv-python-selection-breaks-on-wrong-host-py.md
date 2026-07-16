@@ -137,7 +137,3 @@ explicit interpreter identity changes, and give exact `venv`/`ensurepip`
 remediation. The interpreter contract is documented in `coga/codebase`.
 
 Test plan: `PYTHONPATH=$PWD/src python3.12 -m pytest -q` (1137 passed, 1 skipped).
-
-## Usage
-
-{"agent":"claude","cache_creation_input_tokens":240434,"cache_read_input_tokens":5065196,"cli":"claude","input_tokens":22208,"model":"claude-fable-5","output_tokens":82652,"provider":"anthropic","schema":1,"session_id":"c5193fc7-b983-4d2a-84bb-b7980fb1ab0c","slug":"install/init-venv-python-selection-breaks-on-wrong-host-py","step":"implement","title":"Init venv python selection breaks on wrong host python","ts":"2026-07-09T22:16:43.427245Z","usage_status":"ok"}
