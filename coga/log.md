@@ -1293,3 +1293,5 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 16:55 [install/add-migration-errors-for-removed-config-keys] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-15 16:55 [install/add-migration-errors-for-removed-config-keys] [megalaunch] launched via coga megalaunch
 2026-07-15 16:55 [install/cut-release-to-realign-pypi-with-main] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-15 16:55 [install/cut-release-to-realign-pypi-with-main] [megalaunch] launched via coga megalaunch
+2026-07-15 17:00 [install/cut-release-to-realign-pypi-with-main] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — 0.3.0 bump committed on release-0.3.0; do NOT merge/release until install/add-migration-errors-for-removed-config-keys lands
