@@ -1,7 +1,7 @@
 ---
 slug: install/harden-packaging-and-install-before-launch
 title: Harden packaging and first-install before launch
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -137,6 +137,33 @@ Run the public path in a disposable clean Linux environment, without
   siblings are done and the realignment ticket has published a new version to
   PyPI.
 
+## Prerequisite audit (2026-07-16 megalaunch)
+
+- This launch came from the 2026-07-16 10:10 `coga megalaunch` sweep that
+  started every install/ ticket at once; the gate got picked up alongside the
+  sibling fixes it depends on, which are mid-`implement` in parallel sessions
+  today (warn-loud-when-init-commit-is-skipped just reached peer-review; none
+  have reached open-pr, so nothing is merged).
+- PyPI latest is still `coga 0.2.0` (uploaded 2026-06-27) and `pyproject.toml`
+  on current `main` (c36b92bd, fetched from origin, 0 commits behind) still
+  says 0.2.0 — the realigned release has not been published.
+- `main` still lacks the fixes the gate must verify: `src/coga/commands/init.py`
+  still vendors via `clone_upstream` (line 436), so
+  `vendor-cli-from-installed-package-not-git-clone` has not landed in code.
+- The ticket's own Prerequisites section (siblings merged + realigned version
+  on PyPI) is therefore objectively unmet; running the five verification steps
+  now would re-verify 0.2.0 and fail for already-known reasons, producing no
+  new evidence. The 2026-07-15 owner reset changed ownership and workflow
+  (code/with-review so the gate's evidence gets peer-reviewed) but did not
+  assert the prerequisites were met.
+- Decision: block with a relaunch condition rather than manufacture a branch —
+  the ticket's acceptance criteria still say the gate produces no feature
+  branch or PR, and it forbids absorbing sibling implementation. If the owner
+  instead wants a standalone implement deliverable now (e.g. an automated
+  clean-container harness that scripts the five verification steps), that
+  needs an explicit say-so since it contradicts the written acceptance
+  criteria.
+
 ---
 
 ## Blockers
@@ -147,6 +174,7 @@ Run the public path in a disposable clean Linux environment, without
 - [x] [2026-07-12 20:37] [agent:claude] id=20260712T203710 Verification gate prerequisites unmet: PyPI latest is coga 0.2.0 (uploaded 2026-06-27, predating the 2026-07-08 retest fixes) and the named install/ siblings (vendor-cli-from-installed-package, warn-loud-when-init-commit-is-skipped, agent-CLI guidance, migration errors, external-users-cannot-install-managed-skills) plus cut-release-to-realign-pypi-with-main are still active/in_progress. Relaunch this gate after those tickets are done and the realigned version is published to PyPI.
   resolved: [2026-07-15 21:00] [human:nicktoper] Owner reset 2026-07-15: nicktoper is taking over all install/ tickets; this gate is reset to active on code/with-review at step 1 alongside its siblings, overriding the 2026-07-12 direct/body scope decision.
 
+- [ ] [2026-07-16 10:14] [agent:claude] id=20260716T101438 Gate prerequisites still unmet at today's megalaunch: PyPI latest is coga 0.2.0 (pre-retest) and no sibling install/ fix has merged — they are mid-implement in parallel sessions launched this morning (init.py on main still clones upstream). Relaunch this gate after the sibling PRs merge and cut-release-to-realign-pypi-with-main publishes the realigned version; or, if you want a standalone deliverable now (e.g. an automated clean-container harness scripting the five verification steps), say so explicitly since the ticket's acceptance criteria currently forbid a branch/PR. Consider excluding this gate from megalaunch sweeps until then.
 ## Blocker reminders
 
 - 5f5852d1e838 last_reminded: 2026-07-15 12:33
