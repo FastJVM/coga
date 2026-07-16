@@ -128,3 +128,9 @@ post still goes to `webhook`, and the recipient mention renders as `<@UID>`.
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":215853,"cache_read_input_tokens":1416042,"cli":"claude","input_tokens":54,"model":"claude-opus-4-8","output_tokens":22161,"provider":"anthropic","schema":1,"session_id":"aa887cda-0316-48e2-9e26-74eb8cf67744","slug":"coga-important/add-coga-slack-important","step":"implement","title":"add-coga-slack-important","ts":"2026-07-16T01:40:00.901989Z","usage_status":"ok"}
+
+---
+
+## Blocker reminders
+
+- 1cb3cae66a09 last_reminded: 2026-07-15 20:14
