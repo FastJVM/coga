@@ -1470,3 +1470,5 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 21:19 [dream-cleanup-orphan-markers-w29] [system] launched as a script (skill=bootstrap/dream/tasks/cleanup-orphan-markers, script=run.py)
 2026-07-15 21:19 [dream-cleanup-orphan-markers-w29] [system] script exited with code 0
 2026-07-15 21:19 [dream-cleanup-orphan-markers-w29] [system] completed (final script step ran) via coga launch
+2026-07-15 21:19 [install/improve-reinit-already-exists-message] [megalaunch] launched via coga megalaunch
+2026-07-15 21:23 [install/improve-reinit-already-exists-message] [agent:claude] advanced to step 2 (peer-review) → assigned to codex

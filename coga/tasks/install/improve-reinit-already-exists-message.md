@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -63,7 +63,7 @@ worktree: /home/n/Code/claude/coga-reinit-message
 - `coga uninstall` exists (`src/coga/cli.py` registers it), so the message can
   reference it safely.
 
-## Implemented (commit b9bffc79)
+## Implemented (commit 03589d35, rebased from b9bffc79)
 
 - Extended the refusal to four lines, keeping exit 2 and red/stderr styling
   consistent with the neighboring refusals: already initialized; upgrade CLI
@@ -82,3 +82,13 @@ worktree: /home/n/Code/claude/coga-reinit-message
   test_bootstrap_script_launch_is_stateless` fails without one (its subprocess
   imports `coga`), on unmodified main too. Green once coga is pip-installed
   editable (per CLAUDE.md dev setup).
+
+## Handoff refresh (implement step, resumed session)
+
+- Rebased `reinit-message` onto current `origin/main` (5fc923d5..8db55fa9);
+  clean rebase, commit is now 03589d35. Worktree clean, nothing to push yet.
+- Re-ran full suite after rebase in a fresh py3.12 editable venv: 1220 passed,
+  1 skipped.
+- Flaky test observed (candidate follow-up ticket, not caused by this change):
+  `tests/test_usage_probe.py::test_codex_probe_primes_then_reads_fresh_rollout`
+  failed once in a full-suite run, then passed alone and in a second full run.
