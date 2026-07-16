@@ -106,6 +106,13 @@ Known weaknesses — acknowledge, don't paper over:
 - The claim **refuses head-to-head comparison** and therefore can't win
   one. Never say "better than Devin"; it's a claim about a working
   practice, not model capability.
+- **Prepared answer to "but Devin/Symphony do this with zero human
+  minutes":** we are not entering the autonomy race, so we can't be
+  outclassed in it. They sell *self-magic* and measure machine output;
+  this experiment measures **leverage per human minute** — an axis
+  where nobody else has a number at all. It's not self-magic: it's
+  20 minutes a day buys you magic. Deliver this as numbers (theirs
+  unverifiable, ours recomputable), not as a values argument.
 - It wins the second read, not the headline scan. This launch will not
   go wide, by design — consistent with the narrow-tribe strategy.
 
@@ -118,6 +125,14 @@ sales call.** State the flat cost line and let the reader do the
 division ($/mo ÷ N tasks) — never do it for them. (The launch ticket
 currently says "two subscriptions, ~$400/mo" — claude + codex rotation;
 use the actual count and figure from the run.)
+
+**Cost with receipts (token accounting).** The run captures machine-side
+token usage (autonomous vs interactive). The post reports: tokens
+consumed → what that costs at API prices → what it actually cost on
+flat subscriptions. This turns the cost line from defense into offense —
+the division stops being "$X per task" (attackable if tasks read small)
+and becomes "$X bought this many tokens of machine labor, metered that's
+$Y." We run every division ourselves before inviting the reader to.
 
 **"Not rocket science" is the pitch, not a confession.** The mechanism
 is deliberately commodity — markdown, Python, git (the thesis doc: even
@@ -185,8 +200,29 @@ distribution, Anthropic's "Keep thinking"), or a more famous voice
   abandoned).
 - Pre-registration is git-dated **before any data**: window, inclusion
   rule, measurement method (10-min gap, 2-min floor, sensitivity at
-  5 min).
+  5 min) — plus the four locks below.
 - Small claims. Trust = recomputability + pre-registration + modesty.
+
+**The pre-registration commit must also lock (closes the audit holes):**
+
+- **Tool-repair rule.** Stabilization precedes the window — that is what
+  the megalaunch gate *means*. If the tool still breaks mid-run, repair
+  time is reported **separately** from the operating figure, never
+  silently excluded and never blended into the 20. The window measures
+  *operating the company*, not *building the tool*, and the split is
+  disclosed so no skeptic discovers it.
+- **Attention scope.** Declare the actual practice: there is no ambient
+  monitoring — no standing Slack-feed watch; human attention happens in
+  the logged episodes (blocker queue + reviews). Stated up front so the
+  "but you're ambiently supervising all day" attack has a pre-dated
+  answer.
+- **Backlog snapshot + task-sizing rule.** The backlog is snapshotted
+  and the granularity rule fixed in the same commit, so N cannot be
+  inflated (even unconsciously) by splitting tickets finer mid-run.
+- **Token accounting.** Machine-side token usage is captured for the
+  run (autonomous vs interactive), so the cost line ships with
+  receipts: tokens consumed → API-equivalent price → actual flat
+  subscription cost. Run the division ourselves before inviting it.
 
 ## Sequence and dependencies
 
@@ -202,7 +238,14 @@ distribution, Anthropic's "Keep thinking"), or a more famous voice
    morning-ritual demo embedded in README + post), and
    `marketing/relay-discord` — the **open decision** (Discord vs public
    Slack) must land first; the post needs a "where to go" link.
-5. **The post.**
+5. **Cold-start test (gate before the post ships).** One outsider — a
+   Bookface founder is the obvious pick — installs Coga from the README
+   unaided, on their own repo, and reaches the correction-loop moment.
+   Their time-to-first-value is published in the post. This is the only
+   step that verifies the install funnel before a crowd is pointed at
+   it, and it converts "here's how I did it" from a demo of the
+   founder's private substrate into evidence a reader can act on.
+6. **The post.**
 
 ## Distribution — phase 1 (decided 2026-07-15)
 
@@ -279,11 +322,20 @@ wave-riding between spikes still has no venue until X exists.
 
 ## Success metric and tone
 
-Success = **influence or a fan base**, not commercial dominance
-(market-thesis). Default posture is fork A — an honest field report from
-people running their own company on it — with fork B (Coga-as-category)
-kept optionable. Write launch material as a field report unless the
-human pins the fork otherwise.
+**The goal of this launch is installations** (decided 2026-07-15,
+overriding the earlier influence-first framing). Influence and the fan
+base are the *mechanism*, not the metric: the ideas spreading is how
+installs happen, but success is counted in people running `coga init`
+on real repos — measured by public proxies (PyPI download curve, star
+timeline, community-channel joins), with the target number pinned in
+the pre-registration commit alongside the distribution thresholds.
+The market-thesis influence/fan-base framing remains the *long-arc*
+metric; this launch is scored on installs.
+
+Tone is unchanged: fork A — an honest field report from people running
+their own company on it — with fork B (Coga-as-category) kept
+optionable. Write launch material as a field report unless the human
+pins the fork otherwise.
 
 ## What this context does NOT cover
 

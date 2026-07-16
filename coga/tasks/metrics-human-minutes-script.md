@@ -57,6 +57,14 @@ Behavior:
   `[megalaunch]` in log.md). Expected order of magnitude from log-only events:
   2–12 min/task — gh integration should raise these somewhat.
 
+Added 2026-07-15 (launch prep): the run also needs **machine-side token
+accounting** — tokens consumed during the window (autonomous vs interactive
+where distinguishable, e.g. from Claude Code / codex usage stats), so the
+launch post can report tokens → API-equivalent price → actual flat
+subscription cost. May be a separate small script; decide at implement time
+whether it lives here or as its own ticket — but the capture method must
+exist before the run starts.
+
 Optional follow-up (may be its own ticket): a CI job that runs the script on
 the public repo and publishes the table, so the number is produced on neutral
 infrastructure ("the repo computes its own ledger").
