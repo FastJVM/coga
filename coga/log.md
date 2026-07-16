@@ -1572,3 +1572,4 @@ Aborting
 2026-07-16 14:37 [bootstrap/orient] [human:nicktoper] launched (assignee=codex, agent=codex)
 2026-07-16 14:34 [coga-important/add-coga-slack-important] [human:zach] launched (assignee=codex, agent=codex)
 2026-07-16 14:52 [coga-important/add-coga-slack-important] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-16 14:52 [coga-important/add-coga-slack-important] [system] {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1609600,"cli":"codex","input_tokens":112826,"model":"gpt-5.5","output_tokens":7280,"provider":"openai","schema":1,"session_id":"019f6cda-8c10-70f0-b049-8064500e36e6","slug":"coga-important/add-coga-slack-important","step":"peer-review","title":"add-coga-slack-important","ts":"2026-07-16T21:52:55.877805Z","usage_status":"ok"}
