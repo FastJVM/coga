@@ -59,6 +59,13 @@ webhook = "env:SLACK_WEBHOOK_URL"
 # carries its own coga.toml, so a downstream repo that calls `--important` needs
 # this key too.
 important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
+# Who those `--important` posts @ for triage. By default `--important` pings the
+# ticket's owner — whoever filed it, not necessarily whoever should act on the
+# alert. Name one triage owner here and every `--important` post @'s them instead.
+# It is a coga name (the same token used in `owner` and `[notification.slack.users]`
+# below), not a member ID and not a secret, so no `env:` indirection. Leave it
+# unset and the owner mention stands. Example:
+#   important_recipient = "zach"
 #
 # Optional GIFs on milestone events. One URL is picked at random per
 # post. Skip a kind to keep it text-only.

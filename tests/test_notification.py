@@ -625,6 +625,95 @@ def test_important_webhook_rejected_in_legacy_slack_table(tmp_path: Path) -> Non
         load_config(tmp_path)
 
 
+# --- important_recipient (the coga-important triage owner) ---------------------
+
+
+def _create_min_with_recipient(tmp_path: Path, recipient: str = '"triage"') -> None:
+    _write(
+        tmp_path / "coga.toml",
+        f"""
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        [notification.slack]
+        important_recipient = {recipient}
+        """,
+    )
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
+
+
+def test_important_recipient_resolves(tmp_path: Path) -> None:
+    """`important_recipient` is a plain coga name — no `env:` indirection."""
+    _create_min_with_recipient(tmp_path)
+    cfg = load_config(tmp_path)
+    assert cfg.slack_important_recipient == "triage"
+
+
+def test_important_recipient_absent_is_none(tmp_path: Path) -> None:
+    """A repo that never named a triage owner resolves it to None."""
+    _create_min(tmp_path)
+    cfg = load_config(tmp_path)
+    assert cfg.slack_important_recipient is None
+
+
+def test_important_recipient_empty_string_is_none(tmp_path: Path) -> None:
+    """An empty name collapses to None so the ordinary owner mention stands."""
+    _create_min_with_recipient(tmp_path, recipient='""')
+    cfg = load_config(tmp_path)
+    assert cfg.slack_important_recipient is None
+
+
+def test_local_important_recipient_overrides_shared(tmp_path: Path) -> None:
+    _create_min_with_recipient(tmp_path)
+    _write(
+        tmp_path / "coga.local.toml",
+        """
+        user = "marc"
+        [notification.slack]
+        important_recipient = "ada"
+        """,
+    )
+    cfg = load_config(tmp_path)
+    assert cfg.slack_important_recipient == "ada"
+
+
+def test_important_recipient_non_string_raises_config_error(tmp_path: Path) -> None:
+    from coga.config import ConfigError
+
+    _create_min_with_recipient(tmp_path, recipient="123")
+    with pytest.raises(
+        ConfigError, match=r"\[notification\.slack\]\.important_recipient"
+    ):
+        load_config(tmp_path)
+
+
+def test_important_recipient_rejected_in_legacy_slack_table(tmp_path: Path) -> None:
+    """The legacy `[slack]` table has no resolver for the new key, so reject it.
+
+    Accepting it there would silently drop the triage name — every `--important`
+    alert would keep @'ing the ticket owner with no error to explain why.
+    """
+    from coga.config import ConfigError
+
+    _write(
+        tmp_path / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        [slack]
+        important_recipient = "triage"
+        """,
+    )
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
+    with pytest.raises(ConfigError, match="unknown key"):
+        load_config(tmp_path)
+
+
 def test_enabled_default_is_true(tmp_path: Path) -> None:
     _create_min(tmp_path)
     cfg = load_config(tmp_path)

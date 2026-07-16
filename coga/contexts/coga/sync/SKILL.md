@@ -233,11 +233,26 @@ new string:
   unconfigured case is live. Legal only in `[notification.slack]` —
   `[slack].important_webhook` is rejected rather than silently ignored, since
   no legacy resolver reads it.
-- `cfg.slack_enabled` (`bool`, default `True`), `cfg.slack_webhook` and
-  `cfg.slack_important_webhook` (`str | None`) — compatibility fields holding
-  the effective Slack-channel config. `[notification.slack].enabled`,
-  `.webhook`, and `.important_webhook` each resolve with `coga.local.toml`
-  overriding shared, so a machine can carry its own webhook while shared
+- `[notification.slack].important_recipient` — the coga name @'d on every
+  `coga slack --important` post for triage, in place of the ticket-owner mention
+  (whoever filed a ticket is rarely whoever should act on its alert). Resolved by
+  `config._resolve_notification_slack_important_recipient` with the same
+  local-overrides-shared rule and the same absence of any legacy `[slack]` or
+  bare-env fallback as `important_webhook` — the key postdates both. It differs on
+  two points: the value is a coga name, not a bearer token, so it takes no `env:`
+  indirection and its committed value is the plain name (a member ID is rendered
+  from it at post time through `[notification.slack.users]`, exactly as `mention`
+  renders an owner); and an unset or empty value is not fatal — it resolves to
+  None and the ordinary owner mention stands, so a repo that never names a triage
+  owner keeps today's behavior. Legal only in `[notification.slack]`, for the same
+  reason as `important_webhook`: `[slack].important_recipient` is rejected rather
+  than silently ignored, since no legacy resolver reads it.
+- `cfg.slack_enabled` (`bool`, default `True`), `cfg.slack_webhook`,
+  `cfg.slack_important_webhook`, and `cfg.slack_important_recipient`
+  (`str | None`) — compatibility fields holding the effective Slack-channel
+  config. `[notification.slack].enabled`, `.webhook`, `.important_webhook`, and
+  `.important_recipient` each resolve with `coga.local.toml` overriding shared, so
+  a machine can carry its own webhook (or its own triage name) while shared
   `coga.toml` holds a safe `env:` reference or omits the key.
 - `cfg.slack_users` (`dict[str, str]`, coga name → Slack member ID) —
   parsed from `[notification.slack.users]` in `coga.toml`; legacy

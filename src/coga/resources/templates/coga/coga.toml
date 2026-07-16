@@ -78,6 +78,15 @@ channels = []
 #   [notification.slack]
 #   important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
 #
+# Pick who those `--important` posts @ for triage. By default `--important`
+# pings the ticket's owner — whoever filed it, not necessarily whoever should
+# act. Name one triage owner here and every `--important` post @'s them instead.
+# It is a coga name (the same token used in `owner` / `[notification.slack.users]`),
+# not a member ID and not a secret, so no `env:` indirection. Unset, the owner
+# mention stands. Example:
+#   [notification.slack]
+#   important_recipient = "triage-owner"
+#
 # Attach a GIF to milestone events. One URL is picked at random
 # per post. Skip a kind (or leave its list empty) to keep that event
 # text-only. Example:
