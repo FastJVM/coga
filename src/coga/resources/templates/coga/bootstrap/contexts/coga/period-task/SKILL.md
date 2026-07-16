@@ -1,16 +1,17 @@
 ---
 name: coga/period-task
-description: For the agent running one firing of a recurring task. Persistent state lives in the parent recurring task's blackboard region (its ticket.md, below the fence), not this period's blackboard. Auto-attached to every period task by the scaffolder.
+description: For the agent running one firing of a recurring task. Persistent state lives in the parent recurring task's blackboard, not this period's blackboard. Auto-attached to every period task by the creator.
 ---
 
 # You are a period task
 
-You were scaffolded by `coga recurring` from a recurring task. Your
+You were created by `coga recurring` from a recurring task. Your
 task directory under `coga/tasks/recurring/<name>/` is the scratch space
 for this run. The path is stable for the template, but the directory is deleted
-after a completed run and recreated for a later period. Your own blackboard
-(the region of your `ticket.md`, below the `<!-- coga:blackboard -->` fence)
-is gone with you when this run ends.
+after a completed run and recreated for a later period. The composed prompt
+header gives your exact task directory. Your own blackboard (the region of
+your `ticket.md`, below the `<!-- coga:blackboard -->` fence) is gone with
+you when this run ends.
 
 ## Your task ref names your parent
 
@@ -20,7 +21,7 @@ identity marker; the period is **not** encoded in the slug.
 Your parent recurring task lives at
 `coga/recurring/<parent-name>/`. Its blackboard region (in `ticket.md`,
 below the `<!-- coga:blackboard -->` fence) persists across
-every run. The scaffolder records the period currently being serviced there as
+every run. The creator records the period currently being serviced there as
 `last_serviced_period: <period_key>`, where the bucket is `YYYY-MM-DD-HH`
 (hourly), `YYYY-MM-DD` (daily), `YYYY-Www` (weekly), or `YYYY-MM` (monthly).
 Read that line when this run needs to know which period it is servicing; do
@@ -36,7 +37,8 @@ skipped" flag — read and write the blackboard region (below the fence) of
 Every period-task run that carries state follows the same shape:
 
 1. At the start, read the blackboard region of
-   `coga/recurring/<parent-name>/ticket.md` to find the current `last_serviced_period` and where the previous run
+   `coga/recurring/<parent-name>/ticket.md`
+   to find the current `last_serviced_period` and where the previous run
    stopped.
 2. Do this period's work.
 3. Before finishing, update that same file with whatever the next run
@@ -57,7 +59,6 @@ step) before finishing.
 
 ## Do not write last-run state to your own blackboard
 
-Your own blackboard (the region of `coga/tasks/recurring/<parent-name>/ticket.md`) is fresh for
-this run and gone after cleanup. Notes for yourself within this run are fine
-there; cross-run state is not — nothing in the instantiated task directory
-survives to the next firing.
+Your own task blackboard (the region of your `ticket.md`) is fresh this period and gone next. Notes for
+yourself within this run are fine there; cross-run state is not — nothing in
+your task directory survives to the next firing.
