@@ -50,6 +50,13 @@ webhook and the coga.toml recipient field are separate tickets.
 
 ## Context
 
+- Where the block lands is undecided and is the first thing to settle.
+- Contexts resolve local-first from `coga/contexts/`, then the installed package's bundled `bootstrap/contexts/`; there is no cross-repo lookup.
+- The first consumer is a script in the patents repo, so a block under `coga/contexts/` here never resolves for it.
+- A bundled block under `src/coga/resources/templates/coga/bootstrap/contexts/` resolves in every repo with coga installed.
+- A bundled block also ships to every coga user, so the channel name and the triage owner cannot live in it.
+- That suggests a split — the `coga slack --important` mechanism bundles, and the FastJVM specifics stay repo-local or in coga.toml.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
