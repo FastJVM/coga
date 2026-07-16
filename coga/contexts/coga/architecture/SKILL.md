@@ -341,7 +341,7 @@ bloat; `coga launch --prompt-report` shows which layer to trim.
 Note what is deliberately **absent**: the `coga/log.md` audit log is never
 a composition layer. It is the one repo-global, append-only file, lives outside
 every task directory, and never enters an agent's context, so it can grow
-without bound. Only the blackboard region (layer 7) carries state forward into
+without bound. Only the blackboard region (layer 6) carries state forward into
 the prompt.
 The consequence is a hard division of labor: working state that the next run
 must read goes in the blackboard (and is therefore composed, so keep it
@@ -384,10 +384,9 @@ flags, orphan-lock cleanup) is not.
 
 ## Identity and capability boundaries
 
-"Who is acting?" and "what may this action use?" resolve to four boundaries.
-Coga stays classical: local files and standard CLIs first, a hosted crossing
-only where a v1 requirement genuinely needs one, no secret or account state
-committed to git.
+"Who is acting?" and "what may this action use?" resolve to three boundaries.
+Coga stays classical: local files and standard CLIs first, with no secret or
+account state committed to git.
 
 - **Local user / operator.** Coga does **not** own the human's identity. The
   operator is the OS user plus the local tools they already authenticate: `git`,
@@ -397,9 +396,7 @@ committed to git.
   transport uses the user's configured remote; GitHub PR/API operations use
   `gh` auth.
 - **Repo / install identity.** The repo is identified by the git checkout and
-  `coga/` config. An install may additionally carry an anonymous telemetry
-  identity, generated locally and stored only in gitignored local config/state —
-  it counts active installs, it never names a person, repo, or path.
+  `coga/` config. Coga creates no hosted account or telemetry identity.
 - **Skill / task capability.** A task's capabilities are its ticket-level
   `secrets:` list, declared **inline** — each entry is a single-key map
   `NAME: <ref>` whose `<ref>` is an `env:VAR` or `op://vault/item/field`
@@ -414,9 +411,6 @@ committed to git.
   dispatch in `config.py`** (`parse_inline_secrets` / `select_launch_secrets`),
   not a provider registry: a future provider is another explicit branch on the
   same shared secret path.
-- **Hosted endpoint.** v1 has at most one hosted crossing — the anonymous
-  telemetry sink, with a trivial opt-out. Coga does **not** ship a hosted
-  account, signup/login flow, API-token store, or sync backend in v1.
 
 ## One shared agent-spawn path
 

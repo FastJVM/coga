@@ -88,9 +88,9 @@ no in-memory state.
   `coga/skills/` or `coga/contexts/` ref to override it.
 - **Dream** is Coga's generic ticket cleanup pass. It is a recurring task
   template (`coga/recurring/dream/`) plus a `dream` alias — not a
-  built-in command. `coga recurring` scaffolds and launches it when its
+  built-in command. `coga recurring` creates and launches it when its
   weekly schedule is due; the `coga dream` alias (`recurring launch dream`)
-  scaffolds and launches it on demand. The parent task orchestrates child script
+  creates and launches it on demand. The parent task orchestrates child script
   tasks over worker skills; its body scans the ticket set, runs fixed Coga
   housekeeping skills, proposes cleanup, and writes reviewable results to its
   blackboard.
@@ -114,9 +114,15 @@ reserved — no extension or alias may collide with them:
 `slug` is the task's path-qualified reference, recorded on the ticket for
 legibility (the path under `tasks/` stays the addressing source of truth).
 
-`secrets` is nullable. Absent or `null` preserves legacy launch behavior
-(inject all configured secrets, skipping unset env-backed values), `[]`
-injects none, and a non-empty list injects only those `[secrets]` keys.
+`secrets` is nullable and declared **inline** — there is no central
+`[secrets]` catalog. Absent / `null` / `[]` inject nothing; otherwise it is a
+list of single-key maps `- NAME: <ref>` where `<ref>` is an
+`op://vault/item/field` 1Password reference (resolved live with `op read`) or
+an `env:VAR` indirection (read from the operator's environment). At launch each
+ref is resolved and injected as env var `NAME`; the source `env:VAR` is
+scrubbed so the child sees only the scoped name. A bare-string entry (the
+removed catalog-key form) or a raw literal value is rejected — a literal secret
+may not live in a git-committed ticket.
 
 A repo may declare additional fields under `[ticket.fields.<name>]` in
 `coga.toml` — see "Ticket frontmatter extensions" below.
@@ -155,6 +161,29 @@ Three mechanisms honor the spec:
 Extensions live in the same frontmatter the prompt composer already
 reads, so no extra layer is needed — the field is in every composed
 prompt by virtue of being on the ticket.
+
+## Config loading fails loud on unknown keys
+
+`load_config` validates `coga.toml` **and** `coga.local.toml` against a fixed
+schema. Any unrecognized key, at **any level of a fixed-schema table** —
+top-level sections, `[notification]`, `[notification.slack]` / legacy `[slack]`,
+`[git]`, `[launch]`, `[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
+the offending key and listing the valid ones, in either file. This generalizes
+the enforcement `[ticket.fields.*]` already had: a misspelled `[notification.slak]`
+no longer silently resolves to "no webhook" and takes Slack dark. Adding a new
+config section means adding it to its table's allowlist, or the next command
+fails loud.
+
+Two carve-outs keep it honest:
+
+- **Free-form maps stay open.** `[aliases]`, inline `secrets`,
+  `[notification.slack.gifs]`, and `[notification.slack.users]` map user-chosen
+  names to values, so their *keys* are data, not schema — they are never
+  rejected.
+- **Deprecated / known-but-rejected keys run their dedicated migration errors
+  *first*.** A top-level `[assignees]` still raises its tailored guidance before
+  the generic unknown-key check, so the friendlier message survives rather than
+  being swallowed by a generic "unknown key".
 
 ## Workflow gated at activation, not draft time
 
@@ -224,9 +253,9 @@ statuses directly via `coga mark`. `coga bump` refuses them.
 The split is deliberate: each command owns its writes. `coga create`
 authors a draft, `coga mark` flips status across the lifecycle,
 `coga bump` moves steps, and `coga launch` spawns the agent — bringing a
-`draft` or `paused` ticket to `active` first (reusing `coga mark active`),
-then flipping `active → in_progress` as it does. `launch` is the one command
-that touches both planes.
+  `draft` or `paused` ticket to `active` first (reusing `coga mark active`),
+  then flipping `active → in_progress` as it does. `launch` is the one command
+  that touches both planes.
 
 ## Script vs agent execution
 
@@ -296,35 +325,28 @@ file. Layers, in order:
 2. Repo context (`coga/context.md` — top-level facts about this
    surface).
 3. Ticket contexts (everything in `contexts:` frontmatter list).
-4. Task-specific context (the ticket body's inline `## Context`, read from
-   the region **above** the blackboard fence).
+4. Task-specific context (the ticket body's inline `## Context`).
 5. Ticket-level skills and the current workflow step's skill (if any).
-6. The blackboard (the `ticket.md` region **below** the fence).
+6. The blackboard.
 7. The task description (the ticket body's `## Description`).
 
 The agent gets all of this as one input. There is no follow-up
-loading. A section-aware reader splits the single `ticket.md` at the
-`<!-- coga:blackboard -->` fence: the body above feeds layers 4 and 7, the
-region below feeds layer 6. It fails loud if a task ticket is missing the
-fence rather than silently folding the blackboard into the body (or vice
-versa); a bootstrap ticket legitimately has no blackboard and no fence.
-
-One delivery caveat: the prompt rides the agent CLI's argv, and Linux caps a
-single argument at 128 KiB. Launch swaps a composed prompt over ~120 KB for a
-short argv pointer telling the agent to read the prompt file (kept on disk
-for the whole session) — same content, one indirection, instead of a
-guaranteed `E2BIG` exec failure. A prompt that big is usually context bloat;
-`coga launch --prompt-report` shows which layer to trim.
+loading. One delivery caveat: the prompt rides the agent CLI's argv, and
+Linux caps a single argument at 128 KiB. Launch swaps a composed prompt over
+~120 KB for a short argv pointer telling the agent to read the prompt file
+(kept on disk for the whole session) — same content, one indirection, instead
+of a guaranteed `E2BIG` exec failure. A prompt that big is usually context
+bloat; `coga launch --prompt-report` shows which layer to trim.
 
 Note what is deliberately **absent**: the `coga/log.md` audit log is never
-a composition layer. It is the one repo-global, append-only file, lives
-outside every task directory, and never enters an agent's context, so it can
-grow without bound. Only the blackboard region (layer 6) carries state forward
-into the prompt. The consequence is a hard division of labor: working state
-that the next run must read goes in the blackboard (and is therefore composed,
-so keep it small); durable history goes in the global log (never composed, so
-let it accumulate). This is exactly what makes the single-file format safe —
-the unbounded thing is the one file compose never opens.
+a composition layer. It is the one repo-global, append-only file, lives outside
+every task directory, and never enters an agent's context, so it can grow
+without bound. Only the blackboard region (layer 6) carries state forward into
+the prompt.
+The consequence is a hard division of labor: working state that the next run
+must read goes in the blackboard (and is therefore composed, so keep it
+small); durable history goes in the log (never composed, so let it
+accumulate).
 Draft activation is also the first-launch readiness gate for the blackboard.
 The stock placeholder counts as empty, but substantive pre-launch notes —
 authoring/evaluator sections such as `## Evaluator review`, `## Ticket
@@ -362,34 +384,52 @@ flags, orphan-lock cleanup) is not.
 
 ## Identity and capability boundaries
 
-"Who is acting?" and "what may this action use?" resolve to four boundaries.
-Coga stays classical: local files and standard CLIs first, a hosted crossing
-only where a v1 requirement genuinely needs one, no secret or account state
-committed to git.
+"Who is acting?" and "what may this action use?" resolve to three boundaries.
+Coga stays classical: local files and standard CLIs first, with no secret or
+account state committed to git.
 
 - **Local user / operator.** Coga does **not** own the human's identity. The
   operator is the OS user plus the local tools they already authenticate: `git`,
   `ssh-agent` / git credential helpers, and `gh`. Coga inspects these and fails
   with actionable setup hints (`gh auth login`, fix your git remote); it never
-  stores a GitHub PAT, reads `GITHUB_TOKEN`/PATs from `[secrets]` for normal
-  human PR work, or reimplements GitHub auth. Git transport uses the user's
-  configured remote; GitHub PR/API operations use `gh` auth.
+  stores a GitHub PAT or reimplements GitHub auth for normal human PR work. Git
+  transport uses the user's configured remote; GitHub PR/API operations use
+  `gh` auth.
 - **Repo / install identity.** The repo is identified by the git checkout and
-  `coga/` config. An install may additionally carry an anonymous telemetry
-  identity, generated locally and stored only in gitignored local config/state —
-  it counts active installs, it never names a person, repo, or path.
+  `coga/` config. Coga creates no hosted account or telemetry identity.
 - **Skill / task capability.** A task's capabilities are its ticket-level
-  `secrets:` list. Secret values live in `coga.local.toml` as literals (local
-  testing only) or, normally, as indirections: `env:VAR` and
-  `op://vault/item/field`. Launch resolves only what the task is allowed to
-  receive and fails loud when a declared value cannot be satisfied (e.g. `op`
-  missing, not signed in, or `op read` non-zero) — error messages name the
-  Coga secret key and reference, never the value. The extension seam for new
-  providers is **prefix dispatch in `config.py`**, not a provider registry: a
-  future provider is another explicit branch on the same shared secret path.
-- **Hosted endpoint.** v1 has at most one hosted crossing — the anonymous
-  telemetry sink, with a trivial opt-out. Coga does **not** ship a hosted
-  account, signup/login flow, API-token store, or sync backend in v1.
+  `secrets:` list, declared **inline** — each entry is a single-key map
+  `NAME: <ref>` whose `<ref>` is an `env:VAR` or `op://vault/item/field`
+  indirection (both safe to commit — they are pointers, not values; a raw
+  literal is rejected). There is no central `[secrets]` catalog: the ticket
+  carries the reference directly, and the trust boundary on what an `op://`
+  reference can read is 1Password's own vault/service-account permissions, not
+  a Coga allow-list. Launch resolves each ref live and fails loud when it
+  cannot be satisfied (`op` missing / not signed in / `op read` non-zero, or an
+  unset `env:VAR`) — error messages name the Coga secret name and reference,
+  never the value. The extension seam for new reference providers is **prefix
+  dispatch in `config.py`** (`parse_inline_secrets` / `select_launch_secrets`),
+  not a provider registry: a future provider is another explicit branch on the
+  same shared secret path.
+
+## One shared agent-spawn path
+
+Every command that triggers an agent routes through a single single-shot entry
+point — `spawn_agent_session(...)` in `commands/launch.py`, "spawn one agent
+once": compose → write the prompt file → build the agent command → spawn under
+the PTY watcher → log → cleanup. `coga launch`'s `while True:` supervisor chain
+(per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the
+done-sentinel, respawn) **wraps** that call per step; the chain stays
+launch-only and is *not* pushed into the shared unit. `coga ticket` and `coga
+project` authoring route through the same helper, expressing their differences
+as explicit parameters, never as forked code: `secrets` (none for authoring —
+least privilege), a greet-first `kickoff` token (`coga ticket` opts in;
+`coga chat` / general launch stay silent), and `discussion`.
+
+Don't hand-roll the compose→spawn sequence in a new command. A forked copy
+drifts — the authoring copies once diverged to a bare `subprocess.run` and lost
+the PTY watcher (so interactive REPLs stopped releasing on the done sentinel).
+Add a new command's difference as a parameter on the shared path instead.
 
 ## Command Surface
 
