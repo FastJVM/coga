@@ -1,6 +1,6 @@
 ---
 name: coga/usage
-description: How coga records and reads agent token usage — per-agent-session JSONL records appended to each task's own blackboard (no central ledger), the provider parser seam (Claude vs Codex), and `coga usage` as the single read surface. Local and committed, never a phone-home. Read before touching usage capture or adding a usage consumer.
+description: How coga records and reads agent token usage — per-agent-session JSON records appended as tagged lines to the repo-global `coga/log.md` (no per-task store), the provider parser seam (Claude vs Codex), and `coga usage` as the single read surface. Local and committed, never a phone-home. Read before touching usage capture or adding a usage consumer.
 ---
 
 # Agent Usage Tracking
@@ -14,17 +14,25 @@ git-tracked files). Its consumers (agent autorouting, digest/report views) are
 separate tickets; this primitive ships the records and the reader, and
 deliberately defines no budget cap or "remaining".
 
-## The store — each task's own blackboard, no central ledger
+## The store — the repo-global `coga/log.md`, tagged per task
 
-There is **no `coga/usage/` directory and no dedicated ledger file.** Each agent
-session appends exactly one self-describing JSONL record under a `## Usage`
-heading in the *launched task's own* `ticket.md` blackboard region (created if
-absent), mirroring how the digest task spools records into its own file. The
-record carries `ts`, `title`, `slug`, `step`, `agent`, `cli`, `provider`,
+There is **no `coga/usage/` directory, no dedicated ledger file, and no
+per-task store.** Each agent session appends exactly one self-describing JSON
+record to the repo-global `coga/log.md`, riding the standard log-line shape
+(`YYYY-MM-DD HH:MM [<task-ref>] [system] <record JSON>`) via the shared
+`append_log` path, so tagging and formatting stay uniform with every other
+log line. The log is the durable-history home: append-only, **never** a
+prompt-composition layer, and it outlives the task (`coga delete` / retire
+removes the task directory but not its usage history). Records used to live
+under a `## Usage` heading in each ticket's blackboard region, but the
+blackboard is composed into every launch prompt, so pure accounting history
+bloated every future prompt on the ticket.
+
+The record carries `ts`, `title`, `slug`, `step`, `agent`, `cli`, `provider`,
 `model`, `session_id`, the four token categories (`input_tokens`,
 `cache_creation_input_tokens`, `cache_read_input_tokens`, `output_tokens`),
 `usage_status` (`ok` | `unknown`), and a `schema` version — so a line is
-attributable even though its location already implies the task. Keep the four
+self-contained even though its log tag already names the task. Keep the four
 categories distinct: coga composes large cached context layers, so cache tokens
 dominate and collapsing them loses the most useful signal. All parsing and rollup
 logic lives in `src/coga/usage.py`; `launch.py` and `commands/usage.py` stay
@@ -34,7 +42,7 @@ thin.
 
 Capture runs in `launch.py`'s `while True:` step loop, in the `finally` around
 the agent subprocess — **after** the session has exited (so it never races the
-agent's own blackboard writes) and **before** the non-zero/timeout `sys.exit`, so
+agent's own log appends) and **before** the non-zero/timeout `sys.exit`, so
 a session that burned tokens then died is still recorded. One record per loop
 iteration, so chained steps and claude↔codex rotation each get their own line.
 
@@ -46,11 +54,13 @@ It is gated tightly:
 - **Never raises.** A missing or unparseable transcript appends a record with
   `usage_status: "unknown"` (tokens null), not an exception — capture can never
   break a launch.
-- **No task blackboard** (stateless bootstrap launches) → silent skip.
+- **Only real task launches.** Stateless bootstrap launches are not captured
+  (`capture_usage` is off for them).
 
-Capture leaves the write in the working tree; `coga launch` adds no git side
-effect of its own. The per-session `## Usage` record is committed later by the
-`sync_coga_state` catch-all sweep (see `coga/sync`).
+The record lands *past* the agent's final `bump`/`mark` sync, so the launch
+teardown commits it immediately via `git.sync_log` — the log's own
+conflict-free `merge=union` path (see `coga/sync`) — never via a catch-all
+sweep of the working tree.
 
 ## Provider parser seam — both Claude and Codex are first-class
 
@@ -78,25 +88,25 @@ usage-unknown rather than crashing.
 ## The read surface — `coga usage`
 
 `coga usage` is the single accessor; consumers call it instead of re-parsing
-transcripts or blackboards. It globs `coga/tasks/**` and `coga/recurring/**`
-blackboards, parses only the valid JSON lines in each `## Usage` section
-(ignoring prose), and totals them. It defaults to a **tokens-by-task** view (the
+transcripts or the log. It reads `coga/log.md`, parses only the tagged lines
+whose message is a valid usage record (every other log line is skipped, not an
+error), and totals them. It defaults to a **tokens-by-task** view (the
 primary metric for a subscription team), also supports `--by model|agent|step`,
 filters with `--since` / `--until` / `--task`, and emits `--json` for downstream
 consumers. No dollar cost is computed — the team runs on a subscription, so
 tokens-per-task is the question, not dollars (a price table is a deferred
 follow-up).
 
-## Task-scoped — accepted tradeoffs
+## Durable history — accepted tradeoffs
 
-Usage lives beside the work, not in a durable central ledger, with two accepted
-consequences: deleting/retiring a task directory removes its usage lines with it,
-and stateless bootstrap launches (no persistent blackboard) are never recorded.
-If a durable cross-task rollup is ever needed, a central spool is the follow-up.
+Usage lives in the append-only log, so it survives task deletion/retirement
+and never rides a composed prompt. Accepted consequences: stateless bootstrap
+launches are never recorded, and pre-migration records that lived in ticket
+`## Usage` sections were dropped rather than migrated (history is
+reconstructible from the agent CLIs' own session files if ever needed).
 
 ## What this context does NOT cover
 
-- The git sync that commits the `## Usage` write — see `coga/sync`
-  (`sync_coga_state`).
+- The git sync that commits the log append — see `coga/sync` (`sync_log`).
 - The launch supervisor loop and the shared spawn path — see `coga/architecture`.
 - The forbidden external telemetry / phone-home ban — see `coga/principles`.

@@ -1,4 +1,4 @@
-"""Usage records parsed from agent transcripts and stored in blackboards."""
+"""Usage records parsed from agent transcripts and stored in the global log."""
 
 from __future__ import annotations
 
@@ -10,20 +10,22 @@ from datetime import datetime, time, timezone
 from pathlib import Path
 from typing import Literal
 
-from coga.atomicio import atomic_write_text
+from coga.config import Config
+from coga.logfile import append_log
+from coga.paths import log_path
 
 
 USAGE_SCHEMA = 1
-USAGE_HEADING = "Usage"
 
 UsageStatus = Literal["ok", "unknown"]
 ParserKey = Literal["claude", "codex"]
 
-_USAGE_SECTION_RE = re.compile(
-    rf"^##\s+{re.escape(USAGE_HEADING)}\s*$\n?(.*?)(?=^##\s|\Z)",
-    re.MULTILINE | re.DOTALL,
+# A usage record rides the standard `coga/log.md` line shape —
+# `YYYY-MM-DD HH:MM [<task-ref>] [<actor>] <message>` — with the record's
+# JSON object as the message.
+_LOG_LINE_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[[^\]]*\] \[[^\]]*\] (\{.*)$"
 )
-_SECTION_RE = re.compile(r"^(## .+?)$", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -188,7 +190,7 @@ def parse_session(
 
 def capture_session(
     *,
-    blackboard: Path,
+    cfg: Config,
     title: str,
     slug: str,
     step: str | None,
@@ -200,8 +202,6 @@ def capture_session(
     window_start: datetime,
     window_end: datetime,
 ) -> None:
-    if not blackboard.is_file():
-        return
     provider_key = parser_key_for_cli(cli)
     try:
         parsed = parse_session(
@@ -245,46 +245,44 @@ def capture_session(
         usage_status=parsed.usage_status,
     )
     try:
-        append_record(blackboard, record)
+        append_record(cfg, record)
     except Exception as exc:  # pragma: no cover - defensive launch guard
         print(f"coga usage: failed to append usage record: {exc}", file=sys.stderr)
 
 
-def append_record(blackboard: Path, record: UsageRecord) -> None:
-    text = blackboard.read_text()
-    line = record.to_json()
+def append_record(cfg: Config, record: UsageRecord) -> None:
+    """Append one usage record to the repo-global `coga/log.md`.
 
-    matches = list(_SECTION_RE.finditer(text))
-    for i, match in enumerate(matches):
-        if match.group(1).strip() != f"## {USAGE_HEADING}":
-            continue
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        section = text[:end].rstrip()
-        new_text = section + "\n\n" + line + "\n" + text[end:]
-        atomic_write_text(blackboard, new_text)
-        return
-
-    tail = "" if text.endswith("\n") else "\n"
-    new_text = text + f"{tail}\n## {USAGE_HEADING}\n\n{line}\n"
-    atomic_write_text(blackboard, new_text)
+    The record's JSON is the log line's message, behind the standard
+    timestamp + task-ref + actor tagging, so the one line serves both
+    `coga show` history and `coga usage` rollups.
+    """
+    append_log(cfg, record.slug, "system", record.to_json())
 
 
-def load_records(coga_os: Path) -> list[UsageRecord]:
+def load_records(cfg: Config) -> list[UsageRecord]:
+    """Parse usage records back out of the repo-global `coga/log.md`.
+
+    A usage line is an ordinary tagged log line whose message is the record's
+    JSON object; every other line (state transitions, FYIs) fails the record
+    parse and is skipped.
+    """
+    path = log_path(cfg)
+    if not path.is_file():
+        return []
+    try:
+        text = path.read_text()
+    except OSError:
+        return []
     records: list[UsageRecord] = []
-    for blackboard in _usage_blackboards(coga_os):
-        try:
-            text = blackboard.read_text()
-        except OSError:
+    for line in text.splitlines():
+        match = _LOG_LINE_RE.match(line)
+        if not match:
             continue
-        for section in _USAGE_SECTION_RE.findall(text):
-            for line in section.splitlines():
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                try:
-                    records.append(UsageRecord.from_json(stripped))
-                except ValueError:
-                    continue
+        try:
+            records.append(UsageRecord.from_json(match.group(1)))
+        except ValueError:
+            continue
     return records
 
 
@@ -513,18 +511,6 @@ def _read_codex_session_meta(path: Path) -> dict[str, str] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return None
-
-
-def _usage_blackboards(coga_os: Path) -> list[Path]:
-    # Single-file format: usage records live in the `## Usage` section of each
-    # task's ticket — a file-form `tasks/<slug>.md`, a directory-form
-    # `tasks/<dir>/ticket.md`, or a `recurring/<name>/ticket.md`. All are `.md`.
-    roots = [coga_os / "tasks", coga_os / "recurring"]
-    paths: list[Path] = []
-    for root in roots:
-        if root.is_dir():
-            paths.extend(root.glob("**/*.md"))
-    return sorted(paths)
 
 
 def _record_matches(
