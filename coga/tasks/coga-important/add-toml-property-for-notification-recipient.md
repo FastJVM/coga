@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/sync
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
