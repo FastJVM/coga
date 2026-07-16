@@ -349,6 +349,14 @@ def _sync_recurring_create(
             force_record_period=force_record_period,
             state_keys=state_keys,
         )
+    except Exception as exc:
+        # `_sync_recurring_create_paths` already degrades on GitError. This
+        # backstop keeps any *other* failure (subprocess, OS, racing control
+        # pushes) from aborting the caller between task creation and launch —
+        # the created task on disk is the source of truth, so a sync miss is
+        # non-fatal: report + log, keep the task launchable.
+        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
+        _append_sync_failure(cfg, ref.path, exc)
     finally:
         if restore_ticket:
             template_ticket.write_text(restore_ticket)

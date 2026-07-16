@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
@@ -456,6 +457,38 @@ def test_recurring_list_reports_prior_period_done_task_as_due(repo: Path) -> Non
     ) == "2026-W17"
 
 
+def test_recurring_list_reports_reaped_serviced_period_as_ran(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A serviced period whose task dir Dream reaped is not due.
+
+    The sweep skips it as "ran this period" (the template blackboard's
+    high-water mark covers the firing); `list` must agree instead of
+    showing "due — not created"."""
+    cfg = load_config(repo)
+    week_17 = datetime(2026, 4, 22, 10, 0, 0)
+    scan = scan_due(cfg, now=week_17)
+    shutil.rmtree(scan.tasks[0].ref.path)  # Dream reaped the finished run
+
+    current = list_templates(cfg, now=week_17)[0]
+    assert current.instance is None
+    assert current.serviced is True
+    assert current.due is False
+
+    # The next period is genuinely due again.
+    next_period = list_templates(cfg, now=datetime(2026, 4, 29, 10, 0, 0))[0]
+    assert next_period.serviced is False
+    assert next_period.due is True
+
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("COLUMNS", "200")
+    _freeze_recurring_now(monkeypatch, week_17)
+    result = CliRunner().invoke(app, ["recurring", "list"])
+    assert result.exit_code == 0, result.output
+    assert "ran this period — task reaped" in result.output
+    assert "due — not created" not in result.output
+
+
 # --- scan_due: the bare `coga recurring` library layer -----------------------
 
 
@@ -751,6 +784,68 @@ def test_recurring_scan_launches_replacement_task(
     assert read_last_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W18"
+
+
+def test_recurring_scan_launches_even_when_create_sync_crashes(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A non-GitError sync crash must not strand created tasks unlaunched.
+
+    The pre-launch control-branch sync sits between task creation and the
+    launch loop; if it aborts the sweep, the period tasks are left `active`
+    at step 1 with nothing in the log — created but never run.
+    """
+    cfg = load_config(repo)
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        ticket_path = repo / "tasks" / "recurring" / "weekly-check" / "ticket.md"
+        finished = Ticket.read(ticket_path)
+        finished.frontmatter["status"] = "done"
+        finished.frontmatter.pop("step", None)
+        finished.write(ticket_path)
+
+    def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise subprocess.CalledProcessError(128, ["git", "push"])
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr(recurring_cmd, "_sync_recurring_create_paths", boom)
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+
+    assert launched == ["recurring/weekly-check"]
+    captured = capsys.readouterr()
+    assert "Created recurring/weekly-check" in captured.out
+    assert "[git] sync failed" in captured.err
+
+
+def test_sync_recurring_create_survives_non_git_error(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Unexpected sync failures degrade like GitError: report, keep launchable."""
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    ref = scan.tasks[0].ref
+    template_ticket = repo / "recurring" / "weekly-check" / "ticket.md"
+    before = template_ticket.read_text()
+
+    def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise subprocess.CalledProcessError(128, ["git", "push"])
+
+    monkeypatch.setattr(recurring_cmd, "_sync_recurring_create_paths", boom)
+
+    created = recurring_cmd._sync_recurring_create(cfg, "weekly-check", ref)
+
+    assert created is True
+    assert "[git] sync failed" in capsys.readouterr().err
+    assert template_ticket.read_text() == before  # restored, not corrupted
 
 
 def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(

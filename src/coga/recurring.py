@@ -448,8 +448,12 @@ class TemplateStatus:
     `None` (due, not yet created). `stale_done` marks an `instance` that is a
     prior-period `done` leftover Dream never reaped: the next sweep deletes it
     and creates this period's task fresh, so it is reported as due rather than
-    as serviced. `error` is set for a template that failed to load (e.g.
-    missing `schedule`), with the other fields left `None`.
+    as serviced. `serviced` marks a template with no task on disk whose
+    blackboard high-water mark already covers the current period — the run
+    happened and Dream reaped the task dir, so it is *not* due (the sweep
+    would skip it as "ran this period"). `error` is set for a template that
+    failed to load (e.g. missing `schedule`), with the other fields left
+    `None`.
     """
 
     name: str
@@ -462,6 +466,7 @@ class TemplateStatus:
     instance_status: str | None
     error: str | None = None
     stale_done: bool = False
+    serviced: bool = False
 
     @property
     def due(self) -> bool:
@@ -469,8 +474,12 @@ class TemplateStatus:
         `coga recurring` would create and launch this template now.
 
         A stale prior-period `done` instance counts as due: the next sweep
-        deletes it and creates this period's task fresh."""
-        return self.error is None and (self.instance is None or self.stale_done)
+        deletes it and creates this period's task fresh. A template with no
+        task but a serviced high-water mark does not: the sweep skips it, so
+        `list` must agree instead of over-reporting dueness."""
+        return self.error is None and (
+            self.stale_done or (self.instance is None and not self.serviced)
+        )
 
 
 def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateStatus]:
@@ -517,8 +526,14 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
         instance = _live_task_for_template(cfg, template.name)
         instance_status: str | None = None
         stale_done = False
+        serviced = False
         if instance is None:
             candidate = _task_with_slug(cfg, target_slug)
+            if candidate is None:
+                # No task on disk at all — the period still counts as handled
+                # when the template blackboard's high-water mark covers it
+                # (the run happened and Dream reaped the task dir).
+                serviced = _period_already_serviced(template, period_key)
             if candidate is not None:
                 try:
                     instance_status = read_ticket(candidate).status
@@ -550,6 +565,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
                 instance_status=instance_status,
                 error=None,
                 stale_done=stale_done,
+                serviced=serviced,
             )
         )
     return out

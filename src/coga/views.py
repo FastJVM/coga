@@ -323,8 +323,10 @@ def _print_recurring_templates(
             )
         elif s.instance is not None:
             period = f"{s.instance_status} · {s.instance.id_slug}"
-        else:
+        elif s.due:
             period = "[green]due — not created[/green]"
+        else:
+            period = "[dim]ran this period — task reaped[/dim]"
         table.add_row(s.name, s.schedule or "-", firing_stamp(s.next_fire), period)
     console.print(table)
 

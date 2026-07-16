@@ -223,7 +223,7 @@ def _print_templates_table(
         elif s.due:
             period = "[green]due — not created[/green]"
         else:
-            period = "none"
+            period = "[dim]ran this period — task reaped[/dim]"
         table.add_row(
             s.name,
             s.schedule or "-",

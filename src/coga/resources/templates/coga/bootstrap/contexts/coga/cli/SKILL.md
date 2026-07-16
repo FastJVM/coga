@@ -318,7 +318,9 @@ Generated recurring period tasks under `tasks/recurring/` (`recurring/<name>`)
 are ordinary tasks and render as normal rows in the main table. The templates
 in `coga/recurring/` are not tasks yet, so they get a **`Recurring` footer**
 below the table instead — one row per template with its schedule, next fire,
-and current-period state (`due — not created`, or the live instance's status) —
+and current-period state (`due — not created`, `ran this period — task
+reaped` for a serviced period whose task Dream removed, or the live
+instance's status) —
 shown whenever the view's scope covers `tasks/recurring/` (the bare view or a
 `recurring` directory filter), even when no period task is live. `coga
 recurring list` remains the full schedule-aware view.
@@ -701,7 +703,8 @@ Read-only view of the recurring system — creates nothing and launches
 nothing (the inspectable counterpart of a bare `coga recurring`, which
 get-or-creates each due period's task and runs it). Prints two tables: every
 template with its schedule, last/next firing, and current-period state
-(`due — not created`, or the live instance's status); then the **picked
+(`due — not created`, `ran this period — task reaped` for a serviced period
+whose task Dream removed, or the live instance's status); then the **picked
 tasks** — the recurring period tasks already on disk, with their status and
 step. A template that fails to load (e.g. missing `schedule`) shows as an
 error row instead of crashing the view.
