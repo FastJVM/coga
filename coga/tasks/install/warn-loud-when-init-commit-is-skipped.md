@@ -96,3 +96,7 @@ worktree installed editable; `test_bootstrap_script_launch_is_stateless`
 fails without an installed coga — pre-existing env artifact, fails on clean
 main too, passes with the editable install). End-to-end: real `coga init` in
 an identity-less repo exits 2 with the remedy and writes nothing.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":246170,"cache_read_input_tokens":8919528,"cli":"claude","input_tokens":194,"model":"claude-fable-5","output_tokens":106521,"provider":"anthropic","schema":1,"session_id":"d4e40e9e-d192-412c-a9f4-bb4d055010c5","slug":"install/warn-loud-when-init-commit-is-skipped","step":"implement","title":"Warn loud when init commit is skipped","ts":"2026-07-16T01:22:25.537056Z","usage_status":"ok"}
