@@ -8,7 +8,7 @@ agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: null
+workflow: docs/with-review
 secrets: null
 script: null
 ---
