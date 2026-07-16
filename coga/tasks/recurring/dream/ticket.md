@@ -443,3 +443,7 @@ Findings: 23 total — 2 `extract`, 3 `stale`, 18 `drift`, 0 `gap`.
 Artifacts: [#563](https://github.com/FastJVM/coga/pull/563), [#564](https://github.com/FastJVM/coga/pull/564), [#565](https://github.com/FastJVM/coga/pull/565), [#566](https://github.com/FastJVM/coga/pull/566), [#567](https://github.com/FastJVM/coga/pull/567), [#568](https://github.com/FastJVM/coga/pull/568), [#569](https://github.com/FastJVM/coga/pull/569), [#570](https://github.com/FastJVM/coga/pull/570), [#571](https://github.com/FastJVM/coga/pull/571), [#572](https://github.com/FastJVM/coga/pull/572), [#573](https://github.com/FastJVM/coga/pull/573). No draft tickets were created.
 
 Human-needed: review the 31 lifecycle/authoring validator issues and the 11 open PRs. Retro Slack FYIs failed on DNS; the parent Dream summary is sent separately before the final task transition.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"codex","input_tokens":null,"model":null,"output_tokens":null,"provider":"openai","schema":1,"session_id":null,"slug":"recurring/dream","step":"execute","title":"Dream","ts":"2026-07-16T17:07:19.320948Z","usage_status":"unknown"}
