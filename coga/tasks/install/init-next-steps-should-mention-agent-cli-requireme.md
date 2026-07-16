@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -56,7 +56,7 @@ Getting Started gap).
 branch: init-agent-cli-hint
 worktree: /home/n/Code/claude/coga-init-agent-cli-hint
 
-## Implement step — done (commit d0f3287b, rebased onto a546501f)
+## Implement step — done (commit a873d1de, rebased onto 41ae58ef)
 
 All three ticket asks landed:
 
@@ -81,10 +81,11 @@ All three ticket asks landed:
   next-steps-name-the-prerequisite; `test_launch.py`'s not-in-PATH test now
   asserts the install hint.
 
-Verification: full suite green after rebase — 1214 passed, 1 skipped — via a
-scratch venv with the worktree installed editable (`pip install -e`), because
-this machine has no py3.11+ editable install and pytest's `pythonpath=src`
-doesn't reach script subprocesses.
+Verification: full suite green after the latest rebase onto 41ae58ef — 1227
+passed, 1 skipped — via a scratch venv (python3.12) with the worktree
+installed editable (`pip install -e`), because this machine's default python3
+is 3.9 and pytest's `pythonpath=src` doesn't reach script subprocesses. The
+previously-flaky `test_usage_probe.py` codex-probe tests passed on this run.
 
 Adjacent issues found (for follow-up tickets, not fixed here):
 
