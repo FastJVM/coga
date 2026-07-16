@@ -75,11 +75,11 @@ The tradeoff is the Lisp tradeoff: flexibility without structure means disciplin
 
 ## Where it runs
 
-Coga runs on our machines by default. Not on a hosted service, not on a remote cluster, not in a vendor's cloud. The agent's session is on the same hardware one of us is sitting at. When it works, we're there. When it panics, we're there. When it finishes and posts to Slack, we're usually still at our desks.
+Coga runs on our machines by default. Not on a hosted service, not on a remote cluster, not in a vendor's cloud. The agent's session is on the same hardware one of us is sitting at. When it works, we're there. When it blocks, we're there. When it finishes and posts to Slack, we're usually still at our desks.
 
 This isn't about data sovereignty or infrastructure minimalism. It's about the correction loop. The loop only closes cheaply if the human and the agent are co-located in time and context. A cloud agent that runs overnight and reports in the morning has already broken the loop — by the time you see the mistake, you've lost the context of what the agent was trying to do and what you were doing. Reconstructing the situation before you can correct it is the cost that kills most automation programs. Co-location avoids that cost entirely. You're still *in* the context when the correction needs to happen.
 
-Cloud execution has a legitimate place, but later. An automation that's been running for months, whose context is mature, whose panic thresholds are calibrated, whose failure modes are known and handled — that automation can graduate to cloud execution. The correction loop isn't firing often anyway; availability and reliability matter more than tight iteration latency. The weekly deliverability check, the monthly newsletter draft, the nightly Stripe reconciliation — stable automations don't need a human standing next to them.
+Cloud execution has a legitimate place, but later. An automation that's been running for months, whose context is mature, whose blocking criteria are calibrated, whose failure modes are known and handled — that automation can graduate to cloud execution. The correction loop isn't firing often anyway; availability and reliability matter more than tight iteration latency. The weekly deliverability check, the monthly newsletter draft, the nightly Stripe reconciliation — stable automations don't need a human standing next to them.
 
 What the automation can't afford to lose, at any stage, is legibility. Wherever it runs, we still have to be able to look inside it. Read the blackboard. Read the context it was given. Recover the prompt that was composed and sent. Trace what it decided and why. Cloud execution that preserves these properties is fine; cloud execution that hides internals breaks the classical-mode relationship with the machine and takes us back to renting understanding from a vendor.
 
@@ -95,7 +95,7 @@ The alternative — polling N dashboards, checking each tool's notification sett
 
 The mechanism underneath all of this is a loop with unusually short latency.
 
-An agent does something wrong. A human notices — because they were at the machine, because Slack pinged them, because a panic fired. They open the relevant context file, tighten the wording or add the missing rule, commit. The next run of that task — and every future run of every task that references that context — uses the corrected version. Elapsed time from observed error to deployed fix: about two minutes.
+An agent does something wrong. A human notices — because they were at the machine, because Slack pinged them, because a blocker surfaced. They open the relevant context file, tighten the wording or add the missing rule, commit. The next run of that task — and every future run of every task that references that context — uses the corrected version. Elapsed time from observed error to deployed fix: about two minutes.
 
 That number is the engine. It isn't a convenience. It's the difference between automations that stay sharp and automations that rot.
 
@@ -115,7 +115,10 @@ Two consequences worth naming:
 
 ## The primitives
 
-**Tasks** are directories in the repo. Each has a ticket (what to do, who's doing it, what workflow applies), a blackboard (the agent's workspace for in-progress state), and a log (append-only history of state changes). Tasks are how work gets tracked and how agents persist between sessions.
+**Tasks** are markdown files or directories in the repo. Each ticket carries
+its body and blackboard region; append-only state history lives in the one
+repo-global `coga/log.md`. Tasks are how work gets tracked and how agents
+persist between sessions.
 
 **Contexts** are reusable chunks of domain knowledge. "How email deliverability works," "how our JIT compiler handles inlining," "how our Stripe integration's retry logic behaves." Attached to tasks by name. Written once, used across tasks and agents. The artifact that appreciates over time — see the correction loop section above.
 
@@ -132,7 +135,7 @@ else launches the configured agent in an attended REPL. There is no ticket
 mode or autonomy flag. Unattended drain comes from script tasks, blockers, megalaunch, and the
 liveness watchdog around supervised agent sessions.
 
-**The base prompt** is a system prompt injected into every agent session. It teaches the agent how to operate within Coga — when to advance workflow steps, when to panic, how to use the blackboard, how to handle frontmatter. The base prompt lives as version-controlled markdown. Agents don't learn Coga through their own memory or config; they learn it fresh every session from a file we own.
+**The base prompt** is a system prompt injected into every agent session. It teaches the agent how to operate within Coga — when to advance workflow steps, when to block, how to use the blackboard, how to handle frontmatter. The base prompt lives as version-controlled markdown. Agents don't learn Coga through their own memory or config; they learn it fresh every session from a file we own.
 
 ---
 
@@ -146,7 +149,11 @@ Not every task should be automated. The three-question framework:
 
 **Can we evaluate the result without raising the bar?** If we would review a contractor's output for this task with a certain rigor, we review the agent's with the same rigor. Not more, not less. If the evaluation requires expertise we don't have — if we can't tell whether the output is right — the task either needs redesign or shouldn't be automated.
 
-If all three answer yes, the task goes into Coga as auto or script mode. If one answers no, we either redesign it (split into sub-tasks that each pass) or keep doing it ourselves. The worst outcome is confident automation of a task where we can't evaluate the result — that's how silent errors ship.
+If all three answer yes, the task goes into Coga with an agent-owned or
+script-backed workflow. If one answers no, we either redesign it (split into
+sub-tasks that each pass) or keep doing it ourselves. The worst outcome is
+confident automation of a task where we can't evaluate the result — that's how
+silent errors ship.
 
 Most recurring operational work in a technical company passes all three questions once you decompose it finely enough. The decomposition is the work.
 
@@ -162,7 +169,7 @@ The methodology describes itself using its own primitives. Two self-bootstrappin
 
 **Ticket authoring** is a skill that runs during task creation. Give it a title and description, it asks clarifying questions, proposes which contexts and workflows apply, and drafts or edits the ticket. We review before confirming. Most of our task creation goes through this — it's how new work gets slotted into the existing substrate without us having to remember what's there.
 
-Hofstadter spent *Gödel, Escher, Bach* arguing that strange loops — systems that contain representations of themselves and can reason about their own structure — are where interesting things happen. Coga isn't intelligent in any Hofstadter sense, but the pattern is similar at a workaday level: the system's rules are files, the files can be read by the same agents the rules govern, and the agents can propose changes to the rules they're about to follow. Dream is Coga reasoning about Coga, using Coga. Create-suggest is Coga extending Coga, from within Coga.
+Hofstadter spent *Gödel, Escher, Bach* arguing that strange loops — systems that contain representations of themselves and can reason about their own structure — are where interesting things happen. Coga isn't intelligent in any Hofstadter sense, but the pattern is similar at a workaday level: the system's rules are files, the files can be read by the same agents the rules govern, and the agents can propose changes to the rules they're about to follow. Dream is Coga reasoning about Coga, using Coga. Ticket authoring is Coga extending Coga, from within Coga.
 
 This is the reason the methodology doesn't rot. Without these self-bootstrapping mechanisms, Coga would be a task list with a documentation convention — useful but bound to drift. With them, the system is actively pushing us to maintain it, and the maintenance happens as a byproduct of using it, not as a separate activity. Quality, in Pirsig's sense, requires continuous attention to the machine. The strange loop is how we get that attention for free.
 
@@ -174,7 +181,7 @@ The methodology fails without sustained operating discipline. What we commit to:
 
 When an agent gets something wrong, we update the relevant context before closing the task. Not later. Not in a backlog. The correction happens in the same session where the mistake was observed. The two-minute correction loop only works if we actually close it.
 
-Panic thresholds get tuned per task, not set globally. An agent that never panics silently ships wrong answers. One that panics on every ambiguity is useless. Each recurring or megalaunch task gets its own calibration, revisited when we see failures.
+Blocking criteria get tuned per task, not set globally. An agent that never blocks can silently ship wrong answers. One that blocks on every ambiguity is useless. Each recurring or megalaunch task gets its own calibration, revisited when we see failures.
 
 Dream runs regularly per repo, with a human reviewing every proposal. Not "eventually." If we skip it, drift compounds and we notice three months later when the system starts failing in ways we don't understand.
 
@@ -222,7 +229,7 @@ That's also why we're publishing at all. Articulating the methodology keeps us a
 
 **Context drift.** The world changes, contexts don't. Dream catches some of this, but not all. We schedule quarterly reviews of context accuracy against recent blackboards and recent company changes.
 
-**Calibration rot.** Panic thresholds that were right six months ago become wrong as the task space shifts. Each recurring or megalaunch task's panic rate gets reviewed when it feels off. "Feels off" is imprecise, which is why this is a discipline issue rather than an automated check.
+**Calibration rot.** Blocking criteria that were right six months ago become wrong as the task space shifts. Each recurring or megalaunch task's block rate gets reviewed when it feels off. "Feels off" is imprecise, which is why this is a discipline issue rather than an automated check.
 
 **Skills-contexts conflation.** The distinction that's conceptually clean but practically leaky. When we notice a skill containing domain facts or a context containing process instructions, we split. If we stop noticing, the methodology degrades.
 
