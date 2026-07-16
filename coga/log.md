@@ -1407,3 +1407,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 20:50 [move-per-session-usage-records-from-ticket-blackbo] [system] script exited with code 0
 2026-07-15 20:50 [move-per-session-usage-records-from-ticket-blackbo] [system] advanced to step 4 (review) → assigned to nicktoper after script step
 2026-07-15 20:55 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-15 21:00 [install/harden-packaging-and-install-before-launch] [human:nicktoper] unblocked (blocked → active): Owner reset 2026-07-15: nicktoper is taking over all install/ tickets; this gate is reset to active on code/with-review at step 1 alongside its siblings, overriding the 2026-07-12 direct/body scope decision.
