@@ -249,10 +249,10 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ### 1. validate-drift
 
-- Child task: `dream-validate-drift-w29` (`status: done`).
+- Child task: `dream-validate-drift-w29` completed, then was direct-deleted by Phase 4; git history preserves its report.
 - Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.validate --json --fix`.
 - Result: `reported` — 31 remaining issues, all `human-needed`; 0 direct fixes and 0 PR proposals. No files were repaired.
-- The validator surfaced 8 stale `in_progress` tickets, 6 unfrozen draft workflows, 6 unsynthesized draft blackboards, 5 orphan `mode` fields, 4 unknown legacy assignees, and 3 missing workflow steps (some tickets appear in multiple groups). The complete issue list is in the child blackboard.
+- The validator surfaced 8 stale `in_progress` tickets, 6 unfrozen draft workflows, 6 unsynthesized draft blackboards, 5 orphan `mode` fields, 4 unknown legacy assignees, and 3 missing workflow steps (some tickets appear in multiple groups). The complete issue list is preserved in the direct-deleted child's git history.
 
 ### 2. knowledge scan
 
@@ -416,3 +416,31 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 - Child task: `dream-cleanup-orphan-markers-w29` (`status: done`).
 - Result: `no-op` — no cleanup-eligible processed done ticket still had an on-disk task artifact; nothing was deleted and no review gate was needed.
+
+### 6. disposition
+
+- Result: `pr-opened` — 9 proposal PRs route all 3 `stale` and 18 `drift` findings; 0 gap tickets were needed.
+- `extract`: handled by [#563](https://github.com/FastJVM/coga/pull/563) and [#564](https://github.com/FastJVM/coga/pull/564).
+- `stale`: [#565](https://github.com/FastJVM/coga/pull/565) fixes CLI lifecycle/validation claims; [#567](https://github.com/FastJVM/coga/pull/567) replaces the stale roadmap snapshot.
+- `drift`: [#566](https://github.com/FastJVM/coga/pull/566) resyncs architecture/period contexts; [#568](https://github.com/FastJVM/coga/pull/568) fixes digest spool contracts; [#569](https://github.com/FastJVM/coga/pull/569) fixes configurable git-ref contracts; [#570](https://github.com/FastJVM/coga/pull/570) updates code-workflow contracts; [#571](https://github.com/FastJVM/coga/pull/571) fixes the recurring starter; [#572](https://github.com/FastJVM/coga/pull/572) refreshes public docs; [#573](https://github.com/FastJVM/coga/pull/573) removes the finished secret-probe fixture.
+- Overlap: the `coga/codebase` “init/update” wording finding touches the same context as knowledge PR [#564](https://github.com/FastJVM/coga/pull/564), so it is deferred to that PR's review rather than placed in a conflicting proposal.
+- Review gate: all 11 PRs require human review and remain unmerged by Dream.
+
+## Dream Run Summary
+
+Generated: 2026-07-16T16:55:34Z
+
+| Phase | Result | Summary |
+| --- | --- | --- |
+| validate-drift | `reported` | 31 issues, all human-needed; 0 safe repairs |
+| knowledge scan | `reported` | 2 extract, 3 stale, 0 gap |
+| contract audit | `reported` | 18 drift findings |
+| retro/done-ticket | `pr-opened` | 2 knowledge PRs; 50 direct-fixed deletions |
+| cleanup-orphan-markers | `no-op` | 0 surviving processed-marker artifacts |
+| disposition | `pr-opened` | 9 proposal PRs; 0 draft gap tickets |
+
+Findings: 23 total — 2 `extract`, 3 `stale`, 18 `drift`, 0 `gap`.
+
+Artifacts: [#563](https://github.com/FastJVM/coga/pull/563), [#564](https://github.com/FastJVM/coga/pull/564), [#565](https://github.com/FastJVM/coga/pull/565), [#566](https://github.com/FastJVM/coga/pull/566), [#567](https://github.com/FastJVM/coga/pull/567), [#568](https://github.com/FastJVM/coga/pull/568), [#569](https://github.com/FastJVM/coga/pull/569), [#570](https://github.com/FastJVM/coga/pull/570), [#571](https://github.com/FastJVM/coga/pull/571), [#572](https://github.com/FastJVM/coga/pull/572), [#573](https://github.com/FastJVM/coga/pull/573). No draft tickets were created.
+
+Human-needed: review the 31 lifecycle/authoring validator issues and the 11 open PRs. Retro Slack FYIs failed on DNS; the parent Dream summary is sent separately before the final task transition.
