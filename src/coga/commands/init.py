@@ -611,6 +611,7 @@ def _print_managed_skill_summary(summary: ManagedSkillSummary) -> None:
             err=True,
         )
     _print_no_access_skill_notes(summary)
+    _print_rate_limited_skill_notes(summary)
     for result in summary.results:
         if result.status != "failed":
             continue
@@ -662,6 +663,34 @@ def _print_no_access_skill_notes(summary: ManagedSkillSummary) -> None:
             f"Note: skipped {count} optional managed skill{plural} from {source} — "
             f"that repo isn't accessible with your GitHub credentials ({reason}). "
             f"Coga works without them. To install later, {next_step}",
+            fg=typer.colors.YELLOW,
+        )
+
+
+def _print_rate_limited_skill_notes(summary: ManagedSkillSummary) -> None:
+    """One consolidated note per rate-limited source, not one warning per skill.
+
+    Unauthenticated `gh` shares GitHub's anonymous per-IP quota (60 req/hr),
+    so repeated inits — or one init behind office NAT — rate-limit every
+    optional skill at once. Re-running the install hits the same limit;
+    `gh auth login` is the fix, since authenticated requests get a much
+    higher quota.
+    """
+    by_source: dict[str, list[SkillResult]] = {}
+    for result in summary.results:
+        if result.status != "skipped-rate-limited":
+            continue
+        by_source.setdefault(str(result.details.get("source")), []).append(result)
+    for source, results in by_source.items():
+        reason = str(results[0].details.get("reason"))
+        count = len(results)
+        plural = "s" if count != 1 else ""
+        typer.secho(
+            f"Note: skipped {count} optional managed skill{plural} from {source} — "
+            f"GitHub's anonymous API rate limit was hit ({reason}). "
+            "Coga works without them. Authenticate with `gh auth login` "
+            "(authenticated requests get a much higher quota), then run e.g. "
+            f"`coga skill install {source} {results[0].name}`.",
             fg=typer.colors.YELLOW,
         )
 

@@ -27,6 +27,10 @@ from coga.skill_manager import (
 MANAGED_SKILL_MANIFEST_PACKAGE = "coga.resources"
 MANAGED_SKILL_MANIFEST_PATH = ("managed-skills.toml",)
 
+# Rerunning `coga skill install` after a rate-limit 403 hits the same
+# anonymous per-IP quota; authenticating is what actually raises it.
+GH_AUTH_REMEDIATION = "gh auth login"
+
 GithubInstaller = Callable[
     [Config, str, str | None],
     SkillResult,
@@ -136,7 +140,7 @@ def install_managed_skills(
     cfg = _manifest_skill_config(coga_os)
     summary = ManagedSkillSummary()
     skill_specs = specs if specs is not None else load_managed_skill_manifest()
-    access_cache: dict[str, str | None] = {}
+    access_cache: dict[str, tuple[str, str]] = {}
     gh_unavailable: GhSkillUnavailableError | None = None
     for spec in skill_specs:
         target = _skill_target(cfg, spec.ref)
@@ -190,7 +194,7 @@ def reconcile_managed_skills(
     cfg = _manifest_skill_config(coga_os)
     summary = ManagedSkillSummary()
     skill_specs = specs if specs is not None else load_managed_skill_manifest()
-    access_cache: dict[str, str | None] = {}
+    access_cache: dict[str, tuple[str, str]] = {}
     gh_unavailable: GhSkillUnavailableError | None = None
     for spec in skill_specs:
         target = _skill_target(cfg, spec.ref)
@@ -262,16 +266,25 @@ def _run_install(
     runner: Runner | None,
     downloader: Downloader | None,
     github_installer: GithubInstaller | None,
-    access_cache: dict[str, str | None] | None = None,
+    access_cache: dict[str, tuple[str, str]] | None = None,
 ) -> SkillResult:
     try:
         if spec.source_type == "github":
             if github_installer is not None:
                 return github_installer(cfg, spec.source, spec.ref)
-            reason = _cached_github_source_unavailable_reason(
-                spec.source, cache=access_cache
-            )
-            if reason is not None:
+            cached = _cached_github_source_failure(spec.source, cache=access_cache)
+            if cached is not None:
+                kind, reason = cached
+                if kind == "rate-limit":
+                    if spec.required:
+                        raise ManagedSkillError(
+                            _required_failure_message(
+                                spec,
+                                f"GitHub API rate limit ({reason})",
+                                remediation=GH_AUTH_REMEDIATION,
+                            )
+                        )
+                    return _rate_limited_result(spec, reason)
                 if spec.required:
                     raise ManagedSkillError(
                         _required_failure_message(
@@ -286,11 +299,27 @@ def _run_install(
                 # the caller can skip the remaining manifest entries.
                 raise
             except SkillManagerError as exc:
+                # Rate limit first: gh's rate-limit text can suggest
+                # `gh auth login`, which the access-denial markers would
+                # otherwise misread as a credential problem.
+                rate_limit = _github_rate_limit_reason(str(exc))
+                if rate_limit is not None:
+                    if access_cache is not None:
+                        access_cache[spec.source.strip()] = ("rate-limit", rate_limit)
+                    if spec.required:
+                        raise ManagedSkillError(
+                            _required_failure_message(
+                                spec,
+                                f"GitHub API rate limit ({rate_limit})",
+                                remediation=GH_AUTH_REMEDIATION,
+                            )
+                        ) from exc
+                    return _rate_limited_result(spec, rate_limit)
                 reason = _github_access_denial_reason(str(exc))
                 if reason is None:
                     raise
                 if access_cache is not None:
-                    access_cache[spec.source.strip()] = reason
+                    access_cache[spec.source.strip()] = ("no-access", reason)
                 if spec.required:
                     raise ManagedSkillError(
                         _required_failure_message(
@@ -317,12 +346,12 @@ def _run_install(
         return _failure_result(spec, exc)
 
 
-def _cached_github_source_unavailable_reason(
+def _cached_github_source_failure(
     source: str,
     *,
-    cache: dict[str, str | None] | None,
-) -> str | None:
-    """Return a prior access denial for this source within the current run."""
+    cache: dict[str, tuple[str, str]] | None,
+) -> tuple[str, str] | None:
+    """Return a prior (kind, reason) failure for this source within the current run."""
     key = source.strip()
     return cache.get(key) if cache is not None else None
 
@@ -350,6 +379,37 @@ def _github_access_denial_reason(output: str) -> str | None:
         if any(marker in normalized for marker in access_markers):
             return line
     return None
+
+
+def _github_rate_limit_reason(output: str) -> str | None:
+    """Return an anonymous rate-limit line, dropping the request-ID blob."""
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    normalized_output = " ".join(lines).casefold()
+    if "authenticated requests get a higher rate limit" not in normalized_output:
+        return None
+    for line in lines:
+        normalized = line.casefold()
+        if "api rate limit exceeded" in normalized:
+            return line
+    return None
+
+
+def _rate_limited_result(spec: ManagedSkillSpec, reason: str) -> SkillResult:
+    return SkillResult(
+        name=spec.ref,
+        source_type=spec.source_type,
+        status="skipped-rate-limited",
+        message=(
+            f"optional skill skipped — GitHub API rate limit reached while "
+            f"fetching from {spec.source} ({reason})"
+        ),
+        details={
+            "source": spec.source,
+            "required": spec.required,
+            "remediation": GH_AUTH_REMEDIATION,
+            "reason": reason,
+        },
+    )
 
 
 def _no_access_result(spec: ManagedSkillSpec, reason: str) -> SkillResult:
@@ -400,10 +460,12 @@ def _failure_result(spec: ManagedSkillSpec, exc: object) -> SkillResult:
     )
 
 
-def _required_failure_message(spec: ManagedSkillSpec, exc: object) -> str:
+def _required_failure_message(
+    spec: ManagedSkillSpec, exc: object, *, remediation: str | None = None
+) -> str:
     return (
         f"Required managed skill `{spec.ref}` failed from {spec.source}: {exc}\n"
-        f"Remediation: {spec.remediation_command()}"
+        f"Remediation: {remediation or spec.remediation_command()}"
     )
 
 

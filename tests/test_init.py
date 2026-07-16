@@ -686,6 +686,49 @@ def test_init_notes_skipped_no_access_managed_skills(
     assert "Warning: optional managed skill" not in result.output
 
 
+def test_init_notes_rate_limited_managed_skills(
+    tmp_path: Path,
+    fake_clone,
+    fake_venv,
+    fake_managed_skill_sync,
+) -> None:
+    target = _make_git_repo(tmp_path / "company")
+    reason = "HTTP 403: API rate limit exceeded for 203.0.113.9."
+    fake_managed_skill_sync.install_summary = ManagedSkillSummary(
+        [
+            SkillResult(
+                name=f"tools/{name}",
+                source_type="github",
+                status="skipped-rate-limited",
+                message=(
+                    "optional skill skipped — GitHub API rate limit reached "
+                    f"while fetching from google/agents-cli ({reason})"
+                ),
+                details={
+                    "source": "google/agents-cli",
+                    "required": False,
+                    "remediation": "gh auth login",
+                    "reason": reason,
+                },
+            )
+            for name in ("one", "two")
+        ]
+    )
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert "Managed skills: skipped-rate-limited=2" in result.output
+    # One consolidated note per source — not a warning per skill.
+    assert (
+        "Note: skipped 2 optional managed skills from google/agents-cli"
+        in result.output
+    )
+    assert "Coga works without them" in result.output
+    assert "gh auth login" in result.output
+    assert "Warning: optional managed skill" not in result.output
+
+
 def test_init_tells_user_to_install_missing_gh_for_managed_skills(
     tmp_path: Path,
     fake_clone,

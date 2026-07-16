@@ -272,6 +272,117 @@ def test_install_managed_skills_skips_source_blocked_by_saml_enforcement(
     assert "SAML enforcement" in summary.results[0].details["reason"]
 
 
+def test_install_managed_skills_skips_rate_limited_source(
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        commands.append(command)
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        if command[:3] == ["gh", "skill", "install"]:
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr=(
+                    "HTTP 403: API rate limit exceeded for 203.0.113.9. (But "
+                    "here's the good news: Authenticated requests get a higher "
+                    "rate limit. Check out the documentation for more details.)\n"
+                    "If you reach out to GitHub Support for help, please "
+                    "include the request ID ABCD:1234."
+                ),
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[
+            ManagedSkillSpec(ref="tools/one", source="owner/repo"),
+            ManagedSkillSpec(ref="tools/two", source="owner/repo"),
+        ],
+        runner=runner,
+    )
+
+    # The first install identifies the rate limit; the second is skipped
+    # instead of burning another request of the exhausted quota.
+    assert len(commands) == 2
+    assert commands[1][:3] == ["gh", "skill", "install"]
+    assert summary.counts() == {"skipped-rate-limited": 2}
+    first = summary.results[0]
+    assert first.details["remediation"] == "gh auth login"
+    assert "API rate limit exceeded" in first.message
+    # The request-ID/support blob is trimmed to the one actionable line.
+    assert "request ID" not in first.message
+
+
+def test_required_managed_skill_rate_limited_fails_loud(tmp_path: Path) -> None:
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr=(
+                "HTTP 403: API rate limit exceeded for 203.0.113.9. "
+                "Authenticated requests get a higher rate limit."
+            ),
+        )
+
+    with pytest.raises(ManagedSkillError) as exc:
+        install_managed_skills(
+            tmp_path,
+            specs=[
+                ManagedSkillSpec(
+                    ref="tools/core",
+                    source="owner/repo",
+                    required=True,
+                )
+            ],
+            runner=runner,
+        )
+
+    assert "GitHub API rate limit" in str(exc.value)
+    assert "Remediation: gh auth login" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "HTTP 403: API rate limit exceeded for authenticated-user.",
+        "You have exceeded a secondary rate limit. Please wait a few minutes.",
+    ],
+)
+def test_install_managed_skills_does_not_prescribe_login_for_other_rate_limits(
+    tmp_path: Path,
+    message: str,
+) -> None:
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        if command == ["gh", "skill", "--help"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr=message,
+        )
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[ManagedSkillSpec(ref="tools/example", source="owner/repo")],
+        runner=runner,
+    )
+
+    assert summary.counts() == {"failed": 1}
+    [result] = summary.results
+    assert result.details["remediation"] != "gh auth login"
+
+
 def test_required_managed_skill_from_inaccessible_source_fails_loud(
     tmp_path: Path,
 ) -> None:

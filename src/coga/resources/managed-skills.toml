@@ -7,6 +7,9 @@
 # failed fetch warns rather than failing init. When an install reports an access
 # denial, later optional skills from that source are skipped with one note
 # instead of repeating the same failing `gh skill install` for every skill.
+# The same applies when GitHub's anonymous API rate limit is hit — the note
+# points at `gh auth login`, since retrying unauthenticated hits the same
+# per-IP quota.
 
 [[skills]]
 ref = "google-agents-cli-workflow"
