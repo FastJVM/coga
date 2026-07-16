@@ -209,3 +209,10 @@ main's advance (git.py/bump.py refactors, #509/#510). The actual change is only
 the 4 files in `merge-base..HEAD`. A rebase onto `main` before merge is likely
 wanted; version_skew.py is new so conflicts should be minimal, but launch.py /
 validate.py import lines may need reseating.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Preserve the installed-versus-source skew diagnostic
