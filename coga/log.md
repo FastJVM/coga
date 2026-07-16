@@ -1371,3 +1371,6 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 20:14 [recurring/autoclose-merged] [system] script exited with code 0
 2026-07-15 20:14 [recurring/autoclose-merged] [system] completed (final script step ran) via coga launch
 2026-07-15 20:14 [recurring/digest] [system] started (active → in_progress) via coga launch
+2026-07-15 20:14 [recurring/digest] [system] launched as a script (skill=coga/digest/flush, script=run.py)
+2026-07-15 20:14 [recurring/digest] [system] script exited with code 0
+2026-07-15 20:14 [recurring/digest] [system] completed (final script step ran) via coga launch
