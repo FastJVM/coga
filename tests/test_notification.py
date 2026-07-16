@@ -445,6 +445,186 @@ def test_webhook_non_string_raises_config_error(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
+# --- important_webhook (the coga-important channel) ----------------------------
+
+
+def _create_min_both_webhooks(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        [notification]
+        channels = ["slack"]
+        [notification.slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
+        """,
+    )
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
+
+
+@pytest.fixture
+def cfg_with_both_webhooks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _create_min_both_webhooks(tmp_path)
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/flow")
+    monkeypatch.setenv(
+        "COGA_IMPORTANT_WEBHOOK_URL", "https://hooks.slack.com/services/important"
+    )
+    return load_config(tmp_path)
+
+
+def test_toml_important_webhook_env_indirection_resolves(
+    cfg_with_both_webhooks,
+) -> None:
+    """`important_webhook = "env:VAR"` resolves alongside the primary webhook."""
+    assert (
+        cfg_with_both_webhooks.slack_important_webhook
+        == "https://hooks.slack.com/services/important"
+    )
+    assert cfg_with_both_webhooks.slack_webhook == "https://hooks.slack.com/services/flow"
+
+
+def test_important_webhook_unset_env_is_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_min_both_webhooks(tmp_path)
+    monkeypatch.delenv("COGA_IMPORTANT_WEBHOOK_URL", raising=False)
+    cfg = load_config(tmp_path)
+    assert cfg.slack_important_webhook is None
+
+
+def test_important_webhook_absent_is_none(tmp_path: Path) -> None:
+    """A repo that never opted into a second channel resolves it to None."""
+    _create_min(tmp_path)
+    cfg = load_config(tmp_path)
+    assert cfg.slack_important_webhook is None
+
+
+def test_important_post_uses_important_webhook(
+    cfg_with_both_webhooks, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[dict] = []
+
+    def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        calls.append({"url": url, "json": json})
+        return _SlackResponse()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    post(cfg_with_both_webhooks, "fee window closes 2027-01-15", important=True)
+    assert len(calls) == 1
+    assert calls[0]["url"] == "https://hooks.slack.com/services/important"
+
+
+def test_routine_post_still_uses_default_webhook(
+    cfg_with_both_webhooks, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Configuring a second webhook must not divert ordinary state transitions."""
+    calls: list[dict] = []
+
+    def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        calls.append({"url": url, "json": json})
+        return _SlackResponse()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    post(cfg_with_both_webhooks, "task done")
+    assert len(calls) == 1
+    assert calls[0]["url"] == "https://hooks.slack.com/services/flow"
+
+
+def test_important_post_without_important_webhook_crashes(
+    cfg_with_webhook,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An `--important` post crashes when the key is unset — never reroutes.
+
+    Delivering a human-action alert to the wrong channel while reporting success
+    is worse than crashing; the crash is what gets the config fixed. See the
+    ticket blackboard.
+    """
+    calls: list[dict] = []
+
+    def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        calls.append({"url": url, "json": json})
+        return _SlackResponse()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    with pytest.raises(typer.Exit) as exc:
+        post(cfg_with_webhook, "fee window closes 2027-01-15", important=True)
+    assert exc.value.exit_code == 1
+    assert calls == []
+    assert "important_webhook" in capsys.readouterr().err
+
+
+def test_local_important_webhook_overrides_shared(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _create_min_both_webhooks(tmp_path)
+    _write(
+        tmp_path / "coga.local.toml",
+        """
+        user = "marc"
+        [notification.slack]
+        important_webhook = "https://hooks.slack.com/services/local-important"
+        """,
+    )
+    monkeypatch.setenv(
+        "COGA_IMPORTANT_WEBHOOK_URL", "https://hooks.slack.com/services/shared-important"
+    )
+    cfg = load_config(tmp_path)
+    assert cfg.slack_important_webhook == "https://hooks.slack.com/services/local-important"
+
+
+def test_important_webhook_non_string_raises_config_error(tmp_path: Path) -> None:
+    from coga.config import ConfigError
+
+    _write(
+        tmp_path / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        [notification.slack]
+        important_webhook = 123
+        """,
+    )
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
+    with pytest.raises(ConfigError, match=r"\[notification\.slack\]\.important_webhook"):
+        load_config(tmp_path)
+
+
+def test_important_webhook_rejected_in_legacy_slack_table(tmp_path: Path) -> None:
+    """The legacy `[slack]` table has no resolver for the new key, so reject it.
+
+    Accepting it there would silently drop the second channel's URL — the repo
+    would look configured and still post every alert to coga-flow.
+    """
+    from coga.config import ConfigError
+
+    _write(
+        tmp_path / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
+        """,
+    )
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
+    with pytest.raises(ConfigError, match="unknown key"):
+        load_config(tmp_path)
+
+
 def test_enabled_default_is_true(tmp_path: Path) -> None:
     _create_min(tmp_path)
     cfg = load_config(tmp_path)

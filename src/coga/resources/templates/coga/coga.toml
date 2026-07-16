@@ -69,6 +69,15 @@ channels = []
 
 # Optional Slack extras, active once you opt in above:
 #
+# Route alerts to a second channel. Posts that need a human to go do
+# something (`coga slack --important`) go to `important_webhook`; ordinary
+# state transitions stay on `webhook`. Same `env:` indirection, same reason.
+# Once you call `--important`, set this: with it unset an `--important` post
+# crashes rather than rerouting to `webhook`, since a human-action alert in the
+# wrong channel is worse than a crash that gets the config fixed. Example:
+#   [notification.slack]
+#   important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
+#
 # Attach a GIF to milestone events. One URL is picked at random
 # per post. Skip a kind (or leave its list empty) to keep that event
 # text-only. Example:

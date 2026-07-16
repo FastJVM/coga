@@ -49,6 +49,30 @@ class SlackChannel:
                 full_message += f" (cc {' '.join(cc)})"
         return full_message
 
+    def webhook_for(self, *, important: bool) -> str | None:
+        """The webhook an important / routine post should go to.
+
+        An important post must reach the coga-important channel or fail — it is
+        never silently rerouted to the default webhook. A repo that asks for
+        `--important` without a resolved `important_webhook` is misconfigured,
+        and delivering a human-action alert to the wrong channel while reporting
+        success is worse than crashing: the crash is what gets the config fixed.
+        Downstream repos each carry their own `coga.toml`, so the unconfigured
+        case is live, not theoretical.
+        """
+        if not important:
+            return self.cfg.slack_webhook
+        if self.cfg.slack_important_webhook:
+            return self.cfg.slack_important_webhook
+        sys.stderr.write(
+            "[notification.slack] --important was requested but no "
+            "important_webhook is resolved, so this alert has nowhere to go. "
+            'Set [notification.slack].important_webhook = "env:VAR" in this '
+            "repo's coga.toml and export VAR (the key and the exported variable "
+            "are two separate steps; either one missing lands you here).\n"
+        )
+        raise typer.Exit(1)
+
     def send(
         self,
         message: str,
@@ -57,6 +81,7 @@ class SlackChannel:
         owner: str | None = None,
         watchers: list[str] | None = None,
         image_url: str | None = None,
+        important: bool = False,
     ) -> None:
         """Post a message through Slack, or crash trying."""
         full_message = self.render_text(message, owner=owner, watchers=watchers)
@@ -65,7 +90,8 @@ class SlackChannel:
             sys.stderr.write(f"[slack] disabled (post suppressed): {full_message}\n")
             return
 
-        if not self.cfg.slack_webhook:
+        webhook = self.webhook_for(important=important)
+        if not webhook:
             sys.stderr.write(
                 "[notification.slack] Slack is selected in "
                 "[notification].channels but no webhook is configured. Set "
@@ -93,7 +119,7 @@ class SlackChannel:
 
         try:
             resp = requests.post(
-                self.cfg.slack_webhook,
+                webhook,
                 json=payload,
                 timeout=5,
             )

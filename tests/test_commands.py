@@ -736,6 +736,28 @@ def test_slack_logs(repo: Path) -> None:
     assert "slack: opened PR #142" in _log_text(repo, slug)
 
 
+def test_slack_important_forwards_to_notification_post(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(repo)
+    calls: list[dict] = []
+
+    def fake_post(cfg, message, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append({"message": message, **kwargs})
+
+    monkeypatch.setattr("coga.commands.slack.post", fake_post)
+
+    result = CliRunner().invoke(
+        app,
+        ["slack", "--task", slug, "--message", "fee window closes", "--important"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert calls[0]["important"] is True
+    assert "fee window closes" in calls[0]["message"]
+
+
 # --- bump --message -----------------------------------------------------------
 
 

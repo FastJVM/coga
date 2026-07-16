@@ -212,19 +212,33 @@ new string:
   digest` hands it to `post`, which adds it).
 - `[notification].channels = ["slack"]` selects the enabled backend list.
   Unknown channel names fail config load until their backend exists.
-- `[notification.slack].webhook` in `coga.toml` (or `coga.local.toml`) — the single
-  source for the webhook URL. It is a bearer token, so the committed value
+- `[notification.slack].webhook` in `coga.toml` (or `coga.local.toml`) — the
+  source for the default webhook URL. It is a bearer token, so the committed value
   is an `env:SLACK_WEBHOOK_URL` reference, resolved via
   `config._resolve_secret_value`. Legacy `[slack].webhook` and a bare exported
   `SLACK_WEBHOOK_URL` still resolve as deprecated compatibility fallbacks.
   A literal URL is accepted by the parser but must never be committed; use
   `env:` indirection.
-- `cfg.slack_enabled` (`bool`, default `True`) and `cfg.slack_webhook`
-  (`str | None`) — compatibility fields holding the effective Slack-channel
-  config. `[notification.slack].enabled` and `[notification.slack].webhook`
-  each resolve with `coga.local.toml` overriding shared, so a machine can
-  carry its own webhook while shared `coga.toml` holds a safe `env:`
-  reference or omits the key.
+- `[notification.slack].important_webhook` — a second webhook, pointing at the
+  coga-important channel. Posts that need a human to go act (`coga slack
+  --important`) route here; state transitions stay on `webhook`. Resolved by
+  `config._resolve_notification_slack_important_webhook` with the same `env:`
+  indirection and local-overrides-shared rule, but with no legacy `[slack]` or
+  bare-env fallback — the key postdates both, so there is no old config to stay
+  compatible with. Unset resolves to None and `SlackChannel.webhook_for`
+  crashes an `--important` post (exit 1, stderr note) rather than rerouting it
+  to `webhook`: delivering a human-action alert to the wrong channel while
+  reporting success is worse than crashing, and the crash is what gets the
+  config fixed. Each downstream repo carries its own `coga.toml`, so the
+  unconfigured case is live. Legal only in `[notification.slack]` —
+  `[slack].important_webhook` is rejected rather than silently ignored, since
+  no legacy resolver reads it.
+- `cfg.slack_enabled` (`bool`, default `True`), `cfg.slack_webhook` and
+  `cfg.slack_important_webhook` (`str | None`) — compatibility fields holding
+  the effective Slack-channel config. `[notification.slack].enabled`,
+  `.webhook`, and `.important_webhook` each resolve with `coga.local.toml`
+  overriding shared, so a machine can carry its own webhook while shared
+  `coga.toml` holds a safe `env:` reference or omits the key.
 - `cfg.slack_users` (`dict[str, str]`, coga name → Slack member ID) —
   parsed from `[notification.slack.users]` in `coga.toml`; legacy
   `[slack.users]` remains a deprecated compatibility input.

@@ -50,6 +50,15 @@ channels = ["slack"]
 
 [notification.slack]
 webhook = "env:SLACK_WEBHOOK_URL"
+# The coga-important channel. Posts that need a human to go do something
+# (`coga slack --important`) route here; state transitions stay on `webhook`
+# above. Same `env:` indirection, for the same reason — the URL is a bearer
+# token. Leave it unset (key missing or its var unexported) and an `--important`
+# post crashes rather than rerouting to `webhook` — a human-action alert in the
+# wrong channel is worse than a crash that gets the config fixed. Each repo
+# carries its own coga.toml, so a downstream repo that calls `--important` needs
+# this key too.
+important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
 #
 # Optional GIFs on milestone events. One URL is picked at random per
 # post. Skip a kind to keep it text-only.
