@@ -1506,3 +1506,4 @@ Aborting
 2026-07-16 10:09 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-07-16
 2026-07-16 10:09 [recurring/digest] [system] created (status=active)
 2026-07-16 10:09 [recurring/digest] [system] created recurring/digest for 2026-07-16
+2026-07-16 10:10 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
