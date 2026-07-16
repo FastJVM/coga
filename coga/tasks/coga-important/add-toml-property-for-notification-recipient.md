@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: zach
 contexts:
 - coga/sync
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 4 (review)
 ---
 
 ## Description
@@ -58,13 +58,39 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/575
 - branch: important-recipient
 - worktree: ../coga-important-recipient
-- commit: fa892703 (rebased onto origin/main 82631ba2 — picked up doc-refresh
-  PRs #565–#574; only #569 touched a file I edited, sync SKILL.md, and replayed
-  clean)
-- tests: full suite green (1236 passed pre-rebase; config+notification 131
-  passed post-rebase)
+- commit: dc6f2b58 (rebased onto origin/main e38593bd; replayed clean)
+- tests: full suite green after peer-review rebase (`python -m pytest`: 1238
+  passed, 1 skipped; warning only that pytest could not write sandbox cache)
+
+## Peer Review (2026-07-16, Codex)
+
+- Ran `codex review --base main` from the feature worktree. Sandbox app-server
+  init failed as expected, reran unsandboxed successfully.
+- Review reported one P1 asking this branch to apply
+  `slack_important_recipient` in the Slack send/render path. I did not apply it:
+  the ticket body and implementation notes explicitly scope this task to adding
+  and resolving the TOML property only; `coga-important/add-coga-slack-important`
+  is the consumer that spends it.
+- Manual follow-up checked the touched config/docs/tests and `coga/important`;
+  no separate must-fix finding.
+- Ran `git fetch origin main && git rebase FETCH_HEAD` from
+  `../coga-important-recipient`; rebase replayed cleanly.
+
+## PR
+
+Summary:
+
+- Add `[notification.slack].important_recipient` as a first-class
+  `[notification.slack]` key, rejected from legacy `[slack]`.
+- Resolve the value into `Config.slack_important_recipient` with local override,
+  no `env:` indirection, and empty/unset as `None`.
+- Document the config in live and packaged Coga TOML/context copies and cover
+  resolution/error cases in notification tests.
+
+Test plan: `python -m pytest` (1238 passed, 1 skipped).
 
 ## Implementation (2026-07-16, from main after #553 merged)
 
