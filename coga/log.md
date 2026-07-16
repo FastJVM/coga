@@ -1510,3 +1510,4 @@ Aborting
 2026-07-16 10:08 [install/warn-loud-when-init-commit-is-skipped] [megalaunch] launched via coga megalaunch
 2026-07-16 10:10 [install/warn-loud-when-init-commit-is-skipped] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
 2026-07-16 10:10 [install/warn-loud-when-init-commit-is-skipped] [system] {"agent":"claude","cache_creation_input_tokens":81229,"cache_read_input_tokens":964773,"cli":"claude","input_tokens":51,"model":"claude-fable-5","output_tokens":7802,"provider":"anthropic","schema":1,"session_id":"14bb4830-7c52-4062-9a2d-a65310143c35","slug":"install/warn-loud-when-init-commit-is-skipped","step":"implement","title":"Warn loud when init commit is skipped","ts":"2026-07-16T17:10:47.365222Z","usage_status":"ok"}
+2026-07-16 10:10 [install/harden-packaging-and-install-before-launch] [megalaunch] started (active → in_progress) via coga megalaunch

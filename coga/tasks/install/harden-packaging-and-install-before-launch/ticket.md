@@ -1,22 +1,32 @@
 ---
 slug: install/harden-packaging-and-install-before-launch
 title: Harden packaging and first-install before launch
-status: active
-owner: zach
-human: zach
+status: in_progress
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []
 skills: []
 workflow:
-  name: direct/body
+  name: code/with-review
   steps:
-  - name: execute
+  - name: implement
     skills:
-    - direct/body
+    - code/implement
     assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
-step: 1 (execute)
+step: 1 (implement)
 ---
 
 ## Description
