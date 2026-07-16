@@ -1398,3 +1398,5 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 20:43 [move-per-session-usage-records-from-ticket-blackbo] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-07-15 20:43 [move-per-session-usage-records-from-ticket-blackbo] [git] sync failed: `git add -- coga/tasks/move-per-session-usage-records-from-ticket-blackbo.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
 2026-07-15 20:43 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-15 20:43 [move-per-session-usage-records-from-ticket-blackbo] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-15 20:43 [move-per-session-usage-records-from-ticket-blackbo] [system] script exited with code 2
