@@ -1466,3 +1466,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 21:19 [install/warn-loud-when-init-commit-is-skipped] [git] sync refused: coga/tasks/install/warn-loud-when-init-commit-is-skipped.md: step would move backward from '2 (peer-review)' to '1 (implement)'
 2026-07-15 21:19 [install/improve-reinit-already-exists-message] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-15 21:19 [dream-cleanup-orphan-markers-w29] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-15 21:19 [dream-cleanup-orphan-markers-w29] [system] started (active → in_progress) via coga launch
