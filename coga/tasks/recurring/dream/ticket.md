@@ -401,3 +401,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ### 3. contract audit
 
 - Result: `reported` — 18 `drift` findings across living contracts; 0 files changed by the audit.
+
+### 4. retro/done-ticket
+
+- Inventory: 52 on-disk `status: done` tasks are eligible. The three open PRs add no `## Retro` marker and delete no resolved task artifact; PR #562 modifies some done-ticket blackboards but does not meet either exclusion gate.
+- Dispatch: one `retro/done-ticket` subagent will receive all 52 exact slugs and maintain one running corpus delta across the full pass.
