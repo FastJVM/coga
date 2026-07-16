@@ -1560,3 +1560,4 @@ Aborting
 2026-07-16 12:04 [coga-important/add-toml-property-for-notification-recipient] [system] script exited with code 0
 2026-07-16 12:04 [coga-important/add-toml-property-for-notification-recipient] [system] advanced to step 4 (review) → assigned to zach after script step
 2026-07-16 12:10 [coga-important/add-coga-slack-important] [human:zach] unblocked (blocked → active): coga unblock add-coga-slack-important --answer "important_recipient landed"
+2026-07-16 12:11 [coga-important/add-coga-slack-important] [human:zach] started (active → in_progress) via coga launch
