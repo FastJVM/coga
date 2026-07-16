@@ -36,7 +36,7 @@ from coga.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
-from coga.dependencies import DEPENDENCIES
+from coga.dependencies import DEPENDENCIES, install_hint
 from coga.managed_skills import (
     ManagedSkillError,
     ManagedSkillSummary,
@@ -625,6 +625,15 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     steps.append(
         f"Edit {coga_os}/coga.toml — set your agents, notification channels, "
         "and aliases."
+    )
+    # `coga build` / `coga launch` drive an agent CLI that init deliberately
+    # does not require (see `coga.dependencies`) — name the prerequisite here
+    # so a fresh user isn't sent into the flow only to hit "not found in PATH".
+    steps.append(
+        "Install an agent CLI, if you haven't — coga drives Claude Code "
+        f"({install_hint('claude')}) or Codex ({install_hint('codex')}). "
+        "Launching agents (`coga build`, `coga launch`, `coga ticket`) needs "
+        "one installed and authenticated."
     )
     if is_empty:
         steps.append(

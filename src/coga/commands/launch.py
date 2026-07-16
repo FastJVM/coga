@@ -46,6 +46,7 @@ from coga.config import (
     SecretError,
     load_config,
 )
+from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga import git
 from coga.logfile import append_log
@@ -301,7 +302,7 @@ def launch(
         # Verify CLI binary exists.
         agent_path = shutil.which(agent.cli)
         if agent_path is None:
-            _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
+            _bail(agent_cli_missing_message(agent.cli))
         typer.echo(f"Launch: found agent CLI at {agent_path}")
 
         # Fail loud BEFORE flipping status: if a referenced context or skill is

@@ -6,7 +6,7 @@ coga needs it, where to install it, and whether it is required at `coga init`
 softer, deferred failure at the point of need).
 
 `coga init` reads `required_at_init` to decide what to enforce before doing
-anything; the README's "External CLI Tools" section describes the same set for
+anything; the README's "Getting Started" section describes the same set for
 humans. Keeping the list here means the init check and the docs can't drift.
 """
 
@@ -67,4 +67,55 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         install="https://developer.1password.com/docs/cli/get-started/",
         required_at_init=False,
     ),
+    Dependency(
+        name="claude",
+        purpose=(
+            "Claude Code — an agent CLI coga drives for `coga launch`, "
+            "`coga ticket`, and `coga build`. Not required at init: which "
+            "binary a launch needs comes from the launched agent's `cli` in "
+            "coga.toml, and the launch fails loud at the point of need. "
+            "Install and authenticate it before launching agents."
+        ),
+        install="https://claude.com/claude-code",
+        required_at_init=False,
+    ),
+    Dependency(
+        name="codex",
+        purpose=(
+            "Codex — an agent CLI coga drives for `coga launch`, "
+            "`coga ticket`, and `coga build`. Not required at init: which "
+            "binary a launch needs comes from the launched agent's `cli` in "
+            "coga.toml, and the launch fails loud at the point of need. "
+            "Install and authenticate it before launching agents."
+        ),
+        install="https://github.com/openai/codex",
+        required_at_init=False,
+    ),
 )
+
+
+def install_hint(name: str) -> str | None:
+    """The manifest's install URL for the binary `name`, or None if unlisted.
+
+    Lets point-of-need "not found in PATH" errors carry the same install hint
+    the init check prints, without each call site re-embedding URLs.
+    """
+    for dep in DEPENDENCIES:
+        if dep.name == name:
+            return dep.install
+    return None
+
+
+def agent_cli_missing_message(cli: str) -> str:
+    """Error text for an agent CLI missing from PATH.
+
+    `cli` is the launched agent's `cli` value from coga.toml — usually
+    `claude` or `codex`, but any binary a repo configures. When the manifest
+    knows the binary, the message carries its install hint; an unlisted one
+    still fails loud, just without a URL.
+    """
+    message = f"Agent CLI {cli!r} not found in PATH."
+    hint = install_hint(cli)
+    if hint is not None:
+        message += f" Install it from {hint} and authenticate, then re-run."
+    return message
