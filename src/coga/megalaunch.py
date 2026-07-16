@@ -53,7 +53,7 @@ from coga.logfile import first_activity_map
 from coga.mark import mark_in_progress
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import TaskRef, filter_tasks_under, list_tasks, read_ticket
-from coga.ticket import Ticket, TicketError
+from coga.ticket import Ticket, TicketError, TicketNotFoundError
 from coga.validate import TaskValidationError
 
 
@@ -178,6 +178,16 @@ def run_megalaunch(
             break
         try:
             ticket = read_ticket(ref)
+        except TicketNotFoundError:
+            # The queue is a snapshot; a session launched earlier in this
+            # sweep may legitimately reap a finished task (retire deletes the
+            # source directory). A vanished ref is not a failure — skip it,
+            # loudly only when the human explicitly named it.
+            if explicit:
+                results.append(
+                    _result(ref, "skipped-unlaunchable", "task no longer exists")
+                )
+            continue
         except TicketError as exc:
             results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
             continue

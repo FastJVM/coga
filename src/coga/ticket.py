@@ -16,6 +16,14 @@ class TicketError(Exception):
     """Raised on malformed ticket files."""
 
 
+class TicketNotFoundError(TicketError, FileNotFoundError):
+    """Raised when a ticket file is missing from disk.
+
+    Subclasses both so callers guarding reads with `except TicketError` and
+    pre-existing `except FileNotFoundError` handlers each keep catching it.
+    """
+
+
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 
 
@@ -95,7 +103,11 @@ class Ticket:
 
     @classmethod
     def read(cls, path: Path) -> "Ticket":
-        return cls.parse(path.read_text())
+        try:
+            text = path.read_text()
+        except FileNotFoundError as exc:
+            raise TicketNotFoundError(f"ticket file missing: {path}") from exc
+        return cls.parse(text)
 
     def write(self, path: Path) -> None:
         # Atomic so a crash mid-write can't leave a truncated ticket.md for the
@@ -216,4 +228,4 @@ class Ticket:
         return None
 
 
-__all__ = ["Ticket", "TicketError"]
+__all__ = ["Ticket", "TicketError", "TicketNotFoundError"]
