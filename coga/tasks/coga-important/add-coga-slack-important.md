@@ -48,6 +48,40 @@ the recipient set in coga.toml instead of the ticket owner.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: slack-important-alert
+worktree: /Users/zach2179/dev/coga-slack-important-alert
+
+## Implementing 2026-07-16 — unblocked, both deps on main
+
+Owner unblocked 12:10 (`important_recipient landed`). `slack_important_webhook` +
+routing (#553) and `slack_important_recipient` (#575, `ff341716`) are both on main.
+Building the two remaining halves:
+
+1. **Recipient mention** — `notification/slack.py`: thread `important` into
+   `render_text`; when `important` and `slack_important_recipient` is set, @ the
+   recipient in place of the owner (owner mention stands when unset). Channel-layer
+   seam, next to the existing owner→`<@UID>` resolution; every important post @'s
+   the triage owner. Tested at `post()` level in `test_notification.py`.
+2. **Alert shape** — `commands/slack.py`: for `--important`, build
+   `⚠️ *{slug}* — {message}` instead of the `💬 {assignee} on *{slug}* "{title}":`
+   FYI envelope. Drops the "on"/title framing the production notes flagged; keeps the
+   slug tag. Shape confirmed by owner 2026-07-16. Tested in `test_commands.py`.
+
+`[project]` prefix stays (removing it touches every notification — out of scope).
+No fixture change: this is notification formatting, not task layout.
+
+**Done** (commit `c5f3358c` on `slack-important-alert`):
+- `render_text` gained `important`; swaps in `slack_important_recipient` when set,
+  owner mention stands otherwise. `send` passes `important` through.
+- `coga slack` builds `⚠️ *{slug}* — {message}` for `--important`, `💬` envelope
+  otherwise.
+- Tests: `test_notification.py` — recipient-@'d / owner-fallback / routine-ignores
+  (at `post()` level); `test_commands.py` — alert shape + FYI shape unchanged.
+- Full suite green (1243 passed, 1 skipped). Rebased onto current `origin/main`,
+  clean tree, no push/PR. Bumping to peer-review.
+
 ## Update 2026-07-16 — #553 merged, half the blocker cleared
 
 PR #553 (support-second-webhook) merged 2026-07-16 17:00Z. `coga slack --important`,
