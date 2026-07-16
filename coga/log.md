@@ -1519,3 +1519,4 @@ Aborting
 2026-07-16 10:14 [recurring/autoclose-merged] [system] launched as a script (skill=coga/autoclose/sweep, script=run.py)
 2026-07-16 10:14 [coga-important/context] [human:nicktoper] auto-bumped on merge of PR #557 → done
 2026-07-16 10:15 [coga-important/support-second-webhook] [human:nicktoper] auto-bumped on merge of PR #553 → done
+2026-07-16 10:15 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] auto-bumped on merge of PR #562 → done
