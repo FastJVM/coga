@@ -6,7 +6,6 @@ title: "Branch sweep"
 # step references the `coga/branch-sweep/sweep` skill, whose `script:` calls
 # `coga.branchsweep.sweep_branches`. It runs directly with no agent buffering,
 # so it is safe for unattended recurring runs.
-autonomy: auto
 workflow: branch-sweep/sweep
 ---
 
@@ -24,8 +23,8 @@ past it.
 
 Once a week this recurring task's script step runs the branch sweep, which:
 
-1. enumerates every local branch and every `origin` branch,
-2. skips `main`, the checked-out branch, and any branch recorded under a
+1. enumerates every local branch and every branch on the configured git remote,
+2. skips the configured control branch, the checked-out branch, and any branch recorded under a
    not-`done` ticket's `## Dev` `branch:` line,
 3. for the rest, checks GitHub by head branch name and current tip SHA —
    deletes only when a merged PR exists for that exact tip and no PR is
