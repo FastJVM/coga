@@ -1546,3 +1546,4 @@ Aborting
 2026-07-16 11:35 [coga-important/add-coga-slack-important] [human:zach] started (active → in_progress) via coga launch
 2026-07-16 11:35 [coga-important/add-coga-slack-important] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-16 11:35 [coga-important/add-toml-property-for-notification-recipient] [human:zach] unblocked (asks resolved, still in_progress): #553 merged (mergeCommit 5c44827d, 2026-07-16 17:00Z); anchors _ALLOWED_LEGACY_SLACK_KEYS, _ALLOWED_SLACK_KEYS, _resolve_notification_slack_important_webhook and coga slack --important all present on origin/main. Proceeding with option 1: implement from main.
+2026-07-16 11:45 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
