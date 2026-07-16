@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -84,7 +84,7 @@ Noted, out of scope: the reconcile/update path (`reconcile_managed_skills`
 line ~243) still reports raw blobs on rate-limited `gh skill update`; no CLI
 caller today, follow-up ticket material if one appears.
 
-## Implemented (commit 942c7eb0 on gh-rate-limit-hint)
+## Implemented (commit cd8500b2 on gh-rate-limit-hint)
 
 - `src/coga/managed_skills.py`: `_github_rate_limit_reason()` scans stderr
   lines for "api rate limit exceeded" / "secondary rate limit" / "rate limit
@@ -107,3 +107,7 @@ Verification: full suite `python -m pytest` → 1210 passed, 1 skipped, in a
 python3.12 venv with the worktree installed editable. (Bare python3.12
 without the editable install fails test_launch_script.py's stateless test
 identically on main — environment setup, not this change.)
+
+Freshened before handoff: rebased onto origin/main (0401ca12; only
+ticket-state commits came in), commit is now cd8500b2, re-ran the full
+suite → 1223 passed, 1 skipped.
