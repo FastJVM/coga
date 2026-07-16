@@ -736,6 +736,7 @@ def cfg_important_ping(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         important_recipient = "triage"
         [notification.slack.users]
         marc = "U01MARC"
+        ada = "U02ADA"
         triage = "U0TRIAGE"
         """,
     )
@@ -786,6 +787,26 @@ def test_routine_post_ignores_recipient(
         f"[{cfg_important_ping.project_name}] [<@U01MARC>] task done"
     )
     assert "U0TRIAGE" not in text
+
+
+def test_important_post_suppresses_watcher_cc(
+    cfg_important_ping, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An important post only pings the triage recipient, not ticket watchers."""
+    calls = _capture(monkeypatch)
+    post(
+        cfg_important_ping,
+        "fee window closes",
+        important=True,
+        owner="marc",
+        watchers=["ada"],
+    )
+    text = calls[0]["json"]["text"]
+    assert text == (
+        f"[{cfg_important_ping.project_name}] [<@U0TRIAGE>] fee window closes"
+    )
+    assert "U02ADA" not in text
+    assert "(cc" not in text
 
 
 def test_enabled_default_is_true(tmp_path: Path) -> None:

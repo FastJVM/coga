@@ -40,7 +40,8 @@ class SlackChannel:
         An important post @'s the configured `important_recipient` in place of
         the ticket owner — the coga-important channel has its own triage owner,
         not the ticket's. When that key is unset the owner mention stands, per
-        the `slack_important_recipient` fallback rule.
+        the `slack_important_recipient` fallback rule. Important posts also skip
+        watcher cc so the alert pings exactly one triage recipient.
         """
         mention_name = owner
         if important and self.cfg.slack_important_recipient:
@@ -49,7 +50,7 @@ class SlackChannel:
         if mention_name:
             prefix += f" [{mention(self.cfg, mention_name)}]"
         full_message = f"{prefix} {message}"
-        if watchers:
+        if watchers and not important:
             cc = [
                 f"<@{self.cfg.slack_users[w]}>"
                 for w in watchers
