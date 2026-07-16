@@ -105,3 +105,7 @@ worktree: /home/n/Code/claude/coga-removed-agent-key-migration
   `auto = "exec"`) → `coga --help` prints the migration error; deleting the
   two `auto` lines makes the CLI work again.
 - `coga validate --json` against example/ fixture: no issues.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":259269,"cache_read_input_tokens":6488443,"cli":"claude","input_tokens":155,"model":"claude-fable-5","output_tokens":59727,"provider":"anthropic","schema":1,"session_id":"3b77d77b-e173-4826-a6f4-a2155931216c","slug":"install/add-migration-errors-for-removed-config-keys","step":"implement","title":"Add migration errors for removed config keys","ts":"2026-07-16T04:12:29.400213Z","usage_status":"ok"}

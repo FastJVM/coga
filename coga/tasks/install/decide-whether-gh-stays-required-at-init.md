@@ -108,3 +108,7 @@ Notes for reviewers / follow-ups:
 - Grep note: `coga launch` script-mode runs `run.py` scripts with `sys.executable`;
   when testing from a non-installed tree, PYTHONPATH must be absolute or the spawned
   script can't import `coga` (that was a test-harness artifact here, not a bug).
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":67100,"cache_read_input_tokens":699708,"cli":"claude","input_tokens":35,"model":"claude-fable-5","output_tokens":5806,"provider":"anthropic","schema":1,"session_id":"be17a8c6-a6c0-4631-965a-612561bf9389","slug":"install/decide-whether-gh-stays-required-at-init","step":"implement","title":"Decide whether gh stays required at init","ts":"2026-07-16T04:16:30.257247Z","usage_status":"ok"}

@@ -111,3 +111,7 @@ identically on main — environment setup, not this change.)
 Freshened before handoff: rebased onto origin/main (0401ca12; only
 ticket-state commits came in), commit is now cd8500b2, re-ran the full
 suite → 1223 passed, 1 skipped.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":69098,"cache_read_input_tokens":955629,"cli":"claude","input_tokens":47,"model":"claude-fable-5","output_tokens":7278,"provider":"anthropic","schema":1,"session_id":"1512d37c-2546-479f-9b73-8b0525d16821","slug":"install/gh-auth-hint-on-managed-skill-rate-limit","step":"implement","title":"gh auth hint on managed skill rate limit","ts":"2026-07-16T04:19:03.851318Z","usage_status":"ok"}

@@ -92,3 +92,7 @@ worktree: /home/n/Code/claude/coga-reinit-message
 - Flaky test observed (candidate follow-up ticket, not caused by this change):
   `tests/test_usage_probe.py::test_codex_probe_primes_then_reads_fresh_rollout`
   failed once in a full-suite run, then passed alone and in a second full run.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":68214,"cache_read_input_tokens":1145164,"cli":"claude","input_tokens":57,"model":"claude-fable-5","output_tokens":10315,"provider":"anthropic","schema":1,"session_id":"79d9f137-26b7-448f-8075-f1829d694073","slug":"install/improve-reinit-already-exists-message","step":"implement","title":"Improve reinit already-exists message","ts":"2026-07-16T04:23:05.386140Z","usage_status":"ok"}

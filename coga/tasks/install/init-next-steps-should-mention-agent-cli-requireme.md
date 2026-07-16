@@ -98,3 +98,7 @@ Adjacent issues found (for follow-up tickets, not fixed here):
   script's subprocess can't import `coga` since pytest's `pythonpath` config
   doesn't propagate to child processes. Environmental, but a dev-setup trap
   worth documenting.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":83957,"cache_read_input_tokens":976483,"cli":"claude","input_tokens":51,"model":"claude-fable-5","output_tokens":9190,"provider":"anthropic","schema":1,"session_id":"8751d17e-a64d-461d-98be-813ffe9be2f6","slug":"install/init-next-steps-should-mention-agent-cli-requireme","step":"implement","title":"Init next steps should mention agent CLI requirement","ts":"2026-07-16T04:26:49.093072Z","usage_status":"ok"}
