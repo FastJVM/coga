@@ -1325,3 +1325,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 18:19 [coga-important/context] [agent:claude] advanced to step 4 (review) → assigned to zach — PR opened: https://github.com/FastJVM/coga/pull/557
 2026-07-15 18:08 [install/warn-loud-when-init-commit-is-skipped] [megalaunch] launched via coga megalaunch
 2026-07-15 18:22 [install/warn-loud-when-init-commit-is-skipped] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-15 18:37 [coga-important/add-coga-slack-important] [human:zach] activated (draft → active) — auto on launch
