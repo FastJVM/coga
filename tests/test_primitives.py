@@ -9,7 +9,7 @@ import pytest
 from coga.blackboard import render_blackboard
 from coga.logfile import append_log
 from coga.slugify import slugify
-from coga.ticket import Ticket, TicketError
+from coga.ticket import Ticket, TicketError, TicketNotFoundError
 from coga.workflow import Workflow, WorkflowError
 
 
@@ -92,6 +92,15 @@ def test_ticket_rejects_non_mapping() -> None:
 def test_ticket_rejects_missing_frontmatter() -> None:
     with pytest.raises(TicketError):
         Ticket.parse("no frontmatter here\n")
+
+
+def test_ticket_read_missing_file_raises_ticket_error(tmp_path: Path) -> None:
+    # Both handler shapes must keep catching it: `except TicketError` (the
+    # sweep guards) and pre-existing `except FileNotFoundError` call sites.
+    with pytest.raises(TicketNotFoundError) as excinfo:
+        Ticket.read(tmp_path / "gone" / "ticket.md")
+    assert isinstance(excinfo.value, TicketError)
+    assert isinstance(excinfo.value, FileNotFoundError)
 
 
 # --- workflow -----------------------------------------------------------------

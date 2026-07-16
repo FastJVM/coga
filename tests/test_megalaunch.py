@@ -140,6 +140,66 @@ def test_megalaunch_runs_active_agent_task(
     assert Ticket.read(ref["path"]).status == "done"
 
 
+def test_megalaunch_skips_task_deleted_mid_sweep(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The queue is snapshotted up front, and a session launched earlier in the
+    # sweep may reap a finished task (retire deletes the source directory).
+    # The stale ref must be skipped, not crash the sweep or count as failed.
+    cfg = load_config(repo)
+    first = create_task(
+        cfg=cfg,
+        title="A run me",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    doomed = create_task(
+        cfg=cfg,
+        title="B reaped mid-sweep",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(  # type: ignore[no-untyped-def]
+        cfg, ref_obj, ticket, agent, **kwargs
+    ):
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        # The first session reaps the other task, like retire does.
+        doomed_path = Path(doomed["path"])
+        doomed_path.unlink()
+        if doomed_path.name == "ticket.md":
+            doomed_path.parent.rmdir()
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["launched"] == 1
+    assert run.counts["completed"] == 1
+    assert run.counts.get("failed", 0) == 0
+    assert [r.slug for r in run.results] == [first["slug"]]
+
+
 def test_megalaunch_chains_agent_owned_steps(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
