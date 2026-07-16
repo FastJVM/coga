@@ -1344,3 +1344,7 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 19:28 [recurring/dream] [system] created (status=active)
 2026-07-15 19:28 [recurring/dream] [system] deleted completed prior-period task before 2026-W29
 2026-07-15 19:28 [recurring/dream] [system] created recurring/dream for 2026-W29
+2026-07-15 19:28 [recurring/blocker-reminders] [git] sync refused: coga/tasks/recurring/blocker-reminders/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [recurring/digest] [git] sync refused: coga/tasks/recurring/digest/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [recurring/dream] [git] sync refused: coga/tasks/recurring/dream/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:28 [bootstrap/orient] [human:nicktoper] launched (assignee=codex, agent=codex)
