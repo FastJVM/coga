@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -80,7 +80,7 @@ Rationale (from reading the code, not just the ticket):
   `coga init` failed until both git and gh were installed, burdening installs that
   never open PRs. `git` stays hard-required (state storage; nothing works without it).
 
-## Implemented (commit e556645b on gh-optional-at-init)
+## Implemented (commit c9c3f482 on gh-optional-at-init)
 
 1. `src/coga/dependencies.py`: `gh` flipped to `required_at_init=False`; its `purpose`
    now documents the point-of-need rationale (mirrors `op`'s entry).
@@ -94,9 +94,9 @@ Rationale (from reading the code, not just the ticket):
    `test_dep_check_omits_optional_tools_from_crash`; the bail-before-scaffolding
    test now uses a missing `git`.
 
-Verification: full suite in the worktree with
-`PYTHONPATH=<worktree>/src python3.12 -m pytest` → 1207 passed, 1 skipped.
-Branch rebased-checked against origin/main (already up to date).
+Verification: rebased onto latest origin/main (commit now c9c3f482), then full
+suite in the worktree with `PYTHONPATH=<worktree>/src python3.12 -m pytest` →
+1220 passed, 1 skipped.
 
 Notes for reviewers / follow-ups:
 - No context/template changes needed: nothing under `coga/contexts` or the packaged
