@@ -132,7 +132,8 @@ The shape, for whoever picks this up:
 
 ## Blockers
 
-- [ ] [2026-07-15 17:55] [agent:claude] id=20260715T175503 Depends on unmerged PR #553 (support-second-webhook). The ticket's three named anchors — _resolve_notification_slack_important_webhook, _ALLOWED_LEGACY_SLACK_KEYS, and the coga slack --important flag — exist only on that branch, not on main. Owner chose (2026-07-15) to wait for #553 to merge rather than stack or duplicate the split. Unblock with 'coga unblock add-toml-property-for-notification-recipient --answer "#553 merged"' once it lands; the blackboard records the ready-to-implement shape.
+- [x] [2026-07-15 17:55] [agent:claude] id=20260715T175503 Depends on unmerged PR #553 (support-second-webhook). The ticket's three named anchors — _resolve_notification_slack_important_webhook, _ALLOWED_LEGACY_SLACK_KEYS, and the coga slack --important flag — exist only on that branch, not on main. Owner chose (2026-07-15) to wait for #553 to merge rather than stack or duplicate the split. Unblock with 'coga unblock add-toml-property-for-notification-recipient --answer "#553 merged"' once it lands; the blackboard records the ready-to-implement shape.
+  resolved: [2026-07-16 11:35] [human:zach] #553 merged (mergeCommit 5c44827d, 2026-07-16 17:00Z); anchors _ALLOWED_LEGACY_SLACK_KEYS, _ALLOWED_SLACK_KEYS, _resolve_notification_slack_important_webhook and coga slack --important all present on origin/main. Proceeding with option 1: implement from main.
 
 ## Blocker reminders
 
