@@ -107,3 +107,7 @@ Verification: full suite `python -m pytest` → 1210 passed, 1 skipped, in a
 python3.12 venv with the worktree installed editable. (Bare python3.12
 without the editable install fails test_launch_script.py's stateless test
 identically on main — environment setup, not this change.)
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":276155,"cache_read_input_tokens":7661107,"cli":"claude","input_tokens":162,"model":"claude-fable-5","output_tokens":91674,"provider":"anthropic","schema":1,"session_id":"18dcba7c-4b8a-40be-bae4-ac12c400542c","slug":"install/gh-auth-hint-on-managed-skill-rate-limit","step":"implement","title":"gh auth hint on managed skill rate limit","ts":"2026-07-16T00:22:29.976871Z","usage_status":"ok"}
