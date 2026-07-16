@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -25,7 +25,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -71,7 +71,7 @@ webhook and the coga.toml recipient field are separate tickets.
 
 branch: important-context
 worktree: ../coga-important-context
-commit: 2a3d7adf
+commit: c4ac259d
 
 ## What changed
 
@@ -131,6 +131,52 @@ scopes this to the convention and the webhook/recipient work to siblings — but
 the context describes the intended end state, so it reads slightly ahead of main
 until those two land. Worth a sequencing check at review if the merge order
 matters.
+
+## Peer review
+
+Reviewed the authored diff against `main...HEAD`: the feature change is scoped
+to the new live context, the packaged copy, and the packaging test allowlist.
+The apparent `coga/log.md` / task-state churn in `git diff main -- '*.md'`
+comes from `main` advancing after the feature branch forked; the branch's own
+two commits do not edit those files.
+
+Applied commit `c4ac259d` (`peer-review: tighten important context accuracy`)
+with two must-fix doc corrections:
+
+- Replaced the claim that create/bump/mark state-transition broadcasts stay in
+  coga-flow. `coga/sync` and source show routine lifecycle churn is mostly
+  silent, explicit FYIs / urgent exceptions are live, and outcomes digest; the
+  important rule is that none of that becomes an important alert.
+- Replaced the present-tense
+  `[notification.slack].important_recipient` / `see coga/sync` wording. That
+  key is still sibling-owned and not documented in `coga/sync` on this branch,
+  so the context now names it as the planned important-recipient config work
+  until that implementation lands.
+
+Spot checks:
+
+- `important-webhook` has `coga slack --important`, `post(..., important=True)`,
+  and `SlackChannel.webhook_for(important=)`; this branch does not, matching the
+  sibling-ticket sequencing note.
+- `important_recipient` does not exist on `main`, `important-context`, or
+  `important-webhook` except in task/context planning notes.
+- `coga block` posts through the normal `post(...)` path with no important flag.
+- `resolve_context_path` resolves local contexts first, then packaged
+  `bootstrap/contexts`, so the packaged copy is the right surface for reusable
+  Coga OS knowledge.
+
+Peer-review verification:
+
+- `cmp -s coga/contexts/coga/important/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md`
+  — passed.
+- `python -m pytest tests/test_packaging.py tests/test_paths.py` — 10 passed;
+  pytest warned that the sandbox could not write `.pytest_cache`.
+- `git diff --check main...HEAD` — passed.
+- `coga validate --json` — still exits non-zero in both the feature worktree and
+  primary checkout due to pre-existing repo issues, including missing-step
+  errors on `v2/autotrigger-ticket-type`,
+  `v2/split-context-to-doc-user-accessible-and-editable`, and
+  `v2/use-worktree-when-starting-a-dev-task`.
 
 ## Usage
 
