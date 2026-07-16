@@ -43,9 +43,11 @@ Scope:
   from `log.md` instead of globbing every ticket `.md`.
 - Drop the post-capture `sync_coga_state` call in `commands/launch.py`;
   reuse the log sync instead.
-- Migration: per stage posture, no back-compat parsing of old `## Usage`
-  sections required — but decide whether the rollup should still read them
-  during the transition or existing records are simply forgotten.
+- Migration (decided 2026-07-16, owner): drop existing `## Usage` records —
+  no back-compat parsing, the rollup reads `log.md` only. History is
+  reconstructible later from the agent CLIs' own session files if ever
+  needed. Remove the stale `## Usage` sections from live tickets in the
+  same PR so no orphaned records linger.
 - Update the `coga/cli` context (`coga usage` description) and the
   architecture context if it names the `## Usage` blackboard section;
   packaged copies under `src/coga/resources/templates/` and any live
