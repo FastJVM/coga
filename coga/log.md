@@ -1577,3 +1577,5 @@ Aborting
 2026-07-16 14:53 [coga-important/add-coga-slack-important] [system] script exited with code 0
 2026-07-16 14:53 [coga-important/add-coga-slack-important] [system] advanced to step 4 (review) → assigned to zach after script step
 2026-07-16 14:54 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-16 14:36 [install/add-migration-errors-for-removed-config-keys] [megalaunch] launched via coga megalaunch
+2026-07-16 15:10 [install/add-migration-errors-for-removed-config-keys] [agent:codex] advanced to step 3 (open-pr) → assigned to claude

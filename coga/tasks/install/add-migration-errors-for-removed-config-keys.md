@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -73,7 +73,7 @@ worktree: /home/n/Code/claude/coga-removed-agent-key-migration
 - Existing pattern to follow: `[assignees]` (shared) and `[secrets]` (local)
   raises in `load_config` fire before the generic unknown-key check.
 
-## Implemented (commit 8e192c09 on branch, rebased onto origin/main 677fe87d)
+## Implemented (commits c4efeeb1 + 795e57f3, rebased onto origin/main 5c68a5cc)
 
 1. `src/coga/config.py`: new `_REMOVED_AGENT_KEYS` tuple (`auto`,
    `skip_permissions`, `skip_permissions_argv`); `_parse_agents` raises a
@@ -94,18 +94,39 @@ worktree: /home/n/Code/claude/coga-removed-agent-key-migration
    the same now-stale "rejected as unknown config" comment, but agents must not
    edit coga.toml. Human/reviewer: sync that comment by hand if desired.
 
+## Peer review
+
+- Native `codex review --base main` found one P1: the migration check only
+  inspected shared `coga.toml`, so the formerly documented machine-local
+  `skip_permissions*` keys still produced misleading advice to move them into
+  shared config. Fixed in 795e57f3 by detecting removed keys in local agent
+  tables first, naming `coga.local.toml`, and adding coverage for both keys.
+- Fresh rebase onto `origin/main` 5c68a5cc surfaced one `src/coga/config.py`
+  conflict. Resolution kept main's current config/schema code and reapplied
+  only this ticket's removed-key migration constant and checks.
+
 ## Verification
 
-- Full suite: 1221 passed, 1 skipped (python3.12 venv, editable install of the
-  worktree), re-run green after rebase. Note: without a real install
-  (PYTHONPATH-only), tests/test_launch_script.py::test_bootstrap_script_launch_is_stateless
-  fails with "No module named 'coga'" — pre-existing on main, env artifact, not
-  from this change.
+- Full suite after peer-review fix and fresh rebase: 1222 passed, 1 skipped
+  (`/tmp/coga-removed-agent-review-venv/bin/python -m pytest`, with the venv
+  pointed at the feature worktree source so script subprocesses import Coga).
+- Focused config suite after rebase: 79 passed.
 - End-to-end: scratch repo with 0.2.0-style coga.toml (`auto = "-p"` +
   `auto = "exec"`) → `coga --help` prints the migration error; deleting the
   two `auto` lines makes the CLI work again.
-- `coga validate --json` against example/ fixture: no issues.
+- Task-scoped validation: `ok_count: 1`, no issues or fixes.
 
-## Usage
+## PR
 
-{"agent":"claude","cache_creation_input_tokens":259269,"cache_read_input_tokens":6488443,"cli":"claude","input_tokens":155,"model":"claude-fable-5","output_tokens":59727,"provider":"anthropic","schema":1,"session_id":"3b77d77b-e173-4826-a6f4-a2155931216c","slug":"install/add-migration-errors-for-removed-config-keys","step":"implement","title":"Add migration errors for removed config keys","ts":"2026-07-16T04:12:29.400213Z","usage_status":"ok"}
+### Summary
+
+- Give removed `auto`, `skip_permissions`, and `skip_permissions_argv` agent
+  keys actionable, source-aware migration errors for both shared and local
+  config while preserving generic errors for genuinely unknown keys.
+- Update the live and packaged architecture contexts, scaffold comments, and
+  config regression coverage to match the migration contract.
+
+### Test plan
+
+- `/tmp/coga-removed-agent-review-venv/bin/python -m pytest` — 1222 passed,
+  1 skipped.
