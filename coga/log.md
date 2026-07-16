@@ -1362,3 +1362,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 19:55 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
 2026-07-15 20:01 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] task done — PR merged; task complete.
 2026-07-15 20:02 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-15 20:02 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] started (active → in_progress) via coga launch

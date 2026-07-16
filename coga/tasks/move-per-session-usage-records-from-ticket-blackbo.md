@@ -1,7 +1,7 @@
 ---
 slug: move-per-session-usage-records-from-ticket-blackbo
 title: Move per-session usage records from ticket blackboards to log.md
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
