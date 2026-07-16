@@ -70,6 +70,23 @@ def _stub_init_dep_check(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _stub_init_identity_check(monkeypatch):
+    """No-op `coga init`'s git-identity check by default.
+
+    `_isolate_home` points HOME at a tmp dir, so no test sees the developer's
+    global `user.email`; whether `git var GIT_COMMITTER_IDENT` then succeeds
+    depends on the host's hostname (git's auto-detection), which would make
+    every init-invoking test machine-dependent. Default the check to a no-op
+    so those tests run anywhere; the dedicated identity tests in test_init.py
+    re-install the real `_check_git_identity` with a deterministic repo."""
+    monkeypatch.setattr(
+        "coga.commands.init._check_git_identity",
+        lambda target: None,
+        raising=False,
+    )
+
+
+@pytest.fixture(autouse=True)
 def _stub_slack(monkeypatch):
     """Default-on Slack so commands don't crash on `$SLACK_WEBHOOK_URL` unset.
 

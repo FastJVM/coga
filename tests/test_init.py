@@ -1240,6 +1240,116 @@ def test_init_fails_loud_when_target_is_not_git_repo(
     assert not (target / "coga").exists()
 
 
+# --- git identity check --------------------------------------------------------
+#
+# `coga init` fails loud up front when git has no committer identity — the
+# commit at the end would fail, historically silently (coga/ staged but
+# uncommitted, and the first `coga create` dying on a raw `fatal: ambiguous
+# argument 'HEAD'`). Captured before the autouse `_stub_init_identity_check`
+# fixture replaces the module attribute, so these tests exercise the real
+# implementation.
+_real_identity_check = init_cmd._check_git_identity
+
+
+def _force_missing_git_identity(
+    target: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Make `target`'s repo deterministically identity-less on any host.
+
+    `user.useConfigOnly` forbids git's hostname auto-detection (which succeeds
+    on some hosts and fails on others), and the env vars would override config
+    entirely, so both are cleared.
+    """
+    subprocess.run(
+        ["git", "-C", str(target), "config", "user.useConfigOnly", "true"],
+        check=True,
+    )
+    for var in (
+        "GIT_AUTHOR_NAME",
+        "GIT_AUTHOR_EMAIL",
+        "GIT_COMMITTER_NAME",
+        "GIT_COMMITTER_EMAIL",
+        "EMAIL",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_init_fails_loud_when_git_has_no_identity(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A truly fresh machine has no `user.email`/`user.name`: init probes git
+    identity up front and fails loud with the remedy, before writing anything."""
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    _force_missing_git_identity(target, monkeypatch)
+    monkeypatch.setattr(init_cmd, "_check_git_identity", _real_identity_check)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 2
+    assert "git has no identity configured" in result.output
+    assert 'git config --global user.email "you@example.com"' in result.output
+    assert not (target / "coga").exists()
+
+
+def test_identity_check_passes_with_repo_local_identity(tmp_path: Path) -> None:
+    """Repo-local `user.email`/`user.name` is enough — the probe runs from the
+    target, so per-repo config counts and the check stays quiet."""
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
+
+    _real_identity_check(target)  # must not raise
+
+
+def test_identity_check_probes_nearest_ancestor_for_missing_target(
+    tmp_path: Path,
+) -> None:
+    """A nested init (`coga init tools/ops`) may name a target that doesn't
+    exist yet — the probe falls back to the nearest existing ancestor, where
+    the host repo's identity config applies."""
+    host = tmp_path / "monorepo"
+    host.mkdir()
+    subprocess.run(["git", "init", "-q", str(host)], check=True)
+    subprocess.run(["git", "-C", str(host), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(host), "config", "user.name", "T"], check=True)
+
+    _real_identity_check(host / "tools" / "ops")  # must not raise
+
+
+def test_init_warns_loud_when_commit_fails(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The backstop for commit failures the identity check can't see (here a
+    failing pre-commit hook): init still succeeds — coga/ is written and
+    staged — but the skipped commit is a loud warning naming git's error and
+    the manual commit remedy, never a silent absence of the "Committed" line."""
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
+    hook = target / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\necho 'hook says no' >&2\nexit 1\n")
+    hook.chmod(0o755)
+    monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+    assert "Committed coga/ as" not in result.output
+    assert "NOT committed" in result.output
+    assert "hook says no" in result.output  # git's own stderr is surfaced
+    assert "git -C" in result.output  # ...and the manual remedy
+    # coga/ survived on disk and is staged, ready to commit once fixed.
+    staged = subprocess.run(
+        ["git", "-C", str(target), "diff", "--cached", "--name-only"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    assert "coga/coga.toml" in staged
+
+
 # --- nested init (coga/ in a subdir of a host repo) ---------------------------
 
 
