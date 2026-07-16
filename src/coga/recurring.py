@@ -444,9 +444,12 @@ class TemplateStatus:
     nothing and never touches git, so it is safe behind a pure `coga
     recurring list`. `instance` is the live (`active`/`in_progress`) task for
     this template if one exists — current period or a resumable prior-period
-    orphan — else this period's task if it is already on disk, else `None`
-    (due, not yet created). `error` is set for a template that failed to
-    load (e.g. missing `schedule`), with the other fields left `None`.
+    orphan — else the task at the stable slug if one is already on disk, else
+    `None` (due, not yet created). `stale_done` marks an `instance` that is a
+    prior-period `done` leftover Dream never reaped: the next sweep deletes it
+    and creates this period's task fresh, so it is reported as due rather than
+    as serviced. `error` is set for a template that failed to load (e.g.
+    missing `schedule`), with the other fields left `None`.
     """
 
     name: str
@@ -458,12 +461,16 @@ class TemplateStatus:
     instance: TaskRef | None
     instance_status: str | None
     error: str | None = None
+    stale_done: bool = False
 
     @property
     def due(self) -> bool:
         """No live/current instance covers the latest firing — a bare
-        `coga recurring` would create and launch this template now."""
-        return self.error is None and self.instance is None
+        `coga recurring` would create and launch this template now.
+
+        A stale prior-period `done` instance counts as due: the next sweep
+        deletes it and creates this period's task fresh."""
+        return self.error is None and (self.instance is None or self.stale_done)
 
 
 def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateStatus]:
@@ -509,27 +516,28 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
         target_slug = _recurring_slug(template.name)
         instance = _live_task_for_template(cfg, template.name)
         instance_status: str | None = None
+        stale_done = False
         if instance is None:
             candidate = _task_with_slug(cfg, target_slug)
             if candidate is not None:
                 try:
-                    candidate_status = read_ticket(candidate).status
+                    instance_status = read_ticket(candidate).status
                 except Exception:  # half-written / unreadable ticket
-                    candidate_status = "unknown"
+                    instance_status = "unknown"
+                instance = candidate
                 # A prior-period `done` task will be replaced by scan_due;
                 # it is not evidence that the current period has run.
-                if not (
-                    candidate_status == "done"
+                # Surface it as stale instead of letting "done" read as
+                # serviced.
+                stale_done = (
+                    instance_status == "done"
                     and not _period_already_serviced(template, period_key)
-                ):
-                    instance = candidate
-                    instance_status = candidate_status
-        if instance is not None:
-            if instance_status is None:
-                try:
-                    instance_status = read_ticket(instance).status
-                except Exception:  # half-written / unreadable ticket — report unknown
-                    instance_status = "unknown"
+                )
+        if instance is not None and instance_status is None:
+            try:
+                instance_status = read_ticket(instance).status
+            except Exception:  # half-written / unreadable ticket — report unknown
+                instance_status = "unknown"
         out.append(
             TemplateStatus(
                 name=template.name,
@@ -541,6 +549,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
                 instance=instance,
                 instance_status=instance_status,
                 error=None,
+                stale_done=stale_done,
             )
         )
     return out

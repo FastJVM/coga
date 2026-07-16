@@ -213,7 +213,12 @@ def _print_templates_table(
         if s.error:
             table.add_row(s.name, f"[red]error: {s.error}[/red]", "-", "-", "-")
             continue
-        if s.instance is not None:
+        if s.instance is not None and s.stale_done:
+            period = (
+                f"[yellow]stale done run — due, replaced next sweep"
+                f" · {s.instance.id_slug}[/yellow]"
+            )
+        elif s.instance is not None:
             period = f"{s.instance_status} · {s.instance.id_slug}"
         elif s.due:
             period = "[green]due — not created[/green]"

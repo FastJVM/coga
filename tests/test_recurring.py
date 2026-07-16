@@ -17,6 +17,7 @@ from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import tasks_dir
 from coga.recurring import (
+    list_templates,
     read_last_serviced_period,
     create_named,
     list_templates,
@@ -438,13 +439,15 @@ def test_recurring_list_reports_prior_period_done_task_as_due(repo: Path) -> Non
     current = list_templates(cfg, now=week_17)[0]
     assert current.instance == first.tasks[0].ref
     assert current.instance_status == "done"
+    assert current.stale_done is False
     assert current.due is False
 
     next_period = list_templates(
         cfg, now=datetime(2026, 4, 29, 10, 0, 0)
     )[0]
-    assert next_period.instance is None
-    assert next_period.instance_status is None
+    assert next_period.instance == first.tasks[0].ref
+    assert next_period.instance_status == "done"
+    assert next_period.stale_done is True
     assert next_period.due is True
     # The read-only view does not perform the replacement itself.
     assert Ticket.read(first.tasks[0].ref.ticket_path).status == "done"
@@ -1338,6 +1341,51 @@ def test_scan_due_skips_paused_task(repo: Path) -> None:
     assert second.tasks[0].launchable is False
     assert second.tasks[0].resuming is False
     assert second.due == []
+
+
+def test_scan_due_stale_done_replacement_respects_tty_gate(
+    repo: Path, capsys
+) -> None:
+    """Replacing a stale done run puts an agent run in front of the sweep, so
+    a TTY-less scan refuses it exactly like a fresh create — the stale run
+    stays `done`, untouched."""
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ref = first.tasks[0].ref
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 29, 10, 0, 0), allow_interactive=False
+    )
+    assert scan.tasks == []
+    assert len(scan.errors) == 1
+    assert "an agent run requires a TTY" in scan.errors[0][1]
+    assert Ticket.read(ref.path / "ticket.md").status == "done"
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W17"
+
+
+def test_create_named_replaces_stale_done_run(repo: Path) -> None:
+    """`coga recurring launch <name>` (and the `dream` alias) replace a
+    stale done run too — both entry points share `create_template`."""
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ref = first.tasks[0].ref
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 4, 29, 10, 0, 0))
+    assert outcome.created is True
+    assert outcome.replaced_done is True
+    assert outcome.ref.id_slug == ref.id_slug
+    assert Ticket.read(outcome.ref.path / "ticket.md").status == "active"
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W18"
 
 
 # --- coga recurring launch / the `dream` alias path --------------------------
