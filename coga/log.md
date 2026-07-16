@@ -1361,3 +1361,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 19:55 [remove-megalaunch-token-budget-guard-and-usage-pro] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
 2026-07-15 19:55 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
 2026-07-15 20:01 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] task done — PR merged; task complete.
+2026-07-15 20:02 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] activated (draft → active) — auto on launch
