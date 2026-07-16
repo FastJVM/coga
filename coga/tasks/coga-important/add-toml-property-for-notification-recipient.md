@@ -137,3 +137,9 @@ The shape, for whoever picks this up:
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":145552,"cache_read_input_tokens":2596658,"cli":"claude","input_tokens":80,"model":"claude-opus-4-8","output_tokens":39010,"provider":"anthropic","schema":1,"session_id":"a2210a73-4970-4b4f-bd95-844ca5780a9d","slug":"coga-important/add-toml-property-for-notification-recipient","step":"implement","title":"add-toml-property-for-notification-recipient","ts":"2026-07-16T00:55:05.813649Z","usage_status":"ok"}
+
+---
+
+## Blocker reminders
+
+- 345ef866cdda last_reminded: 2026-07-15 20:14
