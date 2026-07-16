@@ -1,7 +1,7 @@
 ---
 slug: install/retest-ssh-https-and-init-reclone-on-fresh-machine
 title: Retest SSH/HTTPS clone + init re-clone on a fresh work machine
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
 ---
 
 ## Description
@@ -170,6 +169,31 @@ With gh installed (unauthenticated — realistic fresh box), run3:
    is *not* the version that ran init, exactly the escalation
    `install/vendor-cli-from-installed-package-not-git-clone` (in_progress) is
    fixing. Nothing new to file; that ticket's premise is re-confirmed.
+
+## Already satisfied
+
+Verification ticket — the work was the retest itself; it ran in this session
+and produced no code change, so there is no branch, diff, or PR (per
+code/implement's no-diff close path). Per-ask evidence:
+
+- **"Retest the full SSH-default onboarding path on a clean work machine"** —
+  done in a fresh `python:3.12-slim` container (harness + logs in scratchpad
+  `ssh-retest/`, transcript excerpts in Findings 2–5 and 7): HTTPS→SSH
+  `insteadOf` rewrite works (A), SSH remote preferred (D), `COGA_REPO_URL`
+  local-path escape hatch works (C), failed clone rolls back atomically (B).
+  Caveat recorded in Verdict: GitHub's own SSH key acceptance was stood in for
+  by a local git-over-SSH server (no GitHub key on this host) — that link is
+  user-side, not coga code.
+- **"File follow-ups for whatever still breaks"** — filed
+  `install/short-notice-instead-of-raw-git-error-when-sync-ha` (finding 6).
+  The init re-clone surprise itself is already owned by
+  `install/vendor-cli-from-installed-package-not-git-clone` (in_progress),
+  now with fresh version-skew evidence (finding 8); gh-at-init observations
+  (finding 1) feed the existing
+  `install/decide-whether-gh-stays-required-at-init`.
+- **Timing measurement (nick, 2026-07-15)** — pip→init→first ticket→visible
+  status ≈ 24s, far under the ~10-min gate; no launch-gate filing (finding 5,
+  with the PyPI-staleness and agent-CLI caveats already ticketed).
 
 ## Verdict
 
