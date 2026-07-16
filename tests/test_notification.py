@@ -714,6 +714,80 @@ def test_important_recipient_rejected_in_legacy_slack_table(tmp_path: Path) -> N
         load_config(tmp_path)
 
 
+# --- important recipient mention (who the alert @'s) ---------------------------
+
+
+@pytest.fixture
+def cfg_important_ping(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A repo with both webhooks, a triage recipient, and mapped member IDs."""
+    _write(
+        tmp_path / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        [notification]
+        channels = ["slack"]
+        [notification.slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
+        important_recipient = "triage"
+        [notification.slack.users]
+        marc = "U01MARC"
+        triage = "U0TRIAGE"
+        """,
+    )
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/flow")
+    monkeypatch.setenv(
+        "COGA_IMPORTANT_WEBHOOK_URL", "https://hooks.slack.com/services/important"
+    )
+    return load_config(tmp_path)
+
+
+def test_important_post_mentions_recipient_not_owner(
+    cfg_important_ping, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An important post @'s the triage recipient in place of the ticket owner.
+
+    The ⚠️ alert envelope is the `coga slack` command's job; here we drive
+    `post` directly, so the message is verbatim and only the mention swaps.
+    """
+    calls = _capture(monkeypatch)
+    post(cfg_important_ping, "fee window closes", important=True, owner="marc")
+    text = calls[0]["json"]["text"]
+    assert text == (
+        f"[{cfg_important_ping.project_name}] [<@U0TRIAGE>] fee window closes"
+    )
+    assert "U01MARC" not in text
+
+
+def test_important_post_without_recipient_keeps_owner(
+    cfg_with_both_webhooks, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no `important_recipient`, the ordinary owner mention stands."""
+    calls = _capture(monkeypatch)
+    post(cfg_with_both_webhooks, "fee window closes", important=True, owner="marc")
+    assert calls[0]["json"]["text"] == (
+        f"[{cfg_with_both_webhooks.project_name}] [marc] fee window closes"
+    )
+
+
+def test_routine_post_ignores_recipient(
+    cfg_important_ping, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-important post still @'s the owner, never the triage recipient."""
+    calls = _capture(monkeypatch)
+    post(cfg_important_ping, "task done", owner="marc")
+    text = calls[0]["json"]["text"]
+    assert text == (
+        f"[{cfg_important_ping.project_name}] [<@U01MARC>] task done"
+    )
+    assert "U0TRIAGE" not in text
+
+
 def test_enabled_default_is_true(tmp_path: Path) -> None:
     _create_min(tmp_path)
     cfg = load_config(tmp_path)

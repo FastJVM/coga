@@ -50,10 +50,21 @@ def slack(
     ticket = read_ticket(ref)
     actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
 
+    if important:
+        # Alert shape: nobody is "on" a human-action alert, and the ticket title
+        # tends to just repeat the slug — so drop the FYI envelope and keep only
+        # the ⚠️ marker, the slug tag, and the message. The recipient mention is
+        # added by the channel (`render_text` swaps in `important_recipient`).
+        body = f"⚠️ *{ref.id_slug}* — {message}"
+    else:
+        body = (
+            f"💬 {ticket.assignee or cfg.current_user} on *{ref.id_slug}* "
+            f"\"{ticket.title}\": {message}"
+        )
+
     post(
         cfg,
-        f"💬 {ticket.assignee or cfg.current_user} on *{ref.id_slug}* "
-        f"\"{ticket.title}\": {message}",
+        body,
         task_path=ref.path,
         owner=ticket.owner or cfg.current_user,
         watchers=ticket.watchers,

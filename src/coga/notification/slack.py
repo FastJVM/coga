@@ -33,11 +33,21 @@ class SlackChannel:
         *,
         owner: str | None = None,
         watchers: list[str] | None = None,
+        important: bool = False,
     ) -> str:
-        """Add Coga's project/owner prefix and mapped watcher cc trailer."""
+        """Add Coga's project/owner prefix and mapped watcher cc trailer.
+
+        An important post @'s the configured `important_recipient` in place of
+        the ticket owner — the coga-important channel has its own triage owner,
+        not the ticket's. When that key is unset the owner mention stands, per
+        the `slack_important_recipient` fallback rule.
+        """
+        mention_name = owner
+        if important and self.cfg.slack_important_recipient:
+            mention_name = self.cfg.slack_important_recipient
         prefix = f"[{self.cfg.project_name}]"
-        if owner:
-            prefix += f" [{mention(self.cfg, owner)}]"
+        if mention_name:
+            prefix += f" [{mention(self.cfg, mention_name)}]"
         full_message = f"{prefix} {message}"
         if watchers:
             cc = [
@@ -84,7 +94,9 @@ class SlackChannel:
         important: bool = False,
     ) -> None:
         """Post a message through Slack, or crash trying."""
-        full_message = self.render_text(message, owner=owner, watchers=watchers)
+        full_message = self.render_text(
+            message, owner=owner, watchers=watchers, important=important
+        )
 
         if not self.cfg.slack_enabled:
             sys.stderr.write(f"[slack] disabled (post suppressed): {full_message}\n")

@@ -758,6 +758,56 @@ def test_slack_important_forwards_to_notification_post(
     assert "fee window closes" in calls[0]["message"]
 
 
+def test_slack_important_uses_alert_shape(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--important` drops the FYI envelope for the ⚠️ slug — message alert shape."""
+    slug, _ = _make_task(repo)
+    calls: list[dict] = []
+
+    def fake_post(cfg, message, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append({"message": message, **kwargs})
+
+    monkeypatch.setattr("coga.commands.slack.post", fake_post)
+
+    result = CliRunner().invoke(
+        app,
+        ["slack", "--task", slug, "--message", "fee window closes", "--important"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls[0]["message"] == f"⚠️ *{slug}* — fee window closes"
+    # None of the FYI framing survives on the alert path.
+    assert "💬" not in calls[0]["message"]
+    assert " on *" not in calls[0]["message"]
+
+
+def test_slack_fyi_keeps_envelope_shape(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without `--important`, the ordinary `💬 … on *slug* "title":` FYI stands."""
+    slug, _ = _make_task(repo)
+    calls: list[dict] = []
+
+    def fake_post(cfg, message, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append({"message": message, **kwargs})
+
+    monkeypatch.setattr("coga.commands.slack.post", fake_post)
+
+    result = CliRunner().invoke(
+        app,
+        ["slack", "--task", slug, "--message", "opened PR #142"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls[0]["important"] is False
+    message = calls[0]["message"]
+    assert message.startswith("💬 ")
+    assert f"on *{slug}*" in message
+    assert message.endswith(": opened PR #142")
+    assert "⚠️" not in message
+
+
 # --- bump --message -----------------------------------------------------------
 
 
