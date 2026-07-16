@@ -156,3 +156,7 @@ is covered by unit tests only — it can't be exercised end-to-end until the
 running version exists on PyPI. A non-editable `pip install /path/to/checkout`
 (frozen copy in site-packages) resolves as a release install of its version;
 `COGA_REPO_URL=<path>` is the explicit escape hatch there.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":544288,"cache_read_input_tokens":23568738,"cli":"claude","input_tokens":307,"model":"claude-fable-5","output_tokens":211423,"provider":"anthropic","schema":1,"session_id":"d4772a97-971c-478d-a2c4-562742ef05f5","slug":"install/vendor-cli-from-installed-package-not-git-clone","step":"implement","title":"Vendor CLI from installed package not git clone","ts":"2026-07-16T01:08:40.370158Z","usage_status":"ok"}
