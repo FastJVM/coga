@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 4 (review)
 ---
 
 ## Description
@@ -55,6 +55,7 @@ exists — see `install/document-where-to-run-init-and-adopt-existing-repo`).
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/580
 branch: gh-optional-at-init
 worktree: ../coga-gh-optional-at-init
 
@@ -80,7 +81,7 @@ Rationale (from reading the code, not just the ticket):
   `coga init` failed until both git and gh were installed, burdening installs that
   never open PRs. `git` stays hard-required (state storage; nothing works without it).
 
-## Implemented (commit c9c3f482 on gh-optional-at-init)
+## Implemented (commit 582ea84d on gh-optional-at-init)
 
 1. `src/coga/dependencies.py`: `gh` flipped to `required_at_init=False`; its `purpose`
    now documents the point-of-need rationale (mirrors `op`'s entry).
@@ -94,9 +95,11 @@ Rationale (from reading the code, not just the ticket):
    `test_dep_check_omits_optional_tools_from_crash`; the bail-before-scaffolding
    test now uses a missing `git`.
 
-Verification: rebased onto latest origin/main (commit now c9c3f482), then full
-suite in the worktree with `PYTHONPATH=<worktree>/src python3.12 -m pytest` →
-1220 passed, 1 skipped.
+Verification: rebased onto latest origin/main (`fe94e506`), then full suite in
+the worktree with `PYTHONPATH=<worktree>/src python3.12 -m pytest -q` →
+1221 passed, 1 skipped. `coga validate --task
+install/decide-whether-gh-stays-required-at-init --json` → 1 ok, 0 issues.
+Branch is clean and 2 commits ahead of origin/main.
 
 Notes for reviewers / follow-ups:
 - No context/template changes needed: nothing under `coga/contexts` or the packaged
@@ -108,6 +111,26 @@ Notes for reviewers / follow-ups:
 - Grep note: `coga launch` script-mode runs `run.py` scripts with `sys.executable`;
   when testing from a non-installed tree, PYTHONPATH must be absolute or the spawned
   script can't import `coga` (that was a test-harness artifact here, not a bug).
+
+## Peer review
+
+Native `codex review --base main` found one must-fix contract gap: after init
+succeeded without `gh`, the packaged `code/open-pr` and skill-update PR paths
+could push and then raise an uncaught `FileNotFoundError`. The branch now
+preflights `gh` before an open-PR push and translates a missing executable in
+the skill-update PR helper into an actionable install/login error. Regression
+coverage was added for both paths in peer-review commit `e1dd41df`; focused
+verification passed (160 tests), followed by the post-rebase full suite above.
+
+## PR
+
+Demote the GitHub CLI from an init-time requirement to point-of-need
+enforcement, while keeping missing-`gh` failures actionable in managed-skill,
+open-PR, autoclose, and skill-update PR flows. Update the init guidance and
+dependency tests so Git remains the sole hard prerequisite.
+
+Test plan: `PYTHONPATH=<worktree>/src python3.12 -m pytest -q` (1221 passed,
+1 skipped).
 
 ## Usage
 

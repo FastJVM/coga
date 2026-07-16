@@ -1593,3 +1593,7 @@ Aborting
 2026-07-16 15:54 [install/decide-whether-gh-stays-required-at-init] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-07-16 15:54 [install/decide-whether-gh-stays-required-at-init] [git] sync failed: `git add -- coga/tasks/install/decide-whether-gh-stays-required-at-init.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
 2026-07-16 15:54 [install/decide-whether-gh-stays-required-at-init] [system] {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":5506048,"cli":"codex","input_tokens":161978,"model":"gpt-5.6-sol","output_tokens":12863,"provider":"openai","schema":1,"session_id":"019f6d17-b8e8-7260-a4d7-338764c90034","slug":"install/decide-whether-gh-stays-required-at-init","step":"peer-review","title":"Decide whether gh stays required at init","ts":"2026-07-16T22:54:13.779760Z","usage_status":"ok"}
+2026-07-16 15:54 [install/decide-whether-gh-stays-required-at-init] [megalaunch] launched via coga megalaunch
+2026-07-16 15:55 [install/decide-whether-gh-stays-required-at-init] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-16 15:55 [install/decide-whether-gh-stays-required-at-init] [system] script exited with code 0
+2026-07-16 15:55 [install/decide-whether-gh-stays-required-at-init] [system] advanced to step 4 (review) → assigned to nicktoper after script step
