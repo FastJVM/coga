@@ -1298,3 +1298,4 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 17:00 [install/decide-whether-gh-stays-required-at-init] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-15 17:00 [install/decide-whether-gh-stays-required-at-init] [megalaunch] launched via coga megalaunch
 2026-07-15 17:10 [install/decide-whether-gh-stays-required-at-init] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — Decided: gh demoted to point-of-need; branch gh-optional-at-init ready for peer review
+2026-07-15 17:10 [install/gh-auth-hint-on-managed-skill-rate-limit] [megalaunch] started (active → in_progress) via coga megalaunch
