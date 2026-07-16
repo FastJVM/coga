@@ -1507,3 +1507,5 @@ Aborting
 2026-07-16 10:09 [recurring/digest] [system] created (status=active)
 2026-07-16 10:09 [recurring/digest] [system] created recurring/digest for 2026-07-16
 2026-07-16 10:10 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-16 10:08 [install/warn-loud-when-init-commit-is-skipped] [megalaunch] launched via coga megalaunch
+2026-07-16 10:10 [install/warn-loud-when-init-commit-is-skipped] [agent:claude] advanced to step 2 (peer-review) → assigned to codex

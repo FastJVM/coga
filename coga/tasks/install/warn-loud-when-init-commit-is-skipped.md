@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -59,8 +59,9 @@ worktree: /home/n/Code/claude/coga-init-identity
 
 ## Implemented (implement step, done)
 
-Commit 28820914 "Fail loud when coga init cannot commit coga/" on the branch
-above, rebased onto origin/main 517ccd35. The ticket offered two routes
+Commit 2e2b7166 "Fail loud when coga init cannot commit coga/" on the branch
+above, rebased onto origin/main cd36a62f (2026-07-16 refresh; clean rebase,
+suite re-run green: 1234 passed / 1 skipped). The ticket offered two routes
 ("warn at commit time" or "check identity up front"); did both, because they
 cover different failure sets:
 
