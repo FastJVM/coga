@@ -459,12 +459,35 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
     )
 
 
+_REMOVED_AGENT_KEYS: tuple[str, ...] = (
+    # Removed with the autonomy rework (#503): launches are interactive-only,
+    # so the headless `auto` argv and the machine-local permission-skip policy
+    # no longer exist. The 0.2.0 `coga init` scaffold wrote `auto` into every
+    # repo's coga.toml, so these must raise a tailored migration error before
+    # the generic unknown-key check — otherwise upgrading the CLI bricks every
+    # existing repo with a bare "unknown key(s) ['auto']" on all commands.
+    "auto",
+    "skip_permissions",
+    "skip_permissions_argv",
+)
+
+
 def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentType]:
     out: dict[str, AgentType] = {}
     for name, data in raw.items():
         for required in ("cli", "file"):
             if required not in data:
                 raise ConfigError(f"agents.{name}.{required} is required")
+        removed = [key for key in _REMOVED_AGENT_KEYS if key in data]
+        if removed:
+            raise ConfigError(
+                f"[agents.{name}] has removed key(s) {removed}. Launches are "
+                "interactive-only now: the headless `auto` argv and the "
+                "`skip_permissions` / `skip_permissions_argv` policy are gone "
+                "with no replacement. Delete those line(s) from coga.toml — "
+                "a repo initialized by coga 0.2.0 carries `auto` in its "
+                "scaffolded config."
+            )
         _reject_unknown_keys(data, _ALLOWED_AGENT_KEYS, f"[agents.{name}]")
         discussion = data.get("discussion", "")
         if not isinstance(discussion, str):
@@ -487,6 +510,18 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
             session_id_flag=session_id_flag,
             discussion=discussion,
         )
+    for name, data in (local_raw or {}).items():
+        if not isinstance(data, Mapping):
+            continue
+        removed = [key for key in _REMOVED_AGENT_KEYS if key in data]
+        if removed:
+            raise ConfigError(
+                f"[agents.{name}] in coga.local.toml has removed key(s) "
+                f"{removed}. Launches are interactive-only now: the headless "
+                "`auto` argv and the `skip_permissions` / "
+                "`skip_permissions_argv` policy are gone with no replacement. "
+                "Delete those line(s) from coga.local.toml."
+            )
     if local_raw:
         raise ConfigError(
             "coga.local.toml no longer supports [agents.<name>] overrides; "

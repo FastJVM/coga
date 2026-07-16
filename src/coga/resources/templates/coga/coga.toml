@@ -8,7 +8,8 @@ default_status = "draft"
 # --- Agents ---
 # Agent types. Each defines the CLI binary and how to invoke it.
 # Removed headless-agent keys (`auto`, `skip_permissions`,
-# `skip_permissions_argv`) are rejected as unknown config.
+# `skip_permissions_argv`) fail config load with a migration
+# error — delete those lines if upgrading from coga 0.2.0.
 
 [agents.claude]
 cli = "claude"

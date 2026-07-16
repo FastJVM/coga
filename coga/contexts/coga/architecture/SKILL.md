@@ -186,9 +186,11 @@ Two carve-outs keep it honest:
   names to values, so their *keys* are data, not schema — they are never
   rejected.
 - **Deprecated / known-but-rejected keys run their dedicated migration errors
-  *first*.** A top-level `[assignees]` still raises its tailored guidance before
-  the generic unknown-key check, so the friendlier message survives rather than
-  being swallowed by a generic "unknown key".
+  *first*.** A top-level `[assignees]`, a `[secrets]` table in coga.local.toml,
+  and the removed `[agents.<name>]` keys (`auto`, `skip_permissions`,
+  `skip_permissions_argv` — the 0.2.0 scaffold wrote `auto`) each raise their
+  tailored guidance before the generic unknown-key check, so the friendlier
+  message survives rather than being swallowed by a generic "unknown key".
 
 ## Workflow gated at activation, not draft time
 
@@ -298,7 +300,10 @@ Package-backed bootstrap tickets may also name a ticket-owned script; those
 run through the same script path with stateless launch semantics, so the
 bootstrap target itself gets no task lifecycle or log writes.
 
-There is no `autonomy:` field. The old `skip_permissions` / `skip_permissions_argv` keys are removed and rejected as unknown config.
+There is no `autonomy:` field. The old `auto`, `skip_permissions`, and
+`skip_permissions_argv` agent keys are removed; config load rejects them with
+a dedicated migration error saying to delete the lines (they beat the generic
+unknown-key check, since the 0.2.0 scaffold wrote `auto` into every repo).
 
 ### Script steps inside an agent workflow
 
