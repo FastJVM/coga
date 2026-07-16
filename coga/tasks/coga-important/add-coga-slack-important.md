@@ -124,3 +124,7 @@ post still goes to `webhook`, and the recipient mention renders as `<@UID>`.
 ## Blockers
 
 - [ ] [2026-07-15 18:39] [agent:claude] id=20260715T183957 Depends on unmerged PR #553 (support-second-webhook) and on the unimplemented sibling coga-important/add-toml-property-for-notification-recipient. Neither half is buildable from main: the alert-message-shape half needs the 'coga slack --important' flag, which exists only on the open important-webhook branch; the recipient half needs [notification.slack].important_recipient, which exists nowhere (the sibling that owns it is itself status:blocked on #553, no branch, no code). #553 is OPEN at its ticket's step 4 (review) awaiting your review. Owner already chose option 1 on the sibling (2026-07-15): wait for #553 rather than stack or duplicate; same reasoning applies here. Unblock with 'coga unblock add-coga-slack-important --answer "#553 merged and important_recipient landed"' once both land.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":215853,"cache_read_input_tokens":1416042,"cli":"claude","input_tokens":54,"model":"claude-opus-4-8","output_tokens":22161,"provider":"anthropic","schema":1,"session_id":"aa887cda-0316-48e2-9e26-74eb8cf67744","slug":"coga-important/add-coga-slack-important","step":"implement","title":"add-coga-slack-important","ts":"2026-07-16T01:40:00.901989Z","usage_status":"ok"}
