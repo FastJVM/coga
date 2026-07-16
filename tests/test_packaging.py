@@ -33,6 +33,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "ticket/finalize/run.py",
     "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.md",
     "coga/resources/templates/coga/recurring/digest/ticket.md",
@@ -87,6 +88,10 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
     (
         "coga/contexts/coga/sync/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
+    ),
+    (
+        "coga/contexts/coga/important/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     ),
 )
 
