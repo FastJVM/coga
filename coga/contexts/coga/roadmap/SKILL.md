@@ -1,224 +1,58 @@
 ---
 name: coga/roadmap
-description: The sequenced execution plan for coga — the v1 launch milestone and everything deferred to v2, with the critical path called out. Read this to know whether a ticket is in the v1 cut or deferred, and what gates it. Sequencing only; for the "why" behind decisions see coga/current-direction.
+description: Current sequencing guidance for Coga. Use live task state for the board; use this context only for durable ordering and deferral decisions.
 ---
 
-# Coga — roadmap
+# Coga roadmap
 
-Last updated: 2026-06-16.
+Last updated: 2026-07-15.
 
-The backlog is split into two milestones plus one orthogonal track:
+This context is sequencing guidance, not a cached board. Run `coga status` for
+the current task set, status, assignee, and step; read ticket bodies for scope.
+Do not infer present work from ticket names recorded in an older roadmap.
 
-- **v1** — the launch cut: a stranger can install Coga, run the core loop,
-  trust the first run, and let it work unattended. The 24 tickets below.
-- **v2** — everything else. Physically parked under `coga/tasks/v2/`, so a
-  v2 ticket's ref is `v2/<slug>`. Not scheduled against the launch; pulled up
-  into v1 only by explicit decision.
-- **marketing/** — orthogonal. The `marketing/*` tickets (launch comms, Discord,
-  uninstall, onboarding, demos…) run on their own axis and are **not** part of
-  the v1/v2 engineering split. They are neither listed here nor parked in v2.
+## Current sequence
 
-Status tags reflect the last update — verify with `coga status` before acting.
-This context is **sequencing only**; the reasoning behind decisions lives in
-`coga/current-direction`, and the principles a change must respect live in
-`coga/principles`.
+1. **Keep the core loop sharp.** Fix failures in create → author → launch →
+   bump/mark → review before adding new orchestration. Installation, package
+   resources, git sync, notifications, and script-step completion are part of
+   that loop.
+2. **Keep the explanation synchronized with code.** Coga is dogfooded and
+   changes quickly. When a command, task shape, or execution contract changes,
+   update the matching live and packaged context/template in the same PR.
+3. **Treat recurring work as ordinary ticket work.** Recurring creates stable
+   `recurring/<name>` period tasks; script-backed steps are the unattended
+   path, and Dream owns generic done-ticket cleanup. Operator scheduling remains
+   outside Coga until a concrete scheduling design is approved.
+4. **Design primitive changes before mechanical renames.** The open
+   workflow-to-playbook direction changes a reserved ticket field and must be
+   settled in its design ticket before contexts or stored tickets are renamed.
+5. **Prefer deletion to compatibility layers.** Coga is pre-product. Remove
+   obsolete commands, fields, and one-off process rather than preserving
+   shims for historical task artifacts.
 
-## Critical path (the short version)
+## Deferred work
 
-1. Land the in-flight workflow/assignee triage work so the board is legible.
-2. Ship the **RC release gate** (below) — a stranger can `pipx install` Coga
-   and run their first task. This is the launch.
-3. Megalaunch plus blockers is the unattended-drain path; deterministic
-   recurring work should be script-backed (a `script:` entry or a
-   script-backed workflow step), while agent launches remain a
-   TTY-supervised agent REPL.
-4. The single-file task-format rewrite is high-blast-radius; sequence it when
-   the board is calm.
+The `coga/tasks/v2/` directory is the durable parking area for work not on the
+current execution path. Its contents are intentionally fluid; `coga status v2`
+is the authoritative list. Pull a v2 item forward only through an explicit
+ticket decision, then update its location/status instead of duplicating it in
+this context.
 
-## Release candidate — the gate to v0.2.0 launch
+Marketing and documentation work may proceed independently when it does not
+change the core task model. Reliability bugs that block installation, launch,
+state sync, or review take precedence over new convenience surfaces.
 
-The hard list of what must be true before we tag and announce. This is a
-**subset and re-ordering of the v1 cut** focused on "a stranger installs it and
-runs their first task." Tier chosen: **blockers + CI** (domain,
-uninstall, and changelog are fast-follows, not gate items). Assumption: the RC
-ships **Agent + script only** — execution substance is deduced per launch
-(script-backed step or ticket `script:` → script, else agent), not an
-autonomy switch.
+## Sources of truth
 
-**Blockers — cannot tag without these:**
-
-1. `coga-cli-shipping` [active] — `coga init` must ship `skills/code` + the
-   `code`/`docs`/`dev` workflows. **Confirmed missing today** (templates ship
-   only `direct`), so a fresh install can't run the core loop. Top priority.
-2. `one-line-install` [active] — `pipx install coga` works end-to-end and is
-   published to PyPI (package is `coga`, currently v0.2.0).
-3. `coga-forces-https` [done] + `remote-default-origin` [done] — don't
-   crash on SSH / non-`origin` git setups; real users' configs vary.
-4. **Make the repo public** — prerequisite for an OSS launch (the gate noted
-   under `marketing/coga-discord`).
-5. `improve-readme-and-doc` [draft] — a README that takes a stranger from
-   install → first task.
-6. `first-run-works-without-slack-configured` [done] — Slack must be optional
-   out of the box; today a missing webhook walls a brand-new user.
-
-**Also in the gate (chosen tier):**
-
-7. `minimal-ci-run-pytest-on-prs-and-tags` [draft] — a `pytest` GitHub Action so
-   the release tag is trustworthy (no CI exists today).
-
-**Fast-follows (not gate items):** `register-a-real-domain-for-coga` (README
-can point at GitHub if it slips), `marketing/coga-uninstall` (`pipx uninstall`
-works natively), and a version tag + short changelog.
-
-**Post-gate:** `marketing/coga-discord` → `marketing/launch-coga-product-launch-comms`.
-
-## v1 — the launch cut (28 tickets)
-
-### In-flight (1)
-
-- `wire-autonomy-triage-into-impl-ready-workflows` [active] — advisory tiers +
-  authoring-time classification; the last in-flight straggler.
-
-### Installability — the launch gate (6)
-
-A stranger must be able to install and run Coga out of the box.
-
-- `coga-forces-https` [done] + `remote-default-origin` [done] — respect SSH
-  users and non-`origin` remotes.
-- `coga-cli-shipping` [active] — `coga init` must ship `workflows/` +
-  `skills/code`, plus the recurring templates, or a fresh repo can't run the
-  core process.
-- `one-line-install` [active] — the `pipx install` story.
-- `register-a-real-domain-for-coga` [draft] — a real domain for the install
-  one-liner and README links; blocks final launch copy.
-- `improve-readme-and-doc` [draft] — a README a stranger can land on and run
-  from.
-
-### Auth (1)
-
-- `authentication-system` [draft] — design-first umbrella over three scopes:
-  hosted-backend account+token, git/GitHub
-  credential handling, and per-skill secrets (the last folds in the v2 tickets
-  `v2/pass-secrets-to-skills-with-per-skill-scope` + the v1
-  `fail-loud-when-an-env-indirected-secret-is-missing`). Expect it to split
-  at the design step.
-
-### Recurring scheduling (4)
-
-- `wire-recurring-sweep-into-system-cron` [draft] — the recurring sweep
-  (digest/dream/skill-update) only fires when a human runs `coga recurring`.
-  Scheduling is deferred out of v1; when revisited, design the operator-owned
-  scheduler entry point from scratch instead of assuming a bundled cron wrapper.
-  Scheduling only — the budget-aware drain loop is a separate ticket (below).
-- `enforce-script-mode-for-recurring-templates` [draft] — no-TTY safety: under
-  cron only script-backed templates launch; an agent template scaffolds
-  but fails to launch without a TTY. Pairs with the cron ticket.
-- `fix-recurring-templates-not-instantiated` [draft] — **verification gate**
-  (not an open bug): prove a due template reliably instantiates + launches its
-  period task under a no-TTY cron sweep, with failure modes tested. Underlying
-  fix believed merged in PR #357 (`57c01fa`); this confirms it for cron.
-- `fix-git-recurring-issues` [draft] — **verification gate**: prove the
-  high-water merge race (reversed `merge_last_serviced_period_text` args) is
-  fixed and regression-covered so a racing cron sweep can't resurrect a handled
-  period. Fix believed merged in PR #357 (`b82440a`).
-
-### First-run correctness (4)
-
-Bugs a stranger hits on day one — in scope precisely because of the v1 promise.
-
-- `first-run-works-without-slack-configured` [done] — a fresh install with no
-  Slack still works.
-- `fail-loud-on-unrecognized-config-sections-instead` [done] — config errors
-  fail loud, not silently.
-- `slack-post-ignores-http-response-so-bad-webhook-fa` [draft] — a bad webhook
-  fails loud instead of silently swallowing the error.
-- `fail-loud-when-an-env-indirected-secret-is-missing` [draft] — a missing
-  `env:VAR` secret resolves to `""` instead of erroring (`config.py:435`); a
-  stranger mis-setting a secret fails silently. Same family as the two above;
-  also feeds the `authentication-system` per-skill-secrets scope.
-
-### Flow simplification (1)
-
-- `implicit-activation-inrpogress` [shipped] — launching a ticket now activates
-  it inline (`_auto_activate` in `launch.py`), so the explicit "mark active"
-  step is retired: draft → (running) → done. Docs/help/context cleanup tracked
-  by `retire-mark-active`. Scope was the activation step only; auto-advancing
-  workflow bumps remains deferred
-  (`v2/why-ai-asks-me-to-bump-instead-of-doing-it`).
-
-### Single-file task format (1)
-
-- `single-file-task-format-section-aware-compose-filt` [draft] — merge the
-  three-file task layout into one file + a section-aware compose filter so only
-  working sections load. High blast radius; sequence when the board is calm.
-  Pulled into v1 by owner decision (operator-ergonomics win). Likely splits at
-  design: format+migration → compose filter → writer migration → docs rewrite.
-
-### Prompt quality (2)
-
-- `improve-prompt-for-coga-launch` [draft] + `improve-prompt-for-coga-ticket`
-  [draft] — tighten the launch/ticket-authoring prompts.
-
-### Unattended drain chain (7)
-
-The big bet: use spare overnight token budget to run flagged-ready tickets
-unattended. The path is blockers + megalaunch + usage guards, not a ticket
-`autonomy:` field, so this lands late in v1.
-
-- `session-done-sentinel-from-mark-done-bump-leaks-in` [draft] —
-  reliability prerequisite: a child `coga mark done`/`bump` leaks the
-  session-done sentinel and tears down the supervised run. Unattended runs can't
-  be trusted until this is fixed; the sibling `session-done-sentinel-leaks…` is
-  already done.
-
-1. `track-usage-of-llm` [done] — foundational per-session usage primitive;
-   everything below consumes it.
-2. `retire-the-autonomy-tier-concept` [draft] — remove the old tier-to-field
-   projection now that blockers and megalaunch carry the unattended-drain gate.
-3. `auto/stream-agent-progress-in-auto-mode-and-recurring-l` [draft] —
-   historical precursor; replace with the live megalaunch/blocker stream work
-   rather than reintroducing `autonomy: auto`.
-4. `async-park-and-continue-on-block` [draft] — a blocked ticket parks cleanly
-   and the sweep keeps going instead of stalling.
-5. `drain-pending-auto-tickets-with-leftover-session-b` [draft] — the
-   budget-aware drain loop.
-6. `nightly-auto-drain-run-for-ready-tickets` [draft] — assembles 1–5 into a
-   future scheduled overnight run. Coga v1 does not ship a scheduler wrapper.
-
-## v2 — deferred backlog
-
-Everything under `coga/tasks/v2/`. Not scheduled against the launch. The
-broad buckets (see `coga status` / the directory for the authoritative list):
-
-- **Docs / knowledge-base** — the `document-*` batch, context-splitting and
-  file-access cleanups. Do these after the single-file format rewrite or you
-  will clean up docs you are about to rewrite.
-- **PM / planning features** — `acceptance-criteria`, `identify-blocking-issues`,
-  `coga-design-repositories`, `issue-inbox-slack`, ticket-spec splitting,
-  subprojects.
-- **Recurring bugfixes** — debug-surface, Dream persistence,
-  standalone-automerge retirement. (Template-instantiation and the git
-  high-water race were promoted to v1 as verification gates.)
-- **Security / secrets / PII** — `manage-security-and-pii`, per-skill secret
-  scoping, a first-class machine-local config dir. (Several feed the v1
-  `authentication-system` design; fail-loud-on-missing-secret was promoted to
-  v1.)
-- **Compose / validation** — frontmatter stripping, prompt token budget,
-  symlink-view exclusion, SKILL.md and hand-edit validation.
-- **Git hygiene / dev-loop** — sync-with-main lift, uncommitted-work cleanup,
-  worktree-per-task. A dogfooding investment that can be pulled forward to run
-  alongside v1 since we build Coga with Coga.
-- **Autonomy payoffs** — `autoroute-agent-based-on-remaining-usage`,
-  `model-selector` (genuinely post-v1).
-- **Robustness / isolation** — file locking, container/VM isolation, timestamp
-  precision.
-- **Skills, prompts, naming, CI** — skill search, sibling-split discipline,
-  `minimal-ci-run-pytest-on-prs-and-tags`, the workflow→playbook rename, and the
-  rest.
+- Live board and status: `coga status`
+- Current product decisions: `coga/current-direction`
+- Stage posture: `coga/project-stage`
+- Non-negotiables: `coga/principles`
+- Exact work: the relevant ticket body and blackboard
 
 ## What this context does NOT cover
 
-- The reasoning behind decisions / what was deferred and why — see
-  `coga/current-direction`.
-- The principles a change must not violate — see `coga/principles`.
-- The full backlog — see `coga status` (and `coga/tasks/v2/` for v2).
+- A frozen ticket census or release checklist.
+- The reasoning behind product decisions; see `coga/current-direction`.
+- The complete backlog; use `coga status` and the task tree.
