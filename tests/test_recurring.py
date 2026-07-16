@@ -17,6 +17,7 @@ from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import tasks_dir
 from coga.recurring import (
+    list_templates,
     read_last_serviced_period,
     create_named,
     scan_due,
@@ -1178,6 +1179,148 @@ def test_scan_due_skips_paused_task(repo: Path) -> None:
     assert second.tasks[0].launchable is False
     assert second.tasks[0].resuming is False
     assert second.due == []
+
+
+def test_scan_due_rolls_over_stale_done_run(repo: Path) -> None:
+    """A `done` run left over from a prior period is reactivated, not skipped.
+
+    Dream's retro pass is supposed to reap done period tickets; when that
+    never happened, the finished run still occupies the stable
+    `recurring/<name>` slug. Without the rollover it would shadow every
+    future period forever while the scan table read "skip (done)".
+    """
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ref = first.tasks[0].ref
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+
+    scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
+
+    assert scan.errors == []
+    assert len(scan.tasks) == 1
+    rolled = scan.tasks[0]
+    assert rolled.created is False
+    assert rolled.rolled_over is True
+    assert rolled.status == "active"
+    assert rolled.launchable is True
+    assert rolled.resuming is False
+    assert rolled in scan.due
+    # Same stable directory — the engine deletes nothing.
+    assert rolled.ref.id_slug == ref.id_slug
+    assert {r.id_slug for r in list_tasks(cfg)} == {"recurring/weekly-check"}
+    assert Ticket.read(ref.path / "ticket.md").status == "active"
+    # The new period is claimed and the rollover is auditable.
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W18"
+    log = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
+    assert "rolled over stale done run recurring/weekly-check for 2026-W18" in log
+    assert "stale done run from 2026-W17 rolled over to 2026-W18" in log
+
+
+def test_scan_due_same_period_done_run_stays_skipped(repo: Path) -> None:
+    """A run that finished *this* period is not rolled over or re-run."""
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)
+    first = scan_due(cfg, now=now)
+    ref = first.tasks[0].ref
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+
+    second = scan_due(cfg, now=now)
+    assert second.tasks[0].status == "done"
+    assert second.tasks[0].rolled_over is False
+    assert second.tasks[0].launchable is False
+    assert second.due == []
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W17"
+
+
+def test_scan_due_stale_paused_run_stays_parked(repo: Path) -> None:
+    """A prior-period `paused` run still defers the new period — a human
+    deliberately parked it, so the rollover applies to `done` only."""
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ref = first.tasks[0].ref
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "paused"
+    ticket.write(ref.path / "ticket.md")
+
+    scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
+    assert scan.tasks[0].status == "paused"
+    assert scan.tasks[0].rolled_over is False
+    assert scan.tasks[0].launchable is False
+    assert scan.due == []
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W17"
+
+
+def test_scan_due_stale_done_rollover_respects_tty_gate(
+    repo: Path, capsys
+) -> None:
+    """A rollover puts an agent run in front of the sweep, so a TTY-less scan
+    refuses it exactly like a fresh create — the run stays `done`, untouched."""
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ref = first.tasks[0].ref
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 29, 10, 0, 0), allow_interactive=False
+    )
+    assert scan.tasks == []
+    assert len(scan.errors) == 1
+    assert "an agent run requires a TTY" in scan.errors[0][1]
+    assert Ticket.read(ref.path / "ticket.md").status == "done"
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W17"
+
+
+def test_create_named_rolls_over_stale_done_run(repo: Path) -> None:
+    """`coga recurring launch <name>` (and the `dream` alias) roll over a
+    stale done run too — both entry points share `create_template`."""
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ref = first.tasks[0].ref
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 4, 29, 10, 0, 0))
+    assert outcome.created is False
+    assert outcome.rolled_over is True
+    assert outcome.ref.id_slug == ref.id_slug
+    assert Ticket.read(ref.path / "ticket.md").status == "active"
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "ticket.md"
+    ) == "2026-W18"
+
+
+def test_list_templates_flags_stale_done_run(repo: Path) -> None:
+    """The read-only list reports a stale done run as due, not serviced."""
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ref = first.tasks[0].ref
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+
+    same_period = list_templates(cfg, now=datetime(2026, 4, 22, 11, 0, 0))
+    assert same_period[0].stale_done is False
+
+    next_period = list_templates(cfg, now=datetime(2026, 4, 29, 10, 0, 0))
+    assert next_period[0].instance_status == "done"
+    assert next_period[0].stale_done is True
+    # Read-only: flagging changed nothing on disk.
+    assert Ticket.read(ref.path / "ticket.md").status == "done"
 
 
 # --- coga recurring launch / the `dream` alias path --------------------------

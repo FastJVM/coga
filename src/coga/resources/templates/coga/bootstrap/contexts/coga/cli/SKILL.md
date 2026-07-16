@@ -628,8 +628,14 @@ the template blackboard's `last_serviced_period` line. It launches the due ones
 **sequentially** — orphaned `in_progress` resumes first, then fresh launches,
 each set most-overdue first, one finishing before the next starts. It prints
 a scan table (`→ resume` / `→ launch` / `ready` vs `overdue Nd`) before
-launching. `done` and `paused` tasks are skipped — never relaunched; a stuck
-`in_progress` run defers the next period until it reaches one of those.
+launching. A `done` task from the *current* period is skipped — never
+relaunched. A stale `done` run from a **prior** period (finished but never
+reaped by Dream's retro pass) is **rolled over** instead: the scan reactivates
+it for the new firing (`done → active`, workflow restarted at step 1, the
+state-key snapshot re-baselined, `last_serviced_period` advanced) so it cannot
+silently shadow every future period. `paused` tasks stay skipped — a human
+parked them — and a stuck `in_progress` run defers the next period until it
+reaches `done` or `paused`.
 
 Current period only: it does not chase missed periods. Running `coga
 recurring` once a month for a weekly template produces one run (this

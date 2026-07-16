@@ -15,6 +15,7 @@ from croniter import CroniterError, croniter
 from coga.create import create_task
 from coga.config import Config
 from coga.logfile import append_log
+from coga.mark import mark_active
 from coga.paths import recurring_dir, resolve_skill_path, resolve_workflow_path
 from coga.period_state import write_snapshot
 from coga.skill import Skill
@@ -91,10 +92,15 @@ class CreateOutcome:
     `created` is False when a task already exists for the template — the
     create is idempotent, so two `coga recurring` runs converge on the
     stable `tasks/recurring/<name>/` directory.
+
+    `rolled_over` is True when that existing task was a stale `done` run from
+    a *prior* period (finished but never reaped by Dream's retro pass) that
+    was reactivated for the new firing instead of blocking it.
     """
 
     ref: TaskRef
     created: bool
+    rolled_over: bool = False
 
 
 # The cleanup template runs last in a bare sweep so its retro/cleanup pass acts
@@ -129,6 +135,7 @@ class DueTask:
     created: bool
     status: str
     period_key: str = ""
+    rolled_over: bool = False
 
     @property
     def launchable(self) -> bool:
@@ -146,7 +153,10 @@ class DueTask:
         # leaf slug, so a stale leftover is found and resumed too (and defers
         # the next period until it reaches done/paused: one live task per
         # template).
-        # `done` → finished work, never re-run. `paused` → a human parked it.
+        # `done` → this period already ran, never re-run. (A `done` run left
+        # over from a *prior* period is rolled back to `active` by the scan's
+        # get-or-create — see `_roll_over_stale_done_run` — so it never shows
+        # up here as `done`.) `paused` → a human parked it.
         return self.status in {"active", "in_progress"}
 
     @property
@@ -299,7 +309,13 @@ def scan_due(
             continue
 
         try:
-            outcome = create_template(cfg, template, now, allow_agent=allow_interactive)
+            outcome = create_template(
+                cfg,
+                template,
+                now,
+                allow_agent=allow_interactive,
+                roll_over_stale=not force,
+            )
             ticket = read_ticket(outcome.ref)
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps an
@@ -317,6 +333,7 @@ def scan_due(
                 period_key=period_key,
                 created=outcome.created,
                 status=ticket.status,
+                rolled_over=outcome.rolled_over,
             )
         )
     return DueScan(tasks=tasks, errors=errors)
@@ -346,8 +363,15 @@ def create_template(
     now: datetime,
     *,
     allow_agent: bool = True,
+    roll_over_stale: bool = True,
 ) -> CreateOutcome:
-    """Create one recurring template for `now`'s firing. Idempotent."""
+    """Create one recurring template for `now`'s firing. Idempotent.
+
+    `roll_over_stale=False` (the `--all` scan) leaves a stale prior-period
+    `done` run untouched: a forced sweep must not mutate tasks at scan time —
+    `_prepare_forced_launch` reactivates each one only when the sequential
+    launch loop actually reaches it.
+    """
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
     target_slug = _recurring_slug(template.name)
@@ -367,8 +391,44 @@ def create_template(
 
     existing = _task_with_slug(cfg, target_slug)
     if existing is not None:
+        # A `done` run left at the stable slug normally means "this period
+        # already ran" — but only for the period it actually covered. If the
+        # template's high-water mark predates the current firing, the task is
+        # a *stale* done run (finished last period, never reaped by Dream's
+        # retro pass). Left alone it would shadow every future period forever,
+        # while the scan table reads "skip (done)" as if this period ran. Roll
+        # it over instead: reactivate it for the new firing, exactly like a
+        # forced `--all` rerun does. `paused` stays parked — a human chose
+        # that — and live statuses were resumed above.
+        if (
+            roll_over_stale
+            and not _period_already_serviced(template, period_key)
+            and read_ticket(existing).status == "done"
+        ):
+            _require_agent_tty(cfg, template, allow_agent)
+            return _roll_over_stale_done_run(
+                cfg, template, existing, period_key, now
+            )
         return CreateOutcome(ref=existing, created=False)
 
+    _require_agent_tty(cfg, template, allow_agent)
+    outcome = _create_at_slug(
+        cfg,
+        template,
+        target_slug=target_slug,
+        title=_extract_title(template),
+    )
+    _advance_serviced_period(cfg, template, period_key, outcome, now)
+    return outcome
+
+
+def _require_agent_tty(cfg: Config, template: Template, allow_agent: bool) -> None:
+    """Refuse to start an agent-substance run in a TTY-less scan.
+
+    Applies to a fresh period create and to a stale-done rollover alike —
+    both put a launchable run in front of the sweep, which cannot drive an
+    agent REPL without a terminal.
+    """
     if not allow_agent and not _template_runs_as_script(cfg, template):
         raise RecurringError(
             "an agent run requires a TTY (stdin and stdout must both be "
@@ -376,12 +436,45 @@ def create_template(
             "or give the template a script (a `script:` entry, or a workflow "
             "whose step 1 has a single script-backed skill) for unattended runs."
         )
-    outcome = _create_at_slug(
+
+
+def _roll_over_stale_done_run(
+    cfg: Config,
+    template: Template,
+    ref: TaskRef,
+    period_key: str,
+    now: datetime,
+) -> CreateOutcome:
+    """Reactivate a stale `done` period run for the current firing.
+
+    The intended lifecycle is done → reaped (Dream retro) → next period
+    recreates. When the reap never happened, the finished run still occupies
+    the stable `recurring/<name>` slug; reactivating it (like a forced `--all`
+    rerun) restarts its workflow at step 1 for the new period without the
+    engine deleting a task directory. The blackboard carries over — Dream's
+    retro pass remains the sole deleter of done period tickets.
+    """
+    prior = read_last_serviced_period(template.ticket_path) or "a prior period"
+    ticket = read_ticket(ref)
+    mark_active(
         cfg,
-        template,
-        target_slug=target_slug,
-        title=_extract_title(template),
+        ref,
+        ticket,
+        actor="system",
+        log_message=(
+            f"reactivated (done → active) — stale done run from {prior} "
+            f"rolled over to {period_key}"
+        ),
+        echo=(
+            f"{ref.id_slug}: stale done run from {prior} rolled over "
+            f"to {period_key}"
+        ),
     )
+    # Re-baseline any declared state keys against the template's current
+    # blackboard, as a fresh create would — the old snapshot describes the
+    # prior period and would flag a false stale-cursor at `mark done`.
+    _write_state_snapshot(template, ref)
+    outcome = CreateOutcome(ref=ref, created=False, rolled_over=True)
     _advance_serviced_period(cfg, template, period_key, outcome, now)
     return outcome
 
@@ -408,6 +501,7 @@ class TemplateStatus:
     instance: TaskRef | None
     instance_status: str | None
     error: str | None = None
+    stale_done: bool = False
 
     @property
     def due(self) -> bool:
@@ -466,6 +560,12 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
                 instance_status = read_ticket(instance).status
             except Exception:  # half-written / unreadable ticket — report unknown
                 instance_status = "unknown"
+        # A `done` instance whose period predates the latest firing is a
+        # stale leftover, not this period's run — the next sweep rolls it
+        # over. Surface that instead of letting "done" read as serviced.
+        stale_done = instance_status == "done" and not _period_already_serviced(
+            template, period_key
+        )
         out.append(
             TemplateStatus(
                 name=template.name,
@@ -477,6 +577,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
                 instance=instance,
                 instance_status=instance_status,
                 error=None,
+                stale_done=stale_done,
             )
         )
     return out
@@ -617,7 +718,12 @@ def _record_run(
     The history line is tagged `recurring/<name>` so it is reconstructable, and
     lands in the global log (never composed into a run prompt).
     """
-    verb = "created" if outcome.created else "reused"
+    if outcome.created:
+        verb = "created"
+    elif outcome.rolled_over:
+        verb = "rolled over stale done run"
+    else:
+        verb = "reused"
     append_log(
         cfg,
         _recurring_slug(template.name),

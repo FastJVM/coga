@@ -316,7 +316,12 @@ def _print_recurring_templates(
         if s.error:
             table.add_row(s.name, f"[red]error: {s.error}[/red]", "-", "-")
             continue
-        if s.instance is not None:
+        if s.instance is not None and s.stale_done:
+            period = (
+                f"[yellow]stale done run — due, rolls over"
+                f" · {s.instance.id_slug}[/yellow]"
+            )
+        elif s.instance is not None:
             period = f"{s.instance_status} · {s.instance.id_slug}"
         else:
             period = "[green]due — not created[/green]"
