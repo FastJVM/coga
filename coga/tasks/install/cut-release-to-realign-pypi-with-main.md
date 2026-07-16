@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -69,11 +69,13 @@ worktree: /home/n/Code/claude/coga-release-0.3.0
   3.11+, so use uv or /usr/bin/python3.12.) Smoke check: `coga --version` from
   the worktree reports `coga 0.3.0`.
 - Branch is based on origin/main HEAD (a180b4aa) as of this session.
+- Resumed 2026-07-15: rebased onto current origin/main (e88729ae — only
+  ticket-state commits came in), re-ran tests: 1220 passed, 1 skipped.
 
 ## ⚠ Merge/publish ordering constraint
 
 The dependency ticket `install/add-migration-errors-for-removed-config-keys`
-has NOT landed yet (still at step 1, implement; `src/coga/config.py` on main
+has NOT landed yet (now at step 2, peer-review; `src/coga/config.py` on main
 has no migration carve-out for the removed `[agents.*] auto` key). Per this
 ticket's description, 0.3.0 must be **published after** that ticket lands so
 upgraders get actionable errors. The version bump itself is safe to review
