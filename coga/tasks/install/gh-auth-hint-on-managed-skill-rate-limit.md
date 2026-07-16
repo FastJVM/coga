@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -51,6 +51,7 @@ gh 2.96 unauthenticated). Touchpoints: `src/coga/managed_skills.py` /
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/582
 branch: gh-rate-limit-hint
 worktree: /home/n/Code/claude/coga-gh-rate-limit-hint
 

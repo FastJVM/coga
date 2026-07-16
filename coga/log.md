@@ -1601,3 +1601,7 @@ Aborting
 2026-07-16 16:14 [install/gh-auth-hint-on-managed-skill-rate-limit] [megalaunch] launched via coga megalaunch
 2026-07-16 16:53 [install/gh-auth-hint-on-managed-skill-rate-limit] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-07-16 16:53 [install/gh-auth-hint-on-managed-skill-rate-limit] [system] {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":4033280,"cli":"codex","input_tokens":118590,"model":"gpt-5.6-sol","output_tokens":12686,"provider":"openai","schema":1,"session_id":"019f6d35-b510-78c0-b9cf-c41ae3e7d30d","slug":"install/gh-auth-hint-on-managed-skill-rate-limit","step":"peer-review","title":"gh auth hint on managed skill rate limit","ts":"2026-07-16T23:53:03.468911Z","usage_status":"ok"}
+2026-07-16 16:53 [install/gh-auth-hint-on-managed-skill-rate-limit] [megalaunch] launched via coga megalaunch
+2026-07-16 16:53 [install/gh-auth-hint-on-managed-skill-rate-limit] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-16 16:53 [install/gh-auth-hint-on-managed-skill-rate-limit] [system] script exited with code 0
+2026-07-16 16:53 [install/gh-auth-hint-on-managed-skill-rate-limit] [system] advanced to step 4 (review) → assigned to nicktoper after script step
