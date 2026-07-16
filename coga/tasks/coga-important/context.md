@@ -131,3 +131,7 @@ scopes this to the convention and the webhook/recipient work to siblings — but
 the context describes the intended end state, so it reads slightly ahead of main
 until those two land. Worth a sequencing check at review if the merge order
 matters.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":145839,"cache_read_input_tokens":4474969,"cli":"claude","input_tokens":144,"model":"claude-opus-4-8","output_tokens":46893,"provider":"anthropic","schema":1,"session_id":"5eb690c3-4775-41e0-b737-52a5b8bf430e","slug":"coga-important/context","step":"implement","title":"context","ts":"2026-07-16T00:56:09.529638Z","usage_status":"ok"}
