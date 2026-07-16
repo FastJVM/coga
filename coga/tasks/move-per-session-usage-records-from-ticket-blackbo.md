@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -155,3 +155,31 @@ Decisions / notes:
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":457566,"cache_read_input_tokens":17980393,"cli":"claude","input_tokens":272,"model":"claude-fable-5","output_tokens":123633,"provider":"anthropic","schema":1,"session_id":"feab4582-f731-4d1e-b1d6-965101db91e4","slug":"move-per-session-usage-records-from-ticket-blackbo","step":"implement","title":"Move per-session usage records from ticket blackboards to log.md","ts":"2026-07-16T03:19:21.031947Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":5397248,"cli":"codex","input_tokens":146818,"model":"gpt-5.6-sol","output_tokens":10072,"provider":"openai","schema":1,"session_id":"019f68ef-a294-7063-b3aa-cc6c222e7555","slug":"move-per-session-usage-records-from-ticket-blackbo","step":"peer-review","title":"Move per-session usage records from ticket blackboards to log.md","ts":"2026-07-16T03:43:19.902694Z","usage_status":"ok"}
+## Peer review (2026-07-15)
+
+- Native `codex review --base main` found no functional regressions.
+- Applied one must-fix source-contract correction: `sync_coga_state` no longer
+  claims per-session usage is a blackboard side effect it sweeps; launch now
+  appends and commits the usage line through `sync_log`.
+- Rebasing onto current `origin/main` reintroduced this task's newly captured
+  `## Usage` section after the original migration commit. Removed it in the
+  peer-review commit and confirmed zero `^## Usage` headings remain under
+  `coga/` on the feature branch.
+- Branch is clean, three commits ahead of `origin/main`, and rebased onto
+  `b78be8cd`.
+- Verification: `python -m pytest` -> 1219 passed, 1 skipped, 1 failed. The
+  sole failure is the environment-only
+  `test_bootstrap_script_launch_is_stateless` subprocess import failure; it
+  reproduces on `main`. Focused usage/launch verification: 8 passed.
+
+## PR
+
+Move per-session agent usage records out of ticket blackboards and into tagged
+JSON payloads in the repo-global `coga/log.md`. `coga usage` now reads the log,
+launch teardown commits only the union-safe log path, stale live `## Usage`
+sections are removed without back-compat parsing, and the usage/sync contracts
+and tests describe the new durable-history boundary.
+
+Test plan: `python -m pytest` (1219 passed, 1 skipped; one environment-only bootstrap subprocess import failure reproduced on `main`).
