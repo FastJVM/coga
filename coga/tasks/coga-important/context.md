@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts: []
 skills: []
 workflow:
@@ -25,7 +25,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -65,6 +65,10 @@ webhook and the coga.toml recipient field are separate tickets.
 
 ## Context
 
+## PR
+
+https://github.com/FastJVM/coga/pull/557
+
 <!-- coga:blackboard -->
 
 ## Dev
@@ -72,6 +76,7 @@ webhook and the coga.toml recipient field are separate tickets.
 branch: important-context
 worktree: ../coga-important-context
 commit: c4ac259d
+pr: https://github.com/FastJVM/coga/pull/557
 
 ## What changed
 
