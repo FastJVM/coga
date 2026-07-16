@@ -112,3 +112,5 @@ Notes for reviewers / follow-ups:
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":60036,"cache_read_input_tokens":82512,"cli":"claude","input_tokens":8,"model":"claude-fable-5","output_tokens":1072,"provider":"anthropic","schema":1,"session_id":"2b215a82-ba3e-4d72-9a7d-ce7093561ee8","slug":"install/decide-whether-gh-stays-required-at-init","step":"implement","title":"Decide whether gh stays required at init","ts":"2026-07-15T19:05:50.062556Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":158853,"cache_read_input_tokens":5576745,"cli":"claude","input_tokens":172,"model":"claude-fable-5","output_tokens":50113,"provider":"anthropic","schema":1,"session_id":"e8dfae0f-59da-4b56-827c-773f56f7be0a","slug":"install/decide-whether-gh-stays-required-at-init","step":"implement","title":"Decide whether gh stays required at init","ts":"2026-07-16T00:10:46.573301Z","usage_status":"ok"}
