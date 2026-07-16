@@ -1363,3 +1363,7 @@ Use '--' to separate paths from revisions, like this:
 2026-07-15 20:01 [remove-megalaunch-token-budget-guard-and-usage-pro] [human:nicktoper] task done — PR merged; task complete.
 2026-07-15 20:02 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-15 20:02 [move-per-session-usage-records-from-ticket-blackbo] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-15 19:57 [recurring/blocker-reminders] [git] sync refused: coga/tasks/recurring/blocker-reminders/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:57 [recurring/digest] [git] sync refused: coga/tasks/recurring/digest/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 19:57 [recurring/dream] [git] sync refused: coga/tasks/recurring/dream/ticket.md: status would move backward from 'done' to 'active'
+2026-07-15 20:14 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
