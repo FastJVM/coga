@@ -1267,7 +1267,7 @@ def _force_missing_git_identity(
 
 
 def test_init_fails_loud_when_git_has_no_identity(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A truly fresh machine has no `user.email`/`user.name`: init probes git
     identity up front and fails loud with the remedy, before writing anything."""
@@ -1285,7 +1285,7 @@ def test_init_fails_loud_when_git_has_no_identity(
 
 
 def test_init_fails_up_front_when_only_committer_identity_exists(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Git requires author and committer identities independently; a CI-style
     committer-only environment must fail before init writes anything."""
@@ -1331,7 +1331,7 @@ def test_identity_check_probes_nearest_ancestor_for_missing_target(
 
 
 def test_init_warns_loud_when_commit_fails(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The backstop for commit failures the identity check can't see (here a
     failing pre-commit hook): init still succeeds — coga/ is written and
@@ -1370,7 +1370,7 @@ def test_init_warns_loud_when_commit_fails(
 
 
 def test_init_add_failure_warns_without_claiming_files_are_staged(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A failed `git add` gets an honest warning plus safely quoted, complete
     stage-and-commit recovery commands."""
