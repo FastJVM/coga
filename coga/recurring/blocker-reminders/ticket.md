@@ -39,4 +39,4 @@ This blackboard persists across every run of this recurring task. Reminder
 deduplication state is deliberately not stored here; each blocked task carries
 its own `## Blocker reminders` watermark.
 
-last_serviced_period: 2026-07-16
+last_serviced_period: 2026-07-17
