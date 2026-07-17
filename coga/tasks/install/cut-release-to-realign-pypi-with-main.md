@@ -1,7 +1,7 @@
 ---
 slug: install/cut-release-to-realign-pypi-with-main
 title: Cut release to realign PyPI with main
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
