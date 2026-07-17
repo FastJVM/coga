@@ -141,6 +141,10 @@ chat = "launch bootstrap/orient"
 # ticket (one question → agent-led chat → vision → starter tickets). Requires
 # an already-init'd repo; `coga init` captures your name beforehand.
 build = "launch coga-build"
+# `pick` opens the interactive megalaunch picker — a memorable name for
+# `coga megalaunch --pick`. A trailing directory still scopes it
+# (`coga pick marketing`).
+pick = "megalaunch --pick"
 # `dream` creates the `recurring/dream/` cleanup task and launches it now —
 # the same path `coga recurring launch dream` takes.
 dream = "recurring launch dream"

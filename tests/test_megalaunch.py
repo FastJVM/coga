@@ -1065,6 +1065,164 @@ def test_megalaunch_selection_activates_draft_and_paused(
     assert Ticket.read(paused["path"]).status == "done"
 
 
+def test_megalaunch_selection_authors_drafts_before_any_launch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every picked draft runs the authoring interview in the prepare phase,
+    and all authoring happens before any working launch starts."""
+    cfg = load_config(repo)
+    first = create_task(
+        cfg=cfg,
+        title="Aaa draft one",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    second = create_task(
+        cfg=cfg,
+        title="Bbb draft two",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    # Strip both workflows so they are genuinely not-ready; the stubbed
+    # interview writes one back, standing in for a real authoring session.
+    for created in (first, second):
+        t = Ticket.read(created["path"])
+        t.frontmatter["workflow"] = None
+        t.write(created["path"])
+
+    events: list[tuple[str, str]] = []
+
+    def fake_author(cfg_, ref, ticket):  # type: ignore[no-untyped-def]
+        events.append(("author", ref.id_slug))
+        t = Ticket.read(ref.ticket_path)
+        t.frontmatter["workflow"] = "code"
+        t.write(ref.ticket_path)
+
+    monkeypatch.setattr("coga.megalaunch._author_draft", fake_author)
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        events.append(("launch", ref_obj.id_slug))
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(
+        cfg, selection=[first["slug"], second["slug"]], author_drafts=True
+    )
+
+    assert run.counts["completed"] == 2
+    # Both drafts were authored, and every author preceded every launch.
+    kinds = [kind for kind, _ in events]
+    assert kinds == ["author", "author", "launch", "launch"]
+    assert {slug for kind, slug in events if kind == "author"} == {
+        first["slug"],
+        second["slug"],
+    }
+
+
+def test_megalaunch_selection_without_opt_in_skips_authoring(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A draft with `author_drafts=False` (the default) is never authored — it
+    activates and launches on the workflow it already has."""
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Ready draft",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+
+    def boom(cfg_, ref, ticket):  # type: ignore[no-untyped-def]
+        raise AssertionError("authoring must not run without opt-in")
+
+    monkeypatch.setattr("coga.megalaunch._author_draft", boom)
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[draft["slug"]])  # author_drafts defaults off
+
+    assert launched == [draft["slug"]]
+    assert run.counts["completed"] == 1
+    assert Ticket.read(draft["path"]).status == "done"
+
+
+def test_megalaunch_selection_draft_unready_after_authoring_is_reported(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the authoring interview leaves a draft not-ready, the pick is
+    reported as unlaunchable rather than silently dropped."""
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Never made ready",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    t = Ticket.read(draft["path"])
+    t.frontmatter["workflow"] = None
+    t.write(draft["path"])
+
+    # The interview runs but the human leaves without adding a workflow.
+    monkeypatch.setattr("coga.megalaunch._author_draft", lambda cfg_, ref, ticket: None)
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[draft["slug"]], author_drafts=True)
+
+    assert launched == []
+    assert run.counts["skipped-unlaunchable"] == 1
+    assert "no workflow" in run.results[0].detail
+
+
+def test_author_draft_without_bootstrap_is_noop(repo: Path) -> None:
+    """`_author_draft` returns quietly when there is no bootstrap/ticket to
+    run — the draft is left untouched for the activate phase to judge."""
+    from coga.megalaunch import _author_draft
+    from coga.tasks import resolve_task
+
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Lonely draft",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    ref = resolve_task(cfg, draft["slug"])
+    before = Ticket.read(draft["path"]).frontmatter
+
+    _author_draft(cfg, ref, Ticket.read(draft["path"]))  # must not raise
+
+    assert Ticket.read(draft["path"]).frontmatter == before
+
+
 def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1257,8 +1415,8 @@ def test_launchable_candidates_offers_any_owner_any_status_but_done(
     ticket = Ticket.read(human["path"])
     ticket.frontmatter["assignee"] = "marc"
     ticket.write(human["path"])
-    workflowless = create_task(  # draft with no workflow — can't activate
-        cfg=cfg,
+    workflowless = create_task(  # draft with no workflow — still offered:
+        cfg=cfg,                  # the prepare phase authors it into shape.
         title="Shapeless draft",
         workflow_name="code",
         contexts=[],
@@ -1279,6 +1437,7 @@ def test_launchable_candidates_offers_any_owner_any_status_but_done(
         draft["slug"],
         foreign["slug"],
         paused["slug"],
+        workflowless["slug"],
     }
 
 
@@ -1407,6 +1566,82 @@ def test_megalaunch_cli_picker_launches_checked_tasks(
     from coga.megalaunch import load_selection
 
     assert load_selection(cfg) == [first["slug"]]
+
+
+def test_megalaunch_cli_pick_prompts_before_authoring_drafts(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Picking a draft raises the one-shot batch prompt; 'y' runs authoring,
+    'n' skips it — either way the ready draft still launches."""
+    from typer.testing import CliRunner
+
+    cfg = load_config(repo)
+
+    monkeypatch.setattr(
+        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+    )
+
+    for answer, expect_authored in (("y", True), ("n", False)):
+        draft = create_task(
+            cfg=cfg,
+            title=f"Draft answered {answer}",
+            workflow_name="code",
+            contexts=[],
+            owner="marc",
+            assignee="claude",
+            status="draft",
+            watchers=[],
+        )
+        authored: list[str] = []
+        monkeypatch.setattr(
+            "coga.megalaunch._author_draft",
+            lambda cfg_, ref, ticket, _a=authored: _a.append(ref.id_slug),
+        )
+        _done_on_spawn(monkeypatch)
+        # Only this draft is offered (prior iterations' tasks are already done).
+        _feed_keys(monkeypatch, ["space", "enter"])
+        result = CliRunner().invoke(app, ["megalaunch", "--pick"], input=f"{answer}\n")
+
+        assert result.exit_code == 0, result.output
+        assert "run the guided authoring interview" in result.output
+        assert (draft["slug"] in authored) is expect_authored
+        assert Ticket.read(draft["path"]).status == "done"
+
+
+def test_megalaunch_cli_pick_ready_work_is_not_prompted(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pick with no drafts never raises the authoring prompt."""
+    from typer.testing import CliRunner
+
+    cfg = load_config(repo)
+    ready = create_task(
+        cfg=cfg,
+        title="Ready active",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+    )
+    _done_on_spawn(monkeypatch)
+
+    _feed_keys(monkeypatch, ["space", "enter"])
+    result = CliRunner().invoke(app, ["megalaunch", "--pick"])
+
+    assert result.exit_code == 0, result.output
+    assert "authoring interview" not in result.output
+    assert Ticket.read(ready["path"]).status == "done"
 
 
 def test_megalaunch_cli_picker_moves_and_toggles(
