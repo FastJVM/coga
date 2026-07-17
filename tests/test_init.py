@@ -435,13 +435,6 @@ def test_write_pin_records_source_and_version(tmp_path: Path) -> None:
     assert update_cmd.read_pin_source(coga_os) == FAKE_SOURCE.display
 
 
-def test_write_pin_skips_when_version_unknown(tmp_path: Path) -> None:
-    coga_os = tmp_path / "coga"
-
-    assert update_cmd.write_pin(coga_os, FAKE_SOURCE, None) is None
-    assert not (coga_os / ".coga" / "COGA_PIN").exists()
-
-
 def test_vendored_cli_version_reads_venv(tmp_path: Path) -> None:
     venv_dir = tmp_path / ".venv"
     (venv_dir / "bin").mkdir(parents=True)
@@ -452,8 +445,30 @@ def test_vendored_cli_version_reads_venv(tmp_path: Path) -> None:
     assert update_cmd.vendored_cli_version(venv_dir) == "1.2.3"
 
 
-def test_vendored_cli_version_none_without_venv_python(tmp_path: Path) -> None:
-    assert update_cmd.vendored_cli_version(tmp_path / ".venv") is None
+def test_vendored_cli_version_fails_loud_without_venv_python(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        update_cmd.vendored_cli_version(tmp_path / ".venv")
+
+    assert exc.value.code == 2
+    assert "Cannot determine the coga version installed" in capsys.readouterr().err
+
+
+def test_vendored_cli_version_fails_loud_when_probe_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    venv_dir = tmp_path / ".venv"
+    (venv_dir / "bin").mkdir(parents=True)
+    fake_python = venv_dir / "bin" / "python"
+    fake_python.write_text("#!/bin/sh\necho broken metadata >&2\nexit 1\n")
+    fake_python.chmod(0o755)
+
+    with pytest.raises(SystemExit) as exc:
+        update_cmd.vendored_cli_version(venv_dir)
+
+    assert exc.value.code == 2
+    assert "broken metadata" in capsys.readouterr().err
 
 
 # --- fresh init ---------------------------------------------------------------

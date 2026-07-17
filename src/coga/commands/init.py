@@ -554,8 +554,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             "Skipped the onboarding ticket (this dir already has a project) — "
             "create tasks with `coga ticket` when you're ready."
         )
-    if vendored_version is not None:
-        typer.echo(f"Vendored CLI coga {vendored_version} from {source.display}.")
+    typer.echo(f"Vendored CLI coga {vendored_version} from {source.display}.")
     if wired_agents:
         names = ", ".join(wired_agents)
         typer.echo(f"Wired skill discovery for {names} (symlinked into their skill dirs).")

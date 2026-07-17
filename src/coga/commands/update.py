@@ -167,8 +167,13 @@ def _running_requires_python() -> str | None:
         return None
 
 
-def vendored_cli_version(venv_dir: Path) -> str | None:
-    """The coga version pip actually installed into `venv_dir`, or None."""
+def vendored_cli_version(venv_dir: Path) -> str:
+    """The coga version pip actually installed into `venv_dir`.
+
+    A successful init must record the installed version in COGA_PIN. If the
+    freshly-built venv cannot report it, fail loud so init's atomic rollback
+    removes the incomplete install instead of leaving an unpinned vendored CLI.
+    """
     venv_python = venv_dir / "bin" / "python"
     try:
         result = subprocess.run(
@@ -180,25 +185,31 @@ def vendored_cli_version(venv_dir: Path) -> str | None:
             capture_output=True,
             text=True,
         )
-    except OSError:
-        return None
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
+    except OSError as exc:
+        detail = str(exc)
+    else:
+        version = result.stdout.strip()
+        if result.returncode == 0 and version:
+            return version
+        detail = result.stderr.strip() or "the version probe returned no output"
+    typer.secho(
+        "Cannot determine the coga version installed in the vendored venv: "
+        f"{detail}",
+        fg=typer.colors.RED,
+        err=True,
+    )
+    sys.exit(2)
 
 
 def write_pin(
     coga_os: Path,
     source: InstallSource,
-    version: str | None,
-) -> Path | None:
+    version: str,
+) -> Path:
     """Record what `coga/.coga/` was vendored from: install source + version.
 
-    Skips the write if `version` is None (stubbed venv in tests, mostly).
     Returns the pin path on success.
     """
-    if version is None:
-        return None
     pin = coga_os / ".coga" / "COGA_PIN"
     pin.parent.mkdir(parents=True, exist_ok=True)
     pin.write_text(f"{source.display}\n{version}\n")
