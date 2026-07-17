@@ -9,6 +9,50 @@ all live as plain files in your repo, versioned by Git and readable by the same
 humans and agents. The agent does the mechanizable work; you keep judgment,
 authority, and the right to change the machine directly.
 
+## OpenAI Build Week
+
+**Coga makes the machine work for you.** It turns coding-agent work from a
+synchronous chat loop into asynchronous tasks: decide the work, give agents a
+batch, and return only when human judgment is needed.
+
+```text
+Coga task
+  → Coga composes the relevant context and workflow
+  → Codex runs the task
+  → GPT-5.6 reasons, edits, and tests
+  → the blackboard and Git preserve the result
+```
+
+### How we used Codex
+
+Codex is both a first-class execution backend for Coga and a development partner
+for the project. The committed [agent configuration](coga/coga.toml) teaches
+Coga how to launch the local Codex CLI and deliver composed discussion prompts
+as developer instructions. A task can select Codex in its workflow, or an
+operator can choose it for one launch:
+
+```sh
+coga launch <task> --agent codex
+```
+
+During Build Week, Codex was used through Coga to design, implement, test,
+peer-review, and document changes. It worked from the same version-controlled
+tickets, contexts, skills, workflows, and blackboards that Coga provides to any
+supported coding agent.
+
+### How we used GPT-5.6
+
+GPT-5.6 was the reasoning and coding model inside those Codex sessions. The
+Build Week runs used `gpt-5.6-sol` at maximum reasoning effort to understand
+large composed prompts, inspect the repository, make changes, run tests, review
+other agents' work, and explain decisions.
+
+Coga does not depend on hidden conversational memory to ground the model. Each
+launch reconstructs GPT-5.6's instructions from the files in the repository,
+and Coga's append-only [task log](coga/log.md) records the task, agent, provider,
+model, session, usage, and outcome. That makes the use of GPT-5.6 reproducible
+and inspectable rather than a one-off chat.
+
 ## Install
 
 Coga is published on PyPI as `coga` and requires Python 3.11+. Install the
