@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from coga.cli import app
 from coga.ticket import Ticket
+from coga.validate import Issue, TaskValidationError
 
 from conftest import seed_direct_body_workflow
 
@@ -106,6 +107,39 @@ def test_retire_no_launch_creates_task_with_target_slug(
     assert "retro/done-ticket" in ticket.body
     # Source task untouched until the agent runs the retro skill.
     assert (repo / "tasks" / "fix-retry-logic" / "ticket.md").is_file()
+
+
+def test_retire_reports_created_task_validation_failure(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _seed_done_task(repo, "fix-retry-logic")
+
+    def reject_created_task(  # type: ignore[no-untyped-def]
+        cfg, ref, *, action: str
+    ) -> None:
+        raise TaskValidationError(
+            [
+                Issue(
+                    kind="broken-ref",
+                    task=ref.id_slug,
+                    message="generated retire ticket is malformed",
+                    severity="error",
+                )
+            ],
+            action=action,
+        )
+
+    monkeypatch.setattr("coga.validate.assert_task_valid", reject_created_task)
+
+    result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
+
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "task validation failed after create" in combined
+    assert "generated retire ticket is malformed" in combined
+    assert "Retire: created task" not in combined
+    assert (repo / "tasks" / "retire-fix-retry-logic.md").is_file()
 
 
 def test_retire_refuses_non_done_target(

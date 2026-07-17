@@ -22,6 +22,7 @@ from coga.config import load_config
 from coga.create import create_task
 from coga.tasks import TaskRef, resolve_bootstrap, resolve_task
 from coga.ticket import Ticket
+from coga.validate import Issue, TaskValidationError
 
 
 FINALIZE_SKILL = (
@@ -117,10 +118,11 @@ def test_validate_authored_task_reports_schema_errors(repo: Path) -> None:
     ticket.frontmatter["contexts"] = ["missing/context"]
     ticket.write(ref.ticket_path)
 
-    with pytest.raises(AuthoringError) as exc:
+    with pytest.raises(TaskValidationError) as exc:
         validate_authored_task(cfg, ref)
 
-    assert "Ticket validation failed after authoring" in str(exc.value)
+    assert exc.value.action == "ticket authoring"
+    assert "task validation failed after ticket authoring" in str(exc.value)
     assert "missing/context" in str(exc.value)
 
 
@@ -371,3 +373,28 @@ def test_ticket_finalize_skill_declares_script_contract(
 
     assert module.main() == 0
     assert called is True
+
+
+def test_ticket_finalize_skill_reports_task_validation_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_finalize_script()
+
+    def fail_validation() -> None:
+        raise TaskValidationError(
+            [
+                Issue(
+                    kind="broken-ref",
+                    task="broken-ticket",
+                    message="missing context",
+                    severity="error",
+                )
+            ],
+            action="ticket authoring",
+        )
+
+    monkeypatch.setattr(module, "finalize_authored_from_env", fail_validation)
+
+    assert module.main() == 2
+    assert "task validation failed after ticket authoring" in capsys.readouterr().err

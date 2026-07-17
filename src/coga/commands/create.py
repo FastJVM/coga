@@ -25,6 +25,7 @@ import typer
 from coga import git
 from coga.config import ConfigError, load_config
 from coga.create import create_task
+from coga.validate import TaskValidationError
 
 
 def create(
@@ -90,7 +91,7 @@ def create_draft(
             status="draft",
             directory=directory,
         )
-    except ValueError as exc:
+    except (TaskValidationError, ValueError) as exc:
         _bail(str(exc))
 
     slug = result["slug"]

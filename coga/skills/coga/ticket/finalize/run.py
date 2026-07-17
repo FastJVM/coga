@@ -7,6 +7,7 @@ import sys
 
 from coga.authoring import AuthoringError, finalize_authored_from_env
 from coga.config import ConfigError
+from coga.validate import TaskValidationError
 
 
 def main() -> int:
@@ -15,7 +16,7 @@ def main() -> int:
     except ConfigError as exc:
         sys.stderr.write(f"[ticket-finalize] {exc}\n")
         return 2
-    except AuthoringError as exc:
+    except (AuthoringError, TaskValidationError) as exc:
         sys.stderr.write(f"[ticket-finalize] {exc}\n")
         return 2
     return 0

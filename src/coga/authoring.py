@@ -20,7 +20,7 @@ from coga.tasks import (
     resolve_bootstrap,
     resolve_task,
 )
-from coga.validate import format_task_issues, validate_task_dir
+from coga.validate import assert_task_valid
 
 
 AUTHORING_SYNC_DIRS = ("tasks", "contexts", "skills")
@@ -120,13 +120,7 @@ def authoring_sync_message(authored_refs: list[TaskRef]) -> str:
 
 def validate_authored_task(cfg: Config, ref: TaskRef) -> None:
     """Validate an authored task and gate workflow-less drafts."""
-    issues = validate_task_dir(cfg, ref)
-    errors = [i for i in issues if i.severity == "error"]
-    if errors:
-        raise AuthoringError(
-            "Ticket validation failed after authoring:\n"
-            + format_task_issues(errors)
-        )
+    assert_task_valid(cfg, ref, action="ticket authoring")
 
     # Guided authoring of a draft must land on a workflow. A workflow-less
     # draft can't be activated (`coga mark active` refuses it), so handing

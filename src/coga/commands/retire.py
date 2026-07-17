@@ -20,6 +20,7 @@ from coga.tasks import (
     read_ticket,
     resolve_task,
 )
+from coga.validate import TaskValidationError
 
 
 def retire(
@@ -107,7 +108,7 @@ def retire(
             description=_retire_body(ref.id_slug),
             created_by="retire",
         )
-    except (ConfigError, ValueError) as exc:
+    except (ConfigError, TaskValidationError, ValueError) as exc:
         _bail(str(exc))
 
     slug = result["slug"]
