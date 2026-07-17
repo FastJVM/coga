@@ -27,6 +27,7 @@ from coga.recurring import (
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
+from coga.validate import Issue, TaskValidationError
 
 
 _TEMPLATES_COGA_OS = (
@@ -1301,6 +1302,46 @@ def test_scan_due_skips_interactive_template_without_tty(
     assert scan.errors[0][0] == "weekly-check"
     assert "an agent run requires a TTY" in scan.errors[0][1]
     assert "skipping weekly-check" in capsys.readouterr().err
+
+
+def test_scan_due_reports_created_task_validation_failure(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A malformed recurring scaffold is retained and reported per template."""
+
+    def reject_created_task(  # type: ignore[no-untyped-def]
+        cfg, ref, *, action: str
+    ) -> None:
+        raise TaskValidationError(
+            [
+                Issue(
+                    kind="broken-ref",
+                    task=ref.id_slug,
+                    message="generated recurring ticket is malformed",
+                    severity="error",
+                )
+            ],
+            action=action,
+        )
+
+    monkeypatch.setattr("coga.validate.assert_task_valid", reject_created_task)
+    cfg = load_config(repo)
+
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+
+    assert scan.tasks == []
+    assert scan.errors == [
+        (
+            "weekly-check",
+            "task validation failed after create:\n"
+            "[ERROR] recurring/weekly-check: broken-ref — "
+            "generated recurring ticket is malformed",
+        )
+    ]
+    assert "skipping weekly-check" in capsys.readouterr().err
+    assert (repo / "tasks" / "recurring" / "weekly-check" / "ticket.md").is_file()
 
 
 def test_scan_due_template_without_script_deduces_agent(

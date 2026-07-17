@@ -61,7 +61,7 @@ def create_task(
     the recurring creator passes, is the orthogonal way to land a fixed nested
     slug.)
     """
-    from coga.validate import format_task_issues, validate_task_dir
+    from coga.validate import assert_task_valid
 
     owner = owner or cfg.current_user
     status = status or cfg.default_status
@@ -220,12 +220,7 @@ def create_task(
     actor = f"{created_by}:{cfg.current_user}" if created_by == "human" else created_by
     append_log(cfg, created_ref.id_slug, actor, f"created (status={status})")
 
-    issues = validate_task_dir(cfg, created_ref)
-    errors = [i for i in issues if i.severity == "error"]
-    if errors:
-        raise ValueError(
-            "Created task failed validation:\n" + format_task_issues(errors)
-        )
+    assert_task_valid(cfg, created_ref, action="create")
 
     return {"slug": created_ref.id_slug, "path": result_path}
 

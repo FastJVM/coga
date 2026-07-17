@@ -330,7 +330,7 @@ def test_ticket_reports_post_exit_validation_errors(
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 2, result.output
     combined = result.output + (result.stderr or "")
-    assert "Ticket validation failed after authoring" in combined
+    assert "task validation failed after ticket authoring" in combined
     assert "email/ghost" in combined
 
 

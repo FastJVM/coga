@@ -18,6 +18,7 @@ from coga.paths import log_path
 from coga.taskfile import fence_count, read_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
+from coga.validate import Issue, TaskValidationError
 
 
 def _write(path: Path, text: str) -> None:
@@ -678,6 +679,41 @@ def test_cli_create_creates_draft_silently(
     assert "mode" not in t.frontmatter
 
     assert posts == []
+
+
+def test_cli_create_reports_validation_failure_and_leaves_draft(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Creation validates after writing, before reporting command success."""
+    monkeypatch.chdir(repo)
+
+    def reject_created_task(  # type: ignore[no-untyped-def]
+        cfg, ref, *, action: str
+    ) -> None:
+        assert ref.id_slug == "invalid-draft"
+        assert action == "create"
+        raise TaskValidationError(
+            [
+                Issue(
+                    kind="broken-ref",
+                    task=ref.id_slug,
+                    message="generated ticket is malformed",
+                    severity="error",
+                )
+            ],
+            action=action,
+        )
+
+    monkeypatch.setattr("coga.validate.assert_task_valid", reject_created_task)
+
+    result = CliRunner().invoke(app, ["create", "Invalid draft"])
+
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "task validation failed after create" in combined
+    assert "generated ticket is malformed" in combined
+    assert "created (draft)" not in combined
+    assert (repo / "tasks" / "invalid-draft.md").is_file()
 
 
 def test_cli_create_does_not_spawn_agent(

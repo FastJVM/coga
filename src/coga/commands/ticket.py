@@ -31,6 +31,7 @@ from coga.tasks import (
     resolve_task,
 )
 from coga.ticket import Ticket
+from coga.validate import TaskValidationError
 
 
 AUTHORING_SKILL = "bootstrap/ticket"
@@ -251,7 +252,7 @@ def _run_authoring_session(
 
     try:
         finalize_authored(cfg, before_snapshot=before_authoring, ref=ref)
-    except AuthoringError as exc:
+    except (AuthoringError, TaskValidationError) as exc:
         _bail(str(exc))
 
 

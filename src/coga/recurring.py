@@ -21,6 +21,7 @@ from coga.period_state import write_snapshot
 from coga.skill import Skill
 from coga.taskfile import read_blackboard, upsert_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
+from coga.validate import TaskValidationError
 from coga.workflow import Workflow, WorkflowError
 
 
@@ -634,35 +635,38 @@ def _create_at_slug(
     if "coga/period-task" not in contexts:
         contexts.append("coga/period-task")
 
-    ref = create_task(
-        cfg=cfg,
-        title=title,
-        # Recurring tasks create straight to `active`, and every task past
-        # `draft` carries a workflow. A template that declares its own (e.g.
-        # digest) keeps it; a workflow-less one (e.g. Dream, whose process is
-        # its body's ordered phases) runs through the one-step `direct/body`
-        # workflow so it is activatable, bumpable, and valid like any task.
-        workflow_name=template.frontmatter.get("workflow") or "direct/body",
-        contexts=contexts,
-        owner=template.frontmatter.get("owner"),
-        assignee=assignee,
-        watchers=list(template.frontmatter.get("watchers") or []),
-        status="active",
-        slug_override=target_slug,
-        secrets=template.frontmatter.get("secrets"),
-        # A template's own `script:` (inline or a sibling file) carries through to
-        # the period task; whether it runs as a script is then deduced at launch.
-        script=template.frontmatter.get("script"),
-        # Carry the template body verbatim so sections beyond `## Description`
-        # (notably `## Script config`, which configures a script step's run)
-        # reach the period task instead of being dropped at create time.
-        body=template.body,
-        # Recurring period tasks stay directory-form: they may carry a
-        # `.state-snapshot.json` sibling (state-key tracking), and the sweep's
-        # cross-branch sync addresses them as a directory.
-        force_directory=True,
-        created_by="system",
-    )
+    try:
+        ref = create_task(
+            cfg=cfg,
+            title=title,
+            # Recurring tasks create straight to `active`, and every task past
+            # `draft` carries a workflow. A template that declares its own (e.g.
+            # digest) keeps it; a workflow-less one (e.g. Dream, whose process is
+            # its body's ordered phases) runs through the one-step `direct/body`
+            # workflow so it is activatable, bumpable, and valid like any task.
+            workflow_name=template.frontmatter.get("workflow") or "direct/body",
+            contexts=contexts,
+            owner=template.frontmatter.get("owner"),
+            assignee=assignee,
+            watchers=list(template.frontmatter.get("watchers") or []),
+            status="active",
+            slug_override=target_slug,
+            secrets=template.frontmatter.get("secrets"),
+            # A template's own `script:` (inline or a sibling file) carries through to
+            # the period task; whether it runs as a script is then deduced at launch.
+            script=template.frontmatter.get("script"),
+            # Carry the template body verbatim so sections beyond `## Description`
+            # (notably `## Script config`, which configures a script step's run)
+            # reach the period task instead of being dropped at create time.
+            body=template.body,
+            # Recurring period tasks stay directory-form: they may carry a
+            # `.state-snapshot.json` sibling (state-key tracking), and the sweep's
+            # cross-branch sync addresses them as a directory.
+            force_directory=True,
+            created_by="system",
+        )
+    except TaskValidationError as exc:
+        raise RecurringError(str(exc)) from exc
     out_ref = _task_with_slug(cfg, ref["slug"])
     if out_ref is None:
         raise RecurringError(f"created task disappeared: {ref['slug']}")

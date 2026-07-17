@@ -822,12 +822,13 @@ There's also `coga validate [--task <slug>] [--json] [--fix] [--check-slack]
 [--check-github]`, a static repo + config diagnostic. By default it scans every task; `--task
 <slug>` validates exactly one task directory (files plus strict frontmatter
 schema) and is what a human or agent runs after a direct hand-edit to a single
-ticket. Guided ticket-authoring exit and lifecycle commands such as mark, bump,
-launch-time transitions, and recurring/retire creation run that task-scoped
-check at their write boundary. Raw `coga create` intentionally only scaffolds
-a draft; validate it after direct authoring with `coga validate --task <slug>`.
-That keeps malformed frontmatter from drifting past the point where a draft is
-approved or launched without pretending raw creation is a full authoring pass.
+ticket. Every task creation path (`coga create`, recurring, and retire, all
+through `create_task`), guided ticket-authoring exit, and lifecycle commands
+such as mark, bump, and launch-time transitions run that task-scoped check at their
+write boundary. A failed check reports the formatted issues and leaves the
+written ticket on disk for correction; it does not report command success.
+After a direct human edit, run `coga validate --task <slug>` manually because
+Coga has no command boundary at which to validate an ordinary file edit.
 `--fix` is deliberately narrow: it appends a missing blackboard fence +
 rendered region to a `ticket.md` that lacks one, then reports the remaining issues. It does not rewrite
 existing files, freeze workflows, delete locks, or push git state. `--check-github`
