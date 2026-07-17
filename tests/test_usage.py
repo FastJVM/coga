@@ -9,7 +9,15 @@ from typer.testing import CliRunner
 
 from coga.cli import app
 from coga.config import load_config
-from coga.usage import UsageRecord, append_record, load_records, parse_session, rollup
+from coga.usage import (
+    ParsedUsage,
+    UsageRecord,
+    append_record,
+    capture_session,
+    load_records,
+    parse_session,
+    rollup,
+)
 
 
 def _write(path: Path, text: str) -> None:
@@ -63,6 +71,67 @@ def test_parse_claude_transcript_sums_assistant_usage(
     assert parsed.output_tokens == 12
 
 
+def test_parse_claude_activity_excludes_injected_text_and_redacts(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    session_id = "session-activity"
+    cwd_hash = str(cwd.resolve()).replace("/", "-").replace(".", "-")
+    transcript = tmp_path / ".claude" / "projects" / cwd_hash / f"{session_id}.jsonl"
+    long_outcome = "Finished " + "x" * 510 + " secret-value"
+    _write(
+        transcript,
+        f"""
+        {{"type":"user","timestamp":"2026-06-23T12:00:01Z","message":{{"role":"user","content":"# composed prompt"}}}}
+        {{"type":"user","timestamp":"2026-06-23T12:00:02Z","message":{{"role":"user","content":"Begin"}}}}
+        {{"type":"user","timestamp":"2026-06-23T12:01:00Z","message":{{"role":"user","content":"Please use secret-value\\ncarefully"}}}}
+        {{"type":"user","timestamp":"2026-06-23T12:01:30Z","message":{{"role":"user","content":[{{"type":"tool_result","content":"not human"}}]}}}}
+        {{"type":"user","timestamp":"2026-06-23T12:02:00Z","message":{{"role":"user","content":[{{"type":"text","text":"Then summarize it"}}]}}}}
+        {{"type":"assistant","timestamp":"2026-06-23T12:03:00Z","message":{{"role":"assistant","model":"claude-sonnet-4","content":[{{"type":"text","text":"Working"}},{{"type":"tool_use","name":"Read"}}],"usage":{{"input_tokens":2,"output_tokens":3}}}}}}
+        {{"type":"assistant","timestamp":"2026-06-23T12:04:00Z","message":{{"role":"assistant","model":"claude-sonnet-4","content":[{{"type":"text","text":{json.dumps(long_outcome)}}}],"usage":{{"input_tokens":1,"output_tokens":2}}}}}}
+        """,
+    )
+    start, end = _window()
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id=session_id,
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+        excluded_user_texts=("# composed prompt", "Begin"),
+        secret_values=("secret-value",),
+    )
+
+    assert parsed.content_status == "ok"
+    assert parsed.human_turns == 2
+    assert parsed.agent_turns == 2
+    assert parsed.request == "Please use [REDACTED] carefully Then summarize it"
+    assert parsed.outcome is not None
+    assert len(parsed.outcome) == 500
+    assert parsed.outcome.endswith("…")
+    assert "secret-value" not in parsed.outcome
+
+    unsafe = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id=session_id,
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+        excluded_user_texts=("# composed prompt", "Begin"),
+        secret_values=None,
+    )
+    assert unsafe.human_turns == 2
+    assert unsafe.agent_turns == 2
+    assert unsafe.request is None
+    assert unsafe.outcome is None
+    assert unsafe.content_status == "unknown"
+
+
 def test_parse_codex_rollout_takes_last_cumulative_usage(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -106,6 +175,57 @@ def test_parse_codex_rollout_takes_last_cumulative_usage(
         + parsed.output_tokens
         == 63
     )
+
+
+def test_parse_codex_activity_uses_messages_after_turn_context_only(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    rollout = (
+        tmp_path
+        / ".codex"
+        / "sessions"
+        / "2026"
+        / "06"
+        / "23"
+        / "rollout-activity.jsonl"
+    )
+    _write(
+        rollout,
+        f"""
+        {{"type":"session_meta","timestamp":"2026-06-23T12:00:00Z","payload":{{"id":"codex-activity","timestamp":"2026-06-23T12:00:00Z","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+        {{"type":"response_item","timestamp":"2026-06-23T12:00:01Z","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"injected environment"}}]}}}}
+        {{"type":"turn_context","timestamp":"2026-06-23T12:00:02Z","payload":{{"model":"gpt-5.4"}}}}
+        {{"type":"response_item","timestamp":"2026-06-23T12:00:03Z","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"# composed prompt"}}]}}}}
+        {{"type":"response_item","timestamp":"2026-06-23T12:01:00Z","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"Inspect secret-value"}}]}}}}
+        {{"type":"response_item","timestamp":"2026-06-23T12:02:00Z","payload":{{"type":"custom_tool_call_output","output":"not agent text"}}}}
+        {{"type":"response_item","timestamp":"2026-06-23T12:03:00Z","payload":{{"type":"message","role":"assistant","content":[{{"type":"output_text","text":"First answer"}}]}}}}
+        {{"type":"turn_context","timestamp":"2026-06-23T12:04:00Z","payload":{{"model":"gpt-5.4"}}}}
+        {{"type":"response_item","timestamp":"2026-06-23T12:04:01Z","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"Finish"}}]}}}}
+        {{"type":"response_item","timestamp":"2026-06-23T12:05:00Z","payload":{{"type":"message","role":"assistant","content":[{{"type":"output_text","text":"Final secret-value outcome"}}]}}}}
+        {{"type":"event_msg","timestamp":"2026-06-23T12:05:01Z","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":10,"cached_input_tokens":2,"output_tokens":3}}}}}}}}
+        """,
+    )
+    start, end = _window()
+
+    parsed = parse_session(
+        "codex",
+        cwd=cwd,
+        session_id=None,
+        pre_existing=set(),
+        window_start=start,
+        window_end=end,
+        excluded_user_texts=("# composed prompt",),
+        secret_values=("secret-value",),
+    )
+
+    assert parsed.content_status == "ok"
+    assert parsed.human_turns == 2
+    assert parsed.agent_turns == 2
+    assert parsed.request == "Inspect [REDACTED] Finish"
+    assert parsed.outcome == "Final [REDACTED] outcome"
 
 
 def test_parse_codex_rollout_ambiguous_cwd_matches_are_unknown(
@@ -222,6 +342,117 @@ def test_append_and_load_records_from_log(tmp_path: Path) -> None:
     assert first.endswith(record.to_json())
     # Non-record log lines are skipped, not errors.
     assert load_records(cfg) == [record]
+
+
+def test_capture_appends_schema_two_activity_record(
+    tmp_path: Path, monkeypatch
+) -> None:
+    coga_os = tmp_path / "coga"
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    monkeypatch.setattr(
+        "coga.usage.parse_session",
+        lambda *args, **kwargs: ParsedUsage(
+            provider="anthropic",
+            model="claude-sonnet-4",
+            session_id="session-2",
+            input_tokens=1,
+            cache_creation_input_tokens=2,
+            cache_read_input_tokens=3,
+            output_tokens=4,
+            usage_status="ok",
+            human_turns=2,
+            agent_turns=3,
+            request="Do the work",
+            outcome="Work completed",
+            content_status="ok",
+        ),
+    )
+    start, end = _window()
+
+    capture_session(
+        cfg=load_config(coga_os),
+        title="Work",
+        slug="work",
+        step="implement",
+        agent="claude",
+        cli="claude",
+        cwd=tmp_path,
+        session_id="session-2",
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+        outcome_status="completed",
+    )
+
+    record = load_records(load_config(coga_os))[0]
+    assert record.schema == 2
+    assert record.ts == "2026-06-23T13:00:00Z"
+    assert record.started_at == "2026-06-23T12:00:00Z"
+    assert record.ended_at == "2026-06-23T13:00:00Z"
+    assert record.elapsed_seconds == 3600.0
+    assert record.human_turns == 2
+    assert record.agent_turns == 3
+    assert record.request == "Do the work"
+    assert record.outcome == "Work completed"
+    assert record.content_status == "ok"
+    assert record.outcome_status == "completed"
+
+
+def test_load_schema_one_record_with_activity_fields_absent(tmp_path: Path) -> None:
+    coga_os = tmp_path / "coga"
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    old_record = {
+        "schema": 1,
+        "ts": "2026-06-23T12:00:00Z",
+        "title": "Old work",
+        "slug": "old-work",
+        "step": "implement",
+        "agent": "claude",
+        "cli": "claude",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4",
+        "session_id": "old-session",
+        "input_tokens": 1,
+        "cache_creation_input_tokens": 2,
+        "cache_read_input_tokens": 3,
+        "output_tokens": 4,
+        "usage_status": "ok",
+    }
+    _write(
+        coga_os / "log.md",
+        "2026-06-23 12:00 [old-work] [system] "
+        + json.dumps(old_record, separators=(",", ":"))
+        + "\n",
+    )
+
+    records = load_records(load_config(coga_os))
+
+    assert len(records) == 1
+    record = records[0]
+    assert record.schema == 1
+    assert record.started_at is None
+    assert record.human_turns is None
+    assert record.content_status is None
+    assert record.outcome_status is None
+    assert rollup(records).overall.total_tokens == 10
 
 
 def test_rollup_filters_and_groups_records() -> None:

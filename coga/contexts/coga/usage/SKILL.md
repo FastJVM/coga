@@ -1,12 +1,13 @@
 ---
 name: coga/usage
-description: How coga records and reads agent token usage — per-agent-session JSON records appended as tagged lines to the repo-global `coga/log.md` (no per-task store), the provider parser seam (Claude vs Codex), and `coga usage` as the single read surface. Local and committed, never a phone-home. Read before touching usage capture or adding a usage consumer.
+description: How coga records agent-session activity and token usage — bounded schema-2 JSON records appended as tagged lines to the repo-global `coga/log.md`, the Claude/Codex parser seam, and `coga usage` as the token-rollup surface. Local and committed, never a phone-home. Read before touching session capture or adding a usage consumer.
 ---
 
-# Agent Usage Tracking
+# Agent Session Activity and Usage
 
-Coga records the token usage of every agent session as plain committed text and
-reads it back with `coga usage`. This is a foundational **local** data primitive
+Coga records the activity and token usage of every Coga-launched agent session
+as plain committed text and reads token rollups back with `coga usage`. This is
+a foundational **local** data primitive
 — JSONL lines in the repo, nothing sent off-machine — and is **not** the
 phone-home telemetry `coga/principles` #5 forbids (that ban is about
 external/anonymized install or usage pings; this records only into the repo's own
@@ -28,34 +29,44 @@ under a `## Usage` heading in each ticket's blackboard region, but the
 blackboard is composed into every launch prompt, so pure accounting history
 bloated every future prompt on the ticket.
 
-The record carries `ts`, `title`, `slug`, `step`, `agent`, `cli`, `provider`,
-`model`, `session_id`, the four token categories (`input_tokens`,
-`cache_creation_input_tokens`, `cache_read_input_tokens`, `output_tokens`),
-`usage_status` (`ok` | `unknown`), and a `schema` version — so a line is
-self-contained even though its log tag already names the task. Keep the four
-categories distinct: coga composes large cached context layers, so cache tokens
-dominate and collapsing them loses the most useful signal. All parsing and rollup
-logic lives in `src/coga/usage.py`; `launch.py` and `commands/usage.py` stay
-thin.
+Schema 2 preserves the schema-1 identity and token fields: `ts`, `title`,
+`slug`, `step`, `agent`, `cli`, `provider`, `model`, `session_id`, the four
+token categories (`input_tokens`, `cache_creation_input_tokens`,
+`cache_read_input_tokens`, `output_tokens`), and `usage_status` (`ok` |
+`unknown`). It adds `started_at`, `ended_at`, `elapsed_seconds`, `human_turns`,
+`agent_turns`, `request`, `outcome`, `content_status`, and `outcome_status`.
+`ts` remains the session-end timestamp used by existing date filters. Old
+schema-1 records remain readable; their activity fields are absent/null and
+their token values roll up unchanged.
+
+`outcome_status` describes process/session completion independently from token
+parsing: `completed`, `failed`, `timed_out`, `interrupted`, or `unknown`.
+`content_status` is `ok` or `unknown`. Keep the four token categories distinct:
+coga composes large cached context layers, so cache tokens dominate and
+collapsing them loses the most useful signal. All transcript parsing, bounded
+content handling, and rollup logic lives in `src/coga/usage.py`; `launch.py`
+and `commands/usage.py` stay thin.
 
 ## Capture — post-session, gated to agent sessions, never raises into launch
 
-Capture runs in `launch.py`'s `while True:` step loop, in the `finally` around
-the agent subprocess — **after** the session has exited (so it never races the
-agent's own log appends) and **before** the non-zero/timeout `sys.exit`, so
-a session that burned tokens then died is still recorded. One record per loop
-iteration, so chained steps and claude↔codex rotation each get their own line.
+Capture runs in `spawn_agent_session`'s `finally` around the real agent
+subprocess — **after** the session has exited (so it never races the agent's
+own log appends) and **before** callers handle non-zero/timeout results. The
+shared spawn path is deliberately the gate: ordinary task work, chained steps,
+`coga chat`, `coga ticket`, project/onboarding interviews, and megalaunch all
+emit exactly one record per agent process.
 
 It is gated tightly:
 
 - **Only real agent sessions.** Script iterations (Dream
   workers, autoclose, digest, skill-update — no transcript) and the
   `FileNotFoundError` spawn-failure path (no session ran) write **nothing**.
-- **Never raises.** A missing or unparseable transcript appends a record with
-  `usage_status: "unknown"` (tokens null), not an exception — capture can never
-  break a launch.
-- **Only real task launches.** Stateless bootstrap launches are not captured
-  (`capture_usage` is off for them).
+- **Never raises.** Missing or unparseable transcript data leaves the affected
+  usage/content fields unknown/null, not an exception — capture can never break
+  a launch.
+- **Stateless identity stays explicit.** Bootstrap discussions are tagged with
+  their bootstrap ref and title and `step: null`. Guided authoring remains
+  `bootstrap/ticket` even when it composes against a real target task.
 
 The record lands *past* the agent's final `bump`/`mark` sync, so the launch
 teardown commits it immediately via `git.sync_log` — the log's own
@@ -85,6 +96,30 @@ usage-unknown rather than crashing.
   into the shared record: `cached_input_tokens` → cache-read, reasoning folded
   into output, cache-create left null (Codex exposes no create/read split).
 
+## Bounded activity content — chronology, not a raw transcript
+
+Activity extraction counts only timestamp-windowed, explicit human/user and
+agent/assistant text. System/developer prompts, Coga's composed prompt,
+launcher kickoff tokens such as `Begin`, tool calls, and tool results are
+excluded. Claude user/assistant text blocks are read directly. For Codex, the
+startup context before the first `turn_context` is injected context and is not
+human activity; later user and assistant message items are the activity
+surface.
+
+`human_turns` and `agent_turns` count messages that contain explicit text after
+those exclusions. `request` combines the human text in chronological order;
+`outcome` is the last available assistant text. Each is whitespace-normalized
+to one line and capped at 500 Unicode characters including a visible `…`
+marker. Exact configured ticket-secret values are replaced with `[REDACTED]`
+before truncation. If extraction or configured-secret redaction cannot complete
+safely, the record still preserves timing, turn counts, identity, process
+outcome, and any independently parsed tokens, but both content fields are null
+and `content_status` is `unknown`.
+
+Whole-session `elapsed_seconds` plus the explicit turn counts represent the
+human/agent interaction honestly. Gaps between transcript events are not
+typing measurements and are never labeled active human time.
+
 ## The read surface — `coga usage`
 
 `coga usage` is the single accessor; consumers call it instead of re-parsing
@@ -99,11 +134,11 @@ follow-up).
 
 ## Durable history — accepted tradeoffs
 
-Usage lives in the append-only log, so it survives task deletion/retirement
-and never rides a composed prompt. Accepted consequences: stateless bootstrap
-launches are never recorded, and pre-migration records that lived in ticket
-`## Usage` sections were dropped rather than migrated (history is
-reconstructible from the agent CLIs' own session files if ever needed).
+Session records live in the append-only log, so they survive task
+deletion/retirement and never ride a composed prompt. Pre-migration records
+that lived in ticket `## Usage` sections were dropped rather than migrated
+(history is reconstructible from the agent CLIs' own session files if ever
+needed).
 
 ## What this context does NOT cover
 

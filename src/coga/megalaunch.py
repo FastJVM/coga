@@ -455,7 +455,6 @@ def _launch_until_stop(
                 max_session=max_session,
                 label="Megalaunch",
                 warn_blackboard=True,
-                capture_usage=True,
             )
         except (ComposeError, ConfigError, SecretError) as exc:
             return _result(ref, "failed", str(exc), launch_assignee)
