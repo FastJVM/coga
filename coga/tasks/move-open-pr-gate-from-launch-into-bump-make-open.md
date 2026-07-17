@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: nicktoper
 contexts:
 - coga/architecture
 - dev/code
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 4 (review)
 ---
 
 ## Description
@@ -138,67 +138,59 @@ of a design discussion; the `requires:` gate is the agreed mechanism.
 
 ## Dev
 branch: open-pr-gate-in-bump
-worktree: /home/n/Code/claude/coga-open-pr-gate
-pr: (not yet created)
+worktree: /tmp/coga-open-pr-gate-review
+pr: https://github.com/FastJVM/coga/pull/585
 
-## Implement — done (committed, not pushed)
+## Peer review — done
 
-Commit `3f8820b5` on `open-pr-gate-in-bump`. Net `git diff main`: 25 files,
-+1573/-150. Full suite green: **1096 passed, 1 skipped** (python3.12 venv; the
-repo requires 3.11+). One pre-existing random-order flake in
-`test_usage_probe.py` (passes in isolation and under `-p no:randomly`; untouched
-by this change). `coga validate` clean for this change (the 20 live-repo errors
-are pre-existing fenceless `install/*` task docs; example fixture validates 0).
+Rebuilt the change on current `origin/main` (`4edcb1d5`) because PR #517 is
+already merged and current main has since generalized per-step script dispatch.
+The rework therefore preserves that general capability while making `open-pr`
+an agent step whose recorded artifact is enforced by `bump`.
 
-What landed, mapped to the ticket:
-- **`coga open-pr` command** (`src/coga/commands/open_pr.py`, registered in
-  cli.py + `_BUILTIN_COMMANDS`): thin wrapper over the kept `coga.open_pr`
-  recipe; pushes the `## Dev` branch by name.
-- **Bump gate** (`src/coga/step_gate.py` registry `{"pr": parse_pr_url}`;
-  `commands/bump.py` consults the current step's `requires:` before advancing,
-  forward-only). `requires` added to WorkflowStep parse/freeze (`workflow.py`)
-  and to `coga validate` (`validate.py`).
-- **Reverted** #517's launch.py per-step-script dispatch (launch.py now == main)
-  and dropped `current_step_is_script` from launch_script.py; kept
-  `is_script_launch`.
-- **`code/open-pr`** back to an agent skill (dropped `script: run.py`, deleted
-  run.py both copies). Workflows declare `requires: pr` on the PR step.
-- Docs/contexts synced live + packaged.
+Commits (not pushed):
+- `861d82fc` — adapted implementation and native review fixes.
+- `d0d445c2` — lifecycle smoke coverage for the completion gate.
 
-### Note for reviewer / open-pr step
-- **Base:** branched off `open-pr-script` then **merged `main`** in (clean), so
-  `git diff main` is exactly this rework — no revert of #516 etc. #517 is still
-  open; close it as `superseded by #NNN` **when this PR opens** (open-pr step).
-- **Packaged `architecture/SKILL.md` was already stale vs the live copy on
-  main** (config-fail-loud section etc. missing). I applied ONLY my section
-  replacement to it (not a full resync) to keep this PR scoped; that pre-existing
-  drift is left as-is. The other three packaged files were in sync and got the
-  matching edits.
+Native `codex review --base main` findings addressed:
+- Require `coga open-pr` to run from the configured control checkout, while it
+  pushes the branch in the recorded feature worktree.
+- Make post-rebase retries safe with an observed-OID `--force-with-lease`.
+- Validate malformed non-string `requires:` values instead of raising
+  `TypeError` during validation or bump.
+- Preserve current main's point-of-use `gh` executable/auth preflight.
 
-### Adjacent (not fixed here — out of scope)
-- Packaged/live `coga/contexts/coga/architecture/SKILL.md` drift on main
-  predates this work; worth a follow-up sync ticket.
+Verification:
+- `PYTHONPATH=/tmp/coga-open-pr-gate-review/src python3.12 -m pytest` —
+  **1263 passed, 1 skipped**.
+- Task-scoped `coga validate --json` — 1 task OK, no issues.
+- Branch is clean, rebased, and 2 commits ahead of current main.
 
-## Plan / decisions
+The original linked recovery worktree became unwritable mid-rebase, so the
+review branch was recovered into the standalone worktree recorded above. Its
+`origin` points at `https://github.com/FastJVM/coga.git`. PR #517 was verified
+live as merged, so there is no still-open predecessor PR to close.
 
-**Base branch handling.** Task said "branch on `open-pr-script`". That branch
-forked at `e89f2ee` and `main` has ~40 commits since (incl. #516's
-already-satisfied close path). Branching straight off it and PRing against main
-would spuriously revert merged work. Resolution: branched off `open-pr-script`
-into `open-pr-gate-in-bump`, then **merged current `main` in** (clean merge).
-Net `git diff main` is now exactly #517's changes — nothing merged is reverted.
-Reuses #517's `open_pr.py` recipe, `autoclose.py` parse fns, and
-`test_open_pr.py` intact per the ticket.
+## Open-pr step — done
 
-**Rework shape** (moving the gate from launch → bump):
-- New `coga open-pr <slug>` command → thin wrapper over `open_pr()` recipe;
-  operates on the `## Dev` branch by name (worktree-isolation-agnostic).
-- `bump` gate: new `coga/step_gate.py` registry `{"pr": parse_pr_url}`. `bump`
-  refuses to advance *off* a step that declares `requires:` until the artifact
-  is recorded on the blackboard. Forward-only (rewind never gated).
-- `requires:` added to WorkflowStep parse/freeze + `coga validate`.
-- Revert #517's launch.py per-step-script dispatch; drop
-  `current_step_is_script` from launch_script.py.
-- `code/open-pr` back to an agent skill (drop `script: run.py`; delete run.py).
-- Workflows: open-pr is an agent step with `requires: pr`.
-- Docs/contexts synced (live + packaged copies).
+Opened https://github.com/FastJVM/coga/pull/585 by dogfooding the branch's own
+command from the control checkout:
+`PYTHONPATH=/tmp/coga-open-pr-gate-review/src python3.12 -m coga.cli open-pr <slug>`.
+It detected origin/main's only drift as non-overlapping `coga/log.md` state,
+continued visibly, pushed `open-pr-gate-in-bump`, and wrote `pr:` under `## Dev`
+itself. The peer-review commits above are now pushed. #517 is merged (not open),
+so per the ticket there was nothing to close; left a `superseded by #585`
+traceability comment there instead.
+
+## PR
+
+Summary:
+- Move open-PR completion enforcement into a declarative `requires: pr` gate
+  checked by `coga bump`.
+- Make `code/open-pr` an agent step that calls deterministic `coga open-pr`,
+  while retaining mixed script-step support for other workflows.
+- Add control-checkout enforcement, lease-safe rebase retries, malformed-gate
+  validation, command/recipe/gate coverage, and synchronized docs/fixtures.
+
+Test plan: `PYTHONPATH=/tmp/coga-open-pr-gate-review/src python3.12 -m pytest`
+(`1263 passed, 1 skipped`).
