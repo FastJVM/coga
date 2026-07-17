@@ -42,6 +42,7 @@ from coga.config import (
     build_launch_env,
     Config,
     ConfigError,
+    parse_inline_secrets,
     SecretError,
     load_config,
 )
@@ -471,7 +472,6 @@ def launch(
                     max_session=max_session,
                     label="Launch",
                     warn_blackboard=True,
-                    capture_usage=not is_bootstrap,
                     commit_log=is_bootstrap,
                 )
             except ComposeError as exc:
@@ -788,8 +788,9 @@ def spawn_agent_session(
     max_session: float | None = None,
     label: str = "Launch",
     warn_blackboard: bool = False,
-    capture_usage: bool = False,
     commit_log: bool = False,
+    sync_log_on_teardown: bool = True,
+    stateless_identity: tuple[str, str] | None = None,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -802,6 +803,9 @@ def spawn_agent_session(
     authoring passes the ambient process env with no Coga secret injection),
     `discussion` selects discussion-prompt argv, and `kickoff` appends an
     optional first user turn such as the `coga ticket` greet-first "Begin".
+    `stateless_identity` lets an authoring surface compose against a real task
+    while recording the agent interaction under its bootstrap identity and
+    title, with no workflow step.
     The launch supervisor loop and step chaining deliberately stay outside.
 
     `commit_log` immediately commits the `log.md` launch append (via
@@ -811,6 +815,9 @@ def spawn_agent_session(
     `git pull` at the checkout gate (the append is committed before the REPL
     starts, so even an in-session `git pull` is unblocked). `coga ticket`
     leaves it False — its post-session `sync_paths` folds the log in instead.
+    `sync_log_on_teardown` is likewise False only for `coga ticket`, whose
+    guaranteed authoring finalizer carries the completed session record in its
+    established `Ticket: … — authored` commit. Capture itself is never skipped.
     """
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
@@ -834,18 +841,19 @@ def spawn_agent_session(
             f"{prompt_file}"
         )
 
-    should_capture_usage = capture_usage and isinstance(ref, TaskRef)
     usage_provider = usage_tracking.parser_key_for_cli(agent.cli)
     usage_session_id = (
-        str(uuid4()) if should_capture_usage and agent.session_id_flag else None
+        str(uuid4()) if agent.session_id_flag else None
     )
-    usage_pre_existing = (
-        usage_tracking.snapshot_session_files(usage_provider)
-        if should_capture_usage else set()
+    usage_pre_existing = usage_tracking.snapshot_session_files(usage_provider)
+    usage_secret_values = _configured_secret_values(ticket, env)
+    excluded_user_texts = tuple(
+        dict.fromkeys(text for text in (prompt, prompt_arg, kickoff) if text)
     )
     usage_cwd = Path.cwd().resolve()
     usage_window_start = datetime.now(timezone.utc)
     spawn_started = False
+    outcome_status: usage_tracking.OutcomeStatus = "unknown"
 
     try:
         cmd = build_agent_command(
@@ -893,18 +901,36 @@ def spawn_agent_session(
             idle_timeout=idle_timeout,
             max_session=max_session,
         )
+        outcome_status = _session_outcome_status(outcome)
         return AgentSessionResult(outcome.exit_code, outcome.kind)
+    except KeyboardInterrupt:
+        outcome_status = "interrupted"
+        raise
     except FileNotFoundError:
         spawn_started = False
         raise
+    except BaseException:
+        outcome_status = "failed"
+        raise
     finally:
         usage_window_end = datetime.now(timezone.utc)
-        if should_capture_usage and spawn_started:
+        if spawn_started:
+            stateless_session = stateless_identity is not None or isinstance(
+                ref, BootstrapRef
+            )
+            session_slug = (
+                stateless_identity[0] if stateless_identity else ref.id_slug
+            )
+            session_title = (
+                stateless_identity[1]
+                if stateless_identity
+                else ticket.title or ""
+            )
             usage_tracking.capture_session(
                 cfg=cfg,
-                title=ticket.title or "",
-                slug=ref.id_slug,
-                step=_current_step_name(ticket),
+                title=session_title,
+                slug=session_slug,
+                step=None if stateless_session else _current_step_name(ticket),
                 agent=agent.name,
                 cli=agent.cli,
                 cwd=usage_cwd,
@@ -912,6 +938,9 @@ def spawn_agent_session(
                 pre_existing=usage_pre_existing,
                 window_start=usage_window_start,
                 window_end=usage_window_end,
+                excluded_user_texts=excluded_user_texts,
+                secret_values=usage_secret_values,
+                outcome_status=outcome_status,
             )
             # The usage record lands in `log.md` *past* the agent's final
             # `bump`/`mark` sync, so without this it lingers uncommitted (and,
@@ -920,7 +949,8 @@ def spawn_agent_session(
             # log via its union-safe path; it also carries this launch's own
             # log line. A supervised chain reaches this finally per step, so
             # each step's record commits promptly. Non-fatal.
-            git.sync_log(cfg, message=f"Log: {ref.id_slug}")
+            if sync_log_on_teardown and isinstance(cfg, Config):
+                git.sync_log(cfg, message=f"Log: {session_slug}")
         try:
             prompt_file.unlink()
         except FileNotFoundError:
@@ -935,6 +965,34 @@ def _bootstrap_kickoff(ref: TaskRef | BootstrapRef) -> str | None:
     if isinstance(ref, BootstrapRef) and ref.id_slug == "bootstrap/ticket":
         return "Begin"
     return None
+
+
+def _configured_secret_values(
+    ticket: Ticket,
+    env: dict[str, str],
+) -> tuple[str, ...] | None:
+    """Return exact configured values, or None when safe redaction is unknown."""
+    try:
+        declared = parse_inline_secrets(ticket.secrets)
+    except SecretError:
+        return None
+    values: list[str] = []
+    for name, ref in declared:
+        value = env.get(name)
+        if value is None and ref.startswith("env:"):
+            value = env.get(ref[len("env:") :])
+        if value is None:
+            return None
+        values.append(value)
+    return tuple(values)
+
+
+def _session_outcome_status(outcome) -> usage_tracking.OutcomeStatus:
+    if outcome.kind == "timeout":
+        return "timed_out"
+    if outcome.kind == "crash" or outcome.exit_code != 0:
+        return "failed"
+    return "completed"
 
 
 def _current_step_name(ticket: Ticket) -> str | None:

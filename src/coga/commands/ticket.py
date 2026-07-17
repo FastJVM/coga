@@ -105,6 +105,7 @@ def ticket(
         ticket=_authoring_ticket(source_ticket),
         launch_assignee=launch_assignee,
         kickoff=kickoff,
+        bootstrap_title=bootstrap_ticket.title or "",
     )
 
 
@@ -190,6 +191,7 @@ def _run_authoring_session(
     ticket: Ticket,
     launch_assignee: str,
     kickoff: str = AUTHORING_KICKOFF,
+    bootstrap_title: str,
 ) -> None:
     if not _interactive_stdio_has_tty():
         _bail(
@@ -230,6 +232,8 @@ def _run_authoring_session(
             discussion=True,
             kickoff=kickoff,
             label="Ticket",
+            sync_log_on_teardown=False,
+            stateless_identity=(AUTHORING_SKILL, bootstrap_title),
         )
     except ComposeError as exc:
         _bail(str(exc))

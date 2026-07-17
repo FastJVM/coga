@@ -396,9 +396,12 @@ def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
     assert "Log: bootstrap/orient" in git_repo.origin_subjects()
 
 
-def test_spawn_leaves_log_dirty_when_commit_log_unset(git_repo, monkeypatch):
-    """Default (commit_log=False) preserves today's behavior: the append stays
-    uncommitted so a later sync (`coga ticket`'s `sync_paths`) carries it."""
+def test_spawn_teardown_commits_log_when_initial_commit_unset(git_repo, monkeypatch):
+    """Universal session capture syncs the launch and activity lines together.
+
+    `commit_log=False` still skips the pre-session commit used by stateless
+    launch, but teardown now always emits a session record and commits the log.
+    """
     cfg = load_config(git_repo.coga_os)
     ref = BootstrapRef(name="orient", path=git_repo.coga_os / "bootstrap" / "orient")
     ref.path.mkdir(parents=True)
@@ -422,7 +425,8 @@ def test_spawn_leaves_log_dirty_when_commit_log_unset(git_repo, monkeypatch):
         log_message="launched", discussion=True, kickoff="Begin",
     )
 
-    assert "log.md" in git_repo.git("status", "--porcelain")
+    assert "log.md" not in git_repo.git("status", "--porcelain")
+    assert "bootstrap/orient" in git_repo.git("show", "origin/main:coga/log.md")
 
 
 def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
@@ -455,7 +459,10 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
         lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
     )
 
+    captured: list[dict] = []
+
     def fake_capture(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        captured.append(kwargs)
         # Mirror the real append: a usage JSON line tagged onto the global
         # log, *past* the agent's last sync.
         log = git_repo.coga_os / "log.md"
@@ -481,13 +488,14 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
         ),
         env={}, actor="human:marc",
         log_message="launched", discussion=True, kickoff="Begin",
-        capture_usage=True,
     )
 
     # The usage record (and the launch line) is committed and pushed to the
     # control branch — no dangling log line left behind.
     assert "log.md" not in git_repo.git("status", "--porcelain")
     assert '{"tokens": 1}' in git_repo.git("show", "origin/main:coga/log.md")
+    assert captured[0]["slug"] == "demo"
+    assert captured[0]["outcome_status"] == "completed"
     # The teardown commits exactly the log: the ticket hand-edit and product
     # code outside coga/ stay dirty and unpushed.
     assert "ticket.md" in git_repo.git("status", "--porcelain")
@@ -531,6 +539,165 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
     )
 
     assert calls == [["claude", "--append-system-prompt", "# Coga task\nbody"]]
+
+
+def test_spawn_captures_stateless_discussion_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = BootstrapRef(name="orient", path=tmp_path / "bootstrap" / "orient")
+    ref.path.mkdir(parents=True)
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *a, **k: ReplOutcome(exit_code=0, kind="natural"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: captured.append(kwargs),
+    )
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(
+            name="codex",
+            cli="codex",
+            file="AGENTS.md",
+            mode="local",
+            discussion="-c developer_instructions={prompt}",
+        ),
+        env={},
+        actor="human:marc",
+        log_message="launched",
+        discussion=True,
+    )
+
+    assert len(captured) == 1
+    assert captured[0]["slug"] == "bootstrap/orient"
+    assert captured[0]["title"] == "Spawn test"
+    assert captured[0]["step"] is None
+    assert captured[0]["outcome_status"] == "completed"
+    assert captured[0]["excluded_user_texts"] == ("# Coga task\nbody",)
+
+
+def test_spawn_uses_bootstrap_identity_when_authoring_real_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = TaskRef(slug="draft-ticket", path=tmp_path / "tasks" / "draft-ticket")
+    ref.path.mkdir(parents=True)
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *a, **k: ReplOutcome(exit_code=0, kind="natural"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: captured.append(kwargs),
+    )
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(name="codex", cli="codex", file="AGENTS.md", mode="local"),
+        env={},
+        actor="human:marc",
+        log_message="ticket authoring launched",
+        discussion=True,
+        kickoff="Begin (editing existing ticket)",
+        stateless_identity=("bootstrap/ticket", "Author a ticket"),
+    )
+
+    assert captured[0]["slug"] == "bootstrap/ticket"
+    assert captured[0]["title"] == "Author a ticket"
+    assert captured[0]["step"] is None
+    assert "Begin (editing existing ticket)" in captured[0]["excluded_user_texts"]
+
+
+@pytest.mark.parametrize(
+    ("repl_outcome", "expected_status"),
+    [
+        (ReplOutcome(exit_code=7, kind="natural"), "failed"),
+        (ReplOutcome(exit_code=_TIMEOUT_EXIT_CODE, kind="timeout"), "timed_out"),
+    ],
+)
+def test_spawn_captures_failed_and_timed_out_sessions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    repl_outcome: ReplOutcome,
+    expected_status: str,
+) -> None:
+    ref = BootstrapRef(name="orient", path=tmp_path / "bootstrap" / "orient")
+    ref.path.mkdir(parents=True)
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *a, **k: repl_outcome,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: captured.append(kwargs),
+    )
+
+    result = spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(name="codex", cli="codex", file="AGENTS.md", mode="local"),
+        env={},
+        actor="human:marc",
+        log_message="launched",
+    )
+
+    assert result.exit_code == repl_outcome.exit_code
+    assert captured[0]["outcome_status"] == expected_status
+
+
+def test_spawn_captures_interrupted_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = BootstrapRef(name="orient", path=tmp_path / "bootstrap" / "orient")
+    ref.path.mkdir(parents=True)
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
+    )
+
+    def interrupt(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("coga.commands.launch.run_with_done_marker", interrupt)
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: captured.append(kwargs),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        spawn_agent_session(
+            SimpleNamespace(repo_root=tmp_path),
+            ref,
+            _ticket(),
+            AgentType(name="codex", cli="codex", file="AGENTS.md", mode="local"),
+            env={},
+            actor="human:marc",
+            log_message="launched",
+        )
+
+    assert captured[0]["outcome_status"] == "interrupted"
 
 
 # --- integration: end-to-end via CliRunner with mocked subprocess --------------
