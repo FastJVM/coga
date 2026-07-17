@@ -33,3 +33,4 @@ consumed_through: 8e32b965dc04
 {"id":"3aff9b674f90","ts":"2026-07-16T16:54","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"install/gh-auth-hint-on-managed-skill-rate-limit","owner":"nicktoper"}
 {"id":"0d6df972bfa6","ts":"2026-07-16T20:41","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"log-md-coga-chat-too-so-we-have-a-full-view-of-the","owner":"nicktoper"}
 {"id":"2060d9f1c033","ts":"2026-07-17T15:27","project":"coga","kind":"done","detail":"zach finished: review → done ✅","ticket":"coga-important/add-coga-slack-important","owner":"zach"}
+{"id":"6c0d7036b976","ts":"2026-07-17T15:55","project":"coga","kind":"done","detail":"nicktoper finished: implement → done ✅","ticket":"handle-better-delete-branches-autcommit","owner":"nicktoper"}
