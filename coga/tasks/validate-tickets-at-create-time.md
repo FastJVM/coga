@@ -1,7 +1,7 @@
 ---
 slug: validate-tickets-at-create-time
 title: Validate tickets at create time
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -220,3 +220,15 @@ are updated to match.
 Test plan: `python -m pytest` (1274 passed, 1 skipped), including new
 regression tests for create/retire/recurring/authoring failure reporting;
 `coga validate --json` on the example fixture reports no issues.
+
+---
+
+## Blockers
+
+- [x] [2026-07-16 22:51] [agent:codex] id=20260716T225150 Open-PR publication cannot reach GitHub from this sandbox: source-tree coga open-pr fails fetching origin/main with 'Could not resolve host: github.com'; GitHub confirms validate-ticket-create is not pushed and no PR exists. Relaunch this step with shell network access.
+  resolved: [2026-07-17 09:49] [human:nicktoper] Owner instructed Codex to proceed with publication despite the shell-network blocker; use the connected GitHub path.
+
+- [x] [2026-07-17 11:27] [agent:codex] id=20260717T112750 GitHub publication is unavailable in this session: shell git cannot resolve github.com, and the connected GitHub integration returns 403 Resource not accessible by integration for both blob and branch-ref writes. From a network-enabled shell run 'git -C /tmp/coga-validate-ticket-create push -u origin validate-ticket-create', then relaunch the open-pr step.
+  resolved: [2026-07-17 11:30] [human:nicktoper] Owner instructed Codex to retry; shell GitHub access is now available and validate-ticket-create was pushed successfully.
+
+- [ ] [2026-07-17 11:36] [agent:codex] id=20260717T113621 Branch validate-ticket-create is now pushed at 42bf21c3 and its reviewed 15-file diff has no overlap with newer main changes, but PR creation is unavailable: authenticated gh cannot reach api.github.com after bounded retries and the GitHub integration returns 403 for PR writes. No PR exists. Open https://github.com/FastJVM/coga/pull/new/validate-ticket-create from a network-enabled browser, then relaunch this open-pr step.
