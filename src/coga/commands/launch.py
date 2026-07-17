@@ -436,8 +436,8 @@ def launch(
             if shutil.which(agent.cli) is None:
                 typer.secho(
                     f"{ref.id_slug}: next step needs agent {step_assignee!r} "
-                    f"but its CLI {agent.cli!r} is not on PATH — stopping. "
-                    f"Install it, then `coga launch {ref.id_slug}` to continue.",
+                    f"but {agent_cli_missing_message(agent.cli)} Stopping; "
+                    f"then run `coga launch {ref.id_slug}` to continue.",
                     fg=typer.colors.YELLOW,
                     err=True,
                 )
