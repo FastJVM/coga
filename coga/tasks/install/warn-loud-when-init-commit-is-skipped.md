@@ -114,11 +114,11 @@ second-pass identity defect; all must-fixes were applied in commit 3e271403:
   before init writes anything.
 
 The final native re-review reported no actionable regressions. Branch
-`init-identity-fail-loud` is clean and rebased onto `origin/main` 5fa969ab;
-current commits are eeca2c56 (implementation) and 3e271403 (peer-review fixes).
-Final verification: `PYTHONPATH=/home/n/Code/claude/coga-init-identity/src
-python -m pytest -q` — 1256 passed, 1 skipped. The two warnings were only
-pytest cache writes denied by the read-only feature-worktree mount.
+`init-identity-fail-loud` is clean and rebased onto `origin/main` 8528fd25
+(open-pr step caught doc drift from 6fd30d5f and required the rebase); current
+commits are 3a685ebd (implementation) and f2b94eca (peer-review fixes).
+Final verification after the rebase: `PYTHONPATH=/home/n/Code/claude/coga-init-identity/src
+python3.12 -m pytest -q` — 1256 passed, 1 skipped.
 
 ## PR
 
