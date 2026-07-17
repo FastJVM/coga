@@ -1,7 +1,7 @@
 ---
 slug: recurring-bugs/recurring-all-diverges-two-checkouts-of-one-remote
 title: recurring --all diverges two checkouts of one remote
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
