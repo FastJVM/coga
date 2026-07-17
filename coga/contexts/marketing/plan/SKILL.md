@@ -226,8 +226,10 @@ distribution, Anthropic's "Keep thinking"), or a more famous voice
 
 ## Sequence and dependencies
 
-1. **Gates for the run:** `stabilize-megalaunch-for-daily-use` (the run
-   starts when megalaunch holds up daily) and
+1. **Gates for the run:** megalaunch stable in daily use (the run starts
+   when megalaunch holds up daily — proven empirically, with narrow fix
+   tickets filed as failures surface; the former
+   `stabilize-megalaunch-for-daily-use` ticket was folded into this) and
    `metrics-human-minutes-script` (the recompute story).
 2. **Pre-registration commit** — one commit, before any data.
 3. **The 2-week run** — megalaunch as default work mode; daily diary is
