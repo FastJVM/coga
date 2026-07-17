@@ -1,5 +1,5 @@
 ---
-slug: recurring-scan-should-skip-and-report-an-unloadabl
+slug: recurring-bugs/recurring-scan-should-skip-and-report-an-unloadabl
 title: recurring scan should skip-and-report an unloadable template, not crash the
   repo
 status: draft

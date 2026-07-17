@@ -1,5 +1,5 @@
 ---
-slug: recurring-all-diverges-two-checkouts-of-one-remote
+slug: recurring-bugs/recurring-all-diverges-two-checkouts-of-one-remote
 title: recurring --all diverges two checkouts of one remote
 status: draft
 owner: nicktoper

@@ -1,5 +1,5 @@
 ---
-slug: recurring-all-sweeps-throwaway-coga-scratch-clones
+slug: recurring-bugs/recurring-all-sweeps-throwaway-coga-scratch-clones
 title: recurring --all sweeps throwaway coga scratch clones
 status: draft
 owner: nicktoper
