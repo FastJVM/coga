@@ -1609,3 +1609,4 @@ Aborting
 2026-07-16 16:55 [install/gh-auth-hint-on-managed-skill-rate-limit] [system] {"agent":"claude","cache_creation_input_tokens":84815,"cache_read_input_tokens":775373,"cli":"claude","input_tokens":39,"model":"claude-fable-5","output_tokens":9666,"provider":"anthropic","schema":1,"session_id":"9ee292ec-1938-4e02-bdd6-e1269687e12f","slug":"install/gh-auth-hint-on-managed-skill-rate-limit","step":"open-pr","title":"gh auth hint on managed skill rate limit","ts":"2026-07-16T23:55:00.075019Z","usage_status":"ok"}
 2026-07-16 16:56 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-16 16:56 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-07-16 17:07 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nicktoper] activated (draft → active) — auto on launch

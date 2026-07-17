@@ -1,17 +1,34 @@
 ---
 slug: log-md-coga-chat-too-so-we-have-a-full-view-of-the
 title: log.md coga chat too so we have a full view of the work
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts:
-  - coga/usage
+- coga/usage
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -43,9 +60,26 @@ typing time."
   contributed, and enough bounded final-outcome content to show what the agent
   did. Preserve the existing token/provider/model/session metadata and the
   `coga usage` read surface.
+- Count only explicit human/user and agent/assistant text authored inside the
+  capture window. Exclude system/developer prompts, injected kickoff tokens,
+  tool calls, and tool results. Combine the explicit human-authored text in
+  chronological order for the request field; use the last available explicit
+  assistant text for the outcome field.
+- Normalize request and outcome text to one line and cap each at 500 Unicode
+  characters, using a visible truncation marker. Replace exact configured
+  secret values with `[REDACTED]` before writing; if content extraction or
+  redaction cannot complete safely, still record timing, counts, metadata, and
+  status but leave the content fields null.
 - "Human time" is represented by the human-authored turns and whole-session
   wall clock. Transcript gaps are not reliable typing measurements, so do not
   label them as active human time.
+- Tag stateless sessions with their bootstrap identity (for example,
+  `bootstrap/orient` for `coga chat`), their bootstrap title, and a null step.
+  Failed, timed-out, and interrupted sessions must still emit a record with an
+  explicit outcome status and the last safely available outcome text, if any.
+- Evolve the record schema compatibly: existing schema-v1 usage records must
+  remain readable with the new activity fields absent/null and must not be
+  rejected or misrepresented in rollups.
 - The record must remain a single bounded JSON message inside the standard
   `coga/log.md` line shape; do not append the full raw transcript. Treat
   transcript text as potentially sensitive and avoid accidental secret
@@ -58,26 +92,3 @@ typing time."
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Ticket authoring notes
-
-- Intent: make `coga/log.md` show every Coga-managed interaction, including `coga chat`, so elapsed time and completed work are visible in one durable chronology.
-- Current behavior: task launches append one per-session token-usage JSON record, but stateless bootstrap launches such as `coga chat` and `coga ticket` are deliberately excluded. Launch already records a start/end window internally, but the persisted usage schema has no elapsed-duration field.
-- Decisions: one bounded structured record per session, exact wall clock including idle time, all Coga-launched agent sessions, and human contribution represented by authored turns rather than a guessed typing-time metric.
-- Workflow: `code/with-review`; Claude implements, Codex peer-reviews, and the owner reviews the PR.
-
-## Evaluator review
-
-The ticket is clear enough to start: it identifies the current capture seam, the desired per-session record, exclusions, compatibility requirement, documentation touchpoint, and focused test surfaces. `code/with-review` fits a cross-cutting launch/usage schema change that handles potentially sensitive transcript content and merits independent review plus an owner gate.
-
-The attached `coga/usage` context is directly relevant and appropriately scoped. No additional broad context is necessary; the ticket already supplies the needed launch and sync facts, and the implementer can inspect the named source paths. The scope is cohesive as one ticket: schema evolution, capture for stateless sessions, reader compatibility, documentation, and tests are all required to ship the same behavior safely.
-
-Before implementation, the ticket should resolve or explicitly delegate these design choices:
-
-- Define the exact bounding and secret-safety policy for request/outcome text: character or byte limits, truncation marker, multiline normalization, and whether any redaction is required beyond truncation.
-- Define which transcript entries count as human and agent turns, especially injected kickoff prompts, tool/result messages, resumed sessions, and sessions ending without a normal final assistant response.
-- Define how stateless records are tagged in the standard log shape and what `slug`, `title`, and `step` contain when there is no real task.
-- State the schema-version/reader behavior for older records missing the new timing, turn-count, and summary fields.
-- Clarify whether failed, timed-out, or interrupted agent sessions still emit bounded request/outcome fields and how their outcome is represented.
-
-These are bounded implementation decisions rather than evidence that the ticket needs splitting, but ambiguity around redaction and stateless identity could otherwise produce materially different contracts.
