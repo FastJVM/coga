@@ -1932,3 +1932,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-07-17 16:18 [recurring-bugs/recurring-dream-launch-mis-points-coga-task-env-at] [human:nicktoper] activated (draft → active)
 2026-07-17 16:18 [recurring-bugs/retro-and-delete-branch-switch-the-primary-checkou] [human:nicktoper] activated (draft → active)
 2026-07-17 16:18 [recurring-bugs/recurring-all-diverges-two-checkouts-of-one-remote] [human:nicktoper] activated (draft → active)
+2026-07-17 16:18 [recurring-bugs/recurring-scan-should-skip-and-report-an-unloadabl] [human:nicktoper] activated (draft → active)
