@@ -1758,3 +1758,5 @@ Aborting
 2026-07-17 15:55 [handle-better-delete-branches-autcommit] [human:nicktoper] activated (draft → active)
 2026-07-17 15:55 [handle-better-delete-branches-autcommit] [human:nicktoper] task done
 2026-07-17 15:55 [bootstrap/ticket] [system] {"agent":"claude","agent_turns":null,"cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"claude","content_status":"unknown","elapsed_seconds":203.210956,"ended_at":"2026-07-17T22:55:58.582518Z","human_turns":null,"input_tokens":null,"model":null,"outcome":null,"outcome_status":"completed","output_tokens":null,"provider":"anthropic","request":null,"schema":2,"session_id":"cefdc654-df33-4db8-b47f-dbb0ee710e9c","slug":"bootstrap/ticket","started_at":"2026-07-17T22:52:35.371562Z","step":null,"title":"Create a new ticket","ts":"2026-07-17T22:55:58.582518Z","usage_status":"unknown"}
+2026-07-17 14:40 [recurring/autoclose-merged] [system] launched as a script (skill=coga/autoclose/sweep, script=run.py)
+2026-07-17 14:40 [install/init-next-steps-should-mention-agent-cli-requireme] [human:nicktoper] auto-bumped on merge of PR #589 → done
