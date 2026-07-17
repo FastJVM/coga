@@ -1,7 +1,7 @@
 ---
 slug: important-alerts-the-task-owner-drop-important-rec
 title: important alerts @ the task owner; drop important_recipient
-status: active
+status: in_progress
 owner: zach
 human: zach
 agent: claude
