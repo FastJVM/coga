@@ -68,7 +68,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 | Verb | Mechanism | Alias-able? | Why |
 |------|-----------|-------------|-----|
 | `init` | built-in | No | Scaffolds `coga/`, vendors the running CLI into `.coga/.venv`, installs venv deps. Heavy side effects. |
-| `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket + posts `✨`; validation belongs to authoring/activation or an explicit `coga validate --task`. |
+| `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket + posts `✨`; post-write validate (fails with exit 2 and leaves the draft on disk if the generated ticket is malformed). |
 | `ticket` | thin built-in head + `coga.authoring` finalize | No | **Canonical proof.** Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. |
 | `project` | built-in | No | Interview → scaffold many drafts → post-validate; TTY guard. |
 | `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |

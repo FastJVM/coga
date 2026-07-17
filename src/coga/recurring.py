@@ -665,7 +665,11 @@ def _create_at_slug(
             force_directory=True,
             created_by="system",
         )
-    except TaskValidationError as exc:
+    except (TaskValidationError, ValueError) as exc:
+        # create_task fails with TaskValidationError post-write and plain
+        # ValueError pre-write (unknown contexts, slug collision, ...); both
+        # must become RecurringError so scan_due skips and reports this
+        # template instead of aborting the whole sweep.
         raise RecurringError(str(exc)) from exc
     out_ref = _task_with_slug(cfg, ref["slug"])
     if out_ref is None:

@@ -1344,6 +1344,28 @@ def test_scan_due_reports_created_task_validation_failure(
     assert (repo / "tasks" / "recurring" / "weekly-check" / "ticket.md").is_file()
 
 
+def test_scan_due_reports_create_value_error_per_template(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A pre-write create failure skips the template instead of crashing."""
+
+    def reject_create(*args: object, **kwargs: object) -> None:
+        raise ValueError("Unknown contexts: nonexistent/ctx")
+
+    monkeypatch.setattr("coga.recurring.create_task", reject_create)
+    cfg = load_config(repo)
+
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+
+    assert scan.tasks == []
+    assert scan.errors == [
+        ("weekly-check", "Unknown contexts: nonexistent/ctx")
+    ]
+    assert "skipping weekly-check" in capsys.readouterr().err
+
+
 def test_scan_due_template_without_script_deduces_agent(
     repo: Path, capsys
 ) -> None:
