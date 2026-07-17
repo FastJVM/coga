@@ -1629,3 +1629,5 @@ Aborting
 2026-07-16 17:48 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-16 17:48 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [system] script exited with code 0
 2026-07-16 17:48 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [system] advanced to step 4 (review) → assigned to nicktoper after script step
+2026-07-16 17:22 [install/init-next-steps-should-mention-agent-cli-requireme] [megalaunch] launched via coga megalaunch
+2026-07-16 18:42 [install/init-next-steps-should-mention-agent-cli-requireme] [agent:codex] advanced to step 3 (open-pr) → assigned to claude

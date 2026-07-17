@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -99,6 +99,28 @@ Adjacent issues found (for follow-up tickets, not fixed here):
   doesn't propagate to child processes. Environmental, but a dev-setup trap
   worth documenting.
 
+## Peer review — done (commit e7bdf307, rebased onto ad2ed0ae)
+
+Native `codex review --base main` found one must-fix: the supervisor's
+mid-workflow agent-rotation check still omitted the manifest install hint when
+the next agent CLI was missing. The check now uses
+`agent_cli_missing_message()` too, with a regression asserting Codex's install
+URL. The fresh rebase preserved upstream's concurrent change making `gh`
+optional at init while retaining this ticket's independent agent-CLI guidance.
+
+Verification after the rebase: 107 focused tests passed; full Python 3.12 suite
+passed with 1244 passed, 1 skipped via an editable scratch-venv install. Branch
+is clean, two commits ahead of `origin/main`, and zero commits behind.
+
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":83957,"cache_read_input_tokens":976483,"cli":"claude","input_tokens":51,"model":"claude-fable-5","output_tokens":9190,"provider":"anthropic","schema":1,"session_id":"8751d17e-a64d-461d-98be-813ffe9be2f6","slug":"install/init-next-steps-should-mention-agent-cli-requireme","step":"implement","title":"Init next steps should mention agent CLI requirement","ts":"2026-07-16T04:26:49.093072Z","usage_status":"ok"}
+
+## PR
+
+Summary:
+
+- Tell fresh users during `coga init` and in Getting Started that agent-driven commands require an installed, authenticated Claude Code or Codex CLI.
+- Keep supported agent CLIs optional at init, but centralize manifest-backed install hints across launch, ticket, project, megalaunch, and chained-agent failures.
+
+Test plan: `python -m pytest -p no:cacheprovider` under Python 3.12 with an editable install — 1244 passed, 1 skipped.
