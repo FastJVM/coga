@@ -1,17 +1,34 @@
 ---
 slug: validate-tickets-at-create-time
 title: Validate tickets at create time
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: codex
 assignee: codex
 contexts:
-  - dev/code
+- dev/code
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -81,7 +98,9 @@ Decisions pinned so the implementer doesn't guess:
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Evaluator review
+## Production notes
+
+### Evaluator review (pre-launch authoring record)
 
 **1. Description clarity** — Good. States the invariant, names the mechanism (`assert_task_valid`), lists covered vs. missing call sites, and pins failure semantics (fail loud, no rollback, reuse existing path). An agent could start cold.
 
