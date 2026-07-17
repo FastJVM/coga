@@ -54,7 +54,9 @@ multiplier, receipts per row, misses published, small claims. Trust comes from
 recomputability (public timestamps, GitHub-held where possible), the
 pre-registration being git-dated before the data, and modesty.
 
-Depends on: `stabilize-megalaunch-for-daily-use`, `metrics-human-minutes-script`.
+Depends on: megalaunch stable in daily use (proven empirically — the window
+starts when it holds up daily; file narrow fix tickets as failures surface),
+`metrics-human-minutes-script`.
 Related: `marketing/add-killer-demo` (post/README gif),
 `marketing/rewrite-readme-around-the-wedge`, `marketing/relay-discord`
 (the post needs a "where to go" link).
