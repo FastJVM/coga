@@ -1929,3 +1929,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-07-17 15:58 [recurring-all-sweeps-throwaway-coga-scratch-clones] [human:nicktoper] created (status=draft)
 2026-07-17 16:10 [retro-and-delete-branch-switch-the-primary-checkou] [human:nicktoper] created (status=draft)
 2026-07-17 16:10 [coga-usage-cannot-locate-claude-transcript-or-sess] [human:nicktoper] created (status=draft)
+2026-07-17 16:18 [recurring-bugs/recurring-dream-launch-mis-points-coga-task-env-at] [human:nicktoper] activated (draft → active)
