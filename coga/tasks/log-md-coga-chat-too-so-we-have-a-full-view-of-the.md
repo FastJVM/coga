@@ -1,7 +1,7 @@
 ---
 slug: log-md-coga-chat-too-so-we-have-a-full-view-of-the
 title: log.md coga chat too so we have a full view of the work
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude

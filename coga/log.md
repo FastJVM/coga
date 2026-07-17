@@ -1610,3 +1610,4 @@ Aborting
 2026-07-16 16:56 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-16 16:56 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
 2026-07-16 17:07 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-16 17:07 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nicktoper] started (active → in_progress) via coga launch
