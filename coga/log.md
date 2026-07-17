@@ -1926,3 +1926,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-07-17 15:58 [recurring-scan-should-skip-and-report-an-unloadabl] [human:nicktoper] created (status=draft)
 2026-07-17 15:58 [recurring-dream-launch-mis-points-coga-task-env-at] [human:nicktoper] created (status=draft)
 2026-07-17 15:58 [recurring-all-diverges-two-checkouts-of-one-remote] [human:nicktoper] created (status=draft)
+2026-07-17 15:58 [recurring-all-sweeps-throwaway-coga-scratch-clones] [human:nicktoper] created (status=draft)
