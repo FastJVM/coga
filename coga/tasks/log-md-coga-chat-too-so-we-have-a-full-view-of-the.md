@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/usage
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 4 (review)
 ---
 
 ## Description
@@ -92,3 +92,106 @@ typing time."
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Decisions
+
+- Approved schema 2 extends the existing usage record without replacing its
+  token fields. `ts` remains the session-end timestamp used by current filters;
+  new activity fields are `started_at`, `ended_at`, `elapsed_seconds`,
+  `human_turns`, `agent_turns`, `request`, `outcome`, `content_status`, and
+  `outcome_status`.
+- `request` combines explicit human-authored turns in chronological order;
+  `outcome` is the last explicit assistant-authored text. Both are normalized
+  to one line, redacted, and capped at 500 Unicode characters.
+- `content_status` is `ok` or `unknown`. Unsafe extraction or redaction leaves
+  both content fields null while preserving timing, counts, metadata, and
+  session status. `outcome_status` is `completed`, `failed`, `timed_out`,
+  `interrupted`, or `unknown`; it remains independent of token `usage_status`.
+- Schema-1 log records remain readable with schema-2-only fields absent/null.
+- Capture belongs in the shared real-agent spawn path so task, chat, ticket,
+  project/onboarding, and megalaunch sessions cannot opt out accidentally.
+  Script paths and process spawn failures still emit no session record.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/583
+branch: log-session-activity
+worktree: /tmp/coga-log-session-activity
+commits:
+- e2c4f634 Record activity for every agent session
+- 64034b68 peer-review: apply review findings
+
+## Implementation
+
+- `src/coga/usage.py` now writes schema-2 session records with start/end,
+  elapsed wall time, human/agent text-turn counts, bounded request/outcome,
+  independent content and process-outcome statuses, and the existing token
+  metadata. The loader accepts schema 1 and leaves new fields null.
+- Claude and Codex parsers extract only timestamp-windowed explicit text.
+  Launcher prompt/kickoff text, Codex startup context, system/developer content,
+  tool calls, and tool results are excluded. Exact configured secret values are
+  redacted before one-line normalization and 500-character truncation.
+- The shared real-agent spawn path always captures after a process starts.
+  Bootstrap sessions are recorded with bootstrap identity/title and null step;
+  guided authoring against a real task explicitly records as
+  `bootstrap/ticket`. Script paths and spawn failures remain uncaptured.
+- Failed, timed-out, and interrupted sessions map to explicit outcome statuses
+  while still parsing the last safely available assistant text.
+- Updated the live `coga/usage` behavioral context. No matching packaged usage
+  context exists under `src/coga/resources/templates/coga/`, so there was no
+  second copy to synchronize.
+
+## Verification
+
+- Focused launch/usage/ticket/project/megalaunch set: 148 passed.
+- Full suite with the worktree's absolute source path:
+  `PYTHONPATH=/tmp/coga-log-session-activity/src python -m pytest` — 1246
+  passed, 1 skipped.
+- Plain `python -m pytest` exposed the known relative-`PYTHONPATH` bootstrap
+  subprocess failure in
+  `tests/test_launch_script.py::test_bootstrap_script_launch_is_stateless`;
+  the same failure reproduced on unchanged `main`. The absolute source path
+  makes the subprocess import deterministic and the full suite passes.
+- `PYTHONPATH=/tmp/coga-log-session-activity/src python -m coga.cli validate
+  --task log-md-coga-chat-too-so-we-have-a-full-view-of-the --json` from the
+  primary checkout: 1 ok, no issues.
+- `git diff --check`: clean.
+- Freshness: fetched `origin/main` at `f7cc12c6`, rebased cleanly, then reran
+  the full suite (1246 passed, 1 skipped). Feature worktree is clean; branch is
+  0 behind / 2 ahead of that `origin/main` snapshot.
+
+## Peer review
+
+- Native `codex review --base main` found two must-fix issues: guided ticket
+  authoring could leave the session record uncommitted on failed/no-change
+  exits, and ambient authoring environments could redact the wrong value for
+  a declared secret.
+- The shared teardown now always syncs the session log independently of the
+  authoring finalizer, including failed sessions. Secret redaction now
+  distinguishes scoped launch environments from ambient authoring
+  environments, uses the declared `env:` source value, and suppresses content
+  when an `op://` value cannot be proven safe.
+- Added regression coverage for failed authoring-session durability and both
+  ambient/scoped secret-value selection paths.
+- Rebased cleanly onto current `origin/main` at `ad2ed0ae`. Final branch state:
+  clean, 0 behind / 2 ahead. Post-rebase full suite:
+  `PYTHONPATH=/tmp/coga-log-session-activity/src python -m pytest` — 1250
+  passed, 1 skipped. `git diff --check` is clean.
+
+## PR
+
+### Summary
+
+- Record bounded schema-2 activity alongside token usage for every
+  Coga-launched agent session, including chat, ticket authoring, project
+  planning, task work, and megalaunch.
+- Capture wall-clock timing, explicit human/agent turn counts, redacted request
+  and final-outcome summaries, and process outcome status while keeping
+  schema-1 records readable through `coga usage`.
+- Keep failed and stateless sessions durable through the shared log-sync path,
+  with conservative secret handling that leaves content null whenever safe
+  redaction cannot be established.
+
+### Test plan
+
+`PYTHONPATH=/tmp/coga-log-session-activity/src python -m pytest` — 1250 passed, 1 skipped.
