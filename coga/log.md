@@ -1749,3 +1749,6 @@ Aborting
 2026-07-17 14:30 [recurring/digest] [system] created (status=active)
 2026-07-17 14:30 [recurring/digest] [system] deleted completed prior-period task before 2026-07-17
 2026-07-17 14:30 [recurring/digest] [system] created recurring/digest for 2026-07-17
+2026-07-17 14:30 [recurring/blocker-reminders] [git] sync refused: coga/tasks/recurring/blocker-reminders/ticket.md: status would move backward from 'done' to 'active'
+2026-07-17 14:30 [recurring/digest] [git] sync refused: coga/tasks/recurring/digest/ticket.md: status would move backward from 'done' to 'active'
+2026-07-17 14:31 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
