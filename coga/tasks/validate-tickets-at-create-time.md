@@ -232,3 +232,9 @@ regression tests for create/retire/recurring/authoring failure reporting;
   resolved: [2026-07-17 11:30] [human:nicktoper] Owner instructed Codex to retry; shell GitHub access is now available and validate-ticket-create was pushed successfully.
 
 - [ ] [2026-07-17 11:36] [agent:codex] id=20260717T113621 Branch validate-ticket-create is now pushed at 42bf21c3 and its reviewed 15-file diff has no overlap with newer main changes, but PR creation is unavailable: authenticated gh cannot reach api.github.com after bounded retries and the GitHub integration returns 403 for PR writes. No PR exists. Open https://github.com/FastJVM/coga/pull/new/validate-ticket-create from a network-enabled browser, then relaunch this open-pr step.
+
+---
+
+## Blocker reminders
+
+- d8ee81b771e2 last_reminded: 2026-07-17 14:39
