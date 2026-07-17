@@ -1,11 +1,11 @@
 ---
 slug: validate-tickets-at-create-time
 title: Validate tickets at create time
-status: blocked
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -102,6 +102,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: validate-ticket-create
 worktree: /tmp/coga-validate-ticket-create
+pr: https://github.com/FastJVM/coga/pull/592
 
 ## Production notes
 
@@ -198,6 +199,18 @@ Verification after fixes + unconditional rebase onto origin/main
 launch-script test needs coga importable in a spawned process — environment,
 not code). Branch is clean, two commits ahead of main.
 
+### PR conflict repair (2026-07-17)
+
+- Rebasing onto GitHub's PR base `c3f5a874` produced one real conflict, in
+  `docs/cli-extension-audit.md`. The resolution keeps upstream's vendored-CLI
+  `init` description and this PR's create-time validation semantics.
+- `git merge-tree --write-tree c3f5a874 HEAD` and `git diff --check` pass.
+  The full suite passes with
+  `PYTHONPATH=/tmp/coga-validate-ticket-create/src python3.12 -m pytest`:
+  `1300 passed, 1 skipped`.
+- Force-with-lease updated PR #592 to head `de77a9ea`; GitHub reports the PR
+  mergeable against current `main` even after it advanced again.
+
 ## PR
 
 Validate tickets at their create-time write boundaries.
@@ -217,9 +230,9 @@ skip-and-report instead of aborting the whole sweep. The packaged `coga/cli`
 context, its live finalize-skill sibling, and `docs/cli-extension-audit.md`
 are updated to match.
 
-Test plan: `python -m pytest` (1274 passed, 1 skipped), including new
-regression tests for create/retire/recurring/authoring failure reporting;
-`coga validate --json` on the example fixture reports no issues.
+Test plan: `PYTHONPATH=/tmp/coga-validate-ticket-create/src python3.12 -m pytest`
+(`1300 passed, 1 skipped`), including new regression tests for
+create/retire/recurring/authoring failure reporting.
 
 ---
 
@@ -231,10 +244,5 @@ regression tests for create/retire/recurring/authoring failure reporting;
 - [x] [2026-07-17 11:27] [agent:codex] id=20260717T112750 GitHub publication is unavailable in this session: shell git cannot resolve github.com, and the connected GitHub integration returns 403 Resource not accessible by integration for both blob and branch-ref writes. From a network-enabled shell run 'git -C /tmp/coga-validate-ticket-create push -u origin validate-ticket-create', then relaunch the open-pr step.
   resolved: [2026-07-17 11:30] [human:nicktoper] Owner instructed Codex to retry; shell GitHub access is now available and validate-ticket-create was pushed successfully.
 
-- [ ] [2026-07-17 11:36] [agent:codex] id=20260717T113621 Branch validate-ticket-create is now pushed at 42bf21c3 and its reviewed 15-file diff has no overlap with newer main changes, but PR creation is unavailable: authenticated gh cannot reach api.github.com after bounded retries and the GitHub integration returns 403 for PR writes. No PR exists. Open https://github.com/FastJVM/coga/pull/new/validate-ticket-create from a network-enabled browser, then relaunch this open-pr step.
-
----
-
-## Blocker reminders
-
-- d8ee81b771e2 last_reminded: 2026-07-17 14:39
+- [x] [2026-07-17 11:36] [agent:codex] id=20260717T113621 Branch validate-ticket-create is now pushed at 42bf21c3 and its reviewed 15-file diff has no overlap with newer main changes, but PR creation is unavailable: authenticated gh cannot reach api.github.com after bounded retries and the GitHub integration returns 403 for PR writes. No PR exists. Open https://github.com/FastJVM/coga/pull/new/validate-ticket-create from a network-enabled browser, then relaunch this open-pr step.
+  resolved: [2026-07-17 11:47] [human:nicktoper] PR #592 opened with gh from validate-ticket-create and recorded on the blackboard.
