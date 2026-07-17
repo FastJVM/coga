@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -56,6 +56,7 @@ Touchpoints: `pyproject.toml` version, `docs/releasing.md` process.
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/587
 branch: release-0.3.0
 worktree: /home/n/Code/claude/coga-release-0.3.0
 
@@ -72,16 +73,12 @@ worktree: /home/n/Code/claude/coga-release-0.3.0
 - Resumed 2026-07-15: rebased onto current origin/main (e88729ae — only
   ticket-state commits came in), re-ran tests: 1220 passed, 1 skipped.
 
-## ⚠ Merge/publish ordering constraint
+## Merge/publish ordering constraint — RESOLVED (2026-07-16)
 
-The dependency ticket `install/add-migration-errors-for-removed-config-keys`
-has NOT landed yet. Its PR [#579](https://github.com/FastJVM/coga/pull/579) is
-open at the human-review step, and `src/coga/config.py` on `origin/main`
-still has no migration carve-out for the removed `[agents.*] auto` key. Per
-this ticket's description, 0.3.0 must be **published after** that PR lands so
-upgraders get actionable errors. The version bump itself is safe to review,
-but **do not merge this PR / cut the GitHub release until PR #579 is on
-main.**
+The dependency PR [#579](https://github.com/FastJVM/coga/pull/579)
+(`install/add-migration-errors-for-removed-config-keys`) merged on
+2026-07-16, and the release branch was rebased onto a main that contains it
+(`7aa23108`). Nothing blocks merging this PR and cutting the release.
 
 ## Peer review (2026-07-16)
 
@@ -97,6 +94,17 @@ main.**
   because its subprocess could not run `python -m pip`; the complete rerun
   above includes `pip` and passes. This was a test-environment issue, not a
   branch regression.
+
+## Open PR (2026-07-16)
+
+- `coga open-pr` first refused because main had moved past the peer-review
+  rebase; rebased the branch onto latest `origin/main` (`433538d3`, which
+  includes the #579 merge `7aa23108`), re-ran the full suite — 1270 passed —
+  then re-ran `coga open-pr`, which pushed and opened
+  [PR #587](https://github.com/FastJVM/coga/pull/587).
+- Note: the installed `coga` at `~/.local/bin` is the stale PyPI 0.2.0 (no
+  `open-pr` command — the exact skew this ticket fixes); ran the command from
+  source with `uv run --python 3.12 --with-editable . coga open-pr <slug>`.
 
 ## Remaining after merge (human, per docs/releasing.md)
 
