@@ -28,9 +28,11 @@ package's coga templates, builds the self-contained venv the vendored CLI
 runs out of, writes a starter `coga.local.toml`, and commits the new `coga/`.
 There is no in-place refresh command: bootstrap tickets, bundled skills,
 bundled contexts, and bundled reusable workflows resolve directly from the
-installed package, so picking up a new release is `pip install --upgrade coga`
-(or `git pull && pip install -e .` against a source checkout), not a
-per-repo refresh.
+installed package, so picking up a new release uses the installer that owns the
+CLI: `uv tool upgrade coga` for a uv tool install,
+`pip install --upgrade coga` in the CLI's Python environment, or
+`git pull && pip install -e .` against a source checkout — not a per-repo
+refresh.
 
 `pip install coga` installs bundled batteries into the wheel as package
 resources. It does not modify a repo. `coga init`

@@ -914,18 +914,39 @@ def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_clone, fake_venv) 
 def test_init_refuses_existing_coga_os(tmp_path: Path, fake_clone, fake_venv) -> None:
     """The refusal names the actual remedies — `--update` is gone, so the
     message must say what re-running init was probably reaching for: upgrade
-    the CLI via pip, recover a broken coga/ by fixing/removing it, or
-    `coga uninstall` to drop the footprint."""
+    the CLI with its owning installer, recover a broken coga/ by fixing/removing
+    it, or run `coga uninstall` from inside the target to drop the footprint."""
+    target = tmp_path / "occupied"
+    target.mkdir()
+    (target / "coga").mkdir()
+    (target / "coga" / "coga.toml").write_text("version = 1\n")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 2
+    assert "repo is already initialized" in result.output
+    assert "uv tool upgrade coga" in result.output
+    assert "pip install --upgrade coga" in result.output
+    assert "coga uninstall" in result.output
+    assert f"from inside {target}" in result.output
+    assert "remove the dir" in result.output
+
+
+def test_init_does_not_misidentify_unrelated_coga_path(
+    tmp_path: Path, fake_clone, fake_venv
+) -> None:
     target = tmp_path / "occupied"
     target.mkdir()
     (target / "coga").mkdir()
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+
     assert result.exit_code == 2
-    assert "already exists" in result.output
-    assert "pip install --upgrade coga" in result.output
-    assert "coga uninstall" in result.output
-    assert "remove the dir" in result.output
+    assert "does not look like an initialized Coga repo" in result.output
+    assert "coga.toml is missing" in result.output
+    assert "broken or partial Coga install" in result.output
+    assert "move or rename the existing path" in result.output
+    assert "repo is already initialized" not in result.output
+    assert "coga uninstall" not in result.output
 
 
 def test_init_into_missing_dir_errors_not_git_repo(
