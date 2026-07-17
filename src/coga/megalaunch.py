@@ -53,6 +53,7 @@ from coga.recurring_runner import (
 )
 from coga.compose import ComposeError, compose_prompt
 from coga.config import Config, ConfigError, SecretError, build_launch_env, load_config
+from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga.logfile import first_activity_map
 from coga.mark import mark_in_progress
@@ -612,7 +613,7 @@ def _preflight_agent_launch(
     if ticket.status not in {"active", "in_progress"}:
         return f"status is {ticket.status}; expected active or in_progress"
     if shutil.which(agent.cli) is None:
-        return f"agent CLI {agent.cli!r} not found in PATH"
+        return agent_cli_missing_message(agent.cli)
     try:
         compose_prompt(cfg, ref, ticket)
         build_launch_env(cfg, ticket.secrets)

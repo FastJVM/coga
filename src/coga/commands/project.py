@@ -23,6 +23,7 @@ from coga.commands.launch import (
 )
 from coga.compose import ComposeError
 from coga.config import ConfigError, load_config
+from coga.dependencies import agent_cli_missing_message
 from coga.tasks import (
     TaskNotFoundError,
     list_tasks,
@@ -77,7 +78,7 @@ def project(
         _bail(str(exc))
 
     if shutil.which(agent.cli) is None:
-        _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
+        _bail(agent_cli_missing_message(agent.cli))
 
     typer.echo(f"Project: planning with {launch_assignee} -> {agent.name}")
     before = {r.id_slug for r in list_tasks(cfg)}

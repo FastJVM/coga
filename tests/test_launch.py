@@ -1978,7 +1978,11 @@ def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyP
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 2
-    assert "not found in PATH" in (result.output + (result.stderr or ""))
+    combined = result.output + (result.stderr or "")
+    assert "not found in PATH" in combined
+    # The point-of-need error carries the manifest's install hint for the
+    # configured agent CLI (`claude` in the example fixture).
+    assert "https://claude.com/claude-code" in combined
 
 
 def test_launch_warns_for_large_blackboard(
@@ -2651,7 +2655,8 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     # Only claude ran; codex CLI missing → stop cleanly, hand back to caller.
     assert len(calls) == 1, calls
     assert calls[0][0] == "claude"
-    assert "not on PATH" in result.output
+    assert "not found in PATH" in result.output
+    assert "https://github.com/openai/codex" in result.output
 
     from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))

@@ -20,6 +20,7 @@ from coga.commands.launch import (
 )
 from coga.compose import ComposeError
 from coga.config import Config, ConfigError, load_config
+from coga.dependencies import agent_cli_missing_message
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -206,7 +207,7 @@ def _run_authoring_session(
 
     agent_path = shutil.which(agent.cli)
     if agent_path is None:
-        _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
+        _bail(agent_cli_missing_message(agent.cli))
 
     typer.echo(
         f"Ticket: authoring {ref.id_slug} with {launch_assignee} -> {agent.name}"
