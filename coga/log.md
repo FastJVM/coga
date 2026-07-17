@@ -1611,3 +1611,5 @@ Aborting
 2026-07-16 16:56 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
 2026-07-16 17:07 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-16 17:07 [log-md-coga-chat-too-so-we-have-a-full-view-of-the] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-16 16:55 [install/improve-reinit-already-exists-message] [megalaunch] launched via coga megalaunch
+2026-07-16 17:15 [install/improve-reinit-already-exists-message] [agent:codex] advanced to step 3 (open-pr) → assigned to claude

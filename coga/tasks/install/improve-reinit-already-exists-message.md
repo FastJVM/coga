@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -93,6 +93,28 @@ worktree: /home/n/Code/claude/coga-reinit-message
   `tests/test_usage_probe.py::test_codex_probe_primes_then_reads_fresh_rollout`
   failed once in a full-suite run, then passed alone and in a second full run.
 
-## Usage
+## Peer review (commit 4c2038c8)
 
-{"agent":"claude","cache_creation_input_tokens":68214,"cache_read_input_tokens":1145164,"cli":"claude","input_tokens":57,"model":"claude-fable-5","output_tokens":10315,"provider":"anthropic","schema":1,"session_id":"79d9f137-26b7-448f-8075-f1829d694073","slug":"install/improve-reinit-already-exists-message","step":"implement","title":"Improve reinit already-exists message","ts":"2026-07-16T04:23:05.386140Z","usage_status":"ok"}
+- Ran required `codex review --base main`; it found three must-fix P2s: the
+  upgrade guidance omitted the primary uv install path, any occupied `coga`
+  path was called an initialized repo, and `coga uninstall` did not say it must
+  run from inside an explicit init target.
+- Rebased cleanly and unconditionally onto current `origin/main` at 77e01f4c,
+  including a second freshness rebase after main advanced during review.
+- Applied all three findings: initialized layouts are proven by `coga.toml`,
+  unrelated occupied paths get safe conflict/recovery guidance, upgrade text
+  names uv and pip in the owning environment, and uninstall names its required
+  working directory. Updated the shipped `coga/cli` context to match.
+- Verification after the rebase and fixes: focused init suite 99 passed; full
+  Python 3.12 suite 1238 passed, 1 skipped; `git diff --check` clean. Feature
+  worktree is clean, two commits ahead of `main`, and zero behind.
+
+## PR
+
+Improve the `coga init` already-exists refusal so every suggested next step is
+safe and executable. Initialized repos now get installer-aware CLI upgrade,
+broken/partial recovery, and target-scoped uninstall guidance; an unrelated
+occupied `coga` path is distinguished explicitly and never called initialized.
+The shipped CLI context and regression coverage are updated with the behavior.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-reinit-message/src python -m pytest -p no:cacheprovider` (1238 passed, 1 skipped).
