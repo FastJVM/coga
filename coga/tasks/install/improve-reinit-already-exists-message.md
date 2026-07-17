@@ -1,7 +1,7 @@
 ---
 slug: install/improve-reinit-already-exists-message
 title: Improve reinit already-exists message
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
