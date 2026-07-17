@@ -374,3 +374,50 @@ def test_agent_deduction_without_tty_fails_on_tty_gate(repo: Path) -> None:
     assert result.exit_code == 2
     combined = result.output + (result.stderr or "")
     assert "an agent launch requires a TTY" in combined
+
+
+def test_script_launch_signals_done_sentinel_for_supervisor(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A successful script launch writes the slug-scoped done sentinel.
+
+    This is what releases a supervised agent REPL whose agent drove its own
+    script step via a nested `coga launch` — the step advance is that launch's
+    `coga bump`, and before this signal the outer session hung until a manual
+    Ctrl-C even though the step had advanced.
+    """
+    sentinel = tmp_path / "done-sentinel"
+    monkeypatch.setenv("COGA_DONE_SENTINEL", str(sentinel))
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "check"])
+
+    assert result.exit_code == 0, result.output
+    assert sentinel.read_text() == "check\n"
+
+
+def test_failed_script_launch_does_not_signal_done_sentinel(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failing script never signals done — the session's work isn't done."""
+    script = repo / "skills" / "ops" / "checker" / "check.sh"
+    script.write_text("#!/bin/sh\nexit 3\n")
+    script.chmod(0o755)
+    sentinel = tmp_path / "done-sentinel"
+    monkeypatch.setenv("COGA_DONE_SENTINEL", str(sentinel))
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Fail", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fail"])
+
+    assert result.exit_code == 3
+    assert not sentinel.exists()

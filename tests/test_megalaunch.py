@@ -1278,3 +1278,222 @@ def test_megalaunch_cli_picker_requires_tty(repo: Path) -> None:
 
     assert result.exit_code == 2
     assert "TTY" in result.output
+
+# --- script steps ---------------------------------------------------------------
+#
+# A script launch — a script-backed current step or a
+# ticket-owned `script:` — is megalaunch's to run, exactly like the
+# `coga launch` supervisor: the sweep executes the script in-process (no agent,
+# no REPL), exit 0 advances the step, and a non-zero exit fails that one task
+# without stopping the rest of the sweep.
+
+
+def _write_script_step_workflow(repo: Path) -> None:
+    """A three-step workflow with a deterministic script step in the middle."""
+    _write(
+        repo / "workflows" / "pr.md",
+        """
+        ---
+        name: pr
+        description: agent step, then a script step, then human review.
+        steps:
+          - name: implement
+            assignee: agent
+          - name: ship
+            assignee: agent
+            skills:
+              - ops/opener
+          - name: review
+            assignee: owner
+        ---
+        """,
+    )
+    _write(
+        repo / "skills" / "ops" / "opener" / "SKILL.md",
+        """
+        ---
+        name: ops/opener
+        description: deterministic step.
+        script: open.sh
+        ---
+
+        Opens the PR.
+        """,
+    )
+    script = repo / "skills" / "ops" / "opener" / "open.sh"
+    script.write_text('#!/bin/sh\ntouch "$PWD/pr-opened.txt"\n')
+    script.chmod(0o755)
+
+
+def test_megalaunch_runs_script_step_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ticket parked on a script-backed step launches: the sweep runs the
+    script itself, the step advances on exit 0, and the chain stops at the
+    human review handoff."""
+    _write_script_step_workflow(repo)
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Ship it",
+        workflow_name="pr",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(ref["path"])
+    ticket.frontmatter["step"] = "2 (ship)"
+    ticket.write(ref["path"])
+
+    def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a script step must not spawn an agent")
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert (cfg.repo_root.parent / "pr-opened.txt").exists()
+    assert run.counts["launched"] == 1
+    assert run.counts["completed"] == 1
+    assert "handed off to marc" in run.results[0].detail
+    after = Ticket.read(ref["path"])
+    assert after.step == "3 (review)"
+    assert after.assignee == "marc"
+
+
+def test_megalaunch_failed_script_step_fails_task_not_sweep(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-zero script exit fails that task's result, leaves the step put,
+    and the sweep still services the next task."""
+    _write_script_step_workflow(repo)
+    script = repo / "skills" / "ops" / "opener" / "open.sh"
+    script.write_text("#!/bin/sh\nexit 3\n")
+    script.chmod(0o755)
+    cfg = load_config(repo)
+    failing = create_task(
+        cfg=cfg,
+        title="A fail",
+        workflow_name="pr",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(failing["path"])
+    ticket.frontmatter["step"] = "2 (ship)"
+    ticket.write(failing["path"])
+    create_task(
+        cfg=cfg,
+        title="B run me",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert [(r.slug, r.outcome) for r in run.results] == [
+        ("a-fail", "failed"),
+        ("b-run-me", "completed"),
+    ]
+    assert "script step 2 (ship) exited with code 3" in run.results[0].detail
+    assert Ticket.read(failing["path"]).step == "2 (ship)"
+
+
+def test_megalaunch_chains_agent_bump_into_script_step(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When an agent step bumps into a script step, the chain runs the script
+    directly instead of spawning an agent REPL on it."""
+    _write_script_step_workflow(repo)
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Chain me",
+        workflow_name="pr",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    spawned_steps: list[str] = []
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        updated = Ticket.read(ref_obj.ticket_path)
+        spawned_steps.append(updated.step or "")
+        updated.frontmatter["step"] = "2 (ship)"
+        updated.frontmatter["assignee"] = "claude"
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert spawned_steps == ["1 (implement)"]
+    assert (cfg.repo_root.parent / "pr-opened.txt").exists()
+    assert run.counts["launched"] == 1
+    assert run.counts["completed"] == 1
+    after = Ticket.read(ref["path"])
+    assert after.step == "3 (review)"
+    assert after.assignee == "marc"
+
+
+def test_launchable_candidates_includes_script_step_tasks(repo: Path) -> None:
+    """Script launches run without an agent, so the picker offers them even
+    when the assignee isn't a configured agent — the same exemption
+    `coga launch` applies at its entry."""
+    from coga.megalaunch import launchable_candidates
+
+    _write_script_step_workflow(repo)
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Ship it",
+        workflow_name="pr",
+        contexts=[],
+        owner="marc",
+        assignee="marc",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(ref["path"])
+    ticket.frontmatter["step"] = "2 (ship)"
+    ticket.write(ref["path"])
+
+    candidates = launchable_candidates(cfg)
+
+    assert [r.id_slug for r, _ in candidates] == ["ship-it"]

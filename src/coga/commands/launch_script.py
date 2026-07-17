@@ -24,6 +24,7 @@ from coga.mark import StrandedProductCode, mark_done, mark_in_progress
 from coga.paths import log_path, resolve_skill_path, skill_resolution_paths
 from coga.skill import Skill
 from coga.notification import post
+from coga.repl_supervisor import emit_done_marker
 from coga.taskfile import split_body
 from coga.tasks import TargetRef
 from coga.ticket import Ticket
@@ -230,6 +231,16 @@ def run_script_mode(
     # (status / step) is unchanged by the script, so nothing is lost.
     if ref.ticket_path.exists():
         _advance_after_script(cfg, ref, Ticket.read(ref.ticket_path))
+
+    # The advance above is this launch's `coga bump`. When the script launch
+    # runs nested inside a supervised agent REPL (an agent driving its own
+    # script step with `coga launch`), the outer supervisor waits on the
+    # slug-scoped done sentinel that only `coga bump` / `mark done` / `block`
+    # used to write — without this the session hung until a manual Ctrl-C even
+    # though the step had advanced. A no-op when no supervisor is watching,
+    # and ignored by a supervisor launched for a different task (the sentinel
+    # content is this slug). Failure paths `sys.exit` above and never signal.
+    emit_done_marker(session_id=ref.id_slug)
 
 
 def _resolve_script(
