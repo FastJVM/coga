@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -110,8 +110,10 @@ Findings so far:
 
 ## Implement step — done
 
-Committed on `vendor-cli-from-package` (single commit, rebased onto
-origin/main 3aeb6dfe). What landed, matching the plan above:
+Committed on `vendor-cli-from-package` as a single commit
+`a096f899e4892422fd22c668b3d6621e102743d6`, rebased onto origin/main
+`64c4b96f1a80a6b3e38ec21fe42f6923cdf02d8a`. What landed, matching the plan
+above:
 
 - `commands/update.py`: `InstallSource` + `resolve_install_source()` +
   `_running_checkout_root()` (filesystem probe: `coga.__file__` under
@@ -139,10 +141,13 @@ origin/main 3aeb6dfe). What landed, matching the plan above:
   still-true bundled-batteries bullet — checked both; no edits needed there.
 
 Verification:
-- `python3.12 -m pytest`: 1211 passed, 1 failed —
-  `test_launch_script.py::test_bootstrap_script_launch_is_stateless` fails
-  identically on untouched main (environment: the subprocess interpreter
-  has no coga installed), pre-existing, not caused by this change.
+- `python3.12 -m pytest -p no:cacheprovider tests/test_init.py`: 104 passed.
+- `PYTHONPATH=/home/n/Code/claude/coga-vendor-cli/src python3.12 -m pytest
+  -p no:cacheprovider`: 1256 passed, 1 skipped. Without the absolute
+  `PYTHONPATH`, the suite has the known
+  `test_launch_script.py::test_bootstrap_script_launch_is_stateless` failure
+  because its subprocess cannot import coga; the exact test fails identically
+  on untouched current main and passes with that checkout source path.
 - End-to-end smoke in a fresh temp git repo:
   `PYTHONPATH=src python3.12 -m coga.cli init --user tester` → no clone, no
   `Cloning …` line, venv pip-installed from the checkout path,
@@ -150,6 +155,19 @@ Verification:
   `.venv/ bin/ COGA_PIN` (no `src/`), and the vendored
   `./coga/.coga/bin/coga --version` / `coga status` run cleanly against the
   scaffolded coga.toml — the original 0.2.0 breakage scenario.
+
+Freshness integration notes:
+- The rebase had one docs-only conflict in `docs/cli-extension-audit.md`; kept
+  current main's newer `create` semantics and this ticket's clone-free `init`
+  description.
+- Adapted a main-added init test from the deleted `fake_clone` fixture to
+  `fake_vendor`.
+- Corrected the remaining `--version` help text that still said "pinned
+  upstream SHA" and added a regression assertion.
+- Task-scoped `coga validate --task
+  install/vendor-cli-from-installed-package-not-git-clone --json` passes with
+  no issues. Repo-wide validation still reports unrelated pre-existing V2
+  draft `missing-step` errors and warnings; none reference this ticket.
 
 Note for review: the release path (`pip install coga==<version>` from PyPI)
 is covered by unit tests only — it can't be exercised end-to-end until the
@@ -160,3 +178,37 @@ running version exists on PyPI. A non-editable `pip install /path/to/checkout`
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"claude","input_tokens":null,"model":null,"output_tokens":null,"provider":"anthropic","schema":1,"session_id":"d4fc4818-2e93-4555-ba84-775487e44866","slug":"install/vendor-cli-from-installed-package-not-git-clone","step":"implement","title":"Vendor CLI from installed package not git clone","ts":"2026-07-16T17:03:04.815847Z","usage_status":"unknown"}
+
+## Peer review
+
+- Ran the required `codex review --base main`. It completed its diff analysis
+  and a full test pass, then recursively invoked the same review command before
+  emitting a final verdict; the nested invocation was interrupted rather than
+  allowed to loop.
+- The review pass found one must-fix contract gap: after pip succeeded, failure
+  to read the installed package version was silently accepted, leaving init
+  successful but without `COGA_PIN` or vendored-version output. Changed
+  `vendored_cli_version()` to fail loud so init's atomic rollback removes the
+  incomplete install; added missing-python and failed-probe regressions.
+- Review fix committed as `cd8bac21` (`peer-review: fail loud on missing
+  vendored version`). The implementation commit is now `d46facc9` after the
+  mandatory rebase onto current `origin/main` `f74bd29a`.
+- Final feature worktree is clean, `origin/main` is an ancestor, and the branch
+  is two commits ahead. `git diff --check origin/main...HEAD` passes.
+- Verification after the review fix and again after the fresh rebase:
+  `PYTHONPATH=/home/n/Code/claude/coga-vendor-cli/src python3.12 -m pytest
+  -p no:cacheprovider` — 1256 passed, 1 skipped. Focused init suite: 104 passed.
+  Task-scoped validation passes with one task OK and no issues.
+
+## PR
+
+Replace `coga init`'s shallow clone of current upstream main with a pip install
+from the running Coga distribution: the matching PyPI release for wheel
+installs, the source checkout for editable installs, or an explicit
+`COGA_REPO_URL` checkout/URL override. Record the redacted install source and
+the version actually installed in `COGA_PIN`, report both through
+`coga --version`, and fail atomically if the installed version cannot be read.
+Update the CLI/codebase documentation and init coverage for the clone-free
+path.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-vendor-cli/src python3.12 -m pytest -p no:cacheprovider` — 1256 passed, 1 skipped.
