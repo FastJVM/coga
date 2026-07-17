@@ -1913,3 +1913,13 @@ hint: 	git rebase
 hint: 
 hint: Disable this message with "git config advice.diverging false"
 fatal: Not possible to fast-forward, aborting.
+2026-07-17 14:40 [coga] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/13)
+error: could not apply e943eee3... Sync coga state
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply e943eee3... Sync coga state
+Auto-merging coga/tasks/validate-tickets-at-create-time.md
+CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time.md
+2026-07-17 15:47 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
