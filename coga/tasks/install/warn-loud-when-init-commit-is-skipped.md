@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -54,6 +54,7 @@ and `_check_external_dependencies` if going the up-front-check route).
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/584
 branch: init-identity-fail-loud
 worktree: /home/n/Code/claude/coga-init-identity
 

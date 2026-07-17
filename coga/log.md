@@ -1656,3 +1656,6 @@ Aborting
 2026-07-16 20:59 [install/warn-loud-when-init-commit-is-skipped] [megalaunch] launched via coga megalaunch
 2026-07-16 21:00 [install/warn-loud-when-init-commit-is-skipped] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-16 21:00 [install/warn-loud-when-init-commit-is-skipped] [system] script exited with code 2
+2026-07-16 21:02 [install/warn-loud-when-init-commit-is-skipped] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-16 21:02 [install/warn-loud-when-init-commit-is-skipped] [system] script exited with code 0
+2026-07-16 21:02 [install/warn-loud-when-init-commit-is-skipped] [system] advanced to step 4 (review) → assigned to nicktoper after script step
