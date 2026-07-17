@@ -1731,3 +1731,21 @@ Aborting
 2026-07-17 11:58 [important-alerts-the-task-owner-drop-important-rec] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-17 14:25 [important-alerts-the-task-owner-drop-important-rec] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done on branch drop-important-recipient — full suite green (1289 passed, 1 skipped); PR 578 was already closed
 2026-07-17 14:25 [important-alerts-the-task-owner-drop-important-rec] [system] {"agent":"claude","agent_turns":35,"cache_creation_input_tokens":903618,"cache_read_input_tokens":15575384,"cli":"claude","content_status":"ok","elapsed_seconds":8798.892694,"ended_at":"2026-07-17T21:25:31.596270Z","human_turns":0,"input_tokens":278,"model":"claude-opus-4-8","outcome":"Rebase clean — branch is `origin/main` + my one commit, tests pass, working tree clean. Now I'll return to the primary checkout (already here) and bump the workflow to the `peer-review` step, with a short FYI for the reviewer.","outcome_status":"completed","output_tokens":215836,"provider":"anthropic","request":null,"schema":2,"session_id":"3efe9e3b-3a37-433d-bfa8-7ed0ef579c10","slug":"important-alerts-the-task-owner-drop-important-rec","started_at":"2026-07-17T18:58:52.703576Z","step":"implement","title":"important alerts @ the task owner; drop important_recipient","ts":"2026-07-17T21:25:31.596270Z","usage_status":"ok"}
+2026-07-17 11:47 [validate-tickets-at-create-time] [human:nicktoper] unblocked (blocked → active): PR #592 opened with gh from validate-ticket-create and recorded on the blackboard.
+2026-07-17 11:47 [validate-tickets-at-create-time] [git] sync failed: `git add -- coga/tasks/validate-tickets-at-create-time.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-07-17 11:47 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-17 11:48 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-17 11:49 [validate-tickets-at-create-time] [human:nicktoper] resumed (active -> in_progress) after manual PR creation
+2026-07-17 11:49 [validate-tickets-at-create-time] [git] sync failed: `git add -- coga/tasks/validate-tickets-at-create-time.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-07-17 11:50 [validate-tickets-at-create-time] [agent:codex] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/592
+2026-07-17 11:50 [validate-tickets-at-create-time] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-17 11:50 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-17 14:30 [recurring/autoclose-merged] [system] created (status=active)
+2026-07-17 14:30 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-07-17
+2026-07-17 14:30 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-07-17
+2026-07-17 14:30 [recurring/blocker-reminders] [system] created (status=active)
+2026-07-17 14:30 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-07-17
+2026-07-17 14:30 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-07-17
+2026-07-17 14:30 [recurring/digest] [system] created (status=active)
+2026-07-17 14:30 [recurring/digest] [system] deleted completed prior-period task before 2026-07-17
+2026-07-17 14:30 [recurring/digest] [system] created recurring/digest for 2026-07-17
