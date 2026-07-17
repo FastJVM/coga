@@ -33,7 +33,7 @@ from coga.commands import uninstall as uninstall_cmd
 from coga.commands import unblock as unblock_cmd
 from coga.commands import usage as usage_cmd
 from coga.commands import validate as validate_cmd
-from coga.commands.update import read_pin
+from coga.commands.update import read_pin, read_pin_source
 from coga.config import ConfigError, find_repo_root, load_config
 
 
@@ -51,7 +51,9 @@ def _print_version_and_exit(value: bool) -> None:
         coga_os = None
     pin = read_pin(coga_os) if coga_os else None
     if pin is not None:
-        typer.echo(f"vendored from upstream {pin[:12]} (full: {pin})")
+        pin_source = read_pin_source(coga_os)
+        suffix = f" (from {pin_source})" if pin_source else ""
+        typer.echo(f"vendored CLI {pin}{suffix}")
     raise typer.Exit()
 
 
@@ -70,7 +72,7 @@ def _root(
         "--version",
         callback=_print_version_and_exit,
         is_eager=True,
-        help="Print the coga package version and pinned upstream SHA.",
+        help="Print the coga package and vendored CLI versions.",
     ),
 ) -> None:
     """Organize agent work in markdown."""

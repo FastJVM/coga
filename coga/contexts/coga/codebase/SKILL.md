@@ -91,7 +91,7 @@ Two sharp gotchas live here:
   managed skill's deps land.
 - **Vendored venv interpreter.** `install_venv` uses `COGA_PYTHON` when set,
   otherwise the interpreter running Coga, and validates that choice against
-  the vendored `requires-python` before touching the venv. An explicit override
+  the install source's `requires-python` before touching the venv. An explicit override
   is an interpreter-identity choice, not just an X.Y choice: if `pyvenv.cfg`
   records another executable, the venv is rebuilt. Missing `venv`/`ensurepip`
   errors name the matching Debian/Ubuntu `pythonX.Y-venv` package.

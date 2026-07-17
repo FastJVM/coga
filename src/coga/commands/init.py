@@ -14,7 +14,6 @@ import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
 import textwrap
 from pathlib import Path
 
@@ -23,16 +22,14 @@ import typer
 from coga.agent_skills import refresh_agent_skill_view
 from coga.commands.update import (
     _refresh_coga_gitignore,
-    clone_upstream,
     copy_fresh_templates,
     ensure_host_gitignore,
     install_venv,
     is_git_repo,
     nearest_existing_dir,
     packaged_template_root,
-    refresh_cli,
-    resolve_coga_repo_url,
-    upstream_sha,
+    resolve_install_source,
+    vendored_cli_version,
     write_bin_wrapper,
     write_pin,
 )
@@ -506,26 +503,26 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     nested = not (target / ".git").exists()
     is_empty = _repo_is_empty(target) and not nested
 
+    # Resolve where the vendored CLI installs from (the running release,
+    # source checkout, or COGA_REPO_URL override) before any writes, so a bad
+    # override fails loud and leaves nothing on disk.
+    source = resolve_install_source()
+
     target.mkdir(parents=True, exist_ok=True)
 
     # Init is atomic. The check above guarantees coga/ did not exist before
-    # this run, so if any step below fails — clone, template copy, venv build, a
+    # this run, so if any step below fails — template copy, venv build, a
     # Ctrl-C, even a sys.exit — we remove the half-built coga/ and re-raise.
     # A partial init must never survive: it is the dead end where a re-run of
     # `coga init` refuses ("already exists") yet the leftover coga/ has a broken
     # venv / missing user (the re-init wedge).
     try:
-        with tempfile.TemporaryDirectory(prefix="coga-init-") as tmp:
-            repo_url = resolve_coga_repo_url()
-            clone_dir = clone_upstream(Path(tmp) / "repo", repo_url=repo_url)
-            template_root = packaged_template_root()
-            copy_fresh_templates(template_root, coga_os)
-            # `.gitignore` shipped verbatim by copytree; wrap it in the
-            # coga-managed marker block so the fenced region stays distinct
-            # from user additions.
-            _refresh_coga_gitignore(template_root, coga_os)
-            refresh_cli(clone_dir, coga_os)
-            sha = upstream_sha(clone_dir)
+        template_root = packaged_template_root()
+        copy_fresh_templates(template_root, coga_os)
+        # `.gitignore` shipped verbatim by copytree; wrap it in the
+        # coga-managed marker block so the fenced region stays distinct
+        # from user additions.
+        _refresh_coga_gitignore(template_root, coga_os)
 
         # On a filled repo, drop the onboarding ticket(s) the template ships — a
         # real project doesn't want the bootstrap interview seeded for it.
@@ -537,9 +534,10 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         _stamp_user_into_delivered_tickets(coga_os, name)
 
         managed_skills = _install_managed_skills_or_exit(coga_os)
-        install_venv(coga_os)
+        install_venv(coga_os, source)
         write_bin_wrapper(coga_os / ".coga" / "bin")
-        write_pin(coga_os, sha, repo_url=repo_url)
+        vendored_version = vendored_cli_version(coga_os / ".coga" / ".venv")
+        write_pin(coga_os, source, vendored_version)
 
         local_toml = coga_os / "coga.local.toml"
         local_toml.write_text(render_local_toml(name))
@@ -577,8 +575,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             "Skipped the onboarding ticket (this dir already has a project) — "
             "create tasks with `coga ticket` when you're ready."
         )
-    if sha is not None:
-        typer.echo(f"Pinned to upstream {sha[:12]}.")
+    typer.echo(f"Vendored CLI coga {vendored_version} from {source.display}.")
     if wired_agents:
         names = ", ".join(wired_agents)
         typer.echo(f"Wired skill discovery for {names} (symlinked into their skill dirs).")

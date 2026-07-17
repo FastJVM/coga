@@ -23,9 +23,13 @@ Scaffold `coga/` in `PATH` (default `.`).
   existing coga repo is refused, as is a target the host repo gitignores
   (init must be able to commit `coga/`).
 
-It clones the upstream CLI into the repo's `coga/.coga/`, copies the
-package's coga templates, builds the self-contained venv the vendored CLI
-runs out of, writes a starter `coga.local.toml`, and commits the new `coga/`.
+It copies the package's coga templates, builds the self-contained venv the
+vendored CLI runs out of, writes a starter `coga.local.toml`, and commits the
+new `coga/`. The venv's coga is pip-installed from the *running*
+distribution — `coga==<running version>` from PyPI for wheel installs, the
+source checkout itself for editable installs — never from a fresh upstream
+clone, so the vendored copy is exactly the CLI that ran init. `COGA_REPO_URL`
+overrides the source explicitly (a local checkout path or a git URL).
 There is no in-place refresh command: bootstrap tickets, bundled skills,
 bundled contexts, and bundled reusable workflows resolve directly from the
 installed package, so picking up a new release uses the installer that owns the
@@ -733,8 +737,9 @@ error row instead of crashing the view.
 
 ## coga --version
 
-Package version + the upstream commit SHA `.coga/` was vendored from.
-Useful for "is this fixed in your copy?" questions.
+Package version + the version and install source `.coga/` was vendored from
+(recorded in `.coga/COGA_PIN` at init). Useful for "is this fixed in your
+copy?" questions.
 
 ## Aliases
 

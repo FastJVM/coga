@@ -1,12 +1,20 @@
 """Bootstrap helpers used by `coga init`.
 
-Pulls upstream CLI source into `coga/.coga/`, copies coga templates from the
-installed package resources, and stands up the self-contained venv the vendored
-CLI runs out of. No Typer commands live here.
+Copies coga templates from the installed package resources and stands up the
+self-contained venv the vendored CLI runs out of. The venv's coga comes from
+the running distribution — the release version for wheel installs, the source
+checkout for editable installs — never from a fresh upstream clone, so the
+vendored copy is exactly the CLI that ran init. No Typer commands live here.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from importlib.metadata import (
+    PackageNotFoundError,
+    metadata as _pkg_metadata,
+    version as _pkg_version,
+)
 from importlib.resources import files
 from importlib.resources.abc import Traversable
 import os
@@ -19,19 +27,12 @@ from pathlib import Path
 
 import typer
 
-from coga.github_source import (
-    git_clone_source,
-    is_ssh_git_source,
-    redacted_git_source,
-    same_github_repo,
-)
+import coga
+from coga.github_source import pip_git_source, redacted_git_source
 
 
 COGA_REPO_URL = "https://github.com/FastJVM/coga"
 COGA_REPO_URL_ENV = "COGA_REPO_URL"
-COGA_REMOTE_NAMES = ("upstream", "origin")
-TEMPLATE_SUBPATH = Path("src/coga/resources/templates/coga")
-CLI_SRC_SUBPATH = Path("src/coga")
 TEMPLATE_RESOURCE_PACKAGE = "coga.resources"
 TEMPLATE_RESOURCE_PATH = ("templates", "coga")
 
@@ -45,78 +46,178 @@ _LEGACY_COGA_GITIGNORE_ENTRIES: set[str] = {
 }
 
 
-def resolve_coga_repo_url(
-    *,
-    coga_os: Path | None = None,
-    cwd: Path | None = None,
-) -> str:
-    """Return the Coga upstream URL respecting the operator's git transport."""
-    env_url = os.environ.get(COGA_REPO_URL_ENV, "").strip()
-    if env_url:
-        return git_clone_source(env_url)
-    remote_url = _detect_matching_coga_remote(cwd or Path.cwd())
-    if remote_url:
-        return remote_url
-    pinned_url = read_pin_url(coga_os) if coga_os is not None else None
-    return git_clone_source(pinned_url) if pinned_url else COGA_REPO_URL
+@dataclass(frozen=True)
+class InstallSource:
+    """Where `install_venv` gets the coga package it puts in the vendored venv.
+
+    `pip_spec` is the literal requirement handed to `pip install`. `display`
+    is the redacted, human-readable provenance recorded in COGA_PIN and echoed
+    to the operator (never credential-bearing). `requires_python` is the
+    source's requires-python spec when it is knowable before installing;
+    None skips the pre-install interpreter check and leaves it to pip.
+    """
+
+    kind: str  # "release" | "checkout" | "url"
+    pip_spec: str
+    display: str
+    requires_python: str | None = None
 
 
-def clone_upstream(into: Path, *, repo_url: str | None = None) -> Path:
-    """Shallow-clone the coga repo into `into`. Exit on failure. Return the path."""
-    url = git_clone_source(repo_url or resolve_coga_repo_url())
-    safe_url = redacted_git_source(url)
-    typer.echo(f"Cloning {safe_url} (shallow)…")
-    result = subprocess.run(
-        ["git", "clone", "--depth=1", url, str(into)],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        stderr = result.stderr.replace(url, safe_url)
+def resolve_install_source() -> InstallSource:
+    """Decide where the vendored venv's coga comes from.
+
+    In order: the `COGA_REPO_URL` override — a local checkout path (the
+    sanctioned source-install path) or a git URL pip can install from; the
+    source checkout the running package is imported from (editable installs);
+    else the running package's own release from PyPI (`pip install
+    coga==<running version>`). The vendored copy is therefore always the CLI
+    that ran init — never upstream main. Exits loud when the override doesn't
+    name a usable source or the running version can't be determined.
+    """
+    override = os.environ.get(COGA_REPO_URL_ENV, "").strip()
+    if override:
+        path = Path(override).expanduser()
+        if path.is_dir():
+            return _checkout_install_source(
+                path.resolve(), origin=f"{COGA_REPO_URL_ENV} override"
+            )
+        return InstallSource(
+            kind="url",
+            pip_spec=pip_git_source(override),
+            display=redacted_git_source(override),
+        )
+    checkout = _running_checkout_root()
+    if checkout is not None:
+        return _checkout_install_source(checkout, origin="running source checkout")
+    try:
+        version = _pkg_version("coga")
+    except PackageNotFoundError:
+        version = None
+    if not version:
         typer.secho(
-            f"git clone failed:\n{stderr}",
+            "Cannot determine which coga to vendor: no installed `coga` "
+            "distribution and not running from a source checkout.\n"
+            f"Set {COGA_REPO_URL_ENV} to a coga checkout path or git URL and "
+            "re-run.",
             fg=typer.colors.RED,
             err=True,
         )
         sys.exit(2)
-    return into
-
-
-def upstream_sha(clone_dir: Path) -> str | None:
-    """Return the HEAD SHA of `clone_dir`, or None if `git rev-parse` fails."""
-    result = subprocess.run(
-        ["git", "-C", str(clone_dir), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
+    return InstallSource(
+        kind="release",
+        pip_spec=f"coga=={version}",
+        display=f"coga=={version} (PyPI)",
+        requires_python=_running_requires_python(),
     )
-    if result.returncode != 0:
+
+
+def _running_checkout_root() -> Path | None:
+    """Root of the source checkout the running coga is imported from, or None.
+
+    An editable / in-tree run imports the package straight from a checkout's
+    `src/coga/`, under a root whose `pyproject.toml` declares the `coga`
+    project. A wheel install (site-packages) never has that shape.
+    """
+    location = getattr(coga, "__file__", None)
+    if not location:
         return None
-    sha = result.stdout.strip()
-    return sha or None
+    pkg_dir = Path(location).resolve().parent
+    if pkg_dir.name != "coga" or pkg_dir.parent.name != "src":
+        return None
+    root = pkg_dir.parents[1]
+    if _pyproject_project_name(root / "pyproject.toml") != "coga":
+        return None
+    return root
+
+
+def _checkout_install_source(root: Path, *, origin: str) -> InstallSource:
+    """An InstallSource for a coga source checkout at `root`. Exits if it isn't one."""
+    pyproject = root / "pyproject.toml"
+    if _pyproject_project_name(pyproject) != "coga":
+        typer.secho(
+            f"{root} ({origin}) is not a coga source checkout — {pyproject} "
+            "is missing or doesn't declare project name `coga`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    return InstallSource(
+        kind="checkout",
+        pip_spec=str(root),
+        display=str(root),
+        requires_python=_requires_python_spec(pyproject),
+    )
+
+
+def _pyproject_project_name(pyproject: Path) -> str | None:
+    """`project.name` from a pyproject.toml, or None if absent/unreadable."""
+    try:
+        data = tomllib.loads(pyproject.read_text())
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    name = data.get("project", {}).get("name")
+    return name if isinstance(name, str) and name.strip() else None
+
+
+def _running_requires_python() -> str | None:
+    """Requires-Python of the running coga distribution, or None."""
+    try:
+        return _pkg_metadata("coga").get("Requires-Python") or None
+    except PackageNotFoundError:
+        return None
+
+
+def vendored_cli_version(venv_dir: Path) -> str:
+    """The coga version pip actually installed into `venv_dir`.
+
+    A successful init must record the installed version in COGA_PIN. If the
+    freshly-built venv cannot report it, fail loud so init's atomic rollback
+    removes the incomplete install instead of leaving an unpinned vendored CLI.
+    """
+    venv_python = venv_dir / "bin" / "python"
+    try:
+        result = subprocess.run(
+            [
+                str(venv_python),
+                "-c",
+                "from importlib.metadata import version; print(version('coga'))",
+            ],
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        detail = str(exc)
+    else:
+        version = result.stdout.strip()
+        if result.returncode == 0 and version:
+            return version
+        detail = result.stderr.strip() or "the version probe returned no output"
+    typer.secho(
+        "Cannot determine the coga version installed in the vendored venv: "
+        f"{detail}",
+        fg=typer.colors.RED,
+        err=True,
+    )
+    sys.exit(2)
 
 
 def write_pin(
     coga_os: Path,
-    sha: str | None,
-    *,
-    repo_url: str | None = None,
-) -> Path | None:
-    """Record the upstream commit `coga/.coga/` was vendored from.
+    source: InstallSource,
+    version: str,
+) -> Path:
+    """Record what `coga/.coga/` was vendored from: install source + version.
 
-    Skips the write if `sha` is None (clone-without-git in tests, mostly).
     Returns the pin path on success.
     """
-    if sha is None:
-        return None
     pin = coga_os / ".coga" / "COGA_PIN"
     pin.parent.mkdir(parents=True, exist_ok=True)
-    url = repo_url or resolve_coga_repo_url(coga_os=coga_os)
-    pin.write_text(f"{redacted_git_source(url)}\n{sha}\n")
+    pin.write_text(f"{source.display}\n{version}\n")
     return pin
 
 
-def read_pin_url(coga_os: Path) -> str | None:
-    """Return the pinned upstream URL from `.coga/COGA_PIN`, or None."""
+def read_pin_source(coga_os: Path) -> str | None:
+    """Return the install source recorded in `.coga/COGA_PIN`, or None."""
     pin = coga_os / ".coga" / "COGA_PIN"
     if not pin.is_file():
         return None
@@ -127,7 +228,11 @@ def read_pin_url(coga_os: Path) -> str | None:
 
 
 def read_pin(coga_os: Path) -> str | None:
-    """Return the pinned upstream SHA from `.coga/COGA_PIN`, or None if absent/garbled."""
+    """Return the pinned vendored version from `.coga/COGA_PIN`, or None.
+
+    Pre-PyPI pins recorded an upstream commit SHA on this line instead of a
+    package version; both are reported as-is.
+    """
     pin = coga_os / ".coga" / "COGA_PIN"
     if not pin.is_file():
         return None
@@ -135,58 +240,6 @@ def read_pin(coga_os: Path) -> str | None:
     if len(lines) < 2:
         return None
     return lines[1]
-
-
-def _detect_matching_coga_remote(cwd: Path) -> str | None:
-    matches: list[str] = []
-    for remote in COGA_REMOTE_NAMES:
-        url = _git_remote_url(cwd, remote)
-        if url and same_github_repo(url, COGA_REPO_URL):
-            matches.append(url)
-    for url in matches:
-        if is_ssh_git_source(url):
-            return url
-    return matches[0] if matches else None
-
-
-def _git_remote_url(cwd: Path, remote: str) -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(cwd), "remote", "get-url", remote],
-            capture_output=True,
-            text=True,
-        )
-    except OSError:
-        return None
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
-
-
-def refresh_cli(clone_dir: Path, coga_os: Path) -> None:
-    """Replace `coga/.coga/src/coga/` (+ pyproject + requirements + readme) from the clone."""
-    src = clone_dir / CLI_SRC_SUBPATH
-    if not src.is_dir():
-        typer.secho(
-            f"Upstream layout changed — {CLI_SRC_SUBPATH} not found in clone.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
-
-    dst_coga = coga_os / ".coga"
-    dst_src = dst_coga / "src" / "coga"
-    if dst_src.exists():
-        shutil.rmtree(dst_src)
-    dst_src.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(src, dst_src)
-
-    # README.md is required: pyproject.toml declares `readme = "README.md"`, so
-    # the vendored copy fails to build/install without it.
-    for fname in ("pyproject.toml", "requirements.txt", "README.md"):
-        upstream_file = clone_dir / fname
-        if upstream_file.is_file():
-            shutil.copy2(upstream_file, dst_coga / fname)
 
 
 def packaged_template_root() -> Traversable:
@@ -531,12 +584,16 @@ def hash_checking_hint(stderr: str) -> str:
     )
 
 
-def install_venv(coga_os: Path) -> Path:
-    """Create `.coga/.venv/` and `pip install` the vendored coga package into it.
+def install_venv(coga_os: Path, source: InstallSource | None = None) -> Path:
+    """Create `.coga/.venv/` and `pip install` coga into it from `source`.
+
+    `source` defaults to `resolve_install_source()` — the running release for
+    wheel installs, the running source checkout for editable installs, or the
+    `COGA_REPO_URL` override.
 
     The venv's interpreter comes from `resolve_venv_python()` ($COGA_PYTHON,
-    else the Python running this CLI) and is validated against the vendored
-    copy's `requires-python` before anything is built, so an interpreter the
+    else the Python running this CLI) and is validated against the source's
+    `requires-python` before anything is built, so an interpreter the
     install method tolerated but the vendored build can't use fails here with
     remediation instead of half-way through a broken bootstrap.
 
@@ -547,16 +604,9 @@ def install_venv(coga_os: Path) -> Path:
     can leave a broken interpreter symlink).
     Returns the venv path. Exits with a clear error if Python venv/pip aren't usable.
     """
-    dst_coga = coga_os / ".coga"
-    venv_dir = dst_coga / ".venv"
-    pyproject = dst_coga / "pyproject.toml"
-    if not pyproject.is_file():
-        typer.secho(
-            f"Cannot bootstrap venv: missing {pyproject}.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
+    venv_dir = coga_os / ".coga" / ".venv"
+    if source is None:
+        source = resolve_install_source()
 
     python = resolve_venv_python()
     python_version = _python_version(python)
@@ -568,12 +618,12 @@ def install_venv(coga_os: Path) -> Path:
             err=True,
         )
         sys.exit(2)
-    spec = _requires_python_spec(pyproject)
+    spec = source.requires_python
     if spec is not None and not _version_satisfies(python_version, spec):
         version_str = ".".join(str(p) for p in python_version)
         typer.secho(
-            f"Python {version_str} ({python}) does not satisfy the vendored "
-            f"CLI's requires-python ({spec}).\n"
+            f"Python {version_str} ({python}) does not satisfy coga's "
+            f"requires-python ({spec}).\n"
             f"Re-run with a suitable interpreter, e.g. "
             f"{COGA_PYTHON_ENV}=python3.11 coga init …",
             fg=typer.colors.RED,
@@ -636,21 +686,23 @@ def install_venv(coga_os: Path) -> Path:
             typer.secho(message, fg=typer.colors.RED, err=True)
             sys.exit(2)
 
-    typer.echo("Installing vendored CLI into venv (pip install)…")
+    typer.echo(f"Installing vendored CLI into venv (pip install {source.display})…")
     result = subprocess.run(
         [
             str(venv_dir / "bin" / "python"),
             "-m", "pip", "install",
             "--quiet", "--upgrade",
-            str(dst_coga),
+            source.pip_spec,
         ],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
+        # A `url` source's pip spec may carry credentials — never echo it raw.
+        stderr = result.stderr.replace(source.pip_spec, source.display)
         typer.secho(
-            f"pip install failed:\n{result.stderr}"
-            f"{hash_checking_hint(result.stderr)}",
+            f"pip install failed:\n{stderr}"
+            f"{hash_checking_hint(stderr)}",
             fg=typer.colors.RED,
             err=True,
         )
