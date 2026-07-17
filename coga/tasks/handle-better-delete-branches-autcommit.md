@@ -1,16 +1,34 @@
 ---
 slug: handle-better-delete-branches-autcommit
 title: handle better delete branches + autcommit
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
 contexts:
-  - dev/code
+- dev/code
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -100,7 +118,7 @@ branch: retire-deletes-branch
 worktree: (none — committed from the primary checkout)
 pr: https://github.com/FastJVM/relay/pull/443
 
-## Implementation
+## Production notes
 
 Done in the primary checkout (interactive, draft ticket — no workflow step
 running, so nothing to `bump`). Branch deletion runs **synchronously in
