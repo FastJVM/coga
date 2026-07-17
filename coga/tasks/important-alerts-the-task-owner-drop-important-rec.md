@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -66,4 +66,61 @@ sync (four files: sync + important, live + packaged).
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Plan
+
+Drop `[notification.slack].important_recipient` end to end. `important_webhook`
+is a separate live key and stays. Verified nothing reads
+`slack_important_recipient`: `render_text` (`notification/slack.py:39`) @'s the
+owner passed by callers, and `coga slack --important` passes
+`owner=ticket.owner or cfg.current_user` (`commands/slack.py:58`). So the
+owner-mention is already the behavior; removing the key changes no runtime path.
+
+Surface (surgical, recipient only):
+- `src/coga/config.py`: drop the `slack_important_recipient` field, its unpack +
+  constructor kwarg, the `"important_recipient"` allow-list entry, the resolver
+  call + return-tuple slot + type-annotation line, and the whole
+  `_resolve_notification_slack_important_recipient` fn. Update the comment above
+  `_ALLOWED_SLACK_KEYS` to name only `important_webhook`.
+- `tests/test_notification.py`: delete the `important_recipient` test section.
+- `coga/coga.toml` + packaged `src/coga/resources/templates/coga/coga.toml`:
+  remove the commented `important_recipient` example blocks.
+- `coga/contexts/coga/{sync,important}/SKILL.md` + packaged copies: rewrite to
+  owner-based triage, drop the recipient key/field.
+
+## Notes
+
+- PR 578 is already CLOSED (`gh pr view 578`) — nothing to close.
+- Live and packaged `sync`/`important` contexts are byte-identical pre-edit; keep
+  them identical after.
+- The fail-loud win: once the allow-list entry is gone, an active
+  `important_recipient = …` in a downstream `coga.toml`/`coga.local.toml` raises
+  at load instead of being silently accepted.
+
+## Dev
+
+branch: drop-important-recipient
+worktree: /Users/zach2179/dev/coga-drop-important-recipient
+
+## Done (implement step)
+
+Removed `important_recipient` end to end; `important_webhook` untouched.
+- `config.py`: dropped the `slack_important_recipient` field, unpack + constructor
+  kwarg, allow-list entry, resolver call + return slot + type-annotation line, and
+  the `_resolve_notification_slack_important_recipient` fn. Comment above
+  `_ALLOWED_SLACK_KEYS` now names only `important_webhook`.
+- `tests/test_notification.py`: deleted the `important_recipient` section (6 tests
+  + helper).
+- Both `coga.toml` copies: removed the commented `important_recipient` examples.
+- `coga/sync` + `coga/important` contexts (live + packaged): rewritten to
+  owner-based triage; live/packaged copies verified byte-identical.
+
+Verification (all run against the worktree source via `PYTHONPATH=…/src`, since
+the editable install points at the primary checkout):
+- Full suite: 1289 passed, 1 skipped.
+- Field removed / webhook kept / resolver gone / allow-list correct — asserted.
+- Fail-loud confirmed: an active `important_recipient = …` now raises
+  `ConfigError: unknown key(s) ['important_recipient']` at load.
+- `coga validate --json`: introduces zero issues vs `main` (the lone delta is a
+  `missing-user` warning from the fresh worktree having no gitignored
+  `coga.local.toml`).
+- PR 578 already CLOSED — nothing to close.
