@@ -1,7 +1,7 @@
 ---
 slug: coga-important/add-coga-slack-important
 title: add-coga-slack-important
-status: in_progress
+status: done
 owner: zach
 human: zach
 agent: claude
@@ -27,7 +27,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
