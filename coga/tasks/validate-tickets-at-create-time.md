@@ -1,7 +1,7 @@
 ---
 slug: validate-tickets-at-create-time
 title: Validate tickets at create time
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
