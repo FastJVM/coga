@@ -1,7 +1,7 @@
 ---
 slug: handle-better-delete-branches-autcommit
 title: handle better delete branches + autcommit
-status: active
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
 ---
 
 ## Description
