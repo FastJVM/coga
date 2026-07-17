@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -52,6 +52,7 @@ behind. Touchpoint: `src/coga/commands/init.py` (`_do_init`, the
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/588
 branch: reinit-message
 worktree: /home/n/Code/claude/coga-reinit-message
 
@@ -108,6 +109,16 @@ worktree: /home/n/Code/claude/coga-reinit-message
 - Verification after the rebase and fixes: focused init suite 99 passed; full
   Python 3.12 suite 1238 passed, 1 skipped; `git diff --check` clean. Feature
   worktree is clean, two commits ahead of `main`, and zero behind.
+
+## Open-pr step
+
+- `coga open-pr` first refused: main had advanced again with overlap on
+  `src/coga/commands/init.py` / `tests/test_init.py`. Rebased cleanly onto
+  latest `origin/main`, re-ran the full suite (1270 passed, 1 skipped), then
+  re-ran the command — PR opened and recorded: pr #588.
+- Note: the globally installed `coga` (`~/.local/bin/coga`) predates the
+  `open-pr` command; ran it from source via the repo venv
+  (`PYTHONPATH=src .venv/bin/python -m coga.cli`).
 
 ## PR
 
