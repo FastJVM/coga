@@ -15,7 +15,7 @@ from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import log_path
 from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV
-from coga.taskfile import join_task_body, read_blackboard
+from coga.taskfile import join_task_body, read_blackboard, replace_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
 
@@ -424,6 +424,71 @@ def test_bump_no_workflow_errors_with_mark_done_hint(repo: Path) -> None:
     assert f"coga mark done {slug}" in result.output
     t = Ticket.read(task_path)
     assert t.status == "in_progress"
+
+
+# --- bump completion gate (`requires:`) --------------------------------------
+
+
+def _set_step_requires(task_path: Path, step_idx0: int, token: object) -> None:
+    """Add `requires: <token>` to the 0-based frozen workflow step."""
+    t = Ticket.read(task_path)
+    t.frontmatter["workflow"]["steps"][step_idx0]["requires"] = token
+    t.write(task_path)
+
+
+def _record_pr(task_path: Path, url: str) -> None:
+    """Write a `## Dev` `pr:` line into the task blackboard.
+
+    The blackboard region conventionally begins right after the fence, so it
+    starts with a newline (matching `read_blackboard`'s output); without it the
+    `## Dev` header would weld onto the fence line and break the fence match.
+    """
+    replace_blackboard(task_path, f"\n\n## Dev\npr: {url}\n")
+
+
+def test_bump_gate_blocks_until_required_artifact_recorded(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    _set_step_requires(task_path, 0, "pr")  # gate the current `implement` step
+    runner = CliRunner()
+
+    # No `pr:` recorded → the bump is refused, the step does not move.
+    blocked = runner.invoke(app, ["bump", slug])
+    assert blocked.exit_code == 2, blocked.output
+    assert "requires a recorded `pr`" in blocked.output
+    assert f"coga open-pr {slug}" in blocked.output
+    assert Ticket.read(task_path).step == "1 (implement)"
+
+    # Record the artifact → the same bump now advances.
+    _record_pr(task_path, "https://github.com/acme/repo/pull/5")
+    allowed = runner.invoke(app, ["bump", slug])
+    assert allowed.exit_code == 0, allowed.output
+    assert Ticket.read(task_path).step == "2 (pr)"
+
+
+def test_bump_rewind_ignores_requires_gate(repo: Path) -> None:
+    """A human rewind is never gated — only forward advancement is."""
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])  # 1 (implement) -> 2 (pr)
+    _set_step_requires(task_path, 1, "pr")  # gate step 2, leave no `pr:` recorded
+
+    result = runner.invoke(app, ["bump", slug, "--backward"])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).step == "1 (implement)"
+
+
+def test_bump_gate_fails_loud_on_non_string_requires(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    _set_step_requires(task_path, 0, ["pr"])
+
+    result = CliRunner().invoke(app, ["bump", slug])
+
+    assert result.exit_code == 2, result.output
+    assert "malformed `requires:" in result.output
+    assert "must be strings" in result.output
+    assert not isinstance(result.exception, TypeError)
+    assert Ticket.read(task_path).step == "1 (implement)"
 
 
 # --- block / unblock ----------------------------------------------------------

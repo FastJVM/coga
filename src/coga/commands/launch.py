@@ -229,10 +229,9 @@ def launch(
     if not is_bootstrap and ticket.status not in {"draft", "paused"}:
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
-    # A script launch — the current step is a script step (e.g. code/open-pr)
-    # or the ticket carries its own `script:` — runs with no agent, through
-    # run_script_mode. The script uses the feature worktree recorded under
-    # `## Dev`.
+    # A script launch — the current step has one script-backed skill or the
+    # ticket carries its own `script:` — runs with no agent through
+    # run_script_mode.
     run_current_as_script = is_script_launch(cfg, ticket)
 
     try:

@@ -73,6 +73,7 @@ from coga.tasks import (
     resolve_task,
 )
 from coga.ticket import Ticket, TicketError
+from coga.step_gate import known_gate_tokens
 from coga.workflow import VALID_ASSIGNEE_ROLES
 
 VALID_STATUSES = {"draft", "active", "in_progress", "blocked", "paused", "done"}
@@ -695,6 +696,19 @@ def _check_step_shape(task_label: str, idx: int, step: Any) -> list[Issue]:
             message=(
                 f"workflow step #{idx} assignee {assignee!r} must be one of "
                 f"{sorted(VALID_ASSIGNEE_ROLES)}"
+            ),
+            severity="error",
+        ))
+    requires = step.get("requires")
+    if requires is not None and (
+        not isinstance(requires, str) or requires not in known_gate_tokens()
+    ):
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=(
+                f"workflow step #{idx} requires {requires!r} must be one of "
+                f"{sorted(known_gate_tokens())} (a registered completion gate)"
             ),
             severity="error",
         ))

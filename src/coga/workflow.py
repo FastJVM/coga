@@ -33,6 +33,10 @@ class WorkflowStep:
     name: str
     skills: tuple[str, ...] = ()
     assignee: str | None = None  # role token: "owner" | "human" | "agent"
+    # Completion gate token (see coga.step_gate). When set, `coga bump` refuses
+    # to advance off this step until the named artifact is recorded on the
+    # blackboard — e.g. `requires: pr` on the `open-pr` step.
+    requires: str | None = None
 
 
 @dataclass
@@ -87,6 +91,8 @@ class Workflow:
             entry: dict[str, Any] = {"name": step.name, "skills": list(step.skills)}
             if step.assignee:
                 entry["assignee"] = step.assignee
+            if step.requires:
+                entry["requires"] = step.requires
             out["steps"].append(entry)
         return out
 
@@ -121,7 +127,19 @@ def _parse_step(raw: Any, source: Path) -> WorkflowStep:
             f"{source}: step {name!r} assignee {assignee!r} must be one of "
             f"{sorted(VALID_ASSIGNEE_ROLES)} (role token only — literal nicknames not allowed)"
         )
-    return WorkflowStep(name=name, skills=tuple(skills_raw), assignee=assignee)
+    requires = raw.get("requires")
+    if requires is not None:
+        # Imported lazily to avoid a module-load cycle (step_gate -> autoclose).
+        from coga.step_gate import known_gate_tokens
+
+        if not isinstance(requires, str) or requires not in known_gate_tokens():
+            raise WorkflowError(
+                f"{source}: step {name!r} requires {requires!r} must be one of "
+                f"{sorted(known_gate_tokens())} (a registered completion gate)"
+            )
+    return WorkflowStep(
+        name=name, skills=tuple(skills_raw), assignee=assignee, requires=requires
+    )
 
 
 def _parse_inline_sections(body: str, step_names: set[str]) -> dict[str, str]:

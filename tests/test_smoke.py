@@ -23,7 +23,7 @@ from coga.create import create_task
 from coga.compose import compose_prompt
 from coga.config import load_config
 from coga.logfile import task_log_lines
-from coga.taskfile import fence_count, read_blackboard
+from coga.taskfile import fence_count, read_blackboard, replace_blackboard
 from coga.tasks import list_tasks, read_ticket
 from coga.ticket import Ticket
 from coga.validate import run as validate_run
@@ -94,11 +94,22 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Agent mode" in prompt
     assert "Blackboard" in prompt
 
-    # 3. Advance steps. Workflow has 4 steps; 3 bumps walk to the last step,
-    #    then `coga mark done` finishes the ticket.
+    # 3. Advance steps. The PR step cannot advance until its required artifact
+    #    is recorded, then the remaining bumps walk to the last step and
+    #    `coga mark done` finishes the ticket.
     runner = CliRunner()
     slug = ref["slug"]
-    for _ in range(3):
+    r = runner.invoke(app, ["bump", slug])
+    assert r.exit_code == 0, r.output
+    r = runner.invoke(app, ["bump", slug])
+    assert r.exit_code == 2
+    assert "requires a recorded `pr`" in r.output
+    replace_blackboard(
+        task_path,
+        read_blackboard(task_path)
+        + "\n\n## Dev\npr: https://github.com/acme/example/pull/1\n",
+    )
+    for _ in range(2):
         r = runner.invoke(app, ["bump", slug])
         assert r.exit_code == 0, r.output
     r = runner.invoke(app, ["mark", "done", slug])

@@ -1,5 +1,5 @@
-"""Tests for the `code/open-pr` recipe — the deterministic push→PR→record logic
-behind the `code/open-pr` script step (loaded from the skill dir, see below).
+"""Tests for `coga.open_pr`, the deterministic push→PR→record recipe behind
+the `coga open-pr` command.
 
 Uses the real-git harness (`init_git_repo`) so branch/commit/push behaviour is
 exercised for real against a bare `origin`, and a fake `gh` on PATH so the PR
@@ -22,17 +22,8 @@ from conftest import init_git_repo
 from coga.autoclose import parse_pr_url, parse_worktree_path
 from coga.config import load_config
 from coga.github_preflight import CheckResult
+from coga.open_pr import OpenPrError, open_pr, set_dev_pr
 from coga.taskfile import read_blackboard
-
-# The open-pr recipe lives beside the skill's run.py in the skill dir (the skill
-# is self-contained), not in the `coga` package. Load it the way a script step
-# does — put the skill dir on sys.path and import the sibling `recipe` module.
-import sys
-
-_OPEN_PR_SKILL_DIR = Path(__file__).resolve().parents[1] / "coga" / "skills" / "code" / "open-pr"
-sys.path.insert(0, str(_OPEN_PR_SKILL_DIR))
-
-from recipe import OpenPrError, open_pr, set_dev_pr  # noqa: E402
 
 
 # --- fixtures / helpers -------------------------------------------------------
@@ -113,7 +104,7 @@ def _write_ticket(
         f"slug: {slug}\n"
         "title: Ship the change\n"
         "status: in_progress\n"
-                "owner: marc\n"
+        "owner: marc\n"
         "human: marc\n"
         "agent: claude\n"
         "assignee: claude\n"
@@ -276,7 +267,7 @@ def test_open_pr_fails_with_setup_hint_before_push_when_gh_missing(
         repo.coga_os, "missing-gh", branch="missing-gh", worktree=wt
     )
     monkeypatch.setattr(
-        "recipe.check_gh_auth",
+        "coga.open_pr.check_gh_auth",
         lambda _host: CheckResult(
             "gh-auth",
             False,
@@ -298,10 +289,9 @@ def test_open_pr_fails_with_setup_hint_before_push_when_gh_missing(
 def test_open_pr_fails_when_branch_has_material_stale_drift(tmp_path, monkeypatch):
     """A branch missing a material control change must fail loud, not open a PR.
 
-    This is the #518 stale-branch guard the agent checklist used to run via
-    `coga validate --check-github`; the script step has to carry it forward or
-    the protection is lost. Branch off main, then advance `origin/main` from a
-    competing clone so the feature branch no longer contains the control tip.
+    This is the #518 stale-branch guard the old agent checklist ran via
+    `coga validate --check-github`; the deterministic command carries it
+    forward. Branch off main, then advance `origin/main` from a competing clone.
     """
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"
@@ -320,6 +310,37 @@ def test_open_pr_fails_when_branch_has_material_stale_drift(tmp_path, monkeypatc
     # No PR opened, no pr: recorded.
     assert not log.exists() or "pr create" not in log.read_text()
     assert parse_pr_url(read_blackboard(ticket)) is None
+
+
+def test_open_pr_retry_after_rebase_uses_force_with_lease(tmp_path, monkeypatch):
+    """A pushed branch can be rebased and safely republished on retry."""
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+
+    wt = _feature_worktree(repo, tmp_path, "rebased-retry", commit=True)
+    ticket = _write_ticket(
+        repo.coga_os, "retry", branch="rebased-retry", worktree=wt
+    )
+    cfg = load_config(repo.coga_os)
+    open_pr(cfg, slug="retry", blackboard_path=ticket)
+    old_remote = repo.git(
+        "rev-parse", "refs/heads/rebased-retry", cwd=repo.origin
+    ).strip()
+
+    repo.push_competing_commit("src/base-change.txt", "new base\n")
+    repo.git("fetch", "origin", "main", cwd=wt)
+    repo.git("rebase", "FETCH_HEAD", cwd=wt)
+    new_head = repo.git("rev-parse", "HEAD", cwd=wt).strip()
+    assert new_head != old_remote
+
+    open_pr(cfg, slug="retry", blackboard_path=ticket)
+
+    assert (
+        repo.git("rev-parse", "refs/heads/rebased-retry", cwd=repo.origin).strip()
+        == new_head
+    )
 
 
 def test_open_pr_accepts_non_overlapping_coga_state_drift(
@@ -466,13 +487,18 @@ _PACKAGED_SKILL = (
 )
 
 
-@pytest.mark.parametrize("name", ["SKILL.md", "recipe.py", "run.py"])
-def test_open_pr_live_and_packaged_copies_stay_in_sync(name: str) -> None:
-    assert (_LIVE_SKILL / name).read_text() == (_PACKAGED_SKILL / name).read_text()
+def test_open_pr_live_and_packaged_copies_stay_in_sync() -> None:
+    assert (_LIVE_SKILL / "SKILL.md").read_text() == (
+        _PACKAGED_SKILL / "SKILL.md"
+    ).read_text()
 
 
-def test_open_pr_skill_declares_script() -> None:
+def test_open_pr_skill_is_agent_step_not_script() -> None:
     from coga.skill import Skill
 
     skill = Skill.load(_LIVE_SKILL / "SKILL.md")
-    assert skill.script == "run.py"
+    assert skill.script is None
+    assert not (_LIVE_SKILL / "run.py").exists()
+    assert not (_LIVE_SKILL / "recipe.py").exists()
+    assert not (_PACKAGED_SKILL / "run.py").exists()
+    assert not (_PACKAGED_SKILL / "recipe.py").exists()

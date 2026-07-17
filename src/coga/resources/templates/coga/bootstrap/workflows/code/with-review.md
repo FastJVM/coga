@@ -10,6 +10,7 @@ steps:
     assignee: other-agent
   - name: open-pr
     assignee: agent
+    requires: pr
     skills:
       - code/open-pr
   - name: review
@@ -56,39 +57,42 @@ primary checkout. If findings imply a design rethink, write to the
 blackboard and `coga block` instead. If your review tool isn't on PATH,
 `coga block`.
 
-**This is the last agent step before the PR opens** — `open-pr` is a
-deterministic script, not an agent, so anything that needs judgment must be
-done *here*, before you bump:
+**This is the last judgment step before the PR opens.** The next `open-pr` step
+is agent-owned, but its remit is only to run the deterministic command and bump,
+so anything needing review judgment must be done *here* before you bump:
 
 - **Author the PR body.** Add a `## PR` section on the blackboard with the
-  summary and a one-line test plan. The `open-pr` script uses it as the PR
+  summary and a one-line test plan. The `coga open-pr` command uses it as the PR
   body (falling back to `## Description` if you skip it), so this is where the
   human-facing description is written.
 - **Make the branch fresh, not just conflict-free.** Don't wait for a
   conflict: run `git fetch origin main && git rebase FETCH_HEAD` in the
   feature worktree unconditionally, resolve whatever surfaces, re-run
-  `python -m pytest`, and commit. The `open-pr` script refuses a branch that
-  is materially stale against `origin/main` even when it merges cleanly, and
-  as a script it has no judgment to rebase with — this step is the last one
-  that does. If a conflict needs a call you can't make, `coga block`.
+  `python -m pytest`, and commit. `coga open-pr` refuses unsafe material drift,
+  and the next step is intentionally mechanical — this step is the last one
+  that makes rebase decisions. If a conflict needs a call you can't make,
+  `coga block`.
 
-Leave the branch clean and committed with commits ahead of `main`; the
-`open-pr` script refuses to advance otherwise (it will not open an empty PR).
+Leave the branch clean and committed with commits ahead of `main`; `coga
+open-pr` refuses to publish an empty branch.
 
 ## open-pr
 
-**Script step — no agent runs here.** The `code/open-pr` skill declares a
-`script:`, so the launch supervisor runs it directly: it reads `branch:` /
-`worktree:` from `## Dev`, confirms the worktree is on that branch, clean, and
-ahead of `main`, pushes, opens the PR (`gh pr create`, or `gh pr ready` for an
-existing draft), writes `pr: <url>` back under `## Dev`, and — on exit 0 — the
-launcher advances to `review`.
+Follow the `code/open-pr` skill: from the primary control checkout, run `coga
+open-pr <slug>`, then `coga bump`.
+The command is deterministic — it reads `branch:` / `worktree:` from `## Dev`,
+confirms the worktree is on that branch, clean, ahead of `main`, and not stale,
+pushes, opens the PR (`gh pr create`, or `gh pr ready` for an existing draft),
+and writes `pr: <url>` back under `## Dev`. The command stays on the control
+checkout but pushes the recorded feature branch **by name**.
 
-Nothing to hand-run and no `coga bump` to remember. If the script exits
-non-zero (missing `## Dev` fields, nothing committed, or a git/`gh` auth
-problem) the step does **not** advance and a failure is posted — fix the cause
-in the earlier steps and relaunch, or `coga block`. This is what makes the
-step require a real PR by construction.
+This step declares `requires: pr`: `coga bump` refuses to advance until `pr:` is
+recorded under `## Dev`. So a skipped or failed `coga open-pr` (missing `## Dev`
+fields, nothing committed ahead of `main`, a stale branch, or a git/`gh` auth
+problem) leaves the step put — the gate is a **data check** on the recorded PR,
+not a matter of the agent's say-so. Fix the cause and re-run `coga open-pr`
+(it's idempotent), or `coga block`. That is what makes the step require a real
+PR by construction.
 
 ## review
 

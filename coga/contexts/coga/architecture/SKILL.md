@@ -309,10 +309,9 @@ unknown-key check, since the 0.2.0 scaffold wrote `auto` into every repo).
 
 Because the deduction runs **per step**, one workflow freely mixes substances:
 any step whose single skill declares a `script:` runs as a script — the launch
-supervisor runs it directly instead of spawning an agent. This is how
-`code/with-review` interleaves the deterministic
-`code/open-pr` step between agent steps: implement (agent) → peer-review (agent)
-→ open-pr (**script**) → review (human).
+supervisor runs it directly instead of spawning an agent. Agent steps remain
+agent-owned even when they invoke a deterministic command as part of their
+instructions.
 
 The supervisor loop checks each step with `current_step_is_script` (a step has
 one skill and that skill's SKILL.md has a `script:`) before resolving an agent.
@@ -321,9 +320,22 @@ scripts, which runs the script and, **on exit 0**, advances the step (or marks
 the task done after the final step); **on a non-zero exit** it posts a failure
 and leaves the step put. So a script step's completion is gated by its exit
 code, not by an agent's judgment — a step cannot advance without its script
-producing its output. (This is the mechanism that makes `code/open-pr` require a
-real PR: no branch / no commits ahead of base / `gh` failure → non-zero exit →
-the step does not advance.)
+producing its output.
+
+### Step completion gates (`requires:`)
+
+A frozen workflow step may declare `requires: <token>`. Before `coga bump`
+advances **off** that step, it runs the token's predicate against the task
+blackboard. A falsy result fails loud with the command that produces the
+artifact. This is a data check, independent of whether the step is agent- or
+script-owned; human rewinds (`--to` / `--backward`) are never gated.
+
+`code/open-pr` is an ordinary agent step with `requires: pr`. The agent runs
+`coga open-pr <slug>` from the primary control checkout; the command pushes the
+recorded feature branch by name, opens or readies the PR, and writes `pr:` under
+`## Dev`. A skipped command cannot be papered over with a bump because the gate
+reads the recorded artifact. The registry remains generic (`step_gate.py` owns
+`pr`); `bump` never hardcodes a `code/*` skill name.
 
 ## Prompt composition
 

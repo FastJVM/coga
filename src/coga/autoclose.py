@@ -58,7 +58,7 @@ _PR_NUMBER_RE = re.compile(r"/pull/(\d+)")
 # naive `(\S+)` here would swallow the trailing backtick or miss the list form.
 _BRANCH_LINE_RE = re.compile(r"^\s*(?:-\s*)?branch:\s*(.+?)\s*$", re.MULTILINE)
 # The `worktree:` line follows the same accreted shapes as `branch:` (bare,
-# list-item, backtick-wrapped), so parse it the same way. The open-pr script
+# list-item, backtick-wrapped), so parse it the same way. The open-pr command
 # needs it to locate the feature checkout it pushes from.
 _WORKTREE_LINE_RE = re.compile(r"^\s*(?:-\s*)?worktree:\s*(.+?)\s*$", re.MULTILINE)
 

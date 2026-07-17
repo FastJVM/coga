@@ -143,6 +143,48 @@ def test_workflow_rejects_non_role_token_assignee(tmp_path: Path) -> None:
         Workflow.load(path)
 
 
+def test_workflow_step_requires_gate_round_trips(tmp_path: Path) -> None:
+    path = tmp_path / "wf.md"
+    path.write_text(dedent(
+        """
+        ---
+        name: wf
+        steps:
+          - name: open-pr
+            assignee: agent
+            requires: pr
+          - name: review
+            assignee: owner
+        ---
+        """
+    ).lstrip())
+    wf = Workflow.load(path)
+    assert wf.steps[0].requires == "pr"
+    assert wf.steps[1].requires is None
+    frozen = wf.freeze()
+    assert frozen["steps"][0] == {
+        "name": "open-pr", "skills": [], "assignee": "agent", "requires": "pr"
+    }
+    # A step without a gate carries no `requires` key at all.
+    assert "requires" not in frozen["steps"][1]
+
+
+def test_workflow_rejects_unknown_requires_gate(tmp_path: Path) -> None:
+    path = tmp_path / "wf.md"
+    path.write_text(dedent(
+        """
+        ---
+        name: wf
+        steps:
+          - name: open-pr
+            requires: not-a-real-gate
+        ---
+        """
+    ).lstrip())
+    with pytest.raises(WorkflowError, match="completion gate"):
+        Workflow.load(path)
+
+
 # --- log ----------------------------------------------------------------------
 
 

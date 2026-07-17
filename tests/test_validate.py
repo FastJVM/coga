@@ -92,6 +92,95 @@ def test_broken_skill_ref(repo: Path) -> None:
     assert any(i.kind == "broken-skill" for i in report.issues)
 
 
+def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
+    """A frozen step's `requires:` must name a registered completion gate; a
+    bogus token is a hard `bad-shape` error (the activation/bump gate would
+    otherwise fail loud at runtime with no static warning)."""
+    cfg = load_config(repo)
+    task_dir = repo / "tasks" / "001-x"
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent("""
+        ---
+        slug: 001-x
+        title: X
+        status: active
+        assignee: claude
+        owner: marc
+        workflow:
+          name: x
+          steps:
+            - name: open-pr
+              requires: not-a-real-gate
+        step: 1 (open-pr)
+        ---
+
+        ## Description
+    """).lstrip())
+    report = run(cfg)
+    assert any(
+        i.kind == "bad-shape" and "requires" in i.message for i in report.issues
+    )
+
+
+def test_step_requires_known_gate_is_clean(repo: Path) -> None:
+    """`requires: pr` on a frozen step validates clean."""
+    cfg = load_config(repo)
+    task_dir = repo / "tasks" / "002-y"
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent("""
+        ---
+        slug: 002-y
+        title: Y
+        status: active
+        assignee: claude
+        owner: marc
+        workflow:
+          name: x
+          steps:
+            - name: open-pr
+              requires: pr
+        step: 1 (open-pr)
+        ---
+
+        ## Description
+    """).lstrip())
+    report = run(cfg)
+    assert not any(
+        i.kind == "bad-shape" and "requires" in i.message for i in report.issues
+    )
+
+
+@pytest.mark.parametrize("requires", ["[pr]", "{artifact: pr}"])
+def test_step_requires_non_string_is_error(repo: Path, requires: str) -> None:
+    cfg = load_config(repo)
+    task_dir = repo / "tasks" / "003-z"
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent(f"""
+        ---
+        slug: 003-z
+        title: Z
+        status: active
+        assignee: claude
+        owner: marc
+        workflow:
+          name: x
+          steps:
+            - name: open-pr
+              requires: {requires}
+        step: 1 (open-pr)
+        ---
+
+        ## Description
+    """).lstrip())
+
+    report = run(cfg)
+
+    assert any(
+        issue.kind == "bad-shape" and "requires" in issue.message
+        for issue in report.issues
+    )
+
+
 def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     """Hand-authored tickets carrying `workflow: <name>` (a string ref) used
     to crash the validator at `wf.get("steps", [])`. Regression: surface

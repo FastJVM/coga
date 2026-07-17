@@ -14,6 +14,8 @@ from coga.bump import (
 )
 from coga.config import ConfigError, load_config
 from coga.paths import resolve_workflow_path
+from coga.step_gate import gate_unmet_reason
+from coga.taskfile import read_blackboard
 from coga.repl_supervisor import (
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
@@ -136,6 +138,22 @@ def bump(
                 f"Task {ref.id_slug} is on the final step. "
                 f"Run `coga mark done {ref.id_slug}` to finish."
             )
+
+    # Completion gate: refuse to advance *off* a step that declares `requires:`
+    # until its artifact is recorded on the blackboard. Forward advancement only
+    # — a human rewind (--to/--backward) is never gated. This is a data check
+    # (`coga/step_gate`), not an exit-code check: a step like `open-pr` that
+    # declares `requires: pr` cannot be bumped past until `coga open-pr` has
+    # written `pr:` under `## Dev`.
+    if not rewind and 1 <= current_idx <= total:
+        requires = steps[current_idx - 1].get("requires")
+        if requires is not None:
+            # A missing blackboard fence means no artifact is recorded, so the
+            # gate should block (not raise) — validate flags the fence itself.
+            blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
+            reason = gate_unmet_reason(requires, blackboard, slug=ref.id_slug)
+            if reason:
+                _bail(reason)
 
     new_step = steps[next_step - 1]
     new_step_name = new_step["name"]

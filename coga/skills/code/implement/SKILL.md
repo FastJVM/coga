@@ -61,7 +61,7 @@ later `code/open-pr` step does that, after self-review and fixes.
 8. **Freshen against `main` before handing off.** From the clean feature
    worktree, `git fetch origin main && git rebase FETCH_HEAD`; if commits
    came in, re-run the tests and fix what broke. The later `open-pr`
-   script step refuses a branch missing material commits from
+   `coga open-pr` refuses a branch missing material commits from
    `origin/main`, and as a script it has no judgment to rebase with —
    freshness lands in the agent steps, while judgment is available.
 9. **Bump — this is what ends the step.** Return to the primary

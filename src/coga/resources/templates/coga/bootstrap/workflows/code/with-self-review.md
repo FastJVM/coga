@@ -12,6 +12,7 @@ steps:
       - code/self-qa
   - name: pr
     assignee: agent
+    requires: pr
     skills:
       - code/open-pr
   - name: review
@@ -32,23 +33,26 @@ real blocker (`coga block`), not an already-satisfied closure.
 
 ## pr
 
-**Script step — no agent runs here.** The `code/open-pr` skill declares a
-`script:`, so the launch supervisor runs it directly: it reads `branch:` /
-`worktree:` from `## Dev`, confirms the worktree is on that branch, clean, and
-ahead of `main`, pushes, opens the PR (`gh pr create`, or `gh pr ready` for an
-existing draft), writes `pr: <url>` back under `## Dev`, and — on exit 0 — the
-launcher advances to `review`.
+Follow the `code/open-pr` skill: from the primary control checkout, run `coga
+open-pr <slug>`, then `coga bump`.
+The command is deterministic — it reads `branch:` / `worktree:` from `## Dev`,
+confirms the worktree is on that branch, clean, ahead of `main`, and not stale,
+pushes, opens the PR (`gh pr create`, or `gh pr ready` for an existing draft),
+and writes `pr: <url>` back under `## Dev`. It stays on the control checkout
+while pushing the recorded feature branch by name.
 
-Nothing to hand-run and no `coga bump` here. If the script exits non-zero
-(missing `## Dev` fields, nothing committed ahead of `main`, or a git/`gh` auth
-problem) the step does **not** advance and a failure is posted. This is what
-makes the step require a real PR by construction.
+This step declares `requires: pr`: `coga bump` refuses to advance until `pr:` is
+recorded under `## Dev`. So a skipped or failed `coga open-pr` (missing `## Dev`
+fields, nothing committed ahead of `main`, a stale branch, or a git/`gh` auth
+problem) leaves the step put — the gate is a data check on the recorded PR. Fix
+the cause and re-run `coga open-pr` (it's idempotent), or `coga block`. That is
+what makes the step require a real PR by construction.
 
-Because `open-pr` is deterministic, anything needing judgment must be done in
-the **preceding `self-qa` step**, before it bumps:
+Because `coga open-pr` is deterministic, anything needing judgment must be done
+in the **preceding `self-qa` step**, before it bumps:
 
 - **Author the PR body** — add a `## PR` section on the blackboard (summary +
-  one-line test plan). The script uses it as the PR body, falling back to
+  one-line test plan). `coga open-pr` uses it as the PR body, falling back to
   `## Description` if absent.
 - **Make the branch fresh, not just conflict-free** — run `git fetch origin
   main && git rebase FETCH_HEAD` unconditionally (the `open-pr` script refuses

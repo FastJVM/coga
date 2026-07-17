@@ -18,6 +18,7 @@ from coga.commands import init as init_cmd
 from coga.commands import launch as launch_cmd
 from coga.commands import mark as mark_cmd
 from coga.commands import megalaunch as megalaunch_cmd
+from coga.commands import open_pr as open_pr_cmd
 from coga.commands import project as project_cmd
 from coga.commands import recurring as recurring_cmd
 from coga.commands import retire as retire_cmd
@@ -85,6 +86,7 @@ app.command("megalaunch")(megalaunch_cmd.megalaunch)
 app.command("status")(status_cmd.status)
 app.command("show")(show_cmd.show)
 app.command("bump")(bump_cmd.bump)
+app.command("open-pr")(open_pr_cmd.open_pr_command)
 app.command("block")(block_cmd.block)
 app.command("unblock")(unblock_cmd.unblock)
 app.command("delete")(delete_cmd.delete)
@@ -112,6 +114,7 @@ _BUILTIN_COMMANDS = frozenset(
         "status",
         "show",
         "bump",
+        "open-pr",
         "block",
         "unblock",
         "delete",

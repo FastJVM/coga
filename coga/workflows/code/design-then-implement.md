@@ -14,6 +14,7 @@ steps:
       - code/implement
   - name: open-pr
     assignee: agent
+    requires: pr
     skills:
       - code/open-pr
   - name: review
@@ -31,12 +32,14 @@ enough to redo, relaunch the `design` step instead of bumping.
 
 ## open-pr
 
-**Script step — no agent runs here.** The `code/open-pr` skill declares a
-`script:`, so the launch supervisor runs it: it reads `branch:` / `worktree:`
-from `## Dev`, confirms the worktree is on that branch, clean, and ahead of
-`main`, pushes, opens the PR, records `pr: <url>`, and — on exit 0 — advances to
-`review`. It fails loud and does **not** advance if there is nothing committed
-to PR or auth is broken.
+Follow the `code/open-pr` skill: from the primary control checkout, run `coga
+open-pr <slug>`, then `coga bump`.
+The command reads `branch:` / `worktree:` from `## Dev`, confirms the worktree
+is on that branch, clean, ahead of `main`, and not stale, pushes, opens the PR,
+and records `pr: <url>`. This step declares `requires: pr`, so `coga bump`
+refuses to advance until `pr:` is recorded — a skipped or failed `coga open-pr`
+(nothing committed to PR, a stale branch, or broken auth) leaves the step put.
+Fix the cause and re-run it (idempotent), or `coga block`.
 
 There is no peer/self-review step here, so the PR body falls back to the
 ticket's `## Description` (the reviewed design spec). If the `implement` step

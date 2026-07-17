@@ -1,76 +1,84 @@
 ---
 name: code/open-pr
-script: run.py
-description: Script step that pushes the branch and opens (or readies) the PR, then records the PR URL on the blackboard. Runs deterministically — no agent — so the step cannot complete without a real PR.
+description: Agent step that runs `coga open-pr` to push the branch and open (or ready) the PR, then bumps. The deterministic push/open/record work lives in the command; the step gates on a recorded `pr:`, so it cannot complete without a real PR.
 ---
 
-# Push and open the PR (script step)
+# Push and open the PR
 
-This step is a **script**, not an agent checklist. The launch supervisor runs
-`run.py` in place of an agent and advances the workflow **only if the script
-exits 0**. A non-zero exit posts a failure and leaves the step put. That is the
-point: the open-pr step cannot "complete" without producing a real PR, so no one
-can bump past it with nothing built (the cross-worktree divergence incident).
+This is an agent step, but the mechanical work — push, open (or ready) the PR,
+record the URL — is done by a single deterministic command, `coga open-pr`. You
+run it, confirm it recorded the PR, then bump. The *judgment* (what the PR says,
+whether the branch is mergeable) belongs to the earlier implement / peer-review
+steps; this step just turns the recorded branch into a PR.
 
-Because the exit code — not an agent's judgment — gates the bump, there is
-nothing to hand-run and no `coga bump` to remember: the launcher bumps for you.
+The step declares `requires: pr`, so `coga bump` refuses to advance until a
+`pr:` line is recorded under `## Dev`. That is a **data check**: skipping
+`coga open-pr` and bumping anyway fails loud — the recorded artifact is the
+gate, not your say-so.
 
-## What the script does
+## Order of operations
 
-1. Reads `branch:` / `worktree:` from the `## Dev` blackboard section (see the
-   `dev/code` context).
-2. Confirms the feature worktree is on that branch, is clean, and has commits
-   ahead of the base branch (`[git].control_branch`, default `main`).
-3. Confirms the branch has no **material stale drift** from the latest
-   `<remote>/<control-branch>`. It continues visibly when the control branch
-   advanced only through non-overlapping generated `coga/tasks/**` or
-   `coga/log.md` state, which Coga itself writes between steps. Source, docs,
-   config, mixed, or overlapping state drift still fails loud because it can
-   reintroduce reverted work.
-4. Pushes the branch (`git push -u <remote> <branch>`).
-5. Opens the PR with `gh pr create` — or `gh pr ready` if a draft already exists
-   for the branch, or reuses an already-open PR on a re-run (idempotent).
-6. Writes `pr: <url>` back under `## Dev`.
+1. **Confirm the handoff state.** Read `branch:` / `worktree:` under `## Dev` on
+   the blackboard. The implement / peer-review steps must have created the
+   feature branch, recorded it, and left it committed and ahead of the base
+   branch. If `branch:` / `worktree:` are missing, that is an earlier-step gap —
+   `coga block` with a one-line reason rather than improvising a branch here.
+2. **Return to the primary control checkout and run `coga open-pr <slug>`.**
+   Task resolution and the `pr:` blackboard write belong to the control
+   checkout; running from the feature worktree fails loud rather than updating
+   a stale ticket copy. The deterministic command:
+   - reads `branch:` / `worktree:` from `## Dev`,
+   - confirms the worktree is on that branch, clean, ahead of the base
+     (`[git].control_branch`, default `main`), and has no unsafe material drift
+     from the latest `<remote>/<base>`,
+   - pushes the branch by name (using an explicit force-with-lease when a safe
+     retry follows a rebase),
+   - opens the PR with `gh pr create` — or `gh pr ready` if a draft already
+     exists, or reuses an already-open PR (idempotent on re-run),
+   - writes `pr: <url>` back under `## Dev`.
 
-**PR title** = the ticket title. **PR body** comes, in order, from: a `## PR`
-section the agent authored on the blackboard (or in the ticket body), else the
-ticket's `## Description`, else the title. A `Closes ticket: <slug>` line is
-always appended. So the *judgment* (what the PR says) stays with the agent in
-the earlier implement/peer-review steps; the *mechanics* (push, create, record)
-are the script's.
+   It operates on the recorded feature branch **by name** while the command
+   stays in the control checkout — this is what retires the cross-worktree
+   divergence trap. It **fails loud** (non-zero, nothing pushed/opened) on: no usable
+   `branch:` / `worktree:`, a missing worktree, the worktree on the wrong branch
+   or dirty, **no commits ahead of base** (the incident case — no empty PR), a
+   stale branch, or a `git push` / `gh` auth failure.
 
-## What the earlier agent steps must leave behind
+   **PR title** = the ticket title. **PR body** comes, in order, from: a `## PR`
+   section (blackboard first, then ticket body), else the ticket's
+   `## Description`, else the title; a `Closes ticket: <slug>` line is always
+   appended. So author a `## PR` section in the earlier steps if you want a
+   curated summary + test plan; omitting it is fine.
+3. **Bump.** Once `coga open-pr` reports the URL and `pr:` is recorded under
+   `## Dev`, run `coga bump <slug>` to hand off to the next step. The bump's
+   `requires: pr` gate will pass because the URL is now recorded.
 
-The script consumes what implement/peer-review recorded. If those steps didn't:
+## If `coga open-pr` fails
 
-- **`branch:` / `worktree:` under `## Dev`** — record them the moment the branch
-  and feature worktree are created (per the `dev/code` context). Missing either
-  → the script fails loud pointing at the gap.
-- **committed work on the branch** — no commits ahead of base → the script fails
-  loud rather than opening an empty PR. This is the incident case, caught by
-  construction.
-- **(optional) a `## PR` section** — a curated summary + test plan. Omitting it
-  is fine; the script falls back to `## Description`.
+Fix the cause and re-run it — it is idempotent:
 
-## Failure modes (all fail loud, none advance the step)
+- Missing `branch:` / `worktree:` or a torn-down worktree → an earlier step
+  didn't record/keep it; `coga block` if you can't recover it here.
+- Nothing committed ahead of base → implement/peer-review produced no change;
+  build it (or `coga block`) rather than opening an empty PR.
+- Stale branch → rebase the control branch in the feature worktree, re-run
+  `python -m pytest`, commit, return to the control checkout, then re-run
+  `coga open-pr`. If an earlier attempt already pushed, the retry republishes
+  the rewritten branch with an explicit force-with-lease.
+- `git` / `gh` auth failure → follow the setup hint the command prints (fix the
+  remote, load your SSH key / credential helper, `gh auth login`), then re-run.
 
-- No `branch:` / `worktree:` recorded, or the worktree is gone → exit non-zero
-  with the missing field named and a `coga block` hint.
-- Worktree on the wrong branch, dirty, or no commits ahead of base → exit
-  non-zero; nothing is pushed or opened.
-- Branch is materially stale, or touches the same generated state path that
-  changed on the control branch → exit non-zero; rebase/merge the control branch
-  in an earlier step, then relaunch.
-- `git push` / `gh pr create` auth failure → exit non-zero with the
-  `github_preflight` setup hint (fix the remote, load your SSH key / credential
-  helper, `gh auth login`).
+## Acceptance for this step
 
-When the step fails, fix the cause (usually a missing `## Dev` field or an
-un-committed change) and relaunch, or `coga block` if it needs a human decision.
+- `coga open-pr <slug>` has been run and `pr: <url>` is recorded under `## Dev`.
+- `coga bump <slug>` has advanced the workflow (its `requires: pr` gate passed).
 
-## What this step does NOT do
+## What this skill does NOT do
 
 - Decide whether to merge — that's the human's job in the next step.
-- Make code changes or resolve CI failures.
-- Resolve merge conflicts with the base — harmless state-only divergence needs
-  no merge, while material divergence remains for peer review to reconcile.
+- Make code changes or resolve CI failures. If CI fails for a real reason,
+  `coga block` and let the human relaunch.
+- Resolve merge conflicts with the base — the peer-review / self-qa step handles
+  mergeability before this step runs.
+- Edit `assignee:` by hand. The workflow's per-step `assignee:` handles the role
+  rewrite on bump.
