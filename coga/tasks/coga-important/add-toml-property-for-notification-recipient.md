@@ -1,7 +1,7 @@
 ---
 slug: coga-important/add-toml-property-for-notification-recipient
 title: add-toml-property-for-notification-recipient
-status: in_progress
+status: done
 owner: zach
 human: zach
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
