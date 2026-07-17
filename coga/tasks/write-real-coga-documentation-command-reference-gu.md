@@ -1,7 +1,7 @@
 ---
 slug: write-real-coga-documentation-command-reference-gu
 title: Write real Coga product documentation
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -136,3 +136,21 @@ navigate, with the README linking out to it ("Full docs →").
 - `env PYTHONPATH=src python -m coga.cli recurring --help`
 - Manual local-link path audit for changed docs: README/docs entrypoints, `docs/vision.md`, and referenced Coga context files all exist.
 - `env PYTHONPATH=src python -m coga.cli validate --task write-real-coga-documentation-command-reference-gu --json` -> passed with no issues.
+
+## Peer review (2026-07-16)
+
+Could not review: the implementation output no longer exists anywhere.
+
+- Worktree `/tmp/coga-real-docs` is gone (tmp cleanup; the base commit dates it to ~2026-07-05).
+- Branch `codex/write-real-coga-documentation` exists in no local ref, no packed ref, and not on `origin`. Same for `codex/improve-readme`.
+- Searched every ref and every dangling commit (`git fsck --lost-found`) for `docs/getting-started.md` — no object contains the docs tree. The work is unrecoverable.
+
+Also relevant for the redo: `main` has moved substantially past the recorded base `ec9f6b6e` (2026-07-05). The README was already rewritten to the short form on `main` (PR #520, currently 133 lines, links only to `docs/vision.md`), docs were refreshed for the current runtime (PR #572), and the CLI surface changed (e.g. removed `[agents.*]` keys with migration errors, `recurring --all`). A fresh implement pass should base on current `main`, keep the existing short README and just add the "Full docs →" link, and re-verify the command reference against today's help output.
+
+Recommendation: rewind to step 1 (implement) and redo from current `main`. Practical note for the redo: put the worktree somewhere durable (not `/tmp`) or push the branch to `origin` before handing off to peer-review, so a long gap between steps can't lose the work again.
+
+---
+
+## Blockers
+
+- [ ] [2026-07-16 21:03] [agent:claude] id=20260716T210332 Peer-review impossible: the implement step's output is unrecoverable. Worktree /tmp/coga-real-docs was wiped and branch codex/write-real-coga-documentation exists nowhere (no local/packed/remote refs, no dangling commits contain docs/getting-started.md). Rewinding to implement is a human decision — please rewind to step 1; redo should base on current main (README already short via PR #520; CLI surface changed since base ec9f6b6e) and keep the branch somewhere durable (push to origin or a non-/tmp worktree) before handoff.

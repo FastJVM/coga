@@ -1659,3 +1659,5 @@ Aborting
 2026-07-16 21:02 [install/warn-loud-when-init-commit-is-skipped] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-16 21:02 [install/warn-loud-when-init-commit-is-skipped] [system] script exited with code 0
 2026-07-16 21:02 [install/warn-loud-when-init-commit-is-skipped] [system] advanced to step 4 (review) → assigned to nicktoper after script step
+2026-07-16 21:00 [write-real-coga-documentation-command-reference-gu] [megalaunch] launched via coga megalaunch
+2026-07-16 21:03 [write-real-coga-documentation-command-reference-gu] [agent:claude] blocked: Peer-review impossible: the implement step's output is unrecoverable. Worktree /tmp/coga-real-docs was wiped and branch codex/write-real-coga-documentation exists nowhere (no local/packed/remote refs, no dangling commits contain docs/getting-started.md). Rewinding to implement is a human decision — please rewind to step 1; redo should base on current main (README already short via PR #520; CLI surface changed since base ec9f6b6e) and keep the branch somewhere durable (push to origin or a non-/tmp worktree) before handoff.
