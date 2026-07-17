@@ -1292,6 +1292,25 @@ def test_init_fails_loud_when_git_has_no_identity(
     assert not (target / "coga").exists()
 
 
+def test_init_fails_up_front_when_only_committer_identity_exists(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Git requires author and committer identities independently; a CI-style
+    committer-only environment must fail before init writes anything."""
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    _force_missing_git_identity(target, monkeypatch)
+    monkeypatch.setenv("GIT_COMMITTER_NAME", "Coga CI")
+    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "coga@example.com")
+    monkeypatch.setattr(init_cmd, "_check_git_identity", _real_identity_check)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 2
+    assert "Author identity unknown" in result.output
+    assert not (target / "coga").exists()
+
+
 def test_identity_check_passes_with_repo_local_identity(tmp_path: Path) -> None:
     """Repo-local `user.email`/`user.name` is enough — the probe runs from the
     target, so per-repo config counts and the check stays quiet."""
@@ -1340,14 +1359,65 @@ def test_init_warns_loud_when_commit_fails(
     assert result.exit_code == 0, result.output
     assert "Committed coga/ as" not in result.output
     assert "NOT committed" in result.output
+    assert "git commit failed" in result.output
     assert "hook says no" in result.output  # git's own stderr is surfaced
-    assert "git -C" in result.output  # ...and the manual remedy
+    # Recovery re-stages and commits the complete generated path set, not just
+    # coga/, so following it leaves the same clean tree as the success path.
+    assert "git -C" in result.output
+    assert "add -- coga .gitignore CLAUDE.md AGENTS.md" in result.output
+    assert (
+        "commit -m 'Create coga via `coga init`' -- coga .gitignore "
+        "CLAUDE.md AGENTS.md"
+    ) in result.output
     # coga/ survived on disk and is staged, ready to commit once fixed.
     staged = subprocess.run(
         ["git", "-C", str(target), "diff", "--cached", "--name-only"],
         capture_output=True, text=True, check=True,
     ).stdout
     assert "coga/coga.toml" in staged
+
+
+def test_init_add_failure_warns_without_claiming_files_are_staged(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed `git add` gets an honest warning plus safely quoted, complete
+    stage-and-commit recovery commands."""
+    target = tmp_path / "company repo"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
+    real_run = subprocess.run
+
+    def fail_generated_path_add(args, *run_args, **run_kwargs):
+        if (
+            args[:3] == ["git", "-C", str(target)]
+            and len(args) > 3
+            and args[3] == "add"
+        ):
+            raise subprocess.CalledProcessError(
+                128, args, stderr="fatal: Unable to create '.git/index.lock'"
+            )
+        return real_run(args, *run_args, **run_kwargs)
+
+    monkeypatch.setattr(init_cmd.subprocess, "run", fail_generated_path_add)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+    assert "written but NOT committed" in result.output
+    assert "written and staged" not in result.output
+    assert "git add failed" in result.output
+    assert "index.lock" in result.output
+    expected_prefix = f"git -C '{target}'"
+    assert (
+        f"{expected_prefix} add -- coga .gitignore CLAUDE.md AGENTS.md"
+        in result.output
+    )
+    assert (
+        f"{expected_prefix} commit -m 'Create coga via `coga init`' -- "
+        "coga .gitignore CLAUDE.md AGENTS.md"
+        in result.output
+    )
 
 
 # --- nested init (coga/ in a subdir of a host repo) ---------------------------
