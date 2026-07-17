@@ -1,7 +1,7 @@
 ---
 slug: recurring-bugs/coga-usage-cannot-locate-claude-transcript-or-sess
 title: coga usage cannot locate claude transcript or session id for some launches
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
