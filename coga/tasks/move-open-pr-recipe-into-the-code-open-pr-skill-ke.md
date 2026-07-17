@@ -86,48 +86,40 @@ Scope:
 
 <!-- coga:blackboard -->
 
-## Decision (2026-07-06)
+## Closed obsolete (2026-07-17)
 
-Folding the refactor **into PR #517** (branch `open-pr-script`), not launching
-this ticket's own workflow — the code being refactored only exists on that
-branch, not on `main`, so a fresh `code/with-review` launch off `main` would
-have nothing to edit. If #517 merges with the refactor included, close this
-ticket `done`.
+The earlier "Done — folded into PR #517" note below was **wrong** — verified
+against `main` on 2026-07-17:
 
-## Feasibility findings
+- The claimed fold-in commit `68b8b1a0` ("move recipe into the skill dir…") is a
+  **dangling local commit** — in no branch, not an ancestor of `main`. It was
+  never part of what merged.
+- **PR #517 did merge** (2026-07-07, `ba1ec3b9`), but as its *base* form — "Make
+  open-pr a script step." The recipe-move refactor this ticket describes never
+  landed.
 
-- **Sibling import works.** `build_script_command` runs a `.py` script step as
-  `[sys.executable, run.py]`, so Python puts the script's own dir on
-  `sys.path[0]`. `run.py` can therefore `import recipe` from the skill dir —
-  true for both the live copy and the packaged-template copy (each ships its own
-  `recipe.py`). No `sys.path` plumbing needed in `launch_script`.
-- **"Keep only parse_worktree_path in core" was loose wording.** The recipe
-  legitimately imports ~6 core modules (`autoclose` parsers, `compose`,
-  `config`, `taskfile`, `ticket`, `github_preflight`) — shared infra, not
-  task-specific logic, so they stay in core. What moves out of `src/coga/` is
-  the *orchestration function* (`open_pr` / `OpenPrError` / `set_dev_pr`), into
-  `coga/skills/code/open-pr/recipe.py`.
-- **Only two importers** of `coga.open_pr`: the skill's `run.py` and
-  `tests/test_open_pr.py`. `run.py` → `from recipe import ...`; the test loads
-  `recipe` from the live skill dir via a `sys.path` insert.
-- **Cost:** the recipe is no longer importable as a package module, so its unit
-  test imports from the skill dir. Acceptable, but it's the real tradeoff of
-  self-containment — the test now knows the skill's on-disk location.
+More importantly, the ticket's premise has been overtaken by events. **PR #585
+merged 2026-07-17** ("Move open-pr gate from launch into bump; make open-pr a
+mixed agent step") restructured `code/open-pr` from a self-contained *script
+step* into an **agent step** that invokes a first-class CLI command,
+`coga open-pr <slug>`. Current state on `main`:
 
-## Status
+- The `open_pr` recipe + `OpenPrError` still live in `src/coga/open_pr.py`
+  (core), now backing the real CLI command `src/coga/commands/open_pr.py`.
+- The skill dir `coga/skills/code/open-pr/` holds only `SKILL.md` — there is no
+  `run.py` and no skill-local recipe to move anything into.
+- `parse_worktree_path` is already shared via `coga/autoclose.py`.
 
-**Done — folded into PR #517.** Commit `68b8b1a0` ("open-pr: move recipe into
-the skill dir so the skill is self-contained") pushed to branch `open-pr-script`
-on 2026-07-06. Changes:
+So the ticket's goal (move a thin-`run.py` skill's recipe into the skill dir to
+make it self-contained) no longer describes reality: there is no `run.py`, and
+recipe-in-core is now the *intended* design because `coga open-pr` is a genuine
+command, not a skill-local script. Doing the move now would contradict #585.
 
-- `src/coga/open_pr.py` → `coga/skills/code/open-pr/recipe.py` (git rename; core
-  module removed).
-- Added `recipe.py` to the packaged template skill dir; both `run.py` copies now
-  `from recipe import ...`.
-- `tests/test_open_pr.py` loads `recipe` from the skill dir via a `sys.path`
-  insert; `tests/test_packaging.py` manifest now lists `open-pr/run.py` +
-  `open-pr/recipe.py`.
-- Full suite: 1090 passed, 1 skipped (`python3.12`).
+Owner decision (nicktoper): **close as obsolete.** If the "logic shouldn't live
+in core" concern resurfaces, it's a fresh design question about `coga open-pr`
+the command — not this ticket's move.
 
-When #517 merges, mark this ticket `done`. Not yet decided: whether to apply the
-same self-containment move to `autoclose.py` / digest (left out of scope).
+## Historical note (superseded — see above)
+
+The 2026-07-06 blackboard claimed the work was done and folded into #517. That
+claim was never true on `main`; retained only for provenance.
