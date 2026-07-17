@@ -1924,3 +1924,4 @@ Auto-merging coga/tasks/validate-tickets-at-create-time.md
 CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time.md
 2026-07-17 15:47 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-07-17 15:58 [recurring-scan-should-skip-and-report-an-unloadabl] [human:nicktoper] created (status=draft)
+2026-07-17 15:58 [recurring-dream-launch-mis-points-coga-task-env-at] [human:nicktoper] created (status=draft)
