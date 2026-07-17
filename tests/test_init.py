@@ -904,13 +904,41 @@ def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_vendor, fake_venv)
 
 
 def test_init_refuses_existing_coga_os(tmp_path: Path, fake_vendor, fake_venv) -> None:
+    """The refusal names the actual remedies — `--update` is gone, so the
+    message must say what re-running init was probably reaching for: upgrade
+    the CLI with its owning installer, recover a broken coga/ by fixing/removing
+    it, or run `coga uninstall` from inside the target to drop the footprint."""
+    target = tmp_path / "occupied"
+    target.mkdir()
+    (target / "coga").mkdir()
+    (target / "coga" / "coga.toml").write_text("version = 1\n")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 2
+    assert "repo is already initialized" in result.output
+    assert "uv tool upgrade coga" in result.output
+    assert "pip install --upgrade coga" in result.output
+    assert "coga uninstall" in result.output
+    assert f"from inside {target}" in result.output
+    assert "remove the dir" in result.output
+
+
+def test_init_does_not_misidentify_unrelated_coga_path(
+    tmp_path: Path, fake_vendor, fake_venv
+) -> None:
     target = tmp_path / "occupied"
     target.mkdir()
     (target / "coga").mkdir()
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+
     assert result.exit_code == 2
-    assert "already exists" in result.output
+    assert "does not look like an initialized Coga repo" in result.output
+    assert "coga.toml is missing" in result.output
+    assert "broken or partial Coga install" in result.output
+    assert "move or rename the existing path" in result.output
+    assert "repo is already initialized" not in result.output
+    assert "coga uninstall" not in result.output
 
 
 def test_init_into_missing_dir_errors_not_git_repo(
@@ -1028,6 +1056,22 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     assert 'coga ticket "' in result.output
     assert "Skipped the onboarding ticket" in result.output
     assert "Run `coga build`" not in result.output
+
+
+def test_init_next_steps_name_the_agent_cli_prerequisite(
+    tmp_path: Path, fake_vendor, fake_venv
+) -> None:
+    """Init's next steps name the agent-CLI prerequisite with install URLs —
+    the `coga build` coax otherwise sends a fresh user into a flow whose
+    "not found in PATH" failure arrives only after they've committed to it."""
+    target = _make_git_repo(tmp_path / "company")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert "Install an agent CLI" in result.output
+    assert "https://claude.com/claude-code" in result.output
+    assert "https://github.com/openai/codex" in result.output
 
 
 def test_init_filled_repo_ignores_coga_managed_files(
@@ -2344,6 +2388,18 @@ def test_dep_check_ignores_missing_op(
     """`op` is not required at init (it's enforced at launch when a ticket
     actually needs an `op://` secret), so a missing `op` must not crash init."""
     monkeypatch.setattr("coga.commands.init.shutil.which", _which_missing({"op"}))
+    _real_dep_check()  # must not raise
+
+
+def test_dep_check_ignores_missing_agent_clis(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Agent CLIs (`claude`/`codex`) are not required at init — they're
+    enforced at the point of need (launch/ticket/build, with an install
+    hint), so a missing one must not crash init."""
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which", _which_missing({"claude", "codex"})
+    )
     _real_dep_check()  # must not raise
 
 

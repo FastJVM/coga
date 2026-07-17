@@ -33,7 +33,7 @@ from coga.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
-from coga.dependencies import DEPENDENCIES
+from coga.dependencies import DEPENDENCIES, install_hint
 from coga.managed_skills import (
     ManagedSkillError,
     ManagedSkillSummary,
@@ -406,8 +406,29 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     coga_os = target / "coga"
 
     if coga_os.exists():
+        if (coga_os / "coga.toml").is_file():
+            message = (
+                f"{coga_os} already exists — this repo is already initialized.\n"
+                "To upgrade the CLI, use the installer that owns it: "
+                "`uv tool upgrade coga` for uv, or run "
+                "`pip install --upgrade coga` in its Python environment. "
+                "Batteries resolve from the installed package, so no re-init "
+                "is needed.\n"
+                f"If {coga_os} is broken or partial, fix the cause or remove "
+                "the dir, then re-run `coga init`.\n"
+                f"To remove Coga from this repo entirely, run `coga uninstall` "
+                f"from inside {target}."
+            )
+        else:
+            message = (
+                f"{coga_os} already exists, but it does not look like an "
+                "initialized Coga repo (coga.toml is missing).\n"
+                "If this is a broken or partial Coga install, fix the cause or "
+                "remove the dir, then re-run `coga init`. Otherwise, move or "
+                "rename the existing path so Coga does not overwrite it."
+            )
         typer.secho(
-            f"{coga_os} already exists.",
+            message,
             fg=typer.colors.RED,
             err=True,
         )
@@ -622,6 +643,15 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     steps.append(
         f"Edit {coga_os}/coga.toml — set your agents, notification channels, "
         "and aliases."
+    )
+    # `coga build` / `coga launch` drive an agent CLI that init deliberately
+    # does not require (see `coga.dependencies`) — name the prerequisite here
+    # so a fresh user isn't sent into the flow only to hit "not found in PATH".
+    steps.append(
+        "Install an agent CLI, if you haven't — coga drives Claude Code "
+        f"({install_hint('claude')}) or Codex ({install_hint('codex')}). "
+        "Launching agents (`coga build`, `coga launch`, `coga ticket`) needs "
+        "one installed and authenticated."
     )
     if is_empty:
         steps.append(

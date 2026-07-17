@@ -285,7 +285,10 @@ proceed without more human input.
 live REPL. They require stdin and stdout to be TTYs. The REPL
 does not terminate on its own: `coga bump`, `coga mark done`, and
 `coga block` signal the launch supervisor via the session-scoped
-`$COGA_DONE_SENTINEL` file, and the supervisor tears the REPL down. After
+`$COGA_DONE_SENTINEL` file, and the supervisor tears the REPL down. (A
+successful script launch signals the same slug-scoped channel after its step
+advance — the advance is that launch's `coga bump` — so an agent driving its
+own script step through a nested `coga launch` releases its session too.) After
 teardown, `coga launch` re-reads the ticket and either spawns a fresh REPL
 for the next agent-owned workflow step (rotating CLIs when the step assignee
 changes) or returns control to the caller at human handoffs, terminal states,
@@ -320,7 +323,9 @@ scripts, which runs the script and, **on exit 0**, advances the step (or marks
 the task done after the final step); **on a non-zero exit** it posts a failure
 and leaves the step put. So a script step's completion is gated by its exit
 code, not by an agent's judgment — a step cannot advance without its script
-producing its output.
+producing its output. `coga megalaunch` applies the same per-step rule: its
+sweep runs a script launch directly — at entry or reached mid-chain — and a
+non-zero exit fails that one task without stopping the rest of the sweep.
 
 ### Step completion gates (`requires:`)
 

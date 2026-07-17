@@ -5,10 +5,10 @@ The default sweep covers the operator's `active` and `in_progress` tickets:
 that has since crashed or been torn down mid-step — resumes, exactly like a
 manual `coga launch <slug>`. An **explicit selection** (the `--pick` picker
 or `--relaunch`) runs only the named tasks, and a selected ticket that turns
-out unlaunchable (wrong owner, draft/paused/done, script step) is reported
-loudly instead of silently skipped — the human named it, so its outcome is
-owed back. An optional directory narrows either mode to a `tasks/` sub-tree,
-exactly like `coga status <dir>`.
+out unlaunchable (wrong owner, draft/paused/done) is reported loudly instead
+of silently skipped — the human named it, so its outcome is owed back. An
+optional directory narrows either mode to a `tasks/` sub-tree, exactly like
+`coga status <dir>`.
 
 Megalaunch is a set of normal interactive launches, not a headless drain: each
 eligible step spawns the agent REPL under the PTY watcher exactly like
@@ -17,6 +17,12 @@ eligible step spawns the agent REPL under the PTY watcher exactly like
 back to the sweep. Recurring's idle-timeout / max-session backstops are armed
 so one wedged agent can't starve the rest of the queue. Because the spawned
 REPLs are interactive, the whole run requires a TTY — fail loud otherwise.
+
+Script launches run too: a ticket whose current step is script-backed or that
+carries its own `script:` runs through the same `run_script_mode` path the
+`coga launch` supervisor uses — no agent, no REPL.
+Exit 0 advances the step and the chain continues; a non-zero exit leaves the
+step put and fails that task's result without stopping the rest of the sweep.
 
 Tasks are serviced oldest-first (first `coga/log.md` line per ref — committed
 content, so the order survives clones where file mtimes don't).
@@ -36,13 +42,18 @@ from coga.commands.launch import (
     _interactive_stdio_has_tty,
     spawn_agent_session,
 )
-from coga.commands.launch_script import is_script_launch
+from coga.commands.launch_script import (
+    current_step_is_script,
+    is_script_launch,
+    run_script_mode,
+)
 from coga.recurring_runner import (
     _recurring_idle_timeout,
     _recurring_max_session,
 )
 from coga.compose import ComposeError, compose_prompt
 from coga.config import Config, ConfigError, SecretError, build_launch_env, load_config
+from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga.logfile import first_activity_map
 from coga.mark import mark_in_progress
@@ -118,9 +129,9 @@ def run_megalaunch(
     instead of each ticket's `assignee:` — ephemeral, with the same semantics
     as `coga launch --agent`: the ticket is never rewritten, a human-assigned
     ticket is not converted into an agent step (still a human gate), and on a
-    chained task the override applies only to the first launched step, so
-    `other-agent` rotation on later steps still lands on the ticket's
-    resolved assignee.
+    chained task the override applies only to the first launched *agent* step
+    (script steps run as scripts and never consume it), so `other-agent`
+    rotation on later steps still lands on the ticket's resolved assignee.
 
     `selection` (exact `id_slug`s) switches to explicit mode: only the named
     tasks run, and a named task that can't launch — wrong owner,
@@ -255,9 +266,11 @@ def launchable_candidates(
     """The tasks the interactive picker offers, oldest-first.
 
     The operator's own `active` and `in_progress` tickets whose assignee is a
-    configured agent and whose current step isn't script-backed — the set an
-    explicit selection could actually launch. Unreadable tickets are skipped
-    here (the picker offers choices; the run reports failures).
+    configured agent, plus script launches (a script-backed current step or a
+    ticket-owned `script:`, which run without an agent so the assignee doesn't
+    gate them) — the set an explicit selection could actually launch.
+    Unreadable tickets are skipped here (the picker offers choices; the run
+    reports failures).
     """
     candidates: list[tuple[TaskRef, Ticket]] = []
     for ref in filter_tasks_under(_tasks_oldest_first(cfg), directory, cfg):
@@ -269,10 +282,11 @@ def launchable_candidates(
             continue
         if ticket.status not in {"active", "in_progress"}:
             continue
-        if ticket.assignee not in cfg.agents:
-            continue
-        if ticket.current_step() is None or is_script_launch(cfg, ticket):
-            continue
+        if not is_script_launch(cfg, ticket):
+            if ticket.assignee not in cfg.agents:
+                continue
+            if ticket.current_step() is None:
+                continue
         candidates.append((ref, ticket))
     return candidates
 
@@ -351,21 +365,19 @@ def _candidate_result(
         detail = "; ".join(blocker.reason for blocker in blockers)
         return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
 
-    current = ticket.current_step()
-    if current is None:
+    # A script launch — a script-backed current step or a
+    # ticket-owned `script:` — is launchable regardless of assignee: the sweep
+    # runs the script itself, exactly like the `coga launch` supervisor. This
+    # mirrors the script exemption in launch's `_refuse_human_handoff_launch`.
+    if is_script_launch(cfg, ticket):
+        return None
+    if ticket.current_step() is None:
         return _result(ref, "skipped-human-gate", "no current workflow step", ticket.assignee)
     if ticket.assignee not in cfg.agents:
         return _result(
             ref,
             "skipped-human-gate",
             f"assignee {ticket.assignee or 'unassigned'} is not a configured agent",
-            ticket.assignee,
-        )
-    if is_script_launch(cfg, ticket):
-        return _result(
-            ref,
-            "skipped-human-gate",
-            "current step is script-backed; recurring/script launch owns it",
             ticket.assignee,
         )
     return None
@@ -382,6 +394,7 @@ def _launch_until_stop(
     max_session: float | None = None,
 ) -> MegalaunchResult:
     launched = False
+    first_agent_step = True
     step_count = 0
 
     while True:
@@ -395,6 +408,35 @@ def _launch_until_stop(
                 launched=launched,
             )
 
+        # A script launch — the current step's single skill declares a
+        # `script:`, or the ticket carries its own
+        # `script:` — runs in-process through the same `run_script_mode` path
+        # the `coga launch` supervisor uses: exit 0 advances the step (or
+        # finishes the task), non-zero leaves the step put. No agent, no REPL,
+        # and no assignee gate — scripts run regardless of who is assigned,
+        # exactly like `coga launch`.
+        if is_script_launch(cfg, ticket):
+            launched = True
+            failure = _run_script_step(cfg, ref, ticket)
+            if failure is not None:
+                return _result(ref, "failed", failure, ticket.assignee, launched=True)
+            if not ref.ticket_path.exists():
+                # A script may legitimately delete its own task (e.g. the
+                # bootstrap/delete-task skill) — a clean terminal state.
+                return _result(
+                    ref,
+                    "completed",
+                    "task removed by script step",
+                    ticket.assignee,
+                    launched=True,
+                )
+            after = read_ticket(ref)
+            stop = _chain_stop_result(cfg, ref, after)
+            if stop is not None:
+                return stop
+            ticket = after
+            continue
+
         if ticket.assignee not in cfg.agents:
             return _result(
                 ref,
@@ -403,12 +445,14 @@ def _launch_until_stop(
                 ticket.assignee,
                 launched=launched,
             )
-        # The override applies only to the task's first launched step — the
-        # same rule as `coga launch --agent` — so `other-agent` rotation on
-        # later steps still lands on the ticket's resolved assignee.
+        # The override applies only to the task's first launched *agent* step
+        # — the same rule as `coga launch --agent`, where a script step never
+        # consumes it — so `other-agent` rotation on later steps still lands
+        # on the ticket's resolved assignee.
         launch_assignee = (
-            ticket.assignee if launched else (agent_override or ticket.assignee)
+            (agent_override or ticket.assignee) if first_agent_step else ticket.assignee
         )
+        first_agent_step = False
 
         preflight = _preflight_agent_launch(cfg, ref, ticket, launch_assignee)
         if preflight is not None:
@@ -489,24 +533,9 @@ def _launch_until_stop(
                 after.assignee,
                 launched=True,
             )
-        if after.status == "done":
-            return _result(ref, "completed", "task done", after.assignee, launched=True)
-        if after.status != "in_progress":
-            return _result(
-                ref,
-                "completed",
-                f"status is {after.status}",
-                after.assignee,
-                launched=True,
-            )
-        if after.assignee not in cfg.agents:
-            return _result(
-                ref,
-                "completed",
-                f"handed off to {after.assignee or 'unassigned'}",
-                after.assignee,
-                launched=True,
-            )
+        stop = _chain_stop_result(cfg, ref, after)
+        if stop is not None:
+            return stop
         if (after.step, after.status) == (before.step, before.status):
             return _result(
                 ref,
@@ -516,6 +545,62 @@ def _launch_until_stop(
                 launched=True,
             )
         ticket = after
+
+
+def _run_script_step(cfg: Config, ref: TaskRef, ticket: Ticket) -> str | None:
+    """Run the task's script in-process; returns the failure detail, or None.
+
+    The same `run_script_mode` path the `coga launch` supervisor uses: it
+    marks an `active` ticket in_progress, runs the script, and on exit 0
+    advances the step (or finishes the task after the final one). All its
+    failure paths `sys.exit` — catch that here so one failed script fails this
+    task's result instead of killing the rest of the sweep.
+    """
+    step = ticket.current_step()
+    where = (
+        f"script step {ticket.step_index()} ({step['name']})"
+        if step is not None and current_step_is_script(cfg, ticket)
+        else "ticket script"
+    )
+    try:
+        run_script_mode(cfg, ref, ticket)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 1
+        return f"{where} exited with code {code}"
+    return None
+
+
+def _chain_stop_result(
+    cfg: Config, ref: TaskRef, after: Ticket
+) -> MegalaunchResult | None:
+    """Terminal chain state after a step ran, or None to keep chaining.
+
+    Shared by the agent and script branches of `_launch_until_stop`; every
+    result it returns is launched work.
+    """
+    if after.status == "blocked":
+        blockers = open_blockers(ref.ticket_path)
+        detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
+        return _result(ref, "blocked", detail, after.assignee, launched=True)
+    if after.status == "done":
+        return _result(ref, "completed", "task done", after.assignee, launched=True)
+    if after.status != "in_progress":
+        return _result(
+            ref,
+            "completed",
+            f"status is {after.status}",
+            after.assignee,
+            launched=True,
+        )
+    if after.assignee not in cfg.agents:
+        return _result(
+            ref,
+            "completed",
+            f"handed off to {after.assignee or 'unassigned'}",
+            after.assignee,
+            launched=True,
+        )
+    return None
 
 
 def _preflight_agent_launch(
@@ -528,7 +613,7 @@ def _preflight_agent_launch(
     if ticket.status not in {"active", "in_progress"}:
         return f"status is {ticket.status}; expected active or in_progress"
     if shutil.which(agent.cli) is None:
-        return f"agent CLI {agent.cli!r} not found in PATH"
+        return agent_cli_missing_message(agent.cli)
     try:
         compose_prompt(cfg, ref, ticket)
         build_launch_env(cfg, ticket.secrets)

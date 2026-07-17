@@ -32,9 +32,11 @@ clone, so the vendored copy is exactly the CLI that ran init. `COGA_REPO_URL`
 overrides the source explicitly (a local checkout path or a git URL).
 There is no in-place refresh command: bootstrap tickets, bundled skills,
 bundled contexts, and bundled reusable workflows resolve directly from the
-installed package, so picking up a new release is `pip install --upgrade coga`
-(or `git pull && pip install -e .` against a source checkout), not a
-per-repo refresh.
+installed package, so picking up a new release uses the installer that owns the
+CLI: `uv tool upgrade coga` for a uv tool install,
+`pip install --upgrade coga` in the CLI's Python environment, or
+`git pull && pip install -e .` against a source checkout — not a per-repo
+refresh.
 
 `pip install coga` installs bundled batteries into the wheel as package
 resources. It does not modify a repo. `coga init`
@@ -269,9 +271,12 @@ supervisor re-reads the ticket and starts a fresh step session.
 
 Interactive agent REPLs terminate through a session-scoped side channel:
 `coga bump`, `coga mark done`, and `coga block` write the launched task to
-`$COGA_DONE_SENTINEL`, and the PTY supervisor tears the REPL down. PTY output
-is never a completion channel, so reading or printing prompt text cannot end a
-session accidentally.
+`$COGA_DONE_SENTINEL`, and the PTY supervisor tears the REPL down. A
+successful script launch writes the same slug-scoped sentinel after its step
+advance (the advance is that launch's `coga bump`), so an agent that drives
+its own script step with a nested `coga launch` releases its session too. PTY
+output is never a completion channel, so reading or printing prompt text
+cannot end a session accidentally.
 
 `--prompt-report` is for prompt-scope inspection. Its token counts use a
 dependency-light `characters / 4` estimate, so treat them as a prompt-bloat
@@ -511,8 +516,8 @@ using the shared megalaunch engine. Three ways in, one engine:
 - **Bare `coga megalaunch`** sweeps every launchable `active` or
   `in_progress` task — `active` work starts, `in_progress` work resumes.
 - **`coga megalaunch --pick`** opens an interactive picker: a numbered list
-  of your `active` **and** `in_progress` agent-assigned tickets, all
-  pre-checked. Type numbers to toggle (`3`, `1 3`, `all`, `none`), Enter
+  of your launchable `active` **and** `in_progress` tickets (agent-assigned,
+  plus script launches), all pre-checked. Type numbers to toggle (`3`, `1 3`, `all`, `none`), Enter
   launches the checked set, `q` quits without launching. The confirmed set
   runs as an explicit selection and is saved for `--relaunch`.
 - **`coga megalaunch --relaunch`** replays the last confirmed selection
@@ -533,11 +538,16 @@ The sweep silently filters out tickets whose `owner` is not
 `load_config().current_user` (including owner-less tickets, so other owners'
 work is not counted as skip noise), skips human gates and open blockers,
 preflights launch requirements, then
-runs one eligible agent step at a time. Each step is a normal **interactive**
+runs one eligible step at a time. An agent step is a normal **interactive**
 launch — the agent REPL streams live to the console under the PTY watcher, and
 the done-sentinel (`coga bump` / `mark done` / `block`) releases it before the
 sweep moves on — never a headless `claude -p` run, which would buffer all
-output until the run ends. The recurring-style idle-timeout / max-session
+output until the run ends. A **script launch** — a script-backed current step
+or a ticket-owned `script:` — runs the script directly,
+exactly like the `coga launch` supervisor: no agent, no REPL, no assignee
+gate; exit 0 advances the step and the chain continues, a non-zero exit
+leaves the step put and fails that one task without stopping the sweep. The
+recurring-style idle-timeout / max-session
 backstops are armed so a wedged REPL can't starve the queue; because the REPLs
 (and the `--pick` prompt) are interactive, megalaunch requires a TTY and fails
 loud without one. The run summary distinguishes launched, completed, blocked,
@@ -553,7 +563,8 @@ set) with that configured agent type regardless of each ticket's `assignee:`
 `coga launch --agent`: the ticket's `assignee:` is never rewritten, a
 human-assigned ticket is not converted into an agent step (it still skips as
 a human gate), and on a task that chains multiple steps the override applies
-only to the first launched step — later steps follow the ticket's resolved
+only to the first launched *agent* step (script steps run as scripts and
+never consume it) — later steps follow the ticket's resolved
 assignee, so `other-agent` rotation keeps its meaning.
 
 An optional positional `DIR` scopes the sweep or the picker to tasks under
