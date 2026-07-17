@@ -4,18 +4,23 @@ Three ways in, one engine:
 
 - bare `coga megalaunch` — sweep every launchable `active` or `in_progress`
   task (`active` starts, `in_progress` resumes).
-- `coga megalaunch --pick` — interactive picker over the operator's `active`
-  + `in_progress` agent tickets, all pre-checked; the confirmed set runs as
-  an explicit selection (and is saved for `--relaunch`).
+- `coga megalaunch --pick` — arrow-key picker over every launchable task
+  (any owner, any status but `done`), nothing pre-checked; the confirmed set
+  runs as an explicit selection (and is saved for `--relaunch`).
 - `coga megalaunch --relaunch` — replay the last confirmed selection.
 """
 
 from __future__ import annotations
 
+import os
+import select
 import sys
+import termios
+import tty
 
 import typer
-from rich.console import Console
+from rich.console import Console, Group
+from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
@@ -50,9 +55,9 @@ def megalaunch(
         False,
         "--pick",
         help=(
-            "Choose interactively: a pre-checked list of your active and "
-            "in_progress tickets; the confirmed set launches and is saved "
-            "for --relaunch."
+            "Choose interactively: an arrow-key list of every launchable "
+            "task (any owner, any status but done), nothing pre-checked; "
+            "the confirmed set launches and is saved for --relaunch."
         ),
     ),
     relaunch: bool = typer.Option(
@@ -143,7 +148,7 @@ def _resolve_selection(
         # Default: the non-interactive sweep of launchable active tasks.
         return None
 
-    # --pick: the interactive picker over an explicit, pre-checked list.
+    # --pick: the interactive arrow-key picker over an explicit list.
     if not _interactive_stdio_has_tty():
         raise MegalaunchError(
             "The megalaunch picker is interactive and requires a TTY. "
@@ -151,11 +156,12 @@ def _resolve_selection(
         )
     candidates = launchable_candidates(cfg, directory=directory)
     if not candidates:
-        typer.echo("No launchable tasks (active or in_progress, agent-assigned).")
+        typer.echo("No launchable tasks (any status but done, agent-assigned).")
         return []
     selection = _pick_selection(candidates)
     if selection:
         save_selection(cfg, selection)
+        typer.echo(f"Picked: {', '.join(selection)}")
     else:
         typer.echo("Nothing selected — nothing launched.")
     return selection
@@ -181,84 +187,106 @@ def _saved_selection_still_on_disk(cfg: Config) -> list[str]:
     return kept
 
 
-def parse_toggle_tokens(line: str, count: int) -> set[int] | None:
-    """Parse a toggle line ('3', '1 3', '2,4') into zero-based indices.
+def _decode_key(data: bytes) -> str:
+    """Map a raw keypress byte sequence to a picker action ('' = ignore)."""
+    if data in (b"\x1b[A", b"\x1bOA", b"k"):
+        return "up"
+    if data in (b"\x1b[B", b"\x1bOB", b"j"):
+        return "down"
+    if data == b" ":
+        return "space"
+    if data in (b"\r", b"\n"):
+        return "enter"
+    if data in (b"q", b"\x1b", b"\x03"):  # q, bare Esc, Ctrl-C
+        return "quit"
+    if data == b"a":
+        return "all"
+    if data == b"n":
+        return "none"
+    return ""
 
-    Returns None on any token that isn't a number in [1, count] — the caller
-    re-prompts instead of guessing.
-    """
-    indices: set[int] = set()
-    for token in line.replace(",", " ").split():
-        if not token.isdigit():
-            return None
-        number = int(token)
-        if not 1 <= number <= count:
-            return None
-        indices.add(number - 1)
-    return indices
+
+def _read_key() -> str:
+    """Read one keypress from the terminal in raw mode, decoded to an action."""
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        data = os.read(fd, 1)
+        if data == b"\x1b":
+            # Arrow keys arrive as ESC [ A / ESC O A; a bare Esc sends nothing
+            # more, so a short poll distinguishes the two.
+            while len(data) < 3 and select.select([fd], [], [], 0.02)[0]:
+                data += os.read(fd, 1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    return _decode_key(data)
 
 
 def _pick_selection(candidates: list[tuple[TaskRef, Ticket]]) -> list[str]:
-    """Numbered toggle picker: everything pre-checked, Enter launches.
+    """Arrow-key picker: ↑/↓ (or j/k) move, Space toggles, Enter launches.
 
-    Returns the confirmed slugs, or an empty list when the human backed out
-    (`q`, or confirming with nothing checked).
+    Nothing starts checked — the list reaches wide (other owners' tickets,
+    drafts, paused, blocked), so every launch is an explicit opt-in. Returns
+    the confirmed slugs, or an empty list when the human backed out (`q`/Esc,
+    or confirming with nothing checked).
     """
     console = Console()
-    selected = set(range(len(candidates)))
-    while True:
-        console.print(_picker_table(candidates, selected))
-        line = (
-            typer.prompt(
-                "Toggle (e.g. '3' or '1 3'), 'all'/'none', Enter to launch, "
-                "q to quit",
-                default="",
-                show_default=False,
-            )
-            .strip()
-            .lower()
-        )
-        if line == "q":
-            return []
-        if line == "":
-            return [candidates[i][0].id_slug for i in sorted(selected)]
-        if line == "all":
-            selected = set(range(len(candidates)))
-            continue
-        if line == "none":
-            selected = set()
-            continue
-        toggles = parse_toggle_tokens(line, len(candidates))
-        if toggles is None:
-            typer.secho(
-                f"Enter numbers 1-{len(candidates)}, 'all', 'none', or q.",
-                fg=typer.colors.YELLOW,
-            )
-            continue
-        selected ^= toggles
+    cursor = 0
+    selected: set[int] = set()
+    with Live(
+        _picker_view(candidates, selected, cursor),
+        console=console,
+        auto_refresh=False,
+        transient=True,
+    ) as live:
+        while True:
+            key = _read_key()
+            if key == "quit":
+                return []
+            if key == "enter":
+                return [candidates[i][0].id_slug for i in sorted(selected)]
+            if key == "up":
+                cursor = (cursor - 1) % len(candidates)
+            elif key == "down":
+                cursor = (cursor + 1) % len(candidates)
+            elif key == "space":
+                selected ^= {cursor}
+            elif key == "all":
+                selected = set(range(len(candidates)))
+            elif key == "none":
+                selected = set()
+            live.update(_picker_view(candidates, selected, cursor), refresh=True)
 
 
-def _picker_table(
-    candidates: list[tuple[TaskRef, Ticket]], selected: set[int]
-) -> Table:
+def _picker_view(
+    candidates: list[tuple[TaskRef, Ticket]], selected: set[int], cursor: int
+) -> Group:
     table = Table(show_lines=False, show_edge=False, pad_edge=False)
-    table.add_column("#", justify="right")
+    table.add_column("")
     table.add_column("sel")
     table.add_column("slug")
     table.add_column("status")
+    table.add_column("owner")
     table.add_column("step")
     table.add_column("title")
     for index, (ref, ticket) in enumerate(candidates):
         table.add_row(
-            str(index + 1),
+            Text("❯" if index == cursor else " "),
             # Text, not str: a bare "[x]" would be eaten as Rich markup.
             Text("[x]" if index in selected else "[ ]"),
             ref.id_slug,
             ticket.status,
+            ticket.owner or "-",
             ticket.step or "-",
             ticket.title,
+            style="reverse" if index == cursor else None,
         )
-    return table
+    hint = Text(
+        "↑/↓ move · Space toggle · a all · n none · Enter launch · q quit",
+        style="dim",
+    )
+    return Group(table, hint)
 
 
 def _drain_post_text(run: MegalaunchRun) -> str | None:

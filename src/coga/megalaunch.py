@@ -4,10 +4,14 @@ The default sweep covers the operator's `active` and `in_progress` tickets:
 `active` work starts, `in_progress` work — a session another process started
 that has since crashed or been torn down mid-step — resumes, exactly like a
 manual `coga launch <slug>`. An **explicit selection** (the `--pick` picker
-or `--relaunch`) runs only the named tasks, and a selected ticket that turns
-out unlaunchable (wrong owner, draft/paused/done) is reported loudly instead
-of silently skipped — the human named it, so its outcome is owed back. An
-optional directory narrows either mode to a `tasks/` sub-tree, exactly like
+or `--relaunch`) runs only the named tasks and reaches wider: any owner, and
+any status but `done` — a picked `draft`/`paused` ticket activates inline
+(exactly like `coga launch`), and a picked `blocked` ticket resumes
+interactively with the resolve-or-re-block preamble, returning to `blocked`
+if the session exits with the ask still open. A selected ticket that still
+can't launch (done, no workflow) is reported loudly instead of silently
+skipped — the human named it, so its outcome is owed back. An optional
+directory narrows either mode to a `tasks/` sub-tree, exactly like
 `coga status <dir>`.
 
 Megalaunch is a set of normal interactive launches, not a headless drain: each
@@ -56,7 +60,16 @@ from coga.config import Config, ConfigError, SecretError, build_launch_env, load
 from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga.logfile import first_activity_map
-from coga.mark import mark_in_progress
+from coga.mark import (
+    BlackboardNeedsSynthesis,
+    RequiredExtensionMissing,
+    WorkflowMissing,
+    _has_workflow,
+    mark_active,
+    mark_blocked,
+    mark_in_progress,
+)
+from coga.workflow import WorkflowError
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import TaskRef, filter_tasks_under, list_tasks, read_ticket
 from coga.ticket import Ticket, TicketError, TicketNotFoundError
@@ -134,9 +147,11 @@ def run_megalaunch(
     rotation on later steps still lands on the ticket's resolved assignee.
 
     `selection` (exact `id_slug`s) switches to explicit mode: only the named
-    tasks run, and a named task that can't launch — wrong owner,
-    draft/paused/done — is reported as `skipped-unlaunchable` instead of
-    dropped. A selection slug matching no task raises `MegalaunchError`.
+    tasks run, any owner's. A picked `draft`/`paused` ticket activates inline
+    and a picked `blocked` ticket resumes interactively (re-blocked if the
+    session exits with the ask still open); a named task that still can't
+    launch — done, no workflow — is reported as `skipped-unlaunchable` instead
+    of dropped. A selection slug matching no task raises `MegalaunchError`.
     """
     cfg = cfg or load_config()
     if agent_override is not None:
@@ -196,30 +211,24 @@ def run_megalaunch(
         # is `None` when the field is absent, so owner-less tickets are excluded
         # too. Part 1 guarantees `current_user` is a real configured name, never
         # a guess, so this filter is trustworthy for unattended runs. An
-        # explicitly selected ticket is never dropped silently — the human
-        # named it, so its outcome is owed back (still not launched: someone
-        # else's work is theirs to start).
-        if ticket.owner != cfg.current_user:
-            if explicit:
-                results.append(
-                    _result(
-                        ref,
-                        "skipped-unlaunchable",
-                        f"owned by {ticket.owner or 'nobody'}, not "
-                        f"{cfg.current_user}",
-                        ticket.assignee,
-                    )
-                )
+        # explicit selection is exempt: checking someone else's ticket in the
+        # picker is the deliberate human act of starting it.
+        if not explicit and ticket.owner != cfg.current_user:
             continue
 
-        # `active` / `in_progress` (launchable) and `blocked` (reportable)
-        # tickets are in scope: the sweep starts active work and resumes
+        # The default sweep covers `active` / `in_progress` (launchable) and
+        # `blocked` (reportable): it starts active work and resumes
         # in_progress work — a crashed or torn-down session leaves that
         # status behind, and the resume works exactly like a manual
-        # `coga launch <slug>`. Draft/paused/done are ignored in the default
-        # sweep — never launched and never counted as a result — while an
-        # explicit selection reports them loudly as unlaunchable.
-        launchable = {"active", "in_progress", "blocked"}
+        # `coga launch <slug>` — while draft/paused/done are ignored, never
+        # launched and never counted as a result. An explicit selection also
+        # launches draft/paused (activated inline) and blocked (interactive
+        # resume); only `done` stays unlaunchable, reported loudly.
+        launchable = (
+            {"draft", "active", "in_progress", "paused", "blocked"}
+            if explicit
+            else {"active", "in_progress", "blocked"}
+        )
         if ticket.status not in launchable:
             if explicit:
                 results.append(
@@ -231,7 +240,7 @@ def run_megalaunch(
                     )
                 )
             continue
-        candidate = _candidate_result(cfg, ref, ticket)
+        candidate = _candidate_result(cfg, ref, ticket, explicit=explicit)
         if candidate is not None:
             results.append(candidate)
             continue
@@ -265,10 +274,14 @@ def launchable_candidates(
 ) -> list[tuple[TaskRef, Ticket]]:
     """The tasks the interactive picker offers, oldest-first.
 
-    The operator's own `active` and `in_progress` tickets whose assignee is a
-    configured agent, plus script launches (a script-backed current step or a
-    ticket-owned `script:`, which run without an agent so the assignee doesn't
-    gate them) — the set an explicit selection could actually launch.
+    Everything an explicit pick could actually launch — any owner, any status
+    but `done`: `active`/`in_progress` start or resume, `draft`/`paused`
+    activate inline, `blocked` resumes interactively when it has open asks.
+    Script launches (a script-backed current step or a ticket-owned
+    `script:`) are offered regardless of assignee — the sweep runs the script
+    itself. Otherwise the task must be agent-assigned with a real current step
+    (a draft's step/script shape is only knowable after activation freezes its
+    workflow, so a draft is offered on the workflow's presence alone).
     Unreadable tickets are skipped here (the picker offers choices; the run
     reports failures).
     """
@@ -278,15 +291,16 @@ def launchable_candidates(
             ticket = read_ticket(ref)
         except TicketError:
             continue
-        if ticket.owner != cfg.current_user:
-            continue
-        if ticket.status not in {"active", "in_progress"}:
+        if ticket.status == "done":
             continue
         if not is_script_launch(cfg, ticket):
-            if ticket.assignee not in cfg.agents:
+            if ticket.status == "draft":
+                if ticket.assignee not in cfg.agents or not _has_workflow(ticket):
+                    continue
+            elif ticket.assignee not in cfg.agents or ticket.current_step() is None:
                 continue
-            if ticket.current_step() is None:
-                continue
+        if ticket.status == "blocked" and not open_blockers(ref.ticket_path):
+            continue
         candidates.append((ref, ticket))
     return candidates
 
@@ -350,18 +364,34 @@ def _candidate_result(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
+    *,
+    explicit: bool = False,
 ) -> MegalaunchResult | None:
     blockers = open_blockers(ref.ticket_path)
     if ticket.status == "blocked":
-        detail = "; ".join(blocker.reason for blocker in blockers) or "status is blocked"
-        return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
-
-    # An `in_progress` resume goes through the same gates as an `active`
-    # start — it must not dodge the script-step gate just because a prior
-    # session already flipped the status.
-    if ticket.status not in {"active", "in_progress"}:
-        return None
-    if blockers:
+        # The unattended sweep never resumes a blocked ticket — that needs a
+        # human in the loop. An explicit pick *is* that human act: the launch
+        # activates it and the composed prompt gains the resolve-or-re-block
+        # preamble, so only an ask-less blocked ticket (nothing to resolve)
+        # stays unlaunchable.
+        if explicit:
+            if not blockers:
+                return _result(
+                    ref,
+                    "skipped-unlaunchable",
+                    "blocked but has no open blocker asks to resolve",
+                    ticket.assignee,
+                )
+        else:
+            detail = (
+                "; ".join(blocker.reason for blocker in blockers)
+                or "status is blocked"
+            )
+            return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
+    elif blockers and ticket.status in {"active", "in_progress"} and not explicit:
+        # An `in_progress` resume goes through the same gates as an `active`
+        # start — it must not dodge the blocker gate just because a prior
+        # session already flipped the status.
         detail = "; ".join(blocker.reason for blocker in blockers)
         return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
 
@@ -371,8 +401,7 @@ def _candidate_result(
     # mirrors the script exemption in launch's `_refuse_human_handoff_launch`.
     if is_script_launch(cfg, ticket):
         return None
-    if ticket.current_step() is None:
-        return _result(ref, "skipped-human-gate", "no current workflow step", ticket.assignee)
+
     if ticket.assignee not in cfg.agents:
         return _result(
             ref,
@@ -380,6 +409,14 @@ def _candidate_result(
             f"assignee {ticket.assignee or 'unassigned'} is not a configured agent",
             ticket.assignee,
         )
+
+    # A draft has no current step yet — activation freezes the workflow and
+    # seeds step 1, so its step/script gates run post-activation in
+    # `_launch_until_stop`. Everything else is gated here.
+    if ticket.status == "draft":
+        return None
+    if ticket.current_step() is None:
+        return _result(ref, "skipped-human-gate", "no current workflow step", ticket.assignee)
     return None
 
 
@@ -396,6 +433,25 @@ def _launch_until_stop(
     launched = False
     first_agent_step = True
     step_count = 0
+
+    # An explicitly picked draft / paused / blocked ticket activates inline —
+    # checking it in the picker is the readiness signal, same as typing
+    # `coga launch <slug>`. A blocked ticket additionally becomes an
+    # interactive resume: the composed prompt gains the resolve-or-re-block
+    # preamble off the blackboard's open asks, and an exit that leaves the ask
+    # open returns the ticket to `blocked` below.
+    blocked_resume = ticket.status == "blocked"
+    if ticket.status in {"draft", "paused", "blocked"}:
+        failure = _activate_for_launch(cfg, ref, ticket)
+        if failure is not None:
+            return failure
+        # Activation froze the workflow and seeded step 1. A script-backed step
+        # is handled by the loop's `is_script_launch` branch; guard only the
+        # degenerate no-step case here.
+        if not is_script_launch(cfg, ticket) and ticket.current_step() is None:
+            return _result(
+                ref, "skipped-human-gate", "no current workflow step", ticket.assignee
+            )
 
     while True:
         step_count += 1
@@ -512,6 +568,15 @@ def _launch_until_stop(
 
         launched = True
         after = read_ticket(ref)
+        if blocked_resume:
+            # A resumed blocked launch may run to `in_progress` so the session
+            # can discuss, `coga unblock`, and continue. If it exited with the
+            # ask still open, return it to the blocked queue (visible to
+            # `status --blocked` and blocker reminders) instead of chaining.
+            blocked_resume = False
+            reblocked = _reblock_unresolved(cfg, ref, after)
+            if reblocked is not None:
+                return reblocked
         if after.status == "blocked":
             blockers = open_blockers(ref.ticket_path)
             detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
@@ -545,6 +610,101 @@ def _launch_until_stop(
                 launched=True,
             )
         ticket = after
+
+
+def _activate_for_launch(
+    cfg: Config, ref: TaskRef, ticket: Ticket
+) -> MegalaunchResult | None:
+    """Bring an explicitly picked draft / paused / blocked ticket to `active`.
+
+    Mirrors `coga launch`'s inline auto-activation, but returns a loud result
+    instead of exiting the process — one bad pick must not kill the sweep.
+    `mark_active` mutates `ticket` in place (status, frozen workflow, seeded
+    step), so the caller's launch loop continues off the same object.
+    """
+    prior = ticket.status
+    try:
+        mark_active(
+            cfg,
+            ref,
+            ticket,
+            actor="megalaunch",
+            log_message=f"activated ({prior} → active) — explicit megalaunch pick",
+            echo=None,
+        )
+    except WorkflowMissing:
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"{prior} with no workflow — set `workflow:` in ticket.md or run "
+            f"`coga ticket {ref.id_slug}`",
+            ticket.assignee,
+        )
+    except WorkflowError as exc:
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"`workflow:` ref could not be frozen — {exc}",
+            ticket.assignee,
+        )
+    except RequiredExtensionMissing as exc:
+        names = ", ".join(repr(f) for f in exc.fields)
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"required extension field(s) empty: {names}",
+            ticket.assignee,
+        )
+    except BlackboardNeedsSynthesis as exc:
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"blackboard needs synthesis before first launch: {exc.reason}",
+            ticket.assignee,
+        )
+    except TaskValidationError as exc:
+        return _result(ref, "failed", str(exc), ticket.assignee)
+    return None
+
+
+def _reblock_unresolved(
+    cfg: Config, ref: TaskRef, after: Ticket
+) -> MegalaunchResult | None:
+    """Return an unresolved blocked-ticket resume to the blocked queue.
+
+    Same contract as `coga launch`'s `_reblock_unresolved_resume`: the resumed
+    session was allowed to reach `in_progress`, but exiting with the ask still
+    open must keep it visible to `status --blocked` and blocker reminders.
+    """
+    if not ref.ticket_path.exists() or after.status != "in_progress":
+        return None
+    blockers = open_blockers(ref.ticket_path)
+    if not blockers:
+        return None
+    owner = after.owner or cfg.current_user
+    detail = "; ".join(b.reason for b in blockers)
+    try:
+        mark_blocked(
+            cfg,
+            ref,
+            after,
+            actor="system",
+            log_message=(
+                "blocked: unresolved blocker still open after resumed "
+                "megalaunch pick exited"
+            ),
+            slack_text=(
+                f"🛑 {cfg.current_user} still blocked "
+                f"*{ref.id_slug}* \"{after.title}\": {detail}"
+            ),
+            echo=(
+                f"{ref.id_slug}: blocked (unresolved blocker still open; "
+                f"owner {owner} needs to answer)"
+            ),
+        )
+    except TaskValidationError as exc:
+        return _result(ref, "failed", str(exc), after.assignee, launched=True)
+    return _result(ref, "blocked", detail, after.assignee, launched=True)
 
 
 def _run_script_step(cfg: Config, ref: TaskRef, ticket: Ticket) -> str | None:

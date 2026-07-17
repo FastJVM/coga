@@ -200,8 +200,9 @@ def launch(
     # after preflights pass. Batch surfaces are unchanged — a
     # script step or TTY-less run has no human to discuss with, so those keep
     # the hard refusal (checked here, before any status mutation). `coga
-    # megalaunch` never gets this far: it classifies blocked tickets as
-    # skipped-unresolved-blocker before launching.
+    # megalaunch` never gets this far: its sweep classifies blocked tickets as
+    # skipped-unresolved-blocker, and an explicit pick runs the same
+    # activate-and-resume through the engine's own launch loop.
     if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "blocked":
         if not is_script_launch(cfg, ticket) and _interactive_stdio_has_tty():
             if not open_blockers(ref.ticket_path):

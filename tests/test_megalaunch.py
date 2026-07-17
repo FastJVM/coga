@@ -976,6 +976,37 @@ def test_megalaunch_selection_reports_unlaunchable_picks(
     ticket.frontmatter["status"] = "done"
     ticket.frontmatter.pop("step", None)
     ticket.write(done["path"])
+    workflowless = create_task(
+        cfg=cfg,
+        title="Shapeless draft",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    ticket = Ticket.read(workflowless["path"])
+    ticket.frontmatter["workflow"] = None
+    ticket.write(workflowless["path"])
+
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[done["slug"], workflowless["slug"]])
+
+    assert launched == []
+    assert run.counts["skipped-unlaunchable"] == 2
+    outcomes = {result.slug: result.detail for result in run.results}
+    assert outcomes[done["slug"]] == "status is done"
+    assert "no workflow" in outcomes[workflowless["slug"]]
+
+
+def test_megalaunch_selection_launches_other_owners_ticket(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Explicitly picking someone else's ticket is the deliberate act of
+    starting it — the sweep-only owner filter does not apply."""
+    cfg = load_config(repo)
     foreign = create_task(
         cfg=cfg,
         title="Someone else's",
@@ -989,13 +1020,142 @@ def test_megalaunch_selection_reports_unlaunchable_picks(
 
     launched = _done_on_spawn(monkeypatch)
 
-    run = run_megalaunch(cfg, selection=[done["slug"], foreign["slug"]])
+    run = run_megalaunch(cfg, selection=[foreign["slug"]])
 
-    assert launched == []
-    assert run.counts["skipped-unlaunchable"] == 2
-    outcomes = {result.slug: result.detail for result in run.results}
-    assert outcomes[done["slug"]] == "status is done"
-    assert "owned by lea" in outcomes[foreign["slug"]]
+    assert launched == [foreign["slug"]]
+    assert run.counts["completed"] == 1
+
+
+def test_megalaunch_selection_activates_draft_and_paused(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A picked draft / paused ticket activates inline, like `coga launch`."""
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Draft pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    paused = create_task(
+        cfg=cfg,
+        title="Paused pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(paused["path"])
+    ticket.frontmatter["status"] = "paused"
+    ticket.write(paused["path"])
+
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[draft["slug"], paused["slug"]])
+
+    assert sorted(launched) == sorted([draft["slug"], paused["slug"]])
+    assert run.counts["completed"] == 2
+    assert Ticket.read(draft["path"]).status == "done"
+    assert Ticket.read(paused["path"]).status == "done"
+
+
+def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A picked blocked ticket resumes; an unresolved exit re-blocks it."""
+    from coga.blackboard import append_blocker
+
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Blocked pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(Path(ref["path"]), actor="claude", reason="Which region?")
+    ticket = Ticket.read(ref["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(ref["path"])
+
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    launched: list[str] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        # The agent session exits without resolving the ask.
+        launched.append(ref_obj.id_slug)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg, selection=[ref["slug"]])
+
+    assert launched == [ref["slug"]]
+    assert run.counts["blocked"] == 1
+    assert "Which region?" in run.results[0].detail
+    # The unresolved ask returns the ticket to the blocked queue.
+    assert Ticket.read(ref["path"]).status == "blocked"
+
+
+def test_megalaunch_selection_blocked_resume_resolves_and_completes(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A resumed blocked pick whose session resolves the ask runs to done."""
+    from coga.blackboard import append_blocker, resolve_open_blockers
+
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Blocked then resolved",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(Path(ref["path"]), actor="claude", reason="Which region?")
+    ticket = Ticket.read(ref["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(ref["path"])
+
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    launched: list[str] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        # The session resolves the ask and finishes the task.
+        launched.append(ref_obj.id_slug)
+        resolve_open_blockers(ref_obj.ticket_path, actor="marc", answer="eu-west-1")
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg, selection=[ref["slug"]])
+
+    assert launched == [ref["slug"]]
+    assert run.counts["completed"] == 1
+    assert Ticket.read(ref["path"]).status == "done"
 
 
 def test_megalaunch_selection_unknown_slug_fails_loud(repo: Path) -> None:
@@ -1007,8 +1167,10 @@ def test_megalaunch_selection_unknown_slug_fails_loud(repo: Path) -> None:
         run_megalaunch(cfg, selection=["no-such-task"])
 
 
-def test_launchable_candidates_lists_active_and_in_progress(repo: Path) -> None:
-    """The picker offers the operator's active + in_progress agent tickets."""
+def test_launchable_candidates_offers_any_owner_any_status_but_done(
+    repo: Path,
+) -> None:
+    """The picker offers every explicitly launchable task, not just mine."""
     from coga.megalaunch import launchable_candidates
 
     cfg = load_config(repo)
@@ -1035,7 +1197,7 @@ def test_launchable_candidates_lists_active_and_in_progress(repo: Path) -> None:
     ticket = Ticket.read(running["path"])
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(running["path"])
-    create_task(  # draft — never offered
+    draft = create_task(  # draft with a workflow — offered (activates inline)
         cfg=cfg,
         title="Still a draft",
         workflow_name="code",
@@ -1045,7 +1207,7 @@ def test_launchable_candidates_lists_active_and_in_progress(repo: Path) -> None:
         status="draft",
         watchers=[],
     )
-    create_task(  # someone else's — never offered
+    foreign = create_task(  # someone else's — offered (explicit picks launch it)
         cfg=cfg,
         title="Lea's work",
         workflow_name="code",
@@ -1055,10 +1217,108 @@ def test_launchable_candidates_lists_active_and_in_progress(repo: Path) -> None:
         status="active",
         watchers=[],
     )
+    paused = create_task(
+        cfg=cfg,
+        title="Paused one",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(paused["path"])
+    ticket.frontmatter["status"] = "paused"
+    ticket.write(paused["path"])
+    done = create_task(  # done — never offered
+        cfg=cfg,
+        title="Finished",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(done["path"])
+    ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(done["path"])
+    human = create_task(  # human-assigned — never offered (no agent to spawn)
+        cfg=cfg,
+        title="Human work",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="marc",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(human["path"])
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(human["path"])
+    workflowless = create_task(  # draft with no workflow — can't activate
+        cfg=cfg,
+        title="Shapeless draft",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    ticket = Ticket.read(workflowless["path"])
+    ticket.frontmatter["workflow"] = None
+    ticket.write(workflowless["path"])
 
     offered = {ref.id_slug for ref, _ in launchable_candidates(cfg)}
 
-    assert offered == {active["slug"], running["slug"]}
+    assert offered == {
+        active["slug"],
+        running["slug"],
+        draft["slug"],
+        foreign["slug"],
+        paused["slug"],
+    }
+
+
+def test_launchable_candidates_blocked_needs_open_asks(repo: Path) -> None:
+    """A blocked ticket is offered only when it has an ask to resolve."""
+    from coga.blackboard import append_blocker
+    from coga.megalaunch import launchable_candidates
+
+    cfg = load_config(repo)
+    with_ask = create_task(
+        cfg=cfg,
+        title="Blocked with ask",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(Path(with_ask["path"]), actor="claude", reason="Which region?")
+    ticket = Ticket.read(with_ask["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(with_ask["path"])
+    askless = create_task(
+        cfg=cfg,
+        title="Blocked without ask",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(askless["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(askless["path"])
+
+    offered = {ref.id_slug for ref, _ in launchable_candidates(cfg)}
+
+    assert offered == {with_ask["slug"]}
 
 
 def test_save_and_load_selection_roundtrip(repo: Path) -> None:
@@ -1075,27 +1335,40 @@ def test_save_and_load_selection_roundtrip(repo: Path) -> None:
     assert (repo / ".coga" / "megalaunch-selection.json").is_file()
 
 
-def test_parse_toggle_tokens() -> None:
-    from coga.commands.megalaunch import parse_toggle_tokens
+def test_decode_key() -> None:
+    from coga.commands.megalaunch import _decode_key
 
-    assert parse_toggle_tokens("3", 5) == {2}
-    assert parse_toggle_tokens("1 3", 5) == {0, 2}
-    assert parse_toggle_tokens("2,4", 5) == {1, 3}
-    assert parse_toggle_tokens("0", 5) is None
-    assert parse_toggle_tokens("6", 5) is None
-    assert parse_toggle_tokens("nope", 5) is None
+    assert _decode_key(b"\x1b[A") == "up"
+    assert _decode_key(b"k") == "up"
+    assert _decode_key(b"\x1b[B") == "down"
+    assert _decode_key(b"j") == "down"
+    assert _decode_key(b" ") == "space"
+    assert _decode_key(b"\r") == "enter"
+    assert _decode_key(b"\n") == "enter"
+    assert _decode_key(b"q") == "quit"
+    assert _decode_key(b"\x1b") == "quit"  # bare Esc
+    assert _decode_key(b"\x03") == "quit"  # Ctrl-C
+    assert _decode_key(b"a") == "all"
+    assert _decode_key(b"n") == "none"
+    assert _decode_key(b"x") == ""  # unknown keys are ignored
+
+
+def _feed_keys(monkeypatch: pytest.MonkeyPatch, keys: list[str]) -> None:
+    """Drive the picker with decoded key actions instead of a raw terminal."""
+    pending = iter(keys)
+    monkeypatch.setattr("coga.commands.megalaunch._read_key", lambda: next(pending))
 
 
 def test_megalaunch_cli_picker_launches_checked_tasks(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`coga megalaunch --pick` pre-checks everything; toggling excludes a task."""
+    """`coga megalaunch --pick` starts unchecked; Space opts a task in."""
     from typer.testing import CliRunner
 
     cfg = load_config(repo)
     first = create_task(
         cfg=cfg,
-        title="Keep me checked",
+        title="Check me",
         workflow_name="code",
         contexts=[],
         owner="marc",
@@ -1105,7 +1378,7 @@ def test_megalaunch_cli_picker_launches_checked_tasks(
     )
     second = create_task(
         cfg=cfg,
-        title="Uncheck me",
+        title="Leave me unchecked",
         workflow_name="code",
         contexts=[],
         owner="marc",
@@ -1122,8 +1395,9 @@ def test_megalaunch_cli_picker_launches_checked_tasks(
     )
     launched = _done_on_spawn(monkeypatch)
 
-    # Toggle #2 off, then Enter to launch the remaining selection.
-    result = CliRunner().invoke(app, ["megalaunch", "--pick"], input="2\n\n")
+    # Check the first task with Space (unknown keys are ignored), Enter.
+    _feed_keys(monkeypatch, ["space", "", "enter"])
+    result = CliRunner().invoke(app, ["megalaunch", "--pick"])
 
     assert result.exit_code == 0, result.output
     assert launched == [first["slug"]]
@@ -1133,6 +1407,52 @@ def test_megalaunch_cli_picker_launches_checked_tasks(
     from coga.megalaunch import load_selection
 
     assert load_selection(cfg) == [first["slug"]]
+
+
+def test_megalaunch_cli_picker_moves_and_toggles(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arrows move the cursor; Space toggles the row under it."""
+    from typer.testing import CliRunner
+
+    cfg = load_config(repo)
+    # Titles sort the same by creation time and slug, so the row order is
+    # stable even when the create timestamps tie.
+    first = create_task(
+        cfg=cfg,
+        title="Aaa skipped over",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    second = create_task(
+        cfg=cfg,
+        title="Bbb picked below",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+    )
+    launched = _done_on_spawn(monkeypatch)
+
+    # Down to the second row, check it, then toggle it off and on again.
+    _feed_keys(monkeypatch, ["down", "space", "space", "space", "enter"])
+    result = CliRunner().invoke(app, ["megalaunch", "--pick"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == [second["slug"]]
+    assert Ticket.read(first["path"]).status == "active"
 
 
 def test_megalaunch_cli_quit_launches_nothing(
@@ -1156,7 +1476,8 @@ def test_megalaunch_cli_quit_launches_nothing(
     )
     launched = _done_on_spawn(monkeypatch)
 
-    result = CliRunner().invoke(app, ["megalaunch", "--pick"], input="q\n")
+    _feed_keys(monkeypatch, ["quit"])
+    result = CliRunner().invoke(app, ["megalaunch", "--pick"])
 
     assert result.exit_code == 0, result.output
     assert launched == []
@@ -1200,8 +1521,9 @@ def test_megalaunch_cli_pick_scopes_to_directory(
     )
     launched = _done_on_spawn(monkeypatch)
 
-    # Enter accepts the pre-checked (dir-scoped) list as-is.
-    result = CliRunner().invoke(app, ["megalaunch", "marketing", "--pick"], input="\n")
+    # `a` checks the whole (dir-scoped) list, Enter launches it.
+    _feed_keys(monkeypatch, ["all", "enter"])
+    result = CliRunner().invoke(app, ["megalaunch", "marketing", "--pick"])
 
     assert result.exit_code == 0, result.output
     assert launched == [inside["slug"]]
