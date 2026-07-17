@@ -1,7 +1,7 @@
 ---
 slug: install/vendor-cli-from-installed-package-not-git-clone
 title: Vendor CLI from installed package not git clone
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
