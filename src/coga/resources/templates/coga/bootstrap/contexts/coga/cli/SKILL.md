@@ -196,8 +196,10 @@ status and step untouched) or re-blocks with a refined reason. If the resumed
 session exits before recording an answer, launch returns the ticket to
 `blocked` so blocker queues keep reporting it. Script, auto, and
 Script and TTY-less launches of a blocked ticket are still refused until
-`coga unblock` records the answer (`coga megalaunch` likewise still skips it
-as `skipped-unresolved-blocker`); a `done` ticket is refused because it is finished. A ticket
+`coga unblock` records the answer (the `coga megalaunch` *sweep* likewise
+still skips it as `skipped-unresolved-blocker`; an explicit `--pick` of a
+blocked ticket is the human act and resumes it the same interactive way); a
+`done` ticket is refused because it is finished. A ticket
 that can't be activated — no workflow, or an empty `required` extension field
 — still fails loud with the same remedy `mark active` gives. Launching an
 `active` ticket then marks it
@@ -510,16 +512,19 @@ clear-the-queue counterpart to naming one slug — it takes no slug and rejects
 
 ## coga megalaunch [DIR] [--pick] [--relaunch] [--max-tasks N] [--agent <type>]
 
-Attempt launchable work owned by the configured current user sequentially
-using the shared megalaunch engine. Three ways in, one engine:
+Attempt launchable work sequentially using the shared megalaunch engine —
+the bare sweep covers the configured current user's own tickets; an explicit
+`--pick` selection may reach any owner's. Three ways in, one engine:
 
 - **Bare `coga megalaunch`** sweeps every launchable `active` or
   `in_progress` task — `active` work starts, `in_progress` work resumes.
-- **`coga megalaunch --pick`** opens an interactive picker: a numbered list
-  of your launchable `active` **and** `in_progress` tickets (agent-assigned,
-  plus script launches), all pre-checked. Type numbers to toggle (`3`, `1 3`, `all`, `none`), Enter
-  launches the checked set, `q` quits without launching. The confirmed set
-  runs as an explicit selection and is saved for `--relaunch`.
+- **`coga megalaunch --pick`** opens an interactive arrow-key picker over
+  every launchable task — any owner, any status but `done` (draft, active,
+  in_progress, paused, and blocked-with-open-asks), agent-assigned or a
+  script launch. Nothing starts checked: ↑/↓ (or `j`/`k`) move the cursor,
+  Space toggles the row, `a`/`n` check all/none, Enter launches the checked
+  set, `q`/Esc quits without launching. The confirmed set runs as an explicit
+  selection and is saved for `--relaunch`.
 - **`coga megalaunch --relaunch`** replays the last confirmed selection
   (saved machine-locally under the gitignored `.coga/`, since one person's
   queue is not team state). Saved tasks that no longer exist are skipped
@@ -529,10 +534,14 @@ using the shared megalaunch engine. Three ways in, one engine:
 Both the sweep and the picker cover `in_progress` work: that status means a
 session some other process started (or that crashed mid-step), and
 megalaunch resumes it exactly like a manual `coga launch <slug>` would. An
-explicitly selected task that turns out unlaunchable (someone else's,
-draft/paused/done) is
-reported as `skipped-unlaunchable` rather than silently dropped — you picked
-it, so its outcome is owed back.
+explicit selection reaches wider than the sweep: checking a task in the
+picker is the deliberate human act, so a picked `draft`/`paused` ticket
+activates inline (exactly like `coga launch`), a picked `blocked` ticket
+resumes interactively with the resolve-or-re-block preamble (returning to
+`blocked` if the session exits with the ask still open), and another owner's
+ticket launches when picked. A selected task that still can't launch (done,
+or a draft with no workflow to activate) is reported as `skipped-unlaunchable`
+rather than silently dropped — you picked it, so its outcome is owed back.
 
 The sweep silently filters out tickets whose `owner` is not
 `load_config().current_user` (including owner-less tickets, so other owners'
@@ -790,8 +799,8 @@ only; they don't accept their own flags.
   `coga megalaunch`
   (`--agent <type>` runs the sweep with that agent regardless of assignee,
   `coga megalaunch <dir>` scopes it to one `tasks/` sub-tree).
-- Picking which of your tasks to launch (checkbox list, active +
-  in_progress pre-checked) → `coga megalaunch --pick`; replaying the
+- Picking which tasks to launch (arrow-key checkbox list over any owner's
+  tasks, any status but done) → `coga megalaunch --pick`; replaying the
   last confirmed list → `coga megalaunch --relaunch`.
 - Other bootstrap ticket → `coga launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `coga bump`.
