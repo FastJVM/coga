@@ -30,3 +30,4 @@ consumed_through: 8e32b965dc04
 {"id":"803cb28175e9","ts":"2026-07-15T20:36","project":"coga","kind":"done","detail":"→ done (script)","ticket":"dream-validate-drift-w29","owner":"nicktoper"}
 {"id":"88c1b04d9318","ts":"2026-07-15T21:19","project":"coga","kind":"done","detail":"→ done (script)","ticket":"dream-cleanup-orphan-markers-w29","owner":"nicktoper"}
 {"id":"efdb0827ab26","ts":"2026-07-16T11:23","project":"coga","kind":"done","detail":"zach finished: review → done ✅","ticket":"coga-important/support-second-webhook","owner":"zach"}
+{"id":"3aff9b674f90","ts":"2026-07-16T16:54","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"install/gh-auth-hint-on-managed-skill-rate-limit","owner":"nicktoper"}
