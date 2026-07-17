@@ -4,15 +4,19 @@ The default sweep covers the operator's `active` and `in_progress` tickets:
 `active` work starts, `in_progress` work — a session another process started
 that has since crashed or been torn down mid-step — resumes, exactly like a
 manual `coga launch <slug>`. An **explicit selection** (the `--pick` picker
-or `--relaunch`) runs only the named tasks and reaches wider: any owner, and
-any status but `done` — a picked `draft`/`paused` ticket activates inline
-(exactly like `coga launch`), and a picked `blocked` ticket resumes
-interactively with the resolve-or-re-block preamble, returning to `blocked`
-if the session exits with the ask still open. A selected ticket that still
-can't launch (done, no workflow) is reported loudly instead of silently
-skipped — the human named it, so its outcome is owed back. An optional
-directory narrows either mode to a `tasks/` sub-tree, exactly like
-`coga status <dir>`.
+or `--relaunch`) runs only the named tasks, any owner's, and reaches wider —
+any status but `done` — by staging the run in three phases so every
+human-in-the-loop step lands before the first launch: **prepare** (when the
+operator accepts the CLI's batch prompt, each picked `draft` runs the guided
+`coga ticket` authoring interview so a not-ready ticket becomes launchable),
+**activate** (every draft/paused/blocked → `active`), then **launch** (each
+activated ticket runs). A picked `blocked`
+ticket resumes interactively with the resolve-or-re-block preamble, returning
+to `blocked` if the session exits with the ask still open. A selected ticket
+that still can't launch (done, or a draft the interview left with no workflow)
+is reported loudly instead of silently skipped — the human named it, so its
+outcome is owed back. An optional directory narrows either mode to a `tasks/`
+sub-tree, exactly like `coga status <dir>`.
 
 Megalaunch is a set of normal interactive launches, not a headless drain: each
 eligible step spawns the agent REPL under the PTY watcher exactly like
@@ -64,14 +68,20 @@ from coga.mark import (
     BlackboardNeedsSynthesis,
     RequiredExtensionMissing,
     WorkflowMissing,
-    _has_workflow,
     mark_active,
     mark_blocked,
     mark_in_progress,
 )
 from coga.workflow import WorkflowError
 from coga.taskfile import read_blackboard, replace_blackboard
-from coga.tasks import TaskRef, filter_tasks_under, list_tasks, read_ticket
+from coga.tasks import (
+    TaskNotFoundError,
+    TaskRef,
+    filter_tasks_under,
+    list_tasks,
+    read_ticket,
+    resolve_bootstrap,
+)
 from coga.ticket import Ticket, TicketError, TicketNotFoundError
 from coga.validate import TaskValidationError
 
@@ -130,6 +140,7 @@ def run_megalaunch(
     agent_override: str | None = None,
     directory: str | None = None,
     selection: list[str] | None = None,
+    author_drafts: bool = False,
     max_steps_per_task: int = 8,
 ) -> MegalaunchRun:
     """Attempt launchable `active` and `in_progress` tasks sequentially.
@@ -147,11 +158,21 @@ def run_megalaunch(
     rotation on later steps still lands on the ticket's resolved assignee.
 
     `selection` (exact `id_slug`s) switches to explicit mode: only the named
-    tasks run, any owner's. A picked `draft`/`paused` ticket activates inline
-    and a picked `blocked` ticket resumes interactively (re-blocked if the
-    session exits with the ask still open); a named task that still can't
-    launch — done, no workflow — is reported as `skipped-unlaunchable` instead
-    of dropped. A selection slug matching no task raises `MegalaunchError`.
+    tasks run, any owner's, and the run is staged so every human-in-the-loop
+    step happens before the first launch — **prepare** (when `author_drafts`,
+    each picked `draft` runs the guided `coga ticket` authoring interview so a
+    not-ready ticket becomes launchable; the human can end the interview at
+    once if it is already fine), then **activate** (every draft/paused/blocked
+    → `active`), then **launch** (each activated ticket runs). A picked
+    `blocked` ticket resumes interactively (re-blocked if the session exits
+    with the ask still open); a named task that still can't launch — done, or
+    a draft with no workflow to activate — is reported as
+    `skipped-unlaunchable` instead of dropped. A selection slug matching no
+    task raises `MegalaunchError`.
+
+    `author_drafts` gates the prepare phase: the CLI sets it from a one-shot
+    batch prompt when the confirmed selection contains drafts, so authoring is
+    an opt-in the operator agreed to, never forced on every pick.
     """
     cfg = cfg or load_config()
     if agent_override is not None:
@@ -163,8 +184,6 @@ def run_megalaunch(
             "shell."
         )
     started_at = datetime.now(timezone.utc)
-    results: list[MegalaunchResult] = []
-    attempted = 0
     # Liveness backstops for the spawned REPLs, resolved once per sweep with
     # the same precedence recurring uses (env override > [launch] config >
     # default). Human keystrokes count as activity, so an attended session
@@ -183,7 +202,53 @@ def run_megalaunch(
         if missing:
             listed = ", ".join(sorted(missing))
             raise MegalaunchError(f"Selected tasks not found: {listed}")
+        results = _run_selection(
+            cfg,
+            queue,
+            agent_override=agent_override,
+            author_drafts=author_drafts,
+            max_tasks=max_tasks,
+            max_steps_per_task=max_steps_per_task,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+        )
+    else:
+        results = _run_sweep(
+            cfg,
+            queue,
+            agent_override=agent_override,
+            max_tasks=max_tasks,
+            max_steps_per_task=max_steps_per_task,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+        )
 
+    return MegalaunchRun(
+        started_at=started_at,
+        agent_override=agent_override,
+        directory=directory,
+        selection=tuple(selection) if selection is not None else None,
+        results=results,
+    )
+
+
+def _run_sweep(
+    cfg: Config,
+    queue: list[TaskRef],
+    *,
+    agent_override: str | None,
+    max_tasks: int | None,
+    max_steps_per_task: int,
+    idle_timeout: float | None,
+    max_session: float | None,
+) -> list[MegalaunchResult]:
+    """The unattended sweep: the operator's own ready `active` / `in_progress`
+    work, one launchable step at a time. Draft/paused/done are ignored and
+    blocked is reported, never launched — resuming those needs a human, which
+    only the explicit picker path provides.
+    """
+    results: list[MegalaunchResult] = []
+    attempted = 0
     for ref in queue:
         if max_tasks is not None and attempted >= max_tasks:
             break
@@ -192,55 +257,26 @@ def run_megalaunch(
         except TicketNotFoundError:
             # The queue is a snapshot; a session launched earlier in this
             # sweep may legitimately reap a finished task (retire deletes the
-            # source directory). A vanished ref is not a failure — skip it,
-            # loudly only when the human explicitly named it.
-            if explicit:
-                results.append(
-                    _result(ref, "skipped-unlaunchable", "task no longer exists")
-                )
+            # source directory). A vanished ref is not a failure — skip it
+            # (the sweep never named it, so nothing is owed back).
             continue
         except TicketError as exc:
             results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
             continue
 
-        # Scope the sweep to the running operator's own work. On a shared repo a
-        # daily sweep must not launch other people's
-        # tickets, so a ticket owned by anyone but `cfg.current_user` is skipped
-        # silently — like the status skip below, it never enters `results`, so
-        # other owners' work doesn't inflate the summary counts. `ticket.owner`
-        # is `None` when the field is absent, so owner-less tickets are excluded
-        # too. Part 1 guarantees `current_user` is a real configured name, never
-        # a guess, so this filter is trustworthy for unattended runs. An
-        # explicit selection is exempt: checking someone else's ticket in the
-        # picker is the deliberate human act of starting it.
-        if not explicit and ticket.owner != cfg.current_user:
+        # Scope the sweep to the running operator's own work. On a shared repo
+        # a daily sweep must not launch other people's tickets, so a ticket
+        # owned by anyone but `cfg.current_user` is skipped silently — it never
+        # enters `results`, so other owners' work doesn't inflate the summary
+        # counts. `ticket.owner` is `None` when the field is absent, so
+        # owner-less tickets are excluded too. Part 1 guarantees `current_user`
+        # is a real configured name, never a guess, so this filter is
+        # trustworthy for unattended runs.
+        if ticket.owner != cfg.current_user:
             continue
-
-        # The default sweep covers `active` / `in_progress` (launchable) and
-        # `blocked` (reportable): it starts active work and resumes
-        # in_progress work — a crashed or torn-down session leaves that
-        # status behind, and the resume works exactly like a manual
-        # `coga launch <slug>` — while draft/paused/done are ignored, never
-        # launched and never counted as a result. An explicit selection also
-        # launches draft/paused (activated inline) and blocked (interactive
-        # resume); only `done` stays unlaunchable, reported loudly.
-        launchable = (
-            {"draft", "active", "in_progress", "paused", "blocked"}
-            if explicit
-            else {"active", "in_progress", "blocked"}
-        )
-        if ticket.status not in launchable:
-            if explicit:
-                results.append(
-                    _result(
-                        ref,
-                        "skipped-unlaunchable",
-                        f"status is {ticket.status}",
-                        ticket.assignee,
-                    )
-                )
+        if ticket.status not in {"active", "in_progress", "blocked"}:
             continue
-        candidate = _candidate_result(cfg, ref, ticket, explicit=explicit)
+        candidate = _candidate_result(cfg, ref, ticket, explicit=False)
         if candidate is not None:
             results.append(candidate)
             continue
@@ -257,14 +293,164 @@ def run_megalaunch(
                 max_session=max_session,
             )
         )
+    return results
 
-    return MegalaunchRun(
-        started_at=started_at,
-        agent_override=agent_override,
-        directory=directory,
-        selection=tuple(selection) if selection is not None else None,
-        results=results,
+
+def _run_selection(
+    cfg: Config,
+    queue: list[TaskRef],
+    *,
+    agent_override: str | None,
+    author_drafts: bool,
+    max_tasks: int | None,
+    max_steps_per_task: int,
+    idle_timeout: float | None,
+    max_session: float | None,
+) -> list[MegalaunchResult]:
+    """The explicit picker path, staged so all human-in-the-loop prep lands
+    before the first launch: **prepare** (author picked drafts, when the
+    operator opted in), then **activate** (draft/paused/blocked → active),
+    then **launch** (run each).
+
+    Batching the phases means the operator answers every authoring interview
+    and every activation up front, then the working launches proceed without
+    further gating them on a not-yet-ready ticket further down the list.
+    """
+    results: list[MegalaunchResult] = []
+
+    # Phase 1 — Prepare. When the operator opted in (the CLI's one-shot batch
+    # prompt, asked only when the pick contains drafts), run the guided
+    # `coga ticket` authoring interview on each picked draft, bringing a
+    # not-ready ticket to a launchable shape (workflow, contexts, assignee).
+    # The human ends the interview immediately if the draft is already fine —
+    # authoring leaves the status at `draft`, and an unreadable/vanished ref is
+    # left for phase 2 to report.
+    if author_drafts:
+        for ref in queue:
+            try:
+                ticket = read_ticket(ref)
+            except TicketError:
+                continue
+            if ticket.status == "draft":
+                _author_draft(cfg, ref, ticket)
+
+    # Phase 2 — Activate. Bring every picked draft/paused/blocked to `active`
+    # (a blocked ticket keeps its open asks for the launch-time preamble), and
+    # report the ones that still can't launch. What survives is the launch
+    # plan, each entry remembering whether it was a blocked resume.
+    launch_plan: list[tuple[TaskRef, bool]] = []
+    for ref in queue:
+        try:
+            ticket = read_ticket(ref)
+        except TicketNotFoundError:
+            results.append(
+                _result(ref, "skipped-unlaunchable", "task no longer exists")
+            )
+            continue
+        except TicketError as exc:
+            results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
+            continue
+        if ticket.status == "done":
+            results.append(
+                _result(ref, "skipped-unlaunchable", "status is done", ticket.assignee)
+            )
+            continue
+        candidate = _candidate_result(cfg, ref, ticket, explicit=True)
+        if candidate is not None:
+            results.append(candidate)
+            continue
+        was_blocked = ticket.status == "blocked"
+        if ticket.status in {"draft", "paused", "blocked"}:
+            failure = _activate_for_launch(cfg, ref, ticket)
+            if failure is not None:
+                results.append(failure)
+                continue
+            # Activation froze the workflow and seeded step 1; a non-script
+            # ticket with no resulting step can't be agent-launched.
+            if not is_script_launch(cfg, ticket) and ticket.current_step() is None:
+                results.append(
+                    _result(
+                        ref,
+                        "skipped-human-gate",
+                        "no current workflow step",
+                        ticket.assignee,
+                    )
+                )
+                continue
+        launch_plan.append((ref, was_blocked))
+
+    # Phase 3 — Launch. Every entry is now an activated ticket; run them one at
+    # a time, honouring `--max-tasks` over the launches.
+    attempted = 0
+    for ref, blocked_resume in launch_plan:
+        if max_tasks is not None and attempted >= max_tasks:
+            break
+        try:
+            ticket = read_ticket(ref)
+        except TicketNotFoundError:
+            results.append(
+                _result(ref, "skipped-unlaunchable", "task no longer exists")
+            )
+            continue
+        except TicketError as exc:
+            results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
+            continue
+        attempted += 1
+        results.append(
+            _launch_until_stop(
+                cfg,
+                ref,
+                ticket,
+                agent_override=agent_override,
+                max_steps_per_task=max_steps_per_task,
+                idle_timeout=idle_timeout,
+                max_session=max_session,
+                blocked_resume=blocked_resume,
+            )
+        )
+    return results
+
+
+def _author_draft(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+    """Run the guided `coga ticket` authoring interview on a picked draft.
+
+    Best-effort prep, not a launch: it reuses the same authoring session
+    `coga ticket <slug>` runs, so the draft can be edited into a launchable
+    shape before phase 2 tries to activate it. All of the authoring path's
+    hard failures `sys.exit` (no TTY, missing CLI, compose/finalize error) —
+    catch that here so a draft that can't be authored simply stays a draft
+    (phase 2 then reports it not-ready) instead of killing the whole run.
+    """
+    from coga.commands.ticket import (
+        AUTHORING_KICKOFF_EDIT,
+        _authoring_ticket,
+        _run_authoring_session,
     )
+
+    try:
+        bootstrap_ref = resolve_bootstrap(cfg, "ticket")
+    except TaskNotFoundError:
+        return
+    bootstrap_ticket = read_ticket(bootstrap_ref)
+    launch_assignee = (
+        bootstrap_ticket.assignee or ticket.agent or ticket.assignee
+    )
+    if not launch_assignee:
+        return
+    try:
+        _run_authoring_session(
+            cfg=cfg,
+            ref=ref,
+            ticket=_authoring_ticket(ticket),
+            launch_assignee=launch_assignee,
+            kickoff=AUTHORING_KICKOFF_EDIT,
+            bootstrap_title=bootstrap_ticket.title or "",
+        )
+    except SystemExit:
+        # `_run_authoring_session` exits on its own errors; swallow it so the
+        # rest of the selection still runs. The draft is untouched or
+        # partially authored — phase 2 decides launchability from its state.
+        return
 
 
 def launchable_candidates(
@@ -275,15 +461,15 @@ def launchable_candidates(
     """The tasks the interactive picker offers, oldest-first.
 
     Everything an explicit pick could actually launch — any owner, any status
-    but `done`: `active`/`in_progress` start or resume, `draft`/`paused`
-    activate inline, `blocked` resumes interactively when it has open asks.
-    Script launches (a script-backed current step or a ticket-owned
-    `script:`) are offered regardless of assignee — the sweep runs the script
-    itself. Otherwise the task must be agent-assigned with a real current step
-    (a draft's step/script shape is only knowable after activation freezes its
-    workflow, so a draft is offered on the workflow's presence alone).
-    Unreadable tickets are skipped here (the picker offers choices; the run
-    reports failures).
+    but `done`: `active`/`in_progress` start or resume, `blocked` resumes
+    interactively when it has open asks, and any `draft` is offered
+    unconditionally — the picker runs the guided authoring interview on a
+    picked draft first, so a not-yet-ready draft (no workflow or agent
+    assignee) is exactly what that phase exists to fix. Non-draft tasks must
+    be launchable as they stand: a script launch (script-backed step or a
+    ticket-owned `script:`) regardless of assignee, otherwise agent-assigned
+    with a real current step. Unreadable tickets are skipped here (the picker
+    offers choices; the run reports failures).
     """
     candidates: list[tuple[TaskRef, Ticket]] = []
     for ref in filter_tasks_under(_tasks_oldest_first(cfg), directory, cfg):
@@ -293,11 +479,12 @@ def launchable_candidates(
             continue
         if ticket.status == "done":
             continue
+        if ticket.status == "draft":
+            # Offered as-is: the prepare phase authors it into shape.
+            candidates.append((ref, ticket))
+            continue
         if not is_script_launch(cfg, ticket):
-            if ticket.status == "draft":
-                if ticket.assignee not in cfg.agents or not _has_workflow(ticket):
-                    continue
-            elif ticket.assignee not in cfg.agents or ticket.current_step() is None:
+            if ticket.assignee not in cfg.agents or ticket.current_step() is None:
                 continue
         if ticket.status == "blocked" and not open_blockers(ref.ticket_path):
             continue
@@ -429,29 +616,17 @@ def _launch_until_stop(
     max_steps_per_task: int,
     idle_timeout: float | None = None,
     max_session: float | None = None,
+    blocked_resume: bool = False,
 ) -> MegalaunchResult:
+    # `ticket` is already `active` / `in_progress` — the sweep only reaches
+    # here for ready work, and the selection path activates draft/paused/
+    # blocked in its own phase before launching. `blocked_resume` marks a
+    # ticket that was blocked when picked: the composed prompt carries the
+    # resolve-or-re-block preamble off the blackboard's still-open asks, and an
+    # exit that leaves an ask open returns it to `blocked` below.
     launched = False
     first_agent_step = True
     step_count = 0
-
-    # An explicitly picked draft / paused / blocked ticket activates inline —
-    # checking it in the picker is the readiness signal, same as typing
-    # `coga launch <slug>`. A blocked ticket additionally becomes an
-    # interactive resume: the composed prompt gains the resolve-or-re-block
-    # preamble off the blackboard's open asks, and an exit that leaves the ask
-    # open returns the ticket to `blocked` below.
-    blocked_resume = ticket.status == "blocked"
-    if ticket.status in {"draft", "paused", "blocked"}:
-        failure = _activate_for_launch(cfg, ref, ticket)
-        if failure is not None:
-            return failure
-        # Activation froze the workflow and seeded step 1. A script-backed step
-        # is handled by the loop's `is_script_launch` branch; guard only the
-        # degenerate no-step case here.
-        if not is_script_launch(cfg, ticket) and ticket.current_step() is None:
-            return _result(
-                ref, "skipped-human-gate", "no current workflow step", ticket.assignee
-            )
 
     while True:
         step_count += 1

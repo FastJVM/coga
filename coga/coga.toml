@@ -165,5 +165,8 @@ chat = "launch bootstrap/orient"
 # `build` launches the packaged `coga-build` onboarding ticket — the same path
 # `coga launch coga-build` takes. Requires an already-init'd repo.
 build = "launch coga-build"
+# `pick` opens the interactive megalaunch picker — a memorable name for
+# `coga megalaunch --pick` (a trailing directory scopes it: `coga pick mktg`).
+pick = "megalaunch --pick"
 claude = "launch bootstrap/orient --agent claude"
 codex = "launch bootstrap/orient --agent codex"

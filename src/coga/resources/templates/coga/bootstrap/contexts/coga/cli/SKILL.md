@@ -519,12 +519,13 @@ the bare sweep covers the configured current user's own tickets; an explicit
 - **Bare `coga megalaunch`** sweeps every launchable `active` or
   `in_progress` task — `active` work starts, `in_progress` work resumes.
 - **`coga megalaunch --pick`** opens an interactive arrow-key picker over
-  every launchable task — any owner, any status but `done` (draft, active,
-  in_progress, paused, and blocked-with-open-asks), agent-assigned or a
-  script launch. Nothing starts checked: ↑/↓ (or `j`/`k`) move the cursor,
-  Space toggles the row, `a`/`n` check all/none, Enter launches the checked
-  set, `q`/Esc quits without launching. The confirmed set runs as an explicit
-  selection and is saved for `--relaunch`.
+  every task worth launching — any owner, any status but `done`: every
+  `draft` (offered even when not-yet-ready — see the prepare phase below),
+  plus `active`, `in_progress`, `paused`, and blocked-with-open-asks that are
+  agent-assigned or a script launch. Nothing starts checked: ↑/↓ (or `j`/`k`)
+  move the cursor, Space toggles the row, `a`/`n` check all/none, Enter
+  launches the checked set, `q`/Esc quits without launching. The confirmed set
+  runs as an explicit selection and is saved for `--relaunch`.
 - **`coga megalaunch --relaunch`** replays the last confirmed selection
   (saved machine-locally under the gitignored `.coga/`, since one person's
   queue is not team state). Saved tasks that no longer exist are skipped
@@ -533,15 +534,33 @@ the bare sweep covers the configured current user's own tickets; an explicit
 
 Both the sweep and the picker cover `in_progress` work: that status means a
 session some other process started (or that crashed mid-step), and
-megalaunch resumes it exactly like a manual `coga launch <slug>` would. An
-explicit selection reaches wider than the sweep: checking a task in the
-picker is the deliberate human act, so a picked `draft`/`paused` ticket
-activates inline (exactly like `coga launch`), a picked `blocked` ticket
-resumes interactively with the resolve-or-re-block preamble (returning to
-`blocked` if the session exits with the ask still open), and another owner's
-ticket launches when picked. A selected task that still can't launch (done,
-or a draft with no workflow to activate) is reported as `skipped-unlaunchable`
-rather than silently dropped — you picked it, so its outcome is owed back.
+megalaunch resumes it exactly like a manual `coga launch <slug>` would.
+
+An explicit selection reaches wider than the sweep and runs in **three
+staged phases**, so every human-in-the-loop step happens before the first
+working launch:
+
+1. **Prepare** — a picked `draft` is, by definition, not-yet-ready work. When
+   the confirmed pick contains any draft, megalaunch asks once — *"N picked
+   drafts — run the guided authoring interview to make them ready before
+   launching? [Y/n]"* — and if you agree, runs the guided `coga ticket`
+   interview on each picked draft, turning it into a launchable shape
+   (workflow, contexts, assignee). You end an interview at once if that draft
+   is already fine; decline the prompt and picked drafts go straight to
+   phase 2 (an unready one is reported, not launched). A pick with no drafts
+   is never prompted.
+2. **Activate** — every picked `draft`/`paused`/`blocked` ticket is brought to
+   `active` (a `blocked` ticket keeps its open asks for the launch-time
+   resolve-or-re-block preamble), and picks that still can't launch are
+   reported now.
+3. **Launch** — each activated ticket runs, one at a time; a resumed `blocked`
+   pick returns to `blocked` if its session exits with the ask still open.
+
+Checking a task in the picker is thus the deliberate human act of starting
+it, and another owner's ticket launches when picked. A selected task that
+still can't launch (done, or a draft the interview left with no workflow to
+activate) is reported as `skipped-unlaunchable` rather than silently dropped —
+you picked it, so its outcome is owed back.
 
 The sweep silently filters out tickets whose `owner` is not
 `load_config().current_user` (including owner-less tickets, so other owners'
@@ -761,10 +780,12 @@ Default aliases shipped by `coga init`:
 chat = "launch bootstrap/orient"
 build = "launch coga-build"
 dream = "recurring launch dream"
+pick = "megalaunch --pick"
 ```
 
-`chat`, `build`, and `dream` are also registered as built-in default aliases,
-so they dispatch even in repos whose `coga.toml` predates the line. `create` is a
+`chat`, `build`, `dream`, and `pick` are also registered as built-in default
+aliases, so they dispatch even in repos whose `coga.toml` predates the line.
+`create` is a
 built-in command, not an alias (it has its own scaffolding behavior beyond
 what a `launch bootstrap/...` expansion would give it).
 

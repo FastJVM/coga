@@ -89,6 +89,18 @@ def test_command_help_runs_without_user(
     assert "--help" in capsys.readouterr().out
 
 
+def test_pick_alias_expands_to_megalaunch(
+    clone: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`coga pick` is a built-in default alias for `megalaunch --pick`."""
+    monkeypatch.setattr("sys.argv", ["coga", "pick"])
+    # megalaunch needs a TTY, so the picker exits — but the expansion banner
+    # printed before dispatch proves the alias resolves.
+    with pytest.raises(SystemExit):
+        main()
+    assert "→ coga megalaunch --pick" in capsys.readouterr().err
+
+
 def test_status_runs_without_user(clone: Path) -> None:
     result = CliRunner().invoke(app, ["status"])
     assert result.exit_code == 0

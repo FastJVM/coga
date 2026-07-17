@@ -159,12 +159,18 @@ _BUILTIN_COMMANDS = frozenset(
 # renamed (`autoclose-merged`) — it sweeps already-merged PRs and marks their
 # tasks done via the recurring sweep. There is no manual `automerge` command;
 # closing a single merged task by hand is `coga mark done`.
+#
+# `pick` is a memorable name for the interactive megalaunch picker
+# (`coga megalaunch --pick`); shipping it as a default keeps `coga pick`
+# working in repos whose `coga.toml` predates the alias line. A trailing
+# directory still scopes it (`coga pick marketing`).
 _DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
     "build": "launch coga-build",
     "skill-update": "recurring launch skill-update",
     "autoclose": "recurring launch autoclose-merged",
+    "pick": "megalaunch --pick",
 }
 
 

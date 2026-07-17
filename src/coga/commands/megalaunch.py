@@ -4,9 +4,11 @@ Three ways in, one engine:
 
 - bare `coga megalaunch` — sweep every launchable `active` or `in_progress`
   task (`active` starts, `in_progress` resumes).
-- `coga megalaunch --pick` — arrow-key picker over every launchable task
-  (any owner, any status but `done`), nothing pre-checked; the confirmed set
-  runs as an explicit selection (and is saved for `--relaunch`).
+- `coga megalaunch --pick` — arrow-key picker over every task worth launching
+  (any owner, any status but `done`, drafts included), nothing pre-checked;
+  the confirmed set runs staged — prepare (a batch prompt offers to author
+  picked drafts) → activate → launch — as an explicit selection (and is saved
+  for `--relaunch`).
 - `coga megalaunch --relaunch` — replay the last confirmed selection.
 """
 
@@ -36,8 +38,8 @@ from coga.megalaunch import (
     run_megalaunch,
     save_selection,
 )
-from coga.tasks import TaskRef, UnknownDirectoryError, list_tasks
-from coga.ticket import Ticket
+from coga.tasks import TaskRef, UnknownDirectoryError, list_tasks, read_ticket
+from coga.ticket import Ticket, TicketError
 
 
 def megalaunch(
@@ -55,9 +57,11 @@ def megalaunch(
         False,
         "--pick",
         help=(
-            "Choose interactively: an arrow-key list of every launchable "
-            "task (any owner, any status but done), nothing pre-checked; "
-            "the confirmed set launches and is saved for --relaunch."
+            "Choose interactively: an arrow-key list of every task worth "
+            "launching (any owner, any status but done, drafts included), "
+            "nothing pre-checked; the confirmed set is prepared (a batch "
+            "prompt offers to run the authoring interview on picked drafts), "
+            "activated, then launched, and is saved for --relaunch."
         ),
     ),
     relaunch: bool = typer.Option(
@@ -103,6 +107,12 @@ def megalaunch(
         # The picker (or an empty candidate list) already said why.
         return
 
+    # A picked selection that includes drafts gets one batch question: run the
+    # guided authoring interview on them first, or launch what's ready and let
+    # the not-ready drafts report themselves. Only asked when there's a draft
+    # to author, so a pick of ready work is never interrupted.
+    author_drafts = _confirm_author_drafts(cfg, selection) if selection else False
+
     try:
         run = run_megalaunch(
             cfg,
@@ -110,6 +120,7 @@ def megalaunch(
             agent_override=agent,
             directory=directory,
             selection=selection,
+            author_drafts=author_drafts,
         )
     except (MegalaunchError, UnknownDirectoryError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
@@ -122,6 +133,38 @@ def megalaunch(
         notification.post(cfg, message)
     if run.counts["failed"]:
         sys.exit(1)
+
+
+def _confirm_author_drafts(cfg: Config, selection: list[str]) -> bool:
+    """Ask once whether to author the picked drafts, or `False` if none.
+
+    A picked `draft` is not-yet-ready work: authoring it (the guided
+    `coga ticket` interview) is what makes it launchable. But forcing an
+    interview on every pick is heavy, so this is a single opt-in prompt raised
+    only when the confirmed selection actually contains a draft — a pick of
+    ready work is never interrupted.
+    """
+    wanted = set(selection)
+    drafts = [
+        ref.id_slug
+        for ref in list_tasks(cfg)
+        if ref.id_slug in wanted and _is_draft(ref)
+    ]
+    if not drafts:
+        return False
+    noun = "draft" if len(drafts) == 1 else "drafts"
+    return typer.confirm(
+        f"{len(drafts)} picked {noun} ({', '.join(sorted(drafts))}) — run the "
+        "guided authoring interview to make them ready before launching?",
+        default=True,
+    )
+
+
+def _is_draft(ref: TaskRef) -> bool:
+    try:
+        return read_ticket(ref).status == "draft"
+    except TicketError:
+        return False
 
 
 def _resolve_selection(
@@ -156,7 +199,7 @@ def _resolve_selection(
         )
     candidates = launchable_candidates(cfg, directory=directory)
     if not candidates:
-        typer.echo("No launchable tasks (any status but done, agent-assigned).")
+        typer.echo("No tasks to pick (any status but done; drafts included).")
         return []
     selection = _pick_selection(candidates)
     if selection:
