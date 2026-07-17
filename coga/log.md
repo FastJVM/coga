@@ -1884,3 +1884,32 @@ Auto-merging coga/tasks/validate-tickets-at-create-time.md
 CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time.md
 2026-07-17 14:40 [recurring/blocker-reminders] [system] script exited with code 0
 2026-07-17 14:40 [recurring/blocker-reminders] [system] completed (final script step ran) via coga launch
+2026-07-17 14:40 [recurring/blocker-reminders] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/12)
+error: could not apply e943eee3... Sync coga state
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply e943eee3... Sync coga state
+Auto-merging coga/tasks/validate-tickets-at-create-time.md
+CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time.md
+2026-07-17 14:40 [coga] [git] refresh failed: `git merge --ff-only --quiet 3f51f6c3d7900c34cdd2095476968ed1f6d37d46` failed (exit 128): hint: Diverging branches can't be fast-forwarded, you need to either:
+hint: 
+hint: 	git merge --no-ff
+hint: 
+hint: or:
+hint: 
+hint: 	git rebase
+hint: 
+hint: Disable this message with "git config advice.diverging false"
+fatal: Not possible to fast-forward, aborting.
+2026-07-17 14:40 [coga] [git] refresh failed: `git merge --ff-only --quiet 3f51f6c3d7900c34cdd2095476968ed1f6d37d46` failed (exit 128): hint: Diverging branches can't be fast-forwarded, you need to either:
+hint: 
+hint: 	git merge --no-ff
+hint: 
+hint: or:
+hint: 
+hint: 	git rebase
+hint: 
+hint: Disable this message with "git config advice.diverging false"
+fatal: Not possible to fast-forward, aborting.

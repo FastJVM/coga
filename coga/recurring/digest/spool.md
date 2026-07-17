@@ -34,3 +34,8 @@ consumed_through: 8e32b965dc04
 {"id":"0d6df972bfa6","ts":"2026-07-16T20:41","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"log-md-coga-chat-too-so-we-have-a-full-view-of-the","owner":"nicktoper"}
 {"id":"2060d9f1c033","ts":"2026-07-17T15:27","project":"coga","kind":"done","detail":"zach finished: review → done ✅","ticket":"coga-important/add-coga-slack-important","owner":"zach"}
 {"id":"6c0d7036b976","ts":"2026-07-17T15:55","project":"coga","kind":"done","detail":"nicktoper finished: implement → done ✅","ticket":"handle-better-delete-branches-autcommit","owner":"nicktoper"}
+
+consumed_through: a20bb1814a33
+{"id":"a20bb1814a33","ts":"2026-07-17T14:40","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
+{"id":"24d9cae304bb","ts":"2026-07-17T14:40","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nicktoper"}
+{"id":"d325eedef508","ts":"2026-07-17T14:40","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
