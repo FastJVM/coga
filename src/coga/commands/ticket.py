@@ -232,7 +232,7 @@ def _run_authoring_session(
             discussion=True,
             kickoff=kickoff,
             label="Ticket",
-            sync_log_on_teardown=False,
+            secrets_are_scoped=False,
             stateless_identity=(AUTHORING_SKILL, bootstrap_title),
         )
     except ComposeError as exc:

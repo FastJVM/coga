@@ -789,7 +789,7 @@ def spawn_agent_session(
     label: str = "Launch",
     warn_blackboard: bool = False,
     commit_log: bool = False,
-    sync_log_on_teardown: bool = True,
+    secrets_are_scoped: bool = True,
     stateless_identity: tuple[str, str] | None = None,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
@@ -814,10 +814,11 @@ def spawn_agent_session(
     subsequent bump/`sync_paths`, so without this its append blocks the next
     `git pull` at the checkout gate (the append is committed before the REPL
     starts, so even an in-session `git pull` is unblocked). `coga ticket`
-    leaves it False — its post-session `sync_paths` folds the log in instead.
-    `sync_log_on_teardown` is likewise False only for `coga ticket`, whose
-    guaranteed authoring finalizer carries the completed session record in its
-    established `Ticket: … — authored` commit. Capture itself is never skipped.
+    leaves it False because its post-session record is committed by the shared
+    teardown sync. `secrets_are_scoped` is False only when the caller passes an
+    ambient environment instead of `build_launch_env`; that distinction keeps
+    redaction from mistaking an unrelated same-named variable for a configured
+    secret value.
     """
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
@@ -846,7 +847,9 @@ def spawn_agent_session(
         str(uuid4()) if agent.session_id_flag else None
     )
     usage_pre_existing = usage_tracking.snapshot_session_files(usage_provider)
-    usage_secret_values = _configured_secret_values(ticket, env)
+    usage_secret_values = _configured_secret_values(
+        ticket, env, secrets_are_scoped=secrets_are_scoped
+    )
     excluded_user_texts = tuple(
         dict.fromkeys(text for text in (prompt, prompt_arg, kickoff) if text)
     )
@@ -949,7 +952,7 @@ def spawn_agent_session(
             # log via its union-safe path; it also carries this launch's own
             # log line. A supervised chain reaches this finally per step, so
             # each step's record commits promptly. Non-fatal.
-            if sync_log_on_teardown and isinstance(cfg, Config):
+            if isinstance(cfg, Config):
                 git.sync_log(cfg, message=f"Log: {session_slug}")
         try:
             prompt_file.unlink()
@@ -970,6 +973,8 @@ def _bootstrap_kickoff(ref: TaskRef | BootstrapRef) -> str | None:
 def _configured_secret_values(
     ticket: Ticket,
     env: dict[str, str],
+    *,
+    secrets_are_scoped: bool,
 ) -> tuple[str, ...] | None:
     """Return exact configured values, or None when safe redaction is unknown."""
     try:
@@ -978,9 +983,16 @@ def _configured_secret_values(
         return None
     values: list[str] = []
     for name, ref in declared:
-        value = env.get(name)
-        if value is None and ref.startswith("env:"):
+        if secrets_are_scoped:
+            value = env.get(name)
+        elif ref.startswith("env:"):
             value = env.get(ref[len("env:") :])
+        else:
+            # Ambient authoring sessions deliberately do not resolve op://
+            # references. A same-named process variable is not proof of the
+            # configured value, so suppress activity content rather than risk
+            # committing an unredacted secret.
+            return None
         if value is None:
             return None
         values.append(value)

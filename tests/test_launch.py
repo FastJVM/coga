@@ -14,6 +14,7 @@ from coga.create import create_task
 from coga.commands.launch import (
     _MAX_PROMPT_ARG_BYTES,
     _argv_prompt,
+    _configured_secret_values,
     _preflight_push_auth,
     build_agent_command,
     spawn_agent_session,
@@ -137,6 +138,48 @@ def test_build_command_discussion_skips_name_flag() -> None:
         discussion=True,
     )
     assert cmd == ["my-cli", "--append-system-prompt", "orient body"]
+
+
+def test_ambient_secret_redaction_uses_declared_env_source() -> None:
+    ticket = Ticket(
+        frontmatter={"secrets": [{"API_KEY": "env:SOURCE_KEY"}]}, body=""
+    )
+
+    values = _configured_secret_values(
+        ticket,
+        {"API_KEY": "unrelated-alias", "SOURCE_KEY": "configured-secret"},
+        secrets_are_scoped=False,
+    )
+
+    assert values == ("configured-secret",)
+
+
+def test_ambient_secret_redaction_rejects_unresolved_op_reference() -> None:
+    ticket = Ticket(
+        frontmatter={"secrets": [{"API_KEY": "op://vault/item/key"}]}, body=""
+    )
+
+    values = _configured_secret_values(
+        ticket,
+        {"API_KEY": "untrusted-ambient-value"},
+        secrets_are_scoped=False,
+    )
+
+    assert values is None
+
+
+def test_scoped_secret_redaction_uses_injected_alias() -> None:
+    ticket = Ticket(
+        frontmatter={"secrets": [{"API_KEY": "op://vault/item/key"}]}, body=""
+    )
+
+    values = _configured_secret_values(
+        ticket,
+        {"API_KEY": "resolved-secret"},
+        secrets_are_scoped=True,
+    )
+
+    assert values == ("resolved-secret",)
 
 
 def test_build_command_discussion_uses_template_for_claude() -> None:

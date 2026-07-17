@@ -972,7 +972,7 @@ def _seed_ticket_bootstrap(coga_os: Path) -> None:
     )
 
 
-def _fake_authoring_agent(monkeypatch, *, on_run=None) -> None:
+def _fake_authoring_agent(monkeypatch, *, on_run=None, exit_code: int = 0) -> None:
     """Stub the spawned authoring agent: fake a TTY, resolve the CLI, and run
     `on_run` (which stands in for the agent's external edits) instead of a real
     subprocess.
@@ -986,7 +986,7 @@ def _fake_authoring_agent(monkeypatch, *, on_run=None) -> None:
     real_run = _subprocess.run
 
     class _Result:
-        returncode = 0
+        returncode = exit_code
 
     def fake_run(cmd, *args, **kwargs):
         if cmd and cmd[0] == "git":
@@ -1066,11 +1066,8 @@ def test_cli_ticket_authoring_syncs_a_newly_created_task(git_repo, monkeypatch):
 def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, monkeypatch):
     """Even when the agent edits no ticket fields, the session is still synced.
 
-    `coga ticket` appends a "ticket authoring launched" line to `log.md`
-    *before* spawning the agent, so the task dir always has something to sync —
-    the authoring attempt lands on origin even if the ticket body is untouched.
-    (The genuine nothing-staged no-op is covered at the helper level by
-    `test_sync_noop_when_nothing_changed`.)
+    The shared session teardown commits `log.md` independently of authoring's
+    task/support finalizer, so a no-edit interview still lands on origin.
     """
     _seed_ticket_bootstrap(git_repo.coga_os)
     result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
@@ -1082,8 +1079,7 @@ def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, mon
     assert authored.exit_code == 0, authored.output
 
     assert any(
-        s.startswith(f"Ticket: {slug} — authored")
-        for s in git_repo.origin_subjects()
+        s.startswith("Log: bootstrap/ticket") for s in git_repo.origin_subjects()
     )
     # The authoring line lands in the repo-global `coga/log.md` now, which
     # rides the same-branch commit+push on `main` to origin.
@@ -1091,6 +1087,26 @@ def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, mon
         "show", "main:coga/log.md", cwd=git_repo.origin
     )
     assert "ticket authoring launched" in log
+
+
+def test_cli_ticket_authoring_records_failed_session(git_repo, monkeypatch):
+    """A failed authoring process still commits its completed session record."""
+    _seed_ticket_bootstrap(git_repo.coga_os)
+    result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
+    slug = result.output.split(":", 1)[0].strip()
+
+    _fake_authoring_agent(monkeypatch, exit_code=7)
+
+    authored = runner.invoke(app, ["ticket", slug])
+    assert authored.exit_code == 7, authored.output
+
+    assert any(
+        s.startswith("Log: bootstrap/ticket") for s in git_repo.origin_subjects()
+    )
+    log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert "ticket authoring launched" in log
+    assert '"outcome_status":"failed"' in log
+    assert '"slug":"bootstrap/ticket"' in log
 
 
 # --- delete (the sync gap this fixes) -----------------------------------------
