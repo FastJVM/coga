@@ -10,13 +10,14 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 import typer
 
 from coga import git
 from coga.commands.launch import _interactive_stdio_has_tty
 from coga.commands.launch_script import is_script_launch
-from coga.config import Config, ConfigError
+from coga.config import Config, ConfigError, load_config
 from coga.logfile import append_log, ref_tag_for_path, task_log_lines
 from coga.paths import log_path
 from coga.taskfile import read_blackboard
@@ -48,6 +49,12 @@ from coga.validate import TaskValidationError
 # (a human driving by hand) leaves it off; `COGA_REPL_IDLE_TIMEOUT` overrides
 # the window or, at `<= 0` / non-finite, disarms it.
 _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
+
+# Private parent-to-child marker for `coga recurring --all`. A multi-repo
+# sweep must not service a checkout whose view of the shared control branch
+# could be stale; a bare single-repo sweep keeps its established best-effort
+# catch-up behavior.
+_REQUIRE_FRESH_CONTROL_ENV = "COGA_RECURRING_REQUIRE_FRESH_CONTROL"
 
 # A parent-directory sweep discovers real Coga workspaces, not dependency or
 # tool-state trees. Once one workspace is found its subtree is a unit: Coga
@@ -114,12 +121,25 @@ def run_recurring_all_repos(
     for coga_os in repos:
         typer.echo(f"  {_repo_label(coga_os, root)}")
 
+    duplicate_of = _duplicate_remote_checkouts(repos)
     failed: list[str] = []
+    skipped_duplicates: list[str] = []
     for index, coga_os in enumerate(repos, 1):
         label = _repo_label(coga_os, root)
         typer.secho(
             f"\n[{index}/{len(repos)}] {label}", fg=typer.colors.CYAN, bold=True
         )
+        original = duplicate_of.get(coga_os)
+        if original is not None:
+            original_label = _repo_label(original, root)
+            skipped_duplicates.append(label)
+            typer.secho(
+                f"  ⚠ {label} — same git remote as {original_label}; "
+                "skipped duplicate checkout",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+            continue
         process_started = True
         try:
             code = _run_repo_recurring(
@@ -141,7 +161,15 @@ def run_recurring_all_repos(
                     err=True,
                 )
 
-    typer.echo(f"\nSwept {len(repos) - len(failed)} of {len(repos)} Coga repo(s).")
+    swept = len(repos) - len(failed) - len(skipped_duplicates)
+    typer.echo(f"\nSwept {swept} of {len(repos)} Coga repo(s).")
+    if skipped_duplicates:
+        typer.secho(
+            f"Skipped {len(skipped_duplicates)} duplicate checkout(s) "
+            "that share a configured git remote.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
     if failed:
         typer.secho(
             f"{len(failed)} repo(s) failed — see above.",
@@ -159,6 +187,88 @@ def _repo_label(coga_os: Path, root: Path) -> str:
     except ValueError:
         return str(host_repo)
     return host_repo.name if relative == Path(".") else str(relative)
+
+
+def _duplicate_remote_checkouts(repos: list[Path]) -> dict[Path, Path]:
+    """Map repeated remotes to one checkout, preferring its control branch."""
+    by_remote: dict[str, list[tuple[Path, bool]]] = {}
+    duplicates: dict[Path, Path] = {}
+    for coga_os in repos:
+        resolved = _configured_remote_identity(coga_os)
+        if resolved is None:
+            continue
+        identity, on_control_branch = resolved
+        by_remote.setdefault(identity, []).append((coga_os, on_control_branch))
+
+    for checkouts in by_remote.values():
+        keeper = next(
+            (path for path, on_control in checkouts if on_control),
+            checkouts[0][0],
+        )
+        for path, _on_control in checkouts:
+            if path != keeper:
+                duplicates[path] = keeper
+    return duplicates
+
+
+def _configured_remote_identity(coga_os: Path) -> tuple[str, bool] | None:
+    """Return a checkout's remote identity and control-branch eligibility."""
+    try:
+        cfg = load_config(coga_os, require_user=False)
+    except ConfigError:
+        return None
+    if not cfg.git_enabled:
+        return None
+
+    root = _git_toplevel(coga_os)
+    if root is None:
+        return None
+    try:
+        on_control_branch = _current_branch(root) == cfg.git_control_branch
+    except git.GitError:
+        on_control_branch = False
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "remote", "get-url", cfg.git_remote],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
+    if result.returncode != 0:
+        return None
+    url = result.stdout.strip().splitlines()
+    if not url:
+        return None
+    identity = _normalize_remote_identity(root, url[0])
+    return (identity, on_control_branch) if identity is not None else None
+
+
+def _normalize_remote_identity(root: Path, url: str) -> str | None:
+    """Canonicalize local remote paths; preserve resolved network URLs."""
+    value = url.strip()
+    if not value:
+        return None
+
+    if value.startswith("file://"):
+        parsed = urlsplit(value)
+        if parsed.netloc not in {"", "localhost"}:
+            return f"url:{value.rstrip('/')}"
+        return f"file:{Path(unquote(parsed.path)).resolve()}"
+
+    # A scp-style remote (`git@host:org/repo.git`) has no `://` but is not a
+    # filesystem path. Everything else without a URL scheme is the local-path
+    # form git resolves relative to the checkout.
+    if "://" not in value and not (
+        ":" in value and not value.startswith(("/", "./", "../", "~"))
+    ):
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            path = root / path
+        return f"file:{path.resolve()}"
+    return f"url:{value.rstrip('/')}"
 
 
 def _run_repo_recurring(
@@ -182,8 +292,10 @@ def _run_repo_recurring(
         "COGA_RECURRING_FORCE",
         "COGA_RECURRING_INTERACTIVE",
         "COGA_RECURRING_AGENT",
+        _REQUIRE_FRESH_CONTROL_ENV,
     ):
         env.pop(name, None)
+    env[_REQUIRE_FRESH_CONTROL_ENV] = "1"
     result = subprocess.run(command, cwd=coga_os.parent, env=env, check=False)
     return result.returncode
 
@@ -194,6 +306,7 @@ def run_recurring_scan(
     force: bool = False,
     interactive: bool = False,
     agent_override: str | None = None,
+    require_fresh_control: bool = False,
 ) -> int:
     """Scan every recurring template and launch any due tasks, sequentially.
 
@@ -219,12 +332,26 @@ def run_recurring_scan(
     `agent_override` temporarily selects the configured agent for agent-backed
     tasks. It never rewrites the ticket, and script tasks still run as scripts.
 
+    A child dispatched by `coga recurring --all` sets
+    `require_fresh_control`: failure to fetch and integrate the configured
+    control tip returns non-zero before `scan_due` can mutate period state.
+    Bare single-repo sweeps retain the established best-effort catch-up.
+
     `coga recurring launch <name>` force-runs one named template now.
     """
     if not _valid_agent_override(cfg, agent_override):
         return 2
 
-    _sync_control_checkout_ahead(cfg)
+    fresh, freshness_error = _sync_control_checkout_ahead(cfg)
+    if require_fresh_control and not fresh:
+        typer.secho(
+            "Recurring scan skipped: could not confirm this checkout includes "
+            f"the latest {cfg.git_remote}/{cfg.git_control_branch}: "
+            f"{freshness_error}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return 1
     scan = scan_due(
         cfg, allow_interactive=_interactive_stdio_has_tty(), force=force
     )
@@ -334,7 +461,7 @@ def run_recurring_named(
     return 0
 
 
-def _sync_control_checkout_ahead(cfg: Config) -> None:
+def _sync_control_checkout_ahead(cfg: Config) -> tuple[bool, str]:
     """Catch the checked-out control branch up to origin before scanning.
 
     The scan decides what is due from working-tree templates and period tasks;
@@ -342,23 +469,32 @@ def _sync_control_checkout_ahead(cfg: Config) -> None:
     already serviced, instead of relying solely on the per-create FETCH_HEAD
     checks. Runs while the tree is still clean of scan writes, so the rebase
     is normally a plain fast-forward. Only applies when this checkout holds
-    the control branch. Non-fatal on any miss (offline, conflicting local
-    edits): this is a freshness pass, not a correctness gate — each create
-    still reconciles against FETCH_HEAD and rebases the checkout after
-    landing.
+    the control branch. Returns a confirmation flag and an actionable reason.
+    Bare and named sweeps keep misses best-effort because each create still
+    reconciles against FETCH_HEAD; the `--all` child treats a false result as
+    an entry-gate failure before scanning.
     """
     if not cfg.git_enabled:
-        return
+        return False, "[git].enabled = false"
     root = _git_toplevel(cfg.repo_root)
     if root is None:
-        return
+        return False, "workspace is not inside a git checkout"
     try:
-        if _current_branch(root) != cfg.git_control_branch:
-            return
+        current = _current_branch(root)
+        if current != cfg.git_control_branch:
+            where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
+            return False, (
+                f"configured control branch {cfg.git_control_branch!r} is not "
+                f"checked out ({where})"
+            )
         _fetch_control_branch(cfg, root)
-        _rebase_checked_out_branch_onto(root, _rev_parse(root, "FETCH_HEAD"))
+        target = _rev_parse(root, "FETCH_HEAD")
+        _rebase_checked_out_branch_onto(root, target)
+        _confirm_control_tip_integrated(root, target)
     except git.GitError as exc:
         sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {exc}\n")
+        return False, str(exc)
+    return True, ""
 
 
 def _launch_created(
@@ -1100,6 +1236,37 @@ def _rebase_checked_out_branch_onto(root: Path, target: str) -> None:
         f"could not rebase checked-out control branch onto {target}: "
         f"{(proc.stderr + proc.stdout).strip()}"
     )
+
+
+def _confirm_control_tip_integrated(root: Path, target: str) -> None:
+    """Fail unless `target` is in HEAD and the working tree has no conflicts."""
+    ancestor = subprocess.run(
+        ["git", "-C", str(root), "merge-base", "--is-ancestor", target, "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if ancestor.returncode != 0:
+        raise git.GitError(
+            f"fetched control tip {target} is not integrated into HEAD"
+        )
+
+    unmerged = subprocess.run(
+        ["git", "-C", str(root), "diff", "--name-only", "--diff-filter=U"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if unmerged.returncode != 0:
+        raise git.GitError(
+            "could not verify the checkout has no unresolved merge conflicts"
+        )
+    conflicts = [line for line in unmerged.stdout.splitlines() if line]
+    if conflicts:
+        raise git.GitError(
+            "checkout still has unresolved merge conflicts: "
+            + ", ".join(conflicts)
+        )
 
 
 def _write_merged_blackboard_for_ref(

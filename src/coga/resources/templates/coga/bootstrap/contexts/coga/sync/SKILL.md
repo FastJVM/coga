@@ -541,16 +541,21 @@ Failure model:
   the same attempt cap: the cross-branch land refetches the moved tip and
   rebuilds its overlay tree; the same-branch push fetches and rebases with an
   explicit stash that restores the pre-sync state on any failure.
-- The one **fatal** git gate in this failure model is launch entry, before
-  the ticket flips to `in_progress`: `coga launch` preflights push access to
-  the configured remote with the same non-interactive `git push --dry-run`
-  probe `coga validate --check-github` uses, and refuses to start the session
-  (non-zero exit, no "started" post) whenever the probe cannot push to a
-  configured remote — unauthenticated and unreachable/offline alike — because
-  the session drives through git/gh and would otherwise fail at ship time. The preflight
-  self-skips when there is nothing to gate: bootstrap tickets,
-  `[git].enabled = false`, or a remote that doesn't resolve. Mid-workflow
-  syncs (`coga bump`, `mark`, the sweep) are never fatal.
+- **Fatal git gates happen only before mutable work starts.** Launch entry is
+  gated before the ticket flips to `in_progress`: `coga launch` preflights push
+  access to the configured remote with the same non-interactive `git push
+  --dry-run` probe `coga validate --check-github` uses, and refuses to start
+  the session (non-zero exit, no "started" post) whenever the probe cannot push
+  to a configured remote — unauthenticated and unreachable/offline alike —
+  because the session drives through git/gh and would otherwise fail at ship
+  time. The preflight self-skips when there is nothing to gate: bootstrap
+  tickets, `[git].enabled = false`, or a remote that doesn't resolve. A child
+  of `coga recurring --all` has a second entry gate before `scan_due`: git must
+  be enabled, the control branch checked out, and the fetched control tip
+  successfully integrated. That failure skips the repo before any recurring
+  period mutation and remains non-fatal to later repos in the parent sweep.
+  Mid-workflow syncs (`coga bump`, `mark`, the catch-all state sweep, and
+  recurring task-state writes after entry) remain non-fatal.
 
 Config lives in `[git]`: `enabled` defaults true, `remote` defaults `origin`,
 and `control_branch` defaults `main`. `enabled` may be overridden in

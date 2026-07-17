@@ -12,6 +12,9 @@ It has no schedule, workflow, status, or high-water mark of its own. The
 public command head owns Typer parsing for `--interactive`, `--all`, and
 `--agent`, writes those values into `COGA_RECURRING_INTERACTIVE`,
 `COGA_RECURRING_FORCE`, and `COGA_RECURRING_AGENT`, and launches this target.
+The `--all` parent also sets the private
+`COGA_RECURRING_REQUIRE_FRESH_CONTROL` marker so a child refuses to scan when
+its control checkout cannot first incorporate the fetched remote tip.
 
 The script loads the current Coga config, scans `coga/recurring/`, creates or
 reuses due period tasks, syncs recurring creates, prints/broadcasts scan

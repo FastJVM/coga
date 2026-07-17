@@ -448,6 +448,98 @@ def test_recurring_all_runs_each_discovered_repo_once(
     assert "Swept 2 of 2 Coga repo(s)." in result.output
 
 
+def test_recurring_all_services_one_checkout_per_remote(
+    git_repo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """Two checkouts of one remote produce one sweep and one period run."""
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    scan_root = tmp_path / "workspaces"
+    checkouts: list[Path] = []
+    for name in ("alpha", "beta"):
+        checkout = scan_root / name
+        git_repo.git("clone", str(git_repo.origin), str(checkout))
+        git_repo.git("checkout", "-B", "main", "origin/main", cwd=checkout)
+        git_repo.git("config", "user.email", "test@example.com", cwd=checkout)
+        git_repo.git("config", "user.name", "Coga Test", cwd=checkout)
+        git_repo.git("config", "commit.gpgsign", "false", cwd=checkout)
+        (checkout / "coga" / "coga.local.toml").write_text('user = "marc"\n')
+        if name == "alpha":
+            git_repo.git("checkout", "-b", "feature", cwd=checkout)
+        checkouts.append(checkout)
+
+    sweeps: list[Path] = []
+    launches: list[tuple[Path, str]] = []
+    active_checkout: list[Path] = []
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        coga_root = active_checkout[-1]
+        launches.append((coga_root, task))
+        _finish_period_task(coga_root, task)
+
+    def run_in_process(
+        found: Path,
+        *,
+        force: bool,
+        interactive: bool,
+        agent_override: str | None,
+    ) -> int:
+        sweeps.append(found)
+        active_checkout.append(found)
+        try:
+            return recurring_cmd.run_recurring_scan(
+                load_config(found),
+                force=force,
+                interactive=interactive,
+                agent_override=agent_override,
+                require_fresh_control=True,
+            )
+        finally:
+            active_checkout.pop()
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr(recurring_cmd, "_run_repo_recurring", run_in_process)
+
+    assert recurring_cmd.run_recurring_all_repos(scan_root) == 0
+
+    assert sweeps == [checkouts[1] / "coga"]
+    assert launches == [(checkouts[1] / "coga", "recurring/weekly-check")]
+    assert git_repo.origin_tracks("coga/tasks/recurring/weekly-check/ticket.md")
+    for checkout in checkouts:
+        git_repo.git("fetch", "origin", "main", cwd=checkout)
+        ahead, _behind = git_repo.git(
+            "rev-list", "--left-right", "--count", "HEAD...origin/main", cwd=checkout
+        ).split()
+        assert ahead == "0"
+
+    captured = capsys.readouterr()
+    assert "alpha — same git remote as beta; skipped duplicate checkout" in captured.err
+
+
 def test_recurring_all_continues_after_repo_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -541,6 +633,7 @@ def test_repo_recurring_dispatch_uses_current_python_and_clears_scan_env(
     assert captured["cwd"] == coga_os.parent
     assert captured["check"] is False
     assert "COGA_RECURRING_FORCE" not in captured["env"]
+    assert captured["env"]["COGA_RECURRING_REQUIRE_FRESH_CONTROL"] == "1"
 
 
 def test_recurring_list_is_read_only_and_shows_schedule(
@@ -1825,6 +1918,67 @@ def test_recurring_scan_catches_checkout_up_to_origin_before_scanning(
 
     assert (git_repo.root / "notes.md").is_file()
     assert "not fast-forwarded" not in capsys.readouterr().err
+
+
+def test_recurring_all_scan_refuses_unconfirmed_control_freshness(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """An `--all` child mutates no period state after a failed catch-up."""
+    cfg = load_config(git_repo.coga_os)
+
+    def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        raise coga_git.GitError("simulated rebase conflict")
+
+    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("stale checkout must not be scanned"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(
+        cfg, require_fresh_control=True
+    ) == 1
+    assert list_tasks(cfg) == []
+    captured = capsys.readouterr()
+    assert "Recurring scan skipped" in captured.err
+    assert "simulated rebase conflict" in captured.err
+
+
+def test_recurring_all_scan_refuses_git_disabled_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    git_repo.coga_os.joinpath("coga.local.toml").write_text(
+        'user = "marc"\n[git]\nenabled = false\n'
+    )
+    cfg = load_config(git_repo.coga_os)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("git-disabled checkout must not scan"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(
+        cfg, require_fresh_control=True
+    ) == 1
+    assert "[git].enabled = false" in capsys.readouterr().err
+
+
+def test_recurring_all_scan_refuses_detached_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    git_repo.git("checkout", "--detach")
+    cfg = load_config(git_repo.coga_os)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("detached checkout must not scan"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(
+        cfg, require_fresh_control=True
+    ) == 1
+    assert "detached HEAD" in capsys.readouterr().err
 
 
 def test_recurring_scan_replaces_stale_done_task_on_control(

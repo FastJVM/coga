@@ -21,6 +21,7 @@ def main() -> int:
         force=_env_flag("COGA_RECURRING_FORCE"),
         interactive=_env_flag("COGA_RECURRING_INTERACTIVE"),
         agent_override=os.environ.get("COGA_RECURRING_AGENT") or None,
+        require_fresh_control=_env_flag("COGA_RECURRING_REQUIRE_FRESH_CONTROL"),
     )
 
 
