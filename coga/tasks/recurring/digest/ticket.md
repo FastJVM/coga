@@ -1,7 +1,7 @@
 ---
 slug: recurring/digest
 title: Daily digest
-status: done
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
