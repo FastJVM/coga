@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -53,6 +53,7 @@ Getting Started gap).
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/589
 branch: init-agent-cli-hint
 worktree: /home/n/Code/claude/coga-init-agent-cli-hint
 
@@ -111,6 +112,16 @@ optional at init while retaining this ticket's independent agent-CLI guidance.
 Verification after the rebase: 107 focused tests passed; full Python 3.12 suite
 passed with 1244 passed, 1 skipped via an editable scratch-venv install. Branch
 is clean, two commits ahead of `origin/main`, and zero commits behind.
+
+## Open-PR step — done
+
+PR opened: https://github.com/FastJVM/coga/pull/589 (recorded under `## Dev`).
+First `coga open-pr` attempt failed loud on a stale branch (origin/main had
+moved with overlapping paths); rebased the worktree onto FETCH_HEAD (clean, no
+conflicts) and re-ran the full Python 3.12 suite: 1276 passed, 1 skipped.
+Retry pushed the rebased branch and opened the PR. Note: the globally installed
+`coga` (uv tool, v0.2.0) predates `open-pr`; ran it from repo source via
+`PYTHONPATH=src` with the uv tool's Python instead.
 
 ## Usage
 
