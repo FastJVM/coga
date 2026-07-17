@@ -7,12 +7,15 @@ It builds the self-contained venv that backs the `coga` console script.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 from pathlib import Path
 
 import typer
@@ -327,6 +330,57 @@ def _check_external_dependencies() -> None:
     sys.exit(2)
 
 
+def _check_git_identity(target: Path) -> None:
+    """Fail loud before any writes when git cannot author a commit here.
+
+    On a fresh machine with no `user.email`/`user.name` (every truly new
+    machine), the "commit coga/" step at the end of init would fail —
+    historically silently, leaving coga/ staged but uncommitted, and the
+    user's first `coga create` dying on a raw `fatal: ambiguous argument
+    'HEAD'`. Git resolves author and committer identity separately, so probe
+    both `git var GIT_AUTHOR_IDENT` and `GIT_COMMITTER_IDENT` up front — after
+    the git-repo check, before the slow clone/venv — and fail with the remedy
+    if either is unavailable. The probes honor config, their matching GIT_*
+    env vars, EMAIL, and git's hostname auto-detection. `target` may not exist
+    yet (nested init), so probe from the nearest existing ancestor; repo-local
+    `user.email` still counts. A missing or unrunnable git is not this check's
+    problem —
+    `_check_external_dependencies` owns that.
+    """
+    probe = nearest_existing_dir(target)
+    if probe is None:
+        return
+    result: subprocess.CompletedProcess[str] | None = None
+    for identity_var in ("GIT_AUTHOR_IDENT", "GIT_COMMITTER_IDENT"):
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(probe), "var", identity_var],
+                capture_output=True,
+                text=True,
+            )
+        except OSError:
+            return
+        if result.returncode != 0:
+            break
+    if result is None or result.returncode == 0:
+        return
+    detail = next(
+        (line for line in result.stderr.strip().splitlines() if line.strip()),
+        "no user.email / user.name configured",
+    )
+    typer.secho(
+        f"git has no identity configured on this machine — coga is git-backed "
+        f"and `coga init` commits coga/ into your repo, but git cannot author "
+        f"a commit ({detail}).\n"
+        f"Tell git who you are, then re-run `coga init`:\n"
+        f'    git config --global user.email "you@example.com"\n'
+        f'    git config --global user.name "Your Name"',
+        fg=typer.colors.RED,
+        err=True,
+    )
+    sys.exit(2)
+
+
 def init(
     path: Path | None = typer.Argument(
         None,
@@ -417,6 +471,12 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         )
         sys.exit(2)
 
+    # Same fail-before-writes posture for git identity: with no user.email /
+    # user.name, the "commit coga/" step at the end would fail and leave
+    # coga/ staged but uncommitted. Probe it here so the remedy comes before
+    # the slow clone/venv, not after.
+    _check_git_identity(target)
+
     # Decide empty-vs-filled against the pristine dir, before init writes
     # anything of its own — a filled repo skips onboarding-ticket seeding.
     # A target without its own `.git` is a nested init below an established
@@ -468,7 +528,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         wired_agents, blocked_agents = _link_skills_for_agents(target, coga_os)
         host_gitignore_changed = ensure_host_gitignore(target)
         written_guides = _write_agent_guides(target)
-        commit_sha = _git_commit_coga_os(
+        commit_sha, commit_failure = _git_commit_coga_os(
             target, coga_os, host_gitignore_changed, written_guides
         )
     except BaseException:
@@ -515,6 +575,37 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         )
     if commit_sha is not None:
         typer.echo(f"Committed coga/ as {commit_sha[:12]} (push when ready).")
+    elif commit_failure is not None:
+        # Backstop for commit failures the up-front identity check can't see
+        # (failing hooks, odd repo state): coga/ is on disk, so don't roll
+        # back — but never let the failure pass silently. Re-stage every path
+        # init generated before retrying because the failed phase may have
+        # been `git add` itself.
+        add_command = shlex.join(
+            ["git", "-C", str(target), "add", "--", *commit_failure.paths]
+        )
+        commit_command = shlex.join(
+            [
+                "git",
+                "-C",
+                str(target),
+                "commit",
+                "-m",
+                "Create coga via `coga init`",
+                "--",
+                *commit_failure.paths,
+            ]
+        )
+        typer.secho(
+            f"Warning: coga/ was written but NOT committed — "
+            f"{commit_failure.phase} failed with:\n"
+            f"{textwrap.indent(commit_failure.error, '  ')}\n"
+            f"Fix the cause, then stage and commit every generated path:\n"
+            f"  {add_command}\n"
+            f"  {commit_command}",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
 
     # Whether the user already has a working `coga` they can run as-is.
     # `shutil.which` honors the executable bit, so a stale non-executable
@@ -805,30 +896,56 @@ def _write_agent_guides(target: Path) -> list[str]:
     return written
 
 
+@dataclass(frozen=True)
+class GitCommitFailure:
+    """A failed phase of init's generated-path commit, with retry context."""
+
+    phase: str
+    error: str
+    paths: tuple[str, ...]
+
+
 def _git_commit_coga_os(
     target: Path,
     coga_os: Path,
     include_host_gitignore: bool,
     extra_host_paths: list[str] | None = None,
-) -> str | None:
+) -> tuple[str | None, GitCommitFailure | None]:
     """If `target` is a git repo, stage coga/ (+ host .gitignore + extras) and commit.
 
-    Returns the new commit SHA on success, None if we skipped (not a git repo,
-    nothing to stage, or git invocation failed). Never raises. `target` may sit
-    below the git root (nested init) — `git -C <target>` resolves pathspecs
-    relative to `target`, and the commit lands in the host repo. The commit is
-    scoped to the staged coga paths, so any unrelated changes the user already
-    had staged in the host repo are left staged, not swept in.
+    Returns `(sha, None)` on success, `(None, None)` on a clean skip (not a
+    git repo, or nothing to stage), and `(None, failure)` when a git invocation
+    failed. The failure names the phase, carries git's stderr, and preserves
+    the exact generated path set so the caller can print a complete recovery
+    command instead of the historical silent skip (principle 6). Never raises.
+    `target` may sit below the git root (nested init) — `git -C <target>`
+    resolves pathspecs relative to `target`, and the commit lands in the host
+    repo. The commit is scoped to the staged coga paths, so any unrelated
+    changes the user already had staged in the host repo are left staged, not
+    swept in.
     """
     if not is_git_repo(target):
-        return None
+        return None, None
+    paths = ["coga"]
+    if include_host_gitignore and (target / ".gitignore").is_file():
+        paths.append(".gitignore")
+    for extra in extra_host_paths or []:
+        if (target / extra).is_file():
+            paths.append(extra)
+    phase = "git repository check"
     try:
-        paths = ["coga"]
-        if include_host_gitignore and (target / ".gitignore").is_file():
-            paths.append(".gitignore")
-        for extra in extra_host_paths or []:
-            if (target / extra).is_file():
-                paths.append(extra)
+        # `is_git_repo` is a filesystem heuristic (a bare `.git` entry counts);
+        # confirm git itself agrees before treating later failures as loud
+        # errors. Disagreement is the same "not a git repo" clean skip as
+        # above — the real not-a-repo case already failed loud in `_do_init`,
+        # and test fixtures fake a repo with an empty `.git` dir.
+        probe = subprocess.run(
+            ["git", "-C", str(target), "rev-parse", "--git-dir"],
+            capture_output=True,
+        )
+        if probe.returncode != 0:
+            return None, None
+        phase = "git add"
         subprocess.run(
             ["git", "-C", str(target), "add", "--", *paths],
             check=True,
@@ -839,12 +956,18 @@ def _git_commit_coga_os(
         # commit below) to `paths`: a nested init runs inside a live host repo
         # where the user may already have unrelated files staged, and an
         # unscoped commit would sweep them into the "Create coga" commit.
+        phase = "git staged-change check"
         diff = subprocess.run(
             ["git", "-C", str(target), "diff", "--cached", "--quiet", "--", *paths],
             capture_output=True,
+            text=True,
         )
         if diff.returncode == 0:
-            return None
+            return None, None
+        if diff.returncode != 1:
+            error = diff.stderr.strip() or f"git diff exited {diff.returncode}"
+            return None, GitCommitFailure(phase, error, tuple(paths))
+        phase = "git commit"
         subprocess.run(
             [
                 "git", "-C", str(target),
@@ -854,15 +977,20 @@ def _git_commit_coga_os(
             capture_output=True,
             text=True,
         )
+        phase = "git commit verification"
         rev = subprocess.run(
             ["git", "-C", str(target), "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
             text=True,
         )
-        return rev.stdout.strip() or None
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
+        return rev.stdout.strip() or None, None
+    except FileNotFoundError as exc:
+        return None, GitCommitFailure(phase, str(exc), tuple(paths))
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        error = stderr or f"{shlex.join(str(arg) for arg in exc.cmd)} exited {exc.returncode}"
+        return None, GitCommitFailure(phase, error, tuple(paths))
 
 
 def _on_path(directory: Path) -> bool:
