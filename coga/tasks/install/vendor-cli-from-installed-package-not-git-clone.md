@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -65,6 +65,7 @@ re-clone surprise). Touchpoints: `src/coga/commands/init.py` (`_do_init`),
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/590
 branch: vendor-cli-from-package
 worktree: /home/n/Code/claude/coga-vendor-cli
 
@@ -199,6 +200,22 @@ running version exists on PyPI. A non-editable `pip install /path/to/checkout`
   `PYTHONPATH=/home/n/Code/claude/coga-vendor-cli/src python3.12 -m pytest
   -p no:cacheprovider` — 1256 passed, 1 skipped. Focused init suite: 104 passed.
   Task-scoped validation passes with one task OK and no issues.
+
+## Open-PR step
+
+- `coga open-pr` initially refused: main had moved past `f74bd29a` with
+  overlapping paths. Rebased `vendor-cli-from-package` onto `origin/main`
+  `de3d527d` in the feature worktree; one conflict in `init.py` imports
+  (kept main's `textwrap` for the new commit-failure warning, dropped the
+  clone-era `tempfile`).
+- Four init tests added on main (git-identity / commit-warning coverage)
+  still used the deleted `fake_clone` fixture; renamed to `fake_vendor`
+  (drop-in) in commit `c84a5911`. Branch is now `182734b3` (implement) +
+  `24247185` (peer-review fix) + `c84a5911`.
+- Full suite after rebase: 1275 passed, 1 skipped
+  (`PYTHONPATH=<worktree>/src python3.12 -m pytest -p no:cacheprovider`).
+- `coga open-pr` then pushed the branch and opened
+  https://github.com/FastJVM/coga/pull/590; `pr:` recorded under `## Dev`.
 
 ## PR
 
