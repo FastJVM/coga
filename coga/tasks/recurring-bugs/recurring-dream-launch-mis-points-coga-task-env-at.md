@@ -1,7 +1,7 @@
 ---
 slug: recurring-bugs/recurring-dream-launch-mis-points-coga-task-env-at
 title: recurring->dream launch mis-points COGA_TASK_* env at the package template
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
