@@ -1,7 +1,7 @@
 ---
 slug: recurring-bugs/retro-and-delete-branch-switch-the-primary-checkou
 title: retro and delete branch-switch the primary checkout, unsafe under concurrency
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
