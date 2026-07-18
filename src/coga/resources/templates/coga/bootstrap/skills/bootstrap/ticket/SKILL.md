@@ -208,6 +208,15 @@ answer.
      ticket's description;
    - **sibling file** for a longer script, one that deserves its own filename,
      or one whose shebang/executable bit is part of its behavior.
+   A ticket-level `script:` is the fallback launch substance for the whole
+   ticket, so it runs on **every** workflow step, regardless of that step's
+   assignee. It is therefore compatible only with a workflow that has exactly
+   one step and no `requires:` completion gate. If the workflow chosen above
+   has multiple steps, a later human gate, or a `requires:` gate, revisit the
+   choice with the human: keep `script: null` and use an agent task, or put the
+   script on a skill wired only to the intended workflow step. Do not put a
+   ticket-owned script on that workflow and assume it will run only once or
+   honor the gate.
    Do not add this question to an ordinary agent task, and do not infer the
    answer from the autonomy tier. A task that still needs agent judgment keeps
    `script: null` (or no `script:` field).
@@ -290,7 +299,10 @@ sibling file. YAML discipline (from the base prompt) applies:
 
 For an agent task, preserve `script: null` (or an absent `script:` field) and
 do not add a `## Script` section. For a script-backed ticket, use exactly one of
-these forms:
+these forms. First re-read the selected workflow and confirm it has exactly one
+step and no `requires:` gate; `direct/body` is the usual one-step choice when
+the ticket body fully describes the deterministic run. A multi-step or gated
+workflow needs a script-backed step skill instead of a ticket-level `script:`.
 
 **Inline script**
 
@@ -313,6 +325,9 @@ print("replace with the authored script")
   under `sh`, and `bash` (as well as an unlabeled block) runs under `bash`.
   Do not use an unrelated language label and assume Coga will find that
   interpreter.
+- Re-read the body above the blackboard fence and confirm the `## Script`
+  section contains the intended fenced block. `coga validate` does not resolve
+  or parse ticket-owned scripts, so this is a separate required check.
 
 **Sibling script file**
 
@@ -327,9 +342,11 @@ print("replace with the authored script")
   runs directly, and every other non-executable file runs under `sh`. A bare
   extensionless file such as `run` that is meant to honor its shebang therefore
   needs `chmod +x`.
-- Run `coga validate --task <slug>` after the conversion. Do not hand back a
-  sibling-file ticket until validation confirms that the move, frontmatter,
-  and script reference form one valid task.
+- Run `coga validate --task <slug>` after the conversion to check the task move
+  and frontmatter. Then separately confirm that `script:` is one sibling
+  filename and run `test -f <actual-task-directory>/<filename>` against the
+  directory that now contains `ticket.md`. Validation does not resolve the
+  script reference, so both checks are required before handoff.
 
 Do not call `coga bump`. There's no workflow running yet.
 
@@ -356,6 +373,9 @@ Hand the evaluator the path to the ticket and ask it to assess:
 - If the ticket is script-backed, does `script:` match the ticket layout and
   script contents, and will launch dispatch it through the intended
   interpreter?
+- Does a ticket-owned script have an exactly-one-step workflow with no
+  `requires:` gate? A multi-step workflow would run that script again on later
+  agent or human steps, and script completion does not enforce a bump gate.
 - Any assumptions that should be questioned before launch?
 
 Write the evaluator's response to the ticket's blackboard region under a top-level
