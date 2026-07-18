@@ -112,42 +112,39 @@ navigate, with the README linking out to it ("Full docs →").
 
 ## Dev
 
-- branch: codex/write-real-coga-documentation
-- worktree: /tmp/coga-real-docs
-- base: local `main` at ec9f6b6e; `improve-readme` has not landed there, but the local `codex/improve-readme` branch preserves the accepted short README.
-- scope check: docs-only. No code behavior changes planned.
+- branch: real-coga-docs
+- worktree: /home/n/Code/claude/coga-real-docs (durable sibling checkout, NOT /tmp — the /tmp worktree loss is what sank the first implement pass)
+- base: current `main` at 398c40cc (redo after the original branch was lost; see "Redo history" below).
+- scope check: docs-only. No code behavior changes.
 
-## Findings
+## Redo history (2026-07-17)
 
-- Correction: `codex/improve-readme` has the accepted 73-line README, but local `main` still has the long README. This branch will carry the minimal README shape plus a `Full docs ->` link so the new docs tree has one entrypoint.
+The original implement output (`codex/write-real-coga-documentation`, worktree `/tmp/coga-real-docs`) was unrecoverable — no local/packed/remote ref, `/tmp` wiped. Blocker resolved with owner nicktoper: rewind to step 1 (implement) and redo from current `main`, keeping the branch durable. This pass is that redo. It was implemented by **claude** in an attended session (the ticket's `agent:` is codex; see the peer-review note below).
 
-## Implementation
+## Implementation (redo)
 
-- Replaced the long root `README.md` with a short hook/install/key-values entrypoint and `Full docs -> docs/README.md`.
-- Added the docs tree in `/tmp/coga-real-docs`: `docs/README.md`, `docs/getting-started.md`, `docs/concepts.md`, `docs/reference.md`, `docs/operations.md`, and `docs/development.md`.
-- Command reference was checked against `env PYTHONPATH=src python -m coga.cli --help` plus command/subcommand help for the public surface.
+Fresh docs tree written on branch `real-coga-docs` from current `main`:
 
-## Verification
+- `docs/README.md` — index tying the tree together (getting-started → concepts → reference, then operations/development), and linking the existing `vision.md` / `migrating-to-coga.md` / `releasing.md`.
+- `docs/getting-started.md` — highest-priority deliverable: prerequisites, install, `coga init` / joining an existing repo, and a first task from `create`/`ticket` → `launch` → agent bump → review/merge, with a "what just happened" mental-model recap.
+- `docs/concepts.md` — tickets, blackboard, log, contexts vs skills, workflows/steps, the two state machines, agents vs scripts, prompt composition, fail-loud, memory-via-PR. Cross-links to the `principles`/`architecture` contexts as canon.
+- `docs/reference.md` — full public command surface, generated from `coga --help` + per-command help captured this session; grouped by task, with the alias table.
+- `docs/operations.md` — notifications (Slack config, `--important`, users/gifs, opt-out), digest, git sync, recurring (Dream + REM), secrets.
+- `docs/development.md` — run from checkout, source layout, tests, the repo↔package sync rule, style, PR conventions.
+- `README.md` — trimmed to hook + concise install + `Full docs →` + Key Values; the long inline Getting Started moved into `docs/getting-started.md` (diff: +20 / −81).
 
-- `git diff --check`
-- `env PYTHONPATH=src python -m coga.cli --help`
-- `env PYTHONPATH=src python -m coga.cli launch --help`
-- `env PYTHONPATH=src python -m coga.cli skill --help`
-- `env PYTHONPATH=src python -m coga.cli recurring --help`
-- Manual local-link path audit for changed docs: README/docs entrypoints, `docs/vision.md`, and referenced Coga context files all exist.
-- `env PYTHONPATH=src python -m coga.cli validate --task write-real-coga-documentation-command-reference-gu --json` -> passed with no issues.
+## Verification (redo)
 
-## Peer review (2026-07-16)
+- Command reference checked against live help via `PYTHONPATH=$PWD/src python3.12 -m coga.cli --help` and per-command/subcommand `--help` (init, create, ticket, project, launch, megalaunch, status, show, bump, open-pr, block, unblock, delete, retire, slack, digest, usage, validate, skill[+install], mark[+active], recurring[+launch], secret). Aliases cross-checked against `[aliases]` in `coga.toml`; notification/git/secrets prose checked against `coga.toml` comments and the `architecture` context.
+- `git diff --check` — clean (no whitespace errors).
+- Manual link audit: every internal markdown link target resolves — the six new docs, the existing `docs/{vision,migrating-to-coga,releasing}.md`, and `coga/contexts/coga/{principles,architecture}/SKILL.md`. Section anchors (`#install`, `#secrets`, `#dream-generic-ticket-cleanup`, the `coga slack` reference anchor) verified against their headings.
+- `PYTHONPATH=$PWD/src python3.12 -m coga.cli validate --task write-real-coga-documentation-command-reference-gu --json` — see result recorded at bump time.
 
-Could not review: the implementation output no longer exists anywhere.
+## Note for peer-review
 
-- Worktree `/tmp/coga-real-docs` is gone (tmp cleanup; the base commit dates it to ~2026-07-05).
-- Branch `codex/write-real-coga-documentation` exists in no local ref, no packed ref, and not on `origin`. Same for `codex/improve-readme`.
-- Searched every ref and every dangling commit (`git fsck --lost-found`) for `docs/getting-started.md` — no object contains the docs tree. The work is unrecoverable.
+This redo was implemented by **claude** while the ticket's `agent:` field is `codex`. On the normal `docs/with-review` flip, `peer-review` (`other-agent`) resolves to the non-author agent = **claude** — i.e. the same agent that wrote this. For a genuine cross-agent review, launch the peer-review step with **codex** (`coga launch <slug> --agent codex`), or have the owner set `agent: claude` so the flip picks codex automatically.
 
-Also relevant for the redo: `main` has moved substantially past the recorded base `ec9f6b6e` (2026-07-05). The README was already rewritten to the short form on `main` (PR #520, currently 133 lines, links only to `docs/vision.md`), docs were refreshed for the current runtime (PR #572), and the CLI surface changed (e.g. removed `[agents.*]` keys with migration errors, `recurring --all`). A fresh implement pass should base on current `main`, keep the existing short README and just add the "Full docs →" link, and re-verify the command reference against today's help output.
-
-Recommendation: rewind to step 1 (implement) and redo from current `main`. Practical note for the redo: put the worktree somewhere durable (not `/tmp`) or push the branch to `origin` before handing off to peer-review, so a long gap between steps can't lose the work again.
+**Decision (owner nicktoper, 2026-07-17):** codex reviews. After the rewind to step 1 and claude's bump into peer-review, relaunch the peer-review step as codex: `coga launch write-real-coga-documentation-command-reference-gu --agent codex`.
 
 ---
 
