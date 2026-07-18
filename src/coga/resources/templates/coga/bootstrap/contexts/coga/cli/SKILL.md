@@ -667,11 +667,19 @@ passing those values through an explicit environment contract.
 `--all <path>` is the multi-repo scheduler entry point. It may run from outside
 a Coga repo: it recursively finds `coga/` directories containing `coga.toml`
 below the explicit path, skips dependency/tool trees, and stops descending once
-it finds a workspace. Each discovered repo runs its ordinary recurring command
-in a fresh CLI process, sequentially. One repo's failure does not starve later
-repos, but the parent exits non-zero after reporting the aggregate. This keeps
-schedules, task state, config, Slack, and git sync owned by each repo while
-allowing one cron entry such as `coga recurring --all ~/Code`.
+it finds a workspace. Git-enabled checkouts are grouped by the resolved URL of
+their configured remote plus the Coga workspace's path within the git checkout;
+one checkout per remote workspace runs (preferring the first locally configured
+checkout already on its control branch), and every duplicate is named and
+skipped. Distinct Coga workspaces inside one monorepo remain separate scheduler
+targets. Each selected repo runs its ordinary recurring command in a fresh CLI
+process, sequentially, with a strict entry gate: `[git]` must be enabled, the
+configured control branch must be checked out, and its pre-scan fetch/rebase
+must succeed before period state is read or written. One repo's failure does not
+starve later repos, but the parent exits non-zero after reporting the aggregate.
+This keeps schedules, task state, config, Slack, and git sync owned by each repo
+while allowing one cron entry such as `coga recurring --all ~/Code` without
+racing two checkouts of one remote workspace.
 
 Pass `--agent <type>` to run every agent-backed task in the sweep with that
 configured agent type. The override is ephemeral: it does not rewrite ticket
