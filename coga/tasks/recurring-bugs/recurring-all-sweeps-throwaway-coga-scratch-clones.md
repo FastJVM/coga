@@ -1,7 +1,7 @@
 ---
 slug: recurring-bugs/recurring-all-sweeps-throwaway-coga-scratch-clones
 title: recurring --all sweeps throwaway coga scratch clones
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
