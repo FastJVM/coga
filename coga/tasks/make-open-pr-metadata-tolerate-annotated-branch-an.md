@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -106,3 +106,119 @@ targets — the ticket is not obsoleted by it.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: `fix/annotated-dev-metadata`
+worktree: `/home/n/Code/codex/coga-annotated-dev-metadata`
+
+## Implementation notes
+
+- Preserve the whole remainder for bare metadata so worktree paths with spaces remain valid.
+- For a value beginning with a backtick, use the next backtick as the delimiter; if none exists, retain the existing whole-remainder fallback.
+- Keep the live and packaged `dev/code`, `code/implement`, and `code/open-pr` guidance synchronized.
+
+## Progress
+
+- Added failing parser and deterministic open-PR regressions reproducing annotated quoted metadata.
+- Implemented closing-backtick delimiting in both parsers, with placeholder validation after extraction.
+- Updated the canonical and packaged guidance plus actionable open-PR failure hints.
+- `tests/test_autoclose.py` and `tests/test_open_pr.py`: 50 passed.
+- Full suite: 1330 passed, 1 skipped because Hatchling was absent from the base interpreter; `tests/test_packaging.py` then passed 3/3 using the cached Hatchling test dependencies.
+- `coga validate --task make-open-pr-metadata-tolerate-annotated-branch-an --json`: 1 task OK, no issues.
+- No example fixture change is needed: task layout, prompt composition mechanics, and workflow semantics are unchanged.
+
+## Implement handoff
+
+- Commit: `05af81678c69ad11c404f6993cfb5524abac1f1b` (`Tolerate annotated open-pr metadata`).
+- Rebased cleanly onto `origin/main` at `6e151639964f14603cc6b656f409a5beee5f65f9`; branch is 0 behind / 1 ahead and the worktree is clean.
+- Post-rebase full suite: 1330 passed, 1 environment skip; packaging suite separately passed 3/3 with cached Hatchling dependencies.
+- Nothing pushed and no PR opened; the branch is ready for peer review.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-18T22:33:49+00:00
+Command: `coga validate --json --fix`
+Task: `make-open-pr-metadata-tolerate-annotated-branch-an`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Peer review
+
+- `codex review --base main`: no actionable findings.
+- Rebased cleanly onto `origin/main` at `2299d2a5`; reviewed commit is `2f99268794bccb5c0e2150a6d9e693ed8f032b01`.
+- Post-rebase full suite: 1330 passed, 1 environment skip; `tests/test_packaging.py` separately passed 3/3 with cached Hatchling dependencies.
+- `coga validate --task make-open-pr-metadata-tolerate-annotated-branch-an --json`: 1 task OK, no issues.
+- Branch is clean, 0 behind / 1 ahead of `origin/main`; no peer-review fix commit was needed.
+
+## PR
+
+### Summary
+
+- Parse backtick-delimited `branch:` and `worktree:` values without absorbing trailing repository annotations, while preserving whole-line handling for bare values and unmatched backticks.
+- Add parser and deterministic open-PR regressions, synchronize live and packaged metadata guidance, and make annotation-related failure hints actionable.
+
+### Test plan
+
+`PYTHONPATH="$PWD/src" python3.12 -m pytest` (1330 passed, 1 skipped); `tests/test_packaging.py` with cached Hatchling dependencies (3 passed).
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-18T22:38:00+00:00
+Command: `coga validate --json --fix`
+Task: `make-open-pr-metadata-tolerate-annotated-branch-an`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-18T22:43:01+00:00
+Command: `coga validate --json --fix`
+Task: `make-open-pr-metadata-tolerate-annotated-branch-an`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-18T22:47:16+00:00
+Command: `coga validate --json --fix`
+Task: `make-open-pr-metadata-tolerate-annotated-branch-an`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-18T22:49:22+00:00
+Command: `coga validate --json --fix`
+Task: `make-open-pr-metadata-tolerate-annotated-branch-an`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
