@@ -724,6 +724,13 @@ def test_parse_inline_secrets_rejects_duplicate_name() -> None:
         )
 
 
+def test_parse_inline_secrets_rejects_reserved_coga_namespace() -> None:
+    with pytest.raises(SecretError, match="reserved `COGA_` namespace"):
+        parse_inline_secrets(
+            [{"COGA_TASK_BLACKBOARD": "env:SECRET_BLACKBOARD_ALIAS"}]
+        )
+
+
 def test_select_launch_secrets_none_and_empty_inject_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

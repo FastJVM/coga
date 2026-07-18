@@ -831,6 +831,8 @@ def spawn_agent_session(
     # outer bootstrap ticket. Copy first so caller-owned environments remain
     # unchanged; unrelated parent values still pass through.
     env = dict(env)
+    env.pop("COGA_SKILL_NAME", None)
+    env.pop("COGA_SKILL_DIR", None)
     env.update(build_task_env(cfg, ref))
 
     if warn_blackboard:
