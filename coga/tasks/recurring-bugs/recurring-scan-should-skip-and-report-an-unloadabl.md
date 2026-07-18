@@ -2,7 +2,7 @@
 slug: recurring-bugs/recurring-scan-should-skip-and-report-an-unloadabl
 title: recurring scan should skip-and-report an unloadable template, not crash the
   repo
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
