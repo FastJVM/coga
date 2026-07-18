@@ -540,6 +540,75 @@ def test_recurring_all_services_one_checkout_per_remote(
     assert "alpha — same git remote as beta; skipped duplicate checkout" in captured.err
 
 
+def test_recurring_all_keeps_distinct_workspaces_in_one_remote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sibling Coga workspaces in one monorepo are not duplicate checkouts."""
+    root = tmp_path / "monorepo"
+    first = root / "service-a" / "coga"
+    second = root / "service-b" / "coga"
+    for coga_os in (first, second):
+        _write(coga_os / "coga.toml", "version = 1\n")
+
+    monkeypatch.setattr(recurring_cmd, "_git_toplevel", lambda _path: root)
+    monkeypatch.setattr(recurring_cmd, "_current_branch", lambda _root: "main")
+
+    def fake_subprocess_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        assert command[-3:] == ["remote", "get-url", "origin"]
+        return SimpleNamespace(returncode=0, stdout="https://example.com/team/repo\n")
+
+    monkeypatch.setattr(recurring_cmd.subprocess, "run", fake_subprocess_run)
+
+    assert recurring_cmd._duplicate_remote_checkouts([first, second]) == {}
+
+
+def test_recurring_all_prefers_configured_duplicate_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing local user cannot shadow a runnable clone of the workspace."""
+    root = tmp_path / "workspaces"
+    first = root / "alpha" / "coga"
+    second = root / "beta" / "coga"
+    for coga_os in (first, second):
+        _write(coga_os / "coga.toml", "version = 1\n")
+    _write(second / "coga.local.toml", 'user = "marc"\n')
+
+    monkeypatch.setattr(
+        recurring_cmd, "_git_toplevel", lambda coga_os: coga_os.parent
+    )
+    monkeypatch.setattr(recurring_cmd, "_current_branch", lambda _root: "main")
+
+    def fake_subprocess_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        assert command[-3:] == ["remote", "get-url", "origin"]
+        return SimpleNamespace(returncode=0, stdout="https://example.com/team/repo\n")
+
+    monkeypatch.setattr(recurring_cmd.subprocess, "run", fake_subprocess_run)
+
+    assert recurring_cmd._duplicate_remote_checkouts([first, second]) == {
+        first: second
+    }
+
+
+def test_recurring_all_isolates_malformed_config_during_remote_grouping(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "workspaces"
+    first = root / "alpha" / "coga"
+    second = root / "beta" / "coga"
+    _write(first / "coga.toml", "version = [\n")
+    _write(second / "coga.toml", "version = 1\n")
+    seen: list[Path] = []
+
+    def fake_run(coga_os: Path, **kwargs) -> int:  # type: ignore[no-untyped-def]
+        seen.append(coga_os)
+        return 2 if coga_os == first else 0
+
+    monkeypatch.setattr(recurring_cmd, "_run_repo_recurring", fake_run)
+
+    assert recurring_cmd.run_recurring_all_repos(root) == 1
+    assert seen == [first, second]
+
+
 def test_recurring_all_continues_after_repo_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

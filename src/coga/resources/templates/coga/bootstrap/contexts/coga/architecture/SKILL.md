@@ -72,10 +72,12 @@ no in-memory state.
   and blackboard machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
   repos below the path, groups eligible control checkouts by their resolved
-  configured git remote, and invokes one checkout in each group once (preferring
-  the first checkout already on its configured control branch). Later
-  checkouts of that remote are named and skipped, so one scheduler entry cannot
-  race one control branch through multiple worktrees. Each dispatched child
+  configured git remote plus the Coga workspace's path within the git checkout,
+  and invokes one checkout in each group once (preferring the first locally
+  configured checkout already on its control branch). Later checkouts of that
+  same remote workspace are named and skipped, while distinct Coga workspaces
+  in one monorepo still run. One scheduler entry therefore cannot race one
+  control branch through multiple worktrees. Each dispatched child
   must fetch/rebase its checked-out control branch successfully before scanning;
   an unconfirmed checkout fails only that repo and the parent keeps sweeping.
   `--force` is the explicit schedule/status bypass and composes with the parent

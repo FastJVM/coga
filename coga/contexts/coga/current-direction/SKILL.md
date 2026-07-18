@@ -35,12 +35,13 @@ Last updated: 2026-07-17.
 
 - **`coga recurring --all <path>` is the one-entry scheduler surface.** It
   discovers every Coga repo below the explicit parent path and runs each
-  resolved git remote once, sequentially, through the first eligible control
-  checkout. Duplicate checkouts are warned and skipped, and a checkout whose
-  pre-scan fetch/rebase cannot confirm control-branch freshness fails without
-  servicing its periods. The old force-every-template behavior moved to
-  `--force`; combining both flags deliberately force-runs every template in
-  every selected repo.
+  resolved git remote/workspace identity once, sequentially, through the first
+  locally configured control checkout. Duplicate checkouts are warned and
+  skipped; distinct Coga workspaces inside one monorepo remain distinct
+  scheduler targets. A checkout whose pre-scan fetch/rebase cannot confirm
+  control-branch freshness fails without servicing its periods. The old
+  force-every-template behavior moved to `--force`; combining both flags
+  deliberately force-runs every template in every selected repo.
 
 ## Open rename (workflow → playbook)
 

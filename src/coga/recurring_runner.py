@@ -190,37 +190,61 @@ def _repo_label(coga_os: Path, root: Path) -> str:
 
 
 def _duplicate_remote_checkouts(repos: list[Path]) -> dict[Path, Path]:
-    """Map repeated remotes to one checkout, preferring its control branch."""
-    by_remote: dict[str, list[tuple[Path, bool]]] = {}
+    """Map repeated remote workspaces to one usable control checkout."""
+    by_remote: dict[tuple[str, str], list[tuple[Path, bool, bool]]] = {}
     duplicates: dict[Path, Path] = {}
     for coga_os in repos:
         resolved = _configured_remote_identity(coga_os)
         if resolved is None:
             continue
-        identity, on_control_branch = resolved
-        by_remote.setdefault(identity, []).append((coga_os, on_control_branch))
+        remote_identity, workspace_identity, has_user, on_control_branch = resolved
+        by_remote.setdefault((remote_identity, workspace_identity), []).append(
+            (coga_os, has_user, on_control_branch)
+        )
 
     for checkouts in by_remote.values():
         keeper = next(
-            (path for path, on_control in checkouts if on_control),
-            checkouts[0][0],
+            (
+                path
+                for path, has_user, on_control in checkouts
+                if has_user and on_control
+            ),
+            None,
         )
-        for path, _on_control in checkouts:
+        if keeper is None:
+            keeper = next(
+                (path for path, _has_user, on_control in checkouts if on_control),
+                None,
+            )
+        if keeper is None:
+            keeper = next(
+                (path for path, has_user, _on_control in checkouts if has_user),
+                checkouts[0][0],
+            )
+        for path, _has_user, _on_control in checkouts:
             if path != keeper:
                 duplicates[path] = keeper
     return duplicates
 
 
-def _configured_remote_identity(coga_os: Path) -> tuple[str, bool] | None:
-    """Return a checkout's remote identity and control-branch eligibility."""
+def _configured_remote_identity(
+    coga_os: Path,
+) -> tuple[str, str, bool, bool] | None:
+    """Return remote/workspace identity and checkout eligibility signals."""
     try:
         cfg = load_config(coga_os, require_user=False)
-    except ConfigError:
+    except Exception:
+        # Classification is best-effort. The repo's child process is the
+        # authoritative config loader, so every failure still surfaces there
+        # without starving later repos in the parent sweep.
         return None
     if not cfg.git_enabled:
         return None
 
-    root = _git_toplevel(coga_os)
+    try:
+        root = _git_toplevel(coga_os)
+    except OSError:
+        return None
     if root is None:
         return None
     try:
@@ -235,15 +259,30 @@ def _configured_remote_identity(coga_os: Path) -> tuple[str, bool] | None:
             text=True,
             check=False,
         )
-    except FileNotFoundError:
+    except OSError:
         return None
     if result.returncode != 0:
         return None
     url = result.stdout.strip().splitlines()
     if not url:
         return None
-    identity = _normalize_remote_identity(root, url[0])
-    return (identity, on_control_branch) if identity is not None else None
+    try:
+        identity = _normalize_remote_identity(root, url[0])
+    except OSError:
+        return None
+    if identity is None:
+        return None
+
+    # One git checkout may intentionally contain several independent Coga
+    # workspaces. Only equal workspace paths across separate checkouts of the
+    # remote are duplicates; siblings inside one monorepo must all run.
+    try:
+        workspace_identity = (
+            coga_os.resolve().relative_to(root.resolve()).as_posix()
+        )
+    except (OSError, ValueError):
+        return None
+    return identity, workspace_identity, bool(cfg.current_user), on_control_branch
 
 
 def _normalize_remote_identity(root: Path, url: str) -> str | None:
