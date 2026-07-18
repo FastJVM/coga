@@ -1995,3 +1995,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 2026-07-17 21:04 [write-real-coga-documentation-command-reference-gu] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-07-17 21:04 [clean-up-workflows-and-make-sure-they-re-in-bootst] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-07-17 21:04 [make-open-pr-metadata-tolerate-annotated-branch-an] [megalaunch] activated (draft → active) — explicit megalaunch pick
+2026-07-17 21:04 [make-ticket-script-form-works] [megalaunch] activated (draft → active) — explicit megalaunch pick
