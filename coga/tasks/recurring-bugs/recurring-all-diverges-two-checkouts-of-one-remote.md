@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 4 (review)
 ---
 
 ## Description
@@ -97,3 +97,76 @@ divergent push.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/595
+branch: fix/recurring-remote-dedup
+worktree: /tmp/coga-recurring-remote-dedup
+commit: f5d63c90 peer-review: apply review findings (tip); ef7b2f06 implementation
+freshness: rebased cleanly onto fetched origin/main ff5419d8
+
+## Design decision
+
+Use both defenses from the ticket: require the pre-scan control checkout catch-up
+to confirm that the fetched control tip is integrated before servicing any
+recurring period, and group `--all` discoveries by resolved configured remote so
+only one checkout per remote workspace is dispatched. Distinct Coga workspaces
+inside one monorepo remain independent scheduler targets, and a locally
+configured control checkout wins when duplicate clones are otherwise eligible.
+Freshness failure remains isolated to that repo; later task-state sync remains
+non-fatal because markdown stays the source of truth.
+
+## Implementation
+
+- `run_recurring_all_repos` now groups git-enabled checkouts by resolved remote
+  plus repo-relative Coga workspace path, prefers a locally configured control
+  checkout, and names/skips every true duplicate without making that skip a
+  sweep failure.
+- Config errors during the grouping pre-pass are left for each repo's child
+  process to report, preserving the parent sweep's per-repo failure isolation.
+- The selected child receives a private freshness marker. Its pre-scan fetch,
+  rebase, ancestry check, and unresolved-conflict check must succeed before
+  `scan_due`; disabled git, detached/wrong branch, or catch-up failure exits
+  nonzero for that repo while the parent continues.
+- Bare single-repo and named recurring runs retain their prior best-effort
+  catch-up, and post-entry task-state sync remains non-fatal.
+- Updated the live and packaged architecture/sync contracts, packaged CLI
+  reference, recurring bootstrap contract, and current-direction context.
+
+## Verification
+
+- Regression was observed red before the fix: both real clones were dispatched.
+- `tests/test_recurring.py`: 120 passed.
+- Full suite after peer-review fixes and again after the final rebase: 1314
+  passed, 1 skipped.
+- `coga validate --task recurring-bugs/recurring-all-diverges-two-checkouts-of-one-remote --json`:
+  1 ok, 0 issues.
+- The live `codex/coga` and `claude/coga` checkouts resolve as one duplicate
+  group despite one remote URL carrying a trailing slash.
+
+## Peer review
+
+- Native `codex review --base main` reproduced three must-fix selection/isolation
+  gaps: remote-only grouping collapsed distinct Coga workspaces in one
+  monorepo; malformed config could abort the parent before later repos ran; and
+  a no-user clone could shadow an equivalent configured clone.
+- The follow-up groups by remote plus repo-relative workspace identity, keeps
+  config discovery best-effort in the parent, and prefers a locally configured
+  checkout already on its control branch.
+- Focused regression matrix: 5 passed. Full `tests/test_recurring.py`: 120
+  passed.
+
+## PR
+
+### Summary
+
+- Deduplicate `coga recurring --all` by resolved remote workspace so duplicate
+  clones cannot race one control branch, while distinct monorepo workspaces
+  still run.
+- Require every selected `--all` child to confirm control-branch freshness
+  before scanning, without changing non-fatal task-state sync after entry.
+- Preserve per-repo failure isolation and prefer a runnable configured control
+  checkout when equivalent clones are discovered.
+
+Test plan: `PYTHONPATH=$PWD/src python3.12 -m pytest -q` (1314 passed, 1 skipped) and task-scoped `coga validate --json`.
