@@ -1,13 +1,13 @@
 ---
 slug: metrics-human-minutes-script
 title: Metrics human minutes script
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts:
-  - marketing/plan
+- marketing/plan
 skills: []
 workflow:
   name: code/with-review
