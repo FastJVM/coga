@@ -87,6 +87,15 @@ usage-unknown rather than crashing.
   which reads exactly `~/.claude/projects/<cwd-hash>/<session-id>.jsonl` and
   **sums** `message.usage.*` over `assistant` lines (Claude reports per-message
   deltas), filtered to the session window by per-line `timestamp`.
+  The pinned uuid is only materialised for a **fresh** session: a *resumed* one
+  keeps appending to the transcript it resumed from, so that file never appears
+  and usage would silently degrade to unknown. When the pinned path is missing,
+  capture falls back to transcripts in the same `<cwd-hash>` project dir
+  carrying a per-line `timestamp` inside the session window, and adopts the
+  matched file's stem as the session id. Still never by mtime — a stray touch
+  or a copy would forge it. Ambiguity is not resolved by guessing: two or more
+  in-window transcripts in one cwd (concurrent sessions) → usage-unknown, the
+  same no-mis-attribution rule the Codex path follows.
 - **Codex** has no session-id flag, so capture snapshots the existing
   `~/.codex/sessions/**/rollout-*.jsonl` paths *before* spawn and claims the new
   file whose `session_meta.payload.cwd` matches (ambiguous / no-new-file →

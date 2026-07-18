@@ -396,11 +396,36 @@ def _parse_claude_session(
         )
     path = _claude_transcript_path(cwd, session_id)
     if not path.is_file():
-        return _unknown(
-            "anthropic",
-            session_id=session_id,
-            reason=f"claude transcript not found: {path}",
+        # The pinned `--session-id` transcript is absent. `claude` only
+        # materialises that id for a *fresh* session: a resumed one keeps
+        # appending to the transcript it was resumed from, so the pinned file
+        # is never created and usage would silently degrade to `unknown`.
+        # Fall back the way the codex parser does — take a transcript in this
+        # cwd's project dir that appeared after the pre-spawn snapshot.
+        candidates = _claude_fallback_transcripts(
+            cwd=cwd,
+            window_start=window_start,
+            window_end=window_end,
         )
+        if not candidates:
+            return _unknown(
+                "anthropic",
+                session_id=session_id,
+                reason=f"claude transcript not found: {path}",
+            )
+        if len(candidates) > 1:
+            # Concurrent sessions in one cwd — picking either would misattribute
+            # usage, so report ambiguity instead of guessing.
+            return _unknown(
+                "anthropic",
+                session_id=session_id,
+                reason=(
+                    "multiple claude transcripts matched cwd: "
+                    + ", ".join(str(item) for item in sorted(candidates))
+                ),
+            )
+        path = candidates[0]
+        session_id = path.stem
 
     model: str | None = None
     input_tokens = 0
@@ -654,9 +679,71 @@ def _parse_codex_rollout(
     )
 
 
-def _claude_transcript_path(cwd: Path, session_id: str) -> Path:
+def _claude_project_dir(cwd: Path) -> Path:
     cwd_hash = str(cwd.resolve()).replace("/", "-").replace(".", "-")
-    return Path.home() / ".claude" / "projects" / cwd_hash / f"{session_id}.jsonl"
+    return Path.home() / ".claude" / "projects" / cwd_hash
+
+
+def _claude_transcript_path(cwd: Path, session_id: str) -> Path:
+    return _claude_project_dir(cwd) / f"{session_id}.jsonl"
+
+
+
+def _claude_fallback_transcripts(
+    *,
+    cwd: Path,
+    window_start: datetime,
+    window_end: datetime,
+) -> list[Path]:
+    """Transcripts in `cwd`'s project dir with activity inside the window.
+
+    Used when the pinned `--session-id` transcript is missing — chiefly a
+    resumed session, which keeps writing to the transcript it resumed from.
+
+    Deliberately *not* filtered against the pre-spawn snapshot the codex parser
+    uses: a resumed transcript exists before the spawn, so subtracting it would
+    discard the one file we're looking for. Matching stays on per-line
+    `timestamp` content — never file mtime, which a stray touch or a copy would
+    forge — and the project dir is derived from `cwd`, so a session in another
+    repo, or a stale one here, is never attributed to this run.
+    """
+    project_dir = _claude_project_dir(cwd)
+    if not project_dir.is_dir():
+        return []
+    return [
+        path
+        for path in project_dir.glob("*.jsonl")
+        if _claude_transcript_active_in_window(
+            path, window_start=window_start, window_end=window_end
+        )
+    ]
+
+
+def _claude_transcript_active_in_window(
+    path: Path,
+    *,
+    window_start: datetime,
+    window_end: datetime,
+) -> bool:
+    try:
+        text = path.read_text()
+    except OSError:
+        return False
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        stamp = _parse_ts(entry.get("timestamp"))
+        if stamp is not None and _inside_window(
+            stamp, window_start=window_start, window_end=window_end
+        ):
+            return True
+    return False
 
 
 def _codex_rollout_paths() -> list[Path]:
