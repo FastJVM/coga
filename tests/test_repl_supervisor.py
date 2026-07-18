@@ -166,6 +166,7 @@ def test_idle_timeout_terminates_silent_child(
     )
     elapsed = time.monotonic() - start
     assert (outcome.exit_code, outcome.kind) == (_TIMEOUT_EXIT_CODE, "timeout")
+    assert outcome.reason == "idle-timeout (no REPL activity for 0.5s)"
     assert elapsed < 10  # torn down on idle, not after the full sleep
 
 
@@ -199,6 +200,7 @@ def test_max_session_terminates_output_producing_child(
     )
     elapsed = time.monotonic() - start
     assert (outcome.exit_code, outcome.kind) == (_TIMEOUT_EXIT_CODE, "timeout")
+    assert outcome.reason == "max-session (wall-clock exceeded 0.5s)"
     assert elapsed < 10  # torn down on the wall-clock cap, not left to spin
 
 

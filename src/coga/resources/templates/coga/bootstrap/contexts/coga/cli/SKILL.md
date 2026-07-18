@@ -570,7 +570,12 @@ runs one eligible step at a time. An agent step is a normal **interactive**
 launch — the agent REPL streams live to the console under the PTY watcher, and
 the done-sentinel (`coga bump` / `mark done` / `block`) releases it before the
 sweep moves on — never a headless `claude -p` run, which would buffer all
-output until the run ends. A **script launch** — a script-backed current step
+output until the run ends. The TTY is transport, not an approval gate:
+megalaunch appends package-backed queue guidance telling the agent to announce
+its plan and continue, while a decision or capability that genuinely requires
+the owner must end in `coga block`, not a conversational "shall I proceed?" or
+"blocked" reply. A normal final response does not release the queue. A
+**script launch** — a script-backed current step
 or a ticket-owned `script:` — runs the script directly,
 exactly like the `coga launch` supervisor: no agent, no REPL, no assignee
 gate; exit 0 advances the step and the chain continues, a non-zero exit
@@ -578,7 +583,10 @@ leaves the step put and fails that one task without stopping the sweep. The
 recurring-style idle-timeout / max-session
 backstops are armed so a wedged REPL can't starve the queue; because the REPLs
 (and the `--pick` prompt) are interactive, megalaunch requires a TTY and fails
-loud without one. The run summary distinguishes launched, completed, blocked,
+loud without one. A timed-out result names the exact trigger and configured
+duration (`idle-timeout ... 900s` or `max-session ...`) instead of collapsing
+both limits into one ambiguous message. The run summary distinguishes
+launched, completed, blocked,
 skipped-human-gate, skipped-unresolved-blocker,
 skipped-unlaunchable, and failed.
 
@@ -724,7 +732,8 @@ reaching `coga bump` / `mark done` / `block` — would otherwise block the
 sequential sweep forever. Both the bare sweep and `coga recurring --force` arm a
 generous idle timeout on each spawned REPL (passed through as `coga launch
 --idle-timeout`): if it produces no output and takes no input for that long,
-the supervisor tears it down (reported as a clean exit) so the sweep moves on.
+the supervisor tears it down as a non-zero timed-out result so the sweep moves
+on without calling the task completed.
 `coga recurring --interactive` — a human stepping through by hand — leaves the
 REPL unbounded, as does a plain `coga launch`. The default window is 15
 minutes; set `COGA_REPL_IDLE_TIMEOUT` (seconds) to change it, or to `0` /

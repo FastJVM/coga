@@ -30,7 +30,31 @@ later `code/open-pr` step does that, after self-review and fixes.
    *not* have to match the slug. Then return to the primary checkout and
    write `branch: <branch-name>` and `worktree: <path>` under a `## Dev`
    section on the blackboard. See the `dev/code` context for the full
-   convention. **On a resumed session** where `## Dev` already records a
+   convention.
+
+   **Read-only Git fallback.** A managed agent sandbox may allow source edits
+   while mounting the primary checkout's `.git` metadata read-only. If
+   `git worktree add` fails for that reason, do not stop at a conversational
+   request for the human to create it. Use ordinary Git to make an independent
+   writable clone under `/tmp`, refresh it from the real remote, and create the
+   feature branch there:
+
+   ```bash
+   feature_clone_dir=$(mktemp -d /tmp/coga-feature.XXXXXX)
+   git clone --no-hardlinks "$(git rev-parse --show-toplevel)" "$feature_clone_dir/repo"
+   git -C "$feature_clone_dir/repo" remote set-url origin "$(git remote get-url origin)"
+   git -C "$feature_clone_dir/repo" fetch origin main
+   git -C "$feature_clone_dir/repo" switch -C main FETCH_HEAD
+   git -C "$feature_clone_dir/repo" switch -c <branch-name>
+   ```
+
+   Record that clone's repo path as `worktree:`; downstream `coga open-pr`
+   accepts any clean recorded feature checkout. If the independent clone or
+   its required fresh fetch also fails, run
+   `coga block --task <slug> --reason "<specific capability or access needed>"`
+   instead of merely saying "blocked" and leaving a supervised queue waiting.
+
+   **On a resumed session** where `## Dev` already records a
    `branch:` and `worktree:`, reuse them — and refresh first: from the
    clean feature worktree, `git fetch origin main && git rebase
    FETCH_HEAD`, re-running the tests if new commits came in. Work parked
@@ -75,7 +99,8 @@ later `code/open-pr` step does that, after self-review and fixes.
 
 ## Acceptance for this step
 
-- Local branch and feature worktree exist; both are recorded under `## Dev`
+- Local branch and feature checkout (linked worktree or independent fallback
+  clone) exist; both are recorded under `## Dev`
   on the blackboard.
 - Tests pass locally.
 - Changes committed (no working-tree modifications left).

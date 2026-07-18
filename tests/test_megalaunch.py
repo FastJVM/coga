@@ -650,6 +650,7 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
 
     def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         seen["idle_timeout"] = kwargs.get("idle_timeout")
+        seen["prompt_suffix"] = kwargs.get("prompt_suffix")
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)
@@ -664,12 +665,24 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
     # The recurring sweep's idle backstop is armed so a wedged REPL can't
     # starve the rest of the queue.
     assert seen["idle_timeout"] is not None
+    assert "Megalaunch queue execution" in str(seen["prompt_suffix"])
+    assert "Do not ask for plan" in str(seen["prompt_suffix"])
+    assert "coga block --task" in str(seen["prompt_suffix"])
 
 
-def test_megalaunch_timeout_teardown_reports_failed(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "termination_reason",
+    [
+        "idle-timeout (no REPL activity for 900s)",
+        "max-session (wall-clock exceeded 1200s)",
+    ],
+)
+def test_megalaunch_timeout_teardown_names_exact_limit(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    termination_reason: str,
 ) -> None:
-    """A liveness-limit teardown is a distinct failure, not a bare exit code."""
+    """A liveness teardown reports the exact trigger, not a generic timeout."""
     cfg = load_config(repo)
     create_task(
         cfg=cfg,
@@ -687,15 +700,20 @@ def test_megalaunch_timeout_teardown_reports_failed(
         exit_code = 124
         termination_kind = "timeout"
 
+        def __init__(self, reason: str) -> None:
+            self.termination_reason = reason
+
     monkeypatch.setattr(
         "coga.megalaunch.spawn_agent_session",
-        lambda *args, **kwargs: _Session(),
+        lambda *args, **kwargs: _Session(termination_reason),
     )
 
     run = run_megalaunch(cfg)
 
     assert run.counts["failed"] == 1
-    assert "liveness limit" in run.results[0].detail
+    assert run.results[0].detail == (
+        f"agent hit {termination_reason} without signalling done"
+    )
 
 
 def test_megalaunch_skips_open_blocker(repo: Path) -> None:
