@@ -1,7 +1,7 @@
 ---
 slug: clean-up-workflows-and-make-sure-they-re-in-bootst
 title: clean up workflows and make sure they're in bootstrap
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
