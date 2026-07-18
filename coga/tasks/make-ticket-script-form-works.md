@@ -1,7 +1,7 @@
 ---
 slug: make-ticket-script-form-works
 title: make ticket script form works
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
