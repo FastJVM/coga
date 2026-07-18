@@ -15,6 +15,10 @@ authority, and the right to change the machine directly.
 synchronous chat loop into asynchronous tasks: decide the work, give agents a
 batch, and return only when human judgment is needed.
 
+[![Watch the 95-second Coga demo](https://img.youtube.com/vi/iwnewxJvRPc/maxresdefault.jpg)](https://www.youtube.com/watch?v=iwnewxJvRPc&feature=youtu.be)
+
+**[Watch the 95-second demo on YouTube →](https://www.youtube.com/watch?v=iwnewxJvRPc&feature=youtu.be)**
+
 ```text
 Coga task
   → Coga composes the relevant context and workflow
