@@ -2,7 +2,7 @@
 slug: move-open-pr-recipe-into-the-code-open-pr-skill-ke
 title: Move open_pr recipe into the code open-pr skill; keep only parse_worktree_path
   in core
-status: active
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -32,7 +32,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description
