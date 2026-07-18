@@ -41,3 +41,4 @@ consumed_through: a20bb1814a33
 {"id":"d325eedef508","ts":"2026-07-17T14:40","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
 {"id":"e658619631d8","ts":"2026-07-17T16:32","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"recurring-bugs/coga-usage-cannot-locate-claude-transcript-or-sess","owner":"nicktoper"}
 {"id":"892041cbd7a5","ts":"2026-07-17T18:14","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"recurring-bugs/recurring-scan-should-skip-and-report-an-unloadabl","owner":"nicktoper"}
+{"id":"2d42d0c2de91","ts":"2026-07-17T17:00","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"move-open-pr-recipe-into-the-code-open-pr-skill-ke","owner":"nicktoper"}
