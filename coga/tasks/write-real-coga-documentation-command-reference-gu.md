@@ -1,7 +1,7 @@
 ---
 slug: write-real-coga-documentation-command-reference-gu
 title: Write real Coga product documentation
-status: blocked
+status: active
 owner: nicktoper
 human: nicktoper
 agent: codex
