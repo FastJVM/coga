@@ -1,16 +1,28 @@
 ---
 slug: why-browser-autoamtion-as-a-ticket
 title: why browser autoamtion as a ticket
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: autonomy/assist-only
+workflow:
+  name: autonomy/assist-only
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: human
+  - name: report-to-coga
+    skills: []
+    assignee: agent
 secrets: null
 script: null
+step: 1 (agent-produces)
 ---
 
 ## Description
