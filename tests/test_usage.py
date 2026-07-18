@@ -554,3 +554,93 @@ def test_usage_command_outputs_json(tmp_path: Path, monkeypatch) -> None:
     assert payload["by"] == "task"
     assert payload["overall"]["total_tokens"] == 10
     assert payload["groups"][0]["key"] == "work"
+
+
+def _claude_transcript(cwd: Path, home: Path, session_id: str) -> Path:
+    cwd_hash = str(cwd.resolve()).replace("/", "-").replace(".", "-")
+    return home / ".claude" / "projects" / cwd_hash / f"{session_id}.jsonl"
+
+
+def _lines(stamp: str) -> str:
+    return (
+        '{"type":"assistant","timestamp":"' + stamp + '","message":'
+        '{"model":"claude-sonnet-4","usage":{"input_tokens":10,'
+        '"cache_creation_input_tokens":2,"cache_read_input_tokens":3,'
+        '"output_tokens":4}}}\n'
+    )
+
+
+def test_parse_claude_falls_back_to_resumed_transcript(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A resumed session keeps writing to the transcript it resumed from, so the
+    pinned `--session-id` file is never created. Usage must still be attributed."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    start, end = _window()
+    resumed = _claude_transcript(cwd, tmp_path, "resumed-session")
+    _write(resumed, _lines("2026-06-23T12:30:00Z"))
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id="pinned-never-materialised",
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.session_id == "resumed-session"
+    assert parsed.input_tokens == 10
+    assert parsed.output_tokens == 4
+
+
+def test_parse_claude_fallback_ignores_transcript_outside_window(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A stale transcript in the same cwd must not be attributed to this run."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    start, end = _window()
+    stale = _claude_transcript(cwd, tmp_path, "stale-session")
+    _write(stale, _lines("2026-06-23T09:00:00Z"))
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id="pinned-never-materialised",
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "unknown"
+    assert parsed.reason is not None
+    assert "transcript not found" in parsed.reason
+
+
+def test_parse_claude_fallback_reports_ambiguity(tmp_path: Path, monkeypatch) -> None:
+    """Concurrent sessions in one cwd must report ambiguity, never guess."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    start, end = _window()
+    for name in ("session-a", "session-b"):
+        path = _claude_transcript(cwd, tmp_path, name)
+        _write(path, _lines("2026-06-23T12:30:00Z"))
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id="pinned-never-materialised",
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "unknown"
+    assert parsed.reason is not None
+    assert "multiple claude transcripts matched cwd" in parsed.reason
