@@ -2037,3 +2037,4 @@ CONFLICT (content): Merge conflict in coga/tasks/validate-tickets-at-create-time
 	coga/log.md
 Please commit your changes or stash them before you merge.
 Aborting
+2026-07-17 22:58 [bootstrap/ticket] [system] {"agent":"claude","agent_turns":null,"cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"claude","content_status":"unknown","elapsed_seconds":2774.097894,"ended_at":"2026-07-18T05:58:49.479083Z","human_turns":null,"input_tokens":null,"model":null,"outcome":null,"outcome_status":"completed","output_tokens":null,"provider":"anthropic","request":null,"schema":2,"session_id":"207c6694-a5d7-4c31-b6e5-6646dac0e758","slug":"bootstrap/ticket","started_at":"2026-07-18T05:12:35.381189Z","step":null,"title":"Create a new ticket","ts":"2026-07-18T05:58:49.479083Z","usage_status":"unknown"}
