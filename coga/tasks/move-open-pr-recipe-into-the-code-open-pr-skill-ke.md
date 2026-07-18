@@ -2,7 +2,7 @@
 slug: move-open-pr-recipe-into-the-code-open-pr-skill-ke
 title: Move open_pr recipe into the code open-pr skill; keep only parse_worktree_path
   in core
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -86,7 +86,9 @@ Scope:
 
 <!-- coga:blackboard -->
 
-## Closed obsolete (2026-07-17)
+## Production notes
+
+### Closed obsolete (2026-07-17)
 
 The earlier "Done — folded into PR #517" note below was **wrong** — verified
 against `main` on 2026-07-17:
