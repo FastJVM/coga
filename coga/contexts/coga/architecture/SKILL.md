@@ -357,6 +357,14 @@ file. Layers, in order:
 6. The blackboard.
 7. The task description (the ticket body's `## Description`).
 
+The shared spawn seam may append a narrow, package-backed invocation directive
+after those task layers. `coga megalaunch` appends
+`prompt-megalaunch.md`: the REPL still uses a TTY for live streaming and human
+interruption, but the directive makes clear that queue execution must not pause
+for plan approval. The agent proceeds on reasonable assumptions or calls
+`coga block`; only `bump`, `mark done`, or `block` releases the queue. This is
+ephemeral launch context, not ticket state or a new autonomy frontmatter field.
+
 The agent gets all of this as one input. There is no follow-up
 loading. One delivery caveat: the prompt rides the agent CLI's argv, and
 Linux caps a single argument at 128 KiB. Launch swaps a composed prompt over

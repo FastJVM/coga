@@ -25,6 +25,9 @@ eligible step spawns the agent REPL under the PTY watcher exactly like
 back to the sweep. Recurring's idle-timeout / max-session backstops are armed
 so one wedged agent can't starve the rest of the queue. Because the spawned
 REPLs are interactive, the whole run requires a TTY — fail loud otherwise.
+The TTY is transport, not an approval gate: a package-backed megalaunch prompt
+directive tells the agent to announce its plan and continue, or to use
+`coga block` when a real human decision or capability is unavailable.
 
 Script launches run too: a ticket whose current step is script-backed or that
 carries its own `script:` runs through the same `run_script_mode` path the
@@ -42,6 +45,7 @@ import json
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from importlib.resources import files
 from pathlib import Path
 from typing import Literal
 
@@ -728,6 +732,7 @@ def _launch_until_stop(
                 name=before.title or "",
                 idle_timeout=idle_timeout,
                 max_session=max_session,
+                prompt_suffix=_megalaunch_prompt_suffix(),
                 label="Megalaunch",
                 warn_blackboard=True,
             )
@@ -757,11 +762,16 @@ def _launch_until_stop(
             detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
             return _result(ref, "blocked", detail, after.assignee, launched=True)
         if session.termination_kind == "timeout":
+            timeout_reason = getattr(session, "termination_reason", None)
+            detail = (
+                f"agent hit {timeout_reason} without signalling done"
+                if timeout_reason
+                else "agent hit a liveness limit without signalling done"
+            )
             return _result(
                 ref,
                 "failed",
-                "agent hit the liveness limit (idle/max-session) without "
-                "signalling done",
+                detail,
                 after.assignee,
                 launched=True,
             )
@@ -951,6 +961,7 @@ def _preflight_agent_launch(
         return agent_cli_missing_message(agent.cli)
     try:
         compose_prompt(cfg, ref, ticket)
+        _megalaunch_prompt_suffix()
         build_launch_env(cfg, ticket.secrets)
     except (ConfigError, ComposeError, SecretError) as exc:
         return str(exc)
@@ -959,6 +970,18 @@ def _preflight_agent_launch(
         if not auth.ok:
             return f"git push access unavailable: {auth.detail}"
     return None
+
+
+def _megalaunch_prompt_suffix() -> str:
+    """Return package-backed execution guidance unique to the queue runner."""
+    try:
+        prompt = files("coga.resources").joinpath("prompt-megalaunch.md").read_text()
+    except OSError as exc:
+        raise ComposeError(
+            "Megalaunch execution prompt is missing from the installed Coga "
+            "package: prompt-megalaunch.md"
+        ) from exc
+    return f"\n\n{prompt.strip()}\n"
 
 
 def _result(

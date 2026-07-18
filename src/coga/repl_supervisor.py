@@ -76,10 +76,16 @@ class ReplOutcome:
       the agent never signalled done. This is the wedge the watchdog catches.
     - `"crash"` — a death by a signal we did **not** send, surfaced rather than
       masked even when it raced our own teardown.
+
+    `reason` carries the concrete watcher trigger when the watcher stopped the
+    child (for example, `idle-timeout (no REPL activity for 900s)`). It stays
+    `None` for natural exits and real crashes, so callers can report the exact
+    liveness limit without re-deriving it from configuration or elapsed time.
     """
 
     exit_code: int
     kind: str
+    reason: str | None = None
 
 
 # Terminal-sanitizing reset, emitted to the real terminal only when *we* tore
@@ -237,15 +243,17 @@ def run_with_done_marker(
 
     sent_term = False
     term_kind: str | None = None
+    term_reason: str | None = None
     term_deadline: float | None = None
     sent_kill = False
     session_start = time.monotonic()
     last_activity = session_start
 
     def _trigger_term(reason: str, *, kind: str) -> None:
-        nonlocal sent_term, term_kind, term_deadline
+        nonlocal sent_term, term_kind, term_reason, term_deadline
         sent_term = True
         term_kind = kind
+        term_reason = reason
         term_deadline = time.monotonic() + _KILL_GRACE_SECONDS
         _notify(f"stopping REPL — trigger={reason}")
         _notify("SIGTERM sent to process group")
@@ -298,7 +306,7 @@ def run_with_done_marker(
                 and time.monotonic() - last_activity >= idle_timeout
             ):
                 _trigger_term(
-                    f"idle-timeout (no REPL activity for {idle_timeout:.0f}s)",
+                    f"idle-timeout (no REPL activity for {idle_timeout:g}s)",
                     kind="timeout",
                 )
 
@@ -308,7 +316,7 @@ def run_with_done_marker(
                 and time.monotonic() - session_start >= max_session
             ):
                 _trigger_term(
-                    f"max-session (wall-clock exceeded {max_session:.0f}s)",
+                    f"max-session (wall-clock exceeded {max_session:g}s)",
                     kind="timeout",
                 )
 
@@ -360,7 +368,8 @@ def run_with_done_marker(
     code, kind, notes = _classify_exit(status, term_kind)
     for note in notes:
         _notify(note)
-    return ReplOutcome(code, kind)
+    reason = term_reason if kind == term_kind else None
+    return ReplOutcome(code, kind, reason)
 
 
 def _classify_exit(

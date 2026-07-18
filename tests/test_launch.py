@@ -706,6 +706,7 @@ def test_spawn_captures_failed_and_timed_out_sessions(
     )
 
     assert result.exit_code == repl_outcome.exit_code
+    assert result.termination_reason == repl_outcome.reason
     assert captured[0]["outcome_status"] == expected_status
 
 
@@ -1227,7 +1228,11 @@ def test_direct_launch_timeout_exits_non_zero(
     _allow_interactive_tty(monkeypatch)
 
     def fake_supervisor(*args, **kwargs):  # type: ignore[no-untyped-def]
-        return ReplOutcome(_TIMEOUT_EXIT_CODE, "timeout")
+        return ReplOutcome(
+            _TIMEOUT_EXIT_CODE,
+            "timeout",
+            "idle-timeout (no REPL activity for 1s)",
+        )
 
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker", fake_supervisor
@@ -1242,6 +1247,7 @@ def test_direct_launch_timeout_exits_non_zero(
 
     assert result.exit_code == _TIMEOUT_EXIT_CODE, result.output
     assert "Agent timed out" in result.output
+    assert "idle-timeout (no REPL activity for 1s)" in result.output
 
 
 def test_launch_rejects_local_agent_override(

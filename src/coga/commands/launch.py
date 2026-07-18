@@ -490,9 +490,13 @@ def launch(
                 # Recurring's in-process caller asks for the kind so it can
                 # record the timeout and continue its sweep; public CLI callers
                 # get the supervisor's non-zero timeout exit.
+                timeout_reason = (
+                    session.termination_reason
+                    or "liveness limit reached without a done signal"
+                )
                 typer.secho(
-                    f"Agent timed out (no progress past the liveness limit) — "
-                    f"exit {session.exit_code}.",
+                    f"Agent timed out: {timeout_reason} — exit "
+                    f"{session.exit_code}.",
                     fg=typer.colors.YELLOW,
                     err=True,
                 )
@@ -770,6 +774,7 @@ def build_agent_command(
 class AgentSessionResult(NamedTuple):
     exit_code: int
     termination_kind: str
+    termination_reason: str | None = None
 
 
 def spawn_agent_session(
@@ -906,7 +911,7 @@ def spawn_agent_session(
             max_session=max_session,
         )
         outcome_status = _session_outcome_status(outcome)
-        return AgentSessionResult(outcome.exit_code, outcome.kind)
+        return AgentSessionResult(outcome.exit_code, outcome.kind, outcome.reason)
     except KeyboardInterrupt:
         outcome_status = "interrupted"
         raise

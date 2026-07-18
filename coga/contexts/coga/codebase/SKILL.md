@@ -195,6 +195,13 @@ recurring walls that don't appear on a normal dev machine:
   `coga mark ...` commit task/log changes through git sync, so they can error
   inside a sandbox that forbids creating `.git/index.lock`. Rerun those
   transitions unsandboxed (or grant `.git` write access).
+- **Feature checkout creation can use an independent clone.** If
+  `git worktree add` cannot create a branch lock because the primary `.git` is
+  read-only, make a `git clone --no-hardlinks` under `/tmp`, repoint its
+  `origin` to the real remote, fetch the control branch, and work there. Record
+  that repo path as the ticket's `worktree:`; do not force writes through the
+  protected metadata or stop at a conversational request when the clone
+  fallback is available.
 - **Scope validation with `--task`.** A repo-wide `coga validate` reports
   pre-existing, unrelated drift that isn't yours to fix and drowns the signal.
   `coga validate --task <slug>` is the meaningful per-ticket check.
