@@ -1,7 +1,7 @@
 ---
 slug: make-open-pr-metadata-tolerate-annotated-branch-an
 title: Make open-pr metadata tolerate annotated branch and worktree values
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
