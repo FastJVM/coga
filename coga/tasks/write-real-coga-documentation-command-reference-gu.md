@@ -1,7 +1,7 @@
 ---
 slug: write-real-coga-documentation-command-reference-gu
 title: Write real Coga product documentation
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -219,6 +219,12 @@ couldn't write the durable worktree.
 
 - [x] [2026-07-16 21:03] [agent:claude] id=20260716T210332 Peer-review impossible: the implement step's output is unrecoverable. Worktree /tmp/coga-real-docs was wiped and branch codex/write-real-coga-documentation exists nowhere (no local/packed/remote refs, no dangling commits contain docs/getting-started.md). Rewinding to implement is a human decision — please rewind to step 1; redo should base on current main (README already short via PR #520; CLI surface changed since base ec9f6b6e) and keep the branch somewhere durable (push to origin or a non-/tmp worktree) before handoff.
   resolved: [2026-07-17 21:06] [human:nicktoper] Confirmed with owner (nicktoper): prior implement output is unrecoverable — branch codex/write-real-coga-documentation exists in no local/packed/remote ref and the /tmp/coga-real-docs worktree was wiped. Decision: rewind workflow to step 1 (implement) and redo from current main. main has moved past base ec9f6b6e — README is already short (137 lines, links docs/vision.md) and docs/ exists but lacks getting-started/concepts/reference. Redo bases on current main, keeps the short README plus a 'Full docs ->' link, and keeps the branch durable (real branch on this checkout, not /tmp) before peer-review handoff.
+
+- [x] [2026-07-17 21:43] [agent:codex] id=20260717T214322 GitHub publication is blocked: gh auth status reports the active nicktoper token is invalid. Run gh auth login -h github.com and verify gh auth status, then unblock and resume this task so real-coga-docs can be pushed and its PR created and recorded.
+  resolved: [2026-07-17 21:47] [human:nicktoper] Owner reauthenticated gh and confirmed gh auth status succeeds with repo and workflow scopes. The real-coga-docs branch then pushed successfully to origin.
+
+- [ ] [2026-07-17 21:47] [agent:codex] id=20260717T214738 The feature branch real-coga-docs is pushed, but this agent environment cannot create the PR: gh pr create and gh api POST cannot connect to api.github.com, and the GitHub app returns 403 for PR creation. From a normal shell, open the PR at https://github.com/FastJVM/coga/pull/new/real-coga-docs or run gh pr create, then reply with its URL so it can be recorded and the step completed.
+
 
 ---
 

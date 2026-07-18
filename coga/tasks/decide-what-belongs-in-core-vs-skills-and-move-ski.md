@@ -47,28 +47,37 @@ This generalizes the open-pr fix (PR #517, which moved `src/coga/open_pr.py` →
 ("extend at the edges, not the core"). The open question that fix left open is
 *where the line is* — this ticket settles it and applies it.
 
-### Part 1 — decide the policy (do this first; it's the real deliverable)
+### Part 1 — write the policy (do this first; it's the real deliverable)
 
-Write the rule into `CLAUDE.md` and/or the `coga/codebase` context. The proposed
-starting point (confirm or revise with the owner):
+The policy is **decided** (owner, 2026-07-17): **keep core minimal, like a
+microkernel.** Write the rule into **both** `CLAUDE.md` and the `coga/codebase`
+context (keep the two phrasings consistent). The rule:
 
-- **User-facing workflow recipes** (a `code/*` step a user runs, like open-pr)
-  must be **self-contained skills** — deterministic logic in the skill dir
-  beside `run.py`, not in `src/coga/`. Hackability: a user edits the skill, not
-  the installed package.
-- **Coga's own internal machinery** may stay in core: anything backing a **CLI
-  command**, anything **shared by multiple consumers**, and (the open question)
-  **coga-internal recurring maintenance** (sweeps, digest, reminders) that is
-  tightly coupled to git-sync / task state and is not a user extension point.
+- **Core (`src/coga/`) holds only two kinds of code:** (a) code that backs a
+  **CLI command** (`coga <cmd>`), and (b) code **shared by ≥2 consumers**
+  (genuine shared infra). That's the whole kernel.
+- **Everything else is a self-contained skill** — deterministic logic in the
+  skill dir beside `run.py`, importing only shared core infra, never living in
+  `src/coga/`. This covers user-facing workflow recipes (a `code/*` step a user
+  runs, like open-pr) *and* coga-internal recurring maintenance recipes.
+- **The recurring-maintenance carve-out is rejected.** Strict consistency wins
+  over the "it's internal, leave it in core" argument: a single-consumer sweep
+  is a skill recipe even though coga itself is the only one running it. Being
+  internal is not a license to sit in the kernel; only "backs a command" or
+  "shared by ≥2" is.
 
-The crux to decide: does the carve-out for "coga-internal recurring maintenance"
-hold, or should those move out too for strict consistency?
+This generalizes PR #517 (open-pr) into a stated line, and supersedes the softer
+"extend at the edges, not the core" phrasing with the concrete microkernel test
+above.
 
 ### Part 2 — apply it
 
-Move whatever the policy says shouldn't be in core into its skill dir (sibling
-module beside `run.py`, imports only shared core infra), keep live + packaged
-template copies in sync, move the tests, run the full suite.
+Move all three recurring-maintenance recipes out of core into their skill dirs
+(sibling module beside `run.py`, imports only shared core infra): `sweep_merged`
+/ `GhError`, `blocker_reminders` / `remind_blocked_tasks`, and `branchsweep` /
+`sweep_branches`. For `sweep_merged`, split `autoclose.py` — the shared parsers
+stay in core, the sweep moves to the skill. Keep live + packaged template copies
+in sync, move the tests alongside their recipes, run the full suite.
 
 ## Context
 
@@ -100,7 +109,11 @@ argues to leave it.
 
 ## Notes
 
-Not yet decided (this ticket decides it): whether coga-internal recurring
-maintenance recipes (`sweep_merged`, `blocker_reminders`, `branchsweep`) move
-out of core, or the carve-out lets them stay. Part 1 settles the rule; Part 2
-executes whatever it implies.
+**Decided (owner, 2026-07-17):** microkernel policy — core keeps only
+command-backing and ≥2-consumer shared code; everything else is a skill recipe.
+The recurring-maintenance carve-out is rejected, so all three recipes
+(`sweep_merged`, `blocker_reminders`, `branchsweep`) move out of core. Part 1
+writes this into both `CLAUDE.md` and `coga/codebase`; Part 2 executes the moves.
+
+Follow-up (separate ticket, not this one): rewrite the coga base prompts to
+reflect the microkernel framing. Owner flagged it as a maybe — see summary.
