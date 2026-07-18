@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 4 (review)
 ---
 
 ## Description
@@ -100,3 +100,51 @@ scripts when the task actually looks script-shaped.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/601
+branch: ticket-script-authoring
+worktree: /tmp/coga-ticket-script-authoring-review.C9RLEb
+
+## Plan
+
+- Add a conditional execution-shape question to the existing short interview.
+- Document inline and sibling-file authoring, layout conversion, dispatch, and validation in the packaged skill.
+- Add a focused contract test, run the suite, commit, and freshen against `origin/main`.
+
+## Implementation
+
+- Added a conditional script-execution question between workflow selection and context attachment; ordinary agent tasks do not get an extra question.
+- Documented `script: inline`, the body `## Script` fence, and flat-file preservation.
+- Documented sibling filenames, bare-file to directory conversion, unchanged `slug:`, dispatch permissions, and post-move task validation.
+- Added script layout/dispatch to evaluator review and the final human summary.
+- Extended the existing bundled ticket-skill contract test.
+
+## Verification
+
+- Focused authoring/runtime/create tests after peer-review fixes: 73 passed.
+- Full suite after the confirmed live `origin/main` rebase: 1324 passed, 1 skipped (wheel-build check; `hatchling` is unavailable).
+- `PYTHONPATH=src python3.12 -m coga.cli validate --task make-ticket-script-form-works --json`: 1 valid task, no issues.
+- Commits `d40b8edc` (`Teach ticket interview to author scripts`) and `8b91daf8` (`peer-review: apply review findings`) are clean and two commits ahead of the locally verified control tip `3f37bba9`.
+
+## Follow-up
+
+- Running the full suite inside a live Coga launch exposed an unrelated test-isolation bug: `tests/test_dream_validate_drift.py::test_commit_and_push_main_passes_configured_remote` inherited `COGA_TASK_BLACKBOARD` and appended its fake report to this ticket. All injected fixture sections from the implementation and peer-review test runs were removed; the test should clear or replace launch metadata in a separate ticket.
+
+## Peer review
+
+- Native `codex review --base main` found that ticket-owned scripts must use a compatible one-step workflow; otherwise the ticket-level `script:` fallback runs again on every later workflow step, including human gates.
+- Promoting a flat draft to directory form leaves guided authoring's original `TaskRef` stale, causing finalization to mistake the moved ticket for a deletion and skip validation/git sync. The authoring finalizer needs to re-resolve the same task ref after the move.
+- `coga validate --task` validates the task shape but does not resolve the declared script. The interview must pair task validation with an explicit script-resolution check instead of claiming validation alone proves the script is runnable.
+- These are direct acceptance-path fixes: keep ticket-owned launch dispatch unchanged, require a one-step workflow in the interview, repair guided-authoring re-resolution, and add focused regressions.
+- The linked feature worktree's git metadata is read-only in this launch, so the reviewed changes were carried into the independent clone above; rebased review-fix commit: `8b91daf8` (`peer-review: apply review findings`).
+- The first `git fetch origin main` attempt hit a transient DNS failure. A later retry succeeded against GitHub, confirmed live `origin/main` at `3f37bba9`, and `git rebase FETCH_HEAD` reported the already-locally-rebased branch up to date; the full suite passed again afterward.
+
+## PR
+
+Summary:
+- Teach the guided ticket interview to conditionally author inline or sibling-file script tickets, including layout, interpreter, permission, evaluator, and handoff guidance.
+- Keep ticket-owned scripts on one-step ungated workflows and make guided authoring safely validate and git-sync a flat ticket promoted to directory form.
+
+Test plan: `PYTHONPATH=/tmp/coga-ticket-script-authoring-review.C9RLEb/src python3.12 -m pytest` (1324 passed, 1 skipped), plus task-scoped `coga validate`.
