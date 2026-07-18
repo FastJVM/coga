@@ -353,6 +353,68 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
     assert calls == [["codex", "-c", "developer_instructions=# Coga task\nbody", "Begin"]]
 
 
+def test_spawn_agent_session_rederives_nested_recurring_task_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    company = tmp_path / "coga"
+    dream = company / "tasks" / "recurring" / "dream"
+    _write(dream / "ticket.md", "---\ntitle: Dream\nstatus: active\n---\n")
+    ref = TaskRef(slug="dream", path=dream, directory="recurring")
+    parent_ticket = (
+        tmp_path
+        / "src"
+        / "coga"
+        / "resources"
+        / "templates"
+        / "coga"
+        / "bootstrap"
+        / "recurring-scan"
+        / "ticket.md"
+    )
+    inherited_env = {
+        "COGA_TASK_SLUG": "bootstrap/recurring-scan",
+        "COGA_TASK_DIR": str(parent_ticket.parent),
+        "COGA_TASK_TICKET": str(parent_ticket),
+        "COGA_TASK_BLACKBOARD": str(parent_ticket),
+        "COGA_TASK_LOG": str(tmp_path / "parent-log.md"),
+        "KEEP_ME": "yes",
+    }
+    captured_env: dict[str, str] = {}
+
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
+    )
+
+    def fake_run_with_done_marker(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        captured_env.update(env)
+        return ReplOutcome(exit_code=0, kind="natural")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_run_with_done_marker
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session", lambda **kwargs: None
+    )
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=company),
+        ref,
+        _ticket(),
+        AgentType(name="codex", cli="codex", file="AGENTS.md", mode="local"),
+        env=inherited_env,
+        actor="system",
+        log_message="launched by recurring scan",
+    )
+
+    assert captured_env["COGA_TASK_SLUG"] == "recurring/dream"
+    assert captured_env["COGA_TASK_DIR"] == str(dream.resolve())
+    assert captured_env["COGA_TASK_TICKET"] == str(ref.ticket_path.resolve())
+    assert captured_env["COGA_TASK_BLACKBOARD"] == str(ref.ticket_path.resolve())
+    assert captured_env["COGA_TASK_LOG"] == str((company / "log.md").resolve())
+    assert captured_env["KEEP_ME"] == "yes"
+
+
 def test_spawn_agent_session_oversized_prompt_rides_argv_as_pointer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
