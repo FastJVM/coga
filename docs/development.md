@@ -74,17 +74,27 @@ coga validate --json
 This is the single most common mistake in a Coga change, so it gets its own
 section.
 
-The Coga OS exists in **two** places:
+Much of the Coga OS lives in **two** places:
 
 1. The **live copy** under `coga/` in this repo (what this repo's own agents
-   load).
+   load — the dogfood copy).
 2. The **packaged copy** under `src/coga/resources/templates/coga/` (what `coga
-   init` ships to a new repo).
+   init` copies into a new repo).
 
-When you change a shipped context, skill, workflow, or template, **update both
-copies in the same PR** — unless the divergence is intentional and you say so.
-Editing only one is how a fix lands for this repo but never reaches new installs,
-or vice versa. Reviewers are told to check for exactly this.
+When you change a shipped context, skill, workflow, or template that exists in
+**both** places, **update both copies in the same PR** — unless the divergence
+is intentional and you say so. Editing only one is how a fix lands for this repo
+but never reaches new installs, or vice versa. Reviewers are told to check for
+exactly this. It's the most common docs-only miss.
+
+The nuance: the rule applies only to resources that have both copies. The
+bundled **bootstrap batteries** (`resources/templates/coga/bootstrap/` — the
+core skills, contexts, workflows, and interview targets) are **package-backed**:
+`coga init` deliberately skips `bootstrap/`, and this repo carries no
+`coga/bootstrap/` dogfood copy. Runtime resolvers read those package resources
+directly (after checking for a local `coga/…` override). So a change to a
+bootstrap battery lives in the single packaged location — there's no second copy
+to sync.
 
 ## Coding style
 

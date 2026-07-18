@@ -88,7 +88,8 @@ A few things worth knowing about init:
 - **You can nest it.** In a monorepo, `coga init tools/ops` puts the `coga/` tree
   under `tools/ops/` and manages that subtree.
 
-Commit the new `coga/` directory as you would any other project change.
+`coga init` commits the new `coga/` directory for you (it prints the commit
+SHA); push it when you're ready, like any other project change.
 
 ### Joining a repo that already uses Coga
 
@@ -162,9 +163,11 @@ spawns the next step automatically, rotating to the peer agent for the review
 step.
 
 You'll land at the final `review` step with an open PR, which is a human gate:
-Coga hands control back to you to review and merge on GitHub. After you merge,
-the ticket closes itself (the `autoclose-merged` sweep marks it `done` within a
-day; `coga mark done <task>` closes it immediately).
+Coga hands control back to you to review and merge on GitHub. Close the ticket
+with `coga mark done <task>` once it's merged. If your repo runs the
+`autoclose-merged` recurring sweep on a schedule, that sweep will also mark a
+merged ticket `done` on its next run — but that's opt-in maintenance, not
+something that happens on its own (see [Operations](operations.md#recurring-maintenance)).
 
 That's the whole loop: **create → launch → the agent works and bumps → you
 review and merge.**

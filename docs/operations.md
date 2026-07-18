@@ -7,11 +7,28 @@ gitignored). Machine-local values override shared ones.
 
 ## Notifications
 
-Notifications are the team's sync point. Every state transition — `create`,
-`mark`, `bump`, `block`, `unblock`, a recurring create — broadcasts on its own.
-On top of that, agents and humans can post one-line FYIs with `coga slack` (see
-the [reference](reference.md#coga-slack---task-task---message-text)). Relaunching
-an already-`in_progress` ticket does **not** post.
+Notifications are the team's sync point. A channel shared across many tickets
+drowns in lifecycle chatter, so Coga is deliberately selective about what
+reaches it. Events fall into three tiers:
+
+- **Live** — posted the moment they happen: a session starting (`active →
+  in_progress`), a `coga block`, blocker reminders, a script-step failure, and
+  explicit FYIs (`coga slack`, `coga bump --message`). Anything urgent or
+  human-directed never waits.
+- **Outcome digest** — done tickets, `autoclose-merged` completions, and
+  recurring-scan parse errors are spooled and posted together on a schedule by
+  `coga digest`. If the digest ticket isn't installed, these fall back to a live
+  post.
+- **Silent** — routine lifecycle churn posts nothing at all: draft creation,
+  `mark active`/`mark paused`, message-less `coga bump`, successful recurring
+  creates, and relaunching an already-`in_progress` ticket.
+
+Agents and humans add one-line FYIs on top with `coga slack` (see the
+[reference](reference.md#coga-slack---task-task---message-text)).
+
+A fresh `coga init` selects **no** channels, so a brand-new repo is silent until
+you turn a channel on. Once Slack is configured and enabled, any live-channel
+failure fails loud rather than dropping the message quietly.
 
 Channels are configured under `[notification]` in `coga.toml`. Slack is the first
 channel:
@@ -45,8 +62,9 @@ A few things worth knowing:
 - **GIFs, optionally.** `[notification.slack.gifs]` can attach a randomly chosen
   GIF to `done` and `block` events. Skip a kind to keep it text-only.
 
-You can probe the webhook without sending real traffic:
-`coga validate --check-slack`.
+You can probe the webhook with `coga validate --check-slack`. It POSTs an
+empty-text payload to the webhook — a real network call, but nothing visible
+lands in the channel — and reports whether the endpoint accepted it.
 
 ## The digest
 

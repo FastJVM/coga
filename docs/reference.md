@@ -101,6 +101,10 @@ Subcommands:
 - **`coga recurring launch NAME`** — create a named recurring template now and
   launch it (the directory under `coga/recurring/`). This is what the `coga
   dream`, `coga skill-update`, and `coga autoclose` aliases wrap.
+  - `--interactive` — launch as a human-stepped run, leaving REPL liveness
+    backstops unarmed; ticket files aren't modified.
+  - `--agent <type>` — agent to use for an agent-backed launch (script tasks
+    still run as scripts; the ticket assignee isn't rewritten).
 - **`coga recurring list`** — list recurring templates with their schedules, plus
   instantiated tasks.
 
@@ -113,7 +117,9 @@ Change a ticket's status. Subcommands:
 - **`coga mark paused TASK`** — set `paused` (allowed from `active` or
   `in_progress`).
 - **`coga mark done TASK`** — set `done` (allowed from `active` or
-  `in_progress`).
+  `in_progress`). `--force` finishes a `direct/body` ticket even when it
+  committed product code that won't reach the control branch (the code stays
+  stranded — the flag just acknowledges that).
 
 Each accepts `--message <text>` to piggy-back an FYI on the state-transition
 broadcast.
@@ -228,14 +234,23 @@ Install, update, remove, and inspect Coga-managed skills. Subcommands:
 - **`install SOURCE [SKILL]`** — install a GitHub-backed skill through `gh skill`
   (`SOURCE` is `owner/repo` or a GitHub URL; optional `SKILL` names a path in the
   repo).
-- **`install-local`** — install an already-downloaded local skill via `gh skill
-  --from-local`.
-- **`install-url`** — download a non-GitHub URL, install locally, and preserve
-  Coga metadata.
-- **`update`** — update one skill or every managed skill.
-- **`remove`** — remove one exact installed skill path, leaving a git-visible
-  delete.
+- **`install-local PATH [SKILL]`** — install an already-downloaded local skill
+  via `gh skill --from-local`. `PATH` is the local skill directory or bundle;
+  optional `SKILL` names a skill path inside it.
+- **`install-url URL [SKILL_OR_PATH]`** — download a non-GitHub URL, install
+  locally, and preserve Coga metadata. `SKILL_OR_PATH` selects the skill
+  directory inside an archive that holds more than one. `--force` overwrites a
+  locally adapted URL skill and resets Coga provenance notes.
+- **`update [SKILL]`** — update one named skill, or use `--all` for every managed
+  skill. `--json` emits a structured summary; `--pr` opens or updates a single
+  draft PR with the update summary (`--pr-title <text>` sets its title);
+  `--verify <cmd>` runs a verification command before creating the PR
+  (repeatable).
+- **`remove SKILL`** — remove one exact installed skill path, leaving a
+  git-visible delete.
 - **`status`** — summarize installed skills and their recorded source metadata.
+  `--check` fetches URL-backed sources to report update availability; `--json`
+  emits structured output.
 
 ### `coga secret get <ref>`
 Resolve one `op://…` or `env:VAR` reference and print its value to stdout. Under

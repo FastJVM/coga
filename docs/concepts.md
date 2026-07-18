@@ -94,8 +94,10 @@ body. The difference is what kind of knowledge they carry:
 - **Contexts** are *domain knowledge* — what's true about your world. "How our
   billing flow works," "the house style for API docs." Attached to a ticket via
   its `contexts:` frontmatter list, and composed into that ticket's prompts.
-- **Skills** are *process knowledge* — how to do a thing. Attached to **workflow
-  steps**, not tickets, so the right how-to loads exactly when its step runs.
+- **Skills** are *process knowledge* — how to do a thing. Usually attached to a
+  **workflow step**, so the right how-to loads exactly when its step runs. A
+  skill that applies to the whole ticket regardless of step can instead go in
+  the ticket's `skills:` frontmatter list.
 
 Both resolve **local-first**: a file under `coga/contexts/` or `coga/skills/`
 overrides a bundled one of the same name that ships with the package. To change
@@ -111,11 +113,13 @@ When a step advances, the role resolves against the ticket's people/agent fields
 `other-agent` flips to the peer agent, which is how a change written by Claude
 gets reviewed by Codex (and vice versa).
 
-The critical property: a workflow is **frozen into the ticket at creation**.
-Editing `coga/workflows/foo.md` changes future tickets, never one already in
-flight. Workflows resolve local-first like everything else — a repo's own
-`coga/workflows/` override the bundled ones (`code/*`, `docs/with-review`, and
-friends).
+The critical property: a workflow is **frozen into the ticket** when it's
+attached — at creation if you pass `--workflow`, otherwise at activation for a
+draft that gains its workflow later (a hand-added `workflow:` or the guided
+`coga ticket` interview). Once frozen, editing `coga/workflows/foo.md` changes
+future tickets, never one already in flight. Workflows resolve local-first like
+everything else — a repo's own `coga/workflows/` override the bundled ones
+(`code/*`, `docs/with-review`, and friends).
 
 A ticket doesn't need a workflow to exist as a draft, but it needs one to be
 activated — a launched ticket that no `coga bump` could ever advance is a stuck
