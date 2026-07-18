@@ -2,7 +2,7 @@
 slug: recurring-bugs/recurring-scan-should-skip-and-report-an-unloadabl
 title: recurring scan should skip-and-report an unloadable template, not crash the
   repo
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description
@@ -79,3 +78,23 @@ propagating the exception out of the scan. Keep it fail-loud in the report
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Already satisfied
+
+- Merged commit `b2f98487` (`Validate tickets at create time (#592)`) is an
+  ancestor of current `main` and predates this ticket's activation. Its
+  peer-review fix wrapped recurring `create_task(...)` failures in
+  `_create_at_slug`, converting both pre-write `ValueError` and post-write
+  `TaskValidationError` into `RecurringError`.
+- `scan_due` already catches that per-template `RecurringError`, writes a
+  visible `[recurring] skipping <template>: <error>` message, appends the
+  template/error pair to `DueScan.errors`, and continues the template loop.
+  Existing load-failure coverage also proves a bad template does not starve a
+  good sibling.
+- Regression coverage landed with the fix:
+  `test_scan_due_reports_create_value_error_per_template`,
+  `test_scan_due_reports_created_task_validation_failure`, and
+  `test_scan_due_skips_bad_template`.
+- Verification on current `main`:
+  `PYTHONPATH=/home/n/Code/codex/coga/src PYTHONDONTWRITEBYTECODE=1 python3.12 -m pytest -q -p no:cacheprovider tests/test_recurring.py`
+  (`113 passed`). The three focused regressions also passed (`3 passed`).
