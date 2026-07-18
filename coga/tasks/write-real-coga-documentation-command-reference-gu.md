@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: claude
+assignee: codex
 contexts:
 - coga/principles
 - coga/architecture
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 1 (implement)
 ---
 
 ## Description
