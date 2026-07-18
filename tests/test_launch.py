@@ -353,6 +353,72 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
     assert calls == [["codex", "-c", "developer_instructions=# Coga task\nbody", "Begin"]]
 
 
+def test_spawn_agent_session_rederives_nested_recurring_task_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    company = tmp_path / "coga"
+    dream = company / "tasks" / "recurring" / "dream"
+    _write(dream / "ticket.md", "---\ntitle: Dream\nstatus: active\n---\n")
+    ref = TaskRef(slug="dream", path=dream, directory="recurring")
+    parent_ticket = (
+        tmp_path
+        / "src"
+        / "coga"
+        / "resources"
+        / "templates"
+        / "coga"
+        / "bootstrap"
+        / "recurring-scan"
+        / "ticket.md"
+    )
+    inherited_env = {
+        "COGA_TASK_SLUG": "bootstrap/recurring-scan",
+        "COGA_TASK_DIR": str(parent_ticket.parent),
+        "COGA_TASK_TICKET": str(parent_ticket),
+        "COGA_TASK_BLACKBOARD": str(parent_ticket),
+        "COGA_TASK_LOG": str(tmp_path / "parent-log.md"),
+        "COGA_SKILL_NAME": "bootstrap/recurring-scan",
+        "COGA_SKILL_DIR": str(parent_ticket.parent),
+        "KEEP_ME": "yes",
+    }
+    captured_env: dict[str, str] = {}
+
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
+    )
+
+    def fake_run_with_done_marker(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        captured_env.update(env)
+        return ReplOutcome(exit_code=0, kind="natural")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_run_with_done_marker
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session", lambda **kwargs: None
+    )
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=company),
+        ref,
+        _ticket(),
+        AgentType(name="codex", cli="codex", file="AGENTS.md", mode="local"),
+        env=inherited_env,
+        actor="system",
+        log_message="launched by recurring scan",
+    )
+
+    assert captured_env["COGA_TASK_SLUG"] == "recurring/dream"
+    assert captured_env["COGA_TASK_DIR"] == str(dream.resolve())
+    assert captured_env["COGA_TASK_TICKET"] == str(ref.ticket_path.resolve())
+    assert captured_env["COGA_TASK_BLACKBOARD"] == str(ref.ticket_path.resolve())
+    assert captured_env["COGA_TASK_LOG"] == str((company / "log.md").resolve())
+    assert "COGA_SKILL_NAME" not in captured_env
+    assert "COGA_SKILL_DIR" not in captured_env
+    assert captured_env["KEEP_ME"] == "yes"
+
+
 def test_spawn_agent_session_oversized_prompt_rides_argv_as_pointer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1100,6 +1166,34 @@ def test_launch_fails_loud_on_unset_declared_secret(
     assert ticket.status == "active"
     log = _read_log(active_task)
     assert "started (active" not in log
+
+
+def test_launch_rejects_secret_alias_in_reserved_coga_namespace(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setenv("SECRET_BLACKBOARD_ALIAS", "must-not-be-overwritten")
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["secrets"] = [
+        {"COGA_TASK_BLACKBOARD": "env:SECRET_BLACKBOARD_ALIAS"}
+    ]
+    ticket.write(ref.ticket_path)
+
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+
+    assert result.exit_code != 0
+    combined = result.output + (result.stderr or "")
+    assert "COGA_TASK_BLACKBOARD" in combined
+    assert "reserved `COGA_` namespace" in combined
+    assert Ticket.read(ref.ticket_path).status == "active"
+    assert "started (active" not in _read_log(active_task)
 
 
 def test_launch_injects_only_declared_secret(

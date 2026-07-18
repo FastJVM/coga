@@ -30,7 +30,11 @@ import typer
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
 from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
-from coga.commands.launch_script import current_step_is_script, is_script_launch
+from coga.commands.launch_script import (
+    build_task_env,
+    current_step_is_script,
+    is_script_launch,
+)
 from coga.compose import (
     ComposeError,
     PromptComposition,
@@ -826,6 +830,16 @@ def spawn_agent_session(
     redaction from mistaking an unrelated same-named variable for a configured
     secret value.
     """
+    # A nested launch inherits its parent's process environment. Re-derive the
+    # task metadata at this last shared boundary so an agent started by a
+    # bootstrap script identifies the task it is actually running, not the
+    # outer bootstrap ticket. Copy first so caller-owned environments remain
+    # unchanged; unrelated parent values still pass through.
+    env = dict(env)
+    env.pop("COGA_SKILL_NAME", None)
+    env.pop("COGA_SKILL_DIR", None)
+    env.update(build_task_env(cfg, ref))
+
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
         if warning:

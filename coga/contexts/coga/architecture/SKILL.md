@@ -127,7 +127,9 @@ an `env:VAR` indirection (read from the operator's environment). At launch each
 ref is resolved and injected as env var `NAME`; the source `env:VAR` is
 scrubbed so the child sees only the scoped name. A bare-string entry (the
 removed catalog-key form) or a raw literal value is rejected — a literal secret
-may not live in a git-committed ticket.
+may not live in a git-committed ticket. Secret names beginning with `COGA_` are
+also rejected because Coga reserves that namespace for launch metadata and
+control variables.
 
 A repo may declare additional fields under `[ticket.fields.<name>]` in
 `coga.toml` — see "Ticket frontmatter extensions" below.
@@ -512,13 +514,17 @@ target inline. Known limitation: the contract audit's own corpus globs
 `bootstrap/skills/**`, so the bundled Dream skills — the scan skills included
 — sit outside the surface that audit reads.
 
-A script-step launch injects task and skill metadata as environment
-variables instead of CLI argument plumbing — a worker script reads these, not
-a `--blackboard` flag. The full set: `COGA_TASK_SLUG`, `COGA_TASK_DIR`,
-`COGA_TASK_TICKET`, `COGA_TASK_BLACKBOARD`, `COGA_TASK_LOG`,
-`COGA_COGA_OS_ROOT`, `COGA_REPO_ROOT`, `COGA_SKILL_NAME`, and
-`COGA_SKILL_DIR`. `COGA_COGA_OS_ROOT` is the `coga/` root; `COGA_REPO_ROOT`
-is the host repo (its parent when `coga/` is nested in a repo).
+Every launched agent or script process receives task metadata as environment
+variables: `COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
+`COGA_TASK_BLACKBOARD`, `COGA_TASK_LOG`, `COGA_COGA_OS_ROOT`, and
+`COGA_REPO_ROOT`. The shared spawn boundary always re-derives these values from
+the launched task, so a nested launch cannot inherit the outer task's paths.
+Agent launches also discard any inherited `COGA_SKILL_*` metadata from an outer
+script.
+Script launches backed by a skill additionally receive `COGA_SKILL_NAME` and
+`COGA_SKILL_DIR`; worker scripts read these variables instead of CLI argument
+plumbing such as a `--blackboard` flag. `COGA_COGA_OS_ROOT` is the `coga/` root;
+`COGA_REPO_ROOT` is the host repo (its parent when `coga/` is nested in a repo).
 
 Each known skill's `SKILL.md` carries a `## Known Skill Contract` section
 with these fields:

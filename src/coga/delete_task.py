@@ -7,7 +7,7 @@ import subprocess
 
 from coga.commands.launch_script import (
     build_script_command,
-    build_script_env,
+    build_task_env,
     script_repo_root,
 )
 from coga.config import Config
@@ -48,7 +48,7 @@ def run_delete_task_skill(cfg: Config, ref: TaskRef) -> str:
         raise DeleteTaskError(f"Delete skill script not found: {script_path}")
 
     env = os.environ.copy()
-    env.update(build_script_env(cfg, ref, skill))
+    env.update(build_task_env(cfg, ref, skill))
     result = subprocess.run(
         build_script_command(script_path),
         env=env,

@@ -1208,6 +1208,11 @@ def parse_inline_secrets(declared: object) -> list[tuple[str, str]]:
             raise SecretError(
                 f"ticket secret name must be a non-empty string (got {name!r})"
             )
+        if name.startswith("COGA_"):
+            raise SecretError(
+                f"ticket secret name {name!r} uses the reserved `COGA_` "
+                "namespace for Coga launch metadata and control variables"
+            )
         if name in seen:
             raise SecretError(f"ticket declares secret {name!r} more than once")
         seen.add(name)

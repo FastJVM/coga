@@ -73,17 +73,16 @@ def script_repo_root(cfg: Config) -> Path:
     return cfg.repo_root.parent if cfg.repo_root.name == "coga" else cfg.repo_root
 
 
-def build_script_env(
+def build_task_env(
     cfg: Config, ref: TargetRef, skill: Skill | None = None
 ) -> dict[str, str]:
-    """The script task/skill metadata environment contract.
+    """The launched task/skill metadata environment contract.
 
-    Callers: `coga launch` (a step-skill script or a ticket-owned script) and
-    `coga delete`, which runs the `bootstrap/delete-task` skill directly against
-    a resolved target task. Keeping it shared means the `COGA_*` variable names
-    cannot drift between the dispatch paths. `COGA_SKILL_*` is set only when a
-    skill backs the script — a ticket-owned script has no skill, so those vars
-    are omitted.
+    Callers: agent and script paths under `coga launch`, plus `coga delete`,
+    which runs the `bootstrap/delete-task` skill directly against a resolved
+    target task. Keeping it shared means the `COGA_*` variable names cannot
+    drift between dispatch paths. `COGA_SKILL_*` is set only when a skill backs
+    a script; agent and ticket-owned script launches omit those variables.
     """
     env = {
         "COGA_TASK_SLUG": ref.id_slug,
@@ -172,7 +171,7 @@ def run_script_mode(
 
     # Same secret chokepoint as agent-mode `coga launch`: a script task still
     # receives its scoped secrets here (folded in, not dropped).
-    env.update(build_script_env(cfg, ref, skill))
+    env.update(build_task_env(cfg, ref, skill))
     cwd = script_repo_root(cfg)
 
     if not stateless:
