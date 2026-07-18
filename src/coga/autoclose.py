@@ -54,8 +54,9 @@ _PR_NUMBER_RE = re.compile(r"/pull/(\d+)")
 # The `branch:` line is written inconsistently across existing tickets:
 # `branch: my-branch`, `- branch: \`my-branch\``, ``branch: `my-branch` ``.
 # Tolerate an optional `- ` list prefix and capture the rest of the line; the
-# surrounding backticks/whitespace are stripped in `parse_branch_name`. A
-# naive `(\S+)` here would swallow the trailing backtick or miss the list form.
+# surrounding backticks/whitespace are normalized in `parse_branch_name`. A
+# leading backtick delimits the value through its matching closing backtick;
+# bare values still consume the whole remainder of the line.
 _BRANCH_LINE_RE = re.compile(r"^\s*(?:-\s*)?branch:\s*(.+?)\s*$", re.MULTILINE)
 # The `worktree:` line follows the same accreted shapes as `branch:` (bare,
 # list-item, backtick-wrapped), so parse it the same way. The open-pr command
@@ -76,10 +77,10 @@ def parse_branch_name(blackboard_text: str) -> str | None:
     """Return the normalized `branch:` name under `## Dev`, or None if absent.
 
     Normalizes the inconsistent shapes the convention has accreted: tolerates a
-    leading "- " list prefix and strips surrounding backticks/whitespace, so the
-    bare, list-item, and backtick-wrapped forms all yield the same plain name.
-    Without this, `git branch -d <raw>` would target a backtick-wrapped name and
-    silently no-op. Returns None for a missing or empty branch line.
+    leading "- " list prefix. A leading backtick delimits the value through the
+    next backtick, allowing trailing annotations; an unmatched backtick falls
+    back to whole-line normalization. Bare values still consume the entire line.
+    Returns None for a missing or empty branch line.
     """
     section = _DEV_SECTION_RE.search(blackboard_text)
     if not section:
@@ -87,17 +88,23 @@ def parse_branch_name(blackboard_text: str) -> str | None:
     match = _BRANCH_LINE_RE.search(section.group(1))
     if not match:
         return None
-    name = match.group(1).strip().strip("`").strip()
+    name = match.group(1).strip()
+    closing_tick = name.find("`", 1) if name.startswith("`") else -1
+    if closing_tick >= 0:
+        name = name[1:closing_tick].strip()
+    else:
+        name = name.strip("`").strip()
     return name or None
 
 
 def parse_worktree_path(blackboard_text: str) -> str | None:
     """Return the normalized `worktree:` path under `## Dev`, or None if absent.
 
-    Mirrors `parse_branch_name`'s normalization (tolerates a leading "- " list
-    prefix and surrounding backticks), so the bare, list-item, and
-    backtick-wrapped forms all yield the same plain path. Returns None for a
-    missing or empty worktree line, or a placeholder like `(not yet created)`.
+    Mirrors `parse_branch_name`'s normalization: a leading backtick delimits the
+    value through the next backtick, while bare values and unmatched backticks
+    retain whole-line handling so paths with spaces remain valid. Returns None
+    for a missing or empty worktree line, or a placeholder like
+    `(not yet created)`.
     """
     section = _DEV_SECTION_RE.search(blackboard_text)
     if not section:
@@ -105,7 +112,12 @@ def parse_worktree_path(blackboard_text: str) -> str | None:
     match = _WORKTREE_LINE_RE.search(section.group(1))
     if not match:
         return None
-    path = match.group(1).strip().strip("`").strip()
+    path = match.group(1).strip()
+    closing_tick = path.find("`", 1) if path.startswith("`") else -1
+    if closing_tick >= 0:
+        path = path[1:closing_tick].strip()
+    else:
+        path = path.strip("`").strip()
     if not path or path.startswith("("):
         return None
     return path

@@ -168,8 +168,11 @@ def open_pr(cfg: Config, *, slug: str, blackboard_path: Path) -> str:
         )
     if not Path(worktree).is_dir():
         raise OpenPrError(
-            f"Feature worktree {worktree!r} does not exist. If it was torn down "
-            f"before the PR was opened, recreate it "
+            f"Feature worktree {worktree!r} does not exist. If the recorded path "
+            "has a trailing repository note, delimit the path with backticks "
+            "(for example: worktree: `/path` (other repo)), or put the note on "
+            "a separate line. If the worktree was torn down before the PR was "
+            "opened, recreate it "
             f"(`git worktree add {worktree} {branch}`) or `coga block --task {slug}`."
         )
 
@@ -185,7 +188,10 @@ def open_pr(cfg: Config, *, slug: str, blackboard_path: Path) -> str:
     if current_branch != branch:
         raise OpenPrError(
             f"Feature worktree {worktree!r} is on {current_branch!r}, not the "
-            f"recorded branch {branch!r}. Check it out there before open-pr runs."
+            f"recorded branch {branch!r}. If the recorded branch has a trailing "
+            "repository note, delimit the name with backticks "
+            "(for example: branch: `name` (other repo)), or put the note on a "
+            "separate line. Otherwise, check it out there before open-pr runs."
         )
 
     dirty = _git(["status", "--porcelain"], cwd=worktree)
