@@ -1,7 +1,7 @@
 ---
 slug: recurring-bugs/coga-usage-cannot-locate-claude-transcript-or-sess
 title: coga usage cannot locate claude transcript or session id for some launches
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description
@@ -69,3 +68,26 @@ bare stderr line, so the gap is auditable instead of silent.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Already satisfied
+
+- The permitted auditable-fallback path landed on `main` in PR #583
+  (`10d88e4d`). `capture_session()` always appends a schema-2 record after
+  parsing; a missing Claude session id or transcript produces
+  `usage_status: "unknown"` with the available session identity, timing, and
+  process outcome instead of dropping the session.
+- `spawn_agent_session()` captures after done-sentinel teardown, then syncs
+  exactly `coga/log.md`, so the fallback record is durable even though it lands
+  after the agent's final workflow transition.
+- The 2026-07-17 sweep already left concrete records for the affected paths:
+  `bootstrap/orient` and `bootstrap/ticket` have schema-2 log entries with
+  `usage_status: "unknown"`, non-null session ids, elapsed time, and
+  `outcome_status: "completed"`. `coga usage --json --task bootstrap/orient`
+  reports 6 sessions / 6 unknown sessions, making the accounting gap visible.
+- Verification on current `main`: `PYTHONPATH=/home/n/Code/codex/coga/src
+  python3.12 -m pytest -q tests/test_usage.py tests/test_launch.py` → 96 passed;
+  task-scoped `coga validate --json` → 1 ok, no issues.
+
+No new branch or diff is warranted: adding transcript-discovery heuristics would
+broaden the ticket beyond its already-shipped explicit-unknown fallback and
+risk attributing another Claude session's transcript.
