@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -138,13 +138,80 @@ Fresh docs tree written on branch `real-coga-docs` from current `main`:
 - Command reference checked against live help via `PYTHONPATH=$PWD/src python3.12 -m coga.cli --help` and per-command/subcommand `--help` (init, create, ticket, project, launch, megalaunch, status, show, bump, open-pr, block, unblock, delete, retire, slack, digest, usage, validate, skill[+install], mark[+active], recurring[+launch], secret). Aliases cross-checked against `[aliases]` in `coga.toml`; notification/git/secrets prose checked against `coga.toml` comments and the `architecture` context.
 - `git diff --check` — clean (no whitespace errors).
 - Manual link audit: every internal markdown link target resolves — the six new docs, the existing `docs/{vision,migrating-to-coga,releasing}.md`, and `coga/contexts/coga/{principles,architecture}/SKILL.md`. Section anchors (`#install`, `#secrets`, `#dream-generic-ticket-cleanup`, the `coga slack` reference anchor) verified against their headings.
-- `PYTHONPATH=$PWD/src python3.12 -m coga.cli validate --task write-real-coga-documentation-command-reference-gu --json` — see result recorded at bump time.
+- `PYTHONPATH=$PWD/src python3.12 -m coga.cli validate --task write-real-coga-documentation-command-reference-gu --json` — rerun by Codex at implement closeout: `ok_count: 1`, `issues: []`, `fixes: []`.
 
 ## Note for peer-review
 
 This redo was implemented by **claude** while the ticket's `agent:` field is `codex`. On the normal `docs/with-review` flip, `peer-review` (`other-agent`) resolves to the non-author agent = **claude** — i.e. the same agent that wrote this. For a genuine cross-agent review, launch the peer-review step with **codex** (`coga launch <slug> --agent codex`), or have the owner set `agent: claude` so the flip picks codex automatically.
 
 **Decision (owner nicktoper, 2026-07-17):** codex reviews. After the rewind to step 1 and claude's bump into peer-review, relaunch the peer-review step as codex: `coga launch write-real-coga-documentation-command-reference-gu --agent codex`.
+
+## Codex pre-review findings (2026-07-17)
+
+The redo commit is clean, but a source audit during implement closeout found
+specific corrections for the peer-review step. This Codex launch can read the
+durable sibling worktree but its sandbox cannot write there, so these stay as
+review findings rather than being misplaced in the primary checkout:
+
+- `docs/getting-started.md`: `coga init` already commits the scaffold locally;
+  do not tell the user to commit it manually. The merged-ticket autoclose path
+  is conditional on the operator actually running `coga recurring` on a
+  schedule, so do not promise that every merged ticket closes itself within a
+  day.
+- `docs/operations.md`: current notification behavior is tiered. Starts,
+  blockers, explicit FYIs, and failures post live; done/recurring-error outcomes
+  use the digest when installed; draft creation, activation/pausing,
+  message-less bumps, and successful recurring creation are silent. The current
+  "every state transition broadcasts" sentence contradicts
+  `coga/contexts/coga/sync/SKILL.md` and source. `--check-slack` makes an
+  empty-text network POST; describe it as no visible message, not no traffic.
+- `docs/reference.md`: add the public flags currently missing from the prose:
+  `recurring launch --interactive/--agent`, `mark done --force`,
+  `skill install-url --force`, all `skill update` flags, and
+  `skill status --check/--json`; spell out the `install-local`/`install-url`
+  arguments.
+- `docs/concepts.md` / `docs/development.md`: acknowledge ticket-level skills,
+  the activation-time workflow freeze for guided/hand-authored drafts, and the
+  workflow-less activation gate. Reframe the package-sync section: bundled
+  bootstrap batteries are package-backed and `coga init` deliberately skips
+  `bootstrap/`; only resources that actually have both a live dogfood copy and
+  a packaged copy need both updated.
+
+## Peer-review outcome (2026-07-17)
+
+All five Codex pre-review findings applied to the docs on branch
+`real-coga-docs` in the durable worktree `/home/n/Code/claude/coga-real-docs`
+(commit `d3eecfd4`). Each finding was **re-verified against source** before
+editing — not applied blind:
+
+- `coga init` commits the scaffold (`init.py` `_git_commit_coga_os`, echoes the
+  SHA) → getting-started no longer tells the user to commit manually; autoclose
+  reframed as opt-in `coga recurring` maintenance.
+- Notification tiering confirmed against `coga/contexts/coga/sync/SKILL.md`
+  (live / outcome-digest / silent) → operations rewritten from the false
+  "every transition broadcasts". `--check-slack` POSTs `{"text": ""}`
+  (`validate.py probe_slack`) → described as a network call with no visible
+  message.
+- Missing flags confirmed via `--help`: `recurring launch
+  --interactive/--agent`, `mark done --force`, `skill install-url --force`,
+  `skill update --all/--json/--pr/--pr-title/--verify`, `skill status
+  --check/--json`; `install-local`/`install-url` args spelled out → reference
+  updated.
+- Ticket-level `skills:` field + workflow-freeze timing (create with
+  `--workflow` via `create_task`→`wf.freeze()`, else at activation via
+  `mark active`) → concepts corrected.
+- `copy_fresh_templates(..., skip_top={"bootstrap"})` confirms `coga init`
+  skips `bootstrap/`; this repo carries no `coga/bootstrap/` → development's
+  repo↔package sync section reframed (bootstrap batteries are package-backed;
+  only dual-copy resources need syncing).
+
+Review checks: `git diff --check` clean; internal link anchors in all changed
+files re-audited against headings (resolve); task `validate --json` → ok_count
+1, no issues. Pure prose edit, no code/fixtures touched, so pytest not run per
+the step contract. Docs read as accurate against current source — no premise
+problems, no `coga panic` needed. Cross-agent note: findings authored by codex
+(non-author reviewer); applied+verified by claude since codex's sandbox
+couldn't write the durable worktree.
 
 ---
 
