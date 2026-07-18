@@ -77,3 +77,19 @@ surprise branch or with interleaved commits.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Recovery
+
+The 2026-07-17 megalaunch attempt made no source changes. It stated a sound
+implementation plan, asked "Shall I proceed?", and then waited until the
+idle-timeout backstop ended the session.
+
+Owner authorization is explicit: resume the implement step, apply the proposed
+isolation fix, and do not pause again for plan approval. Continue on reasonable
+implementation assumptions; only a concrete decision or unavailable capability
+should end in `coga block`. Finish the step with `coga bump` after the committed
+code and blackboard handoff are complete.
+
+Systemic queue guidance and exact timeout reporting are proposed in
+https://github.com/FastJVM/coga/pull/597; this ticket still owns its original
+retro/delete isolation fix.

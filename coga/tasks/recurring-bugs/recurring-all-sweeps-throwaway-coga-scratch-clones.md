@@ -81,3 +81,20 @@ intentional exclusion.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Recovery
+
+The 2026-07-17 megalaunch attempt made no source changes. Its linked-worktree
+setup hit the managed sandbox's read-only primary `.git` metadata; the session
+then described the limitation conversationally instead of running `coga block`,
+so the idle-timeout backstop eventually ended it.
+
+Resume this implement step directly and proceed without another plan-approval
+pause. If `git worktree add` cannot write the primary checkout's branch lock,
+create an independent `git clone --no-hardlinks` under `/tmp`, repoint `origin`
+to the real remote, fetch current `main`, and record that clone as `worktree:`.
+If that fallback truly cannot proceed, end with a specific `coga block` call.
+
+Systemic queue/worktree guidance is proposed in
+https://github.com/FastJVM/coga/pull/597; this ticket still owns its original
+recurring-discovery behavior fix.
