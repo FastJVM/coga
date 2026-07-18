@@ -153,7 +153,8 @@ Recommendation: rewind to step 1 (implement) and redo from current `main`. Pract
 
 ## Blockers
 
-- [ ] [2026-07-16 21:03] [agent:claude] id=20260716T210332 Peer-review impossible: the implement step's output is unrecoverable. Worktree /tmp/coga-real-docs was wiped and branch codex/write-real-coga-documentation exists nowhere (no local/packed/remote refs, no dangling commits contain docs/getting-started.md). Rewinding to implement is a human decision — please rewind to step 1; redo should base on current main (README already short via PR #520; CLI surface changed since base ec9f6b6e) and keep the branch somewhere durable (push to origin or a non-/tmp worktree) before handoff.
+- [x] [2026-07-16 21:03] [agent:claude] id=20260716T210332 Peer-review impossible: the implement step's output is unrecoverable. Worktree /tmp/coga-real-docs was wiped and branch codex/write-real-coga-documentation exists nowhere (no local/packed/remote refs, no dangling commits contain docs/getting-started.md). Rewinding to implement is a human decision — please rewind to step 1; redo should base on current main (README already short via PR #520; CLI surface changed since base ec9f6b6e) and keep the branch somewhere durable (push to origin or a non-/tmp worktree) before handoff.
+  resolved: [2026-07-17 21:06] [human:nicktoper] Confirmed with owner (nicktoper): prior implement output is unrecoverable — branch codex/write-real-coga-documentation exists in no local/packed/remote ref and the /tmp/coga-real-docs worktree was wiped. Decision: rewind workflow to step 1 (implement) and redo from current main. main has moved past base ec9f6b6e — README is already short (137 lines, links docs/vision.md) and docs/ exists but lacks getting-started/concepts/reference. Redo bases on current main, keeps the short README plus a 'Full docs ->' link, and keeps the branch durable (real branch on this checkout, not /tmp) before peer-review handoff.
 
 ---
 
