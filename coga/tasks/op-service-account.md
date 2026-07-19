@@ -44,9 +44,9 @@ Tickets that *consume* the secrets are separate and declare their own inline
 - **Consumer refs live on other tickets** — a ticket goes where its *subject*
   lives, not where its credentials live.
 - **Manual vs. PR-able:** creating the SA / vault / items / token is manual
-  (no repo diff — the repo only ever holds pointers). PR-able parts: this
-  ticket and secrets-management docs. *(See note below — docs may move to a
-  separate ticket.)*
+  (no repo diff — the repo only ever holds pointers). The PR-able part is this
+  ticket itself. Secrets-management docs are **out of scope** — they live in
+  their own ticket, `write-coga-secrets-management-service-account-cont`.
 
 ### Done when
 - SA + vault + items exist and the SA token is stored in the root/admin vault.
@@ -98,9 +98,10 @@ A ticket goes where its *subject* lives, not where its *credentials* live.
 - **Manual (your setup, no PR):** create SA + vault, grant access, add items,
   mint token. No repo diff, nothing to review — the repo only ever sees
   pointers, never values.
-- **PR-able:** this ticket, the consumer tickets' `secrets:` refs, and any
-  docs/context. Fold the pattern docs (a short `coga/contexts/coga/` note or
-  README section on adding a headless secret + reffing it) into this ticket's PR.
+- **PR-able:** this ticket, and the consumer tickets' `secrets:` refs (on those
+  tickets). The pattern docs (a short `coga/contexts/coga/` note or README
+  section on adding a headless secret + reffing it) are **their own ticket** now
+  — `write-coga-secrets-management-service-account-cont` — not folded in here.
 
 ### Test before it goes live
 `coga secret get op://coga-recurring/uspto-api-token/credential` resolves through
