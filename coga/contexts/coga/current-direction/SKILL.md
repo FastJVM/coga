@@ -106,13 +106,16 @@ Last updated: 2026-07-17.
   (`launch.py:_format_prompt_report`), not prompt text, so five of the six
   axes still needed the full ~7k-token prompt read by a fresh subagent —
   roughly 10k tokens to re-do a review Step 6 already performs.
-- **The one non-redundant signal survives without the skill.** The report's
-  own table exposes bloat directly and costs ~200 tokens: on
-  `improve-prompt-for-relay-ticket` it showed the blackboard at 4,314 of
-  7,185 total tokens (60%). If a bloat check is wanted, add a line to Step 6
-  telling it to run `--prompt-report` and flag any layer over ~40% of total;
-  it needs no subagent and no skill. (Not done in the removal PR — Step 6 is
-  unchanged.)
+- **The one non-redundant signal survives without the skill, and Step 6 now
+  carries it.** The report's own table exposes bloat directly for ~200
+  tokens: on `improve-prompt-for-relay-ticket` it showed the blackboard at
+  4,314 of 7,185 total tokens (60%). `bootstrap/ticket` Step 6 now tells the
+  evaluator to run `coga launch <slug> --prompt-report` and flag any layer
+  over ~40% of the total, with a documented skip for script tasks (where the
+  command refuses by design). This closes a question Step 6 was already
+  asking but structurally could not answer — it read the ticket file, which
+  lists context *refs* without their composed sizes. No subagent, no skill,
+  no second copy of the rubric.
 
 ## Recent decisions (Dream — recurring template plus an alias)
 
