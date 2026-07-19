@@ -1,30 +1,27 @@
 # Coga
 
-Most tools say: don't think. Delegate the work, trust the platform, move on.
-Coga says the opposite: don't don't think. Think better.
+Today’s AI coding tools turn programmers into full-time supervisors: prompt,
+wait, review, repeat.
 
-Coga is a small CLI and a markdown operating system for teams that run work with
-coding agents. Tickets, context, workflows, skills, blackboards, and corrections
-all live as plain files in your repo, versioned by Git and readable by the same
-humans and agents. The agent does the mechanizable work; you keep judgment,
-authority, and the right to change the machine directly.
+**Coga makes the machine work for you.** Decide what needs to be done, give
+agents a batch of tasks, and return only when a decision needs your judgment.
+Context, progress, and handoffs persist in Markdown and Git, so the work remains
+inspectable, resumable, and yours.
 
 ## OpenAI Build Week
 
-**Coga makes the machine work for you.** It turns coding-agent work from a
-synchronous chat loop into asynchronous tasks: decide the work, give agents a
-batch, and return only when human judgment is needed.
+**95-second demo**
 
 https://github.com/user-attachments/assets/b310bb0f-2312-4e19-98d4-cc65548b01c1
 
-**[Watch the 95-second demo on YouTube →](https://www.youtube.com/watch?v=iwnewxJvRPc&feature=youtu.be)**
+**[Watch on YouTube →](https://www.youtube.com/watch?v=iwnewxJvRPc)**
 
 ```text
-Coga task
-  → Coga composes the relevant context and workflow
-  → Codex runs the task
-  → GPT-5.6 reasons, edits, and tests
-  → the blackboard and Git preserve the result
+You choose a batch
+  → Coga gives each task its committed context and workflow
+  → Codex and GPT-5.6 execute, test, and record progress
+  → blockers and review gates wait for human judgment
+  → you return when you are ready
 ```
 
 ### How we used Codex
@@ -32,8 +29,8 @@ Coga task
 Codex is both a first-class execution backend for Coga and a development partner
 for the project. The committed [agent configuration](coga/coga.toml) teaches
 Coga how to launch the local Codex CLI and deliver composed discussion prompts
-as developer instructions. A task can select Codex in its workflow, or an
-operator can choose it for one launch:
+as developer instructions. A task can name Codex as its agent, or an operator
+can choose it for one launch:
 
 ```sh
 coga launch <task> --agent codex
@@ -47,15 +44,15 @@ supported coding agent.
 ### How we used GPT-5.6
 
 GPT-5.6 was the reasoning and coding model inside those Codex sessions. The
-Build Week runs used `gpt-5.6-sol` at maximum reasoning effort to understand
-large composed prompts, inspect the repository, make changes, run tests, review
-other agents' work, and explain decisions.
+Build Week runs used `gpt-5.6-sol` to understand large composed prompts, inspect
+the repository, make changes, run tests, review other agents' work, and explain
+decisions.
 
 Coga does not depend on hidden conversational memory to ground the model. Each
 launch reconstructs GPT-5.6's instructions from the files in the repository,
 and Coga's append-only [task log](coga/log.md) records the task, agent, provider,
-model, session, usage, and outcome. That makes the use of GPT-5.6 reproducible
-and inspectable rather than a one-off chat.
+model, session, usage, and outcome. That makes GPT-5.6's inputs, sessions, and
+results traceable and inspectable rather than a one-off chat.
 
 ## Install
 
@@ -94,16 +91,21 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+<details>
+<summary>Installation fails because pip requires hashes?</summary>
+
 If a `pip` command above aborts with `Hashes are required in --require-hashes
 mode` — or, for the editable install, `there is no single file to hash` — your
 machine enables pip's hash-checking mode globally (`PIP_REQUIRE_HASHES=1` or
-`require-hashes` in the pip config, common on managed work machines). Two
-escape hatches:
+`require-hashes` in the pip config, common on managed work machines). Two escape
+hatches:
 
 - `uv tool install coga` — uv doesn't read pip's config, so it's unaffected.
 - Disable hash checking for the one command by prefixing it, e.g.
   `PIP_REQUIRE_HASHES=0 pip install coga` or
   `PIP_REQUIRE_HASHES=0 pip install -e .`
+
+</details>
 
 Then run:
 
