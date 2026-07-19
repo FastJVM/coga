@@ -1,7 +1,7 @@
 ---
 slug: move-browser-automation-entry-point-out-of-seeded
 title: Move browser automation entry point out of seeded tasks
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -246,3 +246,11 @@ Applied fixes: 1.
 Git: committed and pushed `repair-branch`
 
 Result: no remaining validation drift found.
+
+---
+
+## Blockers
+
+- [ ] [2026-07-18 22:58] [agent:codex] id=20260718T225852 Publication prerequisites are unavailable: the live checkout is not on main and its shared Git metadata is read-only, github.com DNS resolution fails, and gh has no authenticated host. Restore a writable main control checkout, GitHub reachability, and gh authentication, then unblock and rerun coga open-pr.
+
+- [ ] [2026-07-19 12:44] [agent:codex] id=20260719T124435 Publication remains blocked: the live control checkout is still on status-updated-git-fallback rather than main, github.com DNS resolution still fails, and gh has no authenticated host. Provide a writable main control checkout with GitHub reachability and authenticated gh, then unblock and rerun coga open-pr.
