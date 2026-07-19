@@ -225,6 +225,10 @@ composing an agent prompt and inject task metadata env vars including
   agent prompt.
 - `coga launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
+- `coga launch bootstrap/browser-automation` — stateless browser-automation
+  setup. The bundled `browser/build-automation` orchestration skill checks for
+  an API first, creates a concrete autonomy-tier ticket, and attaches the
+  separate `browser/playwright` runner only when browser execution is needed.
 
 Discussion bootstrap tickets (`bootstrap/orient`, `bootstrap/ticket`) use
 built-in templates for the standard `claude` and `codex` CLIs, or the selected
@@ -833,6 +837,8 @@ only; they don't accept their own flags.
 - Launching one named recurring task now → `coga recurring launch <name>`
   (`--agent <type>` temporarily selects its agent when agent-backed).
 - Starting or resuming agent work on a task → `coga launch <slug>`.
+- Turning a described browser task into a concrete automation ticket →
+  `coga launch bootstrap/browser-automation`.
 - Sweeping all your launchable agent work (active + in_progress) →
   `coga megalaunch`
   (`--agent <type>` runs the sweep with that agent regardless of assignee,

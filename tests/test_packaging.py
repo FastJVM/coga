@@ -13,6 +13,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/managed-skills.toml",
     "coga/resources/prompt-megalaunch.md",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",
+    "coga/resources/templates/coga/bootstrap/browser-automation/ticket.md",
     "coga/resources/templates/coga/bootstrap/project/ticket.md",
     "coga/resources/templates/coga/bootstrap/recurring-scan/ticket.md",
     "coga/resources/templates/coga/bootstrap/recurring-scan/run.py",
@@ -21,6 +22,10 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "ticket/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/eval/"
     "ticket-diagnostic/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/browser/"
+    "build-automation/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/browser/"
+    "playwright/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "autoclose/sweep/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
