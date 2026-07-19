@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -22,7 +22,7 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 2 (human-owns-and-finishes)
+step: 3 (report-to-coga)
 ---
 
 ## Description
@@ -163,3 +163,26 @@ the cleanup follow-up.
 - Leave the browser workflow, contexts, and skill untouched.
 
 No code change is part of this decision ticket.
+
+## Decision
+
+Nick accepted removal of the seeded `browser-automation` task and directed the
+follow-up to preserve the entry point as a skill with user-facing documentation.
+The implementation should:
+
+- delete `src/coga/resources/templates/coga/tasks/browser-automation.md` and
+  its stale packaged `coga/log.md` audit entry;
+- move the router methodology currently encoded in
+  `browser/build-automation` into a bundled `browser/build-automation` skill,
+  keeping `browser/playwright` as the separate lower-level execution skill;
+- expose that skill through a stateless package-backed bootstrap launcher so
+  invoking browser-automation setup does not create a standing task merely by
+  installing Coga;
+- document the launcher and the distinction between the orchestration skill
+  and Playwright runner in the user-facing docs;
+- update init/bootstrap/compose tests while leaving the browser contexts and
+  runtime capability available.
+
+This removes the remaining product judgment from the implementation. Create
+the follow-up with an agent-owned workflow so it can run without another
+destination decision from Nick.
