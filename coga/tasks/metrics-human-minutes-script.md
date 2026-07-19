@@ -1,7 +1,7 @@
 ---
 slug: metrics-human-minutes-script
 title: Metrics human minutes script
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
