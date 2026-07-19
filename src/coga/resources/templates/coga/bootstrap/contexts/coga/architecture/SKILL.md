@@ -29,7 +29,9 @@ no in-memory state.
   companions (a deferred `script:` file, attachments) is a `tasks/<slug>/`
   directory holding `ticket.md` plus the siblings. (`<slug>.md` and `<slug>/`
   must not both exist; promotion is `mkdir <slug>/ && mv <slug>.md
-  <slug>/ticket.md`.) Either way the ticket is YAML frontmatter + body, then a
+  <slug>/ticket.md`.) A `README.md` is never a task — it is documentation for
+  the directory it sits in, so a task sub-directory documents itself the same
+  way any other directory does. Either way the ticket is YAML frontmatter + body, then a
   fence line `<!-- coga:blackboard -->` followed by the free-form blackboard
   region (the workspace shared between human and agent). The append-only audit
   trail is not in the task file — it lives in one repo-global `coga/log.md`

@@ -113,6 +113,17 @@ class BootstrapRef:
 
 TargetRef = Union[TaskRef, BootstrapRef]
 
+# `.md` files under `tasks/` that are never a file-form task. `ticket.md` is a
+# directory-form task's own anchor (its directory is the task). `README.md` is
+# the universal "docs for this directory" convention, so a task sub-directory
+# can document itself the way any other directory does — plain `mkdir` +
+# `README.md`, no Coga primitive invented for it (principle 3). Without the
+# skip a directory index is discovered as a phantom task: it shows up in
+# `coga status` with no owner or step, `coga validate` demands ticket
+# frontmatter for it, and the only way to silence either is to delete the
+# documentation or dress it up as a never-launchable draft.
+_NON_TASK_FILES = frozenset({"ticket.md", "README.md"})
+
 
 def list_tasks(cfg: Config) -> list[TaskRef]:
     """List all tasks under `coga/tasks/`, in either on-disk shape.
@@ -124,7 +135,9 @@ def list_tasks(cfg: Config) -> list[TaskRef]:
     `TaskRef.directory` is the relative parent path, or None at the top level.
     Plain sub-directories (those without a `ticket.md`) are recursed into. A
     task directory is never recursed into (no task inside a task). Names that
-    start with `_` are treated as templates and skipped at every level.
+    start with `_` are treated as templates and skipped at every level, and a
+    `README.md` is documentation for its directory rather than a file-form
+    task (see `_NON_TASK_FILES`).
 
     Raises `DuplicateTaskSlugError` if two tasks resolve to the same slug —
     notably a `tasks/<slug>.md` file alongside a `tasks/<slug>/` directory.
@@ -150,7 +163,7 @@ def list_tasks(cfg: Config) -> list[TaskRef]:
             if entry.name.startswith("_"):
                 continue
             if entry.is_file():
-                if entry.suffix == ".md" and entry.name != "ticket.md":
+                if entry.suffix == ".md" and entry.name not in _NON_TASK_FILES:
                     add(entry, file_form=True)  # file-form task
                 continue
             if not entry.is_dir():
