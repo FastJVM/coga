@@ -1,7 +1,7 @@
 ---
 slug: marketing/rewrite-readme-around-the-wedge
 title: Rewrite README around the wedge
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
