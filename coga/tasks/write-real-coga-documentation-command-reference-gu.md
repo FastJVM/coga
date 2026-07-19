@@ -223,7 +223,8 @@ couldn't write the durable worktree.
 - [x] [2026-07-17 21:43] [agent:codex] id=20260717T214322 GitHub publication is blocked: gh auth status reports the active nicktoper token is invalid. Run gh auth login -h github.com and verify gh auth status, then unblock and resume this task so real-coga-docs can be pushed and its PR created and recorded.
   resolved: [2026-07-17 21:47] [human:nicktoper] Owner reauthenticated gh and confirmed gh auth status succeeds with repo and workflow scopes. The real-coga-docs branch then pushed successfully to origin.
 
-- [ ] [2026-07-17 21:47] [agent:codex] id=20260717T214738 The feature branch real-coga-docs is pushed, but this agent environment cannot create the PR: gh pr create and gh api POST cannot connect to api.github.com, and the GitHub app returns 403 for PR creation. From a normal shell, open the PR at https://github.com/FastJVM/coga/pull/new/real-coga-docs or run gh pr create, then reply with its URL so it can be recorded and the step completed.
+- [x] [2026-07-17 21:47] [agent:codex] id=20260717T214738 The feature branch real-coga-docs is pushed, but this agent environment cannot create the PR: gh pr create and gh api POST cannot connect to api.github.com, and the GitHub app returns 403 for PR creation. From a normal shell, open the PR at https://github.com/FastJVM/coga/pull/new/real-coga-docs or run gh pr create, then reply with its URL so it can be recorded and the step completed.
+  resolved: [2026-07-19 13:27] [human:nicktoper] GitHub CLI access is working in this resumed session. No PR currently exists for real-coga-docs, so the agent will create it now and record its URL before completing the open-pr step.
 
 
 ---
