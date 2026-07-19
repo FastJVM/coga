@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: nicktoper
 contexts:
 - coga/principles
 - coga/architecture
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -108,14 +108,30 @@ navigate, with the README linking out to it ("Full docs →").
 - **Sequencing:** this can proceed in parallel with or after `improve-readme`.
   Coordinate the "Full docs →" link target so the two land consistently.
 
+## PR
+
+https://github.com/FastJVM/coga/pull/608
+
 <!-- coga:blackboard -->
 
 ## Dev
 
 - branch: real-coga-docs
 - worktree: /home/n/Code/claude/coga-real-docs (durable sibling checkout, NOT /tmp — the /tmp worktree loss is what sank the first implement pass)
+- pr: https://github.com/FastJVM/coga/pull/608
 - base: current `main` at 398c40cc (redo after the original branch was lost; see "Redo history" below).
 - scope check: docs-only. No code behavior changes.
+
+## Open-PR handoff (2026-07-19)
+
+- Opened PR #608: https://github.com/FastJVM/coga/pull/608
+- Rebased `real-coga-docs` onto `origin/main` (`91c4eee6`). The only conflict was
+  `README.md`; resolution preserved main's Build Week/install additions and the
+  branch's new docs entrypoint. Rebased head: `972b058b`.
+- Force-pushed with lease and verified GitHub reports `MERGEABLE` / `CLEAN`.
+- Post-rebase checks: feature worktree clean; `git diff --check
+  origin/main...HEAD` clean; task validation passed with no task issues (the
+  sibling worktree only reports its expected missing-local-user warning).
 
 ## Redo history (2026-07-17)
 
