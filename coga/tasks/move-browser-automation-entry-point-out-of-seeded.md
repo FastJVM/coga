@@ -251,6 +251,8 @@ Result: no remaining validation drift found.
 
 ## Blockers
 
-- [ ] [2026-07-18 22:58] [agent:codex] id=20260718T225852 Publication prerequisites are unavailable: the live checkout is not on main and its shared Git metadata is read-only, github.com DNS resolution fails, and gh has no authenticated host. Restore a writable main control checkout, GitHub reachability, and gh authentication, then unblock and rerun coga open-pr.
+- [x] [2026-07-18 22:58] [agent:codex] id=20260718T225852 Publication prerequisites are unavailable: the live checkout is not on main and its shared Git metadata is read-only, github.com DNS resolution fails, and gh has no authenticated host. Restore a writable main control checkout, GitHub reachability, and gh authentication, then unblock and rerun coga open-pr.
+  resolved: [2026-07-19 13:00] [human:nicktoper] Publication prerequisites restored: the primary control checkout is writable and on main, GitHub is reachable, and gh is authenticated. Both duplicate publication blockers are resolved; proceed with coga open-pr.
 
-- [ ] [2026-07-19 12:44] [agent:codex] id=20260719T124435 Publication remains blocked: the live control checkout is still on status-updated-git-fallback rather than main, github.com DNS resolution still fails, and gh has no authenticated host. Provide a writable main control checkout with GitHub reachability and authenticated gh, then unblock and rerun coga open-pr.
+- [x] [2026-07-19 12:44] [agent:codex] id=20260719T124435 Publication remains blocked: the live control checkout is still on status-updated-git-fallback rather than main, github.com DNS resolution still fails, and gh has no authenticated host. Provide a writable main control checkout with GitHub reachability and authenticated gh, then unblock and rerun coga open-pr.
+  resolved: [2026-07-19 13:00] [human:nicktoper] Publication prerequisites restored: the primary control checkout is writable and on main, GitHub is reachable, and gh is authenticated. Both duplicate publication blockers are resolved; proceed with coga open-pr.
