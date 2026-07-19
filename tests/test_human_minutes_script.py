@@ -10,6 +10,8 @@ from pathlib import Path
 from textwrap import dedent
 from zoneinfo import ZoneInfo
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "human_minutes.py"
@@ -45,12 +47,14 @@ def _event(minute: int) -> object:
     )
 
 
-def _git(root: Path, *args: str) -> None:
+def _git(
+    root: Path, *args: str, when: str = "2026-07-01T09:00:00-07:00"
+) -> None:
     env = os.environ.copy()
     env.update(
         {
-            "GIT_AUTHOR_DATE": "2026-07-01T09:00:00-07:00",
-            "GIT_COMMITTER_DATE": "2026-07-01T09:00:00-07:00",
+            "GIT_AUTHOR_DATE": when,
+            "GIT_COMMITTER_DATE": when,
         }
     )
     subprocess.run(
@@ -127,7 +131,7 @@ def test_july_1_2_log_fixture_has_nine_megalaunch_tasks_in_expected_range() -> N
     assert report["sensitivity"]["floor_minutes"] == 5
     markdown = human_minutes.format_markdown(report)
     assert "Sensitivity (isolated-event floor = 5 min):" in markdown
-    assert "git=omitted, GitHub=omitted" in markdown
+    assert "git=omitted, agent commits excluded=omitted, GitHub=omitted" in markdown
 
 
 def test_recorded_local_branch_attributes_only_human_non_coga_commits(
@@ -138,29 +142,72 @@ def test_recorded_local_branch_attributes_only_human_non_coga_commits(
     _git(tmp_path, "config", "user.email", "nick@example.com")
     _write(tmp_path / "tracked.txt", "base\n")
     _git(tmp_path, "add", "tracked.txt")
-    _git(tmp_path, "commit", "-m", "Base")
+    _git(tmp_path, "commit", "-m", "Base", when="2026-07-01T08:00:00-07:00")
     _git(tmp_path, "switch", "-c", "demo-branch")
     _write(tmp_path / "human.txt", "human\n")
     _git(tmp_path, "add", "human.txt")
     _git(tmp_path, "commit", "-m", "Review outcome")
+    _write(tmp_path / "agent.txt", "agent\n")
+    _git(tmp_path, "add", "agent.txt")
+    _git(
+        tmp_path,
+        "commit",
+        "-m",
+        "Agent implementation",
+        when="2026-07-01T09:05:00-07:00",
+    )
     _write(tmp_path / "auto.txt", "auto\n")
     _git(tmp_path, "add", "auto.txt")
-    _git(tmp_path, "commit", "-m", "Log: demo")
+    _git(
+        tmp_path,
+        "commit",
+        "-m",
+        "Log: demo",
+        when="2026-07-01T09:07:00-07:00",
+    )
 
+    tz = ZoneInfo("America/Los_Angeles")
+    excluded: set[str] = set()
     events = human_minutes._local_branch_events(
         "demo",
         "demo-branch",
         matcher=human_minutes.IdentityMatcher({"nicktoper"}),
-        tz=ZoneInfo("America/Los_Angeles"),
+        agent_windows=[
+            human_minutes.AgentSessionWindow(
+                datetime(2026, 7, 1, 8, 30, tzinfo=tz),
+                datetime(2026, 7, 1, 8, 31, tzinfo=tz),
+            ),
+            human_minutes.AgentSessionWindow(
+                datetime(2026, 7, 1, 9, 4, tzinfo=tz),
+                datetime(2026, 7, 1, 9, 6, tzinfo=tz),
+            ),
+        ],
+        tz=tz,
         repo_root=tmp_path,
         git_base="main",
         commit_web_root="https://github.com/acme/widgets",
         seen_commits=set(),
+        agent_commits_excluded=excluded,
     )
 
     assert [event.action for event in events] == ["Review outcome"]
+    assert len(excluded) == 1
     assert events[0].link is not None
     assert events[0].link.startswith("https://github.com/acme/widgets/commit/")
+
+    with pytest.raises(human_minutes.MetricsError, match="predates schema-2"):
+        human_minutes._local_branch_events(
+            "demo",
+            "demo-branch",
+            matcher=human_minutes.IdentityMatcher({"nicktoper"}),
+            agent_windows=[],
+            tz=tz,
+            repo_root=tmp_path,
+            git_base="main",
+            commit_web_root=None,
+            seen_commits=set(),
+            agent_commits_excluded=set(),
+        )
 
 
 def test_json_report_merges_log_git_github_and_usage_records(
@@ -193,8 +240,10 @@ def test_json_report_merges_log_git_github_and_usage_records(
     )
     usage_autonomous = {
         "schema": 2,
-        "ts": "2026-07-01T17:00:00Z",
-        "ended_at": "2026-07-01T17:00:00Z",
+        "ts": "2026-07-01T16:00:00Z",
+        "started_at": "2026-07-01T15:55:00Z",
+        "ended_at": "2026-07-01T16:00:00Z",
+        "session_id": "autonomous-session",
         "slug": "demo",
         "usage_status": "ok",
         "human_turns": 0,
@@ -208,7 +257,9 @@ def test_json_report_merges_log_git_github_and_usage_records(
     usage_interactive = {
         "schema": 2,
         "ts": "2026-07-01T17:05:00Z",
+        "started_at": "2026-07-01T17:01:00Z",
         "ended_at": "2026-07-01T17:05:00Z",
+        "session_id": "interactive-session",
         "slug": "demo",
         "usage_status": "ok",
         "human_turns": 2,
@@ -271,6 +322,12 @@ def test_json_report_merges_log_git_github_and_usage_records(
                             "messageHeadline": "Sync coga state",
                             "authors": [{"login": "nicktoper"}],
                         },
+                        {
+                            "oid": "agent789",
+                            "committedDate": "2026-07-01T17:03:00Z",
+                            "messageHeadline": "Agent implementation",
+                            "authors": [{"login": "nicktoper"}],
+                        },
                     ],
                     "reviews": [
                         {
@@ -329,6 +386,7 @@ def test_json_report_merges_log_git_github_and_usage_records(
     assert result == 0
     report = json.loads(capsys.readouterr().out)
     assert report["sources"] == {
+        "agent_commit_events_excluded": 1,
         "git_enabled": True,
         "git_commit_events": 1,
         "github_enabled": True,
@@ -357,6 +415,102 @@ def test_json_report_merges_log_git_github_and_usage_records(
         (row["provider"], row["model"])
         for row in report["tokens"]["by_model"]
     ] == [("anthropic", "model-b"), ("openai", "model-a")]
+
+
+def test_union_log_duplicates_and_free_form_text_do_not_change_ledger(
+    tmp_path: Path,
+) -> None:
+    dependency_pr = "https://github.com/acme/widgets/pull/41"
+    task_pr = "https://github.com/acme/widgets/pull/42"
+    answer = (
+        "Use the dependency PR only as context; preserve this complete blocker "
+        "answer in the published human-readable ledger without truncating it."
+    )
+    human_line = (
+        "2026-07-01 09:00 [demo] [human:nicktoper] "
+        f"unblocked (blocked → active): {answer} Dependency: {dependency_pr}"
+    )
+    usage = {
+        "schema": 1,
+        "ts": "2026-07-01T16:00:00Z",
+        "slug": "demo",
+        "usage_status": "ok",
+        "session_id": "usage-1",
+        "input_tokens": 3,
+        "output_tokens": 2,
+    }
+    usage_line = (
+        "2026-07-01 09:00 [demo] [system] "
+        + json.dumps(usage, separators=(",", ":"))
+    )
+    log = tmp_path / "coga" / "log.md"
+    _write(
+        log,
+        "\n".join(
+            [
+                human_line,
+                human_line,
+                "2026-07-01 09:01 [docs] [agent:claude] blocked: docs/getting-started.md needs a decision",
+                "2026-07-01 09:02 [publish] [agent:claude] advanced to step 4 (review) — PR opened & mergeable: "
+                f"<{task_pr}|PR #42>",
+                usage_line,
+                usage_line,
+            ]
+        )
+        + "\n",
+    )
+
+    tz = ZoneInfo("America/Los_Angeles")
+    log_data = human_minutes.parse_log(log, tz=tz, log_web_url=None)
+    report = human_minutes.build_report(
+        log_data=log_data,
+        task_infos={},
+        external_events=[],
+        since=human_minutes.parse_window_bound("2026-07-01", is_until=False, tz=tz),
+        until=human_minutes.parse_window_bound("2026-07-01", is_until=True, tz=tz),
+        timezone_name="America/Los_Angeles",
+        gap_minutes=10,
+        floor_minutes=2,
+        prs_read=0,
+        identities={"nicktoper"},
+        git_enabled=False,
+        github_enabled=False,
+    )
+
+    assert len(log_data.events) == 1
+    assert len(log_data.blockers) == 1
+    assert [item.task for item in log_data.progress] == ["demo", "publish"]
+    assert log_data.pr_urls == {"publish": task_pr}
+    assert report["tasks"][0]["minutes"] == 2
+    assert report["sources"]["usage_sessions"] == 1
+    markdown = human_minutes.format_markdown(report)
+    assert answer in markdown
+    assert dependency_pr in markdown
+    assert "…" not in markdown
+
+
+def test_local_branch_fails_loud_when_git_base_is_missing(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-b", "master")
+    _git(tmp_path, "config", "user.name", "nicktoper")
+    _git(tmp_path, "config", "user.email", "nick@example.com")
+    _write(tmp_path / "tracked.txt", "base\n")
+    _git(tmp_path, "add", "tracked.txt")
+    _git(tmp_path, "commit", "-m", "Base")
+    _git(tmp_path, "switch", "-c", "demo-branch")
+
+    with pytest.raises(human_minutes.MetricsError, match="git base 'origin/main'"):
+        human_minutes._local_branch_events(
+            "demo",
+            "demo-branch",
+            matcher=human_minutes.IdentityMatcher({"nicktoper"}),
+            agent_windows=[],
+            tz=ZoneInfo("America/Los_Angeles"),
+            repo_root=tmp_path,
+            git_base="origin/main",
+            commit_web_root=None,
+            seen_commits=set(),
+            agent_commits_excluded=set(),
+        )
 
 
 def test_github_fixture_missing_record_fails_loud(tmp_path: Path, capsys) -> None:

@@ -84,12 +84,17 @@ blocker answers verbatim, and a metrics script anyone can rerun
 
 The script's default is the complete ledger, not a best-effort scrape: it reads
 `coga/log.md`, follows each ticket's recorded `pr:` through `gh`, excludes Coga
-state-sync commits, and fails loud when GitHub data cannot be read. Explicit
-`--no-github` / `--no-git` flags exist for visibly partial offline analysis.
-Run it with the pre-registered date window and timezone; `--json` is the stable
-machine-readable receipt. The per-day total clusters all attributed events
-together (so overlapping task work is not double-counted), while the per-task
-rows cluster each task independently.
+state-sync commits, and fails loud when GitHub data cannot be read. Because
+Coga-launched agents inherit the operator's git name/email, commit authorship
+alone is not accepted as proof of human work: commits inside recorded schema-2
+agent-session windows are excluded and counted in the receipt, while matching
+commits older than that coverage fail loud instead of being guessed human.
+Exact duplicate `merge=union` log lines are collapsed before episode or token
+accounting. Explicit `--no-github` / `--no-git` flags exist for visibly partial
+offline analysis. Run it with the pre-registered date window and timezone;
+`--json` is the stable machine-readable receipt. The per-day total clusters all
+attributed events together (so overlapping task work is not double-counted),
+while the per-task rows cluster each task independently.
 
 The anchor argument (goes in the post verbatim, in substance): **there
 is no such thing as full autonomy** — autonomy is a function of spec

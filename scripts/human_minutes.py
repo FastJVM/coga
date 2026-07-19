@@ -54,10 +54,15 @@ _PR_URL_RE = re.compile(
     r"https://github\.com/(?P<owner>[^/\s]+)/(?P<repo>[^/\s]+)/pull/(?P<number>\d+)"
 )
 _PROGRESS_RE = re.compile(
-    r"\b(?:advanced to step|bumped to step|task done|activated\b|started\b|unblocked\b)",
+    r"^(?:advanced to step\b|bumped to step\b|task done\b|activated\b|"
+    r"started\b|unblocked\b)",
     re.IGNORECASE,
 )
-_BLOCKER_ANSWER_RE = re.compile(r"\bunblocked\b.*?:\s*(.+)$", re.IGNORECASE)
+_PR_ASSOCIATION_RE = re.compile(
+    r"\bPR (?:opened(?:\s*&\s*mergeable)?|updated|merged):",
+    re.IGNORECASE,
+)
+_BLOCKER_ANSWER_RE = re.compile(r"^unblocked\b.*?:\s*(.+)$", re.IGNORECASE)
 
 
 class MetricsError(RuntimeError):
@@ -105,6 +110,12 @@ class ProgressEvent:
 class AttemptEvent:
     timestamp: datetime
     task: str
+
+
+@dataclass(frozen=True)
+class AgentSessionWindow:
+    start: datetime
+    end: datetime
 
 
 @dataclass
@@ -216,10 +227,19 @@ def parse_log(path: Path, *, tz: ZoneInfo, log_web_url: str | None) -> LogData:
     except OSError as exc:
         raise MetricsError(f"cannot read log file {path}: {exc}") from exc
 
+    seen_lines: set[str] = set()
+    seen_usage_sessions: set[str] = set()
     for line_number, line in enumerate(lines, start=1):
         match = _LOG_RE.match(line)
         if not match:
             continue
+        # coga/log.md is merge=union, whose documented behavior may duplicate
+        # an appended line. Treat the first copy as canonical so a duplicate
+        # cannot turn one floored event into a zero-duration multi-event
+        # episode or double-count one usage session.
+        if line in seen_lines:
+            continue
+        seen_lines.add(line)
         timestamp = datetime.strptime(
             match.group("stamp"), "%Y-%m-%d %H:%M"
         ).replace(tzinfo=tz)
@@ -253,16 +273,17 @@ def parse_log(path: Path, *, tz: ZoneInfo, log_web_url: str | None) -> LogData:
                     )
                 )
 
-        if _PROGRESS_RE.search(message):
+        if _PROGRESS_RE.match(message):
             data.progress.append(ProgressEvent(timestamp=timestamp, task=task))
         if actor == "megalaunch" and re.search(
             r"\b(?:started|launched)\b", message, re.IGNORECASE
         ):
             data.attempts.append(AttemptEvent(timestamp=timestamp, task=task))
 
-        pr_match = _PR_URL_RE.search(message)
-        if pr_match:
-            data.pr_urls[task] = pr_match.group(0)
+        if _PROGRESS_RE.match(message) and _PR_ASSOCIATION_RE.search(message):
+            pr_match = _PR_URL_RE.search(message)
+            if pr_match:
+                data.pr_urls[task] = pr_match.group(0)
 
         if actor == "system" and message.startswith("{"):
             try:
@@ -275,6 +296,11 @@ def parse_log(path: Path, *, tz: ZoneInfo, log_web_url: str | None) -> LogData:
                 and isinstance(record.get("slug"), str)
                 and "usage_status" in record
             ):
+                session_id = record.get("session_id")
+                if isinstance(session_id, str) and session_id:
+                    if session_id in seen_usage_sessions:
+                        continue
+                    seen_usage_sessions.add(session_id)
                 data.usage_records.append(record)
     return data
 
@@ -487,6 +513,7 @@ def collect_external_events(
     task_infos: dict[str, TaskInfo],
     *,
     matcher: IdentityMatcher,
+    agent_windows: Sequence[AgentSessionWindow],
     tz: ZoneInfo,
     repo_root: Path,
     github: GithubClient | None,
@@ -494,12 +521,15 @@ def collect_external_events(
     include_github: bool,
     git_base: str,
     commit_web_root: str | None,
-) -> tuple[list[Event], int]:
+    since: datetime | None,
+    until: datetime | None,
+) -> tuple[list[Event], int, int]:
     events: list[Event] = []
     # A grouped branch/PR can legitimately cover more than one task. Keep one
     # commit event per associated task, then let per-day clustering deduplicate
     # the shared event id so human time is not double-counted.
     seen_commits: set[tuple[str, str]] = set()
+    agent_commits_excluded: set[str] = set()
     prs_read = 0
 
     for slug in sorted(task_infos):
@@ -515,8 +545,12 @@ def collect_external_events(
                         info.pr_url,
                         pr_data,
                         matcher=matcher,
+                        agent_windows=agent_windows,
                         tz=tz,
                         seen_commits=seen_commits,
+                        agent_commits_excluded=agent_commits_excluded,
+                        since=since,
+                        until=until,
                     )
                 )
             if include_github:
@@ -536,14 +570,18 @@ def collect_external_events(
                     slug,
                     info.branch,
                     matcher=matcher,
+                    agent_windows=agent_windows,
                     tz=tz,
                     repo_root=repo_root,
                     git_base=git_base,
                     commit_web_root=commit_web_root,
                     seen_commits=seen_commits,
+                    agent_commits_excluded=agent_commits_excluded,
+                    since=since,
+                    until=until,
                 )
             )
-    return events, prs_read
+    return events, prs_read, len(agent_commits_excluded)
 
 
 def _git_events_from_pr(
@@ -552,8 +590,12 @@ def _git_events_from_pr(
     data: dict[str, Any],
     *,
     matcher: IdentityMatcher,
+    agent_windows: Sequence[AgentSessionWindow],
     tz: ZoneInfo,
     seen_commits: set[tuple[str, str]],
+    agent_commits_excluded: set[str],
+    since: datetime | None = None,
+    until: datetime | None = None,
 ) -> list[Event]:
     events: list[Event] = []
     commits = data.get("commits")
@@ -578,11 +620,21 @@ def _git_events_from_pr(
         stamp = commit.get("committedDate") or commit.get("authoredDate")
         if not isinstance(stamp, str):
             continue
+        timestamp = parse_iso_timestamp(stamp, tz)
+        if not in_window(timestamp, since, until):
+            continue
+        if _commit_was_agent_produced(
+            timestamp,
+            agent_windows=agent_windows,
+            commit_ref=oid or f"{pr_url}@{stamp}:{subject}",
+        ):
+            agent_commits_excluded.add(oid or f"{pr_url}@{stamp}:{subject}")
+            continue
         if oid:
             seen_commits.add(commit_key)
         events.append(
             Event(
-                timestamp=parse_iso_timestamp(stamp, tz),
+                timestamp=timestamp,
                 task=slug,
                 source="git",
                 action=subject or "git commit",
@@ -688,22 +740,31 @@ def _local_branch_events(
     branch: str,
     *,
     matcher: IdentityMatcher,
+    agent_windows: Sequence[AgentSessionWindow],
     tz: ZoneInfo,
     repo_root: Path,
     git_base: str,
     commit_web_root: str | None,
     seen_commits: set[tuple[str, str]],
+    agent_commits_excluded: set[str],
+    since: datetime | None = None,
+    until: datetime | None = None,
 ) -> list[Event]:
     if not _git_ref_exists(repo_root, branch):
         return []
+    if not _git_ref_exists(repo_root, git_base):
+        raise MetricsError(
+            f"git base {git_base!r} cannot be resolved while reading branch "
+            f"{branch!r}; fetch it, pass --git-base, or pass --no-git for an "
+            "explicitly partial report"
+        )
     argv = [
         "git",
         "log",
         branch,
         "--format=%H%x00%cI%x00%an%x00%ae%x00%s%x00%b%x1e",
     ]
-    if _git_ref_exists(repo_root, git_base):
-        argv.extend(["--not", git_base])
+    argv.extend(["--not", git_base])
     result = _run_git(argv, repo_root, check=True)
     events: list[Event] = []
     for record in result.stdout.split("\x1e"):
@@ -716,11 +777,19 @@ def _local_branch_events(
             continue
         if not matcher.matches_values(author_name, author_email):
             continue
+        timestamp = parse_iso_timestamp(stamp, tz)
+        if not in_window(timestamp, since, until):
+            continue
+        if _commit_was_agent_produced(
+            timestamp, agent_windows=agent_windows, commit_ref=oid
+        ):
+            agent_commits_excluded.add(oid)
+            continue
         seen_commits.add(commit_key)
         link = f"{commit_web_root}/commit/{oid}" if commit_web_root else None
         events.append(
             Event(
-                parse_iso_timestamp(stamp, tz),
+                timestamp,
                 slug,
                 "git",
                 subject or "git commit",
@@ -729,6 +798,61 @@ def _local_branch_events(
             )
         )
     return events
+
+
+def agent_session_windows(
+    records: Iterable[dict[str, Any]], *, tz: ZoneInfo
+) -> list[AgentSessionWindow]:
+    """Return the recorded windows in which Coga-launched agents were running."""
+    windows: list[AgentSessionWindow] = []
+    for record in records:
+        if record.get("schema") != 2:
+            continue
+        started_at = record.get("started_at")
+        ended_at = record.get("ended_at")
+        session_id = record.get("session_id") or "unknown session"
+        if not isinstance(started_at, str) or not isinstance(ended_at, str):
+            raise MetricsError(
+                f"schema-2 usage record {session_id!r} lacks started_at/ended_at; "
+                "cannot distinguish agent-produced git commits"
+            )
+        try:
+            start = parse_iso_timestamp(started_at, tz)
+            end = parse_iso_timestamp(ended_at, tz)
+        except MetricsError as exc:
+            raise MetricsError(
+                f"schema-2 usage record {session_id!r} has an invalid agent "
+                f"session window: {exc}"
+            ) from exc
+        if end < start:
+            raise MetricsError(
+                f"schema-2 usage record {session_id!r} ends before it starts; "
+                "cannot distinguish agent-produced git commits"
+            )
+        windows.append(AgentSessionWindow(start=start, end=end))
+    return sorted(windows, key=lambda window: (window.start, window.end))
+
+
+def _commit_was_agent_produced(
+    timestamp: datetime,
+    *,
+    agent_windows: Sequence[AgentSessionWindow],
+    commit_ref: str,
+) -> bool:
+    """Classify an operator-authored commit using Coga's agent-session ledger.
+
+    Coga agents inherit the operator's git identity, so author name/email alone
+    cannot prove human authorship. Schema-2 session capture is the first point
+    at which commits can be separated honestly; older matching commits fail
+    loud rather than being silently counted as human work.
+    """
+    if not agent_windows or timestamp < agent_windows[0].start:
+        raise MetricsError(
+            f"git commit {commit_ref!r} at {timestamp.isoformat()} predates "
+            "schema-2 agent-session coverage; use a covered date window or pass "
+            "--no-git for an explicitly partial report"
+        )
+    return any(window.start <= timestamp <= window.end for window in agent_windows)
 
 
 def _git_ref_exists(repo_root: Path, ref: str) -> bool:
@@ -808,6 +932,7 @@ def build_report(
     identities: set[str],
     git_enabled: bool,
     github_enabled: bool,
+    agent_commits_excluded: int = 0,
 ) -> dict[str, Any]:
     events = [
         event
@@ -940,6 +1065,7 @@ def build_report(
             "github_enabled": github_enabled,
             "log_events": source_counts["log"],
             "git_commit_events": source_counts["git"],
+            "agent_commit_events_excluded": agent_commits_excluded,
             "github_events": source_counts["github"],
             "github_prs_read": prs_read,
             "usage_sessions": len(token_records),
@@ -1067,6 +1193,11 @@ def format_markdown(report: dict[str, Any]) -> str:
     parameters = report["parameters"]
     sources = report["sources"]
     git_source = sources["git_commit_events"] if sources["git_enabled"] else "omitted"
+    excluded_source = (
+        sources["agent_commit_events_excluded"]
+        if sources["git_enabled"]
+        else "omitted"
+    )
     github_source = sources["github_events"] if sources["github_enabled"] else "omitted"
     lines = [
         "# Human attention ledger",
@@ -1084,6 +1215,7 @@ def format_markdown(report: dict[str, Any]) -> str:
             "Sources: "
             f"log={sources['log_events']}, "
             f"git={git_source}, "
+            f"agent commits excluded={excluded_source}, "
             f"GitHub={github_source} "
             f"({sources['github_prs_read']} PRs), "
             f"usage sessions={sources['usage_sessions']}."
@@ -1161,15 +1293,8 @@ def _format_blocker(item: dict[str, Any]) -> str:
     label = f"`{task}`"
     if item.get("link"):
         label = f"[{task}]({item['link']})"
-    answer = _escape(_compact(str(item["answer"]), limit=80))
+    answer = _escape(str(item["answer"]))
     return f"{label}: {answer}"
-
-
-def _compact(value: str, *, limit: int) -> str:
-    compact = " ".join(value.split())
-    if len(compact) <= limit:
-        return compact
-    return compact[: limit - 1].rstrip() + "…"
 
 
 def _artifact(value: object) -> str:
@@ -1343,9 +1468,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         github: GithubClient | None = None
         if not args.no_github:
             github = GithubClient.from_path(args.github_data, cwd=repo_root)
-        external_events, prs_read = collect_external_events(
+        windows = (
+            agent_session_windows(log_data.usage_records, tz=tz)
+            if not args.no_git
+            else []
+        )
+        external_events, prs_read, agent_commits_excluded = collect_external_events(
             task_infos,
             matcher=matcher,
+            agent_windows=windows,
             tz=tz,
             repo_root=repo_root,
             github=github,
@@ -1353,6 +1484,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             include_github=not args.no_github,
             git_base=args.git_base,
             commit_web_root=repo_url or None,
+            since=since,
+            until=until,
         )
         report = build_report(
             log_data=log_data,
@@ -1367,6 +1500,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             identities=identities,
             git_enabled=not args.no_git,
             github_enabled=not args.no_github,
+            agent_commits_excluded=agent_commits_excluded,
         )
         if args.json_output:
             print(json.dumps(report, sort_keys=True, separators=(",", ":")))
