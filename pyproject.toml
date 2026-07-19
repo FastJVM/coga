@@ -64,7 +64,7 @@ packages = ["src/coga"]
 # The `bootstrap/` exclude is paired with the force-include below: hatchling's
 # package-aware file selection (`packages`) silently drops pure-data
 # subdirectories — skill dirs under `bootstrap/skills/` that contain only a
-# SKILL.md and no `.py` (ticket-diagnostic, retro/…). Before #259 a blanket
+# SKILL.md and no `.py` (retro/done-ticket, …). Before #259 a blanket
 # `force-include` masked this; dropping it shipped wheels missing bundled skills. We
 # exclude the whole `bootstrap/` tree from the `packages` grab and force-include
 # it back wholesale (a literal copy that ships every dir) — which also correctly

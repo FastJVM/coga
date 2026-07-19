@@ -89,15 +89,30 @@ Last updated: 2026-07-17.
   `coga validate` is enough. Decision closed the `detect-missing-skills`
   ticket (deleted without a build).
 
-## Recent decisions (eval/ticket-diagnostic stays)
+## Recent decisions (eval/ticket-diagnostic removed)
 
-- **The bundled `eval/ticket-diagnostic` skill is kept.** Its removal was
-  fully implemented and PR'd on disuse grounds (PR #332, 2026-06-10), then
-  reversed at the human review step — the owner wants the skill retained.
-  The PR was closed unmerged and the branch deleted; the packaged copy at
-  `src/coga/resources/templates/coga/bootstrap/skills/eval/ticket-diagnostic/`
-  stays on main (no live `coga/skills/eval/` override exists). Do not
-  re-propose deleting it on "unused" grounds without a fresh human decision.
+- **The bundled `eval/ticket-diagnostic` skill is removed (2026-07-18).**
+  This supersedes the earlier "keep" decision: removal was first implemented
+  on disuse grounds (PR #332, 2026-06-10) and reversed at human review, but
+  the owner reopened it with new evidence and confirmed deletion. The skill
+  was unreachable from every path — no workflow step, no `skills:`
+  frontmatter, no Python, and `.claude/` carries no skills symlink, so an
+  agent never saw it. `bootstrap/ticket` Step 6 ran its own inline critique
+  and never opened the file.
+- **It was removed on the merits, not just disuse.** The draft ticket
+  `wire-eval-ticket-diagnostic-into-ticket-step6` (deleted with it) proposed
+  finishing the stub and evaluating `coga launch --prompt-report`. That
+  premise was wrong: `--prompt-report` emits only a layer/bytes/token table
+  (`launch.py:_format_prompt_report`), not prompt text, so five of the six
+  axes still needed the full ~7k-token prompt read by a fresh subagent —
+  roughly 10k tokens to re-do a review Step 6 already performs.
+- **The one non-redundant signal survives without the skill.** The report's
+  own table exposes bloat directly and costs ~200 tokens: on
+  `improve-prompt-for-relay-ticket` it showed the blackboard at 4,314 of
+  7,185 total tokens (60%). If a bloat check is wanted, add a line to Step 6
+  telling it to run `--prompt-report` and flag any layer over ~40% of total;
+  it needs no subagent and no skill. (Not done in the removal PR — Step 6 is
+  unchanged.)
 
 ## Recent decisions (Dream — recurring template plus an alias)
 

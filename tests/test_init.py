@@ -103,17 +103,6 @@ def _seed_fake_templates(templates: Path) -> None:
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
         "retro/done-ticket skill\n"
     )
-    (templates / "bootstrap" / "skills" / "eval" / "ticket-diagnostic").mkdir(
-        parents=True
-    )
-    (
-        templates
-        / "bootstrap"
-        / "skills"
-        / "eval"
-        / "ticket-diagnostic"
-        / "SKILL.md"
-    ).write_text("---\nname: eval/ticket-diagnostic\n---\neval skill\n")
     (templates / "bootstrap" / "skills" / "coga" / "autoclose" / "sweep").mkdir(
         parents=True
     )
@@ -485,12 +474,12 @@ def test_init_into_empty_dir(
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
     assert not (target / "coga" / "bootstrap").exists()
-    assert not (target / "coga" / "skills" / "eval").exists()
+    assert not (target / "coga" / "skills" / "retro").exists()
     assert not (target / "coga" / "skills" / "coga").exists()
     assert not (target / "coga" / "contexts" / "dev").exists()
     assert not (target / "coga" / "contexts" / "coga").exists()
     assert (
-        target / "coga" / ".agent-skills" / "eval" / "ticket-diagnostic"
+        target / "coga" / ".agent-skills" / "retro" / "done-ticket"
     ).is_symlink()
     assert (
         target / "coga" / ".agent-skills" / "coga" / "autoclose" / "sweep"
@@ -1201,9 +1190,9 @@ def _seed_local_coga_os(root: Path) -> Path:
     (coga_os / "skills" / "coga" / "calendar-reminder" / "SKILL.md").write_text(
         "OLD coga/calendar-reminder skill\n"
     )
-    (coga_os / "skills" / "eval" / "ticket-diagnostic").mkdir(parents=True)
-    (coga_os / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md").write_text(
-        "OLD eval/ticket-diagnostic skill\n"
+    (coga_os / "skills" / "retro" / "done-ticket").mkdir(parents=True)
+    (coga_os / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
+        "OLD retro/done-ticket skill\n"
     )
     (coga_os / ".agent-skills").mkdir()
     (coga_os / ".agent-skills" / "_template").symlink_to("../skills/_template")
@@ -1637,7 +1626,7 @@ def test_init_links_skills_into_agent_dirs(
         link = target / dirname / "skills" / "coga"
         assert link.is_symlink(), f"missing symlink for {dirname}"
         assert link.resolve() == skills_src
-    assert (target / "coga" / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
+    assert (target / "coga" / ".agent-skills" / "retro" / "done-ticket").is_symlink()
     assert "Wired skill discovery for Claude Code, Codex" in result.output
 
 
@@ -1681,9 +1670,9 @@ def test_agent_skill_view_includes_bootstrap_and_local_skills(
     target = tmp_path / "company"
     coga_os = target / "coga"
     bundled_root = tmp_path / "package-skills"
-    bundled = bundled_root / "eval" / "ticket-diagnostic"
+    bundled = bundled_root / "retro" / "done-ticket"
     bundled.mkdir(parents=True)
-    (bundled / "SKILL.md").write_text("bundled eval\n")
+    (bundled / "SKILL.md").write_text("bundled retro\n")
     _fake_package_skill_root(monkeypatch, bundled_root, tmp_path / "missing")
     (coga_os / "skills" / "team" / "local").mkdir(parents=True)
     (coga_os / "skills" / "team" / "local" / "SKILL.md").write_text("local\n")
@@ -1692,7 +1681,7 @@ def test_agent_skill_view_includes_bootstrap_and_local_skills(
 
     assert wired == ["Claude Code", "Codex"]
     assert blocked == []
-    assert (coga_os / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
+    assert (coga_os / ".agent-skills" / "retro" / "done-ticket").is_symlink()
     assert (coga_os / ".agent-skills" / "team" / "local").is_symlink()
     assert os.readlink(target / ".codex" / "skills" / "coga") == (
         "../../coga/.agent-skills"
