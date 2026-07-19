@@ -7,11 +7,12 @@ working on Coga is not an external benchmark.
 
 ## What the repository shows
 
-### Agent-initiated work
+### Agent-operated work
 
 The append-only [`coga/log.md`](../coga/log.md) identifies who launched and
-advanced each task. Entries tagged `agent:claude`, `agent:codex`, or `system`
-show work initiated or advanced by the machine; `human:*` entries show human
+advanced each task. Entries tagged `agent:claude` or `agent:codex` show steps
+advanced by an agent; `system` entries show deterministic automation, while
+`human:*` and `megalaunch` entries show human- and scheduler-initiated
 transitions. Ticket blackboards preserve each agent's plan, findings, and
 handoff.
 

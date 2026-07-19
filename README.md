@@ -35,7 +35,8 @@ including the conditions and failure modes, is in [the vision](docs/vision.md).
 Coga runs the work that builds Coga. Its repository records a few categorical
 facts we can defend without pretending they prove the bet:
 
-- agents initiate and carry work through implementation steps;
+- agents carry work through implementation steps after a human or scheduler
+  selects the task;
 - shipped development work receives a separate agent peer-review step;
 - the operation reached **31 agent-operated workstreams in one week** at the
   peak of its initial reporting window;
