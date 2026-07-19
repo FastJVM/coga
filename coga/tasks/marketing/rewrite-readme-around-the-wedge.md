@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - marketing/plan
 - marketing/positioning
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -81,6 +81,10 @@ from this repo.
 
 ## Context
 
+## PR
+
+https://github.com/FastJVM/coga/pull/609
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
@@ -89,6 +93,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: marketing/rewrite-readme-wedge
 worktree: /home/n/Code/codex/coga-rewrite-readme-wedge
+pr: https://github.com/FastJVM/coga/pull/609
 
 ## Implement notes
 
@@ -125,3 +130,15 @@ worktree: /home/n/Code/codex/coga-rewrite-readme-wedge
 - The only unresolved links remain the explicitly forward-linked
   `docs/getting-started.md` and `docs/cli.md` from sibling PR #608; publication
   still requires rebasing after that PR lands, as recorded above.
+
+## Open PR
+
+- Pushed `marketing/rewrite-readme-wedge` and opened PR #609
+  (https://github.com/FastJVM/coga/pull/609). Body carries the summary, the
+  `Closes ticket:` line, the verification plan, and the forward-link caveat.
+- `gh pr view 609 --json mergeable,mergeStateStatus` reports `MERGEABLE` /
+  `CLEAN` against `main` — no conflict resolution was needed, so no rebase
+  commits and no pytest run (docs-only, unchanged since peer review).
+- **Owner action before merge:** #608 (`real-coga-docs`) is still open. The
+  README's `docs/getting-started.md` and `docs/cli.md` links do not resolve
+  until it lands; rebase this branch on #608 before merging so they do.
