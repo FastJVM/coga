@@ -6,9 +6,11 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
-contexts: []
+contexts:
+  - dev/code
+  - coga/recurring
 skills: []
-workflow: null
+workflow: code/with-review
 secrets: null
 script: null
 ---
@@ -32,16 +34,53 @@ known-removed bundled skill, say so — name the removal ("megalaunch is now
 on-demand only; delete `coga/recurring/megalaunch/` and
 `coga/workflows/megalaunch/`") instead of only listing the paths checked.
 
-Scope questions to settle during implementation:
+The implementation may choose the smallest maintainable mechanism for
+recognizing this known removal. A generic historical fallback for arbitrary
+formerly bundled skills is not required.
 
-- Where the known-removed list lives (a small table next to the removed
-  config-key migrations seems natural) and whether a generic "this ref was
-  once package-shipped" fallback message is enough for future removals.
-- Whether `coga validate` should flag stranded templates too, so the drift
-  surfaces before a scheduled sweep hits it.
+### Acceptance criteria
+
+- A recurring template whose workflow references the removed bundled
+  `coga/megalaunch/run` skill reports that megalaunch is now on-demand only
+  and tells the operator to delete `coga/recurring/megalaunch/` and
+  `coga/workflows/megalaunch/`.
+- `coga validate` reports the same stranded-template migration problem, so it
+  is discoverable before a scheduled recurring sweep reaches the template.
+- Missing skills that are not known removals retain useful generic diagnostics,
+  including the paths Coga checked.
+- Tests cover both the recurring sweep failure and validation diagnostic.
 
 ## Context
 
+The generic missing-skill diagnostic is produced in `src/coga/compose.py`,
+while workflow skill resolution is shared through `src/coga/paths.py`.
+Recurring template loading and task creation live in `src/coga/recurring.py`;
+structural validation lives in `src/coga/validate.py`. Keep any durable
+behavioral explanation synchronized with the relevant live context under
+`coga/contexts/coga/` and its packaged copy under
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/`.
+
+The desired behavior is deliberately narrow: recognize the known megalaunch
+removal and preserve the generic missing-skill path for unrelated refs. There
+is no requirement to infer whether an arbitrary missing ref shipped in an
+older Coga release.
+
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Ticket authoring notes
+
+- Human chose `code/with-review`; the design is considered settled.
+- `coga validate` must surface stranded recurring templates.
+- No generic historical fallback is required for arbitrary formerly bundled
+  skills; implementation details for the known megalaunch recognition are left
+  to the implementer.
+
+## Evaluator review
+
+The ticket is clear and implementation-ready: it identifies the concrete failure path, fixes the design choices that matter (known megalaunch removal, validation parity, preservation of generic diagnostics), and leaves only the mechanism flexible. `code/with-review` fits a user-facing diagnostic change spanning composition, recurring behavior, validation, tests, and likely durable documentation.
+
+The attached contexts are relevant. `dev/code` is appropriate for the PR workflow. `coga/recurring` is broad, but this change crosses template loading, period-task behavior, and validation, so carrying the full recurring contract is defensible; no additional broad context appears necessary because the ticket supplies focused source pointers and AGENTS.md supplies repository conventions.
+
+Scope is reasonable for one ticket, though validation and recurring sweep may reach the same failure through different code paths; the implementer should centralize recognition/message construction if practical so the diagnostics cannot drift. Tests should assert both the actionable known-removal text and retention of checked-path details for an unrelated missing skill.
+
+Two assumptions merit checking during implementation: define precisely what `coga validate` scans (materialized recurring templates and their resolved workflow steps, not merely generated active tasks), and ensure the deletion advice is only emitted for the exact known ref so a locally customized template with another missing skill is not misdiagnosed. It would also help to confirm whether the known-removal diagnostic supplements or replaces the checked-path text for megalaunch; the acceptance criteria explicitly preserve paths only for unknown removals.
