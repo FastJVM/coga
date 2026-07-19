@@ -2109,3 +2109,4 @@ Aborting
 2026-07-18 18:35 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-07-19 06:34 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-19 10:56 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-19 11:03 [op-service-account] [human:zach] created (status=draft)
