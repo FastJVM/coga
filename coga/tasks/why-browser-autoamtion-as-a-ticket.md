@@ -1,7 +1,7 @@
 ---
 slug: why-browser-autoamtion-as-a-ticket
 title: why browser autoamtion as a ticket
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -22,7 +22,6 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 3 (report-to-coga)
 ---
 
 ## Description
@@ -186,3 +185,16 @@ The implementation should:
 This removes the remaining product judgment from the implementation. Create
 the follow-up with an agent-owned workflow so it can run without another
 destination decision from Nick.
+
+## Report
+
+Produced the recommendation and recorded Nick's decision inline above. The
+implementation follow-up landed at
+`coga/tasks/move-browser-automation-entry-point-out-of-seeded.md` with
+`code/with-review`, step 1 `implement`, assigned to `codex`.
+
+The follow-up is scoped to delete the seeded packaged task and stale packaged
+log entry, preserve the browser automation entry point as a
+`browser/build-automation` skill plus stateless package-backed launcher,
+document the user-facing path, and update tests while leaving the browser
+runtime capability available.
