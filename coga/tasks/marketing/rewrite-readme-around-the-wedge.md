@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - marketing/plan
 - marketing/positioning
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -109,3 +109,19 @@ worktree: /home/n/Code/codex/coga-rewrite-readme-wedge
   ticket `write-real-coga-documentation-command-reference-gu` (PR #608) and
   required by this ticket as forward links. Rebase after #608 merges before PR
   publication so those links resolve on the combined branch.
+
+## Peer review
+
+- Reviewed the complete docs diff against `main` and spot-checked `coga build`,
+  megalaunch sequencing, ledger actor labels, the six primitives, and local links
+  against the implementation and canonical contexts.
+- Corrected one must-fix evidence claim: agent-authored workflow transitions do
+  not prove that agents initiated task selection. README and velocity report now
+  accurately describe agent-operated work selected by a human or scheduler and
+  distinguish `agent:*`, `system`, `human:*`, and `megalaunch` ledger actors.
+- Fix committed on the feature branch at `fc08ae07` (`peer-review: correct
+  agent-operation claim`). `git diff --check` passes. Pure prose change, so no
+  pytest run was needed.
+- The only unresolved links remain the explicitly forward-linked
+  `docs/getting-started.md` and `docs/cli.md` from sibling PR #608; publication
+  still requires rebasing after that PR lands, as recorded above.
