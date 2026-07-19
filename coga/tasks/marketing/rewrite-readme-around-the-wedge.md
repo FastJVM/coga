@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - marketing/plan
 - marketing/positioning
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -84,3 +84,28 @@ from this repo.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: marketing/rewrite-readme-wedge
+worktree: /home/n/Code/codex/coga-rewrite-readme-wedge
+
+## Implement notes
+
+- Scope confirmed docs-only: rewrite `README.md` and resurrect the evidence-oriented
+  `docs/velocity-report.md`. The separately ticketed `docs/getting-started.md` and
+  `docs/cli.md` are linked but not duplicated here.
+- Claim rule: keep the two-people/output-of-ten statement explicitly labeled as
+  the bet; only categorical, repo-auditable observations enter the measured block.
+- Implemented and committed `README.md` plus `docs/velocity-report.md` at
+  `0ff4ee17` (`Rewrite README around the agent-operations wedge`). The feature
+  worktree is clean; nothing was pushed.
+- Verification: `git diff --cached --check` passed before commit; the embedded
+  velocity-report recomputation prints `(31, (2026, 27))`; task-scoped
+  `coga validate --json` reports 1 valid task plus only the clone-local
+  `missing-user` warning.
+- Local-link audit passes for this ticket's owned files. The only absent targets
+  are `docs/getting-started.md` and `docs/cli.md`, intentionally owned by sibling
+  ticket `write-real-coga-documentation-command-reference-gu` (PR #608) and
+  required by this ticket as forward links. Rebase after #608 merges before PR
+  publication so those links resolve on the combined branch.
