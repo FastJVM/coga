@@ -87,11 +87,12 @@ import tempfile
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from coga.config import Config
 from coga.logfile import append_log, ref_tag_for_path
-from coga.paths import log_path
+from coga.paths import log_path, tasks_dir
 from coga.taskfile import TaskFileError, split_body
 from coga.ticket import Ticket, TicketError
 
@@ -1619,6 +1620,67 @@ def _run_git(root: Path, *args: str, env: dict[str, str] | None = None) -> str:
             f"{result.stderr.strip() or result.stdout.strip()}"
         )
     return result.stdout
+
+
+def last_commit_times(cfg: Config) -> dict[str, datetime]:
+    """Map each path under `tasks/` to the commit time it was last touched.
+
+    Keys are posix paths relative to `tasks/` (`v2/foo.md`,
+    `cleanup/bar/ticket.md`) — raw git data, deliberately not resolved to task
+    refs here, so this stays a plain "when did git last see this file" query
+    with no task-shape knowledge in it. Mapping paths onto tasks is the
+    caller's job (`_git_updated_by_slug`).
+
+    The fallback source for `coga status`'s `Updated` column. The primary
+    source is `coga/log.md`, keyed by task ref — which goes blank in two
+    situations the log cannot express:
+
+      - **A task directory was moved.** Refs are path-qualified and log lines
+        are append-only, so a `mv` orphans every existing line under the old
+        ref and the task reads as though nothing ever happened to it.
+      - **A task never passed through a logging command.** Bulk migrations and
+        hand-authored tickets land on disk without a `created` line.
+
+    Git already knows both — a rename is a commit touching the new path, and
+    a hand-written ticket still had to be committed. One
+    `git log --name-only` pass over `tasks/` costs a single subprocess for the
+    whole render (~0.1s on a 2k-commit history), rather than a `--follow` per
+    task.
+
+    Read-only by construction: `git log` mutates nothing and touches no
+    network, so `status` stays a pure view (principle 6). Returns `{}` rather
+    than raising when git is disabled, absent, or the checkout has no commits
+    yet — a missing timestamp degrades to today's blank cell, which is strictly
+    better than a view that crashes.
+    """
+    if not cfg.git_enabled:
+        return {}
+    root = _toplevel(tasks_dir(cfg))
+    if root is None:
+        return {}
+    rel = _relative_to_root(root, tasks_dir(cfg))
+    try:
+        out = _run_git(root, "log", "--format=%ct", "--name-only", "--", rel)
+    except GitError:
+        return {}
+
+    prefix = rel.rstrip("/") + "/"
+    times: dict[str, datetime] = {}
+    stamp: datetime | None = None
+    for line in out.splitlines():
+        if not line:
+            continue
+        if line.isdigit():
+            stamp = datetime.fromtimestamp(int(line))
+            continue
+        if stamp is None or not line.startswith(prefix):
+            continue
+        key = line[len(prefix) :]
+        # `git log` walks newest-first, so the first time a path appears is
+        # its most recent commit; later (older) mentions must not overwrite it.
+        if key not in times:
+            times[key] = stamp
+    return times
 
 
 def _toplevel(start: Path) -> Path | None:
