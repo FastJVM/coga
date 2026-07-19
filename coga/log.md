@@ -2112,3 +2112,4 @@ Aborting
 2026-07-19 11:03 [op-service-account] [human:zach] created (status=draft)
 2026-07-19 11:33 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
 2026-07-19 12:57 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-19 13:20 [write-coga-secrets-management-service-account-cont] [human:zach] created (status=draft)
