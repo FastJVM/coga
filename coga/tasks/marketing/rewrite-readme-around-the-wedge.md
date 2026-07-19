@@ -1,14 +1,14 @@
 ---
 slug: marketing/rewrite-readme-around-the-wedge
 title: Rewrite README around the wedge
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts:
-  - marketing/plan
-  - marketing/positioning
+- marketing/plan
+- marketing/positioning
 skills: []
 workflow:
   name: docs/with-review
