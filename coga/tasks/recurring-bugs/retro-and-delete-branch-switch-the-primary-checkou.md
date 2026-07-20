@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 4 (review)
 ---
 
 ## Description
@@ -93,3 +93,141 @@ code and blackboard handoff are complete.
 Systemic queue guidance and exact timeout reporting are proposed in
 https://github.com/FastJVM/coga/pull/597; this ticket still owns its original
 retro/delete isolation fix.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/614
+branch: fix/retro-worktree-isolation
+worktree: /tmp/coga-retro-worktree-isolation
+
+## Implementation
+
+- Both Retro callers (`coga retire` and Dream Phase 4) now delegate the complete
+  pass into an isolated checkout. Claude may use native worktree isolation;
+  Codex may use a caller-created linked worktree, with an independent
+  `git clone --no-hardlinks` fallback when the sandbox cannot lock primary
+  `.git` metadata.
+- The caller snapshots live task/corpus evidence, ordinary-copies the ignored
+  `coga.local.toml` into the isolated checkout, uses the configured Git
+  remote/control ref, verifies durable output, and explicitly cleans the
+  config, checkout, snapshot, and temporary branch.
+- `coga delete --keep-control-checkout` is accepted only in a linked worktree.
+  It pushes the scoped deletion without running the normal cross-worktree local
+  control-ref refresh. An independent clone uses ordinary `coga delete`, whose
+  local ref namespace cannot mutate the operator checkout.
+- Regression coverage pins the Retro skill, generated retire body, live and
+  packaged Dream templates, primary-checkout refusal, linked-worktree deletion,
+  and independent-clone deletion. Focused result: `187 passed` across the five
+  affected suites.
+- Final full verification: `1326 passed, 1 skipped` via
+  `PYTHONPATH=/tmp/coga-retro-worktree-isolation/src python -m pytest`;
+  `git diff --check main...HEAD` passes. Scoped `coga validate --task` reports
+  the task clean, plus only the disposable worktree's expected missing-user
+  warning.
+- Commits after the final rebase: `845aedcb` (initial isolation contract),
+  `5f76b3ca` (first review fixes), and `d8bf615f` (checkout fallbacks). The
+  branch is clean, three commits ahead and zero behind `origin/main` at
+  `1a3539f1`.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T05:14:09+00:00
+Command: `coga validate --json --fix`
+Task: `recurring-bugs/retro-and-delete-branch-switch-the-primary-checkou`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Peer review
+
+`codex review --base main` found four substantive gaps in the first pass:
+
+- an isolated `coga delete` still fast-forwards the checkout holding `main`,
+  mutating its ref/index/files through the sync layer;
+- Codex subagents do not expose Claude's `isolation: worktree` argument, so the
+  exact backend-specific contract blocks a supported agent;
+- a newly created worktree starts from committed state and therefore misses
+  Dream's live `## Findings` plus any other uncommitted evidence/corpus state;
+- Claude retains a worktree after a mutating subagent run, contrary to the
+  templates' automatic-cleanup claim.
+
+Those findings were resolved by making the boundary backend-neutral, carrying
+an explicit snapshot of live Coga state, adding the linked-worktree-only delete
+mode, and requiring verified cleanup after durable output.
+
+A second `codex review --base main` pass found three more execution gaps:
+
+- restricted Codex could not create a linked worktree because primary `.git`
+  is read-only;
+- a fresh isolated checkout lacked the ignored `coga.local.toml`, so
+  `coga delete` failed config loading before resolution;
+- the Retro skill still hard-coded `origin/main` despite configurable Git
+  remote/control settings.
+
+All three are resolved: the contract includes the independent-clone fallback,
+copies machine-local config without snapshotting or committing it, and uses the
+configured control ref throughout. Real-git tests cover both linked and clone
+delete paths while asserting the primary ref, index, files, and status do not
+move.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T05:54:09+00:00
+Command: `coga validate --json --fix`
+Task: `recurring-bugs/retro-and-delete-branch-switch-the-primary-checkou`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T06:07:33+00:00
+Command: `coga validate --json --fix`
+Task: `recurring-bugs/retro-and-delete-branch-switch-the-primary-checkou`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T06:20:01+00:00
+Command: `coga validate --json --fix`
+Task: `recurring-bugs/retro-and-delete-branch-switch-the-primary-checkou`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## PR
+
+### Summary
+
+- Run Retro and every branch switch/delete in a verified isolated checkout,
+  with linked-worktree and sandbox-safe independent-clone paths.
+- Preserve live evidence and machine-local config without committing either,
+  use configured Git refs, and explicitly clean temporary checkout state.
+- Add a linked-worktree-only delete mode that lands the remote removal without
+  refreshing the operator's control checkout.
+
+### Test Plan
+
+`PYTHONPATH=$PWD/src python -m pytest` — 1326 passed, 1 skipped.

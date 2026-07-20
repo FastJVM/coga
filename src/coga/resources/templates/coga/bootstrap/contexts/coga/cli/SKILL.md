@@ -225,6 +225,10 @@ composing an agent prompt and inject task metadata env vars including
   agent prompt.
 - `coga launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
+- `coga launch bootstrap/browser-automation` — stateless browser-automation
+  setup. The bundled `browser/build-automation` orchestration skill checks for
+  an API first, creates a concrete autonomy-tier ticket, and attaches the
+  separate `browser/playwright` runner only when browser execution is needed.
 
 Discussion bootstrap tickets (`bootstrap/orient`, `bootstrap/ticket`) use
 built-in templates for the standard `claude` and `codex` CLIs, or the selected
@@ -291,6 +295,16 @@ and `paused`. `done` tasks are hidden by default; pass `--all` (`-a`) to include
 them. Bootstrap tickets have no status and don't appear here. Pipe through
 `grep` for ad-hoc slicing of any column. When done tasks are hidden the
 output ends with a `(N done tasks hidden — use --all to show)` note.
+
+The `updated` column reads `coga/log.md` first — the task's last recorded
+workflow activity. The log only knows a task by its ref, so it goes silent for
+a task that was moved (refs are path-qualified and log lines are append-only,
+so a `mv` orphans the old ones) or one that reached disk without passing
+through a logging command. Both cases fall back to the commit that last
+touched the task's files, via one read-only `git log` pass. With `[git].enabled
+= false` or outside a git checkout there is no fallback and the column shows
+`-`. Nothing here mutates state or hits the network — `status` stays a pure
+view.
 
 An optional positional argument and the `--no-recurse` flag are two orthogonal
 axes — *which* directory, and *how deep*. Tasks are directories (a `ticket.md`
@@ -833,6 +847,8 @@ only; they don't accept their own flags.
 - Launching one named recurring task now → `coga recurring launch <name>`
   (`--agent <type>` temporarily selects its agent when agent-backed).
 - Starting or resuming agent work on a task → `coga launch <slug>`.
+- Turning a described browser task into a concrete automation ticket →
+  `coga launch bootstrap/browser-automation`.
 - Sweeping all your launchable agent work (active + in_progress) →
   `coga megalaunch`
   (`--agent <type>` runs the sweep with that agent regardless of assignee,

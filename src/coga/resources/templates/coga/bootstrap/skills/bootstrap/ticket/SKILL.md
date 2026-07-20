@@ -1,6 +1,6 @@
 ---
 name: bootstrap/ticket
-description: Interview the human, fill in a freshly-scaffolded draft ticket (workflow, contexts, assignee, body), create any missing contexts or skills the ticket needs, and run an independent evaluator review before handing back to the human for approval.
+description: Interview the human, fill in a freshly-scaffolded draft ticket (workflow, script execution, contexts, assignee, body), create any missing contexts or skills the ticket needs, and run an independent evaluator review before handing back to the human for approval.
 ---
 
 # Bootstrap a ticket
@@ -17,8 +17,10 @@ The canonical ticket shape is `coga/tasks/_template/ticket.md`. **Read it
 once before you start** — that's the frontmatter fields and body sections
 your filled ticket has to match. For a real example, browse the same tree:
 
-- `coga/tasks/<slug>/ticket.md` — any existing code-change ticket with
-  `contexts:` + `workflow:` filled in works as a model to mimic.
+- `coga/tasks/<slug>.md` or `coga/tasks/<slug>/ticket.md` — any existing
+  code-change ticket with `contexts:` + `workflow:` filled in works as a model
+  to mimic. A self-contained ticket uses the flat form; one with a sibling
+  script or attachment uses directory form.
 
 A ticket carries a workflow — the ordered steps the work moves through —
 everywhere except while it is a `draft`. A ticket with no workflow can't be
@@ -197,13 +199,34 @@ answer.
    needs a new workflow, or the idea stays a deliberate workflow-less *draft*
    (valid, but un-activatable until a workflow is added) until it is ready to
    be a real ticket.
-5. **Contexts to attach** — which exact context bodies must be included in the
+5. **Script execution (conditional)** — Only ask this when the task actually
+   looks script-shaped: deterministic, repeatable work that can run without an
+   agent making judgments. Ask whether launch should run a script or an agent.
+   If it should run a script, get enough detail to author the script and choose
+   its form by size and nature:
+   - **inline** for a short, self-contained script that is clearest beside the
+     ticket's description;
+   - **sibling file** for a longer script, one that deserves its own filename,
+     or one whose shebang/executable bit is part of its behavior.
+   A ticket-level `script:` is the fallback launch substance for the whole
+   ticket, so it runs on **every** workflow step, regardless of that step's
+   assignee. It is therefore compatible only with a workflow that has exactly
+   one step and no `requires:` completion gate. If the workflow chosen above
+   has multiple steps, a later human gate, or a `requires:` gate, revisit the
+   choice with the human: keep `script: null` and use an agent task, or put the
+   script on a skill wired only to the intended workflow step. Do not put a
+   ticket-owned script on that workflow and assume it will run only once or
+   honor the gate.
+   Do not add this question to an ordinary agent task, and do not infer the
+   answer from the autonomy tier. A task that still needs agent judgment keeps
+   `script: null` (or no `script:` field).
+6. **Contexts to attach** — which exact context bodies must be included in the
    future prompt? Keep the list narrow. If only a specific fact is needed, put
    it in `## Context` instead of attaching the whole context.
-6. **Assignee** — default to whatever the bootstrap ticket seeded (usually the human's
+7. **Assignee** — default to whatever the bootstrap ticket seeded (usually the human's
    primary agent). Confirm if the work clearly fits a different agent or
    needs to go to a human.
-7. **Extension fields** — if `coga.toml` declares any `[ticket.fields.<name>]`
+8. **Extension fields** — if `coga.toml` declares any `[ticket.fields.<name>]`
    entries, the scaffold seeded each one with its default (or `""`) below
    the `# --- extensions ---` marker. For every declared field that is empty
    on the draft, ask the human for a value — particularly anything marked
@@ -252,7 +275,9 @@ the ticket's blackboard region under a **Proposals** section instead — same sh
 
 ## Step 5 — Write the ticket
 
-Edit `ticket.md` in place. YAML discipline (from the base prompt) applies:
+Edit the exact ticket path from the composed prompt. A new draft normally starts
+as `coga/tasks/<slug>.md`; only convert it to directory form when it needs a
+sibling file. YAML discipline (from the base prompt) applies:
 
 - Set `workflow:` to the workflow name you picked (e.g. `code/with-review`).
   This is required — a ticket with no workflow can't be activated. Write it
@@ -269,6 +294,59 @@ Edit `ticket.md` in place. YAML discipline (from the base prompt) applies:
   via `coga mark active`.
 - Fill the `## Description` and `## Context` body sections from the
   interview.
+
+### Script-backed ticket layout
+
+For an agent task, preserve `script: null` (or an absent `script:` field) and
+do not add a `## Script` section. For a script-backed ticket, use exactly one of
+these forms. First re-read the selected workflow and confirm it has exactly one
+step and no `requires:` gate; `direct/body` is the usual one-step choice when
+the ticket body fully describes the deterministic run. A multi-step or gated
+workflow needs a script-backed step skill instead of a ticket-level `script:`.
+
+**Inline script**
+
+- Set `script: inline` in frontmatter.
+- For a newly scaffolded ticket, keep the flat `coga/tasks/<slug>.md` draft in
+  place. Inline scripts need no companion directory.
+- Add a `## Script` section to the ticket body **above the
+  `<!-- coga:blackboard -->` fence**, containing one fenced code block:
+
+````markdown
+## Script
+
+```python
+print("replace with the authored script")
+```
+````
+
+- Use `python`, `sh`, or `bash` as the fence language to match the script. A
+  `python`/`py` block runs under Coga's active Python interpreter, `sh` runs
+  under `sh`, and `bash` (as well as an unlabeled block) runs under `bash`.
+  Do not use an unrelated language label and assume Coga will find that
+  interpreter.
+- Re-read the body above the blackboard fence and confirm the `## Script`
+  section contains the intended fenced block. `coga validate` does not resolve
+  or parse ticket-owned scripts, so this is a separate required check.
+
+**Sibling script file**
+
+- Pick a clear sibling filename and set `script: <filename>` in frontmatter.
+  The value is the filename, not a repo-relative path.
+- If the draft is currently `coga/tasks/<slug>.md`, convert it without making a
+  second ticket: create `coga/tasks/<slug>/`, move the draft to
+  `coga/tasks/<slug>/ticket.md`, and create the named script beside it. The
+  frontmatter `slug:` does not change when the file moves; do not "fix" it.
+- Match dispatch semantics when choosing the filename and permissions: a `.py`
+  file runs under Coga's active Python interpreter, another executable file
+  runs directly, and every other non-executable file runs under `sh`. A bare
+  extensionless file such as `run` that is meant to honor its shebang therefore
+  needs `chmod +x`.
+- Run `coga validate --task <slug>` after the conversion to check the task move
+  and frontmatter. Then separately confirm that `script:` is one sibling
+  filename and run `test -f <actual-task-directory>/<filename>` against the
+  directory that now contains `ticket.md`. Validation does not resolve the
+  script reference, so both checks are required before handoff.
 
 Do not call `coga bump`. There's no workflow running yet.
 
@@ -292,7 +370,39 @@ Hand the evaluator the path to the ticket and ask it to assess:
   copied into `## Context` instead?
 - Is the scope reasonable, or does it bundle multiple tickets' worth of
   work?
+- If the ticket is script-backed, does `script:` match the ticket layout and
+  script contents, and will launch dispatch it through the intended
+  interpreter?
+- Does a ticket-owned script have an exactly-one-step workflow with no
+  `requires:` gate? A multi-step workflow would run that script again on later
+  agent or human steps, and script completion does not enforce a bump gate.
 - Any assumptions that should be questioned before launch?
+
+Also hand the evaluator the composed prompt's size breakdown, which the
+ticket file alone cannot show — the ticket lists context *refs*, and how
+many tokens each one actually costs only exists after composition:
+
+```
+coga launch <slug> --prompt-report
+```
+
+This prints one small table (layer, ref, bytes, approx tokens) and exits
+without launching — it is not the prompt text, so reading it is cheap. Ask
+the evaluator to flag any layer over roughly 40% of the total as a
+concrete trim candidate.
+
+Judge the layers *proportionally*, not against a fixed size. `launch`
+already prints its own automatic warning when the blackboard alone exceeds
+32 KiB (`BLACKBOARD_WARN_BYTES`), so anything it catches needs no help from
+the evaluator — but an absolute threshold misses proportional bloat. A real
+example: a 16.9 KiB blackboard is only half that threshold and raises no
+warning, yet it was 4,314 of 7,185 tokens — 60% of the entire composed
+prompt, paid on *every* launch of that task. That is the gap this check
+exists to close.
+
+If the task is script-backed, `--prompt-report` refuses ("script tasks do
+not compose an agent prompt"). That is expected — skip this part and
+evaluate the ticket alone.
 
 Write the evaluator's response to the ticket's blackboard region under a top-level
 **## Evaluator review** section, verbatim. Don't summarize — the human reads
@@ -322,6 +432,7 @@ Workflow: <name>
 Contexts: <ref>, <ref>          # or "none"
 Skills (ticket-level): <ref>    # omit line if empty
 Assignee: <agent-or-human>
+Execution: <agent | script: inline (<language>) | script: <filename> (sibling)>
 
 Autonomy tier: <tier>  (advisory — expressed via the workflow/assignees above)
   Q1 documented:           <one line>

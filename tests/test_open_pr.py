@@ -84,7 +84,7 @@ def _write_ticket(
     slug: str,
     *,
     branch: str,
-    worktree: Path | None,
+    worktree: Path | str | None,
     description: str = "The change we are shipping.",
     pr_section: str | None = None,
     pr: str = "",
@@ -153,6 +153,35 @@ def test_open_pr_opens_and_records_url(tmp_path, monkeypatch):
     calls = log.read_text()
     assert "pr create" in calls
     # pr: recorded back under ## Dev.
+    assert parse_pr_url(read_blackboard(ticket)) == url
+
+
+def test_open_pr_uses_annotated_quoted_dev_metadata(tmp_path, monkeypatch):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+
+    branch = "annotated-dev"
+    wt = _feature_worktree(repo, tmp_path, branch, commit=True)
+    ticket = _write_ticket(
+        repo.coga_os,
+        "annotated-metadata",
+        branch=f"`{branch}` (other repo)",
+        worktree=f"`{wt}` (other repo)",
+    )
+
+    url = open_pr(
+        load_config(repo.coga_os),
+        slug="annotated-metadata",
+        blackboard_path=ticket,
+    )
+
+    assert url == "https://github.com/acme/repo/pull/7"
+    assert repo.git(
+        "rev-parse", "--verify", f"refs/heads/{branch}", cwd=repo.origin
+    ).strip()
+    assert "pr create" in log.read_text()
     assert parse_pr_url(read_blackboard(ticket)) == url
 
 

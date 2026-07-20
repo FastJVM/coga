@@ -103,17 +103,6 @@ def _seed_fake_templates(templates: Path) -> None:
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
         "retro/done-ticket skill\n"
     )
-    (templates / "bootstrap" / "skills" / "eval" / "ticket-diagnostic").mkdir(
-        parents=True
-    )
-    (
-        templates
-        / "bootstrap"
-        / "skills"
-        / "eval"
-        / "ticket-diagnostic"
-        / "SKILL.md"
-    ).write_text("---\nname: eval/ticket-diagnostic\n---\neval skill\n")
     (templates / "bootstrap" / "skills" / "coga" / "autoclose" / "sweep").mkdir(
         parents=True
     )
@@ -485,12 +474,12 @@ def test_init_into_empty_dir(
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
     assert not (target / "coga" / "bootstrap").exists()
-    assert not (target / "coga" / "skills" / "eval").exists()
+    assert not (target / "coga" / "skills" / "retro").exists()
     assert not (target / "coga" / "skills" / "coga").exists()
     assert not (target / "coga" / "contexts" / "dev").exists()
     assert not (target / "coga" / "contexts" / "coga").exists()
     assert (
-        target / "coga" / ".agent-skills" / "eval" / "ticket-diagnostic"
+        target / "coga" / ".agent-skills" / "retro" / "done-ticket"
     ).is_symlink()
     assert (
         target / "coga" / ".agent-skills" / "coga" / "autoclose" / "sweep"
@@ -1001,8 +990,7 @@ def test_init_stamps_new_user_out_of_every_delivered_ticket(
     tmp_path: Path, fake_vendor, fake_venv
 ) -> None:
     """No delivered ticket carries the `new-user` placeholder after a fresh
-    init — the `--user` name is stamped over it everywhere, including the
-    `browser-automation` draft that ships on every repo."""
+    init — the `--user` name is stamped over it everywhere."""
     target = _make_git_repo(tmp_path / "company")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "marc"])
@@ -1012,17 +1000,14 @@ def test_init_stamps_new_user_out_of_every_delivered_ticket(
     # File-form tasks are `<slug>.md`; dir-form (the `_template`) keep `ticket.md`.
     for ticket in tasks.glob("**/*.md"):
         assert "new-user" not in ticket.read_text(), f"new-user survived in {ticket}"
-    # browser-automation ships on every repo (not gated) and is stamped too.
-    browser = (tasks / "browser-automation.md").read_text()
-    assert "owner: marc" in browser
-    assert "human: marc" in browser
+    assert not (tasks / "browser-automation.md").exists()
 
 
 def test_init_empty_repo_seeds_onboarding_and_points_at_build(
     tmp_path: Path, fake_vendor, fake_venv
 ) -> None:
     """An empty repo keeps the onboarding ticket and the next-steps coax
-    points the user at the onboarding command."""
+    points the user at the onboarding command without inventing browser work."""
     target = _make_git_repo(tmp_path / "company")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
@@ -1030,6 +1015,26 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
 
     tasks = target / "coga" / "tasks"
     assert (tasks / "coga-build.md").is_file()
+    assert not (tasks / "browser-automation.md").exists()
+    assert (
+        target / "coga" / "contexts" / "browser" / "api-first" / "SKILL.md"
+    ).is_file()
+    assert (
+        target / "coga" / "contexts" / "browser" / "dom-backed" / "SKILL.md"
+    ).is_file()
+    assert (
+        target / "coga" / "workflows" / "autonomy" / "fully-automated.md"
+    ).is_file()
+    assert (
+        target / "coga" / "workflows" / "autonomy" / "human-verify.md"
+    ).is_file()
+    assert not (
+        target / "coga" / "workflows" / "browser" / "build-automation.md"
+    ).exists()
+    assert (
+        target / "coga" / ".agent-skills" / "browser" / "build-automation"
+    ).is_symlink()
+    assert (target / "coga" / ".agent-skills" / "browser" / "playwright").is_symlink()
     assert "Run `coga build`" in result.output
     assert 'coga ticket "' not in result.output
     assert "Skipped the onboarding ticket" not in result.output
@@ -1039,8 +1044,8 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     tmp_path: Path, fake_vendor, fake_venv
 ) -> None:
     """A filled repo (any pre-existing user file) drops the onboarding ticket
-    and the next-steps coax points the user at `coga ticket`.
-    browser-automation is not gated, so it still ships (stamped)."""
+    and the next-steps coax points the user at `coga ticket` without seeding a
+    browser-automation draft."""
     target = _make_git_repo(tmp_path / "existing-repo")
     (target / "README.md").write_text("hi")
 
@@ -1049,10 +1054,14 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
 
     tasks = target / "coga" / "tasks"
     assert not (tasks / "coga-build.md").exists()  # onboarding pruned
-    # Not gated — still delivered, and stamped (no placeholder survives).
-    browser = tasks / "browser-automation.md"
-    assert browser.is_file()
-    assert "new-user" not in browser.read_text()
+    assert not (tasks / "browser-automation.md").exists()
+    assert (
+        target / "coga" / "contexts" / "browser" / "api-first" / "SKILL.md"
+    ).is_file()
+    assert (
+        target / "coga" / ".agent-skills" / "browser" / "build-automation"
+    ).is_symlink()
+    assert (target / "coga" / ".agent-skills" / "browser" / "playwright").is_symlink()
     assert 'coga ticket "' in result.output
     assert "Skipped the onboarding ticket" in result.output
     assert "Run `coga build`" not in result.output
@@ -1122,7 +1131,7 @@ def test_prune_onboarding_tickets_removes_build_ticket(tmp_path: Path) -> None:
     repo; other tasks are left alone."""
     coga_os = tmp_path / "coga"
     tasks = coga_os / "tasks"
-    for name in ("coga-build", "browser-automation", "_template"):
+    for name in ("coga-build", "real-work", "_template"):
         (tasks / name).mkdir(parents=True)
         (tasks / name / "ticket.md").write_text("---\n---\n")
 
@@ -1130,7 +1139,7 @@ def test_prune_onboarding_tickets_removes_build_ticket(tmp_path: Path) -> None:
 
     assert set(pruned) == {"coga-build"}
     assert not (tasks / "coga-build").exists()
-    assert (tasks / "browser-automation").is_dir()  # not gated
+    assert (tasks / "real-work").is_dir()
     assert (tasks / "_template").is_dir()
 
 
@@ -1201,9 +1210,9 @@ def _seed_local_coga_os(root: Path) -> Path:
     (coga_os / "skills" / "coga" / "calendar-reminder" / "SKILL.md").write_text(
         "OLD coga/calendar-reminder skill\n"
     )
-    (coga_os / "skills" / "eval" / "ticket-diagnostic").mkdir(parents=True)
-    (coga_os / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md").write_text(
-        "OLD eval/ticket-diagnostic skill\n"
+    (coga_os / "skills" / "retro" / "done-ticket").mkdir(parents=True)
+    (coga_os / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
+        "OLD retro/done-ticket skill\n"
     )
     (coga_os / ".agent-skills").mkdir()
     (coga_os / ".agent-skills" / "_template").symlink_to("../skills/_template")
@@ -1637,7 +1646,7 @@ def test_init_links_skills_into_agent_dirs(
         link = target / dirname / "skills" / "coga"
         assert link.is_symlink(), f"missing symlink for {dirname}"
         assert link.resolve() == skills_src
-    assert (target / "coga" / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
+    assert (target / "coga" / ".agent-skills" / "retro" / "done-ticket").is_symlink()
     assert "Wired skill discovery for Claude Code, Codex" in result.output
 
 
@@ -1681,9 +1690,9 @@ def test_agent_skill_view_includes_bootstrap_and_local_skills(
     target = tmp_path / "company"
     coga_os = target / "coga"
     bundled_root = tmp_path / "package-skills"
-    bundled = bundled_root / "eval" / "ticket-diagnostic"
+    bundled = bundled_root / "retro" / "done-ticket"
     bundled.mkdir(parents=True)
-    (bundled / "SKILL.md").write_text("bundled eval\n")
+    (bundled / "SKILL.md").write_text("bundled retro\n")
     _fake_package_skill_root(monkeypatch, bundled_root, tmp_path / "missing")
     (coga_os / "skills" / "team" / "local").mkdir(parents=True)
     (coga_os / "skills" / "team" / "local" / "SKILL.md").write_text("local\n")
@@ -1692,7 +1701,7 @@ def test_agent_skill_view_includes_bootstrap_and_local_skills(
 
     assert wired == ["Claude Code", "Codex"]
     assert blocked == []
-    assert (coga_os / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
+    assert (coga_os / ".agent-skills" / "retro" / "done-ticket").is_symlink()
     assert (coga_os / ".agent-skills" / "team" / "local").is_symlink()
     assert os.readlink(target / ".codex" / "skills" / "coga") == (
         "../../coga/.agent-skills"

@@ -208,6 +208,46 @@ def test_finalize_authored_skips_deleted_ticket(
     assert calls == []
 
 
+def test_finalize_authored_re_resolves_promoted_file_task(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(repo)
+    original_ref = _create_task(repo, "Promote for sibling script")
+    assert original_ref.file_form is True
+    before = snapshot_authoring_state(cfg)
+
+    promoted_dir = original_ref.path.with_suffix("")
+    promoted_dir.mkdir()
+    promoted_ticket = promoted_dir / "ticket.md"
+    original_ref.path.replace(promoted_ticket)
+    ticket = Ticket.read(promoted_ticket)
+    ticket.frontmatter["script"] = "run.sh"
+    ticket.write(promoted_ticket)
+    (promoted_dir / "run.sh").write_text("echo ok\n")
+
+    promoted_ref = resolve_task(cfg, original_ref.id_slug)
+    assert promoted_ref.file_form is False
+
+    calls: list[tuple[Path, list[Path], str]] = []
+    monkeypatch.setattr(
+        "coga.authoring.git.sync_paths",
+        lambda cfg, anchor, paths, *, message: calls.append(
+            (anchor, list(paths), message)
+        ),
+    )
+
+    finalize_authored(cfg, before_snapshot=before, ref=original_ref)
+
+    assert calls == [
+        (
+            promoted_ref.path,
+            [original_ref.path, promoted_ref.path],
+            "Ticket: promote-for-sibling-script — authored",
+        )
+    ]
+
+
 def test_finalize_authored_discovers_new_task_from_bootstrap_interview(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
