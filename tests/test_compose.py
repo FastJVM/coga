@@ -15,7 +15,7 @@ from coga.compose import (
     write_prompt_file,
 )
 from coga.config import load_config
-from coga.tasks import list_tasks, read_ticket
+from coga.tasks import list_tasks, read_ticket, resolve_bootstrap
 from coga.ticket import Ticket
 
 
@@ -137,6 +137,37 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Current step: implement" in prompt
     # Blackboard present
     assert "Blackboard" in prompt
+
+
+def test_compose_browser_automation_bootstrap_uses_bundled_router_skill(
+    repo: Path,
+) -> None:
+    """The browser entry point composes package-backed orchestration without
+    creating a standing task or loading the lower-level runner prematurely."""
+    _write(
+        repo / "contexts" / "browser" / "api-first" / "SKILL.md",
+        "---\nname: browser/api-first\n---\n\nPrefer the API marker.\n",
+    )
+    cfg = load_config(repo)
+    ref = resolve_bootstrap(cfg, "browser-automation")
+    ticket = read_ticket(ref)
+
+    composition = compose_prompt_report(cfg, ref, ticket)
+    prompt = composition.prompt
+    normalized_prompt = " ".join(prompt.split())
+    layers = {(layer.layer, layer.ref) for layer in composition.layers}
+
+    assert ticket.status == ""
+    assert ticket.workflow is None
+    assert ticket.step is None
+    assert ("ticket_context", "browser/api-first") in layers
+    assert ("top_level_skill", "browser/build-automation") in layers
+    assert "Coga task — bootstrap/browser-automation" in prompt
+    assert "Prefer the API marker." in prompt
+    assert "Skill: browser/build-automation" in prompt
+    assert "The skill does not drive the browser itself" in normalized_prompt
+    assert "# Playwright CLI Skill" not in prompt
+    assert list_tasks(cfg) == []
 
 
 def test_compose_header_uses_resolved_nested_task_directory(repo: Path) -> None:
