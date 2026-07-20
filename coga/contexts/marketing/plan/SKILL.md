@@ -82,6 +82,20 @@ timestamps (log.md human events, human git commits, GitHub PR events),
 blocker answers verbatim, and a metrics script anyone can rerun
 (`scripts/human_minutes.py` — "recompute it yourself").
 
+The script's default is the complete ledger, not a best-effort scrape: it reads
+`coga/log.md`, follows each ticket's recorded `pr:` through `gh`, excludes Coga
+state-sync commits, and fails loud when GitHub data cannot be read. Because
+Coga-launched agents inherit the operator's git name/email, commit authorship
+alone is not accepted as proof of human work: commits inside recorded schema-2
+agent-session windows are excluded and counted in the receipt, while matching
+commits older than that coverage fail loud instead of being guessed human.
+Exact duplicate `merge=union` log lines are collapsed before episode or token
+accounting. Explicit `--no-github` / `--no-git` flags exist for visibly partial
+offline analysis. Run it with the pre-registered date window and timezone;
+`--json` is the stable machine-readable receipt. The per-day total clusters all
+attributed events together (so overlapping task work is not double-counted),
+while the per-task rows cluster each task independently.
+
 The anchor argument (goes in the post verbatim, in substance): **there
 is no such thing as full autonomy** — autonomy is a function of spec
 quality + evaluability. The 20 min/day is the irreducible
@@ -133,6 +147,14 @@ flat subscriptions. This turns the cost line from defense into offense —
 the division stops being "$X per task" (attackable if tasks read small)
 and becomes "$X bought this many tokens of machine labor, metered that's
 $Y." We run every division ourselves before inviting the reader to.
+
+Capture is already part of the public ledger: schema-2 `[system]` usage records
+in `coga/log.md` carry provider/model token buckets and transcript-derived
+`human_turns`. `scripts/human_minutes.py` groups `human_turns == 0` as
+autonomous, `human_turns > 0` as interactive, and missing turn data as unknown;
+unknown sessions stay visible rather than being guessed away. API-equivalent
+pricing is applied to the script's per-provider/model token buckets using prices
+locked for the run, not hard-coded into the timeless capture format.
 
 **"Not rocket science" is the pitch, not a confession.** The mechanism
 is deliberately commodity — markdown, Python, git (the thesis doc: even

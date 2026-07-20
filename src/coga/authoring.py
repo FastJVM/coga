@@ -146,24 +146,38 @@ def finalize_authored(
 ) -> None:
     """Run post-authoring validation and sync for a completed interview."""
     changed_paths = changed_authoring_paths(before_snapshot.files, cfg)
-    authored_refs = (
-        [ref]
-        if isinstance(ref, TaskRef)
-        else authored_task_refs(cfg, changed_paths, before_snapshot.tasks)
-    )
-    # A session may legitimately end by deleting the ticket (the human decides
-    # the task should go away — `coga delete` already committed the removal).
-    # Don't validate or re-sync a ref whose ticket.md no longer exists; that
-    # would fail with a spurious `missing-file` error on a deliberate deletion.
-    authored_refs = [
-        authored_ref
-        for authored_ref in authored_refs
-        if authored_ref.ticket_path.is_file()
-    ]
+    task_sync_paths: list[Path]
+    if isinstance(ref, TaskRef):
+        # The interview may promote a flat task to directory form so it can
+        # carry a sibling script. Re-resolve by the shape-independent id_slug:
+        # the TaskRef captured before the session still points at the removed
+        # `<slug>.md` and would otherwise look like an intentional deletion.
+        try:
+            authored_ref = resolve_task(cfg, ref.id_slug)
+        except TaskNotFoundError:
+            # A session may legitimately end by deleting the ticket (the human
+            # decides the task should go away — `coga delete` already committed
+            # the removal), so there is nothing to validate or re-sync.
+            authored_refs = []
+            task_sync_paths = []
+        else:
+            authored_refs = [authored_ref]
+            task_sync_paths = [authored_ref.path]
+            if authored_ref.path.resolve(strict=False) != ref.path.resolve(
+                strict=False
+            ):
+                # Stage the removed and added sides of the shape conversion.
+                task_sync_paths.insert(0, ref.path)
+    else:
+        authored_refs = authored_task_refs(
+            cfg, changed_paths, before_snapshot.tasks
+        )
+        task_sync_paths = [authored_ref.path for authored_ref in authored_refs]
+
     for authored_ref in authored_refs:
         validate_authored_task(cfg, authored_ref)
 
-    sync_paths = [authored_ref.path for authored_ref in authored_refs]
+    sync_paths = task_sync_paths
     sync_paths.extend(support_paths(cfg, changed_paths))
     if sync_paths:
         anchor = authored_refs[0].path if authored_refs else cfg.repo_root

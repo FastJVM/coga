@@ -296,6 +296,16 @@ them. Bootstrap tickets have no status and don't appear here. Pipe through
 `grep` for ad-hoc slicing of any column. When done tasks are hidden the
 output ends with a `(N done tasks hidden — use --all to show)` note.
 
+The `updated` column reads `coga/log.md` first — the task's last recorded
+workflow activity. The log only knows a task by its ref, so it goes silent for
+a task that was moved (refs are path-qualified and log lines are append-only,
+so a `mv` orphans the old ones) or one that reached disk without passing
+through a logging command. Both cases fall back to the commit that last
+touched the task's files, via one read-only `git log` pass. With `[git].enabled
+= false` or outside a git checkout there is no fallback and the column shows
+`-`. Nothing here mutates state or hits the network — `status` stays a pure
+view.
+
 An optional positional argument and the `--no-recurse` flag are two orthogonal
 axes — *which* directory, and *how deep*. Tasks are directories (a `ticket.md`
 directory at any depth), so the argument is just a directory path in the tree

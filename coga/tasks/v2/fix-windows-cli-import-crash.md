@@ -1,5 +1,5 @@
 ---
-slug: fix-windows-cli-import-crash
+slug: v2/fix-windows-cli-import-crash
 title: 'Windows: guard Unix-only imports so the CLI runs; decide full Windows-support path'
 status: draft
 owner: zach

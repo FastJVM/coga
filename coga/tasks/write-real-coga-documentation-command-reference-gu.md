@@ -1,11 +1,11 @@
 ---
 slug: write-real-coga-documentation-command-reference-gu
 title: Write real Coga product documentation
-status: blocked
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: nicktoper
 contexts:
 - coga/principles
 - coga/architecture
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -108,14 +108,30 @@ navigate, with the README linking out to it ("Full docs →").
 - **Sequencing:** this can proceed in parallel with or after `improve-readme`.
   Coordinate the "Full docs →" link target so the two land consistently.
 
+## PR
+
+https://github.com/FastJVM/coga/pull/608
+
 <!-- coga:blackboard -->
 
 ## Dev
 
 - branch: real-coga-docs
 - worktree: /home/n/Code/claude/coga-real-docs (durable sibling checkout, NOT /tmp — the /tmp worktree loss is what sank the first implement pass)
+- pr: https://github.com/FastJVM/coga/pull/608
 - base: current `main` at 398c40cc (redo after the original branch was lost; see "Redo history" below).
 - scope check: docs-only. No code behavior changes.
+
+## Open-PR handoff (2026-07-19)
+
+- Opened PR #608: https://github.com/FastJVM/coga/pull/608
+- Rebased `real-coga-docs` onto `origin/main` (`91c4eee6`). The only conflict was
+  `README.md`; resolution preserved main's Build Week/install additions and the
+  branch's new docs entrypoint. Rebased head: `972b058b`.
+- Force-pushed with lease and verified GitHub reports `MERGEABLE` / `CLEAN`.
+- Post-rebase checks: feature worktree clean; `git diff --check
+  origin/main...HEAD` clean; task validation passed with no task issues (the
+  sibling worktree only reports its expected missing-local-user warning).
 
 ## Redo history (2026-07-17)
 
@@ -223,7 +239,8 @@ couldn't write the durable worktree.
 - [x] [2026-07-17 21:43] [agent:codex] id=20260717T214322 GitHub publication is blocked: gh auth status reports the active nicktoper token is invalid. Run gh auth login -h github.com and verify gh auth status, then unblock and resume this task so real-coga-docs can be pushed and its PR created and recorded.
   resolved: [2026-07-17 21:47] [human:nicktoper] Owner reauthenticated gh and confirmed gh auth status succeeds with repo and workflow scopes. The real-coga-docs branch then pushed successfully to origin.
 
-- [ ] [2026-07-17 21:47] [agent:codex] id=20260717T214738 The feature branch real-coga-docs is pushed, but this agent environment cannot create the PR: gh pr create and gh api POST cannot connect to api.github.com, and the GitHub app returns 403 for PR creation. From a normal shell, open the PR at https://github.com/FastJVM/coga/pull/new/real-coga-docs or run gh pr create, then reply with its URL so it can be recorded and the step completed.
+- [x] [2026-07-17 21:47] [agent:codex] id=20260717T214738 The feature branch real-coga-docs is pushed, but this agent environment cannot create the PR: gh pr create and gh api POST cannot connect to api.github.com, and the GitHub app returns 403 for PR creation. From a normal shell, open the PR at https://github.com/FastJVM/coga/pull/new/real-coga-docs or run gh pr create, then reply with its URL so it can be recorded and the step completed.
+  resolved: [2026-07-19 13:27] [human:nicktoper] GitHub CLI access is working in this resumed session. No PR currently exists for real-coga-docs, so the agent will create it now and record its URL before completing the open-pr step.
 
 
 ---

@@ -20,8 +20,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/eval/"
-    "ticket-diagnostic/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/browser/"
     "build-automation/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/browser/"

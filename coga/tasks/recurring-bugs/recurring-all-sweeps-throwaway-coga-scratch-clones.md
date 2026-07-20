@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 4 (review)
 ---
 
 ## Description
@@ -98,3 +98,94 @@ If that fallback truly cannot proceed, end with a specific `coga block` call.
 Systemic queue/worktree guidance is proposed in
 https://github.com/FastJVM/coga/pull/597; this ticket still owns its original
 recurring-discovery behavior fix.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/613
+branch: recurring-skip-unconfigured
+worktree: /tmp/coga-recurring-skip-unconfigured
+
+## Implementation
+
+- `discover_coga_repos` did not yet prune `_`-prefixed path segments despite
+  the ticket's expectation; the branch adds that explicit exclusion alongside
+  the existing dependency/tool-tree pruning.
+- `run_recurring_all_repos` now preflights discovered workspaces with the full
+  `load_config` call. A deliberate `ConfigError` (including missing `user` and
+  stale-key migration guards) classifies the checkout as an unconfigured
+  non-target: it is not duplicate-grouped or dispatched, is counted in one
+  compact summary, and does not affect the parent exit code.
+- The classification is deliberately narrow. TOML parse errors, I/O failures,
+  unexpected loader bugs, and failures after child dispatch still take the
+  existing fail-loud aggregate path; direct single-repo commands are unchanged.
+- Updated the live recurring/current-direction/architecture contexts, packaged
+  architecture and CLI contexts, and `--all` help text with the same boundary.
+
+## Verification
+
+- Regression-first targeted run failed on both missing behaviors, then passed.
+- `python -m pytest tests/test_recurring.py` — 121 passed.
+- `PYTHONPATH=/tmp/coga-recurring-skip-unconfigured/src python -m pytest` —
+  1323 passed, 1 skipped (the existing optional Hatchling packaging skip).
+- `PYTHONPATH=/tmp/coga-recurring-skip-unconfigured/src python -m coga.cli recurring --help`
+  — passed.
+- `coga validate --task recurring-bugs/recurring-all-sweeps-throwaway-coga-scratch-clones --json`
+  — 1 ok, 0 issues.
+- A first plain `python -m pytest` run had one fresh-worktree-only child import
+  failure (`ModuleNotFoundError: coga`); the documented absolute-`PYTHONPATH`
+  invocation above fixed the environment and passed the entire suite.
+
+## Handoff
+
+- Implementation commit after peer-review rebase: `15994b48` (`Skip
+  unconfigured repos in recurring all sweeps`).
+- Peer-review commit: `46863eaf` (`peer-review: validate aliases before
+  recurring sweeps`).
+- Freshness: fetched `origin/main` and rebased both feature commits onto
+  `5603713a` without conflicts.
+- No push or PR was created in this step.
+
+## Follow-up
+
+- Two full-suite runs caused the Dream validate-drift fixture to inherit this
+  live launch's task environment and append fixture result blocks to this
+  blackboard. The generated blocks were removed. That test-isolation issue is
+  unrelated to recurring discovery and was not fixed on this branch.
+
+## Peer Review
+
+- `codex review --base main` found one P2: alias collisions and aliases that
+  target unknown commands are intentional config guards, but they run after
+  `load_config`, so preflight would still dispatch those repos and fail the
+  aggregate sweep.
+- Fixed the P2 by moving the existing alias defaults and validator below the
+  CLI layer, then using the same merged-default validation in recurring
+  preflight. The preflight disables only the duplicate legacy-alias notice;
+  malformed TOML and unexpected exceptions remain on the fail-loud child path.
+- The review's first plain full-suite run reproduced the already-documented
+  fresh-clone child import failure; source-pinned verification remains required.
+- `PYTHONPATH=/tmp/coga-recurring-skip-unconfigured/src python -m pytest
+  tests/test_aliases.py tests/test_recurring.py` — 145 passed.
+- Source-pinned full suite before the rebase — 1323 passed, 1 skipped.
+- Clean-environment source-pinned full suite after the rebase — 1323 passed,
+  1 skipped.
+- Source-pinned task validation — 1 ok, 0 issues.
+- Final feature checkout is clean, two commits ahead of fetched `main`, with
+  no remaining must-fix findings.
+
+## PR
+
+### Summary
+
+- Make `coga recurring --all` prune `_`-prefixed trees and compactly skip
+  workspaces rejected by intentional Coga config guards instead of dispatching
+  them as scheduler targets.
+- Reuse CLI alias validation during preflight so colliding and unknown-target
+  aliases receive the same non-target treatment as missing-user and stale-key
+  guards, while parse, I/O, and operational failures remain loud.
+- Keep live and packaged behavioral contexts, CLI help, and regression coverage
+  aligned with the serviceability boundary.
+
+### Test plan
+
+`PYTHONPATH=/tmp/coga-recurring-skip-unconfigured/src python -m pytest` — 1323 passed, 1 skipped; task-scoped validation — 1 ok, 0 issues.

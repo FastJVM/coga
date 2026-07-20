@@ -329,3 +329,88 @@ def test_status_order_by_created_reverse_lists_newest_first(repo: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert result.output.index("alpha") < result.output.index("beta")
+
+
+# --- updated column: git fallback ------------------------------------------
+
+
+def test_git_updated_by_slug_folds_paths_onto_owning_tasks() -> None:
+    """Commits land on files; the `Updated` column is per task."""
+    from datetime import datetime
+
+    from coga.tasks import TaskRef
+    from coga.views import _git_updated_by_slug
+
+    refs = [
+        TaskRef(slug="dir", path=Path("/x/dir"), directory=None, file_form=False),
+        TaskRef(slug="solo", path=Path("/x/solo.md"), directory=None, file_form=True),
+    ]
+    old, new = datetime(2026, 6, 1), datetime(2026, 6, 9)
+    fold = _git_updated_by_slug(refs, {
+        "dir/ticket.md": old,
+        "dir/run.py": new,        # a sibling script counts as touching the task
+        "solo.md": new,
+        "gone/ticket.md": new,    # belongs to no live task — dropped
+    })
+
+    # Newest wins across a task directory's files.
+    assert fold == {"dir": new, "solo": new}
+
+
+def test_git_updated_ignores_a_lookalike_sibling_directory() -> None:
+    """`foo-bar/` must not be folded onto the task `foo`."""
+    from datetime import datetime
+
+    from coga.tasks import TaskRef
+    from coga.views import _git_updated_by_slug
+
+    refs = [TaskRef(slug="foo", path=Path("/x/foo"), directory=None, file_form=False)]
+    stamp = datetime(2026, 6, 9)
+
+    fold = _git_updated_by_slug(refs, {"foo-bar/ticket.md": stamp})
+
+    assert fold == {}
+
+
+def test_status_updated_survives_a_task_directory_rename(git_repo) -> None:
+    """The bug: `mv` orphans every append-only log line under the old ref.
+
+    Log refs are path-qualified and lines are never rewritten, so a moved task
+    reads as though nothing ever happened to it. Git saw the rename, so the
+    column stays populated.
+    """
+    import subprocess
+
+    from coga.paths import log_path
+
+    coga_os = git_repo.coga_os
+    _write(coga_os / "tasks" / "old-name" / "ticket.md", TICKET)
+    log_path(load_config(coga_os)).write_text(
+        "2026-06-01 10:00 [old-name] [human:marc] created\n"
+    )
+
+    def _g(*args: str) -> None:
+        subprocess.run(["git", "-C", str(git_repo.root), *args], check=True,
+                       capture_output=True)
+
+    _g("add", "-A")
+    _g("commit", "-m", "add task")
+    _g("mv", "coga/tasks/old-name", "coga/tasks/new-name")
+    _g("commit", "-m", "rename task")
+
+    result = CliRunner().invoke(app, ["status"])
+
+    assert result.exit_code == 0, result.output
+    line = next(l for l in result.output.splitlines() if "new-name" in l)
+    # Pre-fix this rendered "-": no log line is tagged `new-name`.
+    assert line.rstrip().endswith("-") is False, line
+
+
+def test_status_updated_is_blank_without_git_rather_than_crashing(repo: Path) -> None:
+    """No git checkout (the `repo` fixture) degrades to the log-only column."""
+    _task(repo, "alpha")
+
+    result = CliRunner().invoke(app, ["status"])
+
+    assert result.exit_code == 0, result.output
+    assert "alpha" in result.output
