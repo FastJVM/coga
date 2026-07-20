@@ -2,7 +2,7 @@
 slug: decide-what-belongs-in-core-vs-skills-and-move-ski
 title: Decide what belongs in core vs skills and move skill-only recipes out of src
   coga
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
