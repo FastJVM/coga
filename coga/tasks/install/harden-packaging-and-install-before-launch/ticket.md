@@ -1,7 +1,7 @@
 ---
 slug: install/harden-packaging-and-install-before-launch
 title: Harden packaging and first-install before launch
-status: blocked
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
