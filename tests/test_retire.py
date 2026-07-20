@@ -105,6 +105,22 @@ def test_retire_no_launch_creates_task_with_target_slug(
     assert ticket.workflow["name"] == "direct/body"
     assert "Retire the done ticket `fix-retry-logic`" in ticket.body
     assert "retro/done-ticket" in ticket.body
+    body_norm = " ".join(ticket.body.split())
+    assert "delegate the complete pass to one subagent inside" in body_norm
+    assert "`isolation: worktree`" in body_norm
+    assert "`git worktree add`" in body_norm
+    assert "`git clone --no-hardlinks`" in body_norm
+    assert "Fetch the configured remote control branch first" in body_norm
+    assert "unique temporary branch on that fresh tip" in body_norm
+    assert "Do not run Retro in this retire task's checkout" in body_norm
+    assert "gitignored `coga.local.toml`" in body_norm
+    assert "never symlink, snapshot, stage, or commit it" in body_norm
+    assert "read-only temporary evidence snapshot" in body_norm
+    assert "including sibling attachments" in body_norm
+    assert "--keep-control-checkout" in body_norm
+    assert "ordinary `coga delete fix-retry-logic`" in body_norm
+    assert "delete the exact independent clone directory" in body_norm
+    assert "auto-cleaned" not in body_norm
     # Source task untouched until the agent runs the retro skill.
     assert (repo / "tasks" / "fix-retry-logic" / "ticket.md").is_file()
 

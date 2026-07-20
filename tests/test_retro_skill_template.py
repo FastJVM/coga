@@ -20,6 +20,7 @@ RETRO_SKILL = (
 
 def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     text = RETRO_SKILL.read_text()
+    norm = " ".join(text.split())
 
     assert "name: retro/done-ticket" in text
     assert "prompt-only Codex skill" in text
@@ -34,9 +35,9 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "read every skill file under local `coga/skills/**/SKILL.md`" in text
     assert "package\n  `bootstrap/skills/**/SKILL.md`" in text
     assert "from importlib.resources import files" in text
-    assert "loaded once per run before ticket-by-ticket\n  extraction" in text
+    assert "Load the snapshot and\n  packaged corpus once before ticket-by-ticket extraction" in text
     assert "This skill is invoked with one or more parameters: exact done ticket slugs" in text
-    assert "the skill partitions them into coherent PR" in text
+    assert "the skill partitions them into coherent PR" in norm
     assert "Do not:" in text
     assert "running in-memory delta" in text
     assert "## Retro" in text
@@ -60,6 +61,43 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "`<PR title>. PR: <url>`" in text
 
 
+def test_retro_requires_backend_neutral_isolated_checkout() -> None:
+    """Retro branches and deletes only inside a verified isolated checkout.
+
+    Both callers own the boundary, live-state snapshot, and explicit cleanup.
+    Codex can fall back to a clone when its sandbox cannot lock primary `.git`.
+    """
+    text = RETRO_SKILL.read_text()
+    norm = " ".join(text.split())
+
+    assert "Native `isolation: worktree`, a caller-created `git worktree add`" in norm
+    assert "`git clone --no-hardlinks` fallback" in norm
+    assert "managed sandbox prevents writing the caller's `.git`" in norm
+    assert "fetch that exact ref" in norm
+    assert "unique temporary branch on that fresh tip" in norm
+    assert "test \"$(git rev-parse --show-toplevel)\" != \"<caller-repo-root>\"" in text
+    assert "--git-common-dir" in text
+    assert "configured remote URL must also match the caller's" in norm
+    assert "primary checkout's branch, index, and files" in norm
+    assert "Every `git checkout` and `coga delete` command" in norm
+    assert "ordinary-copy the caller's gitignored `coga.local.toml`" in norm
+    assert "same repo-relative Coga OS path" in norm
+    assert "Never symlink it, put it in the evidence snapshot, stage it, or commit it" in norm
+    assert "read-only evidence snapshot" in norm
+    assert "including sibling attachments" in norm
+    assert "`coga delete <slug> --keep-control-checkout`" in text
+    assert "ordinary `coga delete <slug>` from an independent clone" in norm
+    assert "`git worktree remove <path>`" in text
+    assert "`git branch -D <temporary-branch>`" in text
+    assert "delete only the exact temporary clone directory" in norm
+    assert "mutating Claude subagent may retain its worktree" in norm
+    assert "<configured-remote>/<configured-control-branch>" in text
+    assert "origin/main" not in text
+    assert "auto-cleaned" not in text
+    assert "automatic worktree cleanup" not in text
+    assert "Work in the current checkout — do not create a `git worktree`." not in text
+
+
 def test_retro_deletes_every_processed_done_ticket() -> None:
     """Every done ticket Retro processes is deleted, but by two different
     routes. A ticket that carries durable knowledge is deleted inside its
@@ -76,8 +114,8 @@ def test_retro_deletes_every_processed_done_ticket() -> None:
     # Knowledge-less tickets are direct-deleted, not bundled into any PR.
     assert "A source task with no new durable knowledge is still deleted" in text
     assert "is direct-deleted via `coga delete`" in text
-    assert "`coga delete <slug>`" in text
-    assert "no marker, no PR" in text
+    assert "`coga delete <slug> --keep-control-checkout`" in text
+    assert "no marker or PR" in text
     assert "gets **no** marker" in text
     assert "git restore" in text
     assert "leaves a processed done ticket on disk" in text

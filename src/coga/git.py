@@ -33,11 +33,13 @@ onto the new tip, then a retry — the working tree is already checked out there
 so integrating the remote move means a rebase, with autostash keeping unrelated
 dirty changes intact. A detached HEAD takes the cross-branch landing path but
 skips the local commit (a commit on a detached HEAD would be orphaned). After a
-successful landing push, the local control ref is fast-forwarded best-effort:
-directly via `update-ref` when no worktree holds the branch, or through the
-holding worktree with `merge --ff-only` — without this, a checkout left on
-`main` would fall behind origin after every cross-branch landing until a
-manual pull.
+successful landing push, the local control ref is normally fast-forwarded
+best-effort: directly via `update-ref` when no worktree holds the branch, or
+through the holding worktree with `merge --ff-only` — without this, a checkout
+left on `main` would fall behind origin after every cross-branch landing until
+a manual pull. The narrow exception is Retro's verified linked-worktree direct
+delete: `sync_paths(update_local_control_ref=False)` deliberately leaves the
+operator's control checkout untouched after the remote landing.
 
 That best-effort fast-forward moves only the control *ref*: a checkout parked
 on any other branch keeps rendering task state as of its own last commit, so
@@ -294,6 +296,7 @@ def sync_paths(
     paths: Iterable[Path],
     *,
     message: str,
+    update_local_control_ref: bool = True,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -301,7 +304,11 @@ def sync_paths(
     subprocess may edit a task and create supporting local context/skill files.
     Callers must pass exact paths they own; Coga still never stages the whole
     worktree. `anchor_path` is used to find the git root and to record a sync
-    failure in an appropriate log.
+    failure in an appropriate log. `update_local_control_ref=False` is the
+    narrow isolated-worktree escape hatch used by Retro's direct deletes: the
+    removal still lands on the remote control branch, but Coga does not then
+    fast-forward a different worktree that has the local control branch
+    checked out.
     """
     selected = _dedupe_paths(paths)
     if not selected:
@@ -339,7 +346,12 @@ def sync_paths(
         local_rels = rels + [log_rel] if log_path(cfg).exists() else rels
 
         _dispatch_branch_sync(
-            cfg, root, local_rels=local_rels, overlay_rels=rels, message=message
+            cfg,
+            root,
+            local_rels=local_rels,
+            overlay_rels=rels,
+            message=message,
+            update_local_control_ref=update_local_control_ref,
         )
     except GitError as exc:
         # Non-fatal: surface loudly (stderr + log.md) but do NOT abort the
@@ -710,6 +722,7 @@ def _dispatch_branch_sync(
     overlay_rels: list[str],
     message: str,
     guard: _StateGuard | None = None,
+    update_local_control_ref: bool = True,
 ) -> None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
@@ -732,9 +745,10 @@ def _dispatch_branch_sync(
 
     if branch == "HEAD":
         # Detached HEAD: no local commit — it would be orphaned. The landing
-        # pushes the control branch and fast-forwards the primary checkout via
-        # `_try_update_local_ref`; only a fast-forward miss warrants a stderr
-        # note, printed there.
+        # pushes the control branch and normally fast-forwards the primary
+        # checkout via `_try_update_local_ref`; Retro's verified linked-
+        # worktree delete can suppress that refresh. Only a fast-forward miss
+        # warrants a stderr note, printed there.
         overlay = set(overlay_rels)
         union_rels = [rel for rel in local_rels if rel not in overlay]
         _land_paths_on_control_branch(
@@ -744,6 +758,7 @@ def _dispatch_branch_sync(
             union_rels=union_rels,
             message=message,
             guard=guard,
+            update_local_control_ref=update_local_control_ref,
         )
         return
     else:
@@ -751,7 +766,12 @@ def _dispatch_branch_sync(
         _commit_paths(root, local_rels, message)
     try:
         _land_paths_on_control_branch(
-            cfg, root, overlay_rels, message=message, guard=guard
+            cfg,
+            root,
+            overlay_rels,
+            message=message,
+            guard=guard,
+            update_local_control_ref=update_local_control_ref,
         )
     except StateRegressionError:
         if before is not None:
@@ -1237,6 +1257,7 @@ def _land_paths_on_control_branch(
     union_rels: list[str] | None = None,
     message: str,
     guard: _StateGuard | None = None,
+    update_local_control_ref: bool = True,
 ) -> None:
     """Land selected pathspecs on the control branch from any branch."""
     remote = cfg.git_remote
@@ -1255,7 +1276,8 @@ def _land_paths_on_control_branch(
         new = _run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
         result = _push_ref(root, remote, f"{new}:refs/heads/{branch}")
         if result is None:
-            _try_update_local_ref(root, branch, new)
+            if update_local_control_ref:
+                _try_update_local_ref(root, branch, new)
             return
         if not _is_non_fast_forward(result):
             raise GitError(
@@ -1717,6 +1739,29 @@ def _toplevel(start: Path) -> Path | None:
     return Path(top) if top else None
 
 
+def is_linked_worktree(start: Path) -> bool:
+    """True only when `start` belongs to a linked git worktree.
+
+    A linked worktree has its own administrative git dir under the repository's
+    common git dir. The primary checkout (and an independent clone) reports the
+    same path for both. Retro uses this read-only guard before a direct delete
+    requests that Coga leave another checkout's control branch untouched.
+    """
+    root = _toplevel(start)
+    if root is None:
+        return False
+    try:
+        git_dir = _run_git(
+            root, "rev-parse", "--path-format=absolute", "--git-dir"
+        ).strip()
+        common_dir = _run_git(
+            root, "rev-parse", "--path-format=absolute", "--git-common-dir"
+        ).strip()
+    except GitError:
+        return False
+    return Path(git_dir).resolve() != Path(common_dir).resolve()
+
+
 def _current_branch(root: Path) -> str:
     """Return the current branch name (`HEAD` for a detached checkout)."""
     return _run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
@@ -1893,6 +1938,7 @@ def _path_exists(root: Path, rel: str) -> bool:
 
 __all__ = [
     "GitError",
+    "is_linked_worktree",
     "refresh_coga_state_from_control",
     "stale_coga_task_rels",
     "sync_coga_state",

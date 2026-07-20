@@ -644,6 +644,19 @@ def test_delete_resolves_prefix(repo: Path) -> None:
     assert not task_path.exists()
 
 
+def test_delete_keep_control_checkout_refuses_primary(repo: Path) -> None:
+    _install_delete_skill(repo)
+    slug, task_path = _make_task(repo, force_directory=True)
+
+    result = CliRunner().invoke(
+        app, ["delete", slug, "--keep-control-checkout"]
+    )
+
+    assert result.exit_code == 2
+    assert task_path.is_dir()
+    assert "requires a linked git worktree" in result.output
+
+
 def test_delete_unknown_task_exits_nonzero(repo: Path) -> None:
     # Unknown slug fails at resolution, before the skill is even consulted.
     runner = CliRunner()
