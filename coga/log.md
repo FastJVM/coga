@@ -2177,3 +2177,15 @@ hint: 	git rebase
 hint: 
 hint: Disable this message with "git config advice.diverging false"
 fatal: Not possible to fast-forward, aborting.
+2026-07-20 15:56 [coga] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/15)
+Rebasing (2/15)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 16:20 [decide-what-belongs-in-core-vs-skills-and-move-ski] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
