@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -96,6 +96,7 @@ retro/delete isolation fix.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/614
 branch: fix/retro-worktree-isolation
 worktree: /tmp/coga-retro-worktree-isolation
 
