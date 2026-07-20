@@ -1,7 +1,7 @@
 ---
 slug: check-we-can-extend-coga-recurring
 title: check we can extend coga recurring
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
