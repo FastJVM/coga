@@ -2215,3 +2215,4 @@ Aborting
 2026-07-20 14:33 [install/short-notice-instead-of-raw-git-error-when-sync-ha] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-20 15:48 [check-we-can-extend-coga-recurring] [human:nicktoper] created (status=draft)
 2026-07-20 15:48 [pick-model-on-workflow-to-save-on-cost] [human:nicktoper] created (status=draft)
+2026-07-20 15:48 [bug-if-not-on-megalaunch-don-t-block-ask] [human:nicktoper] created (status=draft)
