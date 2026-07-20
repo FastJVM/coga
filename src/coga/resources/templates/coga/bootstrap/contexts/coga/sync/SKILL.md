@@ -450,6 +450,14 @@ overwriting local edits. A refused fast-forward is a stderr note, never a
 crash — origin already has the commit; preserving the attached checkout's
 file/index coherence is required, the local ref update stays best-effort.
 
+Retro's direct-delete path is the deliberate exception. From a verified linked
+worktree it runs `coga delete <slug> --keep-control-checkout`: the scoped
+deletion still commits and pushes to the remote control branch, but
+`sync_paths(update_local_control_ref=False)` skips `_try_update_local_ref`, so
+the operator's checkout holding `main` does not have its ref, index, or files
+moved underneath concurrent work. Ordinary `coga delete` keeps the normal
+best-effort local refresh.
+
 Scope is narrow. `src/coga/git.py::sync_task_state(cfg, task_path, *,
 message)` stages and commits only the task directory pathspec. It must not use
 `git add -A`, and it must not sweep unrelated unstaged or pre-staged files into

@@ -12,6 +12,7 @@ before). B and C reuse it.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -1152,6 +1153,60 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
     # And nothing is left dirty in the working tree (the bug's symptom).
     status = git_repo.git("status", "--porcelain", cwd=git_repo.root)
     assert slug not in status
+
+
+def test_cli_delete_from_linked_worktree_keeps_primary_checkout(
+    git_repo, monkeypatch, tmp_path
+):
+    """Retro's isolated delete reaches origin without refreshing primary main.
+
+    The ordinary cross-branch sync fast-forwards the checkout holding `main`.
+    `--keep-control-checkout` deliberately suppresses only that final local
+    refresh, leaving the operator's ref, index, and files exactly as they were.
+    """
+    _install_delete_skill(git_repo.coga_os)
+    git_repo.git("add", "--", "coga/skills/bootstrap/delete-task")
+    git_repo.git("commit", "-m", "install delete skill")
+    git_repo.git("push", "origin", "main")
+
+    created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
+    slug = created.output.split(":", 1)[0].strip()
+    rel = f"coga/tasks/{slug}.md"
+    primary_tip = git_repo.git("rev-parse", "HEAD").strip()
+    primary_ticket = git_repo.root / rel
+    assert primary_ticket.is_file()
+
+    worktree = tmp_path / "retro-delete-worktree"
+    git_repo.git("worktree", "add", "-b", "retro-delete-test", str(worktree), "main")
+    shutil.copy(git_repo.coga_os / "coga.local.toml", worktree / "coga")
+    try:
+        monkeypatch.chdir(worktree / "coga")
+        deleted = runner.invoke(
+            app, ["delete", slug, "--keep-control-checkout"]
+        )
+        assert deleted.exit_code == 0, deleted.output
+
+        # The real console entry point performs this catch-all sweep after the
+        # Typer command. The direct delete already left the isolated branch
+        # clean, so the sweep must remain a no-op and must not refresh primary.
+        git.sync_coga_state(load_config(worktree / "coga"))
+
+        assert not git_repo.origin_tracks(rel)
+        assert f"Ticket: {slug} — deleted" in git_repo.origin_subjects()
+
+        # The primary checkout is intentionally stale but internally coherent:
+        # its branch, index, and file bytes did not move under the operator.
+        assert git_repo.git("rev-parse", "HEAD").strip() == primary_tip
+        assert git_repo.git("rev-parse", "main").strip() == primary_tip
+        assert primary_ticket.is_file()
+        assert git_repo.git("status", "--porcelain", cwd=git_repo.root) == ""
+
+        # The isolated branch owns its local deletion commit and is clean.
+        assert not (worktree / rel).exists()
+        assert git_repo.git("status", "--porcelain", cwd=worktree) == ""
+    finally:
+        monkeypatch.chdir(git_repo.coga_os)
+        git_repo.git("worktree", "remove", "--force", str(worktree))
 
 
 # --- non-interactive git (no credential-prompt hangs) -------------------------

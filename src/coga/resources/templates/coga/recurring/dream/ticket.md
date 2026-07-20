@@ -118,22 +118,41 @@ settle the ticket — its deletion PR has not merged, so it stays eligible. Do
 not infer completion from branch names, stale comments, or old Dream notes —
 only the on-disk directory and open-PR state count.
 
-Delegate the entire Retro pass to one subagent with `isolation: worktree`,
-running `retro/done-ticket <slug> [<slug> ...]` there and passing every eligible
-slug. Do not run Retro in Dream's checkout or fall back to an unisolated
-subagent; if worktree isolation is unavailable, stop and surface the blocker.
-The caller-provided worktree is auto-cleaned when the subagent returns, so all
-Retro branch switches and its direct `coga delete` calls stay inside that
-boundary. The skill loads the context/skill corpus once, reads each ticket,
-carries one running delta across the whole run, and partitions the tickets into
-coherent PR batches — each PR within its hard limits (≤5 source tickets, ≤3
-knowledge files, ≤1 new context/skill file, one theme). Every processed done
-ticket is deleted: a ticket that contributed durable knowledge is deleted in
-its theme's knowledge PR, which also records its `## Retro` marker; a ticket
-carrying nothing durable is direct-deleted with `coga delete <slug>` (a
-working-tree `git rm` plus a direct `Ticket: <slug> — deleted` commit),
-with no PR and no marker. Recovery is via `git restore`.
-Retro never leaves a processed done ticket on disk and never opens a marker-only PR.
+Before delegation, copy the live Retro inputs into a read-only temporary
+evidence snapshot: every eligible resolved task artifact (the bare task
+Markdown file or the complete task directory, including sibling attachments),
+the repo-global `coga/log.md`, local contexts and skills, and this Dream task's
+current `## Findings`. Use ordinary copies, not symlinks back to Dream's
+mutable checkout. Pass the snapshot path and Dream's absolute repo root to the
+subagent so Phases 2–3 and other uncommitted evidence are not lost when the new
+worktree starts from a commit.
+
+Delegate the entire Retro pass to one subagent in a dedicated **linked git
+worktree**, running `retro/done-ticket <slug> [<slug> ...]` there and passing
+every eligible slug. Fetch the configured remote control branch first and base
+the worktree's unique temporary branch on that fresh tip. Use native
+`isolation: worktree` when the agent supports it; otherwise create a temporary
+checkout with `git worktree add` and tell the subagent its exact cwd. Do not run
+Retro in Dream's checkout or fall back to an unisolated subagent. The skill
+verifies the linked-worktree boundary before reading evidence, loads the
+snapshot/corpus once, carries one running delta, and partitions coherent PR
+batches within the hard limits (≤5 source tickets, ≤3 knowledge files, ≤1 new
+context/skill file, one theme).
+
+Every processed done ticket is deleted: a ticket that contributed durable
+knowledge is deleted in its theme's knowledge PR, which also records its
+`## Retro` marker; a ticket carrying nothing durable is direct-deleted with
+`coga delete <slug> --keep-control-checkout`, which lands the removal on the
+remote control branch without fast-forwarding the operator's checkout, with no
+PR and no marker. Recovery is via `git restore`. Retro never leaves a processed
+done ticket on disk and never opens a marker-only PR.
+
+After the subagent returns, verify every PR branch is pushed, every direct
+delete is present on the remote control branch, and the isolated worktree is
+clean. Then explicitly remove the worktree from outside it and delete the
+caller-created temporary branch and evidence snapshot. Agent-native cleanup is
+not guaranteed after a mutating run. If durability or cleanup cannot be
+verified, preserve the paths and surface a blocker.
 
 A done `recurring/<name>` ticket from this sweep is eligible like any other.
 Period tickets carry nothing durable (their output is the notification post or

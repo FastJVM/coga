@@ -86,14 +86,24 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "no per-run ticket cap" in text
     assert "Extract durable knowledge from done tickets, then delete every one of them." in text
     assert "its resolved task directory under `coga/tasks/` still exists" in text
-    assert "Retro never leaves a processed done ticket on" in text
-    assert "Delegate the entire Retro pass to one subagent with" in text
+    assert "Retro never leaves a processed done ticket on" in " ".join(text.split())
+    assert "Delegate the entire Retro pass to one subagent in a dedicated" in text
     assert "`isolation: worktree`" in text
-    assert "Do not run Retro in Dream's checkout" in text
+    assert "`git worktree add`" in text
+    assert "Fetch the configured remote control branch first" in text
+    assert "unique temporary branch on that fresh tip" in " ".join(text.split())
+    assert "Do not run Retro in Dream's checkout" in " ".join(text.split())
+    assert "read-only temporary\nevidence snapshot" in text
+    assert "including sibling attachments" in " ".join(text.split())
+    assert "current `## Findings`" in text
+    assert "`coga delete <slug> --keep-control-checkout`" in text
+    assert "explicitly remove the worktree" in text
+    assert "caller-created temporary branch" in " ".join(text.split())
+    assert "auto-clean" not in text
     # Knowledge-less tickets are direct-deleted, not bundled into a prune PR.
     assert "is direct-deleted with" in text
-    assert "`coga delete <slug>`" in text
-    assert "with no PR and no marker" in text
+    assert "`coga delete <slug> --keep-control-checkout`" in text
+    assert "with no PR and no marker" in " ".join(text.split())
     assert "delete-only prune PR" not in text
     assert "## Pruned" not in text
     assert "Dream-owned scripts\nare skills attached to Coga tasks" in text

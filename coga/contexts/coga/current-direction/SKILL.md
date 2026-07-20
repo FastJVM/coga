@@ -148,7 +148,10 @@ Last updated: 2026-07-17.
   audit trail and recovery is via `git restore`. This replaces the earlier model
   that bundled every deletion — including knowledge-less ones — into a knowledge
   PR or a single delete-only prune PR. Retro never leaves a processed done
-  ticket on disk and never opens a marker-only PR.
+  ticket on disk and never opens a marker-only PR. Retro performs the direct
+  delete from its linked worktree with `--keep-control-checkout`, so the remote
+  control ref advances without moving the operator's checkout underneath
+  concurrent work.
 
 ## Recent decisions (assignees flattened out)
 

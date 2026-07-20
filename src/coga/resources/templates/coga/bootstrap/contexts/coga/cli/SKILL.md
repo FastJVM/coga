@@ -407,6 +407,12 @@ resolver and the same deletion is reachable as a script step.
 Bootstrap tickets aren't user-deletable — they're package-backed batteries
 managed by the installed Coga package.
 
+`coga delete <slug> --keep-control-checkout` is the narrow Retro-only form. It
+is accepted only from a linked git worktree and still pushes the deletion to the
+remote control branch, but it does not fast-forward a different checkout that
+has the local control branch checked out. A primary-checkout invocation fails
+before deleting anything.
+
 ## coga retire \<slug\> [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
