@@ -7,6 +7,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+import coga
 from coga.cli import app
 from coga.create import create_task
 from coga.config import load_config
@@ -253,7 +254,18 @@ def test_failed_script_launch_still_refreshes_launch_checkout(
     assert len(refreshed) == 1
 
 
-def test_bootstrap_script_launch_is_stateless(repo: Path) -> None:
+def test_bootstrap_script_launch_is_stateless(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # This is the one script test that executes a *real* bootstrap script
+    # (`recurring-scan/run.py`), which imports `coga` in a `sys.executable`
+    # child. `build_launch_env` inherits `os.environ`, but pytest's
+    # `pythonpath = ["src"]` only patches the parent's `sys.path` — so the
+    # child can import coga solely by accident of it being pip-installed in
+    # the running interpreter. Export the path the parent actually imported
+    # from to make the test hermetic under a bare `pytest`.
+    monkeypatch.setenv("PYTHONPATH", str(Path(coga.__file__).resolve().parents[1]))
+
     result = CliRunner().invoke(app, ["launch", "bootstrap/recurring-scan"])
     assert result.exit_code == 0, result.output
     assert "bootstrap/recurring-scan: script ran successfully" in result.output

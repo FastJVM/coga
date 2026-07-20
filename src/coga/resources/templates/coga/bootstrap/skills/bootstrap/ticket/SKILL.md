@@ -378,6 +378,32 @@ Hand the evaluator the path to the ticket and ask it to assess:
   agent or human steps, and script completion does not enforce a bump gate.
 - Any assumptions that should be questioned before launch?
 
+Also hand the evaluator the composed prompt's size breakdown, which the
+ticket file alone cannot show — the ticket lists context *refs*, and how
+many tokens each one actually costs only exists after composition:
+
+```
+coga launch <slug> --prompt-report
+```
+
+This prints one small table (layer, ref, bytes, approx tokens) and exits
+without launching — it is not the prompt text, so reading it is cheap. Ask
+the evaluator to flag any layer over roughly 40% of the total as a
+concrete trim candidate.
+
+Judge the layers *proportionally*, not against a fixed size. `launch`
+already prints its own automatic warning when the blackboard alone exceeds
+32 KiB (`BLACKBOARD_WARN_BYTES`), so anything it catches needs no help from
+the evaluator — but an absolute threshold misses proportional bloat. A real
+example: a 16.9 KiB blackboard is only half that threshold and raises no
+warning, yet it was 4,314 of 7,185 tokens — 60% of the entire composed
+prompt, paid on *every* launch of that task. That is the gap this check
+exists to close.
+
+If the task is script-backed, `--prompt-report` refuses ("script tasks do
+not compose an agent prompt"). That is expected — skip this part and
+evaluate the ticket alone.
+
 Write the evaluator's response to the ticket's blackboard region under a top-level
 **## Evaluator review** section, verbatim. Don't summarize — the human reads
 it directly.
