@@ -2066,3 +2066,15 @@ Auto-merging coga/log.md
 Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
 CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
 2026-07-20 15:46 [metrics-human-minutes-script] [megalaunch] activated (draft → active) — explicit megalaunch pick
+2026-07-20 15:46 [metrics-human-minutes-script] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/4)
+Rebasing (2/4)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 15:46 [move-some-alerts-to-coga-important-instead-of-coga] [megalaunch] activated (draft → active) — explicit megalaunch pick
