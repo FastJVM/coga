@@ -29,8 +29,8 @@ Tickets that *consume* the secrets are separate and declare their own inline
 - **Vault `coga-recurring`** — the container the SA reads. Named distinctly from
   the SA on purpose: an `op://` ref is `op://<vault>/<item>/<field>`, so the
   first segment is the *vault*; the SA name never routes the lookup.
-- **Vault items** — `uspto-api-token`, `coga-important-webhook`, each with a
-  `credential` field (confirm exact titles against the real items). Future
+- **Vault items** — `USPTO_API_KEY`, `coga_important_webhook`, each with a
+  `credential` field (confirmed against the real 1Password items). Future
   headless-job secrets accrue in this vault too.
 - **SA token** — stored in the root/admin vault (never the vault it reads: it's
   the key, not a payload, and can never be an `op://` ref). Delivered by hand
@@ -50,7 +50,7 @@ Tickets that *consume* the secrets are separate and declare their own inline
 
 ### Done when
 - SA + vault + items exist and the SA token is stored in the root/admin vault.
-- `coga secret get op://coga-recurring/uspto-api-token/credential` resolves in a
+- `coga secret get op://coga-recurring/USPTO_API_KEY/credential` resolves in a
   **clean env** where `OP_SERVICE_ACCOUNT_TOKEN` is the only credential (a
   personal `op` login reads everything → false pass on SA scoping).
 
@@ -78,7 +78,7 @@ secrets are separate tickets (see below).
   Naming the SA and vault identically invites the exact confusion of "does the
   SA name route the lookup?" (it doesn't). Vault name describes contents
   (`coga-recurring`), SA name reads like an identity (`coga-recurring-sa`).
-- **Items in the vault:** `uspto-api-token`, `coga-important-webhook`, each with
+- **Items in the vault:** `USPTO_API_KEY`, `coga_important_webhook`, each with
   a `credential` field. Future headless-job secrets accrue here too.
 
 ### Coga needs no code change to use this
@@ -89,9 +89,9 @@ the process that runs the job, every `op://` ref resolves non-interactively.
 
 ### The two consumer refs live on OTHER tickets, not here
 The secrets are declared inline on the ticket that *consumes* them:
-- `headless-uspto-api-important-webhook` → `op://coga-recurring/uspto-api-token/credential`
-  and `op://coga-recurring/coga-important-webhook/credential`.
-(Item titles above are approximate — confirm against the real 1Password items.)
+- `headless-uspto-api-important-webhook` → `op://coga-recurring/USPTO_API_KEY/credential`
+  and `op://coga-recurring/coga_important_webhook/credential`.
+(Item titles confirmed against the real 1Password items, 2026-07-19.)
 A ticket goes where its *subject* lives, not where its *credentials* live.
 
 ### PR-able vs. manual
@@ -104,7 +104,7 @@ A ticket goes where its *subject* lives, not where its *credentials* live.
   — `write-coga-secrets-management-service-account-cont` — not folded in here.
 
 ### Test before it goes live
-`coga secret get op://coga-recurring/uspto-api-token/credential` resolves through
+`coga secret get op://coga-recurring/USPTO_API_KEY/credential` resolves through
 the exact path `coga launch` uses — proves the plumbing with no ticket/cron.
 **Critical:** test in a *clean env* where `OP_SERVICE_ACCOUNT_TOKEN` is the only
 credential (personal `op` login can read everything → false pass; won't prove SA
@@ -125,8 +125,19 @@ scoping). `coga validate` does NOT live-resolve `op://` (only checks ref shape,
 ### Progress
 - **2026-07-19:** SA `coga-recurring-sa` created and scoped to the
   `coga-recurring` vault. SA token saved to the root/admin vault (per decision
-  above). Still to do: create the vault items, mint/deliver the token for
-  testing, and run the clean-env `coga secret get` proof.
+  above). Vault items `USPTO_API_KEY` and `coga_important_webhook` created
+  (each with a `credential` field).
+- **2026-07-19:** Plumbing **proven**. `coga secret get` resolves both refs —
+  `op://coga-recurring/USPTO_API_KEY/credential` and
+  `op://coga-recurring/coga_important_webhook/credential` — with the SA token
+  exported, in **both** the coga repo and the patents repo. Infra is live and
+  usable.
+  - Prereq discovered: the `op` CLI must be installed on each run host. Done via
+    no-sudo binary install to `~/.local/bin` (v2.35.0). `~/.local/bin` is
+    home-shared, so one install per *machine* covers every repo. Still needed on
+    the eventual cron/systemd host.
+  - Token delivery today is a per-shell `export OP_SERVICE_ACCOUNT_TOKEN`; the
+    cron/systemd `EnvironmentFile` route remains the deferred open item below.
 
 ### Open
 - **`OP_SERVICE_ACCOUNT_TOKEN` delivery for the eventual cron run.** The token
