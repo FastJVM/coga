@@ -2217,3 +2217,4 @@ Aborting
 2026-07-20 15:48 [pick-model-on-workflow-to-save-on-cost] [human:nicktoper] created (status=draft)
 2026-07-20 15:48 [bug-if-not-on-megalaunch-don-t-block-ask] [human:nicktoper] created (status=draft)
 2026-07-20 15:50 [on-resize-update-stauts-and-pick] [human:nicktoper] created (status=draft)
+2026-07-20 15:50 [check-we-can-extend-coga-recurring] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
