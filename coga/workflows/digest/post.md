@@ -10,9 +10,11 @@ steps:
 
 ## flush
 
-Script step. Runs `coga/digest/flush`, which calls `coga digest`: drain the
-`recurring/digest/` spool, fetch `origin/main`, render Done tickets plus an
-"Also merged (no ticket)" section, post one message to the shared channel,
-empty the spool, and update the recurring template blackboard's
-`### Digest State` high-water mark. The command posts nothing only when there
-are no Done records, no recurring errors, and no post-filter new commits.
+Script step. Runs `coga/digest/flush`, which calls `coga digest`: read the
+unconsumed records from the dedicated `recurring/digest/spool.md` file, fetch
+`origin/main`, render Done tickets plus an "Also merged (no ticket)" section,
+post one message to the shared channel, drain the spool (advance the watermark +
+trim the consumed prefix, keeping the newest record as an anchor), and update
+the digest ticket's `### Digest State` high-water mark. The command posts nothing
+only when there are no Done records, no recurring errors, and no post-filter new
+commits.
