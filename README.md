@@ -64,17 +64,14 @@ instead of leaving them in a one-off chat.
 
 ## Install
 
-Coga is published on PyPI as `coga` and requires Python 3.11+. Install the
-isolated CLI with `uv`:
+Coga is published on PyPI as `coga` and requires Python 3.11+. The cleanest
+install is an isolated CLI with [`uv`](https://docs.astral.sh/uv/):
 
 ```sh
 uv tool install coga
 ```
 
-That puts `coga` on your `PATH`, in a virtualenv of its own, without touching
-your system Python.
-
-No `uv`? Create a virtualenv and install into it:
+No `uv`? Use a virtualenv:
 
 ```sh
 python3 -m venv .venv
@@ -137,9 +134,8 @@ repository you want Coga to manage:
 ```sh
 cd /path/to/your/project
 coga init --user <your-name>
+coga --help
 ```
-
-This adds Coga's markdown OS under `coga/` in that same repository.
 
 Then create starter work and choose a batch:
 
@@ -152,37 +148,25 @@ coga pick
 pick` lets you choose a batch and runs launchable work until it reaches a
 blocker, review gate, or other handoff that needs you.
 
-If you tried `coga init` in a separate empty directory, leave that directory
-and run the commands above from your actual project's Git root instead. If the
-empty directory is the start of a brand-new project, initialize Git there
-before running Coga:
+Full install options, prerequisites, and a first-task walkthrough are in
+**[docs/getting-started.md](docs/getting-started.md)**.
 
-```sh
-git init
-coga init --user <your-name>
-```
+## Full docs →
 
-For command help, start with `coga --help`. For the deeper "why", read
-[`docs/vision.md`](docs/vision.md). For the operating contract that Coga agents
-actually load, read
+Documentation lives under **[`docs/`](docs/README.md)**:
+
+- **[Getting started](docs/getting-started.md)** — install, adopt Coga into a
+  repo, and take a first task to a merged PR.
+- **[Concepts](docs/concepts.md)** — tickets, blackboards, contexts vs. skills,
+  workflows, the two state machines, agents vs. scripts.
+- **[Command reference](docs/reference.md)** — every `coga` command and flag.
+- **[Operations](docs/operations.md)** — notifications, recurring maintenance
+  (Dream/REM), the digest, and secrets.
+- **[Development](docs/development.md)** — working on Coga itself.
+
+For the deeper "why," read **[docs/vision.md](docs/vision.md)**. For the
+operating contract Coga agents actually load, read
 [`coga/contexts/coga/principles/SKILL.md`](coga/contexts/coga/principles/SKILL.md).
-
-### Joining an existing Coga repo
-
-`coga init` is only for repos that don't have a `coga/` yet. If you cloned a
-repo that already uses Coga, the shared config (`coga.toml`) came with the
-clone, but `coga.local.toml` — the machine-local file holding your name — is
-gitignored, so every clone creates its own. Read-only commands (`coga status`,
-`coga show`, `coga validate`, `--help`) work without it; anything that creates
-or moves work needs it. Create it next to `coga.toml`:
-
-```sh
-echo 'user = "<your-name>"' > coga/coga.local.toml
-```
-
-Coga never guesses your name (from git or `$USER`) — tickets reference people
-by these names, and a guessed one that doesn't match fails silently.
-`coga validate` will remind you with a warning until it's set.
 
 ## Browser automation
 
