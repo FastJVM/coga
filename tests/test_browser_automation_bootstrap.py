@@ -65,9 +65,11 @@ def test_browser_capability_remains_without_seeded_task_or_audit_line() -> None:
     assert (TEMPLATES / "workflows" / "autonomy" / "human-verify.md").is_file()
 
 
-def test_readme_documents_browser_router_and_runner_roles() -> None:
-    text = (REPO_ROOT / "README.md").read_text()
+def test_reference_documents_browser_router_and_runner_roles() -> None:
+    # The README is the marketing hook and delegates command-level detail to
+    # docs/; the browser launcher is documented in the command reference.
+    text = (REPO_ROOT / "docs" / "reference.md").read_text()
 
     assert "coga launch bootstrap/browser-automation" in text
     assert "`browser/build-automation` is the orchestration skill" in text
-    assert "`browser/playwright` is the lower-level execution" in text
+    assert "`browser/playwright` is the lower-level execution skill" in text

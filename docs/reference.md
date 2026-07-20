@@ -70,6 +70,22 @@ runs a script step directly). A `done` ticket is refused and left untouched.
   wall-clock even while it's still producing output (the runaway-loop case idle
   timeout misses). Off by default.
 
+### `coga launch bootstrap/browser-automation`
+A stateless setup session that turns a concrete browser task into durable,
+reviewable work. Describe the target site, desired outcome, and success check
+when the agent asks. The bundled `browser/build-automation` skill first checks
+whether an API or an ordinary script is a better fit, then selects the
+appropriate autonomy workflow and creates and launches a ticket for the actual
+task. Launching it creates no standing task of its own, and installing Coga does
+not seed a generic browser-automation draft in your task list.
+
+The two browser skills split by role.
+`browser/build-automation` is the orchestration skill: it routes the request and
+authors the concrete ticket.
+`browser/playwright` is the lower-level execution skill: it drives a real
+browser from the terminal, and is attached to a ticket only when the chosen
+implementation actually needs one.
+
 ### `coga megalaunch [DIR]`
 Run the shared megalaunch engine once — a sweep that launches every launchable
 task (optionally scoped to `tasks/<DIR>/`).
