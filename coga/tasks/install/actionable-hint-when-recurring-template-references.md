@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 - coga/recurring
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -114,11 +114,21 @@ worktree: /tmp/coga-removed-skill-hint
 - `PYTHONPATH=/tmp/coga-removed-skill-hint/src python -m pytest` — 1325 passed, 1 skipped.
 - `PYTHONPATH=/tmp/coga-removed-skill-hint/src python -m coga.validate --json` from `example/` — clean, 1 task validated.
 - A first full-suite run without the absolute `PYTHONPATH` had the documented temporary-worktree editable-install failure in `test_bootstrap_script_launch_is_stateless`; the documented rerun passed.
+- After rebasing onto the latest `origin/main`, reran the full suite: 1325 passed, 1 skipped; example validation remained clean.
+- Peer-review regression run: `PYTHONPATH=/tmp/coga-removed-skill-hint/src python -m pytest tests/test_validate.py tests/test_recurring.py` — 172 passed.
+- Final post-review, post-rebase full suite: `PYTHONPATH=/tmp/coga-removed-skill-hint/src python -m pytest` — 1325 passed, 1 skipped.
 
 ## Handoff
-- Commit: `f21fe870` (`Explain removed recurring template skills`).
-- `git fetch origin main && git rebase FETCH_HEAD` reported the branch up to date.
-- Feature worktree is clean and ready for peer review; nothing has been pushed and no PR has been opened.
+- Commits: `ed4f1adf` (`Explain removed recurring template skills`) and `d7986e79` (`peer-review: keep template errors out of task count`; rebased hashes).
+- `codex review --base main` found one must-fix: recurring-template issues could make the active-task `ok_count` negative. The fix now intersects errors with discovered task refs and includes a regression assertion.
+- `git fetch origin main && git rebase FETCH_HEAD` rebased both commits onto the latest main.
+- Feature worktree is clean and ready for the mechanical open-PR step; nothing has been pushed and no PR has been opened.
+
+## PR
+
+Teach recurring sweeps and validation to recognize the removed bundled `coga/megalaunch/run` skill and give operators the exact cleanup migration, while preserving checked-path diagnostics for unrelated missing skills. Validation now checks materialized recurring templates before a period task exists, with shared diagnostic construction across creation, composition, and validation.
+
+Test plan: `PYTHONPATH=/tmp/coga-removed-skill-hint/src python -m pytest` (1325 passed, 1 skipped).
 
 ## Dream Skill: validate-drift
 
@@ -154,3 +164,31 @@ Result: no remaining validation drift found.
 
 - [x] [2026-07-19 17:51] [agent:codex] id=20260719T175129 Implementation is complete and committed at f21fe870, but this attached session left the ticket status active; coga bump requires in_progress. Relaunch the ticket with coga launch so the supervisor performs active -> in_progress, then bump it to peer-review.
   resolved: [2026-07-19 17:51] [human:nicktoper] Relaunched under the Coga supervisor; the task is now in_progress, so the completed implementation can be verified and bumped to peer-review.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T00:52:29+00:00
+Command: `coga validate --json --fix`
+Task: `install/actionable-hint-when-recurring-template-references`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T00:56:12+00:00
+Command: `coga validate --json --fix`
+Task: `install/actionable-hint-when-recurring-template-references`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
