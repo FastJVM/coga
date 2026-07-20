@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -101,6 +101,7 @@ recurring-discovery behavior fix.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/613
 branch: recurring-skip-unconfigured
 worktree: /tmp/coga-recurring-skip-unconfigured
 
