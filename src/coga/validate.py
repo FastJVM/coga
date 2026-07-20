@@ -60,9 +60,11 @@ from coga.taskfile import BLACKBOARD_FENCE, fence_count
 from coga.period_state import read_snapshot, stale_keys
 from coga.paths import (
     context_resolution_paths,
+    missing_skill_message,
+    recurring_dir,
     resolve_context_path,
     resolve_skill_path,
-    skill_resolution_paths,
+    resolve_workflow_path,
 )
 from coga.slack_response import classify_slack_response
 from coga.tasks import (
@@ -74,7 +76,7 @@ from coga.tasks import (
 )
 from coga.ticket import Ticket, TicketError
 from coga.step_gate import known_gate_tokens
-from coga.workflow import VALID_ASSIGNEE_ROLES
+from coga.workflow import VALID_ASSIGNEE_ROLES, Workflow, WorkflowError
 
 VALID_STATUSES = {"draft", "active", "in_progress", "blocked", "paused", "done"}
 
@@ -211,6 +213,8 @@ def run(
                 now=now,
             )
         )
+
+    report.issues.extend(_check_recurring_templates(cfg))
 
     report.ok_count = _ok_count(refs, report.issues)
     return report
@@ -738,8 +742,7 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
                     kind="broken-skill",
                     task=task_label,
                     message=(
-                        f"skill {ref_name!r} does not exist "
-                        f"(checked: {_format_paths(skill_resolution_paths(cfg, ref_name))})"
+                        missing_skill_message(cfg, ref_name, source="ticket")
                     ),
                     severity="error",
                 ))
@@ -757,9 +760,11 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
                         kind="broken-skill",
                         task=task_label,
                         message=(
-                            f"step {step.get('name', '?')!r} skill {ref_name!r} "
-                            f"does not exist "
-                            f"(checked: {_format_paths(skill_resolution_paths(cfg, ref_name))})"
+                            missing_skill_message(
+                                cfg,
+                                ref_name,
+                                source=f"step {step.get('name', '?')!r}",
+                            )
                         ),
                         severity="error",
                     ))
@@ -774,6 +779,50 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
             severity="warn",
         ))
 
+    return out
+
+
+def _check_recurring_templates(cfg: Config) -> list[Issue]:
+    """Resolve workflow-step skills in materialized recurring templates."""
+    root = recurring_dir(cfg)
+    if not root.is_dir():
+        return []
+
+    out: list[Issue] = []
+    for path in sorted(root.iterdir()):
+        if path.name.startswith("_") or not path.is_dir():
+            continue
+        ticket_path = path / "ticket.md"
+        if not ticket_path.is_file():
+            continue
+        try:
+            template = Ticket.read(ticket_path)
+        except TicketError:
+            continue
+        workflow_name = template.frontmatter.get("workflow") or "direct/body"
+        if not isinstance(workflow_name, str):
+            continue
+        try:
+            workflow = Workflow.load(resolve_workflow_path(cfg, workflow_name))
+        except WorkflowError:
+            continue
+        for step in workflow.steps:
+            for ref_name in step.skills:
+                if resolve_skill_path(cfg, ref_name) is not None:
+                    continue
+                out.append(Issue(
+                    kind="broken-recurring-template-skill",
+                    task=f"recurring/{path.name}",
+                    message=missing_skill_message(
+                        cfg,
+                        ref_name,
+                        source=(
+                            f"recurring template {path.name!r} workflow "
+                            f"{workflow_name!r} step {step.name!r}"
+                        ),
+                    ),
+                    severity="error",
+                ))
     return out
 
 

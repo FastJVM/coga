@@ -137,6 +137,11 @@ task, which carries that rule.
 - `assignee` defaults to the repo's configured **default agent** when the
   recurring task omits it — never the human `owner`, which `coga launch`
   cannot resolve to an agent type.
+- `coga validate` resolves every workflow-step skill referenced by each
+  materialized recurring template, before a period task exists. Missing refs
+  report the local and bundled paths checked; the removed bundled
+  `coga/megalaunch/run` ref instead gives its migration directly: megalaunch
+  is on-demand only, so delete the leftover recurring template and workflow.
 - The period task's `## Description` is taken from the `ticket.md` body's
   `## Description` section: everything from that heading to the next
   top-level `## ` heading. **Convention:** keep every other heading in the
