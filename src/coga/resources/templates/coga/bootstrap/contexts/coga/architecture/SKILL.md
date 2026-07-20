@@ -402,6 +402,8 @@ authoring/evaluator sections such as `## Evaluator review`, `## Ticket
 authoring notes`, or `## Proposals`, plus large custom scratchpads — make
 `mark active` and launch-time auto-activation refuse before workflow freezing,
 status changes, log writes, Slack posts, prompt composition, or agent spawn.
+`coga validate` reports the same condition as an error and exits nonzero, so a
+ticket writer cannot mistake an activation-blocking draft for a valid one.
 The operator must merge durable requirements into `## Description` /
 `## Context` first. If blackboard content is intentionally part of the run,
 put it under `## Production notes`; that marker tells activation to leave
