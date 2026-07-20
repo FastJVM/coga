@@ -4,7 +4,7 @@ schedule_comment: "Every day at 8am - close merged final-step tickets before the
 title: "Autoclose merged tickets"
 # A script step runs the sweep directly with no agent: the workflow's one
 # step references the `coga/autoclose/sweep` skill, whose `script:` calls
-# `coga.autoclose.sweep_merged`. It runs directly with no agent buffering, so
+# `sweep_merged` in the skill's `recipe.py`. It runs directly with no agent buffering, so
 # it is safe for unattended recurring runs.
 workflow: autoclose-merged/sweep
 ---

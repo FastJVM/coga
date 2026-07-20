@@ -1,5 +1,12 @@
 """Sweep stale git branches as a scheduled safety net behind retire-time deletion.
 
+This is the deterministic recipe for the `coga/branch-sweep/sweep` skill (run by
+the `branch-sweep` recurring task). It is a single-consumer maintenance recipe,
+so under the microkernel policy it lives in the skill dir rather than in core
+`src/coga/`. It imports only shared core infra: the `autoclose` gh helpers
+(`GhError`, `parse_branch_name`), the shared branch-delete primitives in
+`branchcleanup`, and `config`/`taskfile`/`tasks`/`ticket`.
+
 `coga retire` deletes a ticket's branch as soon as the ticket finishes (see
 `branchcleanup.py`), but that cleanup is best-effort: `git`/`gh` failures are
 swallowed there, and a branch also leaks when its ticket is deleted without
@@ -15,7 +22,7 @@ requires a merged PR for that exact tip **and no open PR** for that head — a
 branch that once merged a PR and was later reused must survive unless the
 current ref itself is the one GitHub says landed.
 
-Live tickets are consulted defensively before any gh lookup: a non-terminal
+Live tickets are consulted defensively before any gh lookup: a not-`done`
 ticket's `## Dev` `branch:` line is skipped outright, so a ticket still
 mid-workflow never loses its branch even if its PR already merged.
 
@@ -41,7 +48,6 @@ from coga.branchcleanup import (
     delete_remote_branch,
 )
 from coga.config import Config
-from coga.lifecycle import TERMINAL_STATUSES
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import list_tasks, read_ticket
 from coga.ticket import TicketError
@@ -65,7 +71,7 @@ def sweep_branches(
     """Delete local/`origin` branches whose PR has merged, skipping live ones.
 
     `root` is the git working-tree root. Never touches `cfg.git_control_branch`,
-    the currently checked-out branch, or a branch recorded on a non-terminal
+    the currently checked-out branch, or a branch recorded on a not-`done`
     ticket. If `gh` is unavailable, the rest of the sweep is skipped and
     reported rather than force-deleting anything.
     """
@@ -182,14 +188,14 @@ def _gh_prs(branch: str, state: str) -> list[dict[str, object]]:
 
 
 def _live_ticket_branches(cfg: Config) -> set[str]:
-    """Branch names recorded under `## Dev` on any non-terminal ticket."""
+    """Branch names recorded under `## Dev` on any not-`done` ticket."""
     branches: set[str] = set()
     for ref in list_tasks(cfg):
         try:
             ticket = read_ticket(ref)
         except TicketError:
             continue
-        if ticket.status in TERMINAL_STATUSES:
+        if ticket.status == "done":
             continue
         try:
             blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)

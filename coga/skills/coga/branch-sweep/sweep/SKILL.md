@@ -22,10 +22,13 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    the local branch (`git branch -d`, or logged `-D` for the squash-merge
    case) following the same policy retire uses.
 
-The scope is defined by `coga.branchsweep.sweep_branches`. If `gh` is
-missing or unauthed, the rest of the run reports skipped branches and
+The scope is defined by `sweep_branches` in this skill's sibling `recipe.py`
+(the single-consumer sweep recipe lives beside `run.py` under the microkernel
+policy; it imports the shared `GhError` / `parse_branch_name` helpers and the
+branch-delete primitives from core `coga.autoclose` / `coga.branchcleanup`). If
+`gh` is missing or unauthed, the rest of the run reports skipped branches and
 deletes nothing — never a forced delete without a confirmed merge.
 
-The script imports `coga.branchsweep.sweep_branches` and calls it directly,
-so it does not depend on `coga` being on `PATH` inside the script
+The script imports `sweep_branches` from the sibling `recipe.py` and calls it
+directly, so it does not depend on `coga` being on `PATH` inside the script
 environment.

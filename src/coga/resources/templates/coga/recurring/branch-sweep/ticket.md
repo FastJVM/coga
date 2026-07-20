@@ -4,7 +4,7 @@ schedule_comment: "Every Monday at 7am - prune stale git branches before the day
 title: "Branch sweep"
 # A script step runs the sweep directly with no agent: the workflow's one
 # step references the `coga/branch-sweep/sweep` skill, whose `script:` calls
-# `coga.branchsweep.sweep_branches`. It runs directly with no agent buffering,
+# `sweep_branches` in the skill's `recipe.py`. It runs directly with no agent buffering,
 # so it is safe for unattended recurring runs.
 workflow: branch-sweep/sweep
 ---
@@ -34,7 +34,7 @@ Once a week this recurring task's script step runs the branch sweep, which:
    with `-D` for the squash-merge case; skip and report anything unmerged
    with no merged PR).
 
-The sweep is defined in `coga.branchsweep.sweep_branches`. Its first run
+The sweep is defined in `sweep_branches` in the skill's `recipe.py`. Its first run
 also prunes the merged part of the branch backlog that accumulated before
 retire-time deletion shipped — abandoned no-PR branches are skipped and
 reported by design, so expect a residual manual pass rather than a fully

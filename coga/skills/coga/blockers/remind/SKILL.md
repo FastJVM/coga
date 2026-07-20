@@ -13,5 +13,7 @@ owner reminder for each blocker that has not already been reminded, and writes
 a compact `## Blocker reminders` watermark on the blocked task's own
 blackboard.
 
-The scanner and watermark writer live in `coga.blocker_reminders`; blocker
-creation and resolution stay owned by `coga block` and `coga unblock`.
+The scanner and watermark writer live in this skill's sibling `recipe.py` (a
+single-consumer maintenance recipe under the microkernel policy, importing only
+shared core infra); blocker creation and resolution stay owned by `coga block`
+and `coga unblock`.

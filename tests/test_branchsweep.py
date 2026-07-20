@@ -6,8 +6,17 @@ from textwrap import dedent
 
 import pytest
 
-from coga import branchsweep as bs
+from conftest import load_skill_recipe
+
 from coga.config import load_config
+
+
+# The branch sweep is a single-consumer maintenance recipe living in the
+# `coga/branch-sweep/sweep` skill dir (microkernel policy), not in core. Load it
+# by file path the way the launcher's run.py does; `GhError`, `parse_branch_name`
+# and the branch-delete primitives it uses are still shared core infra it
+# imports.
+bs = load_skill_recipe("coga/branch-sweep/sweep")
 
 
 def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
