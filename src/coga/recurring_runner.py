@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlsplit
 import typer
 
 from coga import git
+from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.commands.launch import _interactive_stdio_has_tty
 from coga.commands.launch_script import is_script_launch
 from coga.config import Config, ConfigError, load_config
@@ -222,7 +223,11 @@ def _repo_label(coga_os: Path, root: Path) -> str:
 def _has_serviceable_config(coga_os: Path) -> bool:
     """Whether a discovered workspace is a configured scheduler target."""
     try:
-        load_config(coga_os)
+        cfg = load_config(coga_os)
+        validate_aliases(
+            {**DEFAULT_ALIASES, **cfg.aliases},
+            warn_legacy=False,
+        )
     except ConfigError:
         return False
     except Exception:

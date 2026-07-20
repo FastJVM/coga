@@ -457,6 +457,8 @@ def test_recurring_all_skips_unconfigured_repos_compactly(
     root = tmp_path / "workspaces"
     missing_user = root / "missing-user" / "coga"
     stale_config = root / "stale-config" / "coga"
+    alias_collision = root / "alias-collision" / "coga"
+    unknown_alias_target = root / "unknown-alias-target" / "coga"
     configured = root / "configured" / "coga"
     _write(missing_user / "coga.toml", "version = 1\n")
     _write(
@@ -467,6 +469,24 @@ def test_recurring_all_skips_unconfigured_repos_compactly(
         max_tasks = 10
         """,
     )
+    _write(
+        alias_collision / "coga.toml",
+        """
+        version = 1
+        [aliases]
+        launch = "status"
+        """,
+    )
+    _write(
+        unknown_alias_target / "coga.toml",
+        """
+        version = 1
+        [aliases]
+        custom = "not-a-command"
+        """,
+    )
+    for coga_os in (alias_collision, unknown_alias_target):
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
     _write(configured / "coga.toml", "version = 1\n")
     _write(configured / "coga.local.toml", 'user = "marc"\n')
     seen: list[Path] = []
@@ -481,8 +501,8 @@ def test_recurring_all_skips_unconfigured_repos_compactly(
 
     assert result.exit_code == 0, result.output
     assert seen == [configured]
-    assert "Swept 1 of 3 Coga repo(s)." in result.output
-    assert "Skipped 2 unconfigured repos." in result.output
+    assert "Swept 1 of 5 Coga repo(s)." in result.output
+    assert "Skipped 4 unconfigured repos." in result.output
     assert "recurring exited" not in result.output
 
 
