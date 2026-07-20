@@ -20,19 +20,28 @@ Answer, then fix, one question: **can Coga's recurring system drive one of
 our own task-specific tickets/workflows, or is it effectively locked to the
 built-in template shape?**
 
-First investigate the recurring engine and confirm what a recurring template
-can and cannot carry — in particular whether a template can point at an
-arbitrary `workflow:` and set of `contexts:` so a normal, task-specific ticket
-(not just Dream / the bundled janitors) fires on a schedule. Then **close the
-gaps** that block that: ship whatever documentation and/or code changes are
-needed so a task-specific recurring ticket works cleanly, and fold the durable
-"here's how you extend recurring with your own ticket" answer into the
-`coga/recurring` context so it's captured for everyone.
+First investigate the recurring engine and confirm — **against the code, not
+against this ticket's framing** — what a recurring template can and cannot
+carry: in particular whether a template can point at an arbitrary `workflow:`
+and set of `contexts:` so a normal, task-specific ticket (not just Dream / the
+bundled janitors) fires on a schedule. Then **document the answer** by folding
+the durable "here's how you extend recurring with your own ticket" write-up
+into the `coga/recurring` context.
+
+The expected outcome is doc-only. The passthrough appears to already work, so
+if the investigation confirms task-specific tickets are already supported, the
+correct disposition is: document the yes/answer and its constraints in
+`coga/recurring` and close — do **not** manufacture a code change to justify
+the workflow. Only ship a code change if the investigation surfaces a *genuine*
+gap that blocks a task-specific recurring ticket from working, and even then,
+if the fix is large or separable, spin it into a follow-up ticket named in the
+PR rather than expanding this one.
 
 Done looks like: a clear yes/no (with the real constraints named) is
-documented in `coga/recurring`, and any concrete gap found during the
-investigation is fixed in the same PR (or, if a gap is genuinely a separate
-piece of work, spun out as a follow-up ticket and named in the PR).
+documented in `coga/recurring`; the claims in that write-up are verified
+against `recurring.py` / `recurring_runner.py`, not just asserted; and either
+no code change was needed (the common case) or a small blocking gap was fixed
+in the same PR.
 
 ## Context
 
@@ -58,6 +67,19 @@ The recurring subsystem already exists and is well-developed — this is an
   touches cross-run state or period-task behavior. (Referenced here rather than
   attached to keep the launch prompt lean; read them from disk if needed.)
 
+Already spot-checked against the code during ticket authoring (verify, then
+build the write-up on these anchors — don't just re-assert them): the
+`workflow` + `contexts` passthrough works (`recurring.py:634-651`,
+`_create_at_slug`); there is one instantiated task per template with a stable
+slug (`_live_task_for_template`, `_recurring_slug`); the run blackboard is
+recreated fresh each firing; a ticket-level `script:` forces every step to run
+as a script (`is_script_launch` true whenever `ticket.script` is set,
+`launch_script.py:41`, re-checked per step at `launch.py:438`), so it only fits
+a one-step workflow; agent templates need a TTY while script templates run
+headless (TTY gate at `recurring.py:394,423`). The likely conclusion is
+therefore "yes, task-specific tickets are already supported" — your job is to
+confirm that holds and document it precisely, not to assume it.
+
 Constraints to name explicitly in the write-up (they are the "or not really"
 half of the answer): the instantiated task path is fixed to one per template;
 the run blackboard is recreated fresh each firing so cross-run state must live
@@ -65,12 +87,15 @@ in the template's own blackboard; a ticket-level `script:` runs on every step
 so it only fits a one-step, ungated workflow; agent templates need a TTY /
 REPL supervisor while script templates run headless.
 
-Testing note (from `coga/contexts/coga/codebase`): recurring code has
-clean-checkout-only failure modes and a packaging test that silently skips
-without `hatchling`. Run `python -m pytest` and `coga validate --json` after
-changes, and keep the live repo copy under `coga/` in sync with the packaged
-copy under `src/coga/resources/templates/coga/` when touching shipped
-contexts.
+Testing note: the primary deliverable, the `coga/recurring` context, is **not
+a packaged context** — only four context SKILLs ship under
+`src/coga/resources/templates/coga/contexts/` and `coga/recurring` is not one
+of them, so there is no packaged copy to keep in sync. Do not go looking for
+or create one. The repo↔packaged sync rule only bites if this ticket ends up
+touching recurring *code* or the shipped recurring *templates* under
+`src/coga/resources/templates/coga/recurring/`; if it does, run
+`python -m pytest` and `coga validate --json` and mind the recurring
+clean-checkout-only failure modes noted in `coga/contexts/coga/codebase`.
 
 Scope boundary: this ticket is scoped to making task-specific recurring
 tickets *possible and documented*. Do not build out a specific production
