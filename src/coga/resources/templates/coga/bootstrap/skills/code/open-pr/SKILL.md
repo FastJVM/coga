@@ -18,11 +18,14 @@ gate, not your say-so.
 
 ## Order of operations
 
-1. **Confirm the handoff state.** Read `branch:` / `worktree:` under `## Dev` on
-   the blackboard. The implement / peer-review steps must have created the
-   feature branch, recorded it, and left it committed and ahead of the base
-   branch. If `branch:` / `worktree:` are missing, that is an earlier-step gap —
-   `coga block` with a one-line reason rather than improvising a branch here.
+1. **Confirm the handoff state.** Read the machine-readable `branch:` /
+   `worktree:` fields under `## Dev` on the blackboard. A trailing annotation
+   must follow a backtick-delimited value or live on a separate line; bare
+   values consume the whole remainder of the line. The implement / peer-review
+   steps must have created the feature branch, recorded it, and left it
+   committed and ahead of the base branch. If `branch:` / `worktree:` are
+   missing, that is an earlier-step gap — `coga block` with a one-line reason
+   rather than improvising a branch here.
 2. **Return to the primary control checkout and run `coga open-pr <slug>`.**
    Task resolution and the `pr:` blackboard write belong to the control
    checkout; running from the feature worktree fails loud rather than updating

@@ -183,6 +183,16 @@ def test_parse_branch_name_backtick_wrapped_form() -> None:
     assert am.parse_branch_name(text) == "drop-debug-all"
 
 
+def test_parse_branch_name_backtick_wrapped_with_annotation() -> None:
+    text = "## Dev\n\nbranch: `feature/name` (other repo)\n"
+    assert am.parse_branch_name(text) == "feature/name"
+
+
+def test_parse_branch_name_unclosed_backtick_falls_back_to_bare_form() -> None:
+    text = "## Dev\n\nbranch: `feature/name (other repo)\n"
+    assert am.parse_branch_name(text) == "feature/name (other repo)"
+
+
 def test_parse_branch_name_none_without_dev_section() -> None:
     assert am.parse_branch_name("## Plan\n\nbranch: nope\n") is None
 
@@ -193,6 +203,31 @@ def test_parse_branch_name_none_when_dev_lacks_branch_line() -> None:
 
 def test_parse_branch_name_empty_value_is_none() -> None:
     assert am.parse_branch_name("## Dev\n\nbranch: ``\n") is None
+
+
+def test_parse_worktree_path_bare_form_preserves_spaces() -> None:
+    text = "## Dev\n\nworktree: /tmp/path with spaces\n"
+    assert am.parse_worktree_path(text) == "/tmp/path with spaces"
+
+
+def test_parse_worktree_path_list_item_backtick_wrapped_form() -> None:
+    text = "## Dev\n\n- worktree: `/tmp/path with spaces`\n"
+    assert am.parse_worktree_path(text) == "/tmp/path with spaces"
+
+
+def test_parse_worktree_path_backtick_wrapped_with_annotation() -> None:
+    text = "## Dev\n\nworktree: `/tmp/path with spaces` (other repo)\n"
+    assert am.parse_worktree_path(text) == "/tmp/path with spaces"
+
+
+def test_parse_worktree_path_unclosed_backtick_falls_back_to_bare_form() -> None:
+    text = "## Dev\n\nworktree: `/tmp/path with spaces (other repo)\n"
+    assert am.parse_worktree_path(text) == "/tmp/path with spaces (other repo)"
+
+
+def test_parse_worktree_path_annotated_placeholder_is_none() -> None:
+    text = "## Dev\n\nworktree: `(not yet created)` (other repo)\n"
+    assert am.parse_worktree_path(text) is None
 
 
 def test_parse_pr_number() -> None:
