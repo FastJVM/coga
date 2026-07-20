@@ -92,8 +92,91 @@ scanner skips it. That is how the starter templates ship without firing.
   one-step `direct/body` workflow, which runs the ticket body's ordered
   phases directly as the prompt; Dream is the canonical example. (The task is
   still workflow-carrying and bumpable — `direct/body` is the workflow.)
-- `owner`, `assignee`, `watchers`, `contexts` — passed through to the
-  created period task.
+- `owner`, `assignee`, `watchers`, `contexts`, `secrets` — passed through to
+  the created period task.
+- `script` — optional ticket-owned script setting, also passed through. An
+  inline script travels in the copied body; a companion script file beside the
+  template is not copied into the period task, so file-backed recurring logic
+  belongs in a script-backed workflow skill.
+
+## Extend recurring with a task-specific workflow
+
+Yes: recurring templates are not restricted to Dream or the shipped janitor
+shape. A template may name any workflow that an ordinary task in the repo can
+use, and may attach any resolvable set of contexts. There is no separate
+registry of recurring-capable workflows.
+
+On each firing, the recurring creator routes the template through the ordinary
+task creator. That path resolves and freezes the named `workflow:`, validates
+its step-skill and `contexts:` references, copies the template body into the
+period task, and appends `coga/period-task` to its contexts. The resulting
+`coga/tasks/recurring/<name>/` ticket uses the normal launch, per-step
+assignee, script dispatch, bump, blocker, and completion behavior.
+
+To schedule a task-specific workflow:
+
+1. Define the workflow and any skills or contexts through their ordinary Coga
+   paths.
+2. Copy `coga/recurring/_template/` (or `_rem/`) to a non-underscore directory
+   such as `coga/recurring/weekly-deliverability/`.
+3. Set the template's `schedule:`, explicit `workflow:`, `contexts:`, and role
+   fields, then replace its `## Description` with the per-firing instructions.
+4. Run `coga validate --json`, then use
+   `coga recurring launch weekly-deliverability` for an explicit real run or
+   `coga recurring` for the scheduled sweep.
+
+For example:
+
+```yaml
+---
+schedule: "0 9 * * 1"
+title: "Weekly deliverability review"
+workflow: deliverability/weekly-review
+owner: nick
+assignee: claude
+contexts:
+  - email/deliverability
+  - customers/current-campaigns
+---
+
+## Description
+
+Run the weekly deliverability review and follow the workflow's handoff gates.
+
+<!-- coga:blackboard -->
+
+The cross-run state for this recurring task goes here.
+```
+
+This extension seam has four important constraints:
+
+- **One instantiated task per template.** Every firing uses the stable ref
+  `recurring/<name>` at `coga/tasks/recurring/<name>/`. A still-live prior run
+  is resumed before new-period work; recurring does not create overlapping
+  period tickets or a backlog under different slugs.
+- **The period task is fresh each firing.** Its blackboard is scratch space for
+  that run and is deleted with the task. Put cursors and other cross-run state
+  in the recurring template's own blackboard, optionally naming them in
+  `state_keys:` so completion warns when a run forgets to advance one.
+- **A ticket-level script owns every step.** Because `script:` makes dispatch
+  choose that same ticket script at every current workflow step, use it only
+  with an exactly one-step workflow that has no `requires:` gate. The
+  self-contained recurring form is `script: inline`; template companion files
+  are not materialized into the period task. For file-backed or step-specific
+  deterministic work, put `script:` on the step's single skill instead; that
+  preserves ordinary per-step dispatch and allows an attended workflow to mix
+  script and agent steps.
+- **Agent work is attended; script work can be headless.** An agent-backed
+  template needs stdin and stdout TTYs and runs under the REPL supervisor; a
+  TTY-less sweep skips it with a warning. A script-backed template runs
+  directly without a TTY and is the appropriate shape for an unattended
+  scheduler.
+
+The creator performs a deliberate template-to-ticket transform, not an
+arbitrary frontmatter clone. Use the recurring fields documented above. In
+particular, put process skills on workflow steps: ticket-level `skills:` and
+repo-defined extension-field values are not copied from the template into the
+period task.
 
 ## Last-run state lives in the recurring task's blackboard
 
