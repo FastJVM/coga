@@ -17,21 +17,24 @@ one reviewable PR per theme, each recording the source-task `## Retro` marker,
 updating the knowledge base, and deleting those source task directories in the
 same PR. A source task with no new durable knowledge is still deleted, but
 **directly**: Retro removes its directory with
-`coga delete <slug> --keep-control-checkout` — a working-tree `git rm` plus a
+the checkout-appropriate `coga delete` form — a working-tree `git rm` plus a
 direct `Ticket: <slug> — deleted` commit — with no PR, no `## Retro` marker,
-and no `## Pruned` bookkeeping. Recovery is via `git restore`. Retro never
-leaves a processed done ticket on disk.
+and no `## Pruned` bookkeeping. A linked worktree uses
+`--keep-control-checkout`; an independent clone uses ordinary `coga delete`
+because its refs and worktree are already separate. Recovery is via
+`git restore`. Retro never leaves a processed done ticket on disk.
 
-Retro runs only inside a subagent whose working directory is a dedicated linked
-git worktree. The caller owns that boundary and delegates the complete pass
-into it: use the agent's native worktree isolation when it has one, otherwise
-create a temporary linked worktree with `git worktree add` and pass its absolute
-path to the subagent. The caller fetches the configured remote control branch
-first and bases the worktree's unique temporary branch on that fresh tip. The
-caller also passes a read-only snapshot of the live Retro inputs, then
-explicitly removes the worktree after every mutation is durable. Every
-knowledge-PR branch switch and direct delete happens inside that boundary,
-never in the caller's or operator's primary checkout.
+Retro runs only inside a subagent whose working directory is a dedicated
+isolated checkout. Prefer the agent's native linked-worktree isolation, then a
+caller-created linked worktree. If the managed sandbox makes the caller's
+`.git` metadata read-only, use the documented independent
+`git clone --no-hardlinks` fallback under `/tmp`, repointed to the configured
+real remote. The caller fetches the configured control branch first and bases a
+unique temporary branch on that fresh tip. It also passes a read-only snapshot
+of the live Retro inputs, then explicitly removes the isolated checkout after
+every mutation is durable. Every knowledge-PR branch switch and direct delete
+happens inside that boundary, never in the caller's or operator's primary
+checkout.
 
 ## Known Skill Contract
 
@@ -40,11 +43,11 @@ never in the caller's or operator's primary checkout.
   knowledge-bearing ticket through its reviewable knowledge PR, a
   no-durable-knowledge ticket directly via `coga delete`.
 - Runs: `retro/done-ticket <task-slug> [<task-slug> ...]` in one subagent whose
-  cwd is a dedicated linked worktree, after a human chooses one exact done
+  cwd is a dedicated isolated checkout, after a human chooses one exact done
   ticket or Dream passes every eligible done ticket in one run. Native
-  `isolation: worktree` and a caller-created `git worktree add` checkout are
-  equivalent ways to provide the boundary. The run partitions the tickets into
-  coherent PR batches itself.
+  `isolation: worktree`, a caller-created `git worktree add` checkout, and the
+  independent-clone fallback provide the boundary. The run partitions the
+  tickets into coherent PR batches itself.
 - Inputs: a caller-created read-only snapshot of each source task's complete
   resolved artifact (bare Markdown file or full directory, including sibling
   attachments), the repo-global `coga/log.md`, Dream's live `## Findings` when
@@ -64,12 +67,13 @@ never in the caller's or operator's primary checkout.
   no-durable-knowledge ticket is direct-deleted during the run, so afterward its
   directory is simply gone. A processed `## Retro` marker on a still-present
   directory does not settle the task — Retro re-picks it for deletion.
-- Stop and ask: the cwd is not a linked worktree distinct from the caller's
-  checkout, the caller did not supply a complete evidence snapshot and caller
-  repo root, any slug is ambiguous, any task is not `status: done`, any required
-  evidence file is missing, a single coherent theme still exceeds the per-PR
-  hard limits, or the diff would touch anything outside the allowed files or
-  the exact source task directories.
+- Stop and ask: the cwd is not a verified linked worktree or independent clone
+  distinct from the caller's checkout, the caller did not supply a complete
+  evidence snapshot and caller repo root, the isolated checkout lacks a valid
+  machine-local config copy, any slug is ambiguous, any task is not
+  `status: done`, any required evidence file is missing, a single coherent
+  theme still exceeds the per-PR hard limits, or the diff would touch anything
+  outside the allowed files or the exact source task directories.
 - Output: one coherent PR per knowledge theme, each with knowledge edits and
   the source-task deletion for the tickets that contributed new knowledge;
   no-durable-knowledge tickets removed by direct `coga delete` with no PR.
@@ -94,8 +98,9 @@ Do:
   marker in its `ticket.md` blackboard region and delete its directory in the same knowledge
   PR;
 - for a no-durable-knowledge source task, delete its directory directly with
-  `coga delete <slug> --keep-control-checkout` — no marker, no PR and no
-  fast-forward of another checkout holding the control branch;
+  `coga delete <slug> --keep-control-checkout` from a linked worktree, or
+  ordinary `coga delete <slug>` from an independent clone — no marker or PR,
+  and no mutation of the operator's checkout;
 - open one PR per coherent knowledge theme, containing that theme's
   knowledge-base changes and the deletion of its contributing source tasks;
 - post a one-line Slack FYI with the PR title and link when Slack is
@@ -122,36 +127,55 @@ covered by an existing skill, do not duplicate it.
 
 ## Isolation boundary
 
-Run only inside a subagent whose cwd is a dedicated linked git worktree. Claude
-callers may supply native `isolation: worktree`; a caller whose agent tool has
-no isolation argument (including Codex) creates the worktree first with
-`git worktree add`, then tells the subagent to run every command from that exact
-absolute path. In both cases, the caller fetches the configured remote control
-branch first and creates a unique temporary branch from that fresh tip. The
-subagent never creates a second worktree.
+Run only inside a subagent whose cwd is a dedicated isolated checkout. Use the
+first available shape:
+
+1. Claude callers may supply native `isolation: worktree`.
+2. A caller whose agent tool has no isolation argument (including Codex)
+   creates a linked checkout with `git worktree add`, then tells the subagent to
+   run every command from that exact absolute path.
+3. If and only if the managed sandbox prevents writing the caller's `.git`
+   branch lock, create an independent `git clone --no-hardlinks` under `/tmp`.
+   Repoint its configured remote name to the caller's real remote URL; never
+   leave it pointed at the local primary checkout.
+
+For every shape, read `[git].remote` and `[git].control_branch` from the shared
+`coga.toml` (defaults `origin` and `main`), fetch that exact ref, and create a
+unique temporary branch from the fresh
+`<configured-remote>/<configured-control-branch>` tip. The subagent never
+creates a second isolated checkout.
 
 Before reading the corpus or changing anything, require the caller's absolute
-repo root and prove both parts of the boundary:
+repo root and prove the current checkout is different:
 
 ```bash
 test "$(git rev-parse --show-toplevel)" != "<caller-repo-root>"
-test "$(git rev-parse --path-format=absolute --git-dir)" != \
-  "$(git rev-parse --path-format=absolute --git-common-dir)"
+current_common="$(git rev-parse --path-format=absolute --git-common-dir)"
+caller_common="$(git -C "<caller-repo-root>" rev-parse \
+  --path-format=absolute --git-common-dir)"
 ```
 
-Stop immediately if either check fails. A separate cwd without linked-worktree
-git metadata is not enough. Every `git checkout` and `coga delete` command must
-run inside the verified worktree; never switch, stage, merge, or dirty the
-operator's primary checkout's branch, index, and files.
+Equal common dirs identify a linked worktree; different common dirs identify
+the independent-clone fallback, whose configured remote URL must also match the
+caller's. Stop if neither proof holds. Every `git checkout` and `coga delete`
+command must run inside the verified checkout; never switch, stage, merge, or
+dirty the operator's primary checkout's branch, index, and files.
+
+Before any Coga command, ordinary-copy the caller's gitignored
+`coga.local.toml` into the same repo-relative Coga OS path in the isolated
+checkout and restrict it to the current user. Never symlink it, put it in the
+evidence snapshot, stage it, or commit it. Stop if the caller has no valid
+machine-local config or the copy fails.
 
 The caller owns teardown because a mutating Claude subagent may retain its
-worktree and Codex has no native worktree lifecycle. Leave the worktree clean
-and report its path, temporary branch, PR URLs, and direct-delete verification.
-After checking every result is durable, the caller explicitly runs
-`git worktree remove <path>` from outside it, then deletes the caller-created
-temporary branch with `git branch -D <temporary-branch>`. If durability or
-cleanup cannot be verified, preserve the path and branch for recovery and stop
-instead of force-removing them.
+worktree and Codex has no native worktree lifecycle. Leave the checkout clean
+and report its kind, path, temporary branch, PR URLs, and direct-delete
+verification. After checking every result is durable, remove the copied
+`coga.local.toml`. For a linked checkout, run `git worktree remove <path>` from
+outside it and delete the caller-created temporary branch with
+`git branch -D <temporary-branch>`. For an independent clone, delete only the
+exact temporary clone directory. If durability or cleanup cannot be verified,
+preserve the checkout for recovery and stop instead of force-removing it.
 
 ## Comparison baseline
 
@@ -208,13 +232,13 @@ If you need the filesystem path for the installed package bootstrap root, run:
 python -c "from importlib.resources import files; print(files('coga.resources').joinpath('templates', 'coga', 'bootstrap'))"
 ```
 
-Stop and ask if the linked-worktree preflight fails, the caller root or snapshot
-path is missing, any task slug is ambiguous, any snapshot task is not
-`status: done`, any required evidence file is missing, a selected source task
-does not exist in the isolated base (an uncommitted-only task cannot be deleted
-durably), a single coherent theme cannot be kept within the per-PR hard limits,
-or there is already an open PR adding a `## Retro` marker for the same source
-task.
+Stop and ask if the isolated-checkout preflight or machine-local config setup
+fails, the caller root or snapshot path is missing, any task slug is ambiguous,
+any snapshot task is not `status: done`, any required evidence file is missing,
+a selected source task does not exist in the isolated base (an uncommitted-only
+task cannot be deleted durably), a single coherent theme cannot be kept within
+the per-PR hard limits, or there is already an open PR adding a `## Retro`
+marker for the same source task.
 
 ## Workflow
 
@@ -316,14 +340,15 @@ task.
    A source task that contributed new durable knowledge is deleted inside the PR
    that records its `## Retro` marker, after recording that marker — in its
    theme's knowledge PR. A source task with no new durable knowledge is deleted
-   **directly** with `coga delete <slug> --keep-control-checkout`, from a clean,
-   unique temporary local branch based on freshly fetched `origin/main`. That
-   removes its directory in the isolated worktree and commits
+   **directly** from a clean, unique temporary local branch based on the freshly
+   fetched `<configured-remote>/<configured-control-branch>`. In a linked
+   worktree run `coga delete <slug> --keep-control-checkout`; in an independent
+   clone run ordinary `coga delete <slug>`. Both forms commit
    `Ticket: <slug> — deleted` straight to the remote control branch without
-   fast-forwarding the operator's control checkout — no PR, no marker, no
-   `## Pruned` section. Do not run direct deletes from detached HEAD: leave the
-   isolated worktree clean so the caller can verify and remove it. After
-   deletion git history is the audit trail, and recovery is via `git restore`.
+   mutating the operator's checkout — no PR, no marker, no `## Pruned` section.
+   Do not run direct deletes from detached HEAD. Leave the isolated checkout
+   clean so the caller can verify and remove it. After deletion git history is
+   the audit trail, and recovery is via `git restore`.
 
 10. **Self-review the diff.**
    Confirm each knowledge PR changes only context files, warranted skill files,
@@ -334,20 +359,21 @@ task.
    PR (marker written, directory left in place) is opened.
 
 11. **Open the PRs.**
-   Work only in the caller-provided linked worktree; do not create a second
-   worktree. For each coherent knowledge batch, branch off `origin/main` inside
-   that isolated checkout with
-   `git checkout -b codex/retro-<ticket-slug>-knowledge origin/main` for a
-   single source task or `codex/retro-<theme>-knowledge origin/main` for a
-   multi-ticket batch, make that batch's edits and source-task deletions there,
-   commit, push, and open the PR, then return the isolated checkout to
-   `origin/main` for the next batch. Title each knowledge PR for its knowledge
-   change, not the act of running Retro. Prefer
+   Work only in the caller-provided isolated checkout; do not create a second
+   checkout. For each coherent knowledge batch, branch off
+   `<configured-remote>/<configured-control-branch>` inside it with
+   `git checkout -b codex/retro-<ticket-slug>-knowledge \
+   <configured-remote>/<configured-control-branch>` for a single source task or
+   `codex/retro-<theme>-knowledge` for a multi-ticket batch, make that batch's
+   edits and source-task deletions there, commit, push, and open the PR, then
+   return the isolated checkout to the configured remote control ref for the
+   next batch. Title each knowledge PR for its knowledge change, not the act of
+   running Retro. Prefer
    `New context: <finding>` or `New skill: <finding>`. No-durable-knowledge
    tickets are not part of any knowledge branch — after the knowledge branches
-   are committed and pushed, remove each with
-   `coga delete <slug> --keep-control-checkout` from the isolated checkout's
-   clean temporary branch. Never branch-switch or refresh the caller's checkout.
+   are committed and pushed, remove each from the isolated checkout's clean
+   temporary branch using the checkout-appropriate `coga delete` form from step
+   9. Never branch-switch or refresh the caller's checkout.
 
 12. **Post Slack FYI for PRs.**
    If Slack is configured, post one short message per PR that is useful without

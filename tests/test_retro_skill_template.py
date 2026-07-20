@@ -61,30 +61,38 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "`<PR title>. PR: <url>`" in text
 
 
-def test_retro_requires_backend_neutral_linked_worktree_isolation() -> None:
-    """Retro branches and direct-deletes only inside a verified linked worktree.
+def test_retro_requires_backend_neutral_isolated_checkout() -> None:
+    """Retro branches and deletes only inside a verified isolated checkout.
 
     Both callers own the boundary, live-state snapshot, and explicit cleanup.
-    Claude can use native isolation while Codex can create the same git shape.
+    Codex can fall back to a clone when its sandbox cannot lock primary `.git`.
     """
     text = RETRO_SKILL.read_text()
     norm = " ".join(text.split())
 
-    assert "Native `isolation: worktree` and a caller-created `git worktree add`" in norm
-    assert "fetches the configured remote control branch" in norm
+    assert "Native `isolation: worktree`, a caller-created `git worktree add`" in norm
+    assert "`git clone --no-hardlinks` fallback" in norm
+    assert "managed sandbox prevents writing the caller's `.git`" in norm
+    assert "fetch that exact ref" in norm
     assert "unique temporary branch on that fresh tip" in norm
     assert "test \"$(git rev-parse --show-toplevel)\" != \"<caller-repo-root>\"" in text
     assert "--git-common-dir" in text
-    assert "Stop immediately if either check fails" in norm
+    assert "configured remote URL must also match the caller's" in norm
     assert "primary checkout's branch, index, and files" in norm
     assert "Every `git checkout` and `coga delete` command" in norm
+    assert "ordinary-copy the caller's gitignored `coga.local.toml`" in norm
+    assert "same repo-relative Coga OS path" in norm
+    assert "Never symlink it, put it in the evidence snapshot, stage it, or commit it" in norm
     assert "read-only evidence snapshot" in norm
     assert "including sibling attachments" in norm
     assert "`coga delete <slug> --keep-control-checkout`" in text
+    assert "ordinary `coga delete <slug>` from an independent clone" in norm
     assert "`git worktree remove <path>`" in text
-    assert "deletes the caller-created temporary branch" in norm
     assert "`git branch -D <temporary-branch>`" in text
+    assert "delete only the exact temporary clone directory" in norm
     assert "mutating Claude subagent may retain its worktree" in norm
+    assert "<configured-remote>/<configured-control-branch>" in text
+    assert "origin/main" not in text
     assert "auto-cleaned" not in text
     assert "automatic worktree cleanup" not in text
     assert "Work in the current checkout — do not create a `git worktree`." not in text
@@ -107,7 +115,7 @@ def test_retro_deletes_every_processed_done_ticket() -> None:
     assert "A source task with no new durable knowledge is still deleted" in text
     assert "is direct-deleted via `coga delete`" in text
     assert "`coga delete <slug> --keep-control-checkout`" in text
-    assert "no marker, no PR" in text
+    assert "no marker or PR" in text
     assert "gets **no** marker" in text
     assert "git restore" in text
     assert "leaves a processed done ticket on disk" in text

@@ -149,9 +149,11 @@ Last updated: 2026-07-17.
   that bundled every deletion — including knowledge-less ones — into a knowledge
   PR or a single delete-only prune PR. Retro never leaves a processed done
   ticket on disk and never opens a marker-only PR. Retro performs the direct
-  delete from its linked worktree with `--keep-control-checkout`, so the remote
+  delete from a linked worktree with `--keep-control-checkout`, so the remote
   control ref advances without moving the operator's checkout underneath
-  concurrent work.
+  concurrent work. When a managed sandbox cannot create the linked worktree,
+  Retro uses an independent clone and ordinary `coga delete`; its separate Git
+  metadata provides the same operator-checkout boundary.
 
 ## Recent decisions (assignees flattened out)
 

@@ -456,7 +456,9 @@ deletion still commits and pushes to the remote control branch, but
 `sync_paths(update_local_control_ref=False)` skips `_try_update_local_ref`, so
 the operator's checkout holding `main` does not have its ref, index, or files
 moved underneath concurrent work. Ordinary `coga delete` keeps the normal
-best-effort local refresh.
+best-effort local refresh. Retro's independent-clone fallback uses that ordinary
+form: its local control ref belongs to the temporary clone, so refreshing it
+cannot move the operator's checkout.
 
 Scope is narrow. `src/coga/git.py::sync_task_state(cfg, task_path, *,
 message)` stages and commits only the task directory pathspec. It must not use

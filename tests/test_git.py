@@ -1178,6 +1178,7 @@ def test_cli_delete_from_linked_worktree_keeps_primary_checkout(
 
     worktree = tmp_path / "retro-delete-worktree"
     git_repo.git("worktree", "add", "-b", "retro-delete-test", str(worktree), "main")
+    assert not (worktree / "coga" / "coga.local.toml").exists()
     shutil.copy(git_repo.coga_os / "coga.local.toml", worktree / "coga")
     try:
         monkeypatch.chdir(worktree / "coga")
@@ -1207,6 +1208,48 @@ def test_cli_delete_from_linked_worktree_keeps_primary_checkout(
     finally:
         monkeypatch.chdir(git_repo.coga_os)
         git_repo.git("worktree", "remove", "--force", str(worktree))
+
+
+def test_cli_delete_from_independent_clone_keeps_primary_checkout(
+    git_repo, monkeypatch, tmp_path
+):
+    """Retro's sandbox fallback uses ordinary delete from separate Git metadata."""
+    _install_delete_skill(git_repo.coga_os)
+    git_repo.git("add", "--", "coga/skills/bootstrap/delete-task")
+    git_repo.git("commit", "-m", "install delete skill")
+    git_repo.git("push", "origin", "main")
+
+    created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
+    slug = created.output.split(":", 1)[0].strip()
+    rel = f"coga/tasks/{slug}.md"
+    primary_tip = git_repo.git("rev-parse", "HEAD").strip()
+    primary_ticket = git_repo.root / rel
+
+    clone = tmp_path / "retro-delete-clone"
+    git_repo.git(
+        "clone", "--no-hardlinks", str(git_repo.root), str(clone), cwd=tmp_path
+    )
+    git_repo.git("remote", "set-url", "origin", str(git_repo.origin), cwd=clone)
+    git_repo.git("fetch", "origin", "main", cwd=clone)
+    git_repo.git("checkout", "-B", "retro-delete-clone", "origin/main", cwd=clone)
+    git_repo.git("config", "user.email", "retro@example.com", cwd=clone)
+    git_repo.git("config", "user.name", "Retro", cwd=clone)
+    assert not (clone / "coga" / "coga.local.toml").exists()
+    shutil.copy(git_repo.coga_os / "coga.local.toml", clone / "coga")
+
+    monkeypatch.chdir(clone / "coga")
+    deleted = runner.invoke(app, ["delete", slug])
+    assert deleted.exit_code == 0, deleted.output
+    git.sync_coga_state(load_config(clone / "coga"))
+
+    assert not git_repo.origin_tracks(rel)
+    assert f"Ticket: {slug} — deleted" in git_repo.origin_subjects()
+    assert git_repo.git("rev-parse", "HEAD").strip() == primary_tip
+    assert git_repo.git("rev-parse", "main").strip() == primary_tip
+    assert primary_ticket.is_file()
+    assert git_repo.git("status", "--porcelain", cwd=git_repo.root) == ""
+    assert not (clone / rel).exists()
+    assert git_repo.git("status", "--porcelain", cwd=clone) == ""
 
 
 # --- non-interactive git (no credential-prompt hangs) -------------------------

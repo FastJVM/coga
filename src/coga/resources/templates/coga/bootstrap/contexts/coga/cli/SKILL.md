@@ -413,6 +413,11 @@ remote control branch, but it does not fast-forward a different checkout that
 has the local control branch checked out. A primary-checkout invocation fails
 before deleting anything.
 
+When a restricted sandbox cannot create that linked worktree, Retro may use an
+independent clone and ordinary `coga delete` instead. The clone has separate Git
+metadata, so the ordinary local-control-ref refresh cannot touch the operator's
+checkout.
+
 ## coga retire \<slug\> [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body

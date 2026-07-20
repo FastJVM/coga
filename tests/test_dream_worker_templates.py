@@ -90,15 +90,20 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "Delegate the entire Retro pass to one subagent in a dedicated" in text
     assert "`isolation: worktree`" in text
     assert "`git worktree add`" in text
+    assert "`git clone --no-hardlinks`" in text
+    assert "primary `.git` metadata read-only" in " ".join(text.split())
     assert "Fetch the configured remote control branch first" in text
     assert "unique temporary branch on that fresh tip" in " ".join(text.split())
     assert "Do not run Retro in Dream's checkout" in " ".join(text.split())
+    assert "gitignored `coga.local.toml`" in text
+    assert "same repo-relative path" in " ".join(text.split())
+    assert "never symlink, snapshot, stage, or commit it" in " ".join(text.split())
     assert "read-only temporary\nevidence snapshot" in text
     assert "including sibling attachments" in " ".join(text.split())
     assert "current `## Findings`" in text
     assert "`coga delete <slug> --keep-control-checkout`" in text
-    assert "explicitly remove the worktree" in text
-    assert "caller-created temporary branch" in " ".join(text.split())
+    assert "ordinary `coga delete <slug>` from an independent clone" in " ".join(text.split())
+    assert "delete the exact independent-clone" in " ".join(text.split())
     assert "auto-clean" not in text
     # Knowledge-less tickets are direct-deleted, not bundled into a prune PR.
     assert "is direct-deleted with" in text
