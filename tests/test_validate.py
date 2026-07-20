@@ -128,6 +128,7 @@ def test_validate_reports_removed_skill_in_materialized_recurring_template(
     assert "megalaunch is now on-demand only" in issue.message
     assert "`coga/recurring/megalaunch/`" in issue.message
     assert "`coga/workflows/megalaunch/`" in issue.message
+    assert report.ok_count == 0
 
 
 def test_validate_recurring_template_unknown_skill_lists_checked_paths(

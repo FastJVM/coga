@@ -924,8 +924,12 @@ def _valid_assignee_set(cfg: Config) -> set[str]:
 
 
 def _ok_count(refs: list[TaskRef], issues: list[Issue]) -> int:
-    synthetic = {"(slack)", "(github)"}
-    bad = {i.task for i in issues if i.severity == "error" and i.task not in synthetic}
+    task_labels = {ref.id_slug for ref in refs}
+    bad = {
+        issue.task
+        for issue in issues
+        if issue.severity == "error" and issue.task in task_labels
+    }
     return len(refs) - len(bad)
 
 
