@@ -2042,3 +2042,15 @@ Aborting
 2026-07-17 22:59 [bootstrap/ticket] [system] {"agent":"claude","agent_turns":null,"cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"claude","content_status":"unknown","elapsed_seconds":12.625982,"ended_at":"2026-07-18T05:59:06.514267Z","human_turns":null,"input_tokens":null,"model":null,"outcome":null,"outcome_status":"completed","output_tokens":null,"provider":"anthropic","request":null,"schema":2,"session_id":"011517ae-daba-4a2d-8a5a-ceca32c0ebcc","slug":"bootstrap/ticket","started_at":"2026-07-18T05:58:53.888285Z","step":null,"title":"Create a new ticket","ts":"2026-07-18T05:59:06.514267Z","usage_status":"unknown"}
 2026-07-17 22:59 [move-some-alerts-to-coga-important-instead-of-coga] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-20 15:46 [write-real-coga-documentation-command-reference-gu] [megalaunch] activated (blocked → active) — explicit megalaunch pick
+2026-07-20 15:46 [write-real-coga-documentation-command-reference-gu] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/2)
+Rebasing (2/2)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 15:46 [install/harden-packaging-and-install-before-launch] [megalaunch] activated (blocked → active) — explicit megalaunch pick
