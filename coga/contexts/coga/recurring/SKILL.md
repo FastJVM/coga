@@ -102,16 +102,20 @@ scanner skips it. That is how the starter templates ship without firing.
 ## Extend recurring with a task-specific workflow
 
 Yes: recurring templates are not restricted to Dream or the shipped janitor
-shape. A template may name any workflow that an ordinary task in the repo can
-use, and may attach any resolvable set of contexts. There is no separate
-registry of recurring-capable workflows.
+shape. At materialization time, a template may name any resolvable workflow
+that an ordinary task in the repo can use and may attach any resolvable set of
+contexts. There is no separate registry of recurring-capable workflows. That
+is structural support, not a promise that every workflow shape can finish in a
+scheduled sweep; shape the run around the dispatch constraints below.
 
 On each firing, the recurring creator routes the template through the ordinary
 task creator. That path resolves and freezes the named `workflow:`, validates
 its step-skill and `contexts:` references, copies the template body into the
 period task, and appends `coga/period-task` to its contexts. The resulting
 `coga/tasks/recurring/<name>/` ticket uses the normal launch, per-step
-assignee, script dispatch, bump, blocker, and completion behavior.
+assignee, script dispatch, bump, blocker, and completion machinery. A bare
+scheduled sweep adds post-launch handling for unfinished runs, described
+below.
 
 To schedule a task-specific workflow:
 
@@ -141,14 +145,15 @@ contexts:
 
 ## Description
 
-Run the weekly deliverability review and follow the workflow's handoff gates.
+Run the weekly deliverability review; this scheduled workflow must reach
+`done` in the current launch.
 
 <!-- coga:blackboard -->
 
 The cross-run state for this recurring task goes here.
 ```
 
-This extension seam has four important constraints:
+This extension seam has six important constraints:
 
 - **One instantiated task per template.** Every firing uses the stable ref
   `recurring/<name>` at `coga/tasks/recurring/<name>/`. A still-live prior run
@@ -158,18 +163,34 @@ This extension seam has four important constraints:
   that run and is deleted with the task. Put cursors and other cross-run state
   in the recurring template's own blackboard, optionally naming them in
   `state_keys:` so completion warns when a run forgets to advance one.
-- **A ticket-level script owns every step.** Because `script:` makes dispatch
-  choose that same ticket script at every current workflow step, use it only
-  with an exactly one-step workflow that has no `requires:` gate. The
-  self-contained recurring form is `script: inline`; template companion files
-  are not materialized into the period task. For file-backed or step-specific
-  deterministic work, put `script:` on the step's single skill instead; that
-  preserves ordinary per-step dispatch and allows an attended workflow to mix
-  script and agent steps.
-- **Agent work is attended; script work can be headless.** An agent-backed
+- **Script resolution is step-first.** If the current workflow step has exactly
+  one script-backed skill, that skill's script runs; otherwise a ticket-level
+  `script:` runs. A ticket script therefore makes every remaining non-scripted
+  step dispatch as a script, but it does not override a scripted step skill.
+  Avoid declaring both forms unless that precedence is intentional. The
+  self-contained ticket form is `script: inline`; template companion files are
+  not materialized into the period task.
+- **A headless script run must finish in one step.** This limit applies whether
+  the script belongs to the ticket or the first step's skill: after an entry
+  script succeeds, `coga launch` advances once and returns. If another step
+  remains, the bare recurring sweep sees an unfinished script task, stops
+  before later templates, and leaves the run `in_progress`. Use an exactly
+  one-step workflow with no `requires:` gate for an unattended recurring job.
+  An attended workflow may instead start with an agent and mix later
+  script-backed skill steps into the supervised agent chain.
+- **A scheduled agent run must reach `done` in one launch.** When a bare
+  `coga recurring` sweep gets control back from an unfinished agent launch, it
+  pauses the period task before continuing. That includes an intermediate
+  human or unassigned handoff and a task that invoked `coga block`; the paused
+  run is skipped by later sweeps and cannot use ordinary `bump` / `unblock`
+  from that state. Do not put human gates or expected blockers in a scheduled
+  agent workflow. Use the on-demand `coga recurring launch <name>` path (then
+  drive the ordinary ticket handoff) or an ordinary task when a run needs
+  those intermediate states.
+- **Agent work needs a TTY; complete scripts can be headless.** An agent-backed
   template needs stdin and stdout TTYs and runs under the REPL supervisor; a
-  TTY-less sweep skips it with a warning. A script-backed template runs
-  directly without a TTY and is the appropriate shape for an unattended
+  TTY-less sweep skips it with a warning. A one-step script-backed template
+  runs directly without a TTY and is the appropriate shape for an unattended
   scheduler.
 
 The creator performs a deliberate template-to-ticket transform, not an
