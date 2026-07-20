@@ -49,6 +49,11 @@ isolated CLI with `uv tool install coga`. `uv pip install coga` and plain
 a curl-to-shell installer or dependency lockfile unless a failed verification
 produces evidence that the wheel-based path cannot meet the gate.
 
+The 2026-07-19 owner decision adds a standalone clean-container verification
+harness as this ticket's implementation deliverable. It may land before the
+target release exists; passing the harness against that published release is
+still the final gate.
+
 ## Prerequisites
 
 - First-install sibling fixes from the clean-container retest are merged,
@@ -87,7 +92,11 @@ Run the public path in a disposable clean Linux environment, without
 - `coga validate --json` passes in the initialized repository after the first
   workflow transition.
 - The blackboard contains reproducible evidence and links any follow-up ticket.
-- This ticket is then marked done directly; it produces no feature branch or PR.
+- The repository contains a documented automated harness for repeating the
+  five verification steps with an explicitly authenticated supported agent CLI.
+- The harness implementation is reviewed through this ticket's current code
+  workflow. The ticket is marked done only after the published-release run has
+  produced the required evidence.
 
 <!-- coga:blackboard -->
 
