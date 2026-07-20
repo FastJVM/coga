@@ -168,6 +168,26 @@ For the deeper "why," read **[docs/vision.md](docs/vision.md)**. For the
 operating contract Coga agents actually load, read
 [`coga/contexts/coga/principles/SKILL.md`](coga/contexts/coga/principles/SKILL.md).
 
+## Browser automation
+
+Coga includes a stateless setup session for turning a concrete browser task
+into durable, reviewable work:
+
+```sh
+coga launch bootstrap/browser-automation
+```
+
+Describe the target site, desired outcome, and success check when the agent
+asks. The bundled `browser/build-automation` skill first checks whether an API
+or ordinary script is a better fit, then selects the appropriate autonomy
+workflow and creates and launches a ticket for the actual task. Installing Coga
+does not seed a generic browser-automation draft in your task list.
+
+`browser/build-automation` is the orchestration skill: it routes the request and
+authors the concrete ticket. `browser/playwright` is the lower-level execution
+skill: it drives a real browser from the terminal and is attached only when the
+chosen implementation actually needs one.
+
 ## Key Values
 
 **You own the system.** Coga is markdown, Python, Git, and the shell. No hosted
