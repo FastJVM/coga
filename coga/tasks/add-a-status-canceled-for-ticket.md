@@ -40,21 +40,14 @@ and packaged template copies synchronized where the contract changes. Do not
 add a reopen path or silently reinterpret `canceled` as `done`; completion and
 intentional abandonment must remain distinguishable.
 
+Cover cancellation from `blocked` explicitly: existing blocker text remains
+historical blackboard content, while the ticket becomes terminal and its
+workflow step is cleared. Enforce terminal behavior consistently by rejecting
+launch, bump, reactivation, autoclose, and other mutations that require a
+non-terminal ticket. Persist the required cancellation reason in the
+append-only audit log; it does not need a second canonical copy in the ticket
+blackboard or `coga show`.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Ticket authoring notes
-
-- Human confirmed command shape: `coga mark canceled <ticket>`.
-- Human confirmed canceled tickets are hidden by default and need no reopen path.
-- Human confirmed cancellation must require a reason.
-- Proposed autonomy tier: human-verify. The code change is conventional and
-  testable, but lifecycle semantics have broad control-plane impact; the chosen
-  code workflow includes peer review and an owner gate.
-
-## Evaluator review
-
-The ticket is clear and implementation-ready: it defines the new status, command syntax, required reason, allowed source states, terminal behavior, status visibility, and the major integration surfaces. `code/with-review` fits the broad control-plane change and its human review gate; `dev/code` is relevant and appropriately narrow. No additional broad context should be attached—the ticket already states the necessary lifecycle contract, while repository guidance directs the implementer to the canonical architecture and packaged/live copies.
-
-The scope is sizable but cohesive as one lifecycle feature rather than multiple independent tickets. Two edge cases merit explicit decisions or test coverage during implementation: canceling a `blocked` ticket should clarify whether blocker text remains as historical blackboard content, and “terminal” should consistently make `canceled` ineligible for launch, bump, reactivation, autoclose, and other done-only mutations. The required cancellation reason should also have a defined durable representation: the ticket currently guarantees audit-trail legibility, but does not say whether it must additionally remain visible in the ticket blackboard or `coga show`.
