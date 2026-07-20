@@ -1530,6 +1530,29 @@ def test_decode_key() -> None:
     assert _decode_key(b"x") == ""  # unknown keys are ignored
 
 
+def test_picker_window_keeps_cursor_visible() -> None:
+    """Long lists window to a viewport that always contains the cursor."""
+    from coga.commands.megalaunch import _picker_window
+
+    # Short list: no windowing, everything is shown.
+    assert _picker_window(total=5, cursor=0, rows=10) == (0, 5)
+    assert _picker_window(total=10, cursor=9, rows=10) == (0, 10)
+
+    # Long list: the window is exactly `rows` tall and never drops the cursor.
+    for cursor in range(50):
+        start, end = _picker_window(total=50, cursor=cursor, rows=10)
+        assert end - start == 10
+        assert start <= cursor < end
+        assert 0 <= start and end <= 50
+
+    # Top and bottom clamp so we never scroll past the ends.
+    assert _picker_window(total=50, cursor=0, rows=10)[0] == 0
+    assert _picker_window(total=50, cursor=49, rows=10) == (40, 50)
+
+    # A degenerate terminal height still yields a usable window.
+    assert _picker_window(total=50, cursor=20, rows=0) == (0, 50)
+
+
 def _feed_keys(monkeypatch: pytest.MonkeyPatch, keys: list[str]) -> None:
     """Drive the picker with decoded key actions instead of a raw terminal."""
     pending = iter(keys)

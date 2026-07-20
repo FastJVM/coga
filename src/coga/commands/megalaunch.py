@@ -278,7 +278,7 @@ def _pick_selection(candidates: list[tuple[TaskRef, Ticket]]) -> list[str]:
     cursor = 0
     selected: set[int] = set()
     with Live(
-        _picker_view(candidates, selected, cursor),
+        _picker_view(candidates, selected, cursor, console),
         console=console,
         auto_refresh=False,
         transient=True,
@@ -299,12 +299,38 @@ def _pick_selection(candidates: list[tuple[TaskRef, Ticket]]) -> list[str]:
                 selected = set(range(len(candidates)))
             elif key == "none":
                 selected = set()
-            live.update(_picker_view(candidates, selected, cursor), refresh=True)
+            live.update(
+                _picker_view(candidates, selected, cursor, console), refresh=True
+            )
+
+
+def _picker_window(total: int, cursor: int, rows: int) -> tuple[int, int]:
+    """Half-open [start, end) of candidate indices to show for this cursor.
+
+    Rich's Live crops a taller-than-terminal render to the last screenful, so
+    without windowing the top of a long list scrolls off and the cursor can
+    sit on an invisible row. We scroll the viewport to keep the cursor inside
+    it, leaving a one-row margin at each edge when there is more list to reveal.
+    """
+    if rows <= 0 or total <= rows:
+        return 0, total
+    # Anchor the window on the "page" the cursor falls in, then nudge so the
+    # cursor is never pinned to the very top/bottom edge while more rows exist.
+    start = max(0, min(cursor - rows // 2, total - rows))
+    return start, start + rows
 
 
 def _picker_view(
-    candidates: list[tuple[TaskRef, Ticket]], selected: set[int], cursor: int
+    candidates: list[tuple[TaskRef, Ticket]],
+    selected: set[int],
+    cursor: int,
+    console: Console,
 ) -> Group:
+    # Reserve rows for the table header, the hint line, and the two possible
+    # scroll indicators so the viewport always fits within the terminal.
+    rows = max(1, console.size.height - 4)
+    start, end = _picker_window(len(candidates), cursor, rows)
+
     table = Table(show_lines=False, show_edge=False, pad_edge=False)
     table.add_column("")
     table.add_column("sel")
@@ -313,7 +339,8 @@ def _picker_view(
     table.add_column("owner")
     table.add_column("step")
     table.add_column("title")
-    for index, (ref, ticket) in enumerate(candidates):
+    for index in range(start, end):
+        ref, ticket = candidates[index]
         table.add_row(
             Text("❯" if index == cursor else " "),
             # Text, not str: a bare "[x]" would be eaten as Rich markup.
@@ -325,11 +352,19 @@ def _picker_view(
             ticket.title,
             style="reverse" if index == cursor else None,
         )
-    hint = Text(
-        "↑/↓ move · Space toggle · a all · n none · Enter launch · q quit",
-        style="dim",
+    parts: list[Text | Table] = []
+    if start > 0:
+        parts.append(Text(f"  ↑ {start} more above", style="dim"))
+    parts.append(table)
+    if end < len(candidates):
+        parts.append(Text(f"  ↓ {len(candidates) - end} more below", style="dim"))
+    parts.append(
+        Text(
+            "↑/↓ move · Space toggle · a all · n none · Enter launch · q quit",
+            style="dim",
+        )
     )
-    return Group(table, hint)
+    return Group(*parts)
 
 
 def _drain_post_text(run: MegalaunchRun) -> str | None:
