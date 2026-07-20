@@ -13,11 +13,11 @@ from coga.blackboard import BLOCKER_TS_FORMAT, Blocker, parse_blockers_text
 from coga.config import Config
 from coga.paths import (
     context_resolution_paths,
+    missing_skill_message,
     repo_context_path,
     resolve_context_path,
     resolve_skill_path,
     resolve_workflow_path,
-    skill_resolution_paths,
 )
 from coga.taskfile import split_body
 from coga.tasks import BootstrapRef, TargetRef
@@ -379,20 +379,17 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
     )]
 
 
-def _checked_skill_paths(cfg: Config, skill_ref: str) -> str:
-    return ", ".join(str(path) for path in skill_resolution_paths(cfg, skill_ref))
-
-
 def _checked_context_paths(cfg: Config, ref: str) -> str:
     return ", ".join(str(path) for path in context_resolution_paths(cfg, ref))
 
 
 def _missing_skill_message(cfg: Config, skill_ref: str, slug: str) -> str:
-    checked = _checked_skill_paths(cfg, skill_ref)
+    message = missing_skill_message(cfg, skill_ref, source=f"Task {slug!r}")
+    if skill_ref == "coga/megalaunch/run":
+        return message
     return (
-        f"Task {slug!r} references skill {skill_ref!r}, but no skill file exists "
-        f"for it. Checked: {checked}. Create one of those files or remove "
-        f"{skill_ref!r} from the workflow step / ticket `skills:` list."
+        f"{message} Create one of those files or remove {skill_ref!r} from "
+        "the workflow step / ticket `skills:` list."
     )
 
 

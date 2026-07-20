@@ -236,6 +236,11 @@ creates with the one-step `direct/body` workflow, which runs the ticket
 body's ordered phases directly. There is no sanctioned workflow-less active
 task; the invariant holds for machine-authored tasks too.
 
+Validation also resolves workflow-step skills directly from materialized
+recurring templates, rather than waiting for the scheduler to create an active
+period task. Generic missing refs list both paths Coga checked; known removed
+bundled refs may replace that list with specific cleanup instructions.
+
 ## Two state machines per ticket
 
 - **Control plane (`status`)** — `draft → active → in_progress →

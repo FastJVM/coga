@@ -8,6 +8,14 @@ from pathlib import Path
 from coga.config import Config
 
 
+_REMOVED_BUNDLED_SKILL_MESSAGES = {
+    "coga/megalaunch/run": (
+        "megalaunch is now on-demand only; delete "
+        "`coga/recurring/megalaunch/` and `coga/workflows/megalaunch/`"
+    ),
+}
+
+
 def packaged_template_path(*parts: str) -> Path:
     """Path to a packaged template resource inside the installed coga package."""
     return Path(files("coga.resources").joinpath("templates", "coga", *parts))
@@ -69,6 +77,18 @@ def resolve_skill_path(cfg: Config, ref: str) -> Path | None:
 
 def skill_resolution_paths(cfg: Config, ref: str) -> tuple[Path, Path]:
     return (skill_path(cfg, ref), bootstrap_skill_path(cfg, ref))
+
+
+def missing_skill_message(cfg: Config, ref: str, *, source: str) -> str:
+    """Describe an unresolved skill, including known package migrations."""
+    migration = _REMOVED_BUNDLED_SKILL_MESSAGES.get(ref)
+    if migration is not None:
+        return f"{source} references removed bundled skill {ref!r}: {migration}."
+    checked = ", ".join(str(path) for path in skill_resolution_paths(cfg, ref))
+    return (
+        f"{source} references skill {ref!r}, but no skill file exists for it. "
+        f"Checked: {checked}."
+    )
 
 
 def context_path(cfg: Config, ref: str) -> Path:
@@ -143,6 +163,7 @@ __all__ = [
     "bootstrap_skill_dir",
     "resolve_skill_path",
     "skill_resolution_paths",
+    "missing_skill_message",
     "context_path",
     "context_dir",
     "bootstrap_context_path",

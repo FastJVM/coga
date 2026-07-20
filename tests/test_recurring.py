@@ -1336,6 +1336,48 @@ def test_scan_due_skips_bad_template(repo: Path, capsys) -> None:
     assert "skipping bad" in capsys.readouterr().err
 
 
+def test_scan_due_explains_removed_megalaunch_skill(repo: Path) -> None:
+    _write(
+        repo / "workflows" / "megalaunch.md",
+        """
+        ---
+        name: megalaunch
+        description: Legacy recurring megalaunch workflow.
+        steps:
+          - name: run
+            skills:
+              - coga/megalaunch/run
+        ---
+        """,
+    )
+    _write_recurring(
+        repo,
+        "megalaunch",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Megalaunch"
+        workflow: megalaunch
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Legacy recurring megalaunch.
+        """,
+    )
+
+    scan = scan_due(
+        load_config(repo), now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+
+    error = next(message for name, message in scan.errors if name == "megalaunch")
+    assert "megalaunch is now on-demand only" in error
+    assert "`coga/recurring/megalaunch/`" in error
+    assert "`coga/workflows/megalaunch/`" in error
+
+
 def test_scan_due_skips_malformed_schedule(repo: Path, capsys) -> None:
     _write_recurring(
         repo,

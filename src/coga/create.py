@@ -11,6 +11,7 @@ from coga.bump import AssigneeResolutionError, resolve_other_agent
 from coga.config import Config
 from coga.logfile import append_log
 from coga.paths import (
+    missing_skill_message,
     resolve_context_path,
     resolve_skill_path,
     resolve_workflow_path,
@@ -92,9 +93,13 @@ def create_task(
                 if resolve_skill_path(cfg, ref) is None:
                     missing_step_skills.append(ref)
         if missing_step_skills:
-            raise ValueError(
-                f"Workflow {workflow_name!r} references missing skills: {missing_step_skills}"
+            details = "; ".join(
+                missing_skill_message(
+                    cfg, ref, source=f"Workflow {workflow_name!r}"
+                )
+                for ref in missing_step_skills
             )
+            raise ValueError(details)
 
     # Initial assignee: if step 1 declares a role, resolve against the
     # ticket's role fields (or, for `other-agent`, the peer agent from
