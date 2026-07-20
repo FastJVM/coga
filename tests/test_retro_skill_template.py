@@ -60,6 +60,23 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "`<PR title>. PR: <url>`" in text
 
 
+def test_retro_requires_subagent_worktree_isolation() -> None:
+    """Retro branches and direct-deletes only inside an auto-cleaned worktree.
+
+    Both callers own creating that boundary. The skill must fail loud when the
+    boundary is missing instead of switching the operator's primary checkout.
+    """
+    text = RETRO_SKILL.read_text()
+    norm = " ".join(text.split())
+
+    assert "subagent with `isolation: worktree`" in norm
+    assert "Stop immediately if the caller did not provide worktree isolation" in norm
+    assert "primary checkout's branch, index, and uncommitted files" in norm
+    assert "Every `git checkout` and `coga delete` command" in norm
+    assert "automatic worktree cleanup" in norm
+    assert "Work in the current checkout — do not create a `git worktree`." not in text
+
+
 def test_retro_deletes_every_processed_done_ticket() -> None:
     """Every done ticket Retro processes is deleted, but by two different
     routes. A ticket that carries durable knowledge is deleted inside its

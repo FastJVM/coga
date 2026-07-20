@@ -87,6 +87,9 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "Extract durable knowledge from done tickets, then delete every one of them." in text
     assert "its resolved task directory under `coga/tasks/` still exists" in text
     assert "Retro never leaves a processed done ticket on" in text
+    assert "Delegate the entire Retro pass to one subagent with" in text
+    assert "`isolation: worktree`" in text
+    assert "Do not run Retro in Dream's checkout" in text
     # Knowledge-less tickets are direct-deleted, not bundled into a prune PR.
     assert "is direct-deleted with" in text
     assert "`coga delete <slug>`" in text

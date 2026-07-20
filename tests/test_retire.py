@@ -105,6 +105,10 @@ def test_retire_no_launch_creates_task_with_target_slug(
     assert ticket.workflow["name"] == "direct/body"
     assert "Retire the done ticket `fix-retry-logic`" in ticket.body
     assert "retro/done-ticket" in ticket.body
+    body_norm = " ".join(ticket.body.split())
+    assert "Delegate the entire Retro pass to one subagent with" in body_norm
+    assert "`isolation: worktree`" in body_norm
+    assert "Do not run Retro in this retire task's checkout" in body_norm
     # Source task untouched until the agent runs the retro skill.
     assert (repo / "tasks" / "fix-retry-logic" / "ticket.md").is_file()
 

@@ -118,18 +118,22 @@ settle the ticket — its deletion PR has not merged, so it stays eligible. Do
 not infer completion from branch names, stale comments, or old Dream notes —
 only the on-disk directory and open-PR state count.
 
-Run `retro/done-ticket <slug> [<slug> ...]` in one subagent, passing every
-eligible slug. The skill loads the context/skill corpus once, reads each
-ticket, carries one running delta across the whole run, and partitions the
-tickets into coherent PR batches — each PR within its hard limits (≤5 source
-tickets, ≤3 knowledge files, ≤1 new context/skill file, one theme). Every
-processed done ticket is deleted: a ticket that contributed durable knowledge
-is deleted in its theme's knowledge PR, which also records its `## Retro`
-marker; a ticket carrying nothing durable is direct-deleted with
-`coga delete <slug>` (a working-tree `git rm` plus a direct
-`Ticket: <slug> — deleted` commit), with no PR and no marker. Recovery is via
-`git restore`. Retro never leaves a processed done ticket on disk and never
-opens a marker-only PR.
+Delegate the entire Retro pass to one subagent with `isolation: worktree`,
+running `retro/done-ticket <slug> [<slug> ...]` there and passing every eligible
+slug. Do not run Retro in Dream's checkout or fall back to an unisolated
+subagent; if worktree isolation is unavailable, stop and surface the blocker.
+The caller-provided worktree is auto-cleaned when the subagent returns, so all
+Retro branch switches and its direct `coga delete` calls stay inside that
+boundary. The skill loads the context/skill corpus once, reads each ticket,
+carries one running delta across the whole run, and partitions the tickets into
+coherent PR batches — each PR within its hard limits (≤5 source tickets, ≤3
+knowledge files, ≤1 new context/skill file, one theme). Every processed done
+ticket is deleted: a ticket that contributed durable knowledge is deleted in
+its theme's knowledge PR, which also records its `## Retro` marker; a ticket
+carrying nothing durable is direct-deleted with `coga delete <slug>` (a
+working-tree `git rm` plus a direct `Ticket: <slug> — deleted` commit),
+with no PR and no marker. Recovery is via `git restore`.
+Retro never leaves a processed done ticket on disk and never opens a marker-only PR.
 
 A done `recurring/<name>` ticket from this sweep is eligible like any other.
 Period tickets carry nothing durable (their output is the notification post or

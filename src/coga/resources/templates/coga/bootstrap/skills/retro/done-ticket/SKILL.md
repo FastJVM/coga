@@ -21,15 +21,22 @@ working-tree `git rm` plus a direct `Ticket: <slug> — deleted` commit — with
 PR, no `## Retro` marker, and no `## Pruned` bookkeeping. Recovery is via
 `git restore`. Retro never leaves a processed done ticket on disk.
 
+Retro runs only inside a subagent created with `isolation: worktree`. The
+caller owns that boundary and delegates the complete pass into it. The
+subagent's checkout is temporary and auto-cleaned; every knowledge-PR branch
+switch and every direct `coga delete` happens there, never in the caller's or
+operator's primary checkout.
+
 ## Known Skill Contract
 
 - Purpose: extract durable knowledge from one done ticket or every eligible
   done ticket in a single run, and delete every processed source task — a
   knowledge-bearing ticket through its reviewable knowledge PR, a
   no-durable-knowledge ticket directly via `coga delete`.
-- Runs: `retro/done-ticket <task-slug> [<task-slug> ...]` after a human
-  chooses one exact done ticket, or Dream passes every eligible done ticket in
-  one run. The run partitions them into coherent PR batches itself.
+- Runs: `retro/done-ticket <task-slug> [<task-slug> ...]` in one subagent with
+  `isolation: worktree`, after a human chooses one exact done ticket or Dream
+  passes every eligible done ticket in one run. The run partitions them into
+  coherent PR batches itself.
 - Inputs: each source task's `ticket.md` (body + blackboard region) and its history in the repo-global `coga/log.md`, plus
   every local and bundled context/skill file under local `coga/contexts/`,
   package `bootstrap/contexts/`, local `coga/skills/`, and package
@@ -48,9 +55,10 @@ PR, no `## Retro` marker, and no `## Pruned` bookkeeping. Recovery is via
   no-durable-knowledge ticket is direct-deleted during the run, so afterward its
   directory is simply gone. A processed `## Retro` marker on a still-present
   directory does not settle the task — Retro re-picks it for deletion.
-- Stop and ask: any slug is ambiguous, any task is not `status: done`, any
-  required evidence file is missing, a single coherent theme still exceeds the
-  per-PR hard limits, or the diff would touch anything outside the allowed
+- Stop and ask: the caller did not launch this skill in a subagent with
+  `isolation: worktree`, any slug is ambiguous, any task is not `status: done`,
+  any required evidence file is missing, a single coherent theme still exceeds
+  the per-PR hard limits, or the diff would touch anything outside the allowed
   files or the exact source task directories.
 - Output: one coherent PR per knowledge theme, each with knowledge edits and
   the source-task deletion for the tickets that contributed new knowledge;
@@ -101,6 +109,21 @@ and known failure modes belong in contexts; repeatable instructions for how an
 agent should do work belong in skills. If the process knowledge is already
 covered by an existing skill, do not duplicate it.
 
+## Isolation boundary
+
+Run only inside a subagent created with `isolation: worktree`. Before reading
+the corpus or changing anything, confirm the caller supplied that isolation.
+Stop immediately if the caller did not provide worktree isolation; do not fall
+back to running in the caller's checkout and do not create an ad-hoc worktree
+yourself.
+
+The caller-provided worktree is the boundary for the complete Retro pass.
+Every `git checkout` and `coga delete` command must run inside it. In
+particular, never switch or dirty the operator's primary checkout's branch,
+index, and uncommitted files. Keep all mutations in the isolated checkout until
+its commits or PR branches are durable, then let automatic worktree cleanup
+remove it when the subagent exits.
+
 ## Comparison baseline
 
 The baseline you compare ticket evidence against is the **current working-tree
@@ -150,7 +173,8 @@ python -c "from importlib.resources import files; print(files('coga.resources').
 Stop and ask if any task slug is ambiguous, any task is not `status: done`, any
 required task evidence file is missing, a single coherent theme cannot be kept
 within the per-PR hard limits below, or there is already an open PR adding a
-`## Retro` marker for the same source task.
+`## Retro` marker for the same source task. Also stop before reading or mutating
+anything if this run was not delegated with `isolation: worktree`.
 
 ## Workflow
 
@@ -263,16 +287,19 @@ within the per-PR hard limits below, or there is already an open PR adding a
    PR (marker written, directory left in place) is opened.
 
 11. **Open the PRs.**
-   Work in the current checkout — do not create a `git worktree`. For each
-   coherent knowledge batch, branch directly off `origin/main` with
+   Work only in the caller-provided isolated worktree; do not create a second
+   worktree. For each coherent knowledge batch, branch off `origin/main` inside
+   that isolated checkout with
    `git checkout -b codex/retro-<ticket-slug>-knowledge origin/main` for a
    single source task or `codex/retro-<theme>-knowledge origin/main` for a
    multi-ticket batch, make that batch's edits and source-task deletions there,
-   commit, push, and open the PR, then return to `origin/main` for the next
-   batch. Title each knowledge PR for its knowledge change, not the act of
-   running Retro. Prefer `New context: <finding>` or `New skill: <finding>`.
-   No-durable-knowledge tickets are not part of any branch — remove each with
-   `coga delete <slug>` from the checkout.
+   commit, push, and open the PR, then return the isolated checkout to
+   `origin/main` for the next batch. Title each knowledge PR for its knowledge
+   change, not the act of running Retro. Prefer
+   `New context: <finding>` or `New skill: <finding>`. No-durable-knowledge
+   tickets are not part of any knowledge branch — remove each with
+   `coga delete <slug>` from the isolated checkout. Never branch-switch the
+   caller's checkout.
 
 12. **Post Slack FYI for PRs.**
    If Slack is configured, post one short message per PR that is useful without
