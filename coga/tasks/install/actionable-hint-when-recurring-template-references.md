@@ -1,7 +1,7 @@
 ---
 slug: install/actionable-hint-when-recurring-template-references
 title: Actionable hint when recurring template references a removed bundled skill
-status: blocked
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
