@@ -10,6 +10,11 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 import typer
 
 from coga import git
+from coga.aliases import (
+    BUILTIN_COMMANDS as _BUILTIN_COMMANDS,
+    DEFAULT_ALIASES as _DEFAULT_ALIASES,
+    validate_aliases as _validate_aliases,
+)
 from coga.commands import block as block_cmd
 from coga.commands import create as create_cmd
 from coga.commands import delete as delete_cmd
@@ -103,82 +108,6 @@ app.add_typer(recurring_cmd.app, name="recurring")
 app.add_typer(secret_cmd.app, name="secret")
 
 
-# Names of commands registered above. Used to validate that user-defined
-# aliases don't collide with built-ins and that alias expansions target
-# real commands.
-_BUILTIN_COMMANDS = frozenset(
-    {
-        "init",
-        "uninstall",
-        "create",
-        "launch",
-        "megalaunch",
-        "status",
-        "show",
-        "bump",
-        "open-pr",
-        "block",
-        "unblock",
-        "delete",
-        "retire",
-        "slack",
-        "digest",
-        "usage",
-        "skill",
-        "mark",
-        "recurring",
-        "ticket",
-        "project",
-        "validate",
-        "secret",
-    }
-)
-
-
-# Aliases registered for every user, regardless of whether their `coga.toml`
-# has an `[aliases]` section. Anything in the user's `[aliases]` overrides
-# (same key wins). Keeps `coga chat` discoverable in `--help` — and actually
-# dispatchable — for repos init'd before the alias defaults convention, or
-# where the user dropped the section.
-#
-# `dream` is a default alias rather than a built-in command: a Dream run is an
-# ordinary recurring task (`coga/recurring/dream/`), and `coga dream`
-# just creates and launches it on demand — the same path `coga recurring
-# launch dream` takes. Shipping it as a default keeps `coga dream` working in
-# repos init'd before the recurring template landed.
-#
-# `build` is the first-run onboarding entry point: it just launches the
-# packaged `coga-build` ticket (`coga launch coga-build`), the same path a
-# manual launch takes. As an alias it dispatches through normal `coga launch`
-# CLI parsing — so it requires an already-init'd repo and captures no name (both
-# now `coga init`'s job) and never hits the in-code `launch()` sentinel pitfall.
-#
-# `skill-update` and `autoclose` mirror `dream`: each is an ordinary recurring
-# task launched on demand, so the alias just expands to `recurring launch
-# <name>`. `autoclose` deliberately uses a short public verb whose target dir is
-# renamed (`autoclose-merged`) — it sweeps already-merged PRs and marks their
-# tasks done via the recurring sweep. There is no manual `automerge` command;
-# closing a single merged task by hand is `coga mark done`.
-#
-# `pick` is a memorable name for the interactive megalaunch picker
-# (`coga megalaunch --pick`); shipping it as a default keeps `coga pick`
-# working in repos whose `coga.toml` predates the alias line. A trailing
-# directory still scopes it (`coga pick marketing`).
-_DEFAULT_ALIASES: dict[str, str] = {
-    "chat": "launch bootstrap/orient",
-    "dream": "recurring launch dream",
-    "build": "launch coga-build",
-    "skill-update": "recurring launch skill-update",
-    "autoclose": "recurring launch autoclose-merged",
-    "pick": "megalaunch --pick",
-}
-
-
-_LEGACY_ALIASES: dict[str, str] = {
-    "create": "launch bootstrap/ticket",
-}
-
-
 # Commands that must NOT trigger the end-of-command `coga/` state sweep.
 # Read-only commands are excluded because `coga/principles` #6 forbids a render
 # from mutating as a side effect (committing dirty OS state *is* a mutation).
@@ -254,41 +183,6 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
     if command == "secret":
         return False
     return False
-
-
-def _validate_aliases(aliases: dict[str, str]) -> None:
-    """Reject aliases that collide with built-ins or expand to unknown commands.
-
-    Exactly one shape is soft-skipped instead of crashing: legacy default
-    aliases we shipped that later became built-ins (today: the
-    `create = "launch bootstrap/ticket"` line every pre-split repo carries).
-    We print a one-line stderr notice and drop the alias so the CLI keeps
-    working before the user has had a chance to clean up their `coga.toml`.
-    """
-    for name in list(aliases):
-        expansion = aliases[name]
-        if _LEGACY_ALIASES.get(name) == expansion:
-            print(
-                f"coga: dropping legacy alias {name!r} from coga.toml "
-                f"({name!r} is now a built-in command — remove the line "
-                f"under [aliases]).",
-                file=sys.stderr,
-            )
-            del aliases[name]
-            continue
-        if name in _BUILTIN_COMMANDS:
-            raise ConfigError(
-                f"alias {name!r} collides with built-in command — rename it."
-            )
-        tokens = shlex.split(expansion)
-        if not tokens:
-            raise ConfigError(f"alias {name!r} expands to empty command")
-        target = tokens[0]
-        if target not in _BUILTIN_COMMANDS:
-            raise ConfigError(
-                f"alias {name!r} expands to unknown command {target!r} "
-                f"(known: {sorted(_BUILTIN_COMMANDS)})"
-            )
 
 
 def _register_alias_placeholder(name: str, expansion: str) -> None:

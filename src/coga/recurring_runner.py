@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlsplit
 import typer
 
 from coga import git
+from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.commands.launch import _interactive_stdio_has_tty
 from coga.commands.launch_script import is_script_launch
 from coga.config import Config, ConfigError, load_config
@@ -56,10 +57,10 @@ _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
 # catch-up behavior.
 _REQUIRE_FRESH_CONTROL_ENV = "COGA_RECURRING_REQUIRE_FRESH_CONTROL"
 
-# A parent-directory sweep discovers real Coga workspaces, not dependency or
-# tool-state trees. Once one workspace is found its subtree is a unit: Coga
-# refuses nested workspaces, and descending would only find fixtures or
-# packaged templates inside the repo.
+# A parent-directory sweep discovers real Coga workspaces, not dependency,
+# tool-state, or intentionally inert `_`-prefixed trees. Once one workspace is
+# found its subtree is a unit: Coga refuses nested workspaces, and descending
+# would only find fixtures or packaged templates inside the repo.
 _REPO_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
     {".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"}
 )
@@ -70,14 +71,19 @@ def discover_coga_repos(root: Path) -> list[Path]:
 
     A workspace is identified by a directory named ``coga`` containing
     ``coga.toml``. A host repo may itself be named ``coga``, so a same-named
-    directory without that file is still traversed.
+    directory without that file is still traversed. Directory segments whose
+    names start with ``_`` are explicit exclusions below the scan root.
     """
     if root.name == "coga" and (root / "coga.toml").is_file():
         return [root]
 
     found: list[Path] = []
     for dirpath, dirnames, _ in os.walk(root):
-        dirnames[:] = [name for name in dirnames if name not in _REPO_SCAN_SKIP_DIRS]
+        dirnames[:] = [
+            name
+            for name in dirnames
+            if name not in _REPO_SCAN_SKIP_DIRS and not name.startswith("_")
+        ]
         if "coga" not in dirnames:
             continue
         coga_os = Path(dirpath) / "coga"
@@ -99,8 +105,10 @@ def run_recurring_all_repos(
 
     Each repo runs in a fresh CLI process so config discovery, aliases, launch
     supervision, and the end-of-command Coga-state sync have exactly their
-    ordinary single-repo behavior. Failures are isolated: the sweep continues
-    through later repos and returns non-zero after reporting the aggregate.
+    ordinary single-repo behavior. Workspaces rejected by Coga's intentional
+    config guards are summarized as unconfigured instead of dispatched.
+    Failures from dispatched repos are isolated: the sweep continues through
+    later repos and returns non-zero after reporting the aggregate.
     """
     root = scan_root.expanduser().resolve()
     if not root.is_dir():
@@ -121,13 +129,23 @@ def run_recurring_all_repos(
     for coga_os in repos:
         typer.echo(f"  {_repo_label(coga_os, root)}")
 
-    duplicate_of = _duplicate_remote_checkouts(repos)
+    serviceable: list[Path] = []
+    skipped_unconfigured: list[str] = []
+    for coga_os in repos:
+        if _has_serviceable_config(coga_os):
+            serviceable.append(coga_os)
+        else:
+            skipped_unconfigured.append(_repo_label(coga_os, root))
+
+    duplicate_of = _duplicate_remote_checkouts(serviceable)
     failed: list[str] = []
     skipped_duplicates: list[str] = []
-    for index, coga_os in enumerate(repos, 1):
+    for index, coga_os in enumerate(serviceable, 1):
         label = _repo_label(coga_os, root)
         typer.secho(
-            f"\n[{index}/{len(repos)}] {label}", fg=typer.colors.CYAN, bold=True
+            f"\n[{index}/{len(serviceable)}] {label}",
+            fg=typer.colors.CYAN,
+            bold=True,
         )
         original = duplicate_of.get(coga_os)
         if original is not None:
@@ -161,8 +179,21 @@ def run_recurring_all_repos(
                     err=True,
                 )
 
-    swept = len(repos) - len(failed) - len(skipped_duplicates)
+    swept = (
+        len(repos)
+        - len(failed)
+        - len(skipped_duplicates)
+        - len(skipped_unconfigured)
+    )
     typer.echo(f"\nSwept {swept} of {len(repos)} Coga repo(s).")
+    if skipped_unconfigured:
+        count = len(skipped_unconfigured)
+        repo_word = "repo" if count == 1 else "repos"
+        typer.secho(
+            f"Skipped {count} unconfigured {repo_word}.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
     if skipped_duplicates:
         typer.secho(
             f"Skipped {len(skipped_duplicates)} duplicate checkout(s) "
@@ -187,6 +218,24 @@ def _repo_label(coga_os: Path, root: Path) -> str:
     except ValueError:
         return str(host_repo)
     return host_repo.name if relative == Path(".") else str(relative)
+
+
+def _has_serviceable_config(coga_os: Path) -> bool:
+    """Whether a discovered workspace is a configured scheduler target."""
+    try:
+        cfg = load_config(coga_os)
+        validate_aliases(
+            {**DEFAULT_ALIASES, **cfg.aliases},
+            warn_legacy=False,
+        )
+    except ConfigError:
+        return False
+    except Exception:
+        # The child process remains authoritative for malformed TOML, I/O
+        # failures, and unexpected loader bugs. Only Coga's intentional config
+        # guards identify an unconfigured checkout that the parent may skip.
+        return True
+    return True
 
 
 def _duplicate_remote_checkouts(repos: list[Path]) -> dict[Path, Path]:
