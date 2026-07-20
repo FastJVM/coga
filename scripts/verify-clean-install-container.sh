@@ -31,11 +31,16 @@ run git -C /work commit -m "Initial commit"
 cd /work
 run coga init --user gate
 test ! -d coga/.git
-test -x coga/.venv/bin/coga
-local_version=$(coga/.venv/bin/coga --version)
+test -x coga/.coga/bin/coga
+local_version=$(coga/.coga/bin/coga --version)
 test "$installed_version" = "$local_version"
-test -f coga/bootstrap/workflows/code/with-review.md
-test -f coga/bootstrap/skills/code/implement/SKILL.md
+run coga/.coga/.venv/bin/python -c '
+from importlib.resources import files
+
+root = files("coga.resources").joinpath("templates/coga/bootstrap")
+assert root.joinpath("workflows/code/with-review.md").is_file()
+assert root.joinpath("skills/code/implement/SKILL.md").is_file()
+'
 
 run coga create "Verify first launch" --workflow direct/body
 ticket=coga/tasks/verify-first-launch.md

@@ -12,9 +12,10 @@ def test_clean_install_gate_covers_public_first_install_contract() -> None:
 
     assert 'uv tool install "coga==$COGA_GATE_VERSION"' in container
     assert "coga init --user gate" in container
-    assert "coga/.venv/bin/coga --version" in container
-    assert "coga/bootstrap/workflows/code/with-review.md" in container
-    assert "coga/bootstrap/skills/code/implement/SKILL.md" in container
+    assert "coga/.coga/bin/coga --version" in container
+    assert 'files("coga.resources").joinpath("templates/coga/bootstrap")' in container
+    assert 'root.joinpath("workflows/code/with-review.md").is_file()' in container
+    assert 'root.joinpath("skills/code/implement/SKILL.md").is_file()' in container
     assert 'coga launch verify-first-launch --agent "$COGA_GATE_AGENT"' in container
     assert "grep -q '^status: done$'" in container
     assert "coga validate --json" in container
