@@ -108,14 +108,47 @@ navigate, with the README linking out to it ("Full docs →").
 - **Sequencing:** this can proceed in parallel with or after `improve-readme`.
   Coordinate the "Full docs →" link target so the two land consistently.
 
+## PR
+
+https://github.com/FastJVM/coga/pull/608 — **MERGED** 2026-07-20. Created from
+branch `real-coga-docs`, closes this ticket. The docs tree
+(`docs/getting-started.md`, `concepts.md`, `reference.md`, `operations.md`,
+`development.md`, `docs/README.md`) and the trimmed `README.md` are on `main`.
+
 <!-- coga:blackboard -->
 
 ## Dev
 
+- pr: https://github.com/FastJVM/coga/pull/608 (MERGED 2026-07-20 — created out-of-band from `real-coga-docs`, closes this ticket; docs already on `main`)
 - branch: real-coga-docs
 - worktree: /home/n/Code/claude/coga-real-docs (durable sibling checkout, NOT /tmp — the /tmp worktree loss is what sank the first implement pass)
 - base: current `main` at 398c40cc (redo after the original branch was lost; see "Redo history" below).
 - scope check: docs-only. No code behavior changes.
+
+## open-pr close-out (2026-07-20, attended, claude)
+
+Resumed at `open-pr` to resolve the last open blocker (codex could not reach
+the GitHub API to create the PR). On inspecting the target, the PR **already
+exists and is merged**: **PR #608** (`https://github.com/FastJVM/coga/pull/608`)
+was created from branch `real-coga-docs`, its body says "Closes ticket:
+`write-real-coga-documentation-command-reference-gu`", and it merged into `main`
+on 2026-07-20 18:47 UTC. The blocker was overtaken by events — the PR got
+created/merged out-of-band between 2026-07-17 and now.
+
+Verification that the merged content is this ticket's work and is complete:
+
+- `docs/getting-started.md`, `concepts.md`, `operations.md`, `development.md`,
+  `docs/README.md` are **byte-identical** between branch HEAD and `origin/main`.
+- `docs/reference.md` differs by 27 lines, and the diff direction shows `main`
+  is **ahead**: a later main commit (`4214be8a`, "Move browser automation
+  section from README into the command reference") added a section the branch
+  predates. The branch carries **nothing unmerged**.
+
+So opening a new PR would duplicate already-merged work; not done. Instead the
+merged PR #608 is recorded as this step's artifact (`## PR` in body, `pr:` under
+`## Dev`), the blocker is resolved via `coga unblock`, and the step bumps to the
+owner `review` step — which the owner effectively already did by merging #608.
+The stale `real-coga-docs` branch can be deleted at the owner's discretion.
 
 ## Redo history (2026-07-17)
 
@@ -223,7 +256,8 @@ couldn't write the durable worktree.
 - [x] [2026-07-17 21:43] [agent:codex] id=20260717T214322 GitHub publication is blocked: gh auth status reports the active nicktoper token is invalid. Run gh auth login -h github.com and verify gh auth status, then unblock and resume this task so real-coga-docs can be pushed and its PR created and recorded.
   resolved: [2026-07-17 21:47] [human:nicktoper] Owner reauthenticated gh and confirmed gh auth status succeeds with repo and workflow scopes. The real-coga-docs branch then pushed successfully to origin.
 
-- [ ] [2026-07-17 21:47] [agent:codex] id=20260717T214738 The feature branch real-coga-docs is pushed, but this agent environment cannot create the PR: gh pr create and gh api POST cannot connect to api.github.com, and the GitHub app returns 403 for PR creation. From a normal shell, open the PR at https://github.com/FastJVM/coga/pull/new/real-coga-docs or run gh pr create, then reply with its URL so it can be recorded and the step completed.
+- [x] [2026-07-17 21:47] [agent:codex] id=20260717T214738 The feature branch real-coga-docs is pushed, but this agent environment cannot create the PR: gh pr create and gh api POST cannot connect to api.github.com, and the GitHub app returns 403 for PR creation. From a normal shell, open the PR at https://github.com/FastJVM/coga/pull/new/real-coga-docs or run gh pr create, then reply with its URL so it can be recorded and the step completed.
+  resolved: [2026-07-20 15:51] [human:nicktoper] PR was created and merged out-of-band as #608 (https://github.com/FastJVM/coga/pull/608), from branch real-coga-docs, closing this ticket; it merged into main 2026-07-20 18:47 UTC. The agent-environment-cannot-create-PR blocker is moot — the PR exists and is merged. Recorded #608 as the open-pr artifact.
 
 
 ---
