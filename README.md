@@ -124,7 +124,8 @@ makes that irreducible judgment work explicit and batches it.
 
 ## Install
 
-Coga requires Python 3.11+ and Git. Install the isolated CLI with `uv`:
+Coga requires Python 3.11+ and Git. Install the isolated CLI with
+[`uv`](https://docs.astral.sh/uv/):
 
 ```sh
 uv tool install coga
@@ -144,7 +145,8 @@ coga build
 ```
 
 `coga init` installs the markdown OS into that repository. `coga build` starts
-the first-run interview and creates an initial batch of tickets. You need an
+the first-run interview and creates an initial batch of tickets, and `coga pick`
+runs a chosen batch until it reaches a blocker or review gate. You need an
 authenticated [Claude Code](https://claude.com/claude-code) or
 [Codex](https://github.com/openai/codex) CLI before `coga build` launches its
 agent. Installation troubleshooting and adopting an existing Coga repository
@@ -172,9 +174,14 @@ chosen implementation actually needs one.
 
 ## Docs
 
+Full documentation lives under [`docs/`](docs/README.md):
+
 - **Why:** [Vision](docs/vision.md)
 - **Start:** [Getting started](docs/getting-started.md)
-- **Reference:** [CLI commands](docs/cli.md)
+- **Model:** [Concepts](docs/concepts.md)
+- **Reference:** [CLI commands](docs/reference.md)
+- **Operations:** [Notifications, recurring work, secrets](docs/operations.md)
+- **Development:** [Working on Coga itself](docs/development.md)
 - **Evidence:** [Velocity report](docs/velocity-report.md)
 
 ## Values
