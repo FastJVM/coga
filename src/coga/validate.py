@@ -416,7 +416,7 @@ def _check_one_task(
                     "body or move intentional launch notes under "
                     "`## Production notes` before activation"
                 ),
-                severity="warn",
+                severity="error",
             ))
 
     if idle_hours != float("inf") and ticket.status == "in_progress":

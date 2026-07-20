@@ -369,7 +369,7 @@ def test_large_blackboard_warns(repo: Path) -> None:
     assert "included in launch prompts" in issue.message
 
 
-def test_draft_authoring_blackboard_warns_without_fixing(repo: Path) -> None:
+def test_draft_authoring_blackboard_errors_without_fixing(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
@@ -384,13 +384,13 @@ def test_draft_authoring_blackboard_warns_without_fixing(repo: Path) -> None:
     issue = next(
         i for i in report.issues if i.kind == "unsynthesized-draft-blackboard"
     )
-    assert issue.severity == "warn"
+    assert issue.severity == "error"
     assert "## Evaluator review" in issue.message
     assert "`## Production notes`" in issue.message
     assert report.fixes == []
 
 
-def test_authoring_blackboard_warning_is_draft_only(repo: Path) -> None:
+def test_authoring_blackboard_error_is_draft_only(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
