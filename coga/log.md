@@ -2130,3 +2130,15 @@ Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-refere
 Auto-merging coga/log.md
 Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
 CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 15:51 [coga] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/11)
+Rebasing (2/11)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 15:53 [write-real-coga-documentation-command-reference-gu] [agent:codex] advanced to step 4 (review) → assigned to nicktoper — Docs already shipped: PR #608 (https://github.com/FastJVM/coga/pull/608) created from real-coga-docs and MERGED to main 2026-07-20; the full docs/ tree + trimmed README are live. Recorded #608 as the open-pr artifact and resolved the last blocker (agent env couldn't create the PR; moot — it exists+merged). Handing to owner review. NOTE for owner: this local primary checkout is 11-ahead/156-behind origin/main and coga git-sync is failing to rebase; origin/main already has this ticket at step 4. Needs manual reconciliation (do NOT blind-reset — the 11 local commits carry local-only state for other tickets too).
