@@ -2,10 +2,10 @@
 slug: add-a-status-canceled-for-ticket
 title: add a status canceled for ticket
 status: active
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: nick
+assignee: claude
 contexts:
 - dev/code
 skills: []
