@@ -10,8 +10,8 @@ steps:
 
 ## sweep
 
-Script step. Runs `coga/autoclose/sweep`, which calls
-`coga.autoclose.sweep_merged`: scan active and in-progress tickets, read
+Script step. Runs `coga/autoclose/sweep`, whose sibling `recipe.py` calls
+`sweep_merged`: scan active and in-progress tickets, read
 their `## Dev` `pr:` link, check GitHub merge state with `gh pr view`, and mark
 only final-step or workflow-less tickets done when the linked PR has merged.
 The command exits successfully when there is nothing to close.
