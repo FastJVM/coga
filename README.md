@@ -4,9 +4,9 @@ Today’s AI coding tools turn programmers into full-time supervisors: prompt,
 wait, review, repeat.
 
 **Coga makes the machine work for you.** Decide what needs to be done, give
-agents a batch of tasks, and return only when a decision needs your judgment.
-Context, progress, and handoffs persist in Markdown and Git, so the work remains
-inspectable, resumable, and yours.
+agents a batch of tasks, and step away while they work. Coga parks blockers and
+review gates until you return. Context, progress, and handoffs persist in
+Markdown and Git, so the work remains inspectable, resumable, and yours.
 
 ## OpenAI Build Week
 
@@ -19,7 +19,7 @@ https://github.com/user-attachments/assets/b310bb0f-2312-4e19-98d4-cc65548b01c1
 ```text
 You choose a batch
   → Coga gives each task its committed context and workflow
-  → Codex and GPT-5.6 execute, test, and record progress
+  → Codex sessions powered by GPT-5.6 execute, test, and record progress
   → blockers and review gates wait for human judgment
   → you return when you are ready
 ```
@@ -49,10 +49,18 @@ the repository, make changes, run tests, review other agents' work, and explain
 decisions.
 
 Coga does not depend on hidden conversational memory to ground the model. Each
-launch reconstructs GPT-5.6's instructions from the files in the repository,
-and Coga's append-only [task log](coga/log.md) records the task, agent, provider,
-model, session, usage, and outcome. That makes GPT-5.6's inputs, sessions, and
-results traceable and inspectable rather than a one-off chat.
+launch reconstructs GPT-5.6's instructions from version-controlled files. For
+every run, Coga's append-only [task log](coga/log.md) records the task, agent,
+provider, model, session, usage, and outcome.
+
+A representative Build Week record, abridged:
+
+```json
+{"agent":"codex","provider":"openai","model":"gpt-5.6-sol","step":"peer-review","usage_status":"ok","outcome_status":"completed"}
+```
+
+Those records make model usage, session provenance, and outcomes auditable
+instead of leaving them in a one-off chat.
 
 ## Install
 
@@ -132,6 +140,17 @@ coga init --user <your-name>
 ```
 
 This adds Coga's markdown OS under `coga/` in that same repository.
+
+Then create starter work and choose a batch:
+
+```sh
+coga build
+coga pick
+```
+
+`coga build` turns a short planning conversation into starter tickets. `coga
+pick` lets you choose a batch and runs launchable work until it reaches a
+blocker, review gate, or other handoff that needs you.
 
 If you tried `coga init` in a separate empty directory, leave that directory
 and run the commands above from your actual project's Git root instead. If the
