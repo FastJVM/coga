@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -93,3 +93,43 @@ code and blackboard handoff are complete.
 Systemic queue guidance and exact timeout reporting are proposed in
 https://github.com/FastJVM/coga/pull/597; this ticket still owns its original
 retro/delete isolation fix.
+
+## Dev
+
+branch: fix/retro-worktree-isolation
+worktree: /tmp/coga-retro-worktree-isolation
+
+## Implementation
+
+- Keep isolation prompt-level: Coga has no workflow/runtime `isolation` field;
+  `isolation: worktree` is the existing subagent delegation contract.
+- Require both Retro callers (`coga retire`'s generated body and Dream Phase 4)
+  to delegate the complete pass into one isolated worktree.
+- Make `retro/done-ticket` fail loud unless it is already running inside that
+  isolated worktree; all branch switches and Retro-triggered `coga delete`
+  calls stay within it, and automatic teardown restores the caller checkout.
+- Regression coverage now pins all three boundaries: the Retro skill, the
+  generated `coga retire` body, and packaged Dream Phase 4. Focused result:
+  `18 passed` across `test_retro_skill_template.py`,
+  `test_dream_worker_templates.py`, and `test_retire.py`.
+- Full verification from the feature worktree: `1323 passed, 1 skipped` via
+  `PYTHONPATH=<feature>/src python -m pytest`; `git diff --check` also passes.
+- Commit: `4c434accdc25c4ad9a254664031c730bf29fda30` (`Require worktree
+  isolation for Retro runs`). The worktree is clean and one commit ahead of
+  `origin/main`.
+- Freshness: fetched `origin/main` at `c2ff4eca` and rebased onto `FETCH_HEAD`;
+  the branch was already current, so no post-rebase test rerun was needed.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T05:14:09+00:00
+Command: `coga validate --json --fix`
+Task: `recurring-bugs/retro-and-delete-branch-switch-the-primary-checkou`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
