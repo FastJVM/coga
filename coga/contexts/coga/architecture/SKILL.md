@@ -71,17 +71,22 @@ no in-memory state.
   ones. The created tasks then use the same ticket, workflow, launch, bump,
   and blackboard machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
-  repos below the path, groups eligible control checkouts by their resolved
-  configured git remote plus the Coga workspace's path within the git checkout,
-  and invokes one checkout in each group once (preferring the first locally
-  configured checkout already on its control branch). Later checkouts of that
-  same remote workspace are named and skipped, while distinct Coga workspaces
-  in one monorepo still run. One scheduler entry therefore cannot race one
-  control branch through multiple worktrees. Each dispatched child
-  must fetch/rebase its checked-out control branch successfully before scanning;
-  an unconfirmed checkout fails only that repo and the parent keeps sweeping.
-  `--force` is the explicit schedule/status bypass and composes with the parent
-  sweep.
+  repos below the path while pruning dependency/tool-state and `_`-prefixed
+  directory trees. Workspaces rejected by Coga's intentional config guards —
+  including a missing local `user` or a stale-key migration error — are not
+  scheduler targets: the parent reports one unconfigured-repo count, does not
+  dispatch them, and does not fail because of them. It groups the remaining
+  eligible control checkouts by their resolved configured git remote plus the
+  Coga workspace's path within the git checkout, and invokes one checkout in
+  each group once (preferring the first locally configured checkout already on
+  its control branch). Later checkouts of that same remote workspace are named
+  and skipped, while distinct Coga workspaces in one monorepo still run. One
+  scheduler entry therefore cannot race one control branch through multiple
+  worktrees. Each dispatched child must fetch/rebase its checked-out control
+  branch successfully before scanning; TOML parse errors and operational
+  failures still fail that repo, and the parent keeps sweeping before returning
+  the aggregate result. `--force` is the explicit schedule/status bypass and
+  composes with the parent sweep.
 - **Bootstrap tickets** in package `bootstrap/<name>/ticket.md` resources
   are stateless launch targets for skills or ticket-owned scripts. No status,
   no workflow. Used for ticket-less re-entry points like `coga launch

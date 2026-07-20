@@ -61,13 +61,16 @@ scanner skips it. That is how the starter templates ship without firing.
   template. If a script-launched task returns still unfinished, the sweep
   stops before the next due task.
 - `coga recurring --all <path>` — discovers every Coga repo below an explicit
-  parent directory and runs the ordinary due sweep in each one, sequentially.
-  It is the one-entry scheduler surface for operators with several repos.
-  Each repo runs in a fresh CLI process so its config, launch supervision, and
-  end-of-command git sync stay repo-local. A failed repo is reported without
-  preventing later repos from running; the parent command exits non-zero after
-  the sweep. `--force` may be combined with `--all <path>` to force every
-  template in every discovered repo.
+  parent directory, pruning dependency/tool-state and `_`-prefixed directory
+  trees, and runs the ordinary due sweep in each configured target,
+  sequentially. A missing local `user` or another intentional Coga config guard
+  makes a scratch checkout an unconfigured non-target: these are omitted from
+  dispatch, summarized once by count, and do not make the parent fail. Each
+  selected repo runs in a fresh CLI process so its config, launch supervision,
+  and end-of-command git sync stay repo-local. TOML parse errors and failures
+  after dispatch are reported without preventing later repos from running; the
+  parent command exits non-zero after the sweep. `--force` may be combined with
+  `--all <path>` to force every template in every selected repo.
 - `coga recurring launch <name>` — creates one named recurring task now,
   ignoring its schedule. `<name>` is the directory name. Unless
   `--interactive` is set, the launched REPL receives the same concrete

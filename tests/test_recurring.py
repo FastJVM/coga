@@ -408,9 +408,12 @@ def test_recurring_all_runs_each_discovered_repo_once(
     first = root / "alpha" / "coga"
     second = root / "teams" / "beta" / "coga"
     ignored = root / "node_modules" / "fixture" / "coga"
+    excluded = root / "_scratch" / "throwaway" / "coga"
     nested_fixture = first.parent / "example" / "coga"
-    for coga_os in (first, second, ignored, nested_fixture):
+    for coga_os in (first, second, ignored, excluded, nested_fixture):
         _write(coga_os / "coga.toml", "version = 1\n")
+    for coga_os in (first, second):
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
 
     calls: list[tuple[Path, bool, bool, str | None]] = []
 
@@ -446,6 +449,41 @@ def test_recurring_all_runs_each_discovered_repo_once(
     ]
     assert "Found 2 Coga repo(s)" in result.output
     assert "Swept 2 of 2 Coga repo(s)." in result.output
+
+
+def test_recurring_all_skips_unconfigured_repos_compactly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "workspaces"
+    missing_user = root / "missing-user" / "coga"
+    stale_config = root / "stale-config" / "coga"
+    configured = root / "configured" / "coga"
+    _write(missing_user / "coga.toml", "version = 1\n")
+    _write(
+        stale_config / "coga.toml",
+        """
+        version = 1
+        [megalaunch]
+        max_tasks = 10
+        """,
+    )
+    _write(configured / "coga.toml", "version = 1\n")
+    _write(configured / "coga.local.toml", 'user = "marc"\n')
+    seen: list[Path] = []
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_repo_recurring",
+        lambda coga_os, **kwargs: seen.append(coga_os) or 0,
+    )
+
+    result = CliRunner().invoke(app, ["recurring", "--all", str(root)])
+
+    assert result.exit_code == 0, result.output
+    assert seen == [configured]
+    assert "Swept 1 of 3 Coga repo(s)." in result.output
+    assert "Skipped 2 unconfigured repos." in result.output
+    assert "recurring exited" not in result.output
 
 
 def test_recurring_all_services_one_checkout_per_remote(
@@ -597,6 +635,7 @@ def test_recurring_all_isolates_malformed_config_during_remote_grouping(
     second = root / "beta" / "coga"
     _write(first / "coga.toml", "version = [\n")
     _write(second / "coga.toml", "version = 1\n")
+    _write(second / "coga.local.toml", 'user = "marc"\n')
     seen: list[Path] = []
 
     def fake_run(coga_os: Path, **kwargs) -> int:  # type: ignore[no-untyped-def]
@@ -617,6 +656,7 @@ def test_recurring_all_continues_after_repo_failure(
     second = root / "beta" / "coga"
     for coga_os in (first, second):
         _write(coga_os / "coga.toml", "version = 1\n")
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
 
     seen: list[Path] = []
 
@@ -639,6 +679,7 @@ def test_recurring_all_accepts_coga_workspace_as_root(
 ) -> None:
     coga_os = tmp_path / "project" / "coga"
     _write(coga_os / "coga.toml", "version = 1\n")
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
     seen: list[Path] = []
     monkeypatch.setattr(
         recurring_cmd,
