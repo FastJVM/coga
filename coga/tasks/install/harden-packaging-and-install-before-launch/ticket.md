@@ -26,7 +26,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -117,6 +117,49 @@ Run the public path in a disposable clean Linux environment, without
   `direct/body` workflow. Relaunch only when the prerequisites in the ticket
   body are satisfied; a successful run records evidence and marks the ticket
   done directly.
+- Updated by the human on 2026-07-19: implement a standalone automated
+  clean-container harness now, explicitly overriding the earlier no-branch/no-PR
+  constraint. The harness makes the eventual public-release gate repeatable;
+  it does not claim that the currently published release passes it.
+
+## Dev
+
+- branch: harden-install-gate
+- worktree: /tmp/coga-install-gate
+- commit: 5f45458c Add clean first-install verification harness
+
+## Implementation (2026-07-19)
+
+- Added `scripts/verify-clean-install.sh` and its container entrypoint. The
+  wrapper installs only the requested PyPI version in a disposable Linux
+  container, keeps the terminal attached for a real agent launch, mounts no
+  Coga source checkout, and requires the operator to explicitly install and
+  authenticate the selected supported agent CLI.
+- The container creates an ordinary committed Git repo, runs `coga init`,
+  compares installed and repo-local versions, checks bundled workflow/skill
+  files, launches a minimal `direct/body` task through the selected agent,
+  confirms its done transition and log entry, runs `coga validate --json`, and
+  requires a clean Git tree.
+- The gate writes a full transcript, environment/version summary, task,
+  Coga log, and Git log to the mounted evidence directory. `docs/releasing.md`
+  documents invocation and explicit credential forwarding.
+- Added deterministic contract tests for the gate's required checks and
+  fail-loud agent setup requirement.
+
+## Verification (implementation)
+
+- `sh -n scripts/verify-clean-install.sh`
+- `bash -n scripts/verify-clean-install-container.sh`
+- `python -m pytest tests/test_clean_install_gate.py tests/test_packaging.py`:
+  4 passed, 1 skipped (optional `hatchling` unavailable).
+- Full suite in an isolated worktree-aware virtual environment: 1324 passed,
+  1 skipped. The host interpreter alone could not satisfy one pre-existing
+  subprocess import test because this `/tmp` worktree was not installed; making
+  the worktree's `src/coga` available inside the isolated venv resolved it.
+- `git diff --check` passed; branch rebased onto current `origin/main` with no
+  new commits.
+- The live published-release container run remains the later release gate; this
+  implementation step does not claim the current PyPI release passes.
 
 ## Prerequisite audit (2026-07-12 relaunch)
 
@@ -181,3 +224,127 @@ Run the public path in a disposable clean Linux environment, without
 - 5f5852d1e838 last_reminded: 2026-07-15 12:33
 
 - 3427f9e5e914 last_reminded: 2026-07-16 10:15
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:24:39+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Peer review (2026-07-19)
+
+- `codex review --base main` found two must-fix runtime failures: the harness
+  addressed the vendored CLI as `coga/.venv/bin/coga` instead of the generated
+  `coga/.coga/bin/coga`, and it expected package-backed bootstrap resources to
+  be copied into the initialized repo.
+- Fixed the gate to compare versions through the repo-local shim and verify the
+  bundled workflow and implementation skill with `importlib.resources` from
+  the vendored installed package. Commit after the required rebase:
+  `b55fa47d peer-review: apply review findings`.
+- Fetched `origin/main` and rebased the feature branch unconditionally. The
+  branch is clean and contains two commits ahead of the fetched main.
+- Verification after rebase: shell syntax checks passed; `git diff --check`
+  passed; task-scoped `coga validate --json` reported no task issues (only the
+  clone-local missing-user warning); full suite: 1324 passed, 1 skipped.
+
+## PR
+
+Add a documented disposable-container gate that installs an exact Coga release
+from PyPI, initializes a normal Git repository without a source checkout,
+checks the repo-local vendored CLI and package-backed batteries, launches and
+completes a first task through a real authenticated agent CLI, validates the
+result, and preserves reproducible evidence.
+
+Test plan: `sh -n scripts/verify-clean-install.sh`; `bash -n scripts/verify-clean-install-container.sh`; `PYTHONPATH=/tmp/coga-install-gate/src python3.12 -m pytest` (1324 passed, 1 skipped).
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:25:43+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:26:48+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:27:27+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:28:05+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:30:16+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:33:07+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
