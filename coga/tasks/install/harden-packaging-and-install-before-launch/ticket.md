@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -26,7 +26,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -124,9 +124,20 @@ Run the public path in a disposable clean Linux environment, without
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/612
 - branch: harden-install-gate
 - worktree: /tmp/coga-install-gate
-- commit: 5f45458c Add clean first-install verification harness
+- commit: ce79a788 peer-review: apply review findings
+
+## Open PR (2026-07-19)
+
+- `coga open-pr` first refused: the branch did not contain latest `origin/main`
+  and overlapped on this ticket file. Rebased the feature worktree onto fetched
+  `origin/main` (clean, no conflicts), then re-ran the full suite with
+  `PYTHONPATH=/tmp/coga-install-gate/src python3.12 -m pytest`: 1324 passed,
+  1 skipped.
+- Re-ran `coga open-pr`, which pushed the rebased branch and opened
+  https://github.com/FastJVM/coga/pull/612.
 
 ## Implementation (2026-07-19)
 
@@ -338,6 +349,20 @@ Result: no remaining validation drift found.
 ## Dream Skill: validate-drift
 
 Generated: 2026-07-20T03:33:07+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:35:45+00:00
 Command: `coga validate --json --fix`
 Task: `install/harden-packaging-and-install-before-launch`
 
