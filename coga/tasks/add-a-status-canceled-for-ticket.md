@@ -1,17 +1,35 @@
 ---
 slug: add-a-status-canceled-for-ticket
 title: add a status canceled for ticket
-status: draft
+status: active
 owner: nick
 human: nick
 agent: claude
 assignee: nick
 contexts:
-  - dev/code
+- dev/code
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
