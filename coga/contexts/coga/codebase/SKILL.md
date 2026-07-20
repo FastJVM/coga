@@ -34,6 +34,49 @@ review bars.
   semantics** (CLAUDE.md rule).
 - `docs/vision.md` — non-negotiables. See also `coga/principles`.
 
+## What belongs in core vs a skill — the microkernel rule
+
+Keep core (`src/coga/`) minimal, like a microkernel. Core holds **only two
+kinds of code**:
+
+1. **Genuine shared infra** — code with **≥2 real consumers**: the prompt
+   composer, config loading, task/ticket IO, the launch machinery, the shared
+   `## Dev` PR-link parsers and `gh` helpers in `autoclose.py`. If exactly one
+   thing calls it, it is not shared infra.
+2. **A real command implementation** that genuinely needs Python logic and
+   can't be expressed as an alias — e.g. `coga digest` (`commands/digest.py` →
+   `run_digest`) and `coga megalaunch` (`megalaunch.py`), which carry real
+   logic, not just "launch this target."
+
+**Everything else is a skill recipe.** A single-consumer recipe — a user-facing
+workflow step (like `code/open-pr`) *or* a coga-internal recurring-maintenance
+sweep — lives in its skill dir as a sibling module beside `run.py` (by
+convention `recipe.py`), imports **only shared core infra**, and never lives in
+`src/coga/`. The launcher runs the skill as `python <skill-dir>/run.py`; that
+`run.py` adds its own dir to `sys.path` and imports the sibling recipe. Being
+*internal* is not a license to sit in the kernel: a sweep that only coga runs is
+still a skill recipe.
+
+**"Backs a CLI command" is not by itself a pass into core.** Ask whether the
+command is a real Python implementation or just an alias to a launch target. A
+launch-target command is an argv rewrite in `[aliases]` (`dream = "recurring
+launch dream"`, `chat = "launch bootstrap/orient"`), never a Typer command with
+logic. Only a genuine implementation justifies core.
+
+**The consumer test decides the split, and it can keep a symbol in core.** When
+a maintenance recipe moves out, any helper it shares with another core consumer
+stays — moving it would force core to import from a skill dir, which is exactly
+the anti-pattern this rule forbids. Concretely: the merged-ticket sweep moved to
+`coga/skills/coga/autoclose/sweep/recipe.py`, but `GhError` / `pr_state` / the
+`## Dev` parsers stayed in `coga.autoclose` because `branchcleanup` (used by
+`coga retire`), the branch-sweep recipe, and the Dream orphan-marker worker all
+still consume them. The shipped single-consumer recipes are `coga/autoclose/
+sweep`, `coga/blockers/remind`, and `coga/branch-sweep/sweep`.
+
+This generalizes PR #517 (which moved the open-pr recipe out of core) into a
+stated line; it supersedes the softer "extend at the edges, not the core"
+phrasing.
+
 ## coga layout
 
 ```

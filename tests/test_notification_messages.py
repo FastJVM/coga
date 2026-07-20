@@ -21,13 +21,20 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from coga import autoclose as am
+from conftest import load_skill_recipe
+
 from coga import spool
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.ticket import Ticket
+
+
+# The merged-ticket sweep is a single-consumer recipe in the
+# `coga/autoclose/sweep` skill dir (microkernel policy). `sweep_merged` binds
+# `pr_state` in the recipe namespace, so stub it there.
+sweep = load_skill_recipe("coga/autoclose/sweep")
 
 
 def _write(path: Path, text: str) -> None:
@@ -286,10 +293,10 @@ def test_automerge_links_pr_and_shows_prev_to_done(
 ) -> None:
     url = "https://github.com/o/r/pull/7"
     slug, _ = _make_task(repo, status="active", on_final=True, pr_url=url)
-    monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
+    monkeypatch.setattr(sweep, "pr_state", lambda u: "MERGED")
     posts = _capture(monkeypatch)
 
-    count = am.sweep_merged(load_config(repo), quiet=True)
+    count = sweep.sweep_merged(load_config(repo), quiet=True)
     assert count == 1
     assert _body(posts, "🎉") == (
         f"🎉 *{slug}* \"Work\": merge → done — <{url}|PR #7> merged"
@@ -301,10 +308,10 @@ def test_automerge_workflowless_collapses_and_links(
 ) -> None:
     url = "https://github.com/o/r/pull/9"
     slug, _ = _make_task(repo, workflow=None, status="active", pr_url=url)
-    monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
+    monkeypatch.setattr(sweep, "pr_state", lambda u: "MERGED")
     posts = _capture(monkeypatch)
 
-    count = am.sweep_merged(load_config(repo), quiet=True)
+    count = sweep.sweep_merged(load_config(repo), quiet=True)
     assert count == 1
     assert _body(posts, "🎉") == (
         f"🎉 *{slug}* \"Work\" finished — <{url}|PR #9> merged"
@@ -316,7 +323,7 @@ def test_automerge_digest_preserves_transition_and_pr_link(
 ) -> None:
     url = "https://github.com/o/r/pull/7"
     slug, _ = _make_task(repo, status="active", on_final=True, pr_url=url)
-    monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
+    monkeypatch.setattr(sweep, "pr_state", lambda u: "MERGED")
     posts = _capture(monkeypatch)
     # The digest spool is now a dedicated, `merge=union` `spool.md` file, kept
     # separate from the digest ticket so concurrent appends never touch its YAML.
@@ -326,7 +333,7 @@ def test_automerge_digest_preserves_transition_and_pr_link(
         "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
     )
 
-    count = am.sweep_merged(load_config(repo), quiet=True)
+    count = sweep.sweep_merged(load_config(repo), quiet=True)
 
     assert count == 1
     assert posts == []

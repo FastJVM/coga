@@ -1,13 +1,24 @@
 #!/usr/bin/env python3
-"""Run the branch sweep for recurring/branch-sweep."""
+"""Run the branch sweep for recurring/branch-sweep.
+
+The deterministic recipe lives beside this entry point in `recipe.py`, imported
+as a sibling module. Coga runs a skill script as `python <skill-dir>/run.py`, so
+`sys.path[0]` is already the skill dir; the explicit insert below makes the
+sibling import resolve the same way when a test loads this file via
+`spec_from_file_location` (where `sys.path[0]` is not the skill dir).
+"""
 
 from __future__ import annotations
 
+import os
 import sys
 
-from coga import git
-from coga.branchsweep import sweep_branches
-from coga.config import ConfigError, load_config
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from coga import git  # noqa: E402
+from coga.config import ConfigError, load_config  # noqa: E402
+
+from recipe import sweep_branches  # noqa: E402
 
 
 def main() -> int:

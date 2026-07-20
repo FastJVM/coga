@@ -9,8 +9,10 @@ the real env can override these with `monkeypatch.setenv` themselves.
 
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
@@ -22,6 +24,28 @@ _TEMPLATES_COGA_OS = (
     Path(__file__).resolve().parents[1]
     / "src" / "coga" / "resources" / "templates" / "coga"
 )
+
+
+def load_skill_recipe(ref: str):
+    """Load a skill's `recipe.py` sibling module by skill ref.
+
+    Single-consumer maintenance recipes (the autoclose sweep, blocker reminders,
+    branch sweep) live beside their `run.py` in the skill dir under the
+    microkernel policy, not in importable `coga.*` core. Tests load the module
+    the same way the launcher's `run.py` does — by file path off the packaged
+    skill dir — since it is not on `sys.path` as a package. `ref` is the skill
+    ref, e.g. `coga/autoclose/sweep`.
+    """
+    recipe_path = (
+        _TEMPLATES_COGA_OS / "bootstrap" / "skills" / Path(*ref.split("/")) / "recipe.py"
+    )
+    name = "skill_recipe_" + ref.replace("/", "_").replace("-", "_")
+    spec = importlib.util.spec_from_file_location(name, recipe_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def seed_direct_body_workflow(coga_os: Path) -> None:

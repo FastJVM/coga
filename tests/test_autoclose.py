@@ -6,11 +6,21 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from conftest import load_skill_recipe
+
 from coga import autoclose as am
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
 from coga.ticket import Ticket
+
+
+# The merged-ticket sweep is a single-consumer recipe living in the
+# `coga/autoclose/sweep` skill dir (microkernel policy), not in core. Load it by
+# file path the way the launcher's run.py does. The shared parsers and gh
+# helpers (`parse_pr_url`, `pr_state`, `GhError`) stay in core `coga.autoclose`
+# (imported as `am`).
+sweep = load_skill_recipe("coga/autoclose/sweep")
 
 
 def _write(path: Path, text: str) -> None:
@@ -231,8 +241,8 @@ def test_parse_worktree_path_annotated_placeholder_is_none() -> None:
 
 
 def test_parse_pr_number() -> None:
-    assert am.parse_pr_number("https://github.com/o/r/pull/74") == 74
-    assert am.parse_pr_number("not-a-url") is None
+    assert sweep.parse_pr_number("https://github.com/o/r/pull/74") == 74
+    assert sweep.parse_pr_number("not-a-url") is None
 
 
 # --- scanner ------------------------------------------------------------------
@@ -248,6 +258,10 @@ def _stub_pr_state(monkeypatch: pytest.MonkeyPatch, mapping: dict[str, str]) -> 
             raise am.GhError(f"unknown PR url: {url}")
         return mapping[url]
 
+    # `sweep_merged` binds `pr_state` in the recipe namespace, so patch there;
+    # also patch core `am.pr_state` so this doubles as a "status never calls gh"
+    # tripwire for the read-only-status tests that reuse this helper.
+    monkeypatch.setattr(sweep, "pr_state", fake)
     monkeypatch.setattr(am, "pr_state", fake)
     return calls
 
@@ -261,7 +275,7 @@ def test_sweep_merged_bumps_final_step_with_merged_pr(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/7": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    count = sweep.sweep_merged(cfg, quiet=True)
 
     assert count == 1
     t = Ticket.read(path)
@@ -280,7 +294,7 @@ def test_sweep_merged_skips_non_final_step(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/8": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    count = sweep.sweep_merged(cfg, quiet=True)
 
     assert count == 0
     t = Ticket.read(path)
@@ -296,7 +310,7 @@ def test_sweep_merged_no_workflow_marks_done(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/9": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    count = sweep.sweep_merged(cfg, quiet=True)
 
     assert count == 1
     t = Ticket.read(path)
@@ -312,7 +326,7 @@ def test_sweep_merged_skips_open_pr(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/10": "OPEN"})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    count = sweep.sweep_merged(cfg, quiet=True)
 
     assert count == 0
     t = Ticket.read(path)
@@ -326,7 +340,7 @@ def test_sweep_merged_skips_ticket_without_pr(
     calls = _stub_pr_state(monkeypatch, {})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    count = sweep.sweep_merged(cfg, quiet=True)
 
     assert count == 0
     assert calls == []  # pr_state never called
@@ -341,7 +355,7 @@ def test_sweep_merged_skips_already_done(
     calls = _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/11": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    count = sweep.sweep_merged(cfg, quiet=True)
 
     assert count == 0
     # `done` filtered before any gh call.
@@ -357,8 +371,8 @@ def test_sweep_merged_idempotent(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/12": "MERGED"})
 
     cfg = load_config(repo)
-    first = am.sweep_merged(cfg, quiet=True)
-    second = am.sweep_merged(cfg, quiet=True)
+    first = sweep.sweep_merged(cfg, quiet=True)
+    second = sweep.sweep_merged(cfg, quiet=True)
 
     assert first == 1
     assert second == 0
@@ -374,10 +388,10 @@ def test_sweep_merged_quiet_swallows_gh_error(
     def boom(url: str) -> str:
         raise am.GhError("gh missing")
 
-    monkeypatch.setattr(am, "pr_state", boom)
+    monkeypatch.setattr(sweep, "pr_state", boom)
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    count = sweep.sweep_merged(cfg, quiet=True)
 
     assert count == 0
     t = Ticket.read(path)
@@ -394,11 +408,11 @@ def test_sweep_merged_loud_raises_gh_error(
     def boom(url: str) -> str:
         raise am.GhError("gh missing")
 
-    monkeypatch.setattr(am, "pr_state", boom)
+    monkeypatch.setattr(sweep, "pr_state", boom)
 
     cfg = load_config(repo)
     with pytest.raises(am.GhError):
-        am.sweep_merged(cfg, quiet=False)
+        sweep.sweep_merged(cfg, quiet=False)
 
 
 # --- status stays read-only --------------------------------------------------

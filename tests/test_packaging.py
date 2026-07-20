@@ -28,10 +28,21 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "autoclose/sweep/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "autoclose/sweep/run.py",
+    # The single-consumer sweep recipe ships beside run.py (microkernel policy).
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
+    "autoclose/sweep/recipe.py",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "blockers/remind/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "blockers/remind/run.py",
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
+    "blockers/remind/recipe.py",
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
+    "branch-sweep/sweep/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
+    "branch-sweep/sweep/run.py",
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
+    "branch-sweep/sweep/recipe.py",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "ticket/finalize/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
@@ -91,6 +102,26 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
     (
         "coga/contexts/coga/important/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
+    ),
+    # Single-consumer maintenance recipes and their launch wrappers must stay
+    # byte-identical between the dogfood copy under `coga/skills/` and the
+    # packaged template. (The autoclose sweep has its own dedicated sync check
+    # in test_autoclose_sweep.py.)
+    (
+        "coga/skills/coga/blockers/remind/run.py",
+        "src/coga/resources/templates/coga/bootstrap/skills/coga/blockers/remind/run.py",
+    ),
+    (
+        "coga/skills/coga/blockers/remind/recipe.py",
+        "src/coga/resources/templates/coga/bootstrap/skills/coga/blockers/remind/recipe.py",
+    ),
+    (
+        "coga/skills/coga/branch-sweep/sweep/run.py",
+        "src/coga/resources/templates/coga/bootstrap/skills/coga/branch-sweep/sweep/run.py",
+    ),
+    (
+        "coga/skills/coga/branch-sweep/sweep/recipe.py",
+        "src/coga/resources/templates/coga/bootstrap/skills/coga/branch-sweep/sweep/recipe.py",
     ),
 )
 

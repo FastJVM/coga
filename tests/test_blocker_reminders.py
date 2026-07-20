@@ -6,13 +6,19 @@ from textwrap import dedent
 
 import pytest
 
-from coga.blocker_reminders import (
-    remind_blocked_tasks,
-    scan_blocker_reminders,
-)
+from conftest import load_skill_recipe
+
 from coga.config import load_config
 from coga.create import create_task
 from coga.taskfile import read_blackboard, replace_blackboard
+
+
+# The blocker-reminder scan is a single-consumer maintenance recipe living in
+# the `coga/blockers/remind` skill dir (microkernel policy), not in core. Load
+# it by file path the way the launcher's run.py does.
+_remind = load_skill_recipe("coga/blockers/remind")
+remind_blocked_tasks = _remind.remind_blocked_tasks
+scan_blocker_reminders = _remind.scan_blocker_reminders
 
 
 def _write(path: Path, text: str) -> None:

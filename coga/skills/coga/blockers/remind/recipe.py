@@ -1,4 +1,11 @@
-"""Reminder scan for first-class blocked tasks."""
+"""Reminder scan for first-class blocked tasks.
+
+This is the deterministic recipe for the `coga/blockers/remind` skill (run by
+the `blocker-reminders` recurring sweep). It is a single-consumer maintenance
+recipe, so under the microkernel policy it lives in the skill dir rather than in
+core `src/coga/` — it imports only shared core infra (`git`, `blackboard`,
+`config`, `notification`, `taskfile`, `tasks`, `ticket`).
+"""
 
 from __future__ import annotations
 

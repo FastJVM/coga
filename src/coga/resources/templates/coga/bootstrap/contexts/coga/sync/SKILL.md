@@ -261,8 +261,8 @@ new string:
   `commands/launch_script.py` (failure path only),
   `commands/bump.py` when `--message` is present, and
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
-  session start), plus `coga.blocker_reminders.remind_blocked_tasks` for
-  unresolved blocker reminders. Outcome callers (`notify`): `mark.mark_done` (including
+  session start), plus the `coga/blockers/remind` skill recipe
+  (`remind_blocked_tasks`) for unresolved blocker reminders. Outcome callers (`notify`): `mark.mark_done` (including
   the autoclose sweep and script-mode completion) and `coga/recurring_runner.py`'s error
   summary. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands

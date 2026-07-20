@@ -124,6 +124,11 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
             PACKAGED_SKILL / "run.py",
             False,
         ),
+        (
+            LIVE_COGA_OS / "skills" / "coga" / "autoclose" / "sweep" / "recipe.py",
+            PACKAGED_SKILL / "recipe.py",
+            False,
+        ),
     ]
 
     for live, packaged, tolerant in pairs:

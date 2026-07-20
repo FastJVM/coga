@@ -1,5 +1,12 @@
 """Sweep stale git branches as a scheduled safety net behind retire-time deletion.
 
+This is the deterministic recipe for the `coga/branch-sweep/sweep` skill (run by
+the `branch-sweep` recurring task). It is a single-consumer maintenance recipe,
+so under the microkernel policy it lives in the skill dir rather than in core
+`src/coga/`. It imports only shared core infra: the `autoclose` gh helpers
+(`GhError`, `parse_branch_name`), the shared branch-delete primitives in
+`branchcleanup`, and `config`/`taskfile`/`tasks`/`ticket`.
+
 `coga retire` deletes a ticket's branch as soon as the ticket finishes (see
 `branchcleanup.py`), but that cleanup is best-effort: `git`/`gh` failures are
 swallowed there, and a branch also leaks when its ticket is deleted without
