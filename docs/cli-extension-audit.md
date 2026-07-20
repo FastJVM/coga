@@ -75,7 +75,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 | `status` | built-in | No | Reads tree + renders tables. Logic, not a passthrough to another command. |
 | `show` | built-in | No | Reads + Rich-renders ticket/blackboard/log. |
 | `bump` | built-in | No | Advances `step:`, appends `log.md`, post-write validate. |
-| `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (`coga/autoclose/sweep` skill → `coga.autoclose.sweep_merged`). (See gotcha.) |
+| `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (`coga/autoclose/sweep` skill → sibling `recipe.py`'s `sweep_merged`). (See gotcha.) |
 | `delete` | built-in | No | Resolves slug → runs `bootstrap/delete-task` skill with injected env. Thin, but resolves + executes a script. |
 | `retire` | built-in | No | Scaffolds a one-shot `retire-<slug>` task straight to `active` + launches it. |
 | `block` / `unblock` | built-in | No | Records/resolves concrete blocker asks, owns blocked-state transitions, syncs state, and notifies. |
@@ -151,7 +151,8 @@ pure-passthrough set for aliasing is exactly the two named above.
 - **Merged-ticket auto-close has a single surface now.** The standalone
   `coga automerge` command has been retired: the `autoclose-merged` recurring
   sweep is the sole trigger. Its skill `coga/autoclose/sweep` calls
-  `coga.autoclose.sweep_merged` (renamed from `coga.automerge.auto_bump_merged`),
+  sibling `recipe.py`'s `sweep_merged` (renamed from
+  `coga.automerge.auto_bump_merged`),
   which bumps final-step / workflow-less tickets whose linked PR has merged.
   Historical note: this used to be two surfaces (a manual command and the
   sweep) over the same module, one keystroke apart and easy to confuse — that
@@ -241,8 +242,8 @@ the audit's path to it.
 - Command registration: `src/coga/cli.py:74-93`.
 - `coga ticket` promotion rationale: `src/coga/commands/ticket.py`.
 - digest consumer: `src/coga/commands/digest.py`.
-- autoclose sweep + module: `coga/workflows/autoclose-merged/sweep.md`,
-  `coga.autoclose.sweep_merged`.
+- autoclose sweep + recipe: `coga/workflows/autoclose-merged/sweep.md`,
+  `coga/skills/coga/autoclose/sweep/recipe.py`.
 - Bootstrap tickets: package `bootstrap/{orient,project,ticket}/ticket.md`.
 - Recurring templates: `coga/recurring/{autoclose-merged,digest,dream,skill-update}/`.
 - Alias test coverage (not `coga validate`): `tests/test_aliases.py`.

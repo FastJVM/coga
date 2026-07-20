@@ -125,9 +125,12 @@ def delete_remote_branch(
     echo: Callable[[str], None],
     result: BranchCleanupResult,
 ) -> None:
-    """Delete `origin/<branch>` iff `pr_merged`. Shared with `branchsweep.py`,
-    whose merge signal is looked up by branch name instead of a ticket's `pr:`
-    URL — the caller decides `pr_merged`, this only does the git plumbing."""
+    """Delete `origin/<branch>` iff `pr_merged`.
+
+    Shared with the branch-sweep recipe, whose merge signal is looked up by
+    branch name instead of a ticket's `pr:` URL — the caller decides
+    `pr_merged`; this function only does the git plumbing.
+    """
     remote = cfg.git_remote
     if not pr_merged:
         _note(
@@ -155,8 +158,10 @@ def delete_local_branch(
     echo: Callable[[str], None],
     result: BranchCleanupResult,
 ) -> None:
-    """Delete the local `branch` iff safe. Shared with `branchsweep.py` — see
-    `delete_remote_branch`."""
+    """Delete the local `branch` iff safe.
+
+    Shared with the branch-sweep recipe; see `delete_remote_branch`.
+    """
     if not _local_branch_exists(root, branch):
         _note(result, echo, f"Branch cleanup: local {branch!r} not present.")
         return

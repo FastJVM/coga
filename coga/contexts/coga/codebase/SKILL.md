@@ -45,17 +45,18 @@ kinds of code**:
    thing calls it, it is not shared infra.
 2. **A real command implementation** that genuinely needs Python logic and
    can't be expressed as an alias — e.g. `coga digest` (`commands/digest.py` →
-   `run_digest`) and `coga megalaunch` (`megalaunch.py`), which carry real
-   logic, not just "launch this target."
+   `run_digest`), `coga megalaunch` (`megalaunch.py`), and `coga open-pr`
+   (`commands/open_pr.py` → `open_pr.py`), which carry real logic, not just
+   "launch this target."
 
 **Everything else is a skill recipe.** A single-consumer recipe — a user-facing
-workflow step (like `code/open-pr`) *or* a coga-internal recurring-maintenance
-sweep — lives in its skill dir as a sibling module beside `run.py` (by
-convention `recipe.py`), imports **only shared core infra**, and never lives in
-`src/coga/`. The launcher runs the skill as `python <skill-dir>/run.py`; that
-`run.py` adds its own dir to `sys.path` and imports the sibling recipe. Being
-*internal* is not a license to sit in the kernel: a sweep that only coga runs is
-still a skill recipe.
+script-backed workflow step *or* a coga-internal recurring-maintenance sweep —
+lives in its skill dir as a sibling module beside `run.py` (by convention
+`recipe.py`), imports **only shared core infra**, and never lives in `src/coga/`.
+The launcher runs the skill as `python <skill-dir>/run.py`; that `run.py` adds
+its own dir to `sys.path` and imports the sibling recipe. Being *internal* is
+not a license to sit in the kernel: a sweep that only coga runs is still a skill
+recipe.
 
 **"Backs a CLI command" is not by itself a pass into core.** Ask whether the
 command is a real Python implementation or just an alias to a launch target. A
@@ -73,9 +74,10 @@ the anti-pattern this rule forbids. Concretely: the merged-ticket sweep moved to
 still consume them. The shipped single-consumer recipes are `coga/autoclose/
 sweep`, `coga/blockers/remind`, and `coga/branch-sweep/sweep`.
 
-This generalizes PR #517 (which moved the open-pr recipe out of core) into a
-stated line; it supersedes the softer "extend at the edges, not the core"
-phrasing.
+PR #517 first exposed the line by moving the then-script-backed open-pr recipe
+out of core. PR #585 later turned `open-pr` into a real command implementation,
+so the same test now places it in core under exception 2. This stated rule
+supersedes the softer "extend at the edges, not the core" phrasing.
 
 ## coga layout
 
