@@ -152,4 +152,5 @@ Result: no remaining validation drift found.
 
 ## Blockers
 
-- [ ] [2026-07-19 17:51] [agent:codex] id=20260719T175129 Implementation is complete and committed at f21fe870, but this attached session left the ticket status active; coga bump requires in_progress. Relaunch the ticket with coga launch so the supervisor performs active -> in_progress, then bump it to peer-review.
+- [x] [2026-07-19 17:51] [agent:codex] id=20260719T175129 Implementation is complete and committed at f21fe870, but this attached session left the ticket status active; coga bump requires in_progress. Relaunch the ticket with coga launch so the supervisor performs active -> in_progress, then bump it to peer-review.
+  resolved: [2026-07-19 17:51] [human:nicktoper] Relaunched under the Coga supervisor; the task is now in_progress, so the completed implementation can be verified and bumped to peer-review.
