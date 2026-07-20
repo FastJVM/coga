@@ -71,3 +71,42 @@ def test_bootstrap_ticket_cleanup_preserves_non_draft_blackboards() -> None:
     assert "If editing an existing non-draft ticket" in text
     assert "preserve unrelated blackboard content such as blockers" in text
     assert "remove only the authoring\n   sections you used" in text
+
+
+def test_bootstrap_ticket_skill_documents_script_backed_authoring() -> None:
+    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    normalized = " ".join(text.split())
+
+    workflow_question = text.index("**Workflow**")
+    script_question = text.index("**Script execution (conditional)**")
+    context_question = text.index("**Contexts to attach**")
+    assert workflow_question < script_question < context_question
+    assert "Only ask this when the task actually looks script-shaped" in normalized
+    assert "4–6 questions" in text
+    assert "it runs on **every** workflow step" in normalized
+    assert (
+        "compatible only with a workflow that has exactly one step and no "
+        "`requires:` completion gate" in normalized
+    )
+    assert "put the script on a skill wired only to the intended workflow step" in normalized
+
+    assert "`script: inline`" in text
+    assert "`## Script`" in text
+    assert "above the `<!-- coga:blackboard -->` fence" in normalized
+    assert "keep the flat `coga/tasks/<slug>.md` draft in place" in normalized
+    assert "Use `python`, `sh`, or `bash` as the fence language" in normalized
+    assert "`coga validate` does not resolve or parse ticket-owned scripts" in normalized
+
+    assert "`script: <filename>`" in text
+    assert "`coga/tasks/<slug>.md`" in text
+    assert "`coga/tasks/<slug>/ticket.md`" in text
+    assert "The frontmatter `slug:` does not change" in normalized
+    assert "`chmod +x`" in text
+    assert "`coga validate --task <slug>`" in text
+    assert "`test -f <actual-task-directory>/<filename>`" in text
+    assert "Validation does not resolve the script reference" in normalized
+
+    assert (
+        "Execution: <agent | script: inline (<language>) | "
+        "script: <filename> (sibling)>" in text
+    )
