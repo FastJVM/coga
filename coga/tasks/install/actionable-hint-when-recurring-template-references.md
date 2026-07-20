@@ -5,7 +5,7 @@ status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: codex
 contexts:
 - dev/code
 - coga/recurring
@@ -97,3 +97,53 @@ paths is required for unknown missing skills.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: fix/removed-skill-hint
+worktree: /tmp/coga-removed-skill-hint
+
+## Implementation notes
+- Scope confirmed: recognize only the exact removed `coga/megalaunch/run` skill; preserve checked-path diagnostics for all other missing refs.
+- Ticket assignee corrected from `nicktoper` to `codex` at the owner's request; the owner review step remains unchanged.
+- Added shared missing-skill message construction in `paths.py`; prompt composition, task creation (and therefore recurring sweeps), and validation now use it.
+- Validation now inspects materialized `coga/recurring/*/ticket.md` templates, loads their named workflows, and resolves every workflow-step skill before a period task is generated.
+- Updated the recurring behavioral context plus both live and packaged architecture copies. No packaged `coga/recurring` context exists, so there was no matching recurring copy to update.
+
+## Verification
+- `python -m pytest tests/test_compose.py tests/test_validate.py tests/test_recurring.py` — 184 passed.
+- `PYTHONPATH=/tmp/coga-removed-skill-hint/src python -m pytest` — 1325 passed, 1 skipped.
+- `PYTHONPATH=/tmp/coga-removed-skill-hint/src python -m coga.validate --json` from `example/` — clean, 1 task validated.
+- A first full-suite run without the absolute `PYTHONPATH` had the documented temporary-worktree editable-install failure in `test_bootstrap_script_launch_is_stateless`; the documented rerun passed.
+
+## Handoff
+- Commit: `f21fe870` (`Explain removed recurring template skills`).
+- `git fetch origin main && git rebase FETCH_HEAD` reported the branch up to date.
+- Feature worktree is clean and ready for peer review; nothing has been pushed and no PR has been opened.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T00:48:22+00:00
+Command: `coga validate --json --fix`
+Task: `install/actionable-hint-when-recurring-template-references`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T00:49:17+00:00
+Command: `coga validate --json --fix`
+Task: `install/actionable-hint-when-recurring-template-references`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
