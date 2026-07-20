@@ -48,6 +48,24 @@ worktree: <path-to-feature-worktree>
 pr: <pr-url>
 ```
 
+`branch:` and `worktree:` are machine-readable fields. A bare value consumes
+the whole remainder of its line, which keeps worktree paths containing spaces
+valid. Keep arbitrary prose out of a bare value. When a repository annotation
+is useful, either backtick-delimit the value before the annotation:
+
+```
+branch: `feature/name` (Magicator repo)
+worktree: `/tmp/path with spaces` (Magicator repo)
+```
+
+or put the annotation on a separate line:
+
+```
+branch: feature/name
+worktree: /tmp/path with spaces
+Repository note: Magicator repo
+```
+
 When to write each:
 
 - **`branch:`** — the moment you create the branch. Don't wait until

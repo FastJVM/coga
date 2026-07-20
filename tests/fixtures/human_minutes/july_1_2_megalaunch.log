@@ -1,0 +1,26 @@
+2026-07-01 08:00 [burst/task-01] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 08:01 [burst/task-01] [human:nicktoper] activated (draft → active)
+2026-07-01 08:20 [burst/task-02] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 08:21 [burst/task-02] [human:nicktoper] reviewed implementation
+2026-07-01 08:25 [burst/task-02] [human:nicktoper] task done
+2026-07-01 09:00 [burst/task-03] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 09:01 [burst/task-03] [human:nicktoper] unblocked (blocked → active): Ship the narrow fix and record the broader idea separately.
+2026-07-01 09:11 [burst/task-03] [human:nicktoper] task done
+2026-07-01 10:00 [burst/task-04] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 10:01 [burst/task-04] [human:nicktoper] reviewed first result
+2026-07-01 10:12 [burst/task-04] [human:nicktoper] reviewed follow-up result
+2026-07-01 11:00 [burst/task-05] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 11:01 [burst/task-05] [human:nicktoper] advanced to step 2 (review)
+2026-07-01 11:07 [burst/task-05] [human:nicktoper] task done
+2026-07-02 08:00 [burst/task-06] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-02 08:01 [burst/task-06] [human:nicktoper] task done
+2026-07-02 08:30 [burst/task-07] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-02 08:31 [burst/task-07] [human:nicktoper] reviewed implementation
+2026-07-02 08:39 [burst/task-07] [human:nicktoper] task done
+2026-07-02 09:30 [burst/task-08] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-02 09:31 [burst/task-08] [human:nicktoper] reviewed implementation
+2026-07-02 09:34 [burst/task-08] [human:nicktoper] answered follow-up
+2026-07-02 09:42 [burst/task-08] [human:nicktoper] task done
+2026-07-02 11:00 [burst/task-09] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-02 11:01 [burst/task-09] [human:nicktoper] reviewed implementation
+2026-07-02 11:13 [burst/task-09] [human:nicktoper] task done

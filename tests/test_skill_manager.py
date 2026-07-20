@@ -533,15 +533,15 @@ def test_status_reports_bundled_bootstrap_skills(
     cfg = load_config(_repo(tmp_path, monkeypatch))
     bundled_root = _package_skill_root(tmp_path, monkeypatch)
     _write(
-        bundled_root / "eval" / "ticket-diagnostic" / "SKILL.md",
-        "---\nname: eval/ticket-diagnostic\n---\nbundled\n",
+        bundled_root / "retro" / "done-ticket" / "SKILL.md",
+        "---\nname: retro/done-ticket\n---\nbundled\n",
     )
 
     results = {result.name: result for result in status_skills(cfg)}
 
-    assert results["eval/ticket-diagnostic"].source_type == "bundled"
-    assert results["eval/ticket-diagnostic"].status == "package-backed"
-    assert "upgrading the coga package" in results["eval/ticket-diagnostic"].message
+    assert results["retro/done-ticket"].source_type == "bundled"
+    assert results["retro/done-ticket"].status == "package-backed"
+    assert "upgrading the coga package" in results["retro/done-ticket"].message
 
 
 def test_status_marks_local_skill_that_overrides_bundled(
@@ -570,8 +570,8 @@ def test_update_all_skips_bundled_bootstrap_skills(
     cfg = load_config(_repo(tmp_path, monkeypatch))
     bundled_root = _package_skill_root(tmp_path, monkeypatch)
     _write(
-        bundled_root / "eval" / "ticket-diagnostic" / "SKILL.md",
-        "---\nname: eval/ticket-diagnostic\n---\nbundled\n",
+        bundled_root / "retro" / "done-ticket" / "SKILL.md",
+        "---\nname: retro/done-ticket\n---\nbundled\n",
     )
 
     def runner(args, cwd=None):
@@ -580,9 +580,9 @@ def test_update_all_skips_bundled_bootstrap_skills(
     summary = update_skills(cfg, all_skills=True, runner=runner)
     results = {result.name: result for result in summary.results}
 
-    assert results["eval/ticket-diagnostic"].source_type == "bundled"
-    assert results["eval/ticket-diagnostic"].status == "skipped-bundled"
-    assert "pip install --upgrade coga" in results["eval/ticket-diagnostic"].message
+    assert results["retro/done-ticket"].source_type == "bundled"
+    assert results["retro/done-ticket"].status == "skipped-bundled"
+    assert "pip install --upgrade coga" in results["retro/done-ticket"].message
 
 
 def test_update_one_bundled_skill_reports_package_update_path(
@@ -591,11 +591,11 @@ def test_update_one_bundled_skill_reports_package_update_path(
     cfg = load_config(_repo(tmp_path, monkeypatch))
     bundled_root = _package_skill_root(tmp_path, monkeypatch)
     _write(
-        bundled_root / "eval" / "ticket-diagnostic" / "SKILL.md",
-        "---\nname: eval/ticket-diagnostic\n---\nbundled\n",
+        bundled_root / "retro" / "done-ticket" / "SKILL.md",
+        "---\nname: retro/done-ticket\n---\nbundled\n",
     )
 
-    summary = update_skills(cfg, "eval/ticket-diagnostic", runner=_gh_install_runner([]))
+    summary = update_skills(cfg, "retro/done-ticket", runner=_gh_install_runner([]))
 
     assert summary.results[0].status == "skipped-bundled"
     assert summary.results[0].source_type == "bundled"

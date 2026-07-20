@@ -120,6 +120,31 @@ def test_underscore_dirs_skipped_at_both_levels(repo: Path) -> None:
     assert [r.slug for r in refs] == ["visible"]
 
 
+def test_readme_is_documentation_not_a_file_form_task(repo: Path) -> None:
+    # A `README.md` documents the directory it sits in. Discovering it as a
+    # file-form task turned a directory index into a phantom ticket with no
+    # owner or step, so the only ways to quiet `coga status` / `coga validate`
+    # were to delete the docs or dress them up as a never-launchable draft.
+    _task(repo, "cleanup/real-ticket")
+    _write(repo / "tasks" / "cleanup" / "README.md", "# Cleanup\n\nIndex.\n")
+    _write(repo / "tasks" / "README.md", "# Tasks\n\nTop-level index.\n")
+
+    refs = list_tasks(load_config(repo))
+
+    assert [r.id_slug for r in refs] == ["cleanup/real-ticket"]
+
+
+def test_readme_skip_is_exact_and_does_not_swallow_real_tasks(repo: Path) -> None:
+    # Only `README.md` itself is documentation — a task whose slug merely
+    # starts with or contains "readme" is still a task.
+    _write(repo / "tasks" / "readme-rewrite.md", TICKET)
+    _write(repo / "tasks" / "README-drafting.md", TICKET)
+
+    refs = list_tasks(load_config(repo))
+
+    assert [r.id_slug for r in refs] == ["README-drafting", "readme-rewrite"]
+
+
 def test_task_dirs_are_not_recursed_into(repo: Path) -> None:
     parent = _task(repo, "parent-task")
     inner = parent / "inner-task"
