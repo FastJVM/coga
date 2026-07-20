@@ -1,7 +1,7 @@
 ---
 slug: install/actionable-hint-when-recurring-template-references
 title: Actionable hint when recurring template references a removed bundled skill
-status: active
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -147,3 +147,9 @@ Applied fixes: 1.
 Git: committed and pushed `repair-branch`
 
 Result: no remaining validation drift found.
+
+---
+
+## Blockers
+
+- [ ] [2026-07-19 17:51] [agent:codex] id=20260719T175129 Implementation is complete and committed at f21fe870, but this attached session left the ticket status active; coga bump requires in_progress. Relaunch the ticket with coga launch so the supervisor performs active -> in_progress, then bump it to peer-review.
