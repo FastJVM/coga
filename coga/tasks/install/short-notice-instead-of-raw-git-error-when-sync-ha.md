@@ -6,9 +6,10 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
-contexts: []
+contexts:
+  - coga/codebase
 skills: []
-workflow: null
+workflow: code/with-review
 secrets: null
 script: null
 ---
