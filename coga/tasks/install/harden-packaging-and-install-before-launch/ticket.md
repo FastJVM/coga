@@ -164,6 +164,33 @@ Run the public path in a disposable clean Linux environment, without
   needs an explicit say-so since it contradicts the written acceptance
   criteria.
 
+## Prerequisite audit (2026-07-20 blocker-resolution relaunch)
+
+- Sibling fixes: all merged and done on `origin/main` (2d799810). Ticket
+  statuses: `vendor-cli-from-installed-package-not-git-clone`,
+  `warn-loud-when-init-commit-is-skipped`,
+  `init-next-steps-should-mention-agent-cli-requireme`,
+  `add-migration-errors-for-removed-config-keys`,
+  `decide-whether-gh-stays-required-at-init`, and
+  `cut-release-to-realign-pypi-with-main` are all `done`. Code confirms it:
+  `clone_upstream` is gone from `src/coga/commands/init.py` on `origin/main`,
+  and `pyproject.toml` there says `0.3.0` (release PR #587 merged).
+- Publication: NOT done. `git ls-remote --tags origin` shows only `v0.2.0`;
+  PyPI still serves 0.2.0 (uploaded 2026-06-27) and has no 0.3.0 files. The
+  release ticket's own blackboard leaves publishing as explicit human steps
+  ("Remaining after merge (human, per docs/releasing.md)"): draft a GitHub
+  release tagged `v0.3.0` targeting `main`, which triggers
+  `.github/workflows/release.yml` to publish via PyPI Trusted Publishing.
+- Decision: not doing the publish autonomously — PyPI uploads are immutable,
+  the release ticket reserved this step for the human, and Trusted Publishing
+  may still need its one-time PyPI-side setup from docs/releasing.md. The
+  2026-07-16 blocker's sibling-merge condition is now met, so that ask is
+  resolved and replaced by a single narrow ask: publish the v0.3.0 release,
+  then relaunch this gate.
+- Session note: this primary checkout is diverged from origin (ahead 30,
+  behind 170); all evidence above was read from `origin/main` directly via
+  `git show` after `git fetch`.
+
 ---
 
 ## Blockers
@@ -174,7 +201,8 @@ Run the public path in a disposable clean Linux environment, without
 - [x] [2026-07-12 20:37] [agent:claude] id=20260712T203710 Verification gate prerequisites unmet: PyPI latest is coga 0.2.0 (uploaded 2026-06-27, predating the 2026-07-08 retest fixes) and the named install/ siblings (vendor-cli-from-installed-package, warn-loud-when-init-commit-is-skipped, agent-CLI guidance, migration errors, external-users-cannot-install-managed-skills) plus cut-release-to-realign-pypi-with-main are still active/in_progress. Relaunch this gate after those tickets are done and the realigned version is published to PyPI.
   resolved: [2026-07-15 21:00] [human:nicktoper] Owner reset 2026-07-15: nicktoper is taking over all install/ tickets; this gate is reset to active on code/with-review at step 1 alongside its siblings, overriding the 2026-07-12 direct/body scope decision.
 
-- [ ] [2026-07-16 10:14] [agent:claude] id=20260716T101438 Gate prerequisites still unmet at today's megalaunch: PyPI latest is coga 0.2.0 (pre-retest) and no sibling install/ fix has merged — they are mid-implement in parallel sessions launched this morning (init.py on main still clones upstream). Relaunch this gate after the sibling PRs merge and cut-release-to-realign-pypi-with-main publishes the realigned version; or, if you want a standalone deliverable now (e.g. an automated clean-container harness scripting the five verification steps), say so explicitly since the ticket's acceptance criteria currently forbid a branch/PR. Consider excluding this gate from megalaunch sweeps until then.
+- [x] [2026-07-16 10:14] [agent:claude] id=20260716T101438 Gate prerequisites still unmet at today's megalaunch: PyPI latest is coga 0.2.0 (pre-retest) and no sibling install/ fix has merged — they are mid-implement in parallel sessions launched this morning (init.py on main still clones upstream). Relaunch this gate after the sibling PRs merge and cut-release-to-realign-pypi-with-main publishes the realigned version; or, if you want a standalone deliverable now (e.g. an automated clean-container harness scripting the five verification steps), say so explicitly since the ticket's acceptance criteria currently forbid a branch/PR. Consider excluding this gate from megalaunch sweeps until then.
+  resolved: [2026-07-20 18:08] [human:nicktoper] 2026-07-20 audit: the ask's sibling-merge condition is now met — all named install/ siblings plus cut-release-to-realign-pypi-with-main are done and merged (origin/main 2d799810 has the fixes; init.py no longer clones upstream; pyproject.toml says 0.3.0 via merged PR #587). The remaining condition (realigned version on PyPI) is still unmet solely because the v0.3.0 GitHub release was never published — that step was reserved for the human in docs/releasing.md. Re-blocking with that single narrowed ask.
 ## Blocker reminders
 
 - 5f5852d1e838 last_reminded: 2026-07-15 12:33

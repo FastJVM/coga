@@ -2276,3 +2276,16 @@ Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
 CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
 2026-07-20 18:06 [clean-up-workflows-and-make-sure-they-re-in-bootst] [system] {"agent":"claude","agent_turns":2,"cache_creation_input_tokens":76077,"cache_read_input_tokens":323160,"cli":"claude","content_status":"ok","elapsed_seconds":22.600076,"ended_at":"2026-07-21T01:06:19.646036Z","human_turns":0,"input_tokens":18,"model":"claude-fable-5","outcome":"The `pr:` line is recorded. Running the bump with the PR link as the FYI.","outcome_status":"completed","output_tokens":1950,"provider":"anthropic","request":null,"schema":2,"session_id":"a4e6c9a9-280e-42d0-a71b-686c74efcf79","slug":"clean-up-workflows-and-make-sure-they-re-in-bootst","started_at":"2026-07-21T01:05:57.045960Z","step":"open-pr","title":"clean up workflows and make sure they're in bootstrap","ts":"2026-07-21T01:06:19.646036Z","usage_status":"ok"}
 2026-07-20 18:06 [install/harden-packaging-and-install-before-launch] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-20 18:06 [install/harden-packaging-and-install-before-launch] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/30)
+Rebasing (2/30)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 18:06 [install/harden-packaging-and-install-before-launch] [megalaunch] launched via coga megalaunch
+2026-07-20 18:08 [install/harden-packaging-and-install-before-launch] [human:nicktoper] unblocked (asks resolved, still in_progress): 2026-07-20 audit: the ask's sibling-merge condition is now met — all named install/ siblings plus cut-release-to-realign-pypi-with-main are done and merged (origin/main 2d799810 has the fixes; init.py no longer clones upstream; pyproject.toml says 0.3.0 via merged PR #587). The remaining condition (realigned version on PyPI) is still unmet solely because the v0.3.0 GitHub release was never published — that step was reserved for the human in docs/releasing.md. Re-blocking with that single narrowed ask.
