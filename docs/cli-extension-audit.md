@@ -113,8 +113,8 @@ is already behind the `coga recurring` head, and the other two need built-ins.
 | `autoclose-merged` | script | `autoclose` default alias → `recurring launch autoclose-merged` | Yes — already aliased | Pure passthrough under the shorter public name. |
 | `digest` | script | name occupied by `coga digest` built-in | **No — disqualified by name collision** | `recurring launch digest` *is* a pure passthrough, but the natural alias name `digest` is already a built-in (a different operation). See below. |
 
-(`_rem` and `_template` are `_`-prefixed scaffolding that `coga recurring`
-skips — not launchable templates.)
+(`_`-prefixed directories under `coga/recurring/` are skipped by
+`coga recurring` — parked, not launchable, templates.)
 
 ## The concrete finding (verified, not assumed)
 

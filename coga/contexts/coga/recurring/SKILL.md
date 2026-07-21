@@ -37,9 +37,9 @@ which is what licenses the scan to replace a prior-period `done` task and
 Dream's retro pass to direct-delete finished period tasks without a PR. A
 hand-authored task never gets that treatment.
 
-A directory whose name starts with `_` (e.g. `_rem/`) is inert — the scanner
-skips it. That is how you park a template without deleting it: rename `foo/`
-to `_foo/`. There is no starter `_template/` directory; the whole mechanism is
+A directory whose name starts with `_` is inert — the scanner skips it. That
+is how you park a live template without deleting it: rename `foo/` to
+`_foo/`. There is no starter template directory; the whole mechanism is
 "non-underscore directory under `coga/recurring/` with a `schedule:` in its
 `ticket.md`", and the frontmatter shape is documented in this context (see
 the example under "Extend recurring with a task-specific workflow").
@@ -271,6 +271,22 @@ task, which carries that rule.
   `## Description` section: everything from that heading to the next
   top-level `## ` heading. **Convention:** keep every other heading in the
   body at `###` so the whole run instruction lands in the description.
+
+## REM is user-space recurring maintenance
+
+REM is repo/user-specific recurring maintenance — the place for operational
+checks meaningful to this repo, team, or user: product or operations health
+checks; customer, email, payment, or deployment follow-ups; repo-specific
+context audits; domain-specific recurring reports; reminders that depend on
+this repo's tasks and blackboards. A REM task is an ordinary template authored
+with the recipe above; it owns its own cadence, ticket scan, skill order,
+output conventions, and review gates.
+
+REM is not Dream. Dream is Coga's generic ticket cleanup pass; generic Coga
+cleanup does not belong in a REM pass, and neither does branch hygiene unless
+the REM task is explicitly a dev maintenance loop. Have each run write one
+concise summary to its period task's blackboard, listing any PRs opened,
+tickets created, or human gates.
 
 ## Dream is the recurring janitor
 

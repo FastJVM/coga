@@ -29,7 +29,6 @@ DREAM_PROMPT = RECURRING_TEMPLATES / "dream" / "ticket.md"
 # Single-file format: the recurring template's blackboard is the region of
 # `ticket.md` below the `<!-- coga:blackboard -->` fence (no separate file).
 DREAM_BLACKBOARD = DREAM_PROMPT
-REM_TEMPLATE = RECURRING_TEMPLATES / "_rem" / "ticket.md"
 
 
 def test_dream_ships_as_a_recurring_template() -> None:
@@ -234,15 +233,3 @@ def test_cleanup_orphan_markers_declares_contract() -> None:
     assert "`result: no-new-durable-knowledge`" in text
     assert "not a prefix match" in text
     assert "reports eligible candidates as `human-needed`" in norm
-
-
-def test_rem_template_documents_user_specific_recurring_maintenance() -> None:
-    text = REM_TEMPLATE.read_text()
-
-    assert "REM is repo/user-specific recurring maintenance" in text
-    assert "REM is not Dream" in text
-    assert "Dream is Coga's generic ticket cleanup pass" in text
-    assert "copy or rename it to a non-underscore" in text
-    assert "product or operations health checks" in text
-    assert "domain-specific recurring reports" in text
-    assert "Do not put generic Coga cleanup here" in text
