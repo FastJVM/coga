@@ -1,17 +1,35 @@
 ---
 slug: bug-if-not-on-megalaunch-don-t-block-ask
 title: 'bug: if not on megalaunch  don''t block ask'
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts:
-  - dev/code
+- dev/code
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -74,16 +92,3 @@ and the matching durable architecture documentation is updated.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Evaluator review
-
-Verdict: strong, cohesive draft; a future agent can start cold. One must-fix ambiguity remains before launch.
-
-- The source and test pointers are correct. Ordinary agent prompts unconditionally compose `src/coga/resources/prompt.md` followed by `prompt-agent.md`. Megalaunch loads `prompt-megalaunch.md` in `_megalaunch_prompt_suffix()` and appends it after the ordinary composed prompt. `tests/test_compose.py` already houses base-prompt contract assertions, while `tests/test_megalaunch.py` already captures and asserts the queue suffix. The live and packaged architecture paths are also correct.
-- The current behavior claims are accurate: ordinary agent launch requires a TTY and has no megalaunch suffix; megalaunch also requires a TTY for its interactive REPL but explicitly says that this does not imply a waiting human and requires a terminal `block` when input is unavailable.
-- Must clarify precedence over workflow/skill instructions. The composed `code/implement` skill currently says to stop on ambiguity and to `coga block` when a human decision is needed; the workflow also contains generic block directives. If only the two shared prompt files change, a complete step prompt can remain internally contradictory. State whether the new launch-mode directive is authoritative over generic downstream “block” wording, or whether conflicting live and packaged workflow/skill text is also in scope. An explicit precedence rule would preserve the narrow scope; a broad skill audit would expand it considerably.
-- `code/with-review` otherwise fits: this is a shipped prompt-contract code change with regression tests, synchronized documentation, peer review, PR creation, and owner review. The repository has exactly the two agent types required by `other-agent`.
-- `dev/code` is relevant and should remain attached because this workflow produces a branch and PR. It is narrow, and the ticket already inlines the architecture facts needed for implementation; attaching broad `coga/architecture` or `coga/codebase` context would add unnecessary payload.
-- Scope is one coherent bug. The exclusions correctly rule out runtime enforcement, launch-mode flags, blocker lifecycle changes, TTY changes, and the separate broad rewrite ticket.
-- Tests should assert the semantic boundary, not merely headings: the ordinary full composition must direct the agent to ask and wait and reserve blocking for an explicit human park/block request; the megalaunch suffix must override that attended default despite having a TTY and require terminal `coga block` when input is unavailable.
-- Prompt-size review: `base_prompt` is the only layer over the requested threshold at 1,640/4,055 tokens (~40.4%). It is structurally necessary and is itself the subject of this fix, so it should not be removed; treat it as a concrete consolidation target by replacing conflicting wording rather than adding another parallel rule. `dev/code` is ~30.9% and justified. No other layer is disproportionate.
