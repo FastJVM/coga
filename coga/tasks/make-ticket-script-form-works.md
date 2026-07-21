@@ -1,7 +1,7 @@
 ---
 slug: make-ticket-script-form-works
 title: make ticket script form works
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description
@@ -99,4 +98,54 @@ scripts when the task actually looks script-shaped.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Already satisfied
+
+This ticket's work already landed on `origin/main` as PR #601 "make ticket
+script form works" (commit `1ed07f23`, merged 2026-07-20, including a
+"peer-review: apply review findings" pass). This launch started from a stale
+local `main` (81f061ff) that predates the merge — discovered while rebasing a
+freshly built feature branch, which duplicated the merged change and was then
+deleted (worktree removed; no branch/PR needed).
+
+Per-item evidence, all in `1ed07f23`'s version of
+`src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md`:
+
+- Conditional interview question: step 3 item 5 "Script execution
+  (conditional)" — asked only when the task looks script-shaped; inline vs
+  sibling chosen by the script's size/nature.
+- `script:` frontmatter set for both forms; agent tasks keep `script: null`.
+- Inline: "### Script-backed ticket layout" instructs adding a `## Script`
+  section above the `<!-- coga:blackboard -->` fence with one fenced block,
+  and documents the `python`/`sh`/`bash` fence-language dispatch.
+- Sibling file: bare `tasks/<slug>.md` → `tasks/<slug>/ticket.md` conversion
+  with the script beside it; explicit "the frontmatter `slug:` does not change
+  when the file moves; do not 'fix' it".
+- Safety nets: `chmod +x` for extensionless shebang scripts (dispatch
+  semantics spelled out), `coga validate --task <slug>` after the conversion,
+  plus a `test -f` check on the sibling script.
+- Workflow interplay: requires a one-step, ungated workflow for a
+  ticket-level `script:` (suggests `direct/body`); multi-step workflows are
+  steered to script-backed step skills instead.
+- Beyond the skill text, the PR also updated `src/coga/authoring.py` and
+  added `tests/test_bootstrap_ticket_skill_template.py` +
+  `tests/test_authoring.py` assertions, so the done-criterion (a `coga
+  ticket` interview can produce a valid script ticket that `coga launch`
+  executes) is covered with tests.
+
+Note for the owner: this checkout's `main` has diverged from `origin/main`
+(merge-base `9022450f`) — local state commits only, none of the recently
+merged PRs. Worth a sync so future launches don't start from pre-#601 state.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-21T01:21:36+00:00
+Command: `coga validate --json --fix`
+Task: `make-ticket-script-form-works`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
