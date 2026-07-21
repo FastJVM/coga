@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import select
+import signal
 import sys
 import termios
 import tty
@@ -249,12 +250,27 @@ def _decode_key(data: bytes) -> str:
     return ""
 
 
-def _read_key() -> str:
-    """Read one keypress from the terminal in raw mode, decoded to an action."""
+def _read_key(resize_fd: int) -> str:
+    """Read one keypress from the terminal in raw mode, decoded to an action.
+
+    `resize_fd` is the read end of the picker's SIGWINCH self-pipe (see
+    `_pick_selection`); a byte there wins over a keypress and comes back as
+    the synthetic "resize" action. Returning — rather than redrawing here —
+    matters: the `finally` restores cooked mode first, so the caller never
+    renders while raw mode (no OPOST) would staircase the output.
+    """
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
     try:
-        tty.setraw(fd)
+        # TCSADRAIN, not setraw's default TCSAFLUSH: a keypress that lands
+        # between reads (e.g. racing a resize redraw) must survive re-entry,
+        # not be flushed with the queue.
+        tty.setraw(fd, termios.TCSADRAIN)
+        ready = select.select([fd, resize_fd], [], [])[0]
+        if resize_fd in ready:
+            # Drain so a flurry of resizes coalesces into one redraw.
+            os.read(resize_fd, 1024)
+            return "resize"
         data = os.read(fd, 1)
         if data == b"\x1b":
             # Arrow keys arrive as ESC [ A / ESC O A; a bare Esc sends nothing
@@ -277,31 +293,50 @@ def _pick_selection(candidates: list[tuple[TaskRef, Ticket]]) -> list[str]:
     console = Console()
     cursor = 0
     selected: set[int] = set()
-    with Live(
-        _picker_view(candidates, selected, cursor, console),
-        console=console,
-        auto_refresh=False,
-        transient=True,
-    ) as live:
-        while True:
-            key = _read_key()
-            if key == "quit":
-                return []
-            if key == "enter":
-                return [candidates[i][0].id_slug for i in sorted(selected)]
-            if key == "up":
-                cursor = (cursor - 1) % len(candidates)
-            elif key == "down":
-                cursor = (cursor + 1) % len(candidates)
-            elif key == "space":
-                selected ^= {cursor}
-            elif key == "all":
-                selected = set(range(len(candidates)))
-            elif key == "none":
-                selected = set()
-            live.update(
-                _picker_view(candidates, selected, cursor, console), refresh=True
-            )
+    # SIGWINCH self-pipe: `_read_key` blocks in os.read/select, and PEP 475
+    # retries reads around signals, so a flag set by a handler would never be
+    # seen while the read stays blocked. The wakeup fd turns the signal into a
+    # readable byte `_read_key` can select on. The no-op handler is required —
+    # SIGWINCH is ignored by default, and only signals with a Python-level
+    # handler reach the wakeup fd. Installed for the whole picker so a resize
+    # landing between keypresses (cooked mode) is buffered, not lost.
+    resize_read, resize_write = os.pipe()
+    os.set_blocking(resize_write, False)
+    previous_wakeup = signal.set_wakeup_fd(resize_write)
+    previous_handler = signal.signal(signal.SIGWINCH, lambda signum, frame: None)
+    try:
+        with Live(
+            _picker_view(candidates, selected, cursor, console),
+            console=console,
+            auto_refresh=False,
+            transient=True,
+        ) as live:
+            while True:
+                key = _read_key(resize_read)
+                if key == "quit":
+                    return []
+                if key == "enter":
+                    return [candidates[i][0].id_slug for i in sorted(selected)]
+                if key == "up":
+                    cursor = (cursor - 1) % len(candidates)
+                elif key == "down":
+                    cursor = (cursor + 1) % len(candidates)
+                elif key == "space":
+                    selected ^= {cursor}
+                elif key == "all":
+                    selected = set(range(len(candidates)))
+                elif key == "none":
+                    selected = set()
+                # "resize" needs no branch: falling through re-renders, and
+                # _picker_view reads console.size fresh on every render.
+                live.update(
+                    _picker_view(candidates, selected, cursor, console), refresh=True
+                )
+    finally:
+        signal.signal(signal.SIGWINCH, previous_handler)
+        signal.set_wakeup_fd(previous_wakeup)
+        os.close(resize_read)
+        os.close(resize_write)
 
 
 def _picker_window(total: int, cursor: int, rows: int) -> tuple[int, int]:
