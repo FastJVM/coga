@@ -21,7 +21,7 @@ from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import append_log
 from coga.paths import recurring_dir, resolve_workflow_path
 from coga.period_state import StateSnapshot, read_snapshot, stale_keys
-from coga.notification import notify, post
+from coga.notification import digest_spool_path, notify, post
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
 from coga.validate import assert_task_valid
@@ -166,10 +166,17 @@ def mark_canceled(
 
     prior_status = ticket.status
     owner = ticket.owner or cfg.current_user
-    ticket.frontmatter["status"] = "canceled"
-    ticket.frontmatter.pop("step", None)
+    prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+    prospective.frontmatter["status"] = "canceled"
+    prospective.frontmatter.pop("step", None)
+    assert_task_valid(
+        cfg,
+        ref,
+        action="mark canceled",
+        ticket_override=prospective,
+    )
+    ticket.frontmatter = prospective.frontmatter
     ticket.write(ref.ticket_path)
-    assert_task_valid(cfg, ref, action="mark canceled")
     append_log(
         cfg,
         ref.id_slug,
@@ -189,7 +196,17 @@ def mark_canceled(
         task_path=ref.path,
         image_url=image_url,
     )
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — canceled")
+    paths = [ref.path]
+    spool_path = digest_spool_path(cfg)
+    if spool_path is not None:
+        paths.append(spool_path)
+    git.sync_paths(
+        cfg,
+        ref.path,
+        paths,
+        message=f"Ticket: {ref.id_slug} — canceled",
+        land_union_files_to_control=True,
+    )
 
 
 def _sync_done_state(

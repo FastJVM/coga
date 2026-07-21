@@ -265,11 +265,18 @@ def validate_task(
     return report
 
 
-def validate_task_dir(cfg: Config, ref: TaskRef) -> list[Issue]:
+def validate_task_dir(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    ticket_override: Ticket | None = None,
+) -> list[Issue]:
     """File-presence + frontmatter schema check for one task directory.
 
     Skips the idle-time `stuck-in-progress` heuristic — that's a sweep-only
-    signal, not something to gate every edit on.
+    signal, not something to gate every edit on. ``ticket_override`` validates
+    a prospective in-memory edit against the task's existing files, allowing a
+    caller to reject an invalid transition before it writes terminal state.
     """
     return _check_one_task(
         cfg,
@@ -278,6 +285,7 @@ def validate_task_dir(cfg: Config, ref: TaskRef) -> list[Issue]:
         max_blackboard_bytes=BLACKBOARD_WARN_BYTES,
         idle_hours=float("inf"),
         now=datetime.now(timezone.utc),
+        ticket_override=ticket_override,
     )
 
 
@@ -306,14 +314,20 @@ class TaskValidationError(RuntimeError):
         )
 
 
-def assert_task_valid(cfg: Config, ref: TaskRef, *, action: str) -> None:
+def assert_task_valid(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    action: str,
+    ticket_override: Ticket | None = None,
+) -> None:
     """Re-validate a task after an edit. Raise TaskValidationError on errors.
 
     Called by every Coga-owned command that mutates a task file, so a bad
     write is surfaced at the edge of the edit instead of later at launch /
     Dream time. Warnings are not fatal.
     """
-    issues = validate_task_dir(cfg, ref)
+    issues = validate_task_dir(cfg, ref, ticket_override=ticket_override)
     errors = [i for i in issues if i.severity == "error"]
     if errors:
         raise TaskValidationError(errors, action=action)
@@ -330,6 +344,7 @@ def _check_one_task(
     max_blackboard_bytes: int,
     idle_hours: float,
     now: datetime,
+    ticket_override: Ticket | None = None,
 ) -> list[Issue]:
     out: list[Issue] = []
     task_label = ref.id_slug
@@ -358,16 +373,19 @@ def _check_one_task(
             severity="warn",
         ))
 
-    try:
-        ticket = Ticket.read(ref.ticket_path)
-    except TicketError as exc:
-        out.append(Issue(
-            kind="bad-frontmatter",
-            task=task_label,
-            message=str(exc),
-            severity="error",
-        ))
-        return out
+    if ticket_override is None:
+        try:
+            ticket = Ticket.read(ref.ticket_path)
+        except TicketError as exc:
+            out.append(Issue(
+                kind="bad-frontmatter",
+                task=task_label,
+                message=str(exc),
+                severity="error",
+            ))
+            return out
+    else:
+        ticket = ticket_override
 
     # Exactly one blackboard fence: the single-file format splits body from
     # blackboard on it, so zero or many is a structural error.

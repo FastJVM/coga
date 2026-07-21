@@ -431,6 +431,15 @@ cross-branch path but skips the local commit (it would be orphaned); any dirty
 `merge=union` files that would otherwise have ridden that local commit are
 union-merged directly into the control-branch commit.
 
+Cancellation is the deliberate feature-branch exception for union files. A
+canceled ticket's branch may never merge by definition, so `mark_canceled`
+calls `sync_paths(..., land_union_files_to_control=True)`: the task still lands
+through the scoped overlay, while `coga/log.md` and an installed digest spool
+are three-way unioned into the same control-branch tree immediately. The
+compare-and-swap retry below rebuilds that union on a newly fetched tip, so the
+required reason and outcome cannot strand with the abandoned code or overwrite
+concurrent audit/digest appends.
+
 The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
 moved under us (another coga process, a teammate), the
 push is rejected non-fast-forward, and a bounded fetch-rebuild-retry loop

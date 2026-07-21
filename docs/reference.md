@@ -104,6 +104,9 @@ task (optionally scoped to `tasks/<DIR>/`).
 - `--agent <type>` — launch swept tasks with this agent regardless of each
   ticket's assignee (human-assigned tickets still skip).
 
+If a launched task cancels itself, the run summary reports it as `canceled`,
+separately from successfully `completed` work.
+
 ### `coga recurring [COMMAND]`
 Scan recurring task templates under `coga/recurring/` and launch any that are
 due. With no subcommand it runs the sweep.
@@ -115,7 +118,9 @@ due. With no subcommand it runs the sweep.
   `--force`.
 - `--force` — force a full run of **every** template, bypassing the schedule and
   the already-serviced/done/paused filter. A canceled period task is not
-  reactivated; delete it before starting a fresh run.
+  reactivated: its refusal is reported, later templates still run, and the
+  sweep exits non-zero after finishing. Delete the canceled task before
+  starting a fresh run.
 - `--agent <type>` — agent to use for agent-backed recurring tasks in this sweep.
 
 Subcommands:

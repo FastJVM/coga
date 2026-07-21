@@ -627,7 +627,7 @@ backstops are armed so a wedged REPL can't starve the queue; because the REPLs
 loud without one. A timed-out result names the exact trigger and configured
 duration (`idle-timeout ... 900s` or `max-session ...`) instead of collapsing
 both limits into one ambiguous message. The run summary distinguishes
-launched, completed, blocked,
+launched, completed, canceled, blocked,
 skipped-human-gate, skipped-unresolved-blocker,
 skipped-unlaunchable, and failed.
 
@@ -772,7 +772,9 @@ paused templates this period. For every template it get-or-creates the real
 `recurring/<name>` period task and launches it — even one that already ran this
 period (the force runner reactivates a `done`/`paused` ticket). A canceled
 period task is not a rerunnable completion:
-force refuses it, and the operator must delete it before starting a fresh run.
+force reports a controlled refusal, continues through later templates, and
+exits non-zero after the sweep; the operator must delete the canceled task
+before starting a fresh run.
 Everything else is identical to a normal run: real Slack,
 real digest-spool drain, real git task-state sync, and the real
 `last_serviced_period` high-water advance. There are no `-dbg-` scratch dirs, no

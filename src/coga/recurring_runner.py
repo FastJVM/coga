@@ -428,9 +428,11 @@ def run_recurring_scan(
     that it ignores the schedule and the status filter, so every template is
     launched — including ones already serviced this period (re-launched) and
     `done`/`paused` ones (the runner reactivates them). Canceled tasks are
-    included in discovery but refused rather than reactivated. Everything else —
-    Slack, the digest spool, git task-state sync, the `last_serviced_period`
-    high-water advance — is identical to a normal run.
+    included in discovery but refused rather than reactivated; the sweep
+    reports each refusal, continues with later templates, and returns non-zero
+    after the remaining work finishes. Everything else — Slack, the digest
+    spool, git task-state sync, the `last_serviced_period` high-water advance —
+    is identical to a normal run.
 
     `agent_override` temporarily selects the configured agent for agent-backed
     tasks. It never rewrites the ticket, and script tasks still run as scripts.
@@ -490,12 +492,18 @@ def run_recurring_scan(
     typer.echo(f"\nLaunching {len(due)} {label} sequentially...\n")
     from coga.commands.launch import launch as launch_cmd
 
+    forced_refusals = 0
     for i, task in enumerate(due, 1):
         typer.secho(
             f"[{i}/{len(due)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
         )
         if force:
-            _prepare_forced_launch(cfg, task)
+            try:
+                _prepare_forced_launch(cfg, task)
+            except RecurringError as exc:
+                forced_refusals += 1
+                typer.secho(str(exc), fg=typer.colors.RED, err=True)
+                continue
         # Sequential by design: each launch blocks until the agent session
         # exits before the next begins. `scan_due` filters out templates that
         # cannot run in the current stdio context (an agent run with no TTY), and
@@ -522,7 +530,7 @@ def run_recurring_scan(
         _stop_if_unfinished_after_launch(
             cfg, task.ref, interactive=interactive, timed_out=(kind == "timeout")
         )
-    return 0
+    return 2 if forced_refusals else 0
 
 
 def run_recurring_named(

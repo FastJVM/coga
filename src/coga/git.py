@@ -347,6 +347,7 @@ def sync_paths(
     *,
     message: str,
     update_local_control_ref: bool = True,
+    land_union_files_to_control: bool = False,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -358,7 +359,10 @@ def sync_paths(
     narrow isolated-worktree escape hatch used by Retro's direct deletes: the
     removal still lands on the remote control branch, but Coga does not then
     fast-forward a different worktree that has the local control branch
-    checked out.
+    checked out. ``land_union_files_to_control=True`` is the narrow terminal-
+    abandonment path: merge=union evidence files are three-way unioned onto
+    the control branch immediately because the current feature branch may
+    intentionally never merge.
     """
     selected = _dedupe_paths(paths)
     if not selected:
@@ -384,22 +388,29 @@ def sync_paths(
 
         rels = [_relative_to_root(root, path) for path in selected]
 
-        # The repo-global `coga/log.md` is `merge=union`, so it must NOT
-        # ride the cross-branch overlay — an overlay replaces the file wholesale
-        # on the control tip, dropping log lines another branch appended
-        # concurrently. Instead it is folded into the *local* commit only and
-        # reaches the control branch the union-safe way: the same-branch push
-        # rebases (union-merging the log), or the feature branch's PR merges
-        # (union again). `local_rels` therefore carries the log; `rels` (the
-        # overlay set) never does.
+        # Merge=union files must NOT ride the cross-branch overlay — an overlay
+        # replaces a file wholesale on the control tip, dropping lines another
+        # branch appended concurrently. Instead they are folded into the local
+        # commit and ordinarily reach control through a same-branch push or the
+        # feature PR. Cancellation is the exception: its branch may never merge,
+        # so the caller asks us to union-land the audit/digest evidence now.
         log_rel = _relative_to_root(root, log_path(cfg))
         local_rels = rels + [log_rel] if log_path(cfg).exists() else rels
+        local_rels = list(dict.fromkeys(local_rels))
+        union_rels = _union_merge_paths(root, local_rels)
+        overlay_rels = [rel for rel in rels if rel not in union_rels]
+        control_union_rels = (
+            [rel for rel in local_rels if rel in union_rels]
+            if land_union_files_to_control
+            else []
+        )
 
         _dispatch_branch_sync(
             cfg,
             root,
             local_rels=local_rels,
-            overlay_rels=rels,
+            overlay_rels=overlay_rels,
+            control_union_rels=control_union_rels,
             message=message,
             update_local_control_ref=update_local_control_ref,
         )
@@ -771,6 +782,7 @@ def _dispatch_branch_sync(
     *,
     local_rels: list[str],
     overlay_rels: list[str],
+    control_union_rels: list[str] | None = None,
     message: str,
     guard: _StateGuard | None = None,
     update_local_control_ref: bool = True,
@@ -783,10 +795,12 @@ def _dispatch_branch_sync(
         files in `local_rels` ride the push-rebase's union merge.
       - Feature branch → commit `local_rels` locally (so the checkout reflects
         OS state), then land `overlay_rels` on the control branch via the
-        working-tree-free overlay.
+        working-tree-free overlay. A caller may also explicitly land selected
+        merge=union files when their evidence cannot wait for a future PR.
       - Detached HEAD → skip the local commit (it would be orphaned); still land
         `overlay_rels` on the control branch.
     """
+    control_union_rels = control_union_rels or []
     branch = _current_branch(root)
     if branch == cfg.git_control_branch:
         _sync_paths_on_control_branch(
@@ -801,7 +815,12 @@ def _dispatch_branch_sync(
         # worktree delete can suppress that refresh. Only a fast-forward miss
         # warrants a stderr note, printed there.
         overlay = set(overlay_rels)
-        union_rels = [rel for rel in local_rels if rel not in overlay]
+        union_rels = list(
+            dict.fromkeys(
+                [rel for rel in local_rels if rel not in overlay]
+                + control_union_rels
+            )
+        )
         _land_paths_on_control_branch(
             cfg,
             root,
@@ -820,6 +839,7 @@ def _dispatch_branch_sync(
             cfg,
             root,
             overlay_rels,
+            union_rels=control_union_rels,
             message=message,
             guard=guard,
             update_local_control_ref=update_local_control_ref,

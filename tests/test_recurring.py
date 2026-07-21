@@ -3249,6 +3249,52 @@ def test_forced_recurring_run_refuses_canceled_period(repo: Path) -> None:
     assert Ticket.read(ticket_path).status == "canceled"
 
 
+def test_forced_recurring_scan_reports_canceled_and_continues(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg = load_config(repo)
+    canceled = SimpleNamespace(ref=SimpleNamespace(id_slug="canceled-period"))
+    later = SimpleNamespace(ref=SimpleNamespace(id_slug="later-period"))
+    scan = SimpleNamespace(forced=[canceled, later], due=[])
+    launched: list[str] = []
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: (True, None),
+    )
+    monkeypatch.setattr(recurring_cmd, "scan_due", lambda *args, **kwargs: scan)
+    monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
+    monkeypatch.setattr(recurring_cmd, "_print_table", lambda *args, **kwargs: None)
+
+    def prepare(task_cfg, task):  # type: ignore[no-untyped-def]
+        if task is canceled:
+            raise recurring_cmd.RecurringError(
+                "cannot force-run canceled-period: its task is canceled"
+            )
+
+    monkeypatch.setattr(recurring_cmd, "_prepare_forced_launch", prepare)
+    monkeypatch.setattr(recurring_cmd, "read_ticket", lambda ref: SimpleNamespace())
+    monkeypatch.setattr(recurring_cmd, "is_script_launch", lambda *args: True)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch",
+        lambda slug, **kwargs: launched.append(slug),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_stop_if_unfinished_after_launch",
+        lambda *args, **kwargs: None,
+    )
+
+    result = recurring_cmd.run_recurring_scan(cfg, force=True)
+
+    assert result == 2
+    assert launched == ["later-period"]
+    assert "cannot force-run canceled-period" in capsys.readouterr().err
+
+
 def test_scan_due_force_defers_existing_done_period_until_launch(
     repo: Path,
 ) -> None:

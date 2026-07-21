@@ -103,6 +103,49 @@ def test_megalaunch_runs_active_agent_task(
     assert Ticket.read(ref["path"]).status == "done"
 
 
+def test_megalaunch_records_cancellation_as_distinct_outcome(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Decline during run",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(  # type: ignore[no-untyped-def]
+        cfg, ref_obj, ticket, agent, **kwargs
+    ):
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "canceled"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["launched"] == 1
+    assert run.counts["canceled"] == 1
+    assert run.counts["completed"] == 0
+    assert run.results[0].outcome == "canceled"
+    assert run.results[0].detail == "task canceled"
+    assert Ticket.read(ref["path"]).status == "canceled"
+
+
 def test_megalaunch_skips_task_deleted_mid_sweep(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

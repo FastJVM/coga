@@ -97,6 +97,7 @@ class MegalaunchError(Exception):
 
 MegalaunchOutcome = Literal[
     "completed",
+    "canceled",
     "blocked",
     "skipped-human-gate",
     "skipped-unresolved-blocker",
@@ -127,6 +128,7 @@ class MegalaunchRun:
         counts = {
             "launched": sum(1 for result in self.results if result.launched),
             "completed": 0,
+            "canceled": 0,
             "blocked": 0,
             "skipped-human-gate": 0,
             "skipped-unresolved-blocker": 0,
@@ -934,6 +936,14 @@ def _chain_stop_result(
         blockers = open_blockers(ref.ticket_path)
         detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
         return _result(ref, "blocked", detail, after.assignee, launched=True)
+    if after.status == "canceled":
+        return _result(
+            ref,
+            "canceled",
+            "task canceled",
+            after.assignee,
+            launched=True,
+        )
     if after.status in TERMINAL_STATUSES:
         return _result(
             ref,
@@ -1030,6 +1040,7 @@ def render_run_summary(run: MegalaunchRun) -> str:
     for key in (
         "launched",
         "completed",
+        "canceled",
         "blocked",
         "skipped-human-gate",
         "skipped-unresolved-blocker",
