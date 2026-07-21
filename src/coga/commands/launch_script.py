@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 import typer
 
@@ -104,6 +104,24 @@ def build_task_env(
     return env
 
 
+def build_arg_env(args: Sequence[str] | None) -> dict[str, str]:
+    """The trailing-launch-argument environment contract (`COGA_ARG_*`).
+
+    `coga launch <target> [ARGS...]` forwards trailing args to *script*
+    launches only, as `COGA_ARG_1..N` plus `COGA_ARGC` (agent launches refuse
+    them fail-loud in `coga launch`). `COGA_ARGC` is always set so a script
+    can distinguish "launched with zero args" from a malformed invocation
+    without probing for `COGA_ARG_1`. The `COGA_` namespace is reserved for
+    launch metadata (secrets named `COGA_*` are rejected at config parse), so
+    these variables cannot collide with a declared secret.
+    """
+    values = list(args or [])
+    env = {"COGA_ARGC": str(len(values))}
+    for i, value in enumerate(values, 1):
+        env[f"COGA_ARG_{i}"] = value
+    return env
+
+
 def build_script_command(script_path: Path) -> list[str]:
     """argv for running a skill script.
 
@@ -119,7 +137,12 @@ def build_script_command(script_path: Path) -> list[str]:
 
 
 def run_script_mode(
-    cfg: Config, ref: TargetRef, ticket: Ticket, *, stateless: bool = False
+    cfg: Config,
+    ref: TargetRef,
+    ticket: Ticket,
+    *,
+    stateless: bool = False,
+    args: Sequence[str] | None = None,
 ) -> None:
     """Execute the task's script — a step skill's, or the ticket's own.
 
@@ -138,6 +161,10 @@ def run_script_mode(
     `stateless=True` is for package-backed bootstrap script targets such as
     `bootstrap/recurring-scan`: resolve and run the same script shape, but skip
     task lifecycle writes because there is no task.
+
+    `args` carries `coga launch`'s trailing arguments into the child env as
+    `COGA_ARG_1..N` + `COGA_ARGC` (see `build_arg_env`). Mid-chain script
+    steps and sweep launches pass none — the channel is per launch invocation.
     """
     skill, cmd, log_label, cleanup = _resolve_script(cfg, ref, ticket)
 
@@ -172,6 +199,7 @@ def run_script_mode(
     # Same secret chokepoint as agent-mode `coga launch`: a script task still
     # receives its scoped secrets here (folded in, not dropped).
     env.update(build_task_env(cfg, ref, skill))
+    env.update(build_arg_env(args))
     cwd = script_repo_root(cfg)
 
     if not stateless:
