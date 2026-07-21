@@ -2102,3 +2102,84 @@ def test_stale_probe_empty_without_remote_tracking_ref(git_repo):
     git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
 
     assert git.stale_coga_task_rels(cfg) == []
+
+
+# --- summarize_git_failure (conflict-noise distillation) ------------------------
+
+
+def test_summarize_git_failure_keeps_only_actionable_lines():
+    """Rebase spew (progress, hints, autostash notes) collapses to the
+    `error:` + `CONFLICT` lines a human acts on."""
+    raw = dedent(
+        """
+        Rebasing (1/14)
+        Rebasing (2/14)
+        error: could not apply 09b7e643... Ticket: write-real-docs — active
+        hint: Resolve all conflicts manually, mark them as resolved with
+        hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+        hint: You can instead skip this commit: run "git rebase --skip".
+        Could not apply 09b7e643... Ticket: write-real-docs — active
+        Created autostash: 99273fe4
+        Auto-merging coga/log.md
+        Auto-merging coga/tasks/write-real-docs.md
+        CONFLICT (content): Merge conflict in coga/tasks/write-real-docs.md
+        """
+    )
+    summary = git.summarize_git_failure(raw)
+    assert "error: could not apply 09b7e643" in summary
+    assert "CONFLICT (content): Merge conflict in coga/tasks/write-real-docs.md" in summary
+    assert "Rebasing" not in summary
+    assert "hint:" not in summary
+    assert "autostash" not in summary
+    assert "Auto-merging" not in summary
+
+
+def test_summarize_git_failure_dedupes_and_handles_progress_carriage_returns():
+    raw = (
+        "Rebasing (1/2)\rRebasing (2/2)\rerror: could not apply abc123... x\n"
+        "error: could not apply abc123... x\n"
+    )
+    assert git.summarize_git_failure(raw) == "error: could not apply abc123... x"
+
+
+def test_summarize_git_failure_falls_back_to_last_line():
+    """An unrecognized failure shape is never silently emptied."""
+    assert (
+        git.summarize_git_failure("some odd message\nfinal line\n") == "final line"
+    )
+    assert git.summarize_git_failure("") == ""
+
+
+def test_cli_main_skips_end_of_command_sweep_on_stale_control_exit(monkeypatch):
+    """A stale-control refusal must not be chased by the end-of-command state
+    sweep: its rebase onto the control tip would re-fail against the same
+    divergence and its local commit would deepen it by one per failed run.
+    Every other exit keeps the sweep."""
+    from types import SimpleNamespace
+
+    from coga import cli
+
+    calls: list[object] = []
+    cfg = SimpleNamespace(aliases={})
+    monkeypatch.setattr(cli, "find_repo_root", lambda: None)
+    monkeypatch.setattr(cli, "load_config", lambda **k: cfg)
+    monkeypatch.setattr(cli, "_register_alias_placeholder", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "_sweep_coga_state", lambda c: calls.append(c))
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "recurring"])
+
+    def refuse_stale() -> None:
+        raise SystemExit(git.STALE_CONTROL_EXIT_CODE)
+
+    monkeypatch.setattr(cli, "app", refuse_stale)
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main()
+    assert excinfo.value.code == git.STALE_CONTROL_EXIT_CODE
+    assert calls == []
+
+    def ordinary_failure() -> None:
+        raise SystemExit(1)
+
+    monkeypatch.setattr(cli, "app", ordinary_failure)
+    with pytest.raises(SystemExit):
+        cli.main()
+    assert calls == [cfg]

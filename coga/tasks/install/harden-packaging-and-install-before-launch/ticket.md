@@ -227,6 +227,33 @@ pr: https://github.com/FastJVM/coga/pull/612
   needs an explicit say-so since it contradicts the written acceptance
   criteria.
 
+## Prerequisite audit (2026-07-20 blocker-resolution relaunch)
+
+- Sibling fixes: all merged and done on `origin/main` (2d799810). Ticket
+  statuses: `vendor-cli-from-installed-package-not-git-clone`,
+  `warn-loud-when-init-commit-is-skipped`,
+  `init-next-steps-should-mention-agent-cli-requireme`,
+  `add-migration-errors-for-removed-config-keys`,
+  `decide-whether-gh-stays-required-at-init`, and
+  `cut-release-to-realign-pypi-with-main` are all `done`. Code confirms it:
+  `clone_upstream` is gone from `src/coga/commands/init.py` on `origin/main`,
+  and `pyproject.toml` there says `0.3.0` (release PR #587 merged).
+- Publication: NOT done. `git ls-remote --tags origin` shows only `v0.2.0`;
+  PyPI still serves 0.2.0 (uploaded 2026-06-27) and has no 0.3.0 files. The
+  release ticket's own blackboard leaves publishing as explicit human steps
+  ("Remaining after merge (human, per docs/releasing.md)"): draft a GitHub
+  release tagged `v0.3.0` targeting `main`, which triggers
+  `.github/workflows/release.yml` to publish via PyPI Trusted Publishing.
+- Decision: not doing the publish autonomously — PyPI uploads are immutable,
+  the release ticket reserved this step for the human, and Trusted Publishing
+  may still need its one-time PyPI-side setup from docs/releasing.md. The
+  2026-07-16 blocker's sibling-merge condition is now met, so that ask is
+  resolved and replaced by a single narrow ask: publish the v0.3.0 release,
+  then relaunch this gate.
+- Session note: this primary checkout is diverged from origin (ahead 30,
+  behind 170); all evidence above was read from `origin/main` directly via
+  `git show` after `git fetch`.
+
 ---
 
 ## Blockers
@@ -239,6 +266,8 @@ pr: https://github.com/FastJVM/coga/pull/612
 
 - [x] [2026-07-16 10:14] [agent:claude] id=20260716T101438 Gate prerequisites still unmet at today's megalaunch: PyPI latest is coga 0.2.0 (pre-retest) and no sibling install/ fix has merged — they are mid-implement in parallel sessions launched this morning (init.py on main still clones upstream). Relaunch this gate after the sibling PRs merge and cut-release-to-realign-pypi-with-main publishes the realigned version; or, if you want a standalone deliverable now (e.g. an automated clean-container harness scripting the five verification steps), say so explicitly since the ticket's acceptance criteria currently forbid a branch/PR. Consider excluding this gate from megalaunch sweeps until then.
   resolved: [2026-07-19 20:05] [human:nicktoper] Proceed now with a standalone automated clean-container verification harness that scripts the five verification steps; this explicitly overrides the prior no-branch/no-PR acceptance constraint for this ticket.
+
+- [ ] [2026-07-20 18:08] [agent:claude] id=20260720T180849 All code prerequisites are now met: every named install/ sibling plus cut-release-to-realign-pypi-with-main is done and merged (origin/main has the fixes, pyproject.toml says 0.3.0 via PR #587). The only unmet prerequisite is publication: no v0.3.0 tag exists and PyPI still serves 0.2.0. Publishing was reserved for you in docs/releasing.md: publish a GitHub Release tagged v0.3.0 targeting main (optionally after the TestPyPI dry run and one-time Trusted Publishing setup described there), which triggers release.yml to publish to PyPI. Once 'uv tool install coga' yields 0.3.0, relaunch this gate and the five verification steps can run.
 ## Blocker reminders
 
 - 5f5852d1e838 last_reminded: 2026-07-15 12:33
