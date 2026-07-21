@@ -28,6 +28,21 @@ outward-facing step, pick a workflow with a human gate before it.
 
 ## Context
 
+Why (usage audit, 2026-07-20): the 3-question test never changed a real
+decision — the one recorded disagreement (`clean-up-workflows-…` triaged
+fully-automated) was overridden in favor of `code/with-review`. The patents
+repo never installed the mechanism; its high-stakes work is gated by
+`patent/*` workflow design directly. `autonomy/assist-only` is the exception
+with real mileage: 4 tickets, all agent-drafts-human-owns taste work — hence
+the rename rather than deletion.
+
+Evaluator (2026-07-21) verified every path on the checklist and greps found
+no misses; `src/coga/config.py:463` mentions "autonomy rework" only in a
+historical comment — leave it. Two taste calls left to the implementer, for
+the human to check at PR review: `draft-for-human` sits unnamespaced at
+workflows/ top level, and the exact wording of the human-gate sentence in
+the interview is open (gist in ## Description).
+
 Every shipped Coga OS file has a live copy under `coga/` and a packaged copy
 under `src/coga/resources/templates/coga/` (some under its `bootstrap/`
 subtree); per CLAUDE.md, change both.
@@ -46,16 +61,18 @@ body. Remove the then-empty `workflows/autonomy/` dirs.
 
 Edit (packaged bootstrap unless noted):
 
-- `bootstrap/skills/bootstrap/ticket/SKILL.md` — remove interview step 3
-  (autonomy triage) and the tier→workflow mapping, renumber the following
-  steps, remove the "do not infer from the autonomy tier" clauses in the
-  script question, and remove the `Autonomy tier` block from the step-7
-  summary template. Add the one-line human-gate sentence to the workflow
-  question (step 4).
+- `bootstrap/skills/bootstrap/ticket/SKILL.md` — remove interview question 3
+  (autonomy triage) and the tier→workflow mapping from `## Step 3 — Interview
+  the human`, renumber the following questions, remove the "do not infer from
+  the autonomy tier" clauses in the script question, and remove the
+  `Autonomy tier` block from the Step 7 summary template. Add the one-line
+  human-gate sentence to the workflow question (currently question 4).
 - `bootstrap/skills/browser/build-automation/SKILL.md` — its "Choose the
   autonomy workflow" section routes to `autonomy/*` refs; rewrite the routing
   to real surviving workflows (all-agent workflow / owner-gated workflow /
-  human performs it, agent read-only) without the tier names.
+  human performs it, agent read-only) without the tier names. Also fix the
+  frontmatter `description:` (line 3), which mentions selecting an autonomy
+  workflow.
 - `bootstrap/browser-automation/ticket.md` — "autonomy workflow" wording.
 - `bootstrap/contexts/coga/cli/SKILL.md` ~line 230 — "autonomy-tier ticket"
   wording.
@@ -69,7 +86,15 @@ Edit (packaged bootstrap unless noted):
 Out of scope — unrelated senses of the words: `coga slack --important`
 triage owner, `coga status` triage view, "P0/P1/P2 triage tier" example in
 the architecture context, patents-repo patentability triage, and marketing
-contexts' "autonomy" positioning language. Leave all of those alone.
+contexts' "autonomy" positioning language. Also unrelated "human-only"
+phrasings: `contexts/coga/principles/SKILL.md` ("a human-only operation",
+live + packaged), `src/coga/resources/prompt.md` ("a human-only field"), and
+`bootstrap/skills/bootstrap/dream/tasks/validate-drift/run.py` ("Lifecycle
+correction is human-only"). Leave all of those alone.
+
+Downstream repos already seeded with `autonomy/*` workflows (magicator,
+xpref, worktree clones) are not cleaned by this ticket — accepted; they pick
+up the change whenever they re-seed.
 
 Tickets already on `autonomy/*` workflows keep working: their workflow
 snapshots are frozen in frontmatter and are not rewritten.
@@ -80,34 +105,4 @@ out-of-scope mentions remain.
 
 <!-- coga:blackboard -->
 
-## Ticket authoring notes
-
-Usage audit of autonomy triage across all repos (2026-07-20):
-
-- **The 3-question test itself never changed a decision.** The only recorded
-  disagreement with intuition was overridden: `clean-up-workflows-…` blackboard
-  says "triaged fully-automated, but the chosen `code/with-review`" won anyway.
-  Evaluator reviews repeatedly spent lines debating tier fit ("assist-only vs
-  human-verify, mild semantic stretch, not worth blocking") with no downstream
-  effect.
-- **`autonomy/assist-only` is the one workflow with real usage** — 4 tickets,
-  all "agent drafts, nick owns the wording" taste tasks:
-  `launch-prompt/review-and-edit-the-relay-launch-prompt-editorial` (paused),
-  `why-browser-autoamtion-as-a-ticket` (done), `improve-prompt-for-relay-ticket`
-  (in_progress), `v2/autotrigger-ticket-type` (draft).
-- **`autonomy/human-only`**: 1 ticket (`marketing/relay-discord`, paused).
-  **`autonomy/fully-automated` and `autonomy/human-verify`: zero tickets ever.**
-- **Patents repo** (`/home/n/Code/patents`) never used it: no `autonomy/*`
-  workflows installed, no tier mentions. Its "triage" hits are patentability
-  triage (unrelated). High-stakes fee work is gated by `patent/*` workflow
-  design directly. Its tickets carry an older `autonomy: interactive|auto`
-  frontmatter field — a predecessor mechanism, not this triage.
-- **Magicator/xpref repos**: autonomy workflows present only as seeded
-  batteries; zero tickets use them. The `coga-*` siblings are worktree clones
-  (duplicate hits).
-- `nightly-auto-drain-run-for-ready-tickets` (in_progress) uses
-  "fully-automated-shaped workflow" as its *definition* of drain-ready — but
-  reads that off workflow shape (no human/owner gate), not a stored tier.
-  Removal must keep that wording coherent.
-- Tickets already on `autonomy/*` workflows keep working after deletion —
-  their workflow snapshots are frozen in frontmatter.
+The blackboard is a notepad to be written to often as the human and agent works through a task.
