@@ -665,9 +665,18 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
     # The recurring sweep's idle backstop is armed so a wedged REPL can't
     # starve the rest of the queue.
     assert seen["idle_timeout"] is not None
-    assert "Megalaunch queue execution" in str(seen["prompt_suffix"])
-    assert "Do not ask for plan" in str(seen["prompt_suffix"])
-    assert "coga block --task" in str(seen["prompt_suffix"])
+    suffix = " ".join(str(seen["prompt_suffix"]).split())
+    assert "Megalaunch queue execution" in suffix
+    assert "Do not ask for plan" in suffix
+    # The appended queue directive overrides the attended ask-and-wait
+    # default composed into Agent mode...
+    assert "overrides the attended ask-and-wait default in Agent mode" in suffix
+    assert "Do not ask-and-wait for missing input here" in suffix
+    # ...and unavailable input must end in a terminal `coga block`.
+    assert (
+        'run `coga block --task <slug> --reason "<specific ask>"` as the'
+        " terminal action" in suffix
+    )
 
 
 @pytest.mark.parametrize(

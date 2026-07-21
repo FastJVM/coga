@@ -379,12 +379,20 @@ file. Layers, in order:
 7. The task description (the ticket body's `## Description`).
 
 The shared spawn seam may append a narrow, package-backed invocation directive
-after those task layers. `coga megalaunch` appends
-`prompt-megalaunch.md`: the REPL still uses a TTY for live streaming and human
-interruption, but the directive makes clear that queue execution must not pause
-for plan approval. The agent proceeds on reasonable assumptions or calls
-`coga block`; only `bump`, `mark done`, or `block` releases the queue. This is
-ephemeral launch context, not ticket state or a new autonomy frontmatter field.
+after those task layers, and that seam carries the escalation boundary. An
+ordinary `coga launch` is attended: the agent-mode block directs the agent to
+ask the human in the REPL and wait for the answer when input is needed, and to
+run `coga block` only when the human explicitly asks to park or block the
+ticket. That mode rule is authoritative over generic block wording in the base
+prompt, workflows, or step skills. `coga megalaunch` appends
+`prompt-megalaunch.md`, which flips the default for queue runs: the REPL still
+uses a TTY for live streaming and human interruption, but the TTY is transport,
+not an attending human, so queue execution must not pause for plan approval or
+wait on a question. The agent proceeds on reasonable assumptions, and when
+unavailable input truly prevents progress it runs a terminal `coga block` so
+the owner is notified; only `bump`, `mark done`, or `block` releases the queue.
+This is ephemeral launch context, not ticket state or a new autonomy
+frontmatter field.
 
 The agent gets all of this as one input. There is no follow-up
 loading. One delivery caveat: the prompt rides the agent CLI's argv, and

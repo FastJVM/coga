@@ -12,8 +12,9 @@ later `code/open-pr` step does that, after self-review and fixes.
 ## Order of operations
 
 1. **Read the ticket carefully.** Description, acceptance criteria,
-   referenced files. If anything is ambiguous, write the ambiguity to
-   the blackboard and stop — do not guess.
+   referenced files. If anything is ambiguous, don't guess: write the
+   ambiguity to the blackboard and escalate per your launch mode — ask
+   the attending human, or `coga block` in a queue run.
 2. **Close already-satisfied tickets directly.** If every requested
    checklist item has already landed in other work and there is genuinely
    no branch, diff, or PR to create, do not manufacture one and do not
@@ -21,7 +22,8 @@ later `code/open-pr` step does that, after self-review and fixes.
    finished work. Write per-item evidence under `## Already satisfied`
    on the blackboard, then run `coga mark done <slug>` and stop. Use this
    only when the evidence is concrete; if a human decision is genuinely
-   needed, `coga block` with that ask instead.
+   needed, escalate that ask per your launch mode instead (ask the
+   attending human; `coga block` in a queue run).
 3. **Create a feature worktree.** From the primary checkout on `main`,
    create a feature branch in a separate worktree outside the repo
    directory, for example:
@@ -74,7 +76,8 @@ later `code/open-pr` step does that, after self-review and fixes.
    on `implement`, the later steps (open the PR, review) never start,
    and your work is invisible even though the code is committed on
    disk. Do not end the session until `coga bump` has run cleanly; if
-   something blocks you from reaching it, `coga block` with a reason.
+   something keeps you from reaching it, escalate per your launch mode —
+   ask the attending human, or `coga block` with a reason in a queue run.
 
 ## Acceptance for this step
 
@@ -101,4 +104,5 @@ later `code/open-pr` step does that, after self-review and fixes.
 - If the work is too big for one PR, **stop and split the ticket** on
   the blackboard. Don't ship a half-implementation.
 - If the test suite fails for reasons unrelated to your change, write
-  it to the blackboard and `coga block` rather than masking it.
+  it to the blackboard and escalate per your launch mode rather than
+  masking it.
