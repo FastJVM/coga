@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/codebase
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -215,6 +215,39 @@ Applied fixes: 1.
 Git: committed and pushed `repair-branch`
 
 Result: no remaining validation drift found.
+
+## Peer review
+
+- Ran `codex review --base origin/main`. It found one must-fix P2: the
+  `docs/gdrive-mcp` context still pointed to the deleted live
+  `coga/workflows/docs/create-google-doc.md` path.
+- Retargeted that context to the package-backed `docs/create-google-doc`
+  workflow under `bootstrap/workflows/` and committed the fix as `0654860f`
+  (`peer-review: retarget packaged docs workflow reference`).
+- Fetched and rebased onto fresh `origin/main` (`2d799810`) after review. The
+  rebase was clean; upstream movement contained only task/log state.
+- Post-rebase verification: `python -m pytest` — 1361 passed, 1 skipped;
+  task-scoped `coga validate --json` — clean; `git diff --check` — clean;
+  live `coga/workflows/` remains byte-identical to the seed workflow tree;
+  no stale deleted-path reference remains.
+- Repo-wide `coga validate --json` still exits 1 for pre-existing unrelated
+  draft-ticket errors (including `op-service-account` and three `v2/*`
+  missing-step tickets); the current task has no validation issues.
+
+## PR
+
+### Summary
+
+- Remove the live `code`, `digest`, `docs`, and `dream` shadows so Coga's
+  package-backed bootstrap workflows are the effective upgradeable batteries.
+- Leave the repo-owned live workflow inventory exactly equal to the packaged
+  seed-template inventory; no resolver, init-copy, or packaging-rule change.
+- Retarget the Google Drive context from the removed local docs workflow path
+  to the surviving package-backed `docs/create-google-doc` workflow.
+
+### Test plan
+
+`python -m pytest` (1361 passed, 1 skipped); task-scoped `coga validate --json`; `git diff --check`; byte-for-byte live/seed workflow comparison.
 
 ## Dream Skill: validate-drift
 
