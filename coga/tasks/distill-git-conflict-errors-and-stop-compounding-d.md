@@ -78,6 +78,7 @@ precedence; recurring queue guidance; `coga create` prefix guard.
 ## Dev
 
 - branch: claude/git-error-hygiene
+- pr: https://github.com/FastJVM/coga/pull/620
 
 ## Implementation notes (2026-07-20, attended orient session)
 
