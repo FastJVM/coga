@@ -1,7 +1,7 @@
 ---
 slug: commands-as-tickets-open-pr-pilot
 title: 'Commands as tickets: open-pr pilot'
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
