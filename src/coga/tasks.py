@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Union
 
 from coga.config import Config
-from coga.paths import bootstrap_path, tasks_dir
+from coga.paths import bootstrap_resolution_paths, tasks_dir
 from coga.ticket import Ticket
 
 
@@ -300,16 +300,24 @@ def resolve_task(cfg: Config, task_arg: str) -> TaskRef:
 
 
 def resolve_bootstrap(cfg: Config, name: str) -> BootstrapRef:
-    """Resolve a bootstrap ticket by name (e.g. "ticket" or "bootstrap/ticket")."""
+    """Resolve a bootstrap ticket by name (e.g. "ticket" or "bootstrap/ticket").
+
+    Local-first, mirroring skills/contexts/workflows: a repo-local
+    `coga/bootstrap/<name>/ticket.md` overrides the package resource. That is
+    the seam that makes command tickets user-authorable — a repo mints a new
+    stateless launch target (and, with an `[aliases]` line, a new `coga <verb>`)
+    by dropping a ticket there, with no core change.
+    """
     if name.startswith(_BOOTSTRAP_PREFIX):
         name = name[len(_BOOTSTRAP_PREFIX):]
-    path = bootstrap_path(cfg, name)
-    if not (path / "ticket.md").is_file():
-        raise TaskNotFoundError(
-            f"Installed coga package is missing bootstrap ticket "
-            f"`bootstrap/{name}` at {path / 'ticket.md'}."
-        )
-    return BootstrapRef(name=name, path=path)
+    candidates = bootstrap_resolution_paths(cfg, name)
+    for path in candidates:
+        if (path / "ticket.md").is_file():
+            return BootstrapRef(name=name, path=path)
+    checked = ", ".join(str(path / "ticket.md") for path in candidates)
+    raise TaskNotFoundError(
+        f"No bootstrap ticket `bootstrap/{name}` found. Checked: {checked}."
+    )
 
 
 def resolve_target(cfg: Config, arg: str) -> TargetRef:
