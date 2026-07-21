@@ -235,7 +235,14 @@ Result: no remaining validation drift found.
   draft-ticket errors (including `op-service-account` and three `v2/*`
   missing-step tickets); the current task has no validation issues.
 
-## PR #619 (parallel local session — unmerged duplicate, extra scope)
+## PR #619 (parallel local session — slimmed to the shadow-removal delta)
+
+Update 2026-07-20: per owner decision, #619 was slimmed to the delta #599
+didn't cover — retitled "Remove live bootstrap-battery workflow shadows",
+branch merged with current `main`, diff is exactly the 9-file shadow removal
++ gdrive context retarget (+3/−584). Full suite on the merged branch: 1370
+passed, 1 skipped. Awaiting owner review/merge. Original parallel-session
+summary below.
 
 ### Summary
 
