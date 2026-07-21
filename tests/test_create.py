@@ -424,6 +424,45 @@ def test_create_dir_rejects_underscore_component(repo: Path) -> None:
         create_task(title="Hidden", **_dir_kwargs(cfg, directory="_drafts"))
 
 
+def test_create_dir_rejects_prose_component(repo: Path) -> None:
+    """A prose prefix is a title with a literal '/' misread as a path split —
+    observed creating `tasks/Populate the base repo context stub (coga/` from
+    `coga create "Populate the base repo context stub (coga/context.md)"`."""
+    cfg = load_config(repo)
+    with pytest.raises(ValueError, match="not slug-like"):
+        create_task(
+            title="context-md",
+            **_dir_kwargs(
+                cfg, directory="Populate the base repo context stub (coga"
+            ),
+        )
+    assert not list((repo / "tasks").glob("Populate*"))
+
+
+def test_create_dir_accepts_slug_like_components(repo: Path) -> None:
+    """Letters, digits, '.', '-', '_' stay valid directory components."""
+    cfg = load_config(repo)
+    ref = create_task(title="Ok", **_dir_kwargs(cfg, directory="v2.1/sub-dir_x"))
+    assert ref["slug"] == "v2.1/sub-dir_x/ok"
+
+
+def test_cli_create_slash_in_title_fails_loud(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The CLI positional with a prose prefix fails with both remedies, and
+    nothing lands on disk."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["create", "Populate the base repo context stub (coga/context.md)"]
+    )
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "not slug-like" in combined
+    assert "drop the slash" in combined
+    assert not list((repo / "tasks").glob("Populate*"))
+
+
 def test_create_dir_rejects_nesting_inside_task(repo: Path) -> None:
     """A task directory is never recursed into — refuse to create inside one."""
     cfg = load_config(repo)

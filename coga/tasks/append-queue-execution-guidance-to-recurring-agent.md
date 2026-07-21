@@ -47,7 +47,8 @@ Fix: give recurring's automatic launches the same treatment.
 
 - New package resource `prompt-queue.md` with sequential-sweep wording
   (mirrors the megalaunch guidance: announce-and-continue, `coga block` as
-  the terminal action for owner decisions, finish with bump/mark done/block).
+  the terminal action for owner decisions, finish with
+  bump/mark done/block).
 - `coga launch` grows a hidden internal `--queue-guidance` flag (same shape
   as `--return-timeout`) that appends the resource to the composed prompt via
   the existing `prompt_suffix` seam on `spawn_agent_session`.

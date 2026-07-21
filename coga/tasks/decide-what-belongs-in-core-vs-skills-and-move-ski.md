@@ -2,11 +2,11 @@
 slug: decide-what-belongs-in-core-vs-skills-and-move-ski
 title: Decide what belongs in core vs skills and move skill-only recipes out of src
   coga
-status: draft
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/principles
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 4 (review)
 ---
 
 ## Description
@@ -132,4 +132,233 @@ argues to leave it.
 
 <!-- coga:blackboard -->
 
+## Dev
+branch: microkernel-move-recipes
+worktree: ../coga-microkernel-move-recipes
+pr: https://github.com/FastJVM/coga/pull/618
+
+## PR
+
+### Summary
+
+- Define the microkernel boundary in both agent guides and the `coga/codebase`
+  context: shared infrastructure and genuine command implementations stay in
+  core; single-consumer recipes live with their skills.
+- Move the autoclose, blocker-reminder, and branch-sweep maintenance recipes
+  from `src/coga/` into synchronized live and packaged skill directories while
+  retaining the shared autoclose parsers and GitHub helpers in core.
+- Repoint tests, packaging coverage, recurring templates, workflow contracts,
+  and adjacent documentation at the skill-local recipes.
+
+Test plan: `python -m pytest` (`1361 passed, 1 skipped`).
+
+## Implementation complete (implement step, 2026-07-20)
+
+Committed on `microkernel-move-recipes` (1 commit, rebased onto current
+`origin/main`). Not pushed — that is the `open-pr` step.
+
+**Part 1 — policy written** into `CLAUDE.md` (new "Keep core minimal — the
+microkernel rule" subsection) and the `coga/codebase` context (new "What
+belongs in core vs a skill — the microkernel rule" section). Consistent
+phrasing; both state the two-kinds-of-core test, the alias-not-Typer point, and
+the consumer test that keeps a shared symbol in core.
+
+**Part 2 — three recipes moved** to `recipe.py` beside `run.py` (live +
+packaged copies):
+- `coga/autoclose/sweep` — `sweep_merged` + `_try_bump_one` / `_candidate` /
+  `_on_final_step` / `_read_pr_url` / `parse_pr_number` moved; `autoclose.py`
+  split so `GhError` / `pr_state` / the three parsers stay in core (they have
+  other consumers: `branchcleanup`→`retire`, branch-sweep recipe, Dream
+  orphan-marker). recipe re-exports `GhError` so run.py pulls the sweep surface
+  from one place.
+- `coga/blockers/remind` — `blocker_reminders.py` deleted from core, moved
+  wholesale.
+- `coga/branch-sweep/sweep` — `branchsweep.py` deleted from core, moved
+  wholesale (still imports shared `branchcleanup` + `autoclose` from core).
+
+**Mechanism:** run.py does `sys.path.insert(0, dirname(__file__))` then
+`from recipe import …` — works both as `python run.py` (launcher) and when a
+test loads run.py via `spec_from_file_location`. Tests load recipes via a new
+`conftest.load_skill_recipe(ref)` helper; sweep-behavior monkeypatches moved to
+the recipe module's `pr_state` binding.
+
+**Coverage added:** recipe.py entries in `test_packaging` (wheel + source), the
+autoclose live↔packaged sync pair, and identical-pairs guards for the
+blocker/branch-sweep run.py+recipe.py (previously unguarded).
+
+**Assessment recorded (no move):** `commands/digest.py` (`run_digest`) and
+`megalaunch.py` are real command implementations with genuine Python logic, not
+"launch this target" aliases — they legitimately stay core under the rule. No
+owner sign-off needed since nothing moved; documented per the ticket's scope
+note.
+
+**Verification:** full suite `1361 passed, 1 skipped` on the rebased tree;
+`coga validate` 0 errors; each run.py smoke-imports its sibling recipe.
+
+## Peer review (Codex, 2026-07-20)
+
+`codex review --base origin/main` found three consistency issues; the recipe
+moves themselves passed the full suite and an end-to-end package-backed script
+launch smoke test.
+
+- The policy used `code/open-pr` as a current skill-recipe example even though
+  PR #585 later made it a genuine Python command implementation in core.
+- The new repository guidance was added to `CLAUDE.md` but not `AGENTS.md`, so
+  the two configured agent CLIs would receive different placement rules.
+- The autoclose and branch-sweep workflow contracts still named the removed
+  `coga.autoclose.sweep_merged` / `coga.branchsweep.sweep_branches` APIs.
+
+Resolved all three findings in rebased commit `9c1ddb00`, including matching
+live and packaged workflow copies plus adjacent dead-path documentation. The
+branch was fetched and rebased unconditionally onto fresh `origin/main`
+(`b6e004be`), then the full suite passed again: `1361 passed, 1 skipped`.
+`AGENTS.md` and `CLAUDE.md` are byte-identical, `git diff --check` is clean,
+and the feature worktree is clean with two commits ahead of `origin/main`.
+`coga validate --task decide-what-belongs-in-core-vs-skills-and-move-ski
+--json` reports 1 valid task and no issues.
+
+## Plan (implement step, 2026-07-20)
+
+Two parts. **Part 1 (policy)** = write the microkernel rule into `CLAUDE.md`
+and `coga/codebase` SKILL.md (both live + packaged copy). **Part 2 (apply)** =
+move the three recurring-maintenance recipes out of `src/coga/` into their skill
+dirs as a `recipe.py` sibling beside `run.py`.
+
+### Key refinement to the 2026-07-06 inventory (applying the policy strictly)
+
+The inventory said "move `sweep_merged` / `GhError`". Investigation shows
+`GhError` **and** `pr_state` have real consumers *outside* the sweep:
+`src/coga/branchcleanup.py` (core; used by `coga retire` + the branch-sweep
+recipe) imports both, and `dream/cleanup-orphan-markers` uses `pr_state`. By the
+microkernel test itself (≥2 real consumers = shared infra stays), they **must
+stay in core** — moving them would force core (`branchcleanup.py`) to import
+from a skill dir, the exact anti-pattern the policy forbids. This *is* the
+policy resolving the "wrinkle" the ticket flagged, not a scope cut.
+
+So the autoclose split is:
+- **Stays in core `autoclose.py`:** `GhError`, `pr_state`, and the parsers
+  `parse_pr_url` / `parse_branch_name` / `parse_worktree_path` (all shared).
+- **Moves to `coga/skills/coga/autoclose/sweep/recipe.py`:** `sweep_merged`,
+  `_try_bump_one`, `_candidate`, `_on_final_step`, `_read_pr_url`,
+  `parse_pr_number` (+ its `_PR_NUMBER_RE`) — all sweep-only.
+  Recipe imports `GhError`/`pr_state`/`parse_pr_url` from `coga.autoclose`
+  (shared core), plus `mark_done`, `Config`, taskfile/tasks/ticket helpers.
+
+`blocker_reminders.py` and `branchsweep.py` are fully skill-only (only their
+run.py + test consume them) → move wholesale to their `recipe.py`, delete the
+core module. `branchsweep` recipe still imports `branchcleanup` +
+`autoclose` (both shared core) — correct.
+
+### run.py → recipe import mechanism
+
+Scripts run as `python <skill>/run.py`, so `sys.path[0]` is the skill dir and a
+bare `import recipe` resolves. But the sync/skill tests load `run.py` via
+`spec_from_file_location`, where sys.path[0] is NOT the skill dir. So each
+run.py adds its own dir to sys.path before importing the sibling:
+`sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))`. Boring,
+obvious, works both ways.
+
+### Two copies each (dogfood + package) — keep in sync
+- Live:     `coga/skills/coga/<...>/{SKILL.md,run.py,recipe.py}`
+- Packaged: `src/coga/resources/templates/coga/bootstrap/skills/coga/<...>/...`
+Add `recipe.py` to: the live↔packaged sync test, `tests/test_packaging.py`
+`_EXPECTED` list.
+
+### Tests
+- `test_autoclose.py`: parser tests stay on `coga.autoclose`; sweep_merged /
+  parse_pr_number tests move to load the recipe module.
+- `test_blocker_reminders.py` / `test_branchsweep.py`: repoint imports from the
+  core module to the recipe module (loaded via importlib helper).
+
+### FLAGGED for owner (Part 1 scope note, do NOT move here)
+`commands/digest.py` (`run_digest`, backs `coga digest`) and `megalaunch.py`
+(backs `coga megalaunch`) are the "re-examine under the alias test" pair. Both
+are real Python command implementations with genuine logic (not "launch this
+target"), so under the microkernel test they legitimately stay core as command
+implementations. No change needed; recording the assessment as the ticket asks.
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T23:10:46+00:00
+Command: `coga validate --json --fix`
+Task: `decide-what-belongs-in-core-vs-skills-and-move-ski`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T23:15:39+00:00
+Command: `coga validate --json --fix`
+Task: `decide-what-belongs-in-core-vs-skills-and-move-ski`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T23:19:00+00:00
+Command: `coga validate --json --fix`
+Task: `decide-what-belongs-in-core-vs-skills-and-move-ski`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T23:23:14+00:00
+Command: `coga validate --json --fix`
+Task: `decide-what-belongs-in-core-vs-skills-and-move-ski`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T23:34:05+00:00
+Command: `coga validate --json --fix`
+Task: `decide-what-belongs-in-core-vs-skills-and-move-ski`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T23:35:40+00:00
+Command: `coga validate --json --fix`
+Task: `decide-what-belongs-in-core-vs-skills-and-move-ski`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
