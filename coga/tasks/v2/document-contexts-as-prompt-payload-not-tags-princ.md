@@ -1,7 +1,7 @@
 ---
 slug: v2/document-contexts-as-prompt-payload-not-tags-princ
 title: Document contexts-as-prompt-payload-not-tags principle
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
