@@ -49,7 +49,6 @@ EXPECTED_FILES = {
     "coga/skills/_template/SKILL.md",
     "coga/skills/direct/body/SKILL.md",
     "coga/workflows/_template.md",
-    "coga/recurring/_template/ticket.md",
     "coga/recurring/autoclose-merged/ticket.md",
     "coga/recurring/dream/ticket.md",
     "coga/recurring/skill-update/ticket.md",

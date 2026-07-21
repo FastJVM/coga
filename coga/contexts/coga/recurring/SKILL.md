@@ -24,8 +24,25 @@ Append-only run history is not beside the template: `coga recurring` adds a
 line to the repo-global `coga/log.md` (tagged `recurring/<name>`) each time
 it creates a period task.
 
-A directory whose name starts with `_` (`_template/`, `_rem/`) is inert — the
-scanner skips it. That is how the starter templates ship without firing.
+Templates deliberately live outside `tasks/`. Anything holding a `ticket.md`
+under `coga/tasks/` *is* a task — discovered, status-carrying, launchable —
+with no exceptions, and a template is none of those: it carries no `status:`,
+is never launched directly, and must survive across periods. Its instances
+are the opposite — ordinary tasks the scanner deletes and recreates each
+period. Keeping the two in separate directories keeps the task-tree invariant
+exception-free (no "unless it's a template" branch in status, validate, or
+megalaunch) and makes the instance path itself the marker: the `recurring/`
+prefix under `tasks/` says "machine-generated, safe to reap and regenerate",
+which is what licenses the scan to replace a prior-period `done` task and
+Dream's retro pass to direct-delete finished period tasks without a PR. A
+hand-authored task never gets that treatment.
+
+A directory whose name starts with `_` is inert — the scanner skips it. That
+is how you park a live template without deleting it: rename `foo/` to
+`_foo/`. There is no starter template directory; the whole mechanism is
+"non-underscore directory under `coga/recurring/` with a `schedule:` in its
+`ticket.md`", and the frontmatter shape is documented in this context (see
+the example under "Extend recurring with a task-specific workflow").
 
 - `coga recurring` (bare) — the public command head parses `--interactive`
   and `--force`, then launches the package-backed `bootstrap/recurring-scan`
@@ -92,8 +109,113 @@ scanner skips it. That is how the starter templates ship without firing.
   one-step `direct/body` workflow, which runs the ticket body's ordered
   phases directly as the prompt; Dream is the canonical example. (The task is
   still workflow-carrying and bumpable — `direct/body` is the workflow.)
-- `owner`, `assignee`, `watchers`, `contexts` — passed through to the
-  created period task.
+- `owner`, `assignee`, `watchers`, `contexts`, `secrets` — passed through to
+  the created period task.
+- `script` — optional ticket-owned script setting, also passed through. An
+  inline script travels in the copied body; a companion script file beside the
+  template is not copied into the period task, so file-backed recurring logic
+  belongs in a script-backed workflow skill.
+
+## Extend recurring with a task-specific workflow
+
+Yes: recurring templates are not restricted to Dream or the shipped janitor
+shape. At materialization time, a template may name any resolvable workflow
+that an ordinary task in the repo can use and may attach any resolvable set of
+contexts. There is no separate registry of recurring-capable workflows. That
+is structural support, not a promise that every workflow shape can finish in a
+scheduled sweep; shape the run around the dispatch constraints below.
+
+On each firing, the recurring creator routes the template through the ordinary
+task creator. That path resolves and freezes the named `workflow:`, validates
+its step-skill and `contexts:` references, copies the template body into the
+period task, and appends `coga/period-task` to its contexts. The resulting
+`coga/tasks/recurring/<name>/` ticket uses the normal launch, per-step
+assignee, script dispatch, bump, blocker, and completion machinery. A bare
+scheduled sweep adds post-launch handling for unfinished runs, described
+below.
+
+To schedule a task-specific workflow:
+
+1. Define the workflow and any skills or contexts through their ordinary Coga
+   paths.
+2. Create a non-underscore directory such as
+   `coga/recurring/weekly-deliverability/` with a `ticket.md` — copy an
+   existing template (e.g. `skill-update/`) or start from the example below.
+3. Set the template's `schedule:`, explicit `workflow:`, `contexts:`, and role
+   fields, then replace its `## Description` with the per-firing instructions.
+4. Run `coga validate --json`, then use
+   `coga recurring launch weekly-deliverability` for an explicit real run or
+   `coga recurring` for the scheduled sweep.
+
+For example:
+
+```yaml
+---
+schedule: "0 9 * * 1"
+title: "Weekly deliverability review"
+workflow: deliverability/weekly-review
+owner: nick
+assignee: claude
+contexts:
+  - email/deliverability
+  - customers/current-campaigns
+---
+
+## Description
+
+Run the weekly deliverability review; this scheduled workflow must reach
+`done` in the current launch.
+
+<!-- coga:blackboard -->
+
+The cross-run state for this recurring task goes here.
+```
+
+This extension seam has six important constraints:
+
+- **One instantiated task per template.** Every firing uses the stable ref
+  `recurring/<name>` at `coga/tasks/recurring/<name>/`. A still-live prior run
+  is resumed before new-period work; recurring does not create overlapping
+  period tickets or a backlog under different slugs.
+- **The period task is fresh each firing.** Its blackboard is scratch space for
+  that run and is deleted with the task. Put cursors and other cross-run state
+  in the recurring template's own blackboard, optionally naming them in
+  `state_keys:` so completion warns when a run forgets to advance one.
+- **Script resolution is step-first.** If the current workflow step has exactly
+  one script-backed skill, that skill's script runs; otherwise a ticket-level
+  `script:` runs. A ticket script therefore makes every remaining non-scripted
+  step dispatch as a script, but it does not override a scripted step skill.
+  Avoid declaring both forms unless that precedence is intentional. The
+  self-contained ticket form is `script: inline`; template companion files are
+  not materialized into the period task.
+- **A headless script run must finish in one step.** This limit applies whether
+  the script belongs to the ticket or the first step's skill: after an entry
+  script succeeds, `coga launch` advances once and returns. If another step
+  remains, the bare recurring sweep sees an unfinished script task, stops
+  before later templates, and leaves the run `in_progress`. Use an exactly
+  one-step workflow with no `requires:` gate for an unattended recurring job.
+  An attended workflow may instead start with an agent and mix later
+  script-backed skill steps into the supervised agent chain.
+- **A scheduled agent run must reach `done` in one launch.** When a bare
+  `coga recurring` sweep gets control back from an unfinished agent launch, it
+  pauses the period task before continuing. That includes an intermediate
+  human or unassigned handoff and a task that invoked `coga block`; the paused
+  run is skipped by later sweeps and cannot use ordinary `bump` / `unblock`
+  from that state. Do not put human gates or expected blockers in a scheduled
+  agent workflow. Use the on-demand `coga recurring launch <name>` path (then
+  drive the ordinary ticket handoff) or an ordinary task when a run needs
+  those intermediate states.
+- **Agent work needs a TTY; complete scripts can be headless.** An agent-backed
+  template needs stdin and stdout TTYs and runs under the REPL supervisor; a
+  TTY-less sweep skips it with a warning. A one-step script-backed template
+  runs directly without a TTY and is the appropriate shape for an unattended
+  scheduler.
+
+The creator performs a deliberate template-to-ticket transform, not an
+arbitrary frontmatter clone. Use the recurring fields documented above. In
+particular, put process skills on workflow steps: ticket-level `skills:` and
+repo-defined extension-field values are not copied from the template into the
+period task.
 
 ## Last-run state lives in the recurring task's blackboard
 
@@ -149,6 +271,22 @@ task, which carries that rule.
   `## Description` section: everything from that heading to the next
   top-level `## ` heading. **Convention:** keep every other heading in the
   body at `###` so the whole run instruction lands in the description.
+
+## REM is user-space recurring maintenance
+
+REM is repo/user-specific recurring maintenance — the place for operational
+checks meaningful to this repo, team, or user: product or operations health
+checks; customer, email, payment, or deployment follow-ups; repo-specific
+context audits; domain-specific recurring reports; reminders that depend on
+this repo's tasks and blackboards. A REM task is an ordinary template authored
+with the recipe above; it owns its own cadence, ticket scan, skill order,
+output conventions, and review gates.
+
+REM is not Dream. Dream is Coga's generic ticket cleanup pass; generic Coga
+cleanup does not belong in a REM pass, and neither does branch hygiene unless
+the REM task is explicitly a dev maintenance loop. Have each run write one
+concise summary to its period task's blackboard, listing any PRs opened,
+tickets created, or human gates.
 
 ## Dream is the recurring janitor
 

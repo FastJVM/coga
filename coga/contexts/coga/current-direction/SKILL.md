@@ -149,8 +149,9 @@ Last updated: 2026-07-17.
   source tickets each, and keeps each knowledge PR small enough to describe
   with one clear title.
 - **REM is repo/user-specific recurring maintenance.** It is opt-in user space:
-  each repo can copy `recurring/_rem/`, define its own cadence, scan, domain
-  skills, output conventions, and review gates.
+  each repo authors its own template under `coga/recurring/` (see the
+  `coga/recurring` context), defining its own cadence, scan, domain skills,
+  output conventions, and review gates.
 - **Dev hygiene is outside Dream.** Stale branches, tests, and other code-repo
   cleanup belong in a dev maintenance task or workflow, not the generic Dream
   cleanup pass.
