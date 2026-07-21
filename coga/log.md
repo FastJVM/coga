@@ -2700,3 +2700,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-21 14:46 [allow-open-pr-when-the-recorded-worktree-is-the-pr] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-07-21 14:46 [remove-autonomy-triage] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-07-21 14:46 [move-some-alerts-to-coga-important-instead-of-coga] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-21 14:43 [commands-as-tickets-open-pr-pilot] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-21 14:54 [commands-as-tickets-open-pr-pilot] [agent:claude] advanced to step 2 (review-design) → assigned to nicktoper
