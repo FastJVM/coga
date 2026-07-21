@@ -1,7 +1,7 @@
 ---
 slug: commands-as-tickets-open-pr-pilot
 title: 'Commands as tickets: open-pr pilot'
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -12,9 +12,31 @@ contexts:
 - coga/codebase
 - dev/code
 skills: []
-workflow: code/design-then-implement
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+  - name: review-design
+    skills: []
+    assignee: owner
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (design)
 ---
 
 ## Description
