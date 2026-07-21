@@ -2352,3 +2352,15 @@ Auto-merging coga/log.md
 Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
 CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
 2026-07-20 18:17 [make-open-pr-metadata-tolerate-annotated-branch-an] [system] {"agent":"claude","agent_turns":13,"cache_creation_input_tokens":267099,"cache_read_input_tokens":8254713,"cli":"claude","content_status":"ok","elapsed_seconds":526.466526,"ended_at":"2026-07-21T01:17:40.664436Z","human_turns":0,"input_tokens":205,"model":"claude-fable-5","outcome":"Confirmed — `origin/main` already contains an implementation of exactly this fix. Verifying the full scope against the acceptance criteria:","outcome_status":"completed","output_tokens":75152,"provider":"anthropic","request":null,"schema":2,"session_id":"a7a78a26-ef40-4ea1-accc-f6cad9d899b6","slug":"make-open-pr-metadata-tolerate-annotated-branch-an","started_at":"2026-07-21T01:08:54.197910Z","step":"implement","title":"Make open-pr metadata tolerate annotated branch and worktree values","ts":"2026-07-21T01:17:40.664436Z","usage_status":"ok"}
+2026-07-20 18:17 [coga] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/39)
+Rebasing (2/39)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 18:17 [make-ticket-script-form-works] [megalaunch] started (active → in_progress) via coga megalaunch
