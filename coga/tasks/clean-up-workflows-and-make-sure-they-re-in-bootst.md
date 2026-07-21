@@ -102,6 +102,161 @@ before merge. That gate is intentional and fine; treat it as the commit point.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/619
+branch: workflow-cleanup
+worktree: ../coga-workflow-cleanup
+
+## Audit findings (implement step)
+
+Compared all three trees. Full inventory:
+
+- **Seed template** (`src/.../coga/workflows/`): autoclose-merged, autonomy,
+  blocker-reminders, branch-sweep, browser, build/onboarding, direct,
+  skill-update, _template. The live `coga/workflows/` copies of all of these
+  are legitimate init-seeded copies and **all diff clean** (in sync). Keep.
+- **Bootstrap batteries** (`src/.../bootstrap/workflows/`): code (×3), digest,
+  docs (×2), dream (×2). Resolved at runtime, never seeded into a repo
+  (`copy_fresh_templates` uses `skip_top={"bootstrap"}`).
+
+### The three unclassified one-offs → all DELETE
+
+1. `coga/workflows/coga/cutover.md` — **DELETE (dead).** One-time relay→coga
+   cutover for rename PR #454, which landed; migration script removed (#488);
+   the `coga-cli-cutover` / `coga-rename-follow-ups` tickets are recorded as
+   direct-deleted in the Dream ticket. `docs/migrating-to-coga.md` remains as
+   the standing reference. Never useful again.
+2. `coga/workflows/build/dry-run.md` — **DELETE (spent design probe).** It
+   role-plays `coga build` "not yet built" to feed the
+   `marketing/coga-build-onboarding-flow` design. `coga build` now ships
+   (alias `build = "launch coga-build"` in coga.toml + `cli.py`; onboarding
+   ticket `resources/templates/coga/tasks/coga-build.md`). The design
+   deliverable no longer exists. Purpose served.
+3. `coga/workflows/test/relaunch-chain.md` — **DELETE (soft call — flag at
+   review gate).** Synthetic, human-gated probe of coga's launch
+   auto-relaunch chain; self-describes as "Not a real delivery workflow; it
+   exists to test coga itself." Zero references anywhere; not wired into the
+   pytest suite (the `_harness_stop_reason` behavior it exercises is unit-
+   tested in `launch.py`). Doesn't belong in seed (user repos don't need it)
+   or bootstrap (ships to all user repos). As a coga-dev diagnostic it's
+   recoverable from git if the chain ever needs re-probing. This is the one
+   judgment call; owner can veto at the review gate to keep it local-only.
+
+### Live battery SHADOWS → DELETE the live copies (keep bootstrap)
+
+The live `coga/workflows/` carries local copies of the bootstrap batteries
+(`code/`, `digest/`, `docs/`, `dream/`). These **shadow** runtime bootstrap
+resolution (`resolve_workflow_path` is local-first), so bootstrap upgrades
+never reach this repo for these workflows — defeating the very
+"upgrades-with-coga" lifecycle they were moved to bootstrap for. Proof the
+shadow isn't maintained: live `digest/post.md` has already **drifted stale**
+vs the bootstrap copy (older spool wording). Decision: **delete the live
+`code/`, `digest/`, `docs/`, `dream/` dirs** so bootstrap is the single
+source. Safe — refs (e.g. `code/with-review`, used by this very ticket)
+fall through to bootstrap automatically; no resolver/init change needed.
+This is the concrete reading of "make sure they're in bootstrap."
+Tradeoff: dogfood launches now read these from the installed package rather
+than an editable live file — but for an editable install that source IS
+`src/.../bootstrap/workflows/`, so live-edit still works; editing a battery
+means editing the bootstrap source + reinstall, the documented model.
+
+### Packaging / pyproject
+
+No change needed. Only `src/coga` is shipped (`packages = ["src/coga"]`);
+the live `coga/workflows/` working tree is not packaged. I am not changing
+any *packaged* tree's file set, so hatchling include/exclude + `_template`
+force-include rules are untouched and `test_packaging.py` is unaffected.
+
+### Net changes
+
+Delete (live-only): `coga/workflows/coga/`, `coga/workflows/build/dry-run.md`
+(keep `build/onboarding.md`), `coga/workflows/test/`, and the shadow dirs
+`coga/workflows/code/`, `coga/workflows/digest/`, `coga/workflows/docs/`,
+`coga/workflows/dream/`. No packaged-tree deletions.
+
+## Rebase reconciliation (important — read before review)
+
+While this branch was in flight, a concurrent task landed overlapping
+cleanup on `origin/main`. When I rebased, `origin/main` had **already
+deleted the three one-offs** — `coga/cutover.md`, `test/relaunch-chain.md`,
+`build/dry-run.md` — reaching the *same triage conclusions* documented
+above (independent confirmation the delete calls were right). It had also
+re-synced `digest/post.md` to the bootstrap copy (option B: keep the shadow
+but freshen it) rather than deleting it.
+
+So the branch was reset onto `origin/main` and the cleanup commit
+cherry-picked. The **landed diff is now just the four battery shadows**:
+deletes `coga/workflows/{code,docs,dream}/` and `coga/workflows/digest/post.md`
+(581 deletions, 8 files). The `digest/post.md` deletion was a modify/delete
+conflict — resolved by **deleting** (my rationale) rather than keeping the
+freshly-synced shadow, so digest is consistent with code/docs/dream and no
+battery shadow remains.
+
+**Result:** live `coga/workflows/` is now byte-for-byte the seed-template
+set (verified by diff) — zero battery shadows, zero one-offs. All bootstrap
+batteries live only in `bootstrap/workflows/` and resolve at runtime.
+`python -m pytest` → 1361 passed, 1 skipped. `coga validate --task` clean
+(only the pre-existing gitignored `missing-user` warning).
+
+Review-gate note: the only soft call left in the landed diff is deleting the
+just-synced `digest/post.md` shadow instead of keeping it. Owner can veto to
+keep digest as a synced local copy; all other shadows are unambiguous.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-21T00:06:22+00:00
+Command: `coga validate --json --fix`
+Task: `clean-up-workflows-and-make-sure-they-re-in-bootst`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Peer review
+
+- Ran `codex review --base origin/main`. It found one must-fix P2: the
+  `docs/gdrive-mcp` context still pointed to the deleted live
+  `coga/workflows/docs/create-google-doc.md` path.
+- Retargeted that context to the package-backed `docs/create-google-doc`
+  workflow under `bootstrap/workflows/` and committed the fix as `0654860f`
+  (`peer-review: retarget packaged docs workflow reference`).
+- Fetched and rebased onto fresh `origin/main` (`2d799810`) after review. The
+  rebase was clean; upstream movement contained only task/log state.
+- Post-rebase verification: `python -m pytest` — 1361 passed, 1 skipped;
+  task-scoped `coga validate --json` — clean; `git diff --check` — clean;
+  live `coga/workflows/` remains byte-identical to the seed workflow tree;
+  no stale deleted-path reference remains.
+- Repo-wide `coga validate --json` still exits 1 for pre-existing unrelated
+  draft-ticket errors (including `op-service-account` and three `v2/*`
+  missing-step tickets); the current task has no validation issues.
+
+## PR #619 (parallel local session — slimmed to the shadow-removal delta)
+
+Update 2026-07-20: per owner decision, #619 was slimmed to the delta #599
+didn't cover — retitled "Remove live bootstrap-battery workflow shadows",
+branch merged with current `main`, diff is exactly the 9-file shadow removal
++ gdrive context retarget (+3/−584). Full suite on the merged branch: 1370
+passed, 1 skipped. Awaiting owner review/merge. Original parallel-session
+summary below.
+
+### Summary
+
+- Remove the live `code`, `digest`, `docs`, and `dream` shadows so Coga's
+  package-backed bootstrap workflows are the effective upgradeable batteries.
+- Leave the repo-owned live workflow inventory exactly equal to the packaged
+  seed-template inventory; no resolver, init-copy, or packaging-rule change.
+- Retarget the Google Drive context from the removed local docs workflow path
+  to the surviving package-backed `docs/create-google-doc` workflow.
+
+### Test plan
+
+`python -m pytest` (1361 passed, 1 skipped); task-scoped `coga validate --json`; `git diff --check`; byte-for-byte live/seed workflow comparison.
+
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
