@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/principles
@@ -36,7 +36,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (open-pr)
+step: 5 (review)
 ---
 
 ## Description
@@ -237,6 +237,7 @@ ownership of step gates.
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/625
 branch: commands-as-tickets-open-pr
 worktree: /home/n/Code/claude/coga-commands-as-tickets
 
