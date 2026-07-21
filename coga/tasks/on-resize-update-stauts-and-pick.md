@@ -1,7 +1,7 @@
 ---
 slug: on-resize-update-stauts-and-pick
 title: on resize update stauts and pick
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
