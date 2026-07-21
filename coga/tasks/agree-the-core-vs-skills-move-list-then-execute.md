@@ -188,6 +188,20 @@ Test plan (one PR, all four legs — all already present on the branch):
   `paths.py`'s removed-bundled-skill registry ("megalaunch is now on-demand
   only"). Same caution as the open-pr precedent (#517 → #585).
 
+## Owner ruling (review-design, 2026-07-21)
+
+1. **Grouping:** one PR in this ticket, rebasing the peer-reviewed
+   `microkernel-move-recipes` branch. No child tickets.
+2. **Policy docs ride along** in the same PR.
+3. **Borderlines:** `digest` and `megalaunch` stay core as recommended.
+   `open-pr` stays core **in this ticket**, but its long-term shape is
+   deliberately unsettled: the owner wants it re-attempted as the pilot for a
+   general "commands as tickets" direction (argument channel for launch
+   targets, nested-launch rules, blackboard write ownership). That work is
+   staged separately in draft ticket `commands-as-tickets-open-pr-pilot`
+   (owner will launch and co-design). The #585 caution stands until that
+   pilot concludes; nothing about it changes this ticket's diff.
+
 ## Acceptance Criteria
 
 - [ ] `src/coga/blocker_reminders.py` and `src/coga/branchsweep.py` no longer
@@ -205,8 +219,9 @@ Test plan (one PR, all four legs — all already present on the branch):
 
 ## Out of Scope
 
-- Moving `coga digest`, `coga megalaunch`, or `open_pr.py` (all ruled core
-  above; owner can overrule in review-design).
+- Moving `coga digest`, `coga megalaunch`, or `open_pr.py` (ruled core in
+  review-design; open-pr's future is delegated to the separate
+  `commands-as-tickets-open-pr-pilot` draft).
 - The base-prompt rewrite — separate follow-up ticket
   `rewrite-coga-base-prompt-and-agent-mode-block`.
 - Any behavior change to the three recipes themselves (schedules, output,
@@ -237,16 +252,11 @@ facts an implementer should not re-derive:
   period_state, github_source, github_preflight, usage, recurring_runner,
   slack_response — all ≥2 consumers or real commands).
 
-## Open Questions
+## Open Questions — resolved (owner, 2026-07-21)
 
-1. **Grouping** — recommend executing as one PR in this ticket (rebase the
-   existing peer-reviewed branch). Alternative is three child tickets
-   cherry-picked per recipe; costs three PRs for an already-reviewed diff.
-   Owner to confirm or overrule.
-2. **Policy docs ride along?** The branch bundles the microkernel policy text
-   (CLAUDE.md, AGENTS.md, `coga/codebase` context) with the code moves.
-   Recommend keeping them in the same PR since the policy is what justifies
-   the diff; say the word if you want docs split out.
-3. **Borderline rulings** — `digest` and `megalaunch` both recommended
-   stays-core (reasons in ticket body). Need an explicit owner ruling to
-   close them out.
+All three resolved in the ticket body's `## Owner ruling` section: one PR in
+this ticket (rebase `microkernel-move-recipes`), policy docs ride along,
+digest/megalaunch/open-pr all stay core. open-pr's re-examination is staged
+as draft `commands-as-tickets-open-pr-pilot` (owner will launch + co-design);
+it does not touch this ticket's diff. Nothing pending — implement step
+executes the agreed plan as written.
