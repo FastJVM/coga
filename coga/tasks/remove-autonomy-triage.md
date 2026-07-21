@@ -5,10 +5,10 @@ status: draft
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts: []
 skills: []
-workflow: code/with-review
+workflow: code/with-self-review
 secrets: null
 script: null
 ---
