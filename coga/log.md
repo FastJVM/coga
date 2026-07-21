@@ -2239,3 +2239,5 @@ Aborting
 2026-07-20 17:56 [bootstrap/ticket] [system] {"agent":"codex","agent_turns":null,"cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"codex","content_status":"unknown","elapsed_seconds":3297.008457,"ended_at":"2026-07-21T00:56:18.535498Z","human_turns":null,"input_tokens":null,"model":null,"outcome":null,"outcome_status":"completed","output_tokens":null,"provider":"openai","request":null,"schema":2,"session_id":null,"slug":"bootstrap/ticket","started_at":"2026-07-21T00:01:21.527041Z","step":null,"title":"Create a new ticket","ts":"2026-07-21T00:56:18.535498Z","usage_status":"unknown"}
 2026-07-20 17:57 [bug-if-not-on-megalaunch-don-t-block-ask] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-20 17:57 [bug-if-not-on-megalaunch-don-t-block-ask] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-20 17:57 [bug-if-not-on-megalaunch-don-t-block-ask] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-20 18:07 [bug-if-not-on-megalaunch-don-t-block-ask] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
