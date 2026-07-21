@@ -1,18 +1,33 @@
 ---
 slug: overload-ticket-locally-easily
 title: overload ticket locally easily
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
 contexts:
-  - coga/extension-model
-  - coga/architecture
+- coga/extension-model
+- coga/architecture
 skills: []
-workflow: docs/with-review
+workflow:
+  name: docs/with-review
+  steps:
+  - name: implement
+    skills: []
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills: []
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
