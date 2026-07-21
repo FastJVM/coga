@@ -66,6 +66,7 @@ change.
 ## Dev
 
 - branch: claude/recurring-queue-guidance
+- pr: https://github.com/FastJVM/coga/pull/623
 
 ## Implementation notes (2026-07-20, attended orient session)
 
