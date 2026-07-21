@@ -34,7 +34,31 @@ step: 1 (implement)
 
 ## Description
 
+Observed in the 2026-07-20 recurring sweep (magicator2 Dream run): mid-sweep,
+the Dream agent paused the sequential queue on an interactive question to the
+human ("full autonomous run?"). Attended, that worked; unattended, the
+15-minute idle-timeout backstop would have torn the session down and failed
+the task. `coga megalaunch` already solves this: it appends package-backed
+queue guidance (`prompt-megalaunch.md`) telling the agent to announce its plan
+and continue, and to end in `coga block` — never a conversational ask — when a
+decision genuinely needs the owner. Recurring launches append nothing.
 
+Fix: give recurring's automatic launches the same treatment.
+
+- New package resource `prompt-queue.md` with sequential-sweep wording
+  (mirrors the megalaunch guidance: announce-and-continue, `coga block` as
+  the terminal action for owner decisions, finish with
+  bump/mark done/block).
+- `coga launch` grows a hidden internal `--queue-guidance` flag (same shape
+  as `--return-timeout`) that appends the resource to the composed prompt via
+  the existing `prompt_suffix` seam on `spawn_agent_session`.
+- `run_recurring_scan` and `_launch_created` pass `queue_guidance=not
+  interactive`: the sweep and on-demand `recurring launch <name>` get the
+  guidance; `--interactive` (human-stepped debugging) stays as today.
+- Script launches are unaffected (no composed prompt).
+
+Update the packaged `coga/cli` context's recurring section in the same
+change.
 
 ## Context
 
