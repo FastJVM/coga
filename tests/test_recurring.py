@@ -3975,10 +3975,13 @@ def test_recurring_launch_invokes_launch(
         idle_timeout: float | None = None,
         max_session: float | None = None,
         return_timeout: bool = False,
+        queue_guidance: bool = False,
     ) -> None:
         assert return_timeout is False
         assert idle_timeout == 900.0
         assert max_session is None
+        # On-demand named launches are automatic queue launches too.
+        assert queue_guidance is True
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         assert ticket.status == "active"
         calls.append(task)
@@ -4750,3 +4753,76 @@ def test_recurring_all_names_stale_control_failure(
     )
     assert "recurring exited" not in result.output
     assert "1 repo(s) failed: alpha" in result.output
+
+
+def test_automatic_sweep_launches_carry_queue_guidance(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Automatic recurring launches pass `queue_guidance=True` so the agent
+    announces-and-continues and ends owner decisions in `coga block` instead
+    of hanging the queue on a conversational ask."""
+    cfg = load_config(repo)
+    seen: list[dict] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        seen.append(kwargs)
+        ticket_path = repo / "tasks" / "recurring" / "weekly-check" / "ticket.md"
+        finished = Ticket.read(ticket_path)
+        finished.frontmatter["status"] = "done"
+        finished.frontmatter.pop("step", None)
+        finished.write(ticket_path)
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+
+    assert len(seen) == 1
+    assert seen[0]["queue_guidance"] is True
+
+
+def test_interactive_sweep_launches_omit_queue_guidance(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--interactive` is a human stepping through by hand — plain launches."""
+    cfg = load_config(repo)
+    seen: list[dict] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        seen.append(kwargs)
+        ticket_path = repo / "tasks" / "recurring" / "weekly-check" / "ticket.md"
+        finished = Ticket.read(ticket_path)
+        finished.frontmatter["status"] = "done"
+        finished.frontmatter.pop("step", None)
+        finished.write(ticket_path)
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+
+    assert recurring_cmd.run_recurring_scan(cfg, interactive=True) == 0
+
+    assert len(seen) == 1
+    assert seen[0]["queue_guidance"] is False
+
+
+def test_named_recurring_launch_carries_queue_guidance(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On-demand `coga recurring launch <name>` (and the `coga dream` alias)
+    is an automatic launch too — same guidance as the sweep."""
+    cfg = load_config(repo)
+    seen: list[dict] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        seen.append(kwargs)
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+
+    assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 0
+
+    assert len(seen) == 1
+    assert seen[0]["queue_guidance"] is True

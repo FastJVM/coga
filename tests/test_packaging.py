@@ -12,6 +12,7 @@ import tomllib
 EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/managed-skills.toml",
     "coga/resources/prompt-megalaunch.md",
+    "coga/resources/prompt-queue.md",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",
     "coga/resources/templates/coga/bootstrap/browser-automation/ticket.md",
     "coga/resources/templates/coga/bootstrap/project/ticket.md",

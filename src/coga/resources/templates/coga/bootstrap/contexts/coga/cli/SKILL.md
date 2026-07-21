@@ -88,10 +88,14 @@ is the human title (slugified for the slug, stored verbatim as the title); the
 prefix is a plain sub-directory (the same kind you'd `mkdir`), created if
 missing. No slash means a top-level create. Slug uniqueness is per-directory,
 so a leaf may repeat across directories. It fails loud on a prefix that would
-escape `tasks/` (`..`), name a `_`-prefixed (discovery-skipped) segment, or
-nest the task inside an existing task directory. Because `/` now means
-"sub-directory", a title with a literal slash (`CI/CD pipeline`) is read as a
-path — create it at the top level (drop the slash) and `mv` it if needed.
+escape `tasks/` (`..`), name a `_`-prefixed (discovery-skipped) segment, nest
+the task inside an existing task directory, or contain a non-slug-like
+component (spaces or punctuation beyond `.`/`-`/`_`). That last guard is the
+literal-slash-in-title case: because `/` means "sub-directory", a title like
+`CI/CD pipeline` or `Populate coga/context.md` is read as a path, and the
+prose prefix would land a mangled directory on disk — the error tells you to
+drop the slash (create at the top level, then `mv` if needed) or pass a
+slug-like prefix.
 
 `--workflow <name>` (path under `coga/workflows/`) is optional *in
 draft only*. A workflow-less draft is a valid authoring state; the workflow
@@ -766,6 +770,15 @@ Agent templates (no `script:` and no script-backed workflow step 1) are
 skipped when `coga recurring` has no stdin/stdout TTY, because the agent REPL
 cannot be driven. Templates intended for cron or other unattended schedulers
 should carry a script.
+
+**Queue guidance.** Like megalaunch, automatic recurring launches (the bare
+sweep, `--force`, and on-demand `recurring launch <name>` — everything except
+`--interactive`) append package-backed queue guidance (`prompt-queue.md`, via
+`coga launch --queue-guidance`) to each composed agent prompt: the TTY is
+transport, not an approval gate, so the agent announces its plan and
+continues, and a decision or capability that genuinely requires the owner must
+end in `coga block` — not a conversational "shall I proceed?" that hangs the
+queue until the liveness backstop fails the task.
 
 **Idle-timeout backstop.** An agent template that *does* launch (a TTY is
 present) but whose agent stalls or crashes before signalling done — never

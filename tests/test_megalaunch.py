@@ -1570,10 +1570,41 @@ def test_picker_window_keeps_cursor_visible() -> None:
     assert _picker_window(total=50, cursor=20, rows=0) == (0, 50)
 
 
+def test_read_key_resize_beats_pending_keypress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A byte on the resize pipe wins over a queued keypress and comes back as
+    the synthetic "resize" action; the keypress survives for the next read."""
+    import os
+    import pty
+    import tty
+    import types
+
+    from coga.commands.megalaunch import _read_key
+
+    master, slave = pty.openpty()
+    resize_read, resize_write = os.pipe()
+    monkeypatch.setattr("sys.stdin", types.SimpleNamespace(fileno=lambda: slave))
+    try:
+        # Raw before writing: a byte queued while the slave is still canonical
+        # sits in the line buffer and never becomes select()-readable.
+        tty.setraw(slave)
+        os.write(master, b"j")
+        # What signal.set_wakeup_fd would deliver for SIGWINCH.
+        os.write(resize_write, b"\x1c")
+        assert _read_key(resize_read) == "resize"
+        assert _read_key(resize_read) == "down"
+    finally:
+        for fd in (master, slave, resize_read, resize_write):
+            os.close(fd)
+
+
 def _feed_keys(monkeypatch: pytest.MonkeyPatch, keys: list[str]) -> None:
     """Drive the picker with decoded key actions instead of a raw terminal."""
     pending = iter(keys)
-    monkeypatch.setattr("coga.commands.megalaunch._read_key", lambda: next(pending))
+    monkeypatch.setattr(
+        "coga.commands.megalaunch._read_key", lambda _resize_fd: next(pending)
+    )
 
 
 def test_megalaunch_cli_picker_launches_checked_tasks(
@@ -1746,6 +1777,43 @@ def test_megalaunch_cli_picker_moves_and_toggles(
     assert result.exit_code == 0, result.output
     assert launched == [second["slug"]]
     assert Ticket.read(first["path"]).status == "active"
+
+
+def test_megalaunch_cli_picker_resize_keeps_state(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The synthetic "resize" action re-renders without disturbing the
+    selection, and the picker restores the SIGWINCH handler it installed."""
+    import signal
+
+    from typer.testing import CliRunner
+
+    cfg = load_config(repo)
+    picked = create_task(
+        cfg=cfg,
+        title="Survives a resize",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+    )
+    launched = _done_on_spawn(monkeypatch)
+    handler_before = signal.getsignal(signal.SIGWINCH)
+
+    _feed_keys(monkeypatch, ["space", "resize", "enter"])
+    result = CliRunner().invoke(app, ["megalaunch", "--pick"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == [picked["slug"]]
+    assert signal.getsignal(signal.SIGWINCH) is handler_before
 
 
 def test_megalaunch_cli_quit_launches_nothing(

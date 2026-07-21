@@ -23,6 +23,12 @@ from coga.tasks import TaskRef, list_tasks
 from coga.ticket import Ticket
 from coga.workflow import Workflow
 
+# Shape of one `tasks/` sub-directory path component: slug-like, the kind of
+# name you'd `mkdir`. Anything else — spaces, parentheses, other punctuation —
+# is almost certainly a title containing a literal '/' that the `coga create`
+# positional split misread as a directory prefix.
+_DIR_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
 
 def create_task(
     *,
@@ -256,6 +262,20 @@ def _normalize_create_dir(cfg: Config, directory: str | None) -> str | None:
             raise ValueError(
                 f"Invalid sub-directory {directory!r}: component '{part}' starts "
                 f"with '_', which task discovery treats as a template and skips."
+            )
+        if not _DIR_SEGMENT_RE.match(part):
+            # A prose component ("Populate the base repo context stub (coga")
+            # almost always means the *title* contained a literal '/', which
+            # `coga create` reads as a sub-directory split — creating a mangled
+            # directory tree instead of one ticket. Fail loud with both ways
+            # out rather than landing junk on disk.
+            raise ValueError(
+                f"Invalid sub-directory {directory!r}: component {part!r} is "
+                "not slug-like (letters, digits, '.', '-', '_' only — no "
+                "spaces or other punctuation). If the title contains a "
+                "literal '/', drop the slash and create the task at the top "
+                "level (then `mv` it into a directory if needed), or pass a "
+                "slug-like directory prefix like 'v2/' or 'marketing/social/'."
             )
     normalized = "/".join(parts)
     probe = tasks_dir(cfg)
