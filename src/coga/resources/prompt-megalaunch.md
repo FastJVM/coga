@@ -13,6 +13,12 @@ directive overrides the attended ask-and-wait default in Agent mode.
   run `coga block --task <slug> --reason "<specific ask>"` as the terminal
   action. Merely saying that you are blocked leaves the queue hanging and
   does not notify the owner.
+- **Existing blocker-resolution exception.** If the composed prompt includes
+  `Resolve the open blocker first`, the human explicitly selected this task
+  to resolve those already-open asks. Discuss those asks with them, then run
+  `coga unblock <slug> --answer "<resolution>"` and continue if resolved, or
+  terminally `coga block` again if unresolved. This exception is only for the
+  existing asks; new unavailable input still follows the queue rule above.
 - If a code step cannot create a linked worktree because the sandbox mounts
   the primary checkout's `.git` read-only, follow the independent `/tmp` clone
   fallback in the `code/implement` skill before treating it as a blocker.

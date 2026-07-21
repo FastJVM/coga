@@ -54,8 +54,9 @@ From the feature worktree on the recorded branch, apply must-fix
 findings, skip nits, re-run `python -m pytest`, commit (e.g.
 `peer-review: apply review findings`), then `coga bump <slug>` from the
 primary checkout. If findings imply a design rethink, write to the
-blackboard and `coga block` instead. If your review tool isn't on PATH,
-`coga block`.
+blackboard and escalate per your launch mode — ask the attending human,
+or `coga block` in a queue run. Escalate the same way if your review tool
+isn't on PATH.
 
 **This is the last judgment step before the PR opens.** The next `open-pr` step
 is agent-owned, but its remit is only to run the deterministic command and bump,
@@ -71,7 +72,8 @@ so anything needing review judgment must be done *here* before you bump:
   `python -m pytest`, and commit. `coga open-pr` refuses unsafe material drift,
   and the next step is intentionally mechanical — this step is the last one
   that makes rebase decisions. If a conflict needs a call you can't make,
-  `coga block`.
+  escalate per your launch mode — ask the attending human, or `coga block`
+  in a queue run.
 
 Leave the branch clean and committed with commits ahead of `main`; `coga
 open-pr` refuses to publish an empty branch.

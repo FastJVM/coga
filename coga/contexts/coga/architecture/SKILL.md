@@ -391,6 +391,11 @@ not an attending human, so queue execution must not pause for plan approval or
 wait on a question. The agent proceeds on reasonable assumptions, and when
 unavailable input truly prevents progress it runs a terminal `coga block` so
 the owner is notified; only `bump`, `mark done`, or `block` releases the queue.
+The narrow exception is a blocked task the human explicitly picked for
+resolution: its composed resolve-or-re-block preamble may discuss those
+already-open asks with the picker, then unblock and continue or terminally
+re-block. That does not turn the queue's TTY into general attendance; any new
+unavailable input still takes the terminal block path.
 This is ephemeral launch context, not ticket state or a new autonomy
 frontmatter field.
 
