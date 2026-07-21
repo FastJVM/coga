@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -95,6 +95,20 @@ and the matching durable architecture documentation is updated.
 branch: fix/attended-ask-not-block
 worktree: /home/n/Code/codex/coga-attended-ask
 
+## PR
+
+Summary:
+
+- Make ordinary attended launches ask the human and wait, reserving
+  `coga block` for an explicit request to park the ticket.
+- Remove conflicting generic block directions from the base prompt and stock
+  code steps, while keeping megalaunch's terminal queue-block contract and its
+  explicit existing-blocker resolution path.
+- Document the escalation boundary in the live and packaged architecture
+  context and cover real composed stock prompts plus the megalaunch suffix.
+
+Test plan: `python -m pytest` (1374 passed, 1 skipped); `coga validate --task bug-if-not-on-megalaunch-don-t-block-ask` (all good).
+
 ## Plan
 
 - `src/coga/resources/prompt-agent.md`: make the attended default authoritative —
@@ -153,6 +167,44 @@ default `python` here is 3.9, below Coga's floor): 1362 passed, 1 skipped.
 `coga validate --task bug-if-not-on-megalaunch-don-t-block-ask`: all good.
 Example fixture untouched — it carries none of the edited prompt/skill copies
 (checked repo-wide for the old wording).
+
+## Peer review
+
+`codex review --base main` found two must-fix prompt-contract gaps:
+
+- Real stock step layers (`peer-review`, `code/self-qa`, `code/open-pr`, and
+  `direct/body`) still appended unconditional `coga block` directions after
+  the attended mode layer. The semantic compose test used a neutral fixture
+  skill and therefore did not exercise a shipped step prompt. Fix: make the
+  directly conflicting live/packaged wording mode-aware and cover a packaged
+  stock step prompt.
+- Megalaunch's blanket no-wait suffix also overrode the existing
+  resolve-or-re-block preamble for a human's explicitly picked blocked task.
+  Fix: retain a narrow existing-blocker resolution exception (resolve and
+  unblock, or terminally re-block) while keeping new unavailable input on the
+  queue-required terminal `coga block` path. No lifecycle, TTY, or launch-mode
+  flag change is needed.
+
+Review verification: focused prompt/megalaunch tests passed (65 passed). Full
+suite passed after clearing inherited live-launch `COGA_*` task paths (1362
+passed, 1 skipped); the first review subprocess run's single failure was an
+environment artifact from `validate-drift` following the parent task's
+blackboard path into the read-only control checkout.
+
+Applied both findings in the feature worktree. Directly conflicting stock
+step wording is now mode-aware in the live/packaged `peer-review`,
+`code/self-qa`, `code/open-pr`, and `direct/body` sources. The ordinary compose
+test now uses the packaged peer-review step, with additional semantic cases for
+the other stock steps. Megalaunch retains its queue-wide no-wait/terminal-block
+rule plus a narrowly documented exception for already-open blockers in an
+explicitly selected resolution session. Focused tests: 68 passed. Full suite:
+1365 passed, 1 skipped.
+
+Final handoff: committed peer-review fixes, fetched `origin/main`, and rebased
+cleanly onto `e3fab9b3`. Final feature commits are `a9df2d84` and `865cdd57`;
+the branch is clean, two commits ahead, and zero behind `origin/main`.
+Post-rebase full suite: 1374 passed, 1 skipped. Task-scoped validation: all
+good.
 
 ## Dream Skill: validate-drift
 
