@@ -2205,3 +2205,15 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 error: could not write '.git/rebase-merge/git-rebase-todo': No such file or directory
 2026-07-20 16:20 [decide-what-belongs-in-core-vs-skills-and-move-ski] [megalaunch] launched via coga megalaunch
 2026-07-20 17:00 [decide-what-belongs-in-core-vs-skills-and-move-ski] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review findings fixed; rebased onto fresh origin/main; 1361 passed, 1 skipped.
+2026-07-20 17:00 [decide-what-belongs-in-core-vs-skills-and-move-ski] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/19)
+Rebasing (2/19)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 17:00 [decide-what-belongs-in-core-vs-skills-and-move-ski] [system] {"agent":"codex","agent_turns":9,"cache_creation_input_tokens":null,"cache_read_input_tokens":7877888,"cli":"codex","content_status":"ok","elapsed_seconds":2398.470249,"ended_at":"2026-07-21T00:00:32.890149Z","human_turns":0,"input_tokens":204130,"model":"gpt-5.6-sol","outcome":"Peer review is complete: all findings are fixed, the branch is fresh and clean, the full suite passes, the scoped validator is clear, and the PR body is recorded. I’m advancing the ticket to the mechanical `open-pr` step now.","outcome_status":"completed","output_tokens":14825,"provider":"openai","request":null,"schema":2,"session_id":"019f81d4-cc62-7c43-b55e-f1681956f23a","slug":"decide-what-belongs-in-core-vs-skills-and-move-ski","started_at":"2026-07-20T23:20:34.419900Z","step":"peer-review","title":"Decide what belongs in core vs skills and move skill-only recipes out of src coga","ts":"2026-07-21T00:00:32.890149Z","usage_status":"ok"}
