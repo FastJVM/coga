@@ -1,16 +1,34 @@
 ---
 slug: on-resize-update-stauts-and-pick
 title: on resize update stauts and pick
-status: draft
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -33,10 +51,19 @@ resize — the normal behavior for a TUI.
   count — so re-rendering on resize is sufficient; no layout code needs
   changing.
 - Suggested approach: install a `signal.SIGWINCH` handler for the duration of
-  the picker that triggers a re-render (and restore the previous handler on
-  exit). Note the handler will cause the blocked `os.read` to raise
-  `InterruptedError`/EINTR depending on `signal.siginterrupt` semantics —
-  handle that in `_read_key` rather than crashing.
+  the picker, restored via `try/finally` (note `_pick_selection` has multiple
+  return paths: quit, enter, Ctrl-C). Important (PEP 475, Python 3.5+): a
+  Python-level `os.read` does *not* raise `InterruptedError` on a signal — it
+  runs the handler and retries the read, so a handler that merely sets a flag
+  for the main loop will never trigger a redraw while the loop stays blocked.
+  Either (a) re-render directly inside the SIGWINCH handler (it runs on the
+  main thread between bytecodes; the `Live` object must be reachable), or
+  (b) restructure `_read_key` around `select()` plus
+  `signal.set_wakeup_fd`/self-pipe. Do not write EINTR-catching code — it
+  would be dead code.
+- `_read_key` toggles raw mode per keypress, so a resize can land during raw
+  or cooked mode; whichever design is chosen must render correctly in both —
+  test both cases manually.
 - Reference for existing SIGWINCH handling in this codebase:
   `src/coga/repl_supervisor.py` (~line 242) installs/restores a handler and
   resizes the child PTY. Don't touch that code; it already works.
@@ -46,7 +73,7 @@ resize — the normal behavior for a TUI.
 - Verification is manual: run `coga megalaunch`, resize the terminal while the
   picker is open, confirm the table reflows and the viewport height adjusts.
   Automated tests for SIGWINCH delivery are brittle; a unit test around the
-  key-read EINTR handling is welcome but optional.
+  key-read/redraw plumbing is welcome but optional.
 
 <!-- coga:blackboard -->
 
