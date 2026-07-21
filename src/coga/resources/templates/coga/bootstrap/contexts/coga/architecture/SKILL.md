@@ -29,7 +29,9 @@ no in-memory state.
   companions (a deferred `script:` file, attachments) is a `tasks/<slug>/`
   directory holding `ticket.md` plus the siblings. (`<slug>.md` and `<slug>/`
   must not both exist; promotion is `mkdir <slug>/ && mv <slug>.md
-  <slug>/ticket.md`.) Either way the ticket is YAML frontmatter + body, then a
+  <slug>/ticket.md`.) A `README.md` is never a task — it is documentation for
+  the directory it sits in, so a task sub-directory documents itself the same
+  way any other directory does. Either way the ticket is YAML frontmatter + body, then a
   fence line `<!-- coga:blackboard -->` followed by the free-form blackboard
   region (the workspace shared between human and agent). The append-only audit
   trail is not in the task file — it lives in one repo-global `coga/log.md`
@@ -71,17 +73,22 @@ no in-memory state.
   ones. The created tasks then use the same ticket, workflow, launch, bump,
   and blackboard machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
-  repos below the path, groups eligible control checkouts by their resolved
-  configured git remote plus the Coga workspace's path within the git checkout,
-  and invokes one checkout in each group once (preferring the first locally
-  configured checkout already on its control branch). Later checkouts of that
-  same remote workspace are named and skipped, while distinct Coga workspaces
-  in one monorepo still run. One scheduler entry therefore cannot race one
-  control branch through multiple worktrees. Each dispatched child
-  must fetch/rebase its checked-out control branch successfully before scanning;
-  an unconfirmed checkout fails only that repo and the parent keeps sweeping.
-  `--force` is the explicit schedule/status bypass and composes with the parent
-  sweep.
+  repos below the path while pruning dependency/tool-state and `_`-prefixed
+  directory trees. Workspaces rejected by Coga's intentional config guards —
+  including a missing local `user` or a stale-key migration error — are not
+  scheduler targets: the parent reports one unconfigured-repo count, does not
+  dispatch them, and does not fail because of them. It groups the remaining
+  eligible control checkouts by their resolved configured git remote plus the
+  Coga workspace's path within the git checkout, and invokes one checkout in
+  each group once (preferring the first locally configured checkout already on
+  its control branch). Later checkouts of that same remote workspace are named
+  and skipped, while distinct Coga workspaces in one monorepo still run. One
+  scheduler entry therefore cannot race one control branch through multiple
+  worktrees. Each dispatched child must fetch/rebase its checked-out control
+  branch successfully before scanning; TOML parse errors and operational
+  failures still fail that repo, and the parent keeps sweeping before returning
+  the aggregate result. `--force` is the explicit schedule/status bypass and
+  composes with the parent sweep.
 - **Bootstrap tickets** in package `bootstrap/<name>/ticket.md` resources
   are stateless launch targets for skills or ticket-owned scripts. No status,
   no workflow. Used for ticket-less re-entry points like `coga launch
@@ -231,6 +238,11 @@ exceptions: a template that declares no workflow (and every retire task)
 creates with the one-step `direct/body` workflow, which runs the ticket
 body's ordered phases directly. There is no sanctioned workflow-less active
 task; the invariant holds for machine-authored tasks too.
+
+Validation also resolves workflow-step skills directly from materialized
+recurring templates, rather than waiting for the scheduler to create an active
+period task. Generic missing refs list both paths Coga checked; known removed
+bundled refs may replace that list with specific cleanup instructions.
 
 ## Two state machines per ticket
 
@@ -395,6 +407,8 @@ authoring/evaluator sections such as `## Evaluator review`, `## Ticket
 authoring notes`, or `## Proposals`, plus large custom scratchpads — make
 `mark active` and launch-time auto-activation refuse before workflow freezing,
 status changes, log writes, Slack posts, prompt composition, or agent spawn.
+`coga validate` reports the same condition as an error and exits nonzero, so a
+ticket writer cannot mistake an activation-blocking draft for a valid one.
 The operator must merge durable requirements into `## Description` /
 `## Context` first. If blackboard content is intentionally part of the run,
 put it under `## Production notes`; that marker tells activation to leave

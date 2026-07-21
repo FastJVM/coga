@@ -408,9 +408,12 @@ def test_recurring_all_runs_each_discovered_repo_once(
     first = root / "alpha" / "coga"
     second = root / "teams" / "beta" / "coga"
     ignored = root / "node_modules" / "fixture" / "coga"
+    excluded = root / "_scratch" / "throwaway" / "coga"
     nested_fixture = first.parent / "example" / "coga"
-    for coga_os in (first, second, ignored, nested_fixture):
+    for coga_os in (first, second, ignored, excluded, nested_fixture):
         _write(coga_os / "coga.toml", "version = 1\n")
+    for coga_os in (first, second):
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
 
     calls: list[tuple[Path, bool, bool, str | None]] = []
 
@@ -446,6 +449,61 @@ def test_recurring_all_runs_each_discovered_repo_once(
     ]
     assert "Found 2 Coga repo(s)" in result.output
     assert "Swept 2 of 2 Coga repo(s)." in result.output
+
+
+def test_recurring_all_skips_unconfigured_repos_compactly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "workspaces"
+    missing_user = root / "missing-user" / "coga"
+    stale_config = root / "stale-config" / "coga"
+    alias_collision = root / "alias-collision" / "coga"
+    unknown_alias_target = root / "unknown-alias-target" / "coga"
+    configured = root / "configured" / "coga"
+    _write(missing_user / "coga.toml", "version = 1\n")
+    _write(
+        stale_config / "coga.toml",
+        """
+        version = 1
+        [megalaunch]
+        max_tasks = 10
+        """,
+    )
+    _write(
+        alias_collision / "coga.toml",
+        """
+        version = 1
+        [aliases]
+        launch = "status"
+        """,
+    )
+    _write(
+        unknown_alias_target / "coga.toml",
+        """
+        version = 1
+        [aliases]
+        custom = "not-a-command"
+        """,
+    )
+    for coga_os in (alias_collision, unknown_alias_target):
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    _write(configured / "coga.toml", "version = 1\n")
+    _write(configured / "coga.local.toml", 'user = "marc"\n')
+    seen: list[Path] = []
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_repo_recurring",
+        lambda coga_os, **kwargs: seen.append(coga_os) or 0,
+    )
+
+    result = CliRunner().invoke(app, ["recurring", "--all", str(root)])
+
+    assert result.exit_code == 0, result.output
+    assert seen == [configured]
+    assert "Swept 1 of 5 Coga repo(s)." in result.output
+    assert "Skipped 4 unconfigured repos." in result.output
+    assert "recurring exited" not in result.output
 
 
 def test_recurring_all_services_one_checkout_per_remote(
@@ -597,6 +655,7 @@ def test_recurring_all_isolates_malformed_config_during_remote_grouping(
     second = root / "beta" / "coga"
     _write(first / "coga.toml", "version = [\n")
     _write(second / "coga.toml", "version = 1\n")
+    _write(second / "coga.local.toml", 'user = "marc"\n')
     seen: list[Path] = []
 
     def fake_run(coga_os: Path, **kwargs) -> int:  # type: ignore[no-untyped-def]
@@ -617,6 +676,7 @@ def test_recurring_all_continues_after_repo_failure(
     second = root / "beta" / "coga"
     for coga_os in (first, second):
         _write(coga_os / "coga.toml", "version = 1\n")
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
 
     seen: list[Path] = []
 
@@ -639,6 +699,7 @@ def test_recurring_all_accepts_coga_workspace_as_root(
 ) -> None:
     coga_os = tmp_path / "project" / "coga"
     _write(coga_os / "coga.toml", "version = 1\n")
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
     seen: list[Path] = []
     monkeypatch.setattr(
         recurring_cmd,
@@ -1336,6 +1397,48 @@ def test_scan_due_skips_bad_template(repo: Path, capsys) -> None:
     assert "skipping bad" in capsys.readouterr().err
 
 
+def test_scan_due_explains_removed_megalaunch_skill(repo: Path) -> None:
+    _write(
+        repo / "workflows" / "megalaunch.md",
+        """
+        ---
+        name: megalaunch
+        description: Legacy recurring megalaunch workflow.
+        steps:
+          - name: run
+            skills:
+              - coga/megalaunch/run
+        ---
+        """,
+    )
+    _write_recurring(
+        repo,
+        "megalaunch",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Megalaunch"
+        workflow: megalaunch
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Legacy recurring megalaunch.
+        """,
+    )
+
+    scan = scan_due(
+        load_config(repo), now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+
+    error = next(message for name, message in scan.errors if name == "megalaunch")
+    assert "megalaunch is now on-demand only" in error
+    assert "`coga/recurring/megalaunch/`" in error
+    assert "`coga/workflows/megalaunch/`" in error
+
+
 def test_scan_due_skips_malformed_schedule(repo: Path, capsys) -> None:
     _write_recurring(
         repo,
@@ -2007,11 +2110,14 @@ def test_recurring_all_scan_refuses_unconfirmed_control_freshness(
 
     assert recurring_cmd.run_recurring_scan(
         cfg, require_fresh_control=True
-    ) == 1
+    ) == coga_git.STALE_CONTROL_EXIT_CODE
     assert list_tasks(cfg) == []
     captured = capsys.readouterr()
     assert "Recurring scan skipped" in captured.err
     assert "simulated rebase conflict" in captured.err
+    # The gate is about to fail loud with the reason, so the best-effort
+    # stderr note is suppressed — one conflict, one report.
+    assert "pre-scan catch-up skipped" not in captured.err
 
 
 def test_recurring_all_scan_refuses_git_disabled_checkout(
@@ -2029,7 +2135,7 @@ def test_recurring_all_scan_refuses_git_disabled_checkout(
 
     assert recurring_cmd.run_recurring_scan(
         cfg, require_fresh_control=True
-    ) == 1
+    ) == coga_git.STALE_CONTROL_EXIT_CODE
     assert "[git].enabled = false" in capsys.readouterr().err
 
 
@@ -2046,7 +2152,7 @@ def test_recurring_all_scan_refuses_detached_checkout(
 
     assert recurring_cmd.run_recurring_scan(
         cfg, require_fresh_control=True
-    ) == 1
+    ) == coga_git.STALE_CONTROL_EXIT_CODE
     assert "detached HEAD" in capsys.readouterr().err
 
 
@@ -4569,3 +4675,78 @@ def test_bare_recurring_nothing_due(
     result = runner.invoke(app, ["recurring"])
     assert result.exit_code == 0, result.output
     assert "No recurring tasks due." in result.output
+
+
+def test_pre_scan_catch_up_conflict_names_files_and_fix(git_repo, capsys) -> None:
+    """A real diverged-with-conflict checkout yields a distilled reason: the
+    CONFLICT line plus the exact resolve command — no rebase progress spew."""
+    (git_repo.root / "notes.md").write_text("local\n")
+    git_repo.git("add", "notes.md")
+    git_repo.git("commit", "-m", "local note")
+    git_repo.push_competing_commit("notes.md", "remote\n")
+
+    cfg = load_config(git_repo.coga_os)
+    fresh, reason = recurring_cmd._sync_control_checkout_ahead(
+        cfg, announce_failure=False
+    )
+
+    assert not fresh
+    assert "CONFLICT" in reason
+    assert "notes.md" in reason
+    assert "Rebasing (" not in reason
+    assert "hint:" not in reason
+    assert f"git -C {git_repo.root} rebase origin/main" in reason
+    # announce_failure=False: the caller reports the reason itself, so no
+    # duplicate stderr note.
+    assert "pre-scan catch-up skipped" not in capsys.readouterr().err
+
+
+def test_bare_scan_notes_catch_up_failure_once_and_continues(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """The bare (single-repo) sweep keeps the best-effort stderr note — once —
+    and still scans."""
+
+    def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        raise coga_git.GitError("simulated fetch failure")
+
+    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
+    cfg = load_config(git_repo.coga_os)
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+
+    err = capsys.readouterr().err
+    assert err.count("pre-scan catch-up skipped") == 1
+    assert "simulated fetch failure" in err
+    # A fetch failure (offline, dead remote) gets no rebase advice.
+    assert "Resolve in that checkout" not in err
+
+
+def test_recurring_all_names_stale_control_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A child refusing for a stale control checkout gets a cause-naming parent
+    line, and the summary names the failed repo."""
+    root = tmp_path / "workspaces"
+    first = root / "alpha" / "coga"
+    second = root / "beta" / "coga"
+    for coga_os in (first, second):
+        _write(coga_os / "coga.toml", "version = 1\n")
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_repo_recurring",
+        lambda coga_os, **kwargs: (
+            coga_git.STALE_CONTROL_EXIT_CODE if coga_os == first else 0
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["recurring", "--all", str(root)])
+
+    assert result.exit_code == 1
+    assert "alpha — control checkout could not integrate the latest control tip" in (
+        result.output
+    )
+    assert "recurring exited" not in result.output
+    assert "1 repo(s) failed: alpha" in result.output

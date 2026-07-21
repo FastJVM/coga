@@ -83,3 +83,30 @@ no-cost way to catch a packaging problem before it's permanent.
   To re-test on TestPyPI, bump to a dev version such as `0.2.0.dev1`.
 - A bad release can be **yanked** (hidden from new installs) but not deleted —
   which is exactly why we dry-run on TestPyPI first.
+
+## Clean first-install gate
+
+After publishing the intended version, run the public install and first-task
+path in a disposable Linux container. The harness deliberately installs Coga
+only from PyPI, initializes an ordinary existing Git repository, compares the
+repo-local CLI with the installed release, checks bundled batteries, launches
+a minimal task with a real authenticated agent CLI, validates the resulting
+repository, and saves a transcript plus the relevant markdown and Git evidence.
+
+Supply the command that installs your chosen agent CLI inside the container.
+Pass any credential mounts or environment variables after `--`; they go
+directly to `docker run` before the image name. For example:
+
+```sh
+COGA_GATE_AGENT=codex \
+COGA_GATE_AGENT_INSTALL='npm install -g @openai/codex' \
+./scripts/verify-clean-install.sh 0.3.0 -- \
+  --env OPENAI_API_KEY
+```
+
+The default evidence directory is `coga-install-gate-evidence/`. Override it
+with `COGA_GATE_EVIDENCE_DIR`; use `COGA_GATE_CONTAINER_ENGINE=podman` or
+`COGA_GATE_IMAGE=<image>` when Docker or the default Python image is not the
+right local runtime. The agent install command and credential forwarding are
+explicit because the gate must exercise a supported authenticated CLI without
+copying private host state implicitly.

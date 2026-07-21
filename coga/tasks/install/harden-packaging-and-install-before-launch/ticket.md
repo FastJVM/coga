@@ -1,11 +1,11 @@
 ---
 slug: install/harden-packaging-and-install-before-launch
 title: Harden packaging and first-install before launch
-status: blocked
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -26,7 +26,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 4 (review)
 ---
 
 ## Description
@@ -48,6 +48,11 @@ isolated CLI with `uv tool install coga`. `uv pip install coga` and plain
 `pip install coga` remain alternatives, not separate release gates. Do not add
 a curl-to-shell installer or dependency lockfile unless a failed verification
 produces evidence that the wheel-based path cannot meet the gate.
+
+The 2026-07-19 owner decision adds a standalone clean-container verification
+harness as this ticket's implementation deliverable. It may land before the
+target release exists; passing the harness against that published release is
+still the final gate.
 
 ## Prerequisites
 
@@ -87,7 +92,11 @@ Run the public path in a disposable clean Linux environment, without
 - `coga validate --json` passes in the initialized repository after the first
   workflow transition.
 - The blackboard contains reproducible evidence and links any follow-up ticket.
-- This ticket is then marked done directly; it produces no feature branch or PR.
+- The repository contains a documented automated harness for repeating the
+  five verification steps with an explicitly authenticated supported agent CLI.
+- The harness implementation is reviewed through this ticket's current code
+  workflow. The ticket is marked done only after the published-release run has
+  produced the required evidence.
 
 <!-- coga:blackboard -->
 
@@ -117,6 +126,60 @@ Run the public path in a disposable clean Linux environment, without
   `direct/body` workflow. Relaunch only when the prerequisites in the ticket
   body are satisfied; a successful run records evidence and marks the ticket
   done directly.
+- Updated by the human on 2026-07-19: implement a standalone automated
+  clean-container harness now, explicitly overriding the earlier no-branch/no-PR
+  constraint. The harness makes the eventual public-release gate repeatable;
+  it does not claim that the currently published release passes it.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/612
+- branch: harden-install-gate
+- worktree: /tmp/coga-install-gate
+- commit: ce79a788 peer-review: apply review findings
+
+## Open PR (2026-07-19)
+
+- `coga open-pr` first refused: the branch did not contain latest `origin/main`
+  and overlapped on this ticket file. Rebased the feature worktree onto fetched
+  `origin/main` (clean, no conflicts), then re-ran the full suite with
+  `PYTHONPATH=/tmp/coga-install-gate/src python3.12 -m pytest`: 1324 passed,
+  1 skipped.
+- Re-ran `coga open-pr`, which pushed the rebased branch and opened
+  https://github.com/FastJVM/coga/pull/612.
+
+## Implementation (2026-07-19)
+
+- Added `scripts/verify-clean-install.sh` and its container entrypoint. The
+  wrapper installs only the requested PyPI version in a disposable Linux
+  container, keeps the terminal attached for a real agent launch, mounts no
+  Coga source checkout, and requires the operator to explicitly install and
+  authenticate the selected supported agent CLI.
+- The container creates an ordinary committed Git repo, runs `coga init`,
+  compares installed and repo-local versions, checks bundled workflow/skill
+  files, launches a minimal `direct/body` task through the selected agent,
+  confirms its done transition and log entry, runs `coga validate --json`, and
+  requires a clean Git tree.
+- The gate writes a full transcript, environment/version summary, task,
+  Coga log, and Git log to the mounted evidence directory. `docs/releasing.md`
+  documents invocation and explicit credential forwarding.
+- Added deterministic contract tests for the gate's required checks and
+  fail-loud agent setup requirement.
+
+## Verification (implementation)
+
+- `sh -n scripts/verify-clean-install.sh`
+- `bash -n scripts/verify-clean-install-container.sh`
+- `python -m pytest tests/test_clean_install_gate.py tests/test_packaging.py`:
+  4 passed, 1 skipped (optional `hatchling` unavailable).
+- Full suite in an isolated worktree-aware virtual environment: 1324 passed,
+  1 skipped. The host interpreter alone could not satisfy one pre-existing
+  subprocess import test because this `/tmp` worktree was not installed; making
+  the worktree's `src/coga` available inside the isolated venv resolved it.
+- `git diff --check` passed; branch rebased onto current `origin/main` with no
+  new commits.
+- The live published-release container run remains the later release gate; this
+  implementation step does not claim the current PyPI release passes.
 
 ## Prerequisite audit (2026-07-12 relaunch)
 
@@ -202,7 +265,7 @@ Run the public path in a disposable clean Linux environment, without
   resolved: [2026-07-15 21:00] [human:nicktoper] Owner reset 2026-07-15: nicktoper is taking over all install/ tickets; this gate is reset to active on code/with-review at step 1 alongside its siblings, overriding the 2026-07-12 direct/body scope decision.
 
 - [x] [2026-07-16 10:14] [agent:claude] id=20260716T101438 Gate prerequisites still unmet at today's megalaunch: PyPI latest is coga 0.2.0 (pre-retest) and no sibling install/ fix has merged — they are mid-implement in parallel sessions launched this morning (init.py on main still clones upstream). Relaunch this gate after the sibling PRs merge and cut-release-to-realign-pypi-with-main publishes the realigned version; or, if you want a standalone deliverable now (e.g. an automated clean-container harness scripting the five verification steps), say so explicitly since the ticket's acceptance criteria currently forbid a branch/PR. Consider excluding this gate from megalaunch sweeps until then.
-  resolved: [2026-07-20 18:08] [human:nicktoper] 2026-07-20 audit: the ask's sibling-merge condition is now met — all named install/ siblings plus cut-release-to-realign-pypi-with-main are done and merged (origin/main 2d799810 has the fixes; init.py no longer clones upstream; pyproject.toml says 0.3.0 via merged PR #587). The remaining condition (realigned version on PyPI) is still unmet solely because the v0.3.0 GitHub release was never published — that step was reserved for the human in docs/releasing.md. Re-blocking with that single narrowed ask.
+  resolved: [2026-07-19 20:05] [human:nicktoper] Proceed now with a standalone automated clean-container verification harness that scripts the five verification steps; this explicitly overrides the prior no-branch/no-PR acceptance constraint for this ticket.
 
 - [ ] [2026-07-20 18:08] [agent:claude] id=20260720T180849 All code prerequisites are now met: every named install/ sibling plus cut-release-to-realign-pypi-with-main is done and merged (origin/main has the fixes, pyproject.toml says 0.3.0 via PR #587). The only unmet prerequisite is publication: no v0.3.0 tag exists and PyPI still serves 0.2.0. Publishing was reserved for you in docs/releasing.md: publish a GitHub Release tagged v0.3.0 targeting main (optionally after the TestPyPI dry run and one-time Trusted Publishing setup described there), which triggers release.yml to publish to PyPI. Once 'uv tool install coga' yields 0.3.0, relaunch this gate and the five verification steps can run.
 ## Blocker reminders
@@ -210,3 +273,141 @@ Run the public path in a disposable clean Linux environment, without
 - 5f5852d1e838 last_reminded: 2026-07-15 12:33
 
 - 3427f9e5e914 last_reminded: 2026-07-16 10:15
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:24:39+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Peer review (2026-07-19)
+
+- `codex review --base main` found two must-fix runtime failures: the harness
+  addressed the vendored CLI as `coga/.venv/bin/coga` instead of the generated
+  `coga/.coga/bin/coga`, and it expected package-backed bootstrap resources to
+  be copied into the initialized repo.
+- Fixed the gate to compare versions through the repo-local shim and verify the
+  bundled workflow and implementation skill with `importlib.resources` from
+  the vendored installed package. Commit after the required rebase:
+  `b55fa47d peer-review: apply review findings`.
+- Fetched `origin/main` and rebased the feature branch unconditionally. The
+  branch is clean and contains two commits ahead of the fetched main.
+- Verification after rebase: shell syntax checks passed; `git diff --check`
+  passed; task-scoped `coga validate --json` reported no task issues (only the
+  clone-local missing-user warning); full suite: 1324 passed, 1 skipped.
+
+## PR
+
+Add a documented disposable-container gate that installs an exact Coga release
+from PyPI, initializes a normal Git repository without a source checkout,
+checks the repo-local vendored CLI and package-backed batteries, launches and
+completes a first task through a real authenticated agent CLI, validates the
+result, and preserves reproducible evidence.
+
+Test plan: `sh -n scripts/verify-clean-install.sh`; `bash -n scripts/verify-clean-install-container.sh`; `PYTHONPATH=/tmp/coga-install-gate/src python3.12 -m pytest` (1324 passed, 1 skipped).
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:25:43+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:26:48+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:27:27+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:28:05+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:30:16+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:33:07+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T03:35:45+00:00
+Command: `coga validate --json --fix`
+Task: `install/harden-packaging-and-install-before-launch`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.

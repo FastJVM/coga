@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlsplit
 import typer
 
 from coga import git
+from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.commands.launch import _interactive_stdio_has_tty
 from coga.commands.launch_script import is_script_launch
 from coga.config import Config, ConfigError, load_config
@@ -56,10 +57,10 @@ _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
 # catch-up behavior.
 _REQUIRE_FRESH_CONTROL_ENV = "COGA_RECURRING_REQUIRE_FRESH_CONTROL"
 
-# A parent-directory sweep discovers real Coga workspaces, not dependency or
-# tool-state trees. Once one workspace is found its subtree is a unit: Coga
-# refuses nested workspaces, and descending would only find fixtures or
-# packaged templates inside the repo.
+# A parent-directory sweep discovers real Coga workspaces, not dependency,
+# tool-state, or intentionally inert `_`-prefixed trees. Once one workspace is
+# found its subtree is a unit: Coga refuses nested workspaces, and descending
+# would only find fixtures or packaged templates inside the repo.
 _REPO_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
     {".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"}
 )
@@ -70,14 +71,19 @@ def discover_coga_repos(root: Path) -> list[Path]:
 
     A workspace is identified by a directory named ``coga`` containing
     ``coga.toml``. A host repo may itself be named ``coga``, so a same-named
-    directory without that file is still traversed.
+    directory without that file is still traversed. Directory segments whose
+    names start with ``_`` are explicit exclusions below the scan root.
     """
     if root.name == "coga" and (root / "coga.toml").is_file():
         return [root]
 
     found: list[Path] = []
     for dirpath, dirnames, _ in os.walk(root):
-        dirnames[:] = [name for name in dirnames if name not in _REPO_SCAN_SKIP_DIRS]
+        dirnames[:] = [
+            name
+            for name in dirnames
+            if name not in _REPO_SCAN_SKIP_DIRS and not name.startswith("_")
+        ]
         if "coga" not in dirnames:
             continue
         coga_os = Path(dirpath) / "coga"
@@ -99,8 +105,10 @@ def run_recurring_all_repos(
 
     Each repo runs in a fresh CLI process so config discovery, aliases, launch
     supervision, and the end-of-command Coga-state sync have exactly their
-    ordinary single-repo behavior. Failures are isolated: the sweep continues
-    through later repos and returns non-zero after reporting the aggregate.
+    ordinary single-repo behavior. Workspaces rejected by Coga's intentional
+    config guards are summarized as unconfigured instead of dispatched.
+    Failures from dispatched repos are isolated: the sweep continues through
+    later repos and returns non-zero after reporting the aggregate.
     """
     root = scan_root.expanduser().resolve()
     if not root.is_dir():
@@ -121,13 +129,23 @@ def run_recurring_all_repos(
     for coga_os in repos:
         typer.echo(f"  {_repo_label(coga_os, root)}")
 
-    duplicate_of = _duplicate_remote_checkouts(repos)
+    serviceable: list[Path] = []
+    skipped_unconfigured: list[str] = []
+    for coga_os in repos:
+        if _has_serviceable_config(coga_os):
+            serviceable.append(coga_os)
+        else:
+            skipped_unconfigured.append(_repo_label(coga_os, root))
+
+    duplicate_of = _duplicate_remote_checkouts(serviceable)
     failed: list[str] = []
     skipped_duplicates: list[str] = []
-    for index, coga_os in enumerate(repos, 1):
+    for index, coga_os in enumerate(serviceable, 1):
         label = _repo_label(coga_os, root)
         typer.secho(
-            f"\n[{index}/{len(repos)}] {label}", fg=typer.colors.CYAN, bold=True
+            f"\n[{index}/{len(serviceable)}] {label}",
+            fg=typer.colors.CYAN,
+            bold=True,
         )
         original = duplicate_of.get(coga_os)
         if original is not None:
@@ -155,14 +173,39 @@ def run_recurring_all_repos(
         if code:
             failed.append(label)
             if process_started:
-                typer.secho(
-                    f"  ✗ {label} — recurring exited {code}",
-                    fg=typer.colors.RED,
-                    err=True,
-                )
+                if code == git.STALE_CONTROL_EXIT_CODE:
+                    # The child already printed the conflict and the exact
+                    # resolve command; keep the parent line short but name the
+                    # cause instead of a bare exit code.
+                    typer.secho(
+                        f"  ✗ {label} — control checkout could not integrate "
+                        "the latest control tip; resolve the conflict shown "
+                        "above in that checkout, then re-run",
+                        fg=typer.colors.RED,
+                        err=True,
+                    )
+                else:
+                    typer.secho(
+                        f"  ✗ {label} — recurring exited {code}",
+                        fg=typer.colors.RED,
+                        err=True,
+                    )
 
-    swept = len(repos) - len(failed) - len(skipped_duplicates)
+    swept = (
+        len(repos)
+        - len(failed)
+        - len(skipped_duplicates)
+        - len(skipped_unconfigured)
+    )
     typer.echo(f"\nSwept {swept} of {len(repos)} Coga repo(s).")
+    if skipped_unconfigured:
+        count = len(skipped_unconfigured)
+        repo_word = "repo" if count == 1 else "repos"
+        typer.secho(
+            f"Skipped {count} unconfigured {repo_word}.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
     if skipped_duplicates:
         typer.secho(
             f"Skipped {len(skipped_duplicates)} duplicate checkout(s) "
@@ -172,7 +215,8 @@ def run_recurring_all_repos(
         )
     if failed:
         typer.secho(
-            f"{len(failed)} repo(s) failed — see above.",
+            f"{len(failed)} repo(s) failed: {', '.join(failed)} — see each "
+            "repo's section above for the error and fix.",
             fg=typer.colors.YELLOW,
             err=True,
         )
@@ -187,6 +231,24 @@ def _repo_label(coga_os: Path, root: Path) -> str:
     except ValueError:
         return str(host_repo)
     return host_repo.name if relative == Path(".") else str(relative)
+
+
+def _has_serviceable_config(coga_os: Path) -> bool:
+    """Whether a discovered workspace is a configured scheduler target."""
+    try:
+        cfg = load_config(coga_os)
+        validate_aliases(
+            {**DEFAULT_ALIASES, **cfg.aliases},
+            warn_legacy=False,
+        )
+    except ConfigError:
+        return False
+    except Exception:
+        # The child process remains authoritative for malformed TOML, I/O
+        # failures, and unexpected loader bugs. Only Coga's intentional config
+        # guards identify an unconfigured checkout that the parent may skip.
+        return True
+    return True
 
 
 def _duplicate_remote_checkouts(repos: list[Path]) -> dict[Path, Path]:
@@ -381,7 +443,9 @@ def run_recurring_scan(
     if not _valid_agent_override(cfg, agent_override):
         return 2
 
-    fresh, freshness_error = _sync_control_checkout_ahead(cfg)
+    fresh, freshness_error = _sync_control_checkout_ahead(
+        cfg, announce_failure=not require_fresh_control
+    )
     if require_fresh_control and not fresh:
         typer.secho(
             "Recurring scan skipped: could not confirm this checkout includes "
@@ -390,7 +454,11 @@ def run_recurring_scan(
             fg=typer.colors.RED,
             err=True,
         )
-        return 1
+        # Distinct exit code: the refusal happened before any period state
+        # was touched, so the layers wrapping this launch skip their post-run
+        # git catch-up instead of re-failing (and re-printing) the same
+        # divergence — see `git.STALE_CONTROL_EXIT_CODE`.
+        return git.STALE_CONTROL_EXIT_CODE
     scan = scan_due(
         cfg, allow_interactive=_interactive_stdio_has_tty(), force=force
     )
@@ -500,7 +568,9 @@ def run_recurring_named(
     return 0
 
 
-def _sync_control_checkout_ahead(cfg: Config) -> tuple[bool, str]:
+def _sync_control_checkout_ahead(
+    cfg: Config, *, announce_failure: bool = True
+) -> tuple[bool, str]:
     """Catch the checked-out control branch up to origin before scanning.
 
     The scan decides what is due from working-tree templates and period tasks;
@@ -512,12 +582,18 @@ def _sync_control_checkout_ahead(cfg: Config) -> tuple[bool, str]:
     Bare and named sweeps keep misses best-effort because each create still
     reconciles against FETCH_HEAD; the `--all` child treats a false result as
     an entry-gate failure before scanning.
+
+    A git failure (offline, conflicting local commits) writes one stderr note —
+    unless the caller passes `announce_failure=False` because it is about to
+    fail loud with the returned reason itself, in which case a note here would
+    print the same conflict twice.
     """
     if not cfg.git_enabled:
         return False, "[git].enabled = false"
     root = _git_toplevel(cfg.repo_root)
     if root is None:
         return False, "workspace is not inside a git checkout"
+    fetched = False
     try:
         current = _current_branch(root)
         if current != cfg.git_control_branch:
@@ -527,12 +603,23 @@ def _sync_control_checkout_ahead(cfg: Config) -> tuple[bool, str]:
                 f"checked out ({where})"
             )
         _fetch_control_branch(cfg, root)
+        fetched = True
         target = _rev_parse(root, "FETCH_HEAD")
         _rebase_checked_out_branch_onto(root, target)
         _confirm_control_tip_integrated(root, target)
     except git.GitError as exc:
-        sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {exc}\n")
-        return False, str(exc)
+        reason = str(exc)
+        if fetched:
+            # The fetch worked, so this is a local-integration failure
+            # (usually diverged local commits). Name the manual fix; a fetch
+            # failure (offline, dead remote) gets no rebase advice.
+            reason += (
+                f"\nResolve in that checkout — e.g. `git -C {root} rebase "
+                f"{cfg.git_remote}/{cfg.git_control_branch}` — then re-run."
+            )
+        if announce_failure:
+            sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {exc}\n")
+        return False, reason
     return True, ""
 
 
@@ -1273,7 +1360,7 @@ def _rebase_checked_out_branch_onto(root: Path, target: str) -> None:
     )
     raise git.GitError(
         f"could not rebase checked-out control branch onto {target}: "
-        f"{(proc.stderr + proc.stdout).strip()}"
+        f"{git.summarize_git_failure(proc.stderr + proc.stdout)}"
     )
 
 

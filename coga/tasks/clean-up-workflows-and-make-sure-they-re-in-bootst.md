@@ -235,7 +235,7 @@ Result: no remaining validation drift found.
   draft-ticket errors (including `op-service-account` and three `v2/*`
   missing-step tickets); the current task has no validation issues.
 
-## PR
+## PR #619 (parallel local session — unmerged duplicate, extra scope)
 
 ### Summary
 
@@ -250,9 +250,135 @@ Result: no remaining validation drift found.
 
 `python -m pytest` (1361 passed, 1 skipped); task-scoped `coga validate --json`; `git diff --check`; byte-for-byte live/seed workflow comparison.
 
+The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+pr: https://github.com/FastJVM/coga/pull/599
+branch: cleanup/workflow-inventory
+worktree: /tmp/coga-workflow-inventory-review.kOYvoT
+
+## Audit
+
+- Confirmed the two packaged workflow roots have distinct intended lifecycles:
+  repo-owned init seeds under `templates/coga/workflows/`, upgradeable batteries
+  under `templates/coga/bootstrap/workflows/`.
+- Every seed workflow currently has a byte-identical live copy. Every bundled
+  battery does too except `digest/post`: the live override still describes the
+  old directory/empty-spool behavior while the packaged copy describes the
+  current `spool.md` watermark/trim behavior.
+- Unclassified one-offs under review:
+  - `build/dry-run` explicitly describes a temporary experiment feeding the
+    already-landed onboarding design.
+  - `test/relaunch-chain` explicitly says it is a synthetic probe rather than a
+    delivery workflow.
+  - `coga/cutover` is tied to completed rename PR #454, but was recently kept
+    accurate when the migration script was replaced by the manual checklist;
+    usage/history still needs to decide whether the workflow itself remains
+    live or the durable migration doc is now sufficient.
+
+## Decisions
+
+- Delete all three unclassified one-offs:
+  - `build/dry-run` was created only to drive the now-completed onboarding
+    experiment; `build/onboarding` is the surviving repo-owned seed workflow.
+  - `test/relaunch-chain` was a synthetic probe tied to a completed test task;
+    launch chaining is covered by `tests/test_launch_restart.py` and related
+    regression tests, and the probe's expected rotation behavior is now stale.
+  - `coga/cutover` was an execution checklist for completed rename PR #454 and
+    its now-deleted cutover task. The reusable per-machine/per-repo instructions
+    remain in `docs/migrating-to-coga.md`, so keeping a workflow that tells the
+    owner to close an already-completed rename ticket would be misleading.
+- Keep every existing packaged workflow in its current tree. Seed keepers are
+  the editable repo policy/operations/onboarding workflows (`_template`,
+  autoclose, autonomy tiers, blocker/branch sweeps, browser router,
+  `build/onboarding`, `direct/body`, `skill-update/run`). Bootstrap keepers are
+  the upgradeable core execution batteries (`code/*`, `digest/post`, `docs/*`,
+  `dream/*`). Their task/recurring/skill consumers match those lifecycles.
+- Restore live/packaged parity by copying the current packaged `digest/post`
+  description to the live override. No resolver, init-copy, validator, or
+  packaging-rule change is warranted.
+
+## Implementation
+
+- Deleted the three completed-run artifacts: `build/dry-run`, `coga/cutover`,
+  and `test/relaunch-chain`.
+- Updated the live `digest/post` override to the packaged battery's current
+  `spool.md` watermark/retained-anchor description.
+- A bidirectional manifest check confirms that every surviving live workflow
+  exists in exactly one packaged lifecycle tree, every packaged workflow has a
+  live copy, and all paired files are byte-identical.
+
+## Verification
+
+- Post-review and post-rebase,
+  `PYTHONPATH=/tmp/coga-workflow-inventory-review.kOYvoT/src python3.12 -m pytest`
+  — 1322 passed, 1 skipped. The skip was the wheel-build test because the
+  ambient interpreter lacked Hatchling.
+- Re-ran `tests/test_packaging.py` with cached Hatchling + dependencies on
+  `PYTHONPATH` — 3 passed, so the clean-checkout wheel assertion executed.
+- Task-scoped `coga validate --task clean-up-workflows-and-make-sure-they-re-in-bootst --json`
+  — exit 0, `ok_count: 1`, no issues.
+- Repo-wide `coga validate --json` was also run. It found no workflow issues
+  from this change, but remains non-clean on pre-existing `missing-step` errors
+  in `v2/autotrigger-ticket-type`,
+  `v2/split-context-to-doc-user-accessible-and-editable`, and
+  `v2/use-worktree-when-starting-a-dev-task`; these unrelated draft-ticket
+  states are outside this cleanup.
+- `git diff --check` — clean.
+
+## Handoff
+
+- Commit: `a6637b3b422e69ccac82a772534399963f16eabb` (`Clean up shipped workflow inventory`).
+- The linked worktree could not write the primary checkout's protected
+  `.git/worktrees/` metadata, so peer review moved the same branch and commit to
+  the documented independent-clone fallback at the path under `## Dev`.
+- The GitHub connector verified live `main` at `a5c7e89b`; that exact commit was
+  already present locally, and the feature commit was rebased onto it cleanly.
+  Full pytest, packaging tests, and workflow manifest parity were rerun after
+  the rebase with the results above.
+- The feature checkout is clean and the verified live-main comparison is `0 1`
+  (latest base plus one material commit).
+- open-pr step: `origin/main` had advanced to `e3b0236d`, so `coga open-pr`
+  correctly refused the stale branch. Rebased onto it (clean, commit now
+  `93cad25a`), reran the full suite — 1322 passed, 1 skipped (the
+  Hatchling-only packaging test, already verified separately) — then reran
+  `coga open-pr`, which pushed the branch and opened PR #599.
+
+## Peer review
+
+- The first native-review attempt exhausted its network retries. After the owner
+  confirmed access was available, `codex review --base main` was rerun from the
+  feature checkout and completed successfully at maximum reasoning effort.
+- Result: no findings. The reviewer confirmed the three deleted workflows are
+  unreferenced one-offs, every surviving live workflow matches exactly one
+  packaged lifecycle counterpart, the digest copies are byte-identical, and
+  the full suite passes.
+
+## PR
+
+### Summary
+
+- Remove the completed `build/dry-run`, `coga/cutover`, and
+  `test/relaunch-chain` one-off workflows.
+- Keep repo-owned seed workflows and upgradeable bootstrap batteries in their
+  existing lifecycle-specific packaged trees.
+- Bring the live `digest/post` override back in sync with the packaged
+  `spool.md` watermark-and-anchor behavior.
+
+### Test plan
+
+`PYTHONPATH=$PWD/src python3.12 -m pytest` (1322 passed, 1 environment-only packaging skip); Hatchling-enabled `tests/test_packaging.py` (3 passed); task-scoped `coga validate --json`; bidirectional live/packaged workflow parity check; `git diff --check`.
+
+---
+
+## Blockers
+
+- [x] [2026-07-18 15:08] [agent:codex] id=20260718T150817 Native codex review cannot resolve api.openai.com over WebSocket or HTTPS. Restore DNS/network access for the required CLI review, then relaunch peer-review.
+  resolved: [2026-07-18 15:24] [human:nicktoper] Owner confirmed access was available; native Codex review completed successfully with no findings.
+
 ## Dream Skill: validate-drift
 
-Generated: 2026-07-21T00:09:22+00:00
+Generated: 2026-07-18T22:26:04+00:00
 Command: `coga validate --json --fix`
 Task: `clean-up-workflows-and-make-sure-they-re-in-bootst`
 

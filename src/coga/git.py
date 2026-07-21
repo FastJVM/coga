@@ -33,11 +33,13 @@ onto the new tip, then a retry — the working tree is already checked out there
 so integrating the remote move means a rebase, with autostash keeping unrelated
 dirty changes intact. A detached HEAD takes the cross-branch landing path but
 skips the local commit (a commit on a detached HEAD would be orphaned). After a
-successful landing push, the local control ref is fast-forwarded best-effort:
-directly via `update-ref` when no worktree holds the branch, or through the
-holding worktree with `merge --ff-only` — without this, a checkout left on
-`main` would fall behind origin after every cross-branch landing until a
-manual pull.
+successful landing push, the local control ref is normally fast-forwarded
+best-effort: directly via `update-ref` when no worktree holds the branch, or
+through the holding worktree with `merge --ff-only` — without this, a checkout
+left on `main` would fall behind origin after every cross-branch landing until
+a manual pull. The narrow exception is Retro's verified linked-worktree direct
+delete: `sync_paths(update_local_control_ref=False)` deliberately leaves the
+operator's control checkout untouched after the remote landing.
 
 That best-effort fast-forward moves only the control *ref*: a checkout parked
 on any other branch keeps rendering task state as of its own last commit, so
@@ -87,11 +89,12 @@ import tempfile
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from coga.config import Config
 from coga.logfile import append_log, ref_tag_for_path
-from coga.paths import log_path
+from coga.paths import log_path, tasks_dir
 from coga.taskfile import TaskFileError, split_body
 from coga.ticket import Ticket, TicketError
 
@@ -99,6 +102,20 @@ from coga.ticket import Ticket, TicketError
 # rebuild + repush, so a small ceiling is plenty under realistic contention
 # (the coga launch auto-chain, manual commands).
 _MAX_SYNC_ATTEMPTS = 5
+
+# Process exit code meaning "refused because the control checkout could not
+# integrate the latest control tip; nothing was mutated". The recurring-scan
+# freshness gate exits with it, and the layers wrapping a launch key off it to
+# skip their post-run git catch-up (launch's control refresh — bootstrap-script
+# launches only, since bootstrap scripts are coga-owned — and the CLI
+# end-of-command state sweep): on a checkout already known to be diverged those
+# attempts are guaranteed to fail — re-dumping the same conflict — and the
+# end-of-command sweep would stack a new local commit per failed run, deepening
+# the divergence a human must eventually resolve. 75 is BSD's EX_TEMPFAIL
+# ("temporary failure, retry later"), deliberately far from the small codes
+# user ticket scripts commonly exit with, so an ordinary script failure is
+# never mistaken for this refusal.
+STALE_CONTROL_EXIT_CODE = 75
 
 _ROOT_LAYOUT_COGA_PATHS = (
     "coga.toml",
@@ -131,6 +148,40 @@ class GitError(Exception):
 
 class StateRegressionError(GitError):
     """Raised when catch-all Coga-state sync would commit stale task state."""
+
+
+def summarize_git_failure(output: str) -> str:
+    """Distill raw git failure output to the lines a human acts on.
+
+    A failed rebase/merge dumps per-commit progress (`Rebasing (1/14)`),
+    `Auto-merging` lines, autostash notes, and multi-line `hint:` blocks around
+    the two lines that matter: `error:`/`fatal:` and `CONFLICT … in <file>`.
+    Coga error paths embed this output verbatim into messages that then get
+    printed by several layers, so one conflict became ~60 lines of spew. Keep
+    only the actionable lines (deduped, order preserved); fall back to the last
+    non-empty line so an unrecognized failure is never silently emptied.
+    """
+    keep: list[str] = []
+    seen: set[str] = set()
+    last_nonempty = ""
+    for raw in output.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        # `git rebase` progress rides carriage returns on one line; the last
+        # segment is the real message.
+        line = line.split("\r")[-1].strip()
+        if line:
+            last_nonempty = line
+        if (
+            line.startswith(("error:", "fatal:", "CONFLICT"))
+            and line not in seen
+        ):
+            seen.add(line)
+            keep.append(line)
+    if not keep:
+        return last_nonempty
+    return "; ".join(keep)
 
 
 @dataclass(frozen=True)
@@ -293,6 +344,7 @@ def sync_paths(
     paths: Iterable[Path],
     *,
     message: str,
+    update_local_control_ref: bool = True,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -300,7 +352,11 @@ def sync_paths(
     subprocess may edit a task and create supporting local context/skill files.
     Callers must pass exact paths they own; Coga still never stages the whole
     worktree. `anchor_path` is used to find the git root and to record a sync
-    failure in an appropriate log.
+    failure in an appropriate log. `update_local_control_ref=False` is the
+    narrow isolated-worktree escape hatch used by Retro's direct deletes: the
+    removal still lands on the remote control branch, but Coga does not then
+    fast-forward a different worktree that has the local control branch
+    checked out.
     """
     selected = _dedupe_paths(paths)
     if not selected:
@@ -338,7 +394,12 @@ def sync_paths(
         local_rels = rels + [log_rel] if log_path(cfg).exists() else rels
 
         _dispatch_branch_sync(
-            cfg, root, local_rels=local_rels, overlay_rels=rels, message=message
+            cfg,
+            root,
+            local_rels=local_rels,
+            overlay_rels=rels,
+            message=message,
+            update_local_control_ref=update_local_control_ref,
         )
     except GitError as exc:
         # Non-fatal: surface loudly (stderr + log.md) but do NOT abort the
@@ -709,6 +770,7 @@ def _dispatch_branch_sync(
     overlay_rels: list[str],
     message: str,
     guard: _StateGuard | None = None,
+    update_local_control_ref: bool = True,
 ) -> None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
@@ -731,9 +793,10 @@ def _dispatch_branch_sync(
 
     if branch == "HEAD":
         # Detached HEAD: no local commit — it would be orphaned. The landing
-        # pushes the control branch and fast-forwards the primary checkout via
-        # `_try_update_local_ref`; only a fast-forward miss warrants a stderr
-        # note, printed there.
+        # pushes the control branch and normally fast-forwards the primary
+        # checkout via `_try_update_local_ref`; Retro's verified linked-
+        # worktree delete can suppress that refresh. Only a fast-forward miss
+        # warrants a stderr note, printed there.
         overlay = set(overlay_rels)
         union_rels = [rel for rel in local_rels if rel not in overlay]
         _land_paths_on_control_branch(
@@ -743,6 +806,7 @@ def _dispatch_branch_sync(
             union_rels=union_rels,
             message=message,
             guard=guard,
+            update_local_control_ref=update_local_control_ref,
         )
         return
     else:
@@ -750,7 +814,12 @@ def _dispatch_branch_sync(
         _commit_paths(root, local_rels, message)
     try:
         _land_paths_on_control_branch(
-            cfg, root, overlay_rels, message=message, guard=guard
+            cfg,
+            root,
+            overlay_rels,
+            message=message,
+            guard=guard,
+            update_local_control_ref=update_local_control_ref,
         )
     except StateRegressionError:
         if before is not None:
@@ -1079,7 +1148,7 @@ def _rebase_onto_remote(
         _restore_to_orig(root, orig, stashed=stashed)
         raise GitError(
             f"could not rebase {branch!r} onto {remote}/{branch}: "
-            f"{(rebase.stderr + rebase.stdout).strip()}"
+            f"{summarize_git_failure(rebase.stderr + rebase.stdout)}"
         )
 
     if stashed and not _pop_stash(root):
@@ -1236,6 +1305,7 @@ def _land_paths_on_control_branch(
     union_rels: list[str] | None = None,
     message: str,
     guard: _StateGuard | None = None,
+    update_local_control_ref: bool = True,
 ) -> None:
     """Land selected pathspecs on the control branch from any branch."""
     remote = cfg.git_remote
@@ -1254,7 +1324,8 @@ def _land_paths_on_control_branch(
         new = _run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
         result = _push_ref(root, remote, f"{new}:refs/heads/{branch}")
         if result is None:
-            _try_update_local_ref(root, branch, new)
+            if update_local_control_ref:
+                _try_update_local_ref(root, branch, new)
             return
         if not _is_non_fast_forward(result):
             raise GitError(
@@ -1616,9 +1687,70 @@ def _run_git(root: Path, *args: str, env: dict[str, str] | None = None) -> str:
     if result.returncode != 0:
         raise GitError(
             f"`git {' '.join(args)}` failed (exit {result.returncode}): "
-            f"{result.stderr.strip() or result.stdout.strip()}"
+            f"{summarize_git_failure(result.stderr) or summarize_git_failure(result.stdout)}"
         )
     return result.stdout
+
+
+def last_commit_times(cfg: Config) -> dict[str, datetime]:
+    """Map each path under `tasks/` to the commit time it was last touched.
+
+    Keys are posix paths relative to `tasks/` (`v2/foo.md`,
+    `cleanup/bar/ticket.md`) — raw git data, deliberately not resolved to task
+    refs here, so this stays a plain "when did git last see this file" query
+    with no task-shape knowledge in it. Mapping paths onto tasks is the
+    caller's job (`_git_updated_by_slug`).
+
+    The fallback source for `coga status`'s `Updated` column. The primary
+    source is `coga/log.md`, keyed by task ref — which goes blank in two
+    situations the log cannot express:
+
+      - **A task directory was moved.** Refs are path-qualified and log lines
+        are append-only, so a `mv` orphans every existing line under the old
+        ref and the task reads as though nothing ever happened to it.
+      - **A task never passed through a logging command.** Bulk migrations and
+        hand-authored tickets land on disk without a `created` line.
+
+    Git already knows both — a rename is a commit touching the new path, and
+    a hand-written ticket still had to be committed. One
+    `git log --name-only` pass over `tasks/` costs a single subprocess for the
+    whole render (~0.1s on a 2k-commit history), rather than a `--follow` per
+    task.
+
+    Read-only by construction: `git log` mutates nothing and touches no
+    network, so `status` stays a pure view (principle 6). Returns `{}` rather
+    than raising when git is disabled, absent, or the checkout has no commits
+    yet — a missing timestamp degrades to today's blank cell, which is strictly
+    better than a view that crashes.
+    """
+    if not cfg.git_enabled:
+        return {}
+    root = _toplevel(tasks_dir(cfg))
+    if root is None:
+        return {}
+    rel = _relative_to_root(root, tasks_dir(cfg))
+    try:
+        out = _run_git(root, "log", "--format=%ct", "--name-only", "--", rel)
+    except GitError:
+        return {}
+
+    prefix = rel.rstrip("/") + "/"
+    times: dict[str, datetime] = {}
+    stamp: datetime | None = None
+    for line in out.splitlines():
+        if not line:
+            continue
+        if line.isdigit():
+            stamp = datetime.fromtimestamp(int(line))
+            continue
+        if stamp is None or not line.startswith(prefix):
+            continue
+        key = line[len(prefix) :]
+        # `git log` walks newest-first, so the first time a path appears is
+        # its most recent commit; later (older) mentions must not overwrite it.
+        if key not in times:
+            times[key] = stamp
+    return times
 
 
 def _toplevel(start: Path) -> Path | None:
@@ -1653,6 +1785,29 @@ def _toplevel(start: Path) -> Path | None:
         )
     top = result.stdout.strip()
     return Path(top) if top else None
+
+
+def is_linked_worktree(start: Path) -> bool:
+    """True only when `start` belongs to a linked git worktree.
+
+    A linked worktree has its own administrative git dir under the repository's
+    common git dir. The primary checkout (and an independent clone) reports the
+    same path for both. Retro uses this read-only guard before a direct delete
+    requests that Coga leave another checkout's control branch untouched.
+    """
+    root = _toplevel(start)
+    if root is None:
+        return False
+    try:
+        git_dir = _run_git(
+            root, "rev-parse", "--path-format=absolute", "--git-dir"
+        ).strip()
+        common_dir = _run_git(
+            root, "rev-parse", "--path-format=absolute", "--git-common-dir"
+        ).strip()
+    except GitError:
+        return False
+    return Path(git_dir).resolve() != Path(common_dir).resolve()
 
 
 def _current_branch(root: Path) -> str:
@@ -1831,6 +1986,7 @@ def _path_exists(root: Path, rel: str) -> bool:
 
 __all__ = [
     "GitError",
+    "is_linked_worktree",
     "refresh_coga_state_from_control",
     "stale_coga_task_rels",
     "sync_coga_state",

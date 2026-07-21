@@ -47,7 +47,8 @@ def main(
         "--all",
         metavar="PATH",
         help="Discover every Coga repo below PATH and run each repo's due "
-        "recurring sweep once. May be combined with --force.",
+        "recurring sweep once, skipping `_`-prefixed trees and unconfigured "
+        "repos. May be combined with --force.",
     ),
     force: bool = typer.Option(
         False,

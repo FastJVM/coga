@@ -92,6 +92,82 @@ def test_broken_skill_ref(repo: Path) -> None:
     assert any(i.kind == "broken-skill" for i in report.issues)
 
 
+def test_validate_reports_removed_skill_in_materialized_recurring_template(
+    repo: Path,
+) -> None:
+    cfg = load_config(repo)
+    _write(repo / "workflows" / "megalaunch.md", """
+        ---
+        name: megalaunch
+        description: Legacy recurring megalaunch workflow.
+        steps:
+          - name: run
+            skills:
+              - coga/megalaunch/run
+        ---
+    """)
+    _write(repo / "recurring" / "megalaunch" / "ticket.md", """
+        ---
+        schedule: "0 9 * * *"
+        title: Megalaunch
+        workflow: megalaunch
+        ---
+
+        ## Description
+
+        Legacy recurring megalaunch.
+    """)
+
+    report = run(cfg)
+
+    issue = next(
+        issue for issue in report.issues
+        if issue.kind == "broken-recurring-template-skill"
+    )
+    assert issue.task == "recurring/megalaunch"
+    assert "megalaunch is now on-demand only" in issue.message
+    assert "`coga/recurring/megalaunch/`" in issue.message
+    assert "`coga/workflows/megalaunch/`" in issue.message
+    assert report.ok_count == 0
+
+
+def test_validate_recurring_template_unknown_skill_lists_checked_paths(
+    repo: Path,
+) -> None:
+    cfg = load_config(repo)
+    _write(repo / "workflows" / "custom.md", """
+        ---
+        name: custom
+        description: Locally customized recurring workflow.
+        steps:
+          - name: run
+            skills:
+              - local/missing
+        ---
+    """)
+    _write(repo / "recurring" / "custom" / "ticket.md", """
+        ---
+        schedule: "0 9 * * *"
+        title: Custom
+        workflow: custom
+        ---
+
+        ## Description
+
+        Custom recurring task.
+    """)
+
+    report = run(cfg)
+
+    issue = next(
+        issue for issue in report.issues
+        if issue.kind == "broken-recurring-template-skill"
+    )
+    assert "Checked:" in issue.message
+    assert str(repo / "skills" / "local" / "missing" / "SKILL.md") in issue.message
+    assert "bootstrap/skills/local/missing/SKILL.md" in issue.message
+
+
 def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
     """A frozen step's `requires:` must name a registered completion gate; a
     bogus token is a hard `bad-shape` error (the activation/bump gate would
@@ -369,7 +445,7 @@ def test_large_blackboard_warns(repo: Path) -> None:
     assert "included in launch prompts" in issue.message
 
 
-def test_draft_authoring_blackboard_warns_without_fixing(repo: Path) -> None:
+def test_draft_authoring_blackboard_errors_without_fixing(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
@@ -384,13 +460,13 @@ def test_draft_authoring_blackboard_warns_without_fixing(repo: Path) -> None:
     issue = next(
         i for i in report.issues if i.kind == "unsynthesized-draft-blackboard"
     )
-    assert issue.severity == "warn"
+    assert issue.severity == "error"
     assert "## Evaluator review" in issue.message
     assert "`## Production notes`" in issue.message
     assert report.fixes == []
 
 
-def test_authoring_blackboard_warning_is_draft_only(repo: Path) -> None:
+def test_authoring_blackboard_error_is_draft_only(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",

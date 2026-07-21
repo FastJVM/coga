@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Mapping
 
 from rich.console import Console
@@ -22,7 +22,7 @@ from rich.table import Table
 
 from coga.blackboard import Blocker, open_blockers
 from coga.config import Config, load_config
-from coga.git import stale_coga_task_rels
+from coga.git import last_commit_times, stale_coga_task_rels
 from coga.logfile import (
     first_activity_map,
     last_activity_map,
@@ -32,6 +32,7 @@ from coga.recurring import TemplateStatus, firing_stamp, list_templates
 from coga.taskfile import TaskFileError
 from coga.tasks import (
     BootstrapRef,
+    TaskRef,
     UnknownDirectoryError,
     filter_tasks_under,
     list_task_dirs,
@@ -146,6 +147,38 @@ def _format_relative(then: datetime, now: datetime) -> str:
     return f"{days // 7}w"
 
 
+def _git_updated_by_slug(
+    refs: list[TaskRef], commit_times: dict[str, datetime]
+) -> dict[str, datetime]:
+    """Fold `tasks/`-relative commit times onto the task that owns each path.
+
+    A commit under a directory-form task touches `<slug>/ticket.md` (or a
+    sibling `script:` file / attachment), never the task directory itself, so
+    each path is walked up to the nearest enclosing task. A file-form task is
+    its own path. Paths belonging to no live task — a deleted or renamed-away
+    ticket — simply have no owner and drop out.
+
+    Resolution is per path rather than per task so the whole fold is one pass
+    over the commit map instead of a scan per row.
+    """
+    owners = {
+        (f"{ref.id_slug}.md" if ref.file_form else ref.id_slug): ref.id_slug
+        for ref in refs
+    }
+    out: dict[str, datetime] = {}
+    for path, stamp in commit_times.items():
+        candidate = PurePosixPath(path)
+        for anchor in (candidate, *candidate.parents):
+            slug = owners.get(anchor.as_posix())
+            if slug is None:
+                continue
+            # Newest wins: a task dir's files land here in arbitrary order.
+            if slug not in out or stamp > out[slug]:
+                out[slug] = stamp
+            break
+    return out
+
+
 def render_status(
     cfg: Config,
     *,
@@ -187,6 +220,11 @@ def render_status(
     # One pass over the global log builds every task's last-activity timestamp,
     # instead of re-scanning a per-task log file for each row.
     activity = last_activity_map(cfg)
+    # The log only knows a task by its ref, so it goes silent when a task
+    # directory is moved (append-only lines keep the old ref) or when a ticket
+    # reached disk without passing through a logging command. Git saw both, so
+    # one `git log` pass backstops the blanks — see `last_commit_times`.
+    git_updated = _git_updated_by_slug(refs, last_commit_times(cfg))
     # Creation timestamps (earliest log line per ref) — the exact order the
     # megalaunch drain services tickets in. Only needed for this sort column.
     created = first_activity_map(cfg) if order_by == "created" else {}
@@ -221,7 +259,7 @@ def render_status(
             "owner": ticket.owner or "-",
             "assignee": ticket.assignee or "-",
             "step": ticket.step or "-",
-            "updated_ts": activity.get(ref.id_slug),
+            "updated_ts": activity.get(ref.id_slug) or git_updated.get(ref.id_slug),
             "created_ts": created.get(ref.id_slug),
         })
 

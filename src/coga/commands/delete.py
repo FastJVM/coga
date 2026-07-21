@@ -20,6 +20,14 @@ from coga.tasks import TaskNotFoundError, resolve_task
 
 def delete(
     task: str = typer.Argument(..., help="Task ID or id-slug."),
+    keep_control_checkout: bool = typer.Option(
+        False,
+        "--keep-control-checkout",
+        help=(
+            "From a linked worktree, push the deletion without fast-forwarding "
+            "another checkout that holds the control branch. Used by Retro."
+        ),
+    ),
 ) -> None:
     """Remove a task directory. Recovery is via `git restore`."""
     try:
@@ -31,6 +39,12 @@ def delete(
         ref = resolve_task(cfg, task)
     except TaskNotFoundError as exc:
         _bail(str(exc))
+
+    if keep_control_checkout and not git.is_linked_worktree(ref.path):
+        _bail(
+            "--keep-control-checkout requires a linked git worktree; refusing "
+            "to delete from the primary checkout"
+        )
 
     try:
         output = run_delete_task_skill(cfg, ref)
@@ -52,6 +66,7 @@ def delete(
         ref.path.parent,
         [ref.path],
         message=f"Ticket: {ref.id_slug} — deleted",
+        update_local_control_ref=not keep_control_checkout,
     )
 
 

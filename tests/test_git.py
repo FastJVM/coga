@@ -12,6 +12,7 @@ before). B and C reuse it.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -1154,6 +1155,103 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
     assert slug not in status
 
 
+def test_cli_delete_from_linked_worktree_keeps_primary_checkout(
+    git_repo, monkeypatch, tmp_path
+):
+    """Retro's isolated delete reaches origin without refreshing primary main.
+
+    The ordinary cross-branch sync fast-forwards the checkout holding `main`.
+    `--keep-control-checkout` deliberately suppresses only that final local
+    refresh, leaving the operator's ref, index, and files exactly as they were.
+    """
+    _install_delete_skill(git_repo.coga_os)
+    git_repo.git("add", "--", "coga/skills/bootstrap/delete-task")
+    git_repo.git("commit", "-m", "install delete skill")
+    git_repo.git("push", "origin", "main")
+
+    created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
+    slug = created.output.split(":", 1)[0].strip()
+    rel = f"coga/tasks/{slug}.md"
+    primary_tip = git_repo.git("rev-parse", "HEAD").strip()
+    primary_ticket = git_repo.root / rel
+    assert primary_ticket.is_file()
+
+    worktree = tmp_path / "retro-delete-worktree"
+    git_repo.git("worktree", "add", "-b", "retro-delete-test", str(worktree), "main")
+    assert not (worktree / "coga" / "coga.local.toml").exists()
+    shutil.copy(git_repo.coga_os / "coga.local.toml", worktree / "coga")
+    try:
+        monkeypatch.chdir(worktree / "coga")
+        deleted = runner.invoke(
+            app, ["delete", slug, "--keep-control-checkout"]
+        )
+        assert deleted.exit_code == 0, deleted.output
+
+        # The real console entry point performs this catch-all sweep after the
+        # Typer command. The direct delete already left the isolated branch
+        # clean, so the sweep must remain a no-op and must not refresh primary.
+        git.sync_coga_state(load_config(worktree / "coga"))
+
+        assert not git_repo.origin_tracks(rel)
+        assert f"Ticket: {slug} — deleted" in git_repo.origin_subjects()
+
+        # The primary checkout is intentionally stale but internally coherent:
+        # its branch, index, and file bytes did not move under the operator.
+        assert git_repo.git("rev-parse", "HEAD").strip() == primary_tip
+        assert git_repo.git("rev-parse", "main").strip() == primary_tip
+        assert primary_ticket.is_file()
+        assert git_repo.git("status", "--porcelain", cwd=git_repo.root) == ""
+
+        # The isolated branch owns its local deletion commit and is clean.
+        assert not (worktree / rel).exists()
+        assert git_repo.git("status", "--porcelain", cwd=worktree) == ""
+    finally:
+        monkeypatch.chdir(git_repo.coga_os)
+        git_repo.git("worktree", "remove", "--force", str(worktree))
+
+
+def test_cli_delete_from_independent_clone_keeps_primary_checkout(
+    git_repo, monkeypatch, tmp_path
+):
+    """Retro's sandbox fallback uses ordinary delete from separate Git metadata."""
+    _install_delete_skill(git_repo.coga_os)
+    git_repo.git("add", "--", "coga/skills/bootstrap/delete-task")
+    git_repo.git("commit", "-m", "install delete skill")
+    git_repo.git("push", "origin", "main")
+
+    created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
+    slug = created.output.split(":", 1)[0].strip()
+    rel = f"coga/tasks/{slug}.md"
+    primary_tip = git_repo.git("rev-parse", "HEAD").strip()
+    primary_ticket = git_repo.root / rel
+
+    clone = tmp_path / "retro-delete-clone"
+    git_repo.git(
+        "clone", "--no-hardlinks", str(git_repo.root), str(clone), cwd=tmp_path
+    )
+    git_repo.git("remote", "set-url", "origin", str(git_repo.origin), cwd=clone)
+    git_repo.git("fetch", "origin", "main", cwd=clone)
+    git_repo.git("checkout", "-B", "retro-delete-clone", "origin/main", cwd=clone)
+    git_repo.git("config", "user.email", "retro@example.com", cwd=clone)
+    git_repo.git("config", "user.name", "Retro", cwd=clone)
+    assert not (clone / "coga" / "coga.local.toml").exists()
+    shutil.copy(git_repo.coga_os / "coga.local.toml", clone / "coga")
+
+    monkeypatch.chdir(clone / "coga")
+    deleted = runner.invoke(app, ["delete", slug])
+    assert deleted.exit_code == 0, deleted.output
+    git.sync_coga_state(load_config(clone / "coga"))
+
+    assert not git_repo.origin_tracks(rel)
+    assert f"Ticket: {slug} — deleted" in git_repo.origin_subjects()
+    assert git_repo.git("rev-parse", "HEAD").strip() == primary_tip
+    assert git_repo.git("rev-parse", "main").strip() == primary_tip
+    assert primary_ticket.is_file()
+    assert git_repo.git("status", "--porcelain", cwd=git_repo.root) == ""
+    assert not (clone / rel).exists()
+    assert git_repo.git("status", "--porcelain", cwd=clone) == ""
+
+
 # --- non-interactive git (no credential-prompt hangs) -------------------------
 #
 # Regression: coga's git sync runs unattended inside `coga launch` / `bump` /
@@ -2004,3 +2102,84 @@ def test_stale_probe_empty_without_remote_tracking_ref(git_repo):
     git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
 
     assert git.stale_coga_task_rels(cfg) == []
+
+
+# --- summarize_git_failure (conflict-noise distillation) ------------------------
+
+
+def test_summarize_git_failure_keeps_only_actionable_lines():
+    """Rebase spew (progress, hints, autostash notes) collapses to the
+    `error:` + `CONFLICT` lines a human acts on."""
+    raw = dedent(
+        """
+        Rebasing (1/14)
+        Rebasing (2/14)
+        error: could not apply 09b7e643... Ticket: write-real-docs — active
+        hint: Resolve all conflicts manually, mark them as resolved with
+        hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+        hint: You can instead skip this commit: run "git rebase --skip".
+        Could not apply 09b7e643... Ticket: write-real-docs — active
+        Created autostash: 99273fe4
+        Auto-merging coga/log.md
+        Auto-merging coga/tasks/write-real-docs.md
+        CONFLICT (content): Merge conflict in coga/tasks/write-real-docs.md
+        """
+    )
+    summary = git.summarize_git_failure(raw)
+    assert "error: could not apply 09b7e643" in summary
+    assert "CONFLICT (content): Merge conflict in coga/tasks/write-real-docs.md" in summary
+    assert "Rebasing" not in summary
+    assert "hint:" not in summary
+    assert "autostash" not in summary
+    assert "Auto-merging" not in summary
+
+
+def test_summarize_git_failure_dedupes_and_handles_progress_carriage_returns():
+    raw = (
+        "Rebasing (1/2)\rRebasing (2/2)\rerror: could not apply abc123... x\n"
+        "error: could not apply abc123... x\n"
+    )
+    assert git.summarize_git_failure(raw) == "error: could not apply abc123... x"
+
+
+def test_summarize_git_failure_falls_back_to_last_line():
+    """An unrecognized failure shape is never silently emptied."""
+    assert (
+        git.summarize_git_failure("some odd message\nfinal line\n") == "final line"
+    )
+    assert git.summarize_git_failure("") == ""
+
+
+def test_cli_main_skips_end_of_command_sweep_on_stale_control_exit(monkeypatch):
+    """A stale-control refusal must not be chased by the end-of-command state
+    sweep: its rebase onto the control tip would re-fail against the same
+    divergence and its local commit would deepen it by one per failed run.
+    Every other exit keeps the sweep."""
+    from types import SimpleNamespace
+
+    from coga import cli
+
+    calls: list[object] = []
+    cfg = SimpleNamespace(aliases={})
+    monkeypatch.setattr(cli, "find_repo_root", lambda: None)
+    monkeypatch.setattr(cli, "load_config", lambda **k: cfg)
+    monkeypatch.setattr(cli, "_register_alias_placeholder", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "_sweep_coga_state", lambda c: calls.append(c))
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "recurring"])
+
+    def refuse_stale() -> None:
+        raise SystemExit(git.STALE_CONTROL_EXIT_CODE)
+
+    monkeypatch.setattr(cli, "app", refuse_stale)
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main()
+    assert excinfo.value.code == git.STALE_CONTROL_EXIT_CODE
+    assert calls == []
+
+    def ordinary_failure() -> None:
+        raise SystemExit(1)
+
+    monkeypatch.setattr(cli, "app", ordinary_failure)
+    with pytest.raises(SystemExit):
+        cli.main()
+    assert calls == [cfg]

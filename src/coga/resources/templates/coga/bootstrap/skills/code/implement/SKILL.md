@@ -28,9 +28,11 @@ later `code/open-pr` step does that, after self-review and fixes.
    `git worktree add ../coga-<branch-name> -b <branch-name> main`.
    Pick a short descriptive branch name — it does
    *not* have to match the slug. Then return to the primary checkout and
-   write `branch: <branch-name>` and `worktree: <path>` under a `## Dev`
-   section on the blackboard. See the `dev/code` context for the full
-   convention.
+   write the machine-readable fields `branch: <branch-name>` and
+   `worktree: <path>` under a `## Dev` section on the blackboard. Keep trailing
+   annotations on a separate line, or backtick-delimit the value first (for
+   example, ``worktree: `/path with spaces` (other repo)``). See the `dev/code`
+   context for the full convention.
 
    **Read-only Git fallback.** A managed agent sandbox may allow source edits
    while mounting the primary checkout's `.git` metadata read-only. If

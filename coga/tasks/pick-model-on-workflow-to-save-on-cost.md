@@ -1,11 +1,11 @@
 ---
-slug: headless-uspto-api-important-webhook
-title: headless-uspto-api-important-webhook
+slug: pick-model-on-workflow-to-save-on-cost
+title: pick model on workflow to save on cost
 status: draft
-owner: zach
-human: zach
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: zach
+assignee: nicktoper
 contexts: []
 skills: []
 workflow: null

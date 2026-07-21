@@ -450,6 +450,16 @@ overwriting local edits. A refused fast-forward is a stderr note, never a
 crash — origin already has the commit; preserving the attached checkout's
 file/index coherence is required, the local ref update stays best-effort.
 
+Retro's direct-delete path is the deliberate exception. From a verified linked
+worktree it runs `coga delete <slug> --keep-control-checkout`: the scoped
+deletion still commits and pushes to the remote control branch, but
+`sync_paths(update_local_control_ref=False)` skips `_try_update_local_ref`, so
+the operator's checkout holding `main` does not have its ref, index, or files
+moved underneath concurrent work. Ordinary `coga delete` keeps the normal
+best-effort local refresh. Retro's independent-clone fallback uses that ordinary
+form: its local control ref belongs to the temporary clone, so refreshing it
+cannot move the operator's checkout.
+
 Scope is narrow. `src/coga/git.py::sync_task_state(cfg, task_path, *,
 message)` stages and commits only the task directory pathspec. It must not use
 `git add -A`, and it must not sweep unrelated unstaged or pre-staged files into
@@ -554,6 +564,17 @@ Failure model:
   be enabled, the control branch checked out, and the fetched control tip
   successfully integrated. That failure skips the repo before any recurring
   period mutation and remains non-fatal to later repos in the parent sweep.
+  The refusal is reported exactly once, distilled to the `error:`/`CONFLICT`
+  lines plus the resolve command (`summarize_git_failure` strips rebase
+  progress and hint noise), and the child exits with
+  `git.STALE_CONTROL_EXIT_CODE` (75, EX_TEMPFAIL — far from common user-script
+  codes). That code tells the wrapping layers the checkout is already known
+  diverged and nothing was mutated, so launch's post-exit control refresh
+  (bootstrap scripts only — the exit-code contract is coga-owned) and the CLI
+  end-of-command state sweep both stand down instead of re-failing against the
+  same divergence: without this, each failed sweep re-dumped the conflict
+  twice more and stacked one more local `Sync coga state` commit onto the
+  divergence a human must eventually rebase away.
   Mid-workflow syncs (`coga bump`, `mark`, the catch-all state sweep, and
   recurring task-state writes after entry) remain non-fatal.
 
