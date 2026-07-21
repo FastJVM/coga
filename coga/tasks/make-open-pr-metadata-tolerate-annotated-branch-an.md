@@ -1,7 +1,7 @@
 ---
 slug: make-open-pr-metadata-tolerate-annotated-branch-an
 title: Make open-pr metadata tolerate annotated branch and worktree values
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -27,7 +27,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description
@@ -105,4 +104,65 @@ targets — the ticket is not obsoleted by it.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+pr: https://github.com/FastJVM/coga/pull/600
+(merged on origin/main; the ticket was completed by a parallel checkout —
+see `## Already satisfied` below)
+
+## Already satisfied
+
+The full change already landed on `origin/main` as PR #600, "Tolerate
+annotated open-pr metadata" (commit `36fb9d9f`). Origin's history even shows
+this very ticket slug progressing through its workflow there
+(`Ticket: make-open-pr-metadata-tolerate-annotated-branch-an — step 4
+(review)`); this local checkout's `main` and ticket state were simply stale.
+Per-acceptance-item evidence, all verified in `FETCH_HEAD` (= origin/main):
+
+- Annotated backtick branch parsing: `src/coga/autoclose.py`
+  `parse_branch_name()` delimits a leading backtick through the matching
+  close; covered by `test_parse_branch_name_backtick_wrapped_with_annotation`
+  and `..._unclosed_backtick_falls_back_to_bare_form` in
+  `tests/test_autoclose.py`.
+- Worktree paths with spaces, bare and annotated:
+  `test_parse_worktree_path_bare_form_preserves_spaces`,
+  `..._backtick_wrapped_with_annotation`, `..._unclosed_backtick_falls_back`,
+  and the placeholder check runs on the extracted value
+  (`..._annotated_placeholder_is_none`).
+- Bare / list-prefixed / backtick-only compatibility: existing forms all
+  covered in the same test module.
+- open-pr recipe works with annotated quoted metadata:
+  `tests/test_open_pr.py::test_open_pr_uses_annotated_quoted_dev_metadata`.
+- Guidance: `coga/contexts/dev/code/SKILL.md` (canonical) calls
+  `branch:`/`worktree:` machine-readable and shows both annotation forms;
+  packaged bootstrap copy and the implement/open-pr skills (live + packaged)
+  updated too; `src/coga/open_pr.py` failure hints name the backtick fix for
+  both branch and worktree.
+
+Session cleanup: I had independently implemented the same fix on a
+`open-pr-annotated-metadata` branch/worktree before discovering PR #600 during
+the pre-handoff freshen; the duplicate branch and worktree were deleted,
+nothing pushed.
+
+Note for the owner: local `main` here has diverged from `origin/main`
+(~3 local-only state commits vs ~37 on origin, including this ticket's own
+origin-side progression to step 4) — a rebase replays conflicting `coga/log.md`
+state commits. The control-plane checkout needs a manual sync; out of scope for
+this session.
+
+Note: the ticket context mentions a duplicated `recipe.py` in the bootstrap
+tree; that is stale — the recipe now lives in `src/coga/open_pr.py`
+(core package only), and the bootstrap open-pr skill dir holds just SKILL.md.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-21T01:14:21+00:00
+Command: `coga validate --json --fix`
+Task: `make-open-pr-metadata-tolerate-annotated-branch-an`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
