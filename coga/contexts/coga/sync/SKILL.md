@@ -564,6 +564,17 @@ Failure model:
   be enabled, the control branch checked out, and the fetched control tip
   successfully integrated. That failure skips the repo before any recurring
   period mutation and remains non-fatal to later repos in the parent sweep.
+  The refusal is reported exactly once, distilled to the `error:`/`CONFLICT`
+  lines plus the resolve command (`summarize_git_failure` strips rebase
+  progress and hint noise), and the child exits with
+  `git.STALE_CONTROL_EXIT_CODE` (75, EX_TEMPFAIL — far from common user-script
+  codes). That code tells the wrapping layers the checkout is already known
+  diverged and nothing was mutated, so launch's post-exit control refresh
+  (bootstrap scripts only — the exit-code contract is coga-owned) and the CLI
+  end-of-command state sweep both stand down instead of re-failing against the
+  same divergence: without this, each failed sweep re-dumped the conflict
+  twice more and stacked one more local `Sync coga state` commit onto the
+  divergence a human must eventually rebase away.
   Mid-workflow syncs (`coga bump`, `mark`, the catch-all state sweep, and
   recurring task-state writes after entry) remain non-fatal.
 

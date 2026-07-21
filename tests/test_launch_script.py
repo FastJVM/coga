@@ -433,3 +433,58 @@ def test_failed_script_launch_does_not_signal_done_sentinel(
 
     assert result.exit_code == 3
     assert not sentinel.exists()
+
+
+def test_bootstrap_script_stale_control_exit_skips_refresh(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bootstrap script refusing for a stale control checkout published
+    nothing, and the post-exit control refresh would re-fail against the same
+    divergence — so it is skipped for exactly this coga-owned exit code."""
+    from coga import git as coga_git
+    from coga.commands import launch_script
+
+    refreshed: list[Path] = []
+    monkeypatch.setattr(
+        "coga.git.refresh_coga_state_from_control",
+        lambda cfg, **kwargs: refreshed.append(cfg.repo_root),
+    )
+
+    def refuse_stale(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        raise SystemExit(coga_git.STALE_CONTROL_EXIT_CODE)
+
+    monkeypatch.setattr(launch_script, "run_script_mode", refuse_stale)
+
+    result = CliRunner().invoke(app, ["launch", "bootstrap/recurring-scan"])
+
+    assert result.exit_code == coga_git.STALE_CONTROL_EXIT_CODE
+    assert refreshed == []
+
+
+def test_user_script_with_stale_control_code_still_refreshes(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stale-control exit contract is coga's own, scoped to bootstrap
+    scripts: a user ticket script that happens to exit with the same number
+    keeps the unconditional post-exit refresh."""
+    from coga import git as coga_git
+
+    script = repo / "skills" / "ops" / "checker" / "check.sh"
+    script.write_text(f"#!/bin/sh\nexit {coga_git.STALE_CONTROL_EXIT_CODE}\n")
+    script.chmod(0o755)
+    refreshed: list[Path] = []
+    monkeypatch.setattr(
+        "coga.git.refresh_coga_state_from_control",
+        lambda cfg, **kwargs: refreshed.append(cfg.repo_root),
+    )
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Fail", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fail"])
+
+    assert result.exit_code == coga_git.STALE_CONTROL_EXIT_CODE
+    assert len(refreshed) == 1

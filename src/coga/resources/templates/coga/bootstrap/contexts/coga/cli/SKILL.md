@@ -706,7 +706,11 @@ gate: `[git]` must be enabled, the configured control branch must be checked
 out, and its pre-scan fetch/rebase must succeed before period state is read or
 written. TOML parse errors and operational failures remain loud; one selected
 repo's failure does not starve later repos, but the parent exits non-zero after
-reporting the aggregate. This keeps schedules, task state, config, Slack, and
+reporting the aggregate, naming each failed repo in the summary. A gate
+refusal (a diverged control checkout) is reported once, distilled to the
+conflict lines plus the exact resolve command — no rebase progress spew, no
+follow-up refresh/sync attempts re-failing against the same divergence, and no
+new local commits deepening it. This keeps schedules, task state, config, Slack, and
 git sync owned by each repo while allowing one cron entry such as `coga
 recurring --all ~/Code` without racing two checkouts of one remote workspace.
 

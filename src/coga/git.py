@@ -103,6 +103,20 @@ from coga.ticket import Ticket, TicketError
 # (the coga launch auto-chain, manual commands).
 _MAX_SYNC_ATTEMPTS = 5
 
+# Process exit code meaning "refused because the control checkout could not
+# integrate the latest control tip; nothing was mutated". The recurring-scan
+# freshness gate exits with it, and the layers wrapping a launch key off it to
+# skip their post-run git catch-up (launch's control refresh — bootstrap-script
+# launches only, since bootstrap scripts are coga-owned — and the CLI
+# end-of-command state sweep): on a checkout already known to be diverged those
+# attempts are guaranteed to fail — re-dumping the same conflict — and the
+# end-of-command sweep would stack a new local commit per failed run, deepening
+# the divergence a human must eventually resolve. 75 is BSD's EX_TEMPFAIL
+# ("temporary failure, retry later"), deliberately far from the small codes
+# user ticket scripts commonly exit with, so an ordinary script failure is
+# never mistaken for this refusal.
+STALE_CONTROL_EXIT_CODE = 75
+
 _ROOT_LAYOUT_COGA_PATHS = (
     "coga.toml",
     "context.md",
@@ -134,6 +148,40 @@ class GitError(Exception):
 
 class StateRegressionError(GitError):
     """Raised when catch-all Coga-state sync would commit stale task state."""
+
+
+def summarize_git_failure(output: str) -> str:
+    """Distill raw git failure output to the lines a human acts on.
+
+    A failed rebase/merge dumps per-commit progress (`Rebasing (1/14)`),
+    `Auto-merging` lines, autostash notes, and multi-line `hint:` blocks around
+    the two lines that matter: `error:`/`fatal:` and `CONFLICT … in <file>`.
+    Coga error paths embed this output verbatim into messages that then get
+    printed by several layers, so one conflict became ~60 lines of spew. Keep
+    only the actionable lines (deduped, order preserved); fall back to the last
+    non-empty line so an unrecognized failure is never silently emptied.
+    """
+    keep: list[str] = []
+    seen: set[str] = set()
+    last_nonempty = ""
+    for raw in output.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        # `git rebase` progress rides carriage returns on one line; the last
+        # segment is the real message.
+        line = line.split("\r")[-1].strip()
+        if line:
+            last_nonempty = line
+        if (
+            line.startswith(("error:", "fatal:", "CONFLICT"))
+            and line not in seen
+        ):
+            seen.add(line)
+            keep.append(line)
+    if not keep:
+        return last_nonempty
+    return "; ".join(keep)
 
 
 @dataclass(frozen=True)
@@ -1100,7 +1148,7 @@ def _rebase_onto_remote(
         _restore_to_orig(root, orig, stashed=stashed)
         raise GitError(
             f"could not rebase {branch!r} onto {remote}/{branch}: "
-            f"{(rebase.stderr + rebase.stdout).strip()}"
+            f"{summarize_git_failure(rebase.stderr + rebase.stdout)}"
         )
 
     if stashed and not _pop_stash(root):
@@ -1639,7 +1687,7 @@ def _run_git(root: Path, *args: str, env: dict[str, str] | None = None) -> str:
     if result.returncode != 0:
         raise GitError(
             f"`git {' '.join(args)}` failed (exit {result.returncode}): "
-            f"{result.stderr.strip() or result.stdout.strip()}"
+            f"{summarize_git_failure(result.stderr) or summarize_git_failure(result.stdout)}"
         )
     return result.stdout
 

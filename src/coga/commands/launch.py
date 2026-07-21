@@ -383,11 +383,23 @@ def launch(
 
         signal.signal(signal.SIGINT, _on_signal)
         signal.signal(signal.SIGTERM, _on_signal)
-    except BaseException:
+    except BaseException as exc:
         # Setup can exit after state was already published (the auto-activate
         # or in_progress flip, a failed script step) — pull that state back
-        # into the launch checkout before surfacing the exit.
-        _refresh_launch_checkout(cfg)
+        # into the launch checkout before surfacing the exit. The one
+        # exception: a *bootstrap* script (coga-owned, so the exit-code
+        # contract is ours) that refused because the control checkout is
+        # stale/diverged (`git.STALE_CONTROL_EXIT_CODE`) published nothing,
+        # and the refresh's ff-merge is guaranteed to fail against the same
+        # divergence — it would only re-dump the conflict the script already
+        # reported. A user ticket script exiting with the same number keeps
+        # the unconditional refresh.
+        if not (
+            is_bootstrap
+            and isinstance(exc, SystemExit)
+            and exc.code == git.STALE_CONTROL_EXIT_CODE
+        ):
+            _refresh_launch_checkout(cfg)
         raise
 
     try:
