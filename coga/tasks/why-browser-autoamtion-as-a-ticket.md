@@ -1,7 +1,7 @@
 ---
 slug: why-browser-autoamtion-as-a-ticket
 title: why browser autoamtion as a ticket
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
