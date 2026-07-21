@@ -21,7 +21,6 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
         "status",
         "show",
         "bump",
-        "open-pr",
         "block",
         "unblock",
         "delete",
@@ -50,7 +49,10 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
 # recurring launch dream``. ``build`` is similarly the first-run alias for
 # ``launch coga-build``. ``skill-update`` and ``autoclose`` launch ordinary
 # recurring tasks on demand, while ``pick`` is the short spelling for the
-# interactive megalaunch picker.
+# interactive megalaunch picker. ``open-pr`` fronts the ``bootstrap/open-pr``
+# command ticket — the argv rewrite carries the task ref through to the
+# launch arg channel (``coga open-pr <slug>`` → ``launch bootstrap/open-pr
+# <slug>`` → ``COGA_ARG_1``).
 DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
@@ -58,6 +60,7 @@ DEFAULT_ALIASES: dict[str, str] = {
     "skill-update": "recurring launch skill-update",
     "autoclose": "recurring launch autoclose-merged",
     "pick": "megalaunch --pick",
+    "open-pr": "launch bootstrap/open-pr",
 }
 
 

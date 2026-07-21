@@ -1,10 +1,14 @@
 """Push a code ticket's branch and open (or ready) its PR.
 
-`coga open-pr` calls this deterministic recipe from the ordinary agent-owned
-open-pr step. Every operational refusal raises `OpenPrError`, which the command
-renders as a concise non-zero exit. The workflow's `requires: pr` completion
-gate is separate: `coga bump` advances only after this recipe records the PR URL
-under `## Dev`.
+The deterministic recipe behind the `bootstrap/open-pr` command ticket:
+`coga open-pr <slug>` (a default alias for `coga launch bootstrap/open-pr
+<slug>`) runs the sibling `run.py`, which resolves the target task and calls
+`open_pr()` here. The ordinary agent-owned open-pr step runs that spelling.
+Every operational refusal raises `OpenPrError`, which the seam renders as a
+concise non-zero exit. The workflow's `requires: pr` completion gate is
+separate: `coga bump` advances only after this recipe records the PR URL
+under `## Dev`. Like any command-ticket recipe, it imports shared core infra
+(`coga.autoclose` parsers, `coga.github_preflight`, `coga.taskfile`) freely.
 """
 
 from __future__ import annotations
