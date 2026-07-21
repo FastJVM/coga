@@ -60,6 +60,7 @@ in the same change.
 ## Dev
 
 - branch: claude/create-prefix-guard
+- pr: https://github.com/FastJVM/coga/pull/621
 
 ## Implementation notes (2026-07-20, attended orient session)
 
