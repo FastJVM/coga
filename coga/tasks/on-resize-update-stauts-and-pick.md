@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -107,7 +107,7 @@ Test-harness impact: `_feed_keys` in tests/test_megalaunch.py stubs
 `_read_key` with a zero-arg lambda; widened to take the new resize-fd
 parameter.
 
-## Implemented (commit 615053b3 on the branch)
+## Implemented (commit d7636fb7 after peer-review rebase)
 
 - `_read_key(resize_fd)` selects on `[stdin, resize_fd]`; a wakeup byte is
   drained and returned as "resize". `_pick_selection` owns the
@@ -142,6 +142,31 @@ parameter.
 branch: picker-sigwinch-redraw
 worktree: /home/n/Code/codex/coga-picker-sigwinch-redraw
 
+## Peer review
+
+- `codex review --base main`: no findings. The review confirmed that the
+  self-pipe wakes the blocked key reader, pending input survives a resize, and
+  terminal/signal state is restored on normal exit paths.
+- Fetched `origin/main` and rebased unconditionally onto `64450793`; the branch
+  is clean, one commit ahead, and zero commits behind.
+- Post-rebase verification: `python -m pytest` — 1372 passed, 1 skipped;
+  `git diff --check` — clean.
+
+## PR
+
+### Summary
+
+- Redraw the interactive megalaunch picker immediately when SIGWINCH changes
+  the terminal dimensions, without waiting for another keypress.
+- Route resize notifications through a self-pipe so Rich re-renders only after
+  raw mode is restored, and preserve queued key input across redraws.
+- Cover resize priority, picker-state preservation, and SIGWINCH-handler
+  restoration with focused tests.
+
+### Test plan
+
+`python -m pytest` (1372 passed, 1 skipped).
+
 ## Dream Skill: validate-drift
 
 Generated: 2026-07-21T04:33:08+00:00
@@ -159,6 +184,34 @@ Result: no remaining validation drift found.
 ## Dream Skill: validate-drift
 
 Generated: 2026-07-21T04:35:03+00:00
+Command: `coga validate --json --fix`
+Task: `on-resize-update-stauts-and-pick`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-21T04:40:28+00:00
+Command: `coga validate --json --fix`
+Task: `on-resize-update-stauts-and-pick`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-21T04:42:48+00:00
 Command: `coga validate --json --fix`
 Task: `on-resize-update-stauts-and-pick`
 
