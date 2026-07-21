@@ -37,13 +37,12 @@ which is what licenses the scan to replace a prior-period `done` task and
 Dream's retro pass to direct-delete finished period tasks without a PR. A
 hand-authored task never gets that treatment.
 
-A directory whose name starts with `_` (`_template/`, `_rem/`) is inert — the
-scanner skips it. That is how the starter templates ship without firing, and
-also how you park a live template without deleting it: rename `foo/` to
-`_foo/`. `_template/` itself is pure convenience — a pre-filled frontmatter
-shape to copy. Nothing depends on it existing; the whole mechanism is
+A directory whose name starts with `_` (e.g. `_rem/`) is inert — the scanner
+skips it. That is how you park a template without deleting it: rename `foo/`
+to `_foo/`. There is no starter `_template/` directory; the whole mechanism is
 "non-underscore directory under `coga/recurring/` with a `schedule:` in its
-`ticket.md`".
+`ticket.md`", and the frontmatter shape is documented in this context (see
+the example under "Extend recurring with a task-specific workflow").
 
 - `coga recurring` (bare) — the public command head parses `--interactive`
   and `--force`, then launches the package-backed `bootstrap/recurring-scan`
@@ -139,8 +138,9 @@ To schedule a task-specific workflow:
 
 1. Define the workflow and any skills or contexts through their ordinary Coga
    paths.
-2. Copy `coga/recurring/_template/` (or `_rem/`) to a non-underscore directory
-   such as `coga/recurring/weekly-deliverability/`.
+2. Create a non-underscore directory such as
+   `coga/recurring/weekly-deliverability/` with a `ticket.md` — copy an
+   existing template (e.g. `skill-update/`) or start from the example below.
 3. Set the template's `schedule:`, explicit `workflow:`, `contexts:`, and role
    fields, then replace its `## Description` with the per-firing instructions.
 4. Run `coga validate --json`, then use
