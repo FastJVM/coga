@@ -36,6 +36,6 @@ Facts learned across tasks (conductor-report 2026-06, coga-crm
 
 ## What this context does NOT cover
 
-Workflow process for authoring documents — that's
-`coga/workflows/docs/create-google-doc.md`. Google Sheets API or
-Apps Script (not available via this MCP server).
+Workflow process for authoring documents — that's the package-backed
+`docs/create-google-doc` workflow under `bootstrap/workflows/`. Google Sheets
+API or Apps Script (not available via this MCP server).
