@@ -189,6 +189,17 @@ def test_done_ticket_branch_not_protected(repo: Path, monkeypatch) -> None:
     assert result.remote_deleted == ["feat"]
 
 
+def test_canceled_ticket_branch_not_protected(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    _write_ticket(repo, "declined", status="canceled", branch="feat")
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == ["feat"]
+
+
 def test_never_deletes_control_branch(repo: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         bs,

@@ -1,7 +1,7 @@
 """`coga digest` — post one outcome-focused daily Slack digest.
 
-This is the **consumer** half of the daily-digest pipeline. Done events and
-recurring scan errors spool structured JSONL records into the dedicated
+This is the **consumer** half of the daily-digest pipeline. Done/canceled
+events and recurring scan errors spool structured JSONL records into the dedicated
 `recurring/digest/spool.md` file as they happen (see
 `coga.notification.notify`). Once a day the digest recurring ticket fires, and
 its script step runs this command:
@@ -38,6 +38,7 @@ from coga import spool
 from coga.atomicio import atomic_write_text
 from coga.config import ConfigError, load_config
 from coga.notification import (
+    DIGEST_EVENT_KINDS,
     dedupe_records,
     digest_spool_path,
     digest_state_path,
@@ -107,7 +108,7 @@ def run_digest(cfg, *, quiet_empty: bool = True) -> bool:
         raise typer.Exit(1) from exc
 
     renderable_records = [
-        rec for rec in records if rec.get("kind") in {"done", "recurring-error"}
+        rec for rec in records if rec.get("kind") in DIGEST_EVENT_KINDS
     ]
     should_post = bool(renderable_records or merged)
     date_label = datetime.now().strftime("%Y-%m-%d")

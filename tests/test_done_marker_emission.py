@@ -1,14 +1,15 @@
 """Tests for the session-done signal on session-ending commands.
 
-`coga bump`, `coga mark done`, and `coga block` signal the supervising
+`coga bump`, `coga mark done`, `coga mark canceled`, and `coga block` signal
+the supervising
 `coga launch` that the session is over so it can SIGTERM the agent's REPL
 (see `coga.repl_supervisor`). The signal travels over the *sentinel file*
 (`$COGA_DONE_SENTINEL`) and nothing else: a success writes the task's
 `id_slug` into the file, scoped to this session. The slug (not the resolved
 path) is what makes the signal survive a bump run from a different checkout
 of the repo, where the same ticket lives at two absolute paths. Other
-transitions (`mark
-active`, `mark paused`, or any error path) must NOT write it at all — the
+transitions (`mark active`, `mark paused`, or any error path) must NOT write
+it at all — the
 session is not over.
 """
 
@@ -207,8 +208,28 @@ def test_mark_done_error_does_not_signal(repo: Path, sentinel: Path) -> None:
     assert not sentinel.exists()
 
 
+def test_mark_canceled_success_signals_via_sentinel(
+    repo: Path, sentinel: Path
+) -> None:
+    slug, _ = _make_task(repo, status="active")
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "Owner declined"]
+    )
+    assert result.exit_code == 0, result.output
+    assert sentinel.read_text().strip() == slug
+
+
+def test_mark_canceled_error_does_not_signal(repo: Path, sentinel: Path) -> None:
+    slug, _ = _make_task(repo, status="active")
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "   "]
+    )
+    assert result.exit_code == 2
+    assert not sentinel.exists()
+
+
 def test_mark_active_does_not_signal(repo: Path, sentinel: Path) -> None:
-    """Only the terminal `mark done` transition signals session end."""
+    """Non-terminal mark transitions do not signal session end."""
     slug, _ = _make_task(repo, status="draft")
     result = CliRunner().invoke(app, ["mark", "active", slug])
     assert result.exit_code == 0, result.output

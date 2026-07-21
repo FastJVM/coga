@@ -238,12 +238,12 @@ make.
 
 The rule is symmetric, and `coga validate` enforces the other half: a
 workflow is mandatory everywhere *except* `draft`. A workflow-less
-`active`/`in_progress`/`paused` ticket is a structurally stuck task that no
-`coga bump` can advance, so the validator reports it as an **error**
+`active`/`in_progress`/`blocked`/`paused` ticket is a structurally stuck task
+that no `coga bump` can advance, so the validator reports it as an **error**
 (`active-no-workflow`) — the activation gate and the validator now agree
 instead of the validator nagging the one state (`draft`) where workflow-less
-is allowed. A workflow-less `done` ticket is finished and immutable, so it is
-left alone.
+is allowed. A workflow-less terminal ticket (`done` or `canceled`) is closed,
+so it is left alone.
 
 `coga ticket` (guided authoring) fills the workflow in through its
 interview skill. The `bootstrap/recurring-scan` script target, on-demand
@@ -262,17 +262,21 @@ bundled refs may replace that list with specific cleanup instructions.
 
 ## Two state machines per ticket
 
-- **Control plane (`status`)** — `draft → active → in_progress →
-  done`, plus `paused` and `blocked`. Governs *whether* work happens.
-  `coga mark` owns the `draft`/`active`/`paused`/`done` transitions;
+- **Control plane (`status`)** — `draft`, `active`, `in_progress`, `paused`,
+  and `blocked`, plus the terminal outcomes `done` and `canceled`. Governs
+  *whether* work happens. `coga mark` owns the
+  `draft`/`active`/`paused`/`done`/`canceled` transitions;
   `coga block` owns the `blocked` transition, and `coga unblock` resolves
   open blocker asks and moves `blocked → active` while preserving `step:`.
   `coga launch`
   flips an `active` ticket to `in_progress` when it spawns the agent, and —
   since launching is itself the readiness signal — also performs the
   `mark active` step inline for a ticket that is still `draft` or `paused`
-  before that flip. A `done` ticket is finished: launch refuses it and leaves
-  it untouched rather than restarting its workflow. A `blocked` ticket is
+  before that flip. `coga mark canceled <ticket> --message "<reason>"` accepts
+  every non-terminal status, requires the audit reason, and clears `step:`.
+  Cancellation from `blocked` leaves the blocker text as historical blackboard
+  context. Both `done` and `canceled` are terminal: launch refuses them and no
+  transition reactivates a canceled ticket. A `blocked` ticket is
   waiting on a concrete answer; an **interactive** launch from a TTY resumes
   it inline (`blocked → active → in_progress`, `step:` preserved) and the
   composed prompt gains a resolve-or-re-block preamble listing the open asks
@@ -287,7 +291,7 @@ bundled refs may replace that list with specific cleanup instructions.
   Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when
   status is `in_progress`. Bare `coga bump` advances one step; a human
   outside a supervised launch may rewind to an earlier step with `--to` or
-  `--backward`. Pausing preserves the step; marking done clears it.
+  `--backward`. Pausing preserves the step; marking done or canceled clears it.
 
 Tickets without a `workflow` field have no steps and move through
 statuses directly via `coga mark`. `coga bump` refuses them.
@@ -318,8 +322,8 @@ proceed without more human input.
 
 **Agent launches** compose the prompt and spawn the assignee's agent CLI in a
 live REPL. They require stdin and stdout to be TTYs. The REPL
-does not terminate on its own: `coga bump`, `coga mark done`, and
-`coga block` signal the launch supervisor via the session-scoped
+does not terminate on its own: `coga bump`, `coga mark done`, `coga mark
+canceled`, and `coga block` signal the launch supervisor via the session-scoped
 `$COGA_DONE_SENTINEL` file, and the supervisor tears the REPL down. (A
 successful script launch signals the same slug-scoped channel after its step
 advance — the advance is that launch's `coga bump` — so an agent driving its
@@ -406,7 +410,8 @@ uses a TTY for live streaming and human interruption, but the TTY is transport,
 not an attending human, so queue execution must not pause for plan approval or
 wait on a question. The agent proceeds on reasonable assumptions, and when
 unavailable input truly prevents progress it runs a terminal `coga block` so
-the owner is notified; only `bump`, `mark done`, or `block` releases the queue.
+the owner is notified; only `bump`, `mark done`, `mark canceled`, or `block`
+releases the queue.
 The narrow exception is a blocked task the human explicitly picked for
 resolution: its composed resolve-or-re-block preamble may discuss those
 already-open asks with the picker, then unblock and continue or terminally
@@ -457,14 +462,14 @@ returns the assembled prompt verbatim with no defusal step.
 ## Status is the signal
 
 There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
-`in_progress`, `paused`, `done`) is the signal that someone is — or
-isn't — working on a task. `coga launch` accepts an `active` or
+`in_progress`, `blocked`, `paused`, `done`, `canceled`) is the signal that
+someone is — or isn't — working on a task. `coga launch` accepts an `active` or
 `in_progress` ticket directly, and treats a launch of `draft` or `paused` as
 the readiness decision itself: the ticket is run through `coga mark active`
-inline before the agent starts. A `done` ticket is refused and left untouched;
-launching a finished ticket must not restart its workflow. A workflow-less or
-required-extension-incomplete ticket still can't be activated, so those
-launches fail loud with the same remedy `mark active` gives. The failure mode
+inline before the agent starts. Terminal tickets (`done` and `canceled`) are
+refused and left untouched; launching one must not restart its workflow. A
+workflow-less or required-extension-incomplete ticket still can't be activated,
+so those launches fail loud with the same remedy `mark active` gives. The failure mode
 of two divergent workers (two blackboard edits, two PR branches) is visible
 and recoverable in git; the cost of a hard mutex (stale lock files, `--force`
 flags, orphan-lock cleanup) is not.

@@ -332,11 +332,15 @@ def test_sweep_merged_skips_ticket_without_pr(
     assert calls == []  # pr_state never called
 
 
-def test_sweep_merged_skips_already_done(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("terminal_status", ["done", "canceled"])
+def test_sweep_merged_skips_terminal_ticket(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, terminal_status: str
 ) -> None:
     slug, path = _make_task(
-        repo, on_final=True, status="done", pr_url="https://github.com/o/r/pull/11"
+        repo,
+        on_final=True,
+        status=terminal_status,
+        pr_url="https://github.com/o/r/pull/11",
     )
     calls = _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/11": "MERGED"})
 
@@ -344,7 +348,7 @@ def test_sweep_merged_skips_already_done(
     count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 0
-    # `done` filtered before any gh call.
+    # Terminal statuses are filtered before any gh call.
     assert calls == []
 
 

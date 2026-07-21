@@ -134,6 +134,25 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket.secrets is None
 
 
+def test_create_canceled_ticket_has_no_workflow_step(repo: Path) -> None:
+    cfg = load_config(repo)
+
+    ref = create_task(
+        cfg=cfg,
+        title="Declined finding",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="canceled",
+    )
+
+    ticket = Ticket.read(ref["path"])
+    assert ticket.status == "canceled"
+    assert ticket.step is None
+
+
 def test_create_preserves_secret_declaration(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(repo)
     cfg = load_config(repo)

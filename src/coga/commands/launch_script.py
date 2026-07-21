@@ -19,6 +19,7 @@ from coga.bump import (
 )
 from coga.compose import _extract_section
 from coga.config import Config, SecretError, build_launch_env
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log
 from coga.mark import StrandedProductCode, mark_done, mark_in_progress
 from coga.paths import log_path, resolve_skill_path, skill_resolution_paths
@@ -273,13 +274,18 @@ def run_script_mode(
     # picks up the script's blackboard edit; the frontmatter the writers mutate
     # (status / step) is unchanged by the script, so nothing is lost.
     if ref.ticket_path.exists():
-        _advance_after_script(cfg, ref, Ticket.read(ref.ticket_path))
+        after_script = Ticket.read(ref.ticket_path)
+        # A script may deliberately close its own ticket (notably via
+        # `coga mark canceled`). Never recreate `step:` or reinterpret that
+        # terminal outcome as script completion during automatic advancement.
+        if after_script.status not in TERMINAL_STATUSES:
+            _advance_after_script(cfg, ref, after_script)
 
     # The advance above is this launch's `coga bump`. When the script launch
     # runs nested inside a supervised agent REPL (an agent driving its own
     # script step with `coga launch`), the outer supervisor waits on the
-    # slug-scoped done sentinel that only `coga bump` / `mark done` / `block`
-    # used to write — without this the session hung until a manual Ctrl-C even
+    # slug-scoped done sentinel that `coga bump`, `mark done`, `mark canceled`,
+    # or `block` writes — without this the session hung until a manual Ctrl-C even
     # though the step had advanced. A no-op when no supervisor is watching,
     # and ignored by a supervisor launched for a different task (the sentinel
     # content is this slug). Failure paths `sys.exit` above and never signal.

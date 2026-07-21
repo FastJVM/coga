@@ -129,11 +129,13 @@ task, and Coga refuses to create that situation at activation time.
 
 Every ticket tracks two independent things, and different commands own each:
 
-- **Status — *whether* work happens.** `draft → active → in_progress → done`,
-  plus `paused` and `blocked`. `coga mark` owns the draft/active/paused/done
-  transitions; `coga block` and `coga unblock` own `blocked`; `coga launch`
-  flips `active → in_progress` when it spawns the agent (and activates a draft
-  inline first).
+- **Status — *whether* work happens.** `draft`, `active`, `in_progress`,
+  `paused`, and `blocked`, plus the distinct terminal outcomes `done` and
+  `canceled`. `coga mark` owns active/paused/done/canceled transitions; `coga
+  block` and `coga unblock` own `blocked`; `coga launch` flips `active →
+  in_progress` when it spawns the agent (and activates a draft inline first).
+  Cancellation accepts every non-terminal state, requires a reason, and has no
+  transition back to active.
 - **Step — *where* in the workflow.** Format `N (step-name)`. Owned entirely by
   `coga bump`, and only moves while status is `in_progress`. A bare `coga bump`
   advances one step; a human (outside a supervised launch) can rewind with

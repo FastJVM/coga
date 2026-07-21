@@ -5,7 +5,7 @@ Three ways in, one engine:
 - bare `coga megalaunch` — sweep every launchable `active` or `in_progress`
   task (`active` starts, `in_progress` resumes).
 - `coga megalaunch --pick` — arrow-key picker over every task worth launching
-  (any owner, any status but `done`, drafts included), nothing pre-checked;
+  (any owner, any non-terminal status, drafts included), nothing pre-checked;
   the confirmed set runs staged — prepare (a batch prompt offers to author
   picked drafts) → activate → launch — as an explicit selection (and is saved
   for `--relaunch`).
@@ -59,7 +59,7 @@ def megalaunch(
         "--pick",
         help=(
             "Choose interactively: an arrow-key list of every task worth "
-            "launching (any owner, any status but done, drafts included), "
+            "launching (any owner, any non-terminal status, drafts included), "
             "nothing pre-checked; the confirmed set is prepared (a batch "
             "prompt offers to run the authoring interview on picked drafts), "
             "activated, then launched, and is saved for --relaunch."
@@ -200,7 +200,7 @@ def _resolve_selection(
         )
     candidates = launchable_candidates(cfg, directory=directory)
     if not candidates:
-        typer.echo("No tasks to pick (any status but done; drafts included).")
+        typer.echo("No tasks to pick (terminal tasks excluded; drafts included).")
         return []
     selection = _pick_selection(candidates)
     if selection:

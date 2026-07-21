@@ -168,6 +168,9 @@ with `coga mark done <task>` once it's merged. If your repo runs the
 `autoclose-merged` recurring sweep on a schedule, that sweep will also mark a
 merged ticket `done` on its next run — but that's opt-in maintenance, not
 something that happens on its own (see [Operations](operations.md#recurring-maintenance)).
+If the team intentionally declines the work instead, use
+`coga mark canceled <task> --message "<reason>"`; that terminal outcome stays
+distinct from completed work.
 
 That's the whole loop: **create → launch → the agent works and bumps → you
 review and merge.**

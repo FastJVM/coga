@@ -26,6 +26,7 @@ from coga.autoclose import parse_pr_url, parse_worktree_path
 from coga.config import load_config
 from coga.github_preflight import CheckResult
 from coga.taskfile import read_blackboard
+from coga.ticket import Ticket
 
 _RECIPE = load_bootstrap_recipe("open-pr")
 OpenPrError = _RECIPE.OpenPrError
@@ -161,6 +162,23 @@ def test_open_pr_opens_and_records_url(tmp_path, monkeypatch):
     assert "pr create" in calls
     # pr: recorded back under ## Dev.
     assert parse_pr_url(read_blackboard(ticket)) == url
+
+
+def test_open_pr_refuses_canceled_ticket_before_git_mutation(tmp_path) -> None:
+    repo = init_git_repo(tmp_path)
+    ticket_path = _write_ticket(
+        repo.coga_os,
+        "declined",
+        branch="feature-x",
+        worktree=tmp_path / "missing-worktree",
+    )
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "canceled"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(ticket_path)
+
+    with pytest.raises(OpenPrError, match="status 'canceled' is terminal"):
+        open_pr(load_config(repo.coga_os), slug="declined", blackboard_path=ticket_path)
 
 
 def test_open_pr_uses_annotated_quoted_dev_metadata(tmp_path, monkeypatch):

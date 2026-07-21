@@ -8,10 +8,13 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from coga.blackboard import append_blocker, open_blockers
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
+from coga.mark import CancellationError, mark_active, mark_canceled
 from coga.taskfile import read_blackboard, replace_blackboard
+from coga.tasks import read_ticket, resolve_task
 from coga.ticket import Ticket
 
 
@@ -377,6 +380,138 @@ def test_mark_done_already_done_errors(repo: Path) -> None:
     assert "already 'done'" in result.output
 
 
+# --- mark canceled ------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "status", ["draft", "active", "in_progress", "blocked", "paused"]
+)
+def test_mark_canceled_from_every_non_terminal_status(
+    repo: Path, status: str
+) -> None:
+    slug, task_path = _make_task(repo, status=status)
+
+    result = CliRunner().invoke(
+        app,
+        ["mark", "canceled", slug, "--message", "Decision no longer fits"],
+    )
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "canceled"
+    assert ticket.step is None
+    assert (
+        f"canceled ({status} → canceled): Decision no longer fits"
+        in _read_log(repo)
+    )
+
+
+def test_mark_canceled_accepts_workflow_less_draft(repo: Path) -> None:
+    slug, task_path = _make_task(repo, workflow=None, status="draft")
+
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "Dream finding declined"]
+    )
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "canceled"
+    assert ticket.workflow is None
+    assert ticket.step is None
+
+
+def test_mark_canceled_requires_non_empty_reason(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="draft")
+    runner = CliRunner()
+
+    missing = runner.invoke(app, ["mark", "canceled", slug])
+    blank = runner.invoke(
+        app, ["mark", "canceled", slug, "--message", "   "]
+    )
+
+    assert missing.exit_code == 2
+    assert blank.exit_code == 2
+    assert "--message cannot be empty" in blank.output
+    assert Ticket.read(task_path).status == "draft"
+    assert "→ canceled" not in _read_log(repo)
+
+
+def test_shared_mark_canceled_requires_reason_before_mutating(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="active")
+    cfg = load_config(repo)
+    ref = resolve_task(cfg, slug)
+
+    with pytest.raises(CancellationError, match="reason cannot be empty"):
+        mark_canceled(
+            cfg,
+            ref,
+            read_ticket(ref),
+            actor="human:marc",
+            reason="   ",
+            slack_text="unused",
+            digest_detail="unused",
+        )
+
+    assert Ticket.read(task_path).status == "active"
+
+
+@pytest.mark.parametrize("status", ["done", "canceled"])
+def test_mark_canceled_rejects_terminal_status(repo: Path, status: str) -> None:
+    slug, task_path = _make_task(repo, status=status)
+
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "No longer wanted"]
+    )
+
+    assert result.exit_code == 2
+    assert status in result.output
+    assert Ticket.read(task_path).status == status
+
+
+def test_mark_canceled_from_blocked_preserves_historical_blocker(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="blocked")
+    append_blocker(task_path, "agent:claude", "Which retry ceiling?")
+    before_blackboard = read_blackboard(task_path)
+
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "Declined by owner"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "canceled"
+    assert read_blackboard(task_path) == before_blackboard
+    blockers = open_blockers(task_path)
+    assert len(blockers) == 1
+    assert blockers[0].reason == "Which retry ceiling?"
+
+
+def test_mark_active_from_canceled_errors(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="canceled")
+
+    result = CliRunner().invoke(app, ["mark", "active", slug])
+
+    assert result.exit_code == 2
+    assert "'canceled'" in result.output
+    assert Ticket.read(task_path).status == "canceled"
+
+
+def test_shared_mark_active_refuses_canceled_ticket(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="canceled")
+    cfg = load_config(repo)
+    ref = resolve_task(cfg, slug)
+
+    with pytest.raises(CancellationError, match="cannot be reactivated"):
+        mark_active(
+            cfg,
+            ref,
+            read_ticket(ref),
+            actor="human:marc",
+            log_message="must not land",
+        )
+
+    assert Ticket.read(task_path).status == "canceled"
+
+
 # --- --message ----------------------------------------------------------------
 
 
@@ -494,3 +629,32 @@ def test_mark_done_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
     result = runner.invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
     assert any(f"🎉 claude finished *{slug}*" in m for m in posts)
+
+
+def test_mark_canceled_slack_text_includes_reason(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(repo, status="active")
+    posts: list[str] = []
+
+    def _capture(url, json=None, timeout=None):
+        posts.append(json["text"])
+
+        class R:
+            status_code = 200
+            text = "ok"
+
+        return R()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
+
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "Owner declined"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert any(
+        f"🚫 marc canceled *{slug}*" in message
+        and "Owner declined" in message
+        for message in posts
+    )

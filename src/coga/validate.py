@@ -56,6 +56,7 @@ from coga.config import (
     parse_inline_secrets,
 )
 from coga.logfile import last_activity
+from coga.lifecycle import TERMINAL_STATUSES, VALID_STATUSES
 from coga.taskfile import BLACKBOARD_FENCE, fence_count
 from coga.period_state import read_snapshot, stale_keys
 from coga.paths import (
@@ -77,8 +78,6 @@ from coga.tasks import (
 from coga.ticket import Ticket, TicketError
 from coga.step_gate import known_gate_tokens
 from coga.workflow import VALID_ASSIGNEE_ROLES, Workflow, WorkflowError
-
-VALID_STATUSES = {"draft", "active", "in_progress", "blocked", "paused", "done"}
 
 # Canonical ticket frontmatter schema.
 REQUIRED_TASK_KEYS: tuple[str, ...] = (
@@ -834,9 +833,19 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
     out: list[Issue] = []
     wf = ticket.workflow
     step = ticket.step
+    status = ticket.status
+
+    terminal_has_step = status in TERMINAL_STATUSES and step is not None
+    if terminal_has_step:
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=f"`step:` must be absent when status is `{status}`",
+            severity="error",
+        ))
 
     if wf is None:
-        if step is not None:
+        if step is not None and not terminal_has_step:
             out.append(Issue(
                 kind="bad-shape",
                 task=task_label,
@@ -848,9 +857,10 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
         # workflow-less draft (concept-capture: stash an idea before its shape
         # settles) is valid and intentional, so it is NOT flagged. Once a
         # ticket is `active`/`in_progress`/`blocked`/`paused`, a missing workflow means it
-        # can never be bumped — structurally stuck — so that is an error. (`done`
-        # is left alone: a finished workflow-less task is harmless and flagging
-        # it would only nag immutable history.) Machine-authored tasks that
+        # can never be bumped — structurally stuck — so that is an error.
+        # Terminal tickets (`done` / `canceled`) are left alone: a closed
+        # workflow-less task is harmless and flagging it would only nag closed
+        # history. Machine-authored tasks that
         # used to be workflow-less here — recurring/Dream and retire — now
         # create with the `direct/body` workflow, so no whitelist is needed.
         if ticket.status in {"active", "in_progress", "blocked", "paused"}:
@@ -871,15 +881,7 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
     if not isinstance(wf, dict):
         return out  # already reported by shape/ref checks
 
-    status = ticket.status
-    if status == "done":
-        if step is not None:
-            out.append(Issue(
-                kind="bad-shape",
-                task=task_label,
-                message="`step:` must be absent when status is `done`",
-                severity="error",
-            ))
+    if status in TERMINAL_STATUSES:
         return out
 
     if step is None:

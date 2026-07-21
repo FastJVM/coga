@@ -94,6 +94,7 @@ from pathlib import Path
 
 from coga.config import Config
 from coga.logfile import append_log, ref_tag_for_path
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.paths import log_path, tasks_dir
 from coga.taskfile import TaskFileError, split_body
 from coga.ticket import Ticket, TicketError
@@ -133,6 +134,7 @@ _STATUS_PROGRESS = {
     "active": 1,
     "in_progress": 2,
     "done": 3,
+    "canceled": 3,
 }
 
 _StateGuard = Callable[[str], None]
@@ -504,7 +506,8 @@ def refresh_coga_state_from_control(
     """Pull the control branch's task state back into this checkout.
 
     The pull-back half of the always-on sync contract, run by `coga launch`
-    when a run ends (bump handoff, `mark done`, `block`, agent exit — every
+    when a run ends (bump handoff, `mark done`, `mark canceled`, `block`,
+    agent exit — every
     exit path the supervisor sees). The publish half above lands each
     transition on `origin/<control>` but fast-forwards only the local control
     *ref*, so a checkout parked on any other branch keeps rendering task state
@@ -1011,6 +1014,15 @@ def _ticket_state_regression_reason(
                 f"to {working.blackboard_bytes} bytes"
             )
         return detail
+
+    if (
+        committed.status in TERMINAL_STATUSES
+        and working.status != committed.status
+    ):
+        return (
+            f"{rel}: terminal status would change from "
+            f"{committed.status!r} to {working.status!r}"
+        )
 
     committed_status = _STATUS_PROGRESS.get(committed.status or "")
     working_status = _STATUS_PROGRESS.get(working.status or "")

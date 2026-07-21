@@ -28,6 +28,7 @@ from coga.github_preflight import (
     check_git_remote,
     check_gh_auth,
 )
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.taskfile import read_blackboard, replace_blackboard, split_body
 from coga.ticket import Ticket
 
@@ -151,6 +152,11 @@ def open_pr(cfg: Config, *, slug: str, blackboard_path: Path) -> str:
     base = cfg.git_control_branch
 
     ticket = Ticket.read(blackboard_path)
+    if ticket.status in TERMINAL_STATUSES:
+        raise OpenPrError(
+            f"Cannot open a PR for {slug}: ticket status "
+            f"{ticket.status!r} is terminal."
+        )
     above, blackboard = split_body(ticket.body)
     blackboard = blackboard or ""
 

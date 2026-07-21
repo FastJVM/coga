@@ -269,6 +269,7 @@ workflow step are loaded too.
 - `coga show <slug>` — read a task's ticket / blackboard / log
 - `coga bump <slug>` — advance one workflow step
 - `coga mark done <slug>` — finish active or in-progress work
+- `coga mark canceled <slug> --message "<reason>"` — abandon work explicitly
 - `coga block --task <slug> --reason "..."` — stop for a concrete answer
 - `coga unblock <slug> --answer "..."` — record the answer and resume
 - `coga --help` — full CLI surface

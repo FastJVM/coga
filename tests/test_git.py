@@ -1575,6 +1575,43 @@ def test_sync_coga_state_refuses_status_regression(git_repo, capsys):
     assert "Sync coga state" not in git_repo.origin_subjects()
 
 
+def test_sync_coga_state_refuses_reactivation_of_canceled_ticket(
+    git_repo, capsys
+):
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True)
+    ticket = task / "ticket.md"
+    canceled_text = _step_ticket_text(
+        step="1 (implement)", status="canceled", blackboard="declined\n"
+    ).replace("step: 1 (implement)\n", "")
+    ticket.write_text(canceled_text)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed canceled demo")
+    git_repo.git("push", "origin", "main")
+
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="active", blackboard="reopened\n"
+        )
+    )
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    captured = capsys.readouterr()
+    assert "sync refused" in captured.err
+    assert "terminal status would change from 'canceled' to 'active'" in captured.err
+    origin_ticket = subprocess.run(
+        ["git", "show", "main:coga/tasks/demo/ticket.md"],
+        cwd=git_repo.origin,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "status: canceled" in origin_ticket
+    assert "reopened" not in origin_ticket
+
+
 @pytest.mark.parametrize(
     ("committed_status", "working_status"),
     [("blocked", "active"), ("paused", "in_progress")],

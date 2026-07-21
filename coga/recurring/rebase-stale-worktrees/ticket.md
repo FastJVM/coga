@@ -25,7 +25,7 @@ flight. Neither touches the other's set.
 ### Scope — what counts as live
 
 1. Every non-main branch checked out in a worktree (`git worktree list`).
-2. Every `branch:` recorded under a not-`done` ticket's `## Dev` section.
+2. Every `branch:` recorded under a non-terminal ticket's `## Dev` section.
 
 Skip everything else. A stale branch with no worktree and no live ticket is
 abandoned or already-merged residue — branch-sweep's problem, not this task's.

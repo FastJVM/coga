@@ -96,7 +96,7 @@ Run the shared megalaunch engine once — a sweep that launches every launchable
 task (optionally scoped to `tasks/<DIR>/`).
 
 - `--pick` — choose interactively from an arrow-key list of every launchable task
-  (any owner, any status but done, drafts included); the confirmed set is
+  (any owner, any non-terminal status, drafts included); the confirmed set is
   prepared, activated, launched, and saved for `--relaunch`. Also available as
   the `coga pick` alias.
 - `--relaunch` — re-run the last confirmed picker selection.
@@ -114,7 +114,8 @@ due. With no subcommand it runs the sweep.
   sweep once (one scheduler entry can serve several repos). Combines with
   `--force`.
 - `--force` — force a full run of **every** template, bypassing the schedule and
-  the already-serviced/done/paused filter.
+  the already-serviced/done/paused filter. A canceled period task is not
+  reactivated; delete it before starting a fresh run.
 - `--agent <type>` — agent to use for agent-backed recurring tasks in this sweep.
 
 Subcommands:
@@ -141,9 +142,15 @@ Change a ticket's status. Subcommands:
   `in_progress`). `--force` finishes a `direct/body` ticket even when it
   committed product code that won't reach the control branch (the code stays
   stranded — the flag just acknowledges that).
+- **`coga mark canceled TASK --message "<reason>"`** — intentionally abandon a
+  ticket from any non-terminal status, including `draft` and `blocked`. The
+  required non-empty reason is appended to the audit log; cancellation clears
+  `step:` but keeps body and blackboard history (including blocker text).
 
-Each accepts `--message <text>` to piggy-back an FYI on the state-transition
-broadcast.
+The other mark commands accept optional `--message <text>` to piggy-back an FYI
+on the state-transition broadcast. `done` and `canceled` are distinct terminal
+outcomes; neither appears in the default status view, and canceled tickets
+cannot be reactivated.
 
 ### `coga bump TASK`
 Advance one workflow step. Bumping past the last step is an error — use `coga
@@ -203,7 +210,8 @@ Show tasks in the repo. `DIR` scopes to `tasks/<DIR>/` (nested tasks included).
 - `-o`, `--order-by <col>` — sort by `slug`, `status`, `owner`, `assignee`,
   `step`, `updated`, or `created` (default `updated`).
 - `-r`, `--reverse` — reverse the sort.
-- `-a`, `--all` — include `done` tasks (hidden by default).
+- `-a`, `--all` — include terminal `done` and `canceled` tasks (hidden by
+  default). The totals report the two outcomes separately.
 - `-d`, `--dirs` — list the plain (non-task) directories under `tasks/` instead
   of the tasks.
 - `--blocked` — show only blocked tickets, expanding every open ask.

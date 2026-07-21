@@ -18,5 +18,7 @@ may be running unattended.
   the primary checkout's `.git` read-only, follow the independent `/tmp` clone
   fallback in the `code/implement` skill before treating it as a blocker.
 - Finish the workflow step with `coga bump`, `coga mark done`, or `coga block`.
+  An authorized `coga mark canceled` transition also releases the queue; use it
+  only when intentional abandonment is the task decision.
   A normal final response or an agent CLI `task_complete` event does not signal
   Coga and does not release the queue.

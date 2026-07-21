@@ -291,6 +291,55 @@ def test_invalid_status(repo: Path) -> None:
     assert any(i.kind == "invalid-status" for i in report.issues)
 
 
+def test_canceled_is_valid_terminal_status_without_step(repo: Path) -> None:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg, title="Declined", workflow_name="code/with-review",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="canceled",
+    )
+
+    ticket = Ticket.read(ref["path"])
+    assert ticket.step is None
+    report = run(cfg)
+    assert not [
+        issue for issue in report.issues
+        if issue.task == ref["slug"]
+        and issue.kind in {"invalid-status", "missing-step", "bad-shape"}
+    ]
+
+
+def test_canceled_ticket_with_step_is_invalid(repo: Path) -> None:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg, title="Declined", workflow_name="code/with-review",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="canceled",
+    )
+    ticket = Ticket.read(ref["path"])
+    ticket.frontmatter["step"] = "1 (implement)"
+    ticket.write(ref["path"])
+
+    report = run(cfg)
+
+    assert any(
+        issue.kind == "bad-shape"
+        and "must be absent when status is `canceled`" in issue.message
+        for issue in report.issues
+    )
+
+    # The terminal invariant is independent of whether the workflow itself is
+    # frozen yet; a hand-authored string ref must not hide the stale step.
+    ticket.frontmatter["workflow"] = "code/with-review"
+    ticket.write(ref["path"])
+    report = run(cfg)
+    assert any(
+        issue.kind == "bad-shape"
+        and "must be absent when status is `canceled`" in issue.message
+        for issue in report.issues
+    )
+
+
 def _draft_with_secrets(repo: Path, cfg, secrets_value) -> None:
     create_task(
         cfg=cfg, title="X", workflow_name=None,

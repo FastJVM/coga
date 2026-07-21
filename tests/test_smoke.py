@@ -82,6 +82,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     by_slug = {t.slug: t for t in list_tasks(cfg)}
     assert "triage-inbound-email" in by_slug
     assert by_slug["triage-inbound-email"].path.parent == seeded / "tasks" / "auto"
+    assert read_ticket(by_slug["declined-dream-finding"]).status == "canceled"
 
     # 2. Compose prompt includes every section.
     task_ref = by_slug[ref["slug"]]
@@ -152,10 +153,12 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     r = runner.invoke(app, ["status"])
     assert r.exit_code == 0
     assert ref["slug"] not in r.output  # done — hidden by default
+    assert "declined-dream-finding" not in r.output  # canceled — also hidden
     assert ref2["slug"] in r.output
     r = runner.invoke(app, ["status", "--all"])
     assert r.exit_code == 0
     assert ref["slug"] in r.output
+    assert "declined-dream-finding" in r.output
     assert ref2["slug"] in r.output
 
     # 6. Validator reports no errors on this repo.

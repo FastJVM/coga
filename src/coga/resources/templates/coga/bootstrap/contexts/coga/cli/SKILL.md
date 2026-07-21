@@ -119,9 +119,9 @@ Run the guided ticket-authoring interview (`bootstrap/ticket`).
 - `coga ticket "Add retry to webhook handler"` — create that draft, then
   launch the authoring skill against it.
 - `coga ticket add-retry` — edit an existing ticket at any status. Editing
-  leaves the status unchanged; for an `in_progress` or `done` ticket it
-  prints a heads-up first (revising one in flight or already finished is
-  unusual) but does not refuse.
+  leaves the status unchanged; for an `in_progress`, `done`, or `canceled`
+  ticket it prints a heads-up first (revising one in flight or already closed
+  is unusual) but does not refuse.
 
 The guided authoring flow chooses workflow/context/assignee with the human,
 edits the ticket, and leaves status unchanged. After the session it
@@ -160,10 +160,10 @@ created drafts and fails loud if any has a schema error.
 
 ## coga mark \<state\> \<slug\> [--message "..."]
 
-Change a ticket's `status`. Three subcommands: `mark active`,
-`mark paused`, `mark done`. The verb mirrors the frontmatter field, so
-the command shape is `<status field value> on disk` = `<mark
-subcommand>`.
+Change a ticket's `status`. Four subcommands: `mark active`,
+`mark paused`, `mark done`, and `mark canceled`. The verb mirrors the
+frontmatter field, so the command shape is `<status field value> on disk` =
+`<mark subcommand>`.
 
 - `mark active <slug>` — allowed from `draft` or `paused`. Posts `🚀`.
   Refuses a workflow-less ticket — set `workflow:` or run `coga ticket`
@@ -173,13 +173,20 @@ subcommand>`.
 - `mark done <slug>` — allowed from `active` or `in_progress`. Clears
   `step:`. Posts `🎉`. Use this to finish a workflow on its final step, or
   to finish any ticket without a workflow.
+- `mark canceled <slug> --message "<reason>"` — allowed from every
+  non-terminal status, including `draft` and `blocked`. Requires a non-empty
+  reason, clears `step:`, and posts `🚫`. The reason is appended to the audit
+  log; cancellation leaves body and blackboard content untouched, so a blocked
+  ticket's open ask remains historical context.
 
-`--message` piggy-backs an FYI onto the Slack broadcast.
+For active, paused, and done, `--message` optionally piggy-backs an FYI onto
+the transition. For canceled it is the required audit reason.
 
 `coga launch` owns the `active` → `in_progress` start transition, and will
 activate a `draft`/`paused` ticket inline first (launching is the readiness
-signal). `blocked` is command-owned by `coga block` / `coga unblock`, and
-`done` is terminal unless a human deliberately edits or reopens the ticket.
+signal). `blocked` is command-owned by `coga block` / `coga unblock`. `done`
+and `canceled` are distinct terminal outcomes, and canceled has no transition
+back to active.
 `coga bump` no longer marks final-step tickets done. The status state machine
 and the step state machine are separate.
 
@@ -203,7 +210,7 @@ Script and TTY-less launches of a blocked ticket are still refused until
 `coga unblock` records the answer (the `coga megalaunch` *sweep* likewise
 still skips it as `skipped-unresolved-blocker`; an explicit `--pick` of a
 blocked ticket is the human act and resumes it the same interactive way); a
-`done` ticket is refused because it is finished. A ticket
+terminal `done` or `canceled` ticket is refused because it is closed. A ticket
 that can't be activated — no workflow, or an empty `required` extension field
 — still fails loud with the same remedy `mark active` gives. Launching an
 `active` ticket then marks it
@@ -271,7 +278,8 @@ consecutive agent-owned steps in fresh processes. After a clean agent exit,
 it re-reads the ticket and continues only if the task is still
 `in_progress`, the step advanced, the new current step has `skill:`, and the
 concrete assignee did not change. It stops at human/no-skill steps, assignee
-handoffs, done, paused, or blocked tasks, no-progress exits, and non-zero exits.
+handoffs, terminal tasks, paused or blocked tasks, no-progress exits, and
+non-zero exits.
 
 That supervisor loop only exists when a live `coga launch` process is
 running around the agent. API/manual sessions do not chain: after `coga bump`,
@@ -281,8 +289,9 @@ supervisor re-reads the ticket and starts a fresh step session.
 ### Releasing an interactive REPL
 
 Interactive agent REPLs terminate through a session-scoped side channel:
-`coga bump`, `coga mark done`, and `coga block` write the launched task to
-`$COGA_DONE_SENTINEL`, and the PTY supervisor tears the REPL down. A
+`coga bump`, `coga mark done`, `coga mark canceled`, and `coga block` write the
+launched task to `$COGA_DONE_SENTINEL`, and the PTY supervisor tears the REPL
+down. A
 successful script launch writes the same slug-scoped sentinel after its step
 advance (the advance is that launch's `coga bump`), so an agent that drives
 its own script step with a nested `coga launch` releases its session too. PTY
@@ -296,10 +305,12 @@ guardrail and task-to-task comparison, not exact provider billing.
 ## coga status
 
 List the live tasks in the repo — `draft`, `active`, `in_progress`, `blocked`,
-and `paused`. `done` tasks are hidden by default; pass `--all` (`-a`) to include
-them. Bootstrap tickets have no status and don't appear here. Pipe through
-`grep` for ad-hoc slicing of any column. When done tasks are hidden the
-output ends with a `(N done tasks hidden — use --all to show)` note.
+and `paused`. Terminal `done` and `canceled` tasks are hidden by default; pass
+`--all` (`-a`) to include them, with separate totals for each outcome.
+Bootstrap tickets have no status and don't appear here. Pipe through
+`grep` for ad-hoc slicing of any column. When terminal tasks are hidden the
+output ends with a note that reports the hidden `done` / `canceled` counts and
+points at `--all`.
 
 The `updated` column reads `coga/log.md` first — the task's last recorded
 workflow activity. The log only knows a task by its ref, so it goes silent for
@@ -549,7 +560,7 @@ the bare sweep covers the configured current user's own tickets; an explicit
 - **Bare `coga megalaunch`** sweeps every launchable `active` or
   `in_progress` task — `active` work starts, `in_progress` work resumes.
 - **`coga megalaunch --pick`** opens an interactive arrow-key picker over
-  every task worth launching — any owner, any status but `done`: every
+  every task worth launching — any owner, any non-terminal status: every
   `draft` (offered even when not-yet-ready — see the prepare phase below),
   plus `active`, `in_progress`, `paused`, and blocked-with-open-asks that are
   agent-assigned or a script launch. Nothing starts checked: ↑/↓ (or `j`/`k`)
@@ -588,7 +599,7 @@ working launch:
 
 Checking a task in the picker is thus the deliberate human act of starting
 it, and another owner's ticket launches when picked. A selected task that
-still can't launch (done, or a draft the interview left with no workflow to
+still can't launch (terminal, or a draft the interview left with no workflow to
 activate) is reported as `skipped-unlaunchable` rather than silently dropped —
 you picked it, so its outcome is owed back.
 
@@ -598,8 +609,8 @@ work is not counted as skip noise), skips human gates and open blockers,
 preflights launch requirements, then
 runs one eligible step at a time. An agent step is a normal **interactive**
 launch — the agent REPL streams live to the console under the PTY watcher, and
-the done-sentinel (`coga bump` / `mark done` / `block`) releases it before the
-sweep moves on — never a headless `claude -p` run, which would buffer all
+the done-sentinel (`coga bump` / `mark done` / `mark canceled` / `block`)
+releases it before the sweep moves on — never a headless `claude -p` run, which would buffer all
 output until the run ends. The TTY is transport, not an approval gate:
 megalaunch appends package-backed queue guidance telling the agent to announce
 its plan and continue, while a decision or capability that genuinely requires
@@ -759,8 +770,10 @@ unarmed; each template still launches according to its deduced substance
 ignores the schedule and the status filter that skips already-serviced / done /
 paused templates this period. For every template it get-or-creates the real
 `recurring/<name>` period task and launches it — even one that already ran this
-period (`coga launch` re-activates a `done`/`paused` ticket, restarting its
-workflow at step 1). Everything else is identical to a normal run: real Slack,
+period (the force runner reactivates a `done`/`paused` ticket). A canceled
+period task is not a rerunnable completion:
+force refuses it, and the operator must delete it before starting a fresh run.
+Everything else is identical to a normal run: real Slack,
 real digest-spool drain, real git task-state sync, and the real
 `last_serviced_period` high-water advance. There are no `-dbg-` scratch dirs, no
 slug-based suppression, no orphan reaping, and no fold-back-to-template-log
@@ -783,7 +796,7 @@ queue until the liveness backstop fails the task.
 
 **Idle-timeout backstop.** An agent template that *does* launch (a TTY is
 present) but whose agent stalls or crashes before signalling done — never
-reaching `coga bump` / `mark done` / `block` — would otherwise block the
+reaching `coga bump` / `mark done` / `mark canceled` / `block` — would otherwise block the
 sequential sweep forever. Both the bare sweep and `coga recurring --force` arm a
 generous idle timeout on each spawned REPL (passed through as `coga launch
 --idle-timeout`): if it produces no output and takes no input for that long,
@@ -866,6 +879,8 @@ only; they don't accept their own flags.
 - Approving/queueing without launching → `coga mark active <slug>`.
 - Pausing a task → `coga mark paused <slug>`.
 - Finishing a task (final step, or no workflow) → `coga mark done <slug>`.
+- Intentionally abandoning a ticket →
+  `coga mark canceled <slug> --message "<reason>"`.
 - Ticket-less chat session → `coga chat` (alias for
   `launch bootstrap/orient`).
 - Running Coga cleanup now → `coga dream`.
@@ -887,7 +902,7 @@ only; they don't accept their own flags.
   (`--agent <type>` runs the sweep with that agent regardless of assignee,
   `coga megalaunch <dir>` scopes it to one `tasks/` sub-tree).
 - Picking which tasks to launch (arrow-key checkbox list over any owner's
-  tasks, any status but done) → `coga megalaunch --pick`; replaying the
+  non-terminal tasks) → `coga megalaunch --pick`; replaying the
   last confirmed list → `coga megalaunch --relaunch`.
 - Other bootstrap ticket → `coga launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `coga bump`.

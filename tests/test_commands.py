@@ -408,8 +408,9 @@ def test_bump_past_final_step_errors_with_mark_done_hint(repo: Path) -> None:
     assert t.status == "in_progress"
 
 
-def test_bump_rejects_non_in_progress(repo: Path) -> None:
-    slug, _ = _make_task(repo, status="paused")
+@pytest.mark.parametrize("status", ["paused", "canceled"])
+def test_bump_rejects_non_in_progress(repo: Path, status: str) -> None:
+    slug, _ = _make_task(repo, status=status)
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 2
@@ -1482,6 +1483,45 @@ def test_status_all_includes_done_tasks(repo: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert "finished-task" in result.output
+
+
+def test_status_hides_canceled_by_default_and_all_reports_terminal_totals(
+    repo: Path,
+) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Active", workflow_name="code", contexts=[],
+        owner="marc", assignee="claude", watchers=[], status="active",
+        slug_override="active-task",
+    )
+    done = create_task(
+        cfg=cfg, title="Finished", workflow_name="code", contexts=[],
+        owner="marc", assignee="claude", watchers=[], status="done",
+        slug_override="finished-task",
+    )
+    canceled = create_task(
+        cfg=cfg, title="Declined", workflow_name="code", contexts=[],
+        owner="marc", assignee="claude", watchers=[], status="canceled",
+        slug_override="declined-task",
+    )
+    runner = CliRunner()
+
+    default = runner.invoke(app, ["status", "--order-by", "slug"])
+
+    assert default.exit_code == 0, default.output
+    assert done["slug"] not in default.output
+    assert canceled["slug"] not in default.output
+    assert (
+        "2 terminal tasks hidden: 1 done, 1 canceled — use --all to show"
+        in default.output
+    )
+
+    all_tasks = runner.invoke(app, ["status", "--all", "--order-by", "slug"])
+
+    assert all_tasks.exit_code == 0, all_tasks.output
+    assert done["slug"] in all_tasks.output
+    assert canceled["slug"] in all_tasks.output
+    assert "3 tasks  ·  1 active · 1 done · 1 canceled" in all_tasks.output
 
 
 # --- status --order-by / --reverse / updated column ---------------------------

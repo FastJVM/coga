@@ -51,6 +51,8 @@ Outcome digest surface — spooled into the daily digest (live fallback below):
 
 - `coga mark done` — done tickets, including manual/script-mode completions
   that have no PR number.
+- `coga mark canceled` — intentionally abandoned tickets, with the required
+  cancellation reason kept in the outcome record and audit log.
 - the `autoclose-merged` recurring sweep (never `coga status`, which is
   read-only) — auto-bumps active/in-progress
   tickets to `done` when their blackboard `## Dev` PR has merged. This daily
@@ -262,9 +264,10 @@ new string:
   `commands/bump.py` when `--message` is present, and
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
   session start), plus `coga.blocker_reminders.remind_blocked_tasks` for
-  unresolved blocker reminders. Outcome callers (`notify`): `mark.mark_done` (including
-  the autoclose sweep and script-mode completion) and `coga/recurring_runner.py`'s error
-  summary. Both paths pass
+  unresolved blocker reminders. Outcome callers (`notify`): `mark.mark_done`
+  (including the autoclose sweep and script-mode completion),
+  `mark.mark_canceled`, and `coga/recurring_runner.py`'s error summary. Both
+  paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
   in the repo-global `coga/log.md`, tagged with the task ref.
 - `coga validate --check-slack` — probes the webhook with an
@@ -398,7 +401,7 @@ Current surface:
 
 - `coga create` raw creates.
 - `coga mark active`, launch-time `active → in_progress`, `coga mark paused`,
-  and `coga mark done`.
+  `coga mark done`, and `coga mark canceled`.
 - `coga bump`.
 - the `autoclose-merged` sweep, through the shared `mark_done` finalizer.
 - `coga recurring` and `coga retire` creates.
@@ -592,8 +595,9 @@ typed `coga status` in the same terminal, and saw the old step with no signal
 that the view was stale.
 
 `coga launch` closes that loop at the end of every run (bump handoff,
-`mark done`, `block`, agent exit, a failed setup after state was published —
-each exit path the supervisor sees): it fetches `origin/<control>` and folds
+`mark done`, `mark canceled`, `block`, agent exit, a failed setup after state
+was published — each exit path the supervisor sees): it fetches
+`origin/<control>` and folds
 the control tip's `coga/tasks/**` back into the checkout the launch was
 invoked from. On the control branch that is a plain `merge --ff-only`. On a
 feature branch only task files changed on control since the branches' merge

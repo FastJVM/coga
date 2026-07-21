@@ -3229,6 +3229,26 @@ def test_scan_due_force_reruns_already_done_period(repo: Path) -> None:
     assert len(list_tasks(cfg)) == 1
 
 
+def test_forced_recurring_run_refuses_canceled_period(repo: Path) -> None:
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)
+    period = scan_due(cfg, now=now)
+    ticket_path = period.tasks[0].ref.path / "ticket.md"
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "canceled"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(ticket_path)
+    forced = scan_due(cfg, now=now, force=True)
+
+    with pytest.raises(
+        recurring_cmd.RecurringError,
+        match="task is canceled and cannot be reactivated",
+    ):
+        recurring_cmd._prepare_forced_launch(cfg, forced.forced[0])
+
+    assert Ticket.read(ticket_path).status == "canceled"
+
+
 def test_scan_due_force_defers_existing_done_period_until_launch(
     repo: Path,
 ) -> None:

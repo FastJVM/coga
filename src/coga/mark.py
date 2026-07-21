@@ -1,8 +1,8 @@
-"""Status transitions — the shared core of `coga mark` and the autoclose sweep.
+"""Status transitions — the shared core of `coga mark` and lifecycle callers.
 
 These finalizers mutate ticket frontmatter, append a repo-global `log.md`
 line (tagged by task ref), and echo
-the local outcome. Done outcomes still enter Slack through the digest path;
+the local outcome. Terminal outcomes still enter Slack through the digest path;
 routine active/paused transitions are intentionally local-only noise. The CLI
 commands and the auto-merge scanner all reuse the same helpers so the on-disk
 shape stays identical regardless of who triggered the transition.
@@ -17,6 +17,7 @@ import typer
 from coga import git
 from coga.blackboard import prelaunch_blackboard_synthesis_reason
 from coga.config import Config
+from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import append_log
 from coga.paths import recurring_dir, resolve_workflow_path
 from coga.period_state import StateSnapshot, read_snapshot, stale_keys
@@ -129,6 +130,66 @@ def mark_done(
     snapshot = read_snapshot(ref.path)
     _sync_done_state(cfg, ref, snapshot)
     _warn_if_state_not_advanced(cfg, ref, ticket, owner, snapshot)
+
+
+class CancellationError(RuntimeError):
+    """A requested transition would violate cancellation semantics."""
+
+
+def mark_canceled(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    *,
+    actor: str,
+    reason: str,
+    slack_text: str,
+    digest_detail: str,
+    image_url: str | None = None,
+    echo: str | None = None,
+) -> None:
+    """Flip any non-terminal ticket to ``canceled`` and record why.
+
+    The reason is required in this shared layer, not only by Typer, so an
+    internal caller cannot create an illegible cancellation. Cancellation
+    clears ``step:`` like completion but deliberately leaves the body and
+    blackboard untouched; an unresolved blocker therefore remains historical
+    context while the ticket itself becomes terminal.
+    """
+    reason = reason.strip()
+    if not reason:
+        raise CancellationError("cancellation reason cannot be empty")
+    if ticket.status not in CANCELABLE_STATUSES:
+        raise CancellationError(
+            f"status {ticket.status!r} cannot transition to 'canceled'"
+        )
+
+    prior_status = ticket.status
+    owner = ticket.owner or cfg.current_user
+    ticket.frontmatter["status"] = "canceled"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(ref.ticket_path)
+    assert_task_valid(cfg, ref, action="mark canceled")
+    append_log(
+        cfg,
+        ref.id_slug,
+        actor,
+        f"canceled ({prior_status} → canceled): {reason}",
+    )
+    if echo is not None:
+        typer.echo(echo)
+    notify(
+        cfg,
+        slack_text,
+        kind="canceled",
+        detail=digest_detail,
+        ticket=ref.id_slug,
+        owner=owner,
+        watchers=ticket.watchers,
+        task_path=ref.path,
+        image_url=image_url,
+    )
+    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — canceled")
 
 
 def _sync_done_state(
@@ -261,13 +322,10 @@ def _freeze_workflow_ref(cfg: Config, ticket: Ticket) -> None:
     Hand-authored / guided-authored draft tickets carry `workflow:` as a
     plain workflow name. Activation is when that becomes real: we freeze the
     snapshot. We also seed `step: 1` whenever the ticket has no current step,
-    so the activated ticket is launch-ready — `coga launch` composes the
-    current step's skill from the frozen workflow. That covers two cases: a
-    fresh draft (never stepped) and a re-activated `done` ticket whose `step:`
-    was cleared by `mark done` — re-activation restarts the frozen workflow
-    from the top. No-op for the workflow dict of an `active`/`paused` ticket
-    that already carries a step. Raises `WorkflowError` if a string ref names
-    no known workflow.
+    so a fresh draft is launch-ready — `coga launch` composes the current
+    step's skill from the frozen workflow. It is a no-op for the workflow dict
+    of an `active`/`paused` ticket that already carries a step. Raises
+    `WorkflowError` if a string ref names no known workflow.
 
     Precondition: `_has_workflow(ticket)` is true, so `ticket.workflow` is a
     non-empty string or dict by the time we read its steps.
@@ -327,6 +385,8 @@ def mark_active(
     sync remain the audit trail.
     """
     prior_status = ticket.status
+    if prior_status == "canceled":
+        raise CancellationError("a canceled ticket cannot be reactivated")
     _refuse_unsynthesized_draft_blackboard(ref, prior_status)
 
     if not _has_workflow(ticket):
@@ -447,6 +507,8 @@ __all__ = [
     "mark_blocked",
     "mark_paused",
     "mark_done",
+    "mark_canceled",
+    "CancellationError",
     "RequiredExtensionMissing",
     "WorkflowMissing",
     "StrandedProductCode",

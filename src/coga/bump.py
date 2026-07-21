@@ -2,7 +2,7 @@
 
 `coga bump` normally advances exactly one workflow step; human-triggered
 rewinds move to an earlier workflow step. Status transitions
-(active/paused/done) live in `coga.mark`.
+(active/paused/done/canceled) live in `coga.mark`.
 """
 
 from __future__ import annotations
