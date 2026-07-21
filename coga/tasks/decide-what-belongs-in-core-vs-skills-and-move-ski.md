@@ -6,7 +6,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/principles
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -135,7 +135,7 @@ argues to leave it.
 ## Dev
 branch: microkernel-move-recipes
 worktree: ../coga-microkernel-move-recipes
-pr: (not yet created)
+pr: https://github.com/FastJVM/coga/pull/618
 
 ## PR
 
