@@ -1,7 +1,7 @@
 ---
 slug: overload-ticket-locally-easily
 title: overload ticket locally easily
-status: active
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -108,3 +108,9 @@ Findings worth keeping from the discussion:
   customize coga — commands are heads over refs, local files win".
 - Blocked (not dropped) so it can be re-framed against the settled surface
   after the move executes, instead of documenting a moving target now.
+
+---
+
+## Blockers
+
+- [ ] [2026-07-21 14:21] [agent:nicktoper] id=20260721T142144 Parked until cli-extension-model/move-command-logic-to-tickets (pass 2) executes — the note's framing depends on the post-move command surface (ticket collapsed to head + local-first refs); revisit and re-frame the doc then.
