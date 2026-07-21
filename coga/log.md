@@ -2300,3 +2300,15 @@ Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-refere
 Auto-merging coga/log.md
 Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
 CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 18:08 [coga] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/32)
+Rebasing (2/32)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 18:08 [install/harden-packaging-and-install-before-launch] [agent:claude] blocked: All code prerequisites are now met: every named install/ sibling plus cut-release-to-realign-pypi-with-main is done and merged (origin/main has the fixes, pyproject.toml says 0.3.0 via PR #587). The only unmet prerequisite is publication: no v0.3.0 tag exists and PyPI still serves 0.2.0. Publishing was reserved for you in docs/releasing.md: publish a GitHub Release tagged v0.3.0 targeting main (optionally after the TestPyPI dry run and one-time Trusted Publishing setup described there), which triggers release.yml to publish to PyPI. Once 'uv tool install coga' yields 0.3.0, relaunch this gate and the five verification steps can run.

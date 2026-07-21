@@ -1,7 +1,7 @@
 ---
 slug: install/harden-packaging-and-install-before-launch
 title: Harden packaging and first-install before launch
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -203,6 +203,8 @@ Run the public path in a disposable clean Linux environment, without
 
 - [x] [2026-07-16 10:14] [agent:claude] id=20260716T101438 Gate prerequisites still unmet at today's megalaunch: PyPI latest is coga 0.2.0 (pre-retest) and no sibling install/ fix has merged — they are mid-implement in parallel sessions launched this morning (init.py on main still clones upstream). Relaunch this gate after the sibling PRs merge and cut-release-to-realign-pypi-with-main publishes the realigned version; or, if you want a standalone deliverable now (e.g. an automated clean-container harness scripting the five verification steps), say so explicitly since the ticket's acceptance criteria currently forbid a branch/PR. Consider excluding this gate from megalaunch sweeps until then.
   resolved: [2026-07-20 18:08] [human:nicktoper] 2026-07-20 audit: the ask's sibling-merge condition is now met — all named install/ siblings plus cut-release-to-realign-pypi-with-main are done and merged (origin/main 2d799810 has the fixes; init.py no longer clones upstream; pyproject.toml says 0.3.0 via merged PR #587). The remaining condition (realigned version on PyPI) is still unmet solely because the v0.3.0 GitHub release was never published — that step was reserved for the human in docs/releasing.md. Re-blocking with that single narrowed ask.
+
+- [ ] [2026-07-20 18:08] [agent:claude] id=20260720T180849 All code prerequisites are now met: every named install/ sibling plus cut-release-to-realign-pypi-with-main is done and merged (origin/main has the fixes, pyproject.toml says 0.3.0 via PR #587). The only unmet prerequisite is publication: no v0.3.0 tag exists and PyPI still serves 0.2.0. Publishing was reserved for you in docs/releasing.md: publish a GitHub Release tagged v0.3.0 targeting main (optionally after the TestPyPI dry run and one-time Trusted Publishing setup described there), which triggers release.yml to publish to PyPI. Once 'uv tool install coga' yields 0.3.0, relaunch this gate and the five verification steps can run.
 ## Blocker reminders
 
 - 5f5852d1e838 last_reminded: 2026-07-15 12:33
