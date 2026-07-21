@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.resources import files
 from pathlib import Path
 from textwrap import dedent
 
@@ -137,6 +138,137 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Current step: implement" in prompt
     # Blackboard present
     assert "Blackboard" in prompt
+
+
+def test_compose_agent_prompt_attended_ask_and_wait(repo: Path) -> None:
+    """A full ordinary step prompt directs the agent to ask the present human
+    and wait; blocking is reserved for an explicit human request, and no layer
+    carries a generic direction to block merely because input is needed."""
+    # Exercise the shipped inline peer-review step, not the fixture's neutral
+    # local workflow/skill, so a later-composed stock layer cannot contradict
+    # the attended mode unnoticed.
+    (repo / "workflows" / "code" / "with-review.md").unlink()
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Fix retry logic",
+        workflow_name="code/with-review",
+        contexts=["email/payment-flow"],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    ticket.frontmatter["step"] = "2 (peer-review)"
+    ticket.write(ref.ticket_path)
+    ticket = read_ticket(ref)
+    prompt = compose_prompt(cfg, ref, ticket)
+    normalized_prompt = " ".join(prompt.split())
+
+    # The attended default: the human is in the REPL — ask and wait.
+    assert "This launch is attended — ask and wait." in normalized_prompt
+    assert "ask them directly and wait for their answer" in normalized_prompt
+    # Blocking is reserved for an explicit human request to park the ticket.
+    assert (
+        "block only when the human explicitly asks you to park or block the"
+        " ticket" in normalized_prompt
+    )
+    # The attended rule wins over generic block wording in downstream layers.
+    assert (
+        "This attended rule is authoritative over any generic instruction"
+        in normalized_prompt
+    )
+    assert "Current step: peer-review" in normalized_prompt
+    assert "escalate per your launch mode" in normalized_prompt
+    # No layer steers the agent to block merely because input is needed.
+    assert "Ask or block when uncertain" not in normalized_prompt
+    assert "call `coga block` with a specific ask" not in normalized_prompt
+    assert "that's `coga block` — never a quiet exit" not in normalized_prompt
+    assert (
+        "Use `coga block` when progress needs a concrete decision"
+        not in normalized_prompt
+    )
+    assert "blackboard and `coga block` instead" not in normalized_prompt
+    assert (
+        "If your review tool isn't on PATH, `coga block`"
+        not in normalized_prompt
+    )
+    assert (
+        "If a conflict needs a call you can't make, `coga block`"
+        not in normalized_prompt
+    )
+    # The queue directive is a megalaunch suffix, never an ordinary layer.
+    assert "Megalaunch queue execution" not in normalized_prompt
+
+
+@pytest.mark.parametrize(
+    ("workflow_name", "step", "heading", "legacy_direction"),
+    [
+        (
+            "code/with-self-review",
+            "2 (self-qa)",
+            "Self-QA the diff",
+            "`coga block` — something is off",
+        ),
+        (
+            "code/with-review",
+            "3 (open-pr)",
+            "Push and open the PR",
+            "earlier-step gap — `coga block` with a one-line reason",
+        ),
+        (
+            "direct/body",
+            "1 (execute)",
+            "Run the ticket body directly",
+            "If you are blocked before completion, `coga block` with a reason",
+        ),
+    ],
+)
+def test_stock_step_prompt_escalates_per_launch_mode(
+    repo: Path,
+    workflow_name: str,
+    step: str,
+    heading: str,
+    legacy_direction: str,
+) -> None:
+    """Other shipped agent steps do not append a generic block command."""
+    if workflow_name == "code/with-review":
+        (repo / "workflows" / "code" / "with-review.md").unlink()
+    elif workflow_name == "direct/body":
+        resources = files("coga.resources").joinpath("templates/coga")
+        _write(
+            repo / "workflows" / "direct" / "body.md",
+            resources.joinpath("workflows/direct/body.md").read_text(),
+        )
+        _write(
+            repo / "skills" / "direct" / "body" / "SKILL.md",
+            resources.joinpath("skills/direct/body/SKILL.md").read_text(),
+        )
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Check stock escalation",
+        workflow_name=workflow_name,
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    ticket.frontmatter["step"] = step
+    ticket.write(ref.ticket_path)
+
+    normalized_prompt = " ".join(
+        compose_prompt(cfg, ref, read_ticket(ref)).split()
+    )
+
+    assert heading in normalized_prompt
+    assert "escalate per your launch mode" in normalized_prompt
+    assert legacy_direction not in normalized_prompt
 
 
 def test_compose_browser_automation_bootstrap_uses_bundled_router_skill(

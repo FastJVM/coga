@@ -665,9 +665,18 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
     # The recurring sweep's idle backstop is armed so a wedged REPL can't
     # starve the rest of the queue.
     assert seen["idle_timeout"] is not None
-    assert "Megalaunch queue execution" in str(seen["prompt_suffix"])
-    assert "Do not ask for plan" in str(seen["prompt_suffix"])
-    assert "coga block --task" in str(seen["prompt_suffix"])
+    suffix = " ".join(str(seen["prompt_suffix"]).split())
+    assert "Megalaunch queue execution" in suffix
+    assert "Do not ask for plan" in suffix
+    # The appended queue directive overrides the attended ask-and-wait
+    # default composed into Agent mode...
+    assert "overrides the attended ask-and-wait default in Agent mode" in suffix
+    assert "Do not ask-and-wait for missing input here" in suffix
+    # ...and unavailable input must end in a terminal `coga block`.
+    assert (
+        'run `coga block --task <slug> --reason "<specific ask>"` as the'
+        " terminal action" in suffix
+    )
 
 
 @pytest.mark.parametrize(
@@ -1265,6 +1274,7 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
 
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
     launched: list[str] = []
+    prompt_suffixes: list[str] = []
 
     class _Session:
         exit_code = 0
@@ -1273,6 +1283,7 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         # The agent session exits without resolving the ask.
         launched.append(ref_obj.id_slug)
+        prompt_suffixes.append(" ".join(str(kwargs["prompt_suffix"]).split()))
         return _Session()
 
     monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
@@ -1280,6 +1291,12 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
     run = run_megalaunch(cfg, selection=[ref["slug"]])
 
     assert launched == [ref["slug"]]
+    assert "Existing blocker-resolution exception" in prompt_suffixes[0]
+    assert "resolve those already-open asks" in prompt_suffixes[0]
+    assert (
+        "new unavailable input still follows the queue rule"
+        in prompt_suffixes[0]
+    )
     assert run.counts["blocked"] == 1
     assert "Which region?" in run.results[0].detail
     # The unresolved ask returns the ticket to the blocked queue.

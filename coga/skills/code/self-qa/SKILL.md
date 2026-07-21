@@ -20,7 +20,9 @@ this step just makes sure the diff they see is already clean.
    worktree and confirm it is
    on the recorded branch with a clean working tree (the previous
    `code/implement` step committed). If the branch/worktree is missing
-   without already-satisfied evidence, `coga block` — something is off.
+   without already-satisfied evidence, escalate per your launch mode — ask
+   the attending human, or `coga block` in a queue run — because something
+   is off.
 2. **Run `/code-review`.** Invoke the `/code-review` slash command at
    default effort against the branch's diff vs `main`. Note the findings;
    you'll address them in step 4. Do not use `/code-review ultra` here —
@@ -56,7 +58,8 @@ this step just makes sure the diff they see is already clean.
 - Open or mark the PR ready — that's `code/open-pr`.
 - Rework the original change beyond what `/code-review` + `/simplify`
   surface. If a finding implies a design rethink, write it to the
-  blackboard and `coga block`.
+  blackboard and escalate per your launch mode — ask the attending human,
+  or `coga block` in a queue run.
 - Reformat unrelated code or sweep adjacent files.
 
 ## Gotchas

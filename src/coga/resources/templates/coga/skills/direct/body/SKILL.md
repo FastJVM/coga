@@ -34,8 +34,9 @@ every task past `draft` carries a workflow.
   there is no later step to bump into. When the body's work is complete, run
   `coga mark done <slug>` (with a one-line `--message` summary). If the body
   specifies its own completion command, that command IS this instruction —
-  follow it. If you are blocked before completion, `coga block` with a
-  reason; never stop silently.
+  follow it. If something prevents completion, escalate per your launch mode
+  — ask the attending human, or `coga block` with a reason in a queue run;
+  never stop silently.
 
 ## Product-code boundary
 

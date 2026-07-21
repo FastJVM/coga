@@ -21,8 +21,10 @@ contexts, and workflow step below. Read it once; follow it throughout.
    without it, the team sees nothing, the workflow stalls, and your work is
    invisible even though it's on disk. On the *final* step, run
    `coga mark done <id>` instead.
-4. **Never stop silently.** If something blocks you from reaching the bump,
-   that's `coga block` — never a quiet exit.
+4. **Never stop silently.** If something keeps you from reaching the bump,
+   escalate — ask the human when your session is attended, `coga block` when
+   no answer is available in-session; the mode section below says which
+   applies — never a quiet exit.
 
 Everything below is reference for the steps in that loop.
 
@@ -69,9 +71,9 @@ for why. The rules that govern it:
   bare `claude` / `codex` session against a ticket), exiting after the bump
   ends the chain — the human relaunches for the next step. Don't call
   `coga launch` yourself to keep going.
-- **Don't go backward.** If an earlier step was wrong and needs rework, call
-  `coga block` with a clear reason rather than bumping; the human decides
-  whether to rewind.
+- **Don't go backward.** If an earlier step was wrong and needs rework,
+  escalate per your mode — ask the attending human, or `coga block` with a
+  clear reason — rather than bumping; the human decides whether to rewind.
 - **Don't edit the frozen `workflow` snapshot** in ticket frontmatter — it's
   set at creation and is a human-only field.
 - **Final step, or no workflow:** run `coga mark done <id>` once the work is
@@ -82,11 +84,18 @@ for why. The rules that govern it:
 
 `coga block --task <id> --reason "<specific ask>"`
 
-Call this when you're genuinely waiting on a concrete human answer: a decision
-you can't make in unattended work, missing access, a task premise that needs
-owner correction, or repeated failure that needs a human choice. The command
-writes the blocker to the blackboard, sets `status: blocked`, notifies the
-owner, and ends the launched session. Stop after blocking.
+This parks the ticket for a concrete human answer that is not available
+in-session — a decision in unattended work, missing access, a task premise
+that needs owner correction, or repeated failure that needs a human choice.
+The command writes the blocker to the blackboard, sets `status: blocked`,
+notifies the owner, and ends the launched session. Stop after blocking.
+
+Whether an answer is available in-session is decided by your mode section,
+not here. In an attended session the human is in the REPL: ask and wait
+instead of blocking, and block only when they explicitly ask you to park the
+ticket. An appended queue directive instead requires a terminal `coga block`
+when needed input is unavailable. Read every other instruction to block in
+this prompt, including in workflow step skills, through that mode rule.
 
 `--reason` is required and must be specific. "Unclear what to do" is useless;
 "Retry logic ambiguous — spec says respect Retry-After headers but sets no max

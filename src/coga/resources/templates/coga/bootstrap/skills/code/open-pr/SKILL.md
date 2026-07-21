@@ -24,8 +24,9 @@ gate, not your say-so.
    values consume the whole remainder of the line. The implement / peer-review
    steps must have created the feature branch, recorded it, and left it
    committed and ahead of the base branch. If `branch:` / `worktree:` are
-   missing, that is an earlier-step gap — `coga block` with a one-line reason
-   rather than improvising a branch here.
+   missing, that is an earlier-step gap — do not improvise a branch here;
+   escalate per your launch mode by asking the attending human, or by using
+   `coga block` with a one-line reason in a queue run.
 2. **Return to the primary control checkout and run `coga open-pr <slug>`.**
    Task resolution and the `pr:` blackboard write belong to the control
    checkout; running from the feature worktree fails loud rather than updating
@@ -61,9 +62,11 @@ gate, not your say-so.
 Fix the cause and re-run it — it is idempotent:
 
 - Missing `branch:` / `worktree:` or a torn-down worktree → an earlier step
-  didn't record/keep it; `coga block` if you can't recover it here.
+  didn't record/keep it; escalate per your launch mode if you can't recover
+  it here.
 - Nothing committed ahead of base → implement/peer-review produced no change;
-  build it (or `coga block`) rather than opening an empty PR.
+  build it rather than opening an empty PR, escalating per your launch mode if
+  that needs human direction.
 - Stale branch → rebase the control branch in the feature worktree, re-run
   `python -m pytest`, commit, return to the control checkout, then re-run
   `coga open-pr`. If an earlier attempt already pushed, the retry republishes
@@ -80,7 +83,8 @@ Fix the cause and re-run it — it is idempotent:
 
 - Decide whether to merge — that's the human's job in the next step.
 - Make code changes or resolve CI failures. If CI fails for a real reason,
-  `coga block` and let the human relaunch.
+  escalate per your launch mode — ask the attending human, or `coga block`
+  in a queue run — and let the human redirect or relaunch as appropriate.
 - Resolve merge conflicts with the base — the peer-review / self-qa step handles
   mergeability before this step runs.
 - Edit `assignee:` by hand. The workflow's per-step `assignee:` handles the role
