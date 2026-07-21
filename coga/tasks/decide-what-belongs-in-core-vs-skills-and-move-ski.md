@@ -6,7 +6,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/architecture
 - coga/principles
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -137,6 +137,21 @@ branch: microkernel-move-recipes
 worktree: ../coga-microkernel-move-recipes
 pr: (not yet created)
 
+## PR
+
+### Summary
+
+- Define the microkernel boundary in both agent guides and the `coga/codebase`
+  context: shared infrastructure and genuine command implementations stay in
+  core; single-consumer recipes live with their skills.
+- Move the autoclose, blocker-reminder, and branch-sweep maintenance recipes
+  from `src/coga/` into synchronized live and packaged skill directories while
+  retaining the shared autoclose parsers and GitHub helpers in core.
+- Repoint tests, packaging coverage, recurring templates, workflow contracts,
+  and adjacent documentation at the skill-local recipes.
+
+Test plan: `python -m pytest` (`1361 passed, 1 skipped`).
+
 ## Implementation complete (implement step, 2026-07-20)
 
 Committed on `microkernel-move-recipes` (1 commit, rebased onto current
@@ -179,6 +194,28 @@ note.
 
 **Verification:** full suite `1361 passed, 1 skipped` on the rebased tree;
 `coga validate` 0 errors; each run.py smoke-imports its sibling recipe.
+
+## Peer review (Codex, 2026-07-20)
+
+`codex review --base origin/main` found three consistency issues; the recipe
+moves themselves passed the full suite and an end-to-end package-backed script
+launch smoke test.
+
+- The policy used `code/open-pr` as a current skill-recipe example even though
+  PR #585 later made it a genuine Python command implementation in core.
+- The new repository guidance was added to `CLAUDE.md` but not `AGENTS.md`, so
+  the two configured agent CLIs would receive different placement rules.
+- The autoclose and branch-sweep workflow contracts still named the removed
+  `coga.autoclose.sweep_merged` / `coga.branchsweep.sweep_branches` APIs.
+
+Resolved all three findings in rebased commit `9c1ddb00`, including matching
+live and packaged workflow copies plus adjacent dead-path documentation. The
+branch was fetched and rebased unconditionally onto fresh `origin/main`
+(`b6e004be`), then the full suite passed again: `1361 passed, 1 skipped`.
+`AGENTS.md` and `CLAUDE.md` are byte-identical, `git diff --check` is clean,
+and the feature worktree is clean with two commits ahead of `origin/main`.
+`coga validate --task decide-what-belongs-in-core-vs-skills-and-move-ski
+--json` reports 1 valid task and no issues.
 
 ## Plan (implement step, 2026-07-20)
 
@@ -273,6 +310,48 @@ Result: no remaining validation drift found.
 ## Dream Skill: validate-drift
 
 Generated: 2026-07-20T23:19:00+00:00
+Command: `coga validate --json --fix`
+Task: `decide-what-belongs-in-core-vs-skills-and-move-ski`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T23:23:14+00:00
+Command: `coga validate --json --fix`
+Task: `decide-what-belongs-in-core-vs-skills-and-move-ski`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T23:34:05+00:00
+Command: `coga validate --json --fix`
+Task: `decide-what-belongs-in-core-vs-skills-and-move-ski`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-20T23:35:40+00:00
 Command: `coga validate --json --fix`
 Task: `decide-what-belongs-in-core-vs-skills-and-move-ski`
 
