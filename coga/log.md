@@ -2249,3 +2249,15 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 error: could not write '.git/rebase-merge/git-rebase-todo': No such file or directory
 2026-07-20 17:11 [clean-up-workflows-and-make-sure-they-re-in-bootst] [megalaunch] launched via coga megalaunch
 2026-07-20 18:05 [clean-up-workflows-and-make-sure-they-re-in-bootst] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review applied one must-fix; post-rebase suite: 1361 passed, 1 skipped.
+2026-07-20 18:05 [clean-up-workflows-and-make-sure-they-re-in-bootst] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/26)
+Rebasing (2/26)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
+2026-07-20 18:05 [clean-up-workflows-and-make-sure-they-re-in-bootst] [system] {"agent":"codex","agent_turns":8,"cache_creation_input_tokens":null,"cache_read_input_tokens":5356544,"cli":"codex","content_status":"ok","elapsed_seconds":3292.404523,"ended_at":"2026-07-21T01:05:55.199937Z","human_turns":0,"input_tokens":397395,"model":"gpt-5.6-sol","outcome":"Peer review is complete and the branch is clean, fresh, and ready for the deterministic open-PR step. I’m advancing the ticket now with the review result attached to the transition.","outcome_status":"completed","output_tokens":14407,"provider":"openai","request":null,"schema":2,"session_id":"019f8203-01fe-78f3-b364-a699bded7fa5","slug":"clean-up-workflows-and-make-sure-they-re-in-bootst","started_at":"2026-07-21T00:11:02.795414Z","step":"peer-review","title":"clean up workflows and make sure they're in bootstrap","ts":"2026-07-21T01:05:55.199937Z","usage_status":"ok"}
