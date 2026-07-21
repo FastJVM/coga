@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -139,6 +139,7 @@ parameter.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/624
 branch: picker-sigwinch-redraw
 worktree: /home/n/Code/codex/coga-picker-sigwinch-redraw
 
