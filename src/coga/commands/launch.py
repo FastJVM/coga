@@ -21,6 +21,7 @@ import signal
 import subprocess
 import sys
 from datetime import datetime, timezone
+from importlib.resources import files
 from pathlib import Path
 from typing import NamedTuple
 from uuid import uuid4
@@ -121,6 +122,16 @@ def launch(
         "--return-timeout",
         hidden=True,
         help="Internal: return 'timeout' instead of exiting with the timeout code.",
+    ),
+    queue_guidance: bool = typer.Option(
+        False,
+        "--queue-guidance",
+        hidden=True,
+        help="Internal: append the sequential-queue execution guidance "
+        "(prompt-queue.md) to each composed agent prompt. `coga recurring` "
+        "sets it for automatic sweeps so an agent announces its plan and "
+        "continues — ending in `coga block` for owner decisions — instead of "
+        "pausing the queue on a conversational ask.",
     ),
 ) -> str | None:
     """Compose context, start work on a task.
@@ -485,6 +496,9 @@ def launch(
                     name=ticket.title or "",
                     discussion=_is_discussion_bootstrap(ref),
                     kickoff=_bootstrap_kickoff(ref),
+                    prompt_suffix=(
+                        _queue_prompt_suffix() if queue_guidance else ""
+                    ),
                     idle_timeout=idle_timeout,
                     max_session=max_session,
                     label="Launch",
@@ -710,6 +724,26 @@ def _refresh_launch_checkout(cfg: Config) -> None:
     git.refresh_coga_state_from_control(
         cfg, message="Refresh coga state after launch"
     )
+
+
+def _queue_prompt_suffix() -> str:
+    """Package-backed execution guidance for sequential automatic queues.
+
+    The `coga recurring` counterpart of megalaunch's `prompt-megalaunch.md`:
+    an automatic sweep's REPL has a TTY (so work streams live), but nobody is
+    necessarily watching — an agent that pauses on a conversational ask hangs
+    the queue until a liveness timeout fails the task. The guidance says to
+    announce the plan and continue, and to end in `coga block` when a decision
+    genuinely needs the owner.
+    """
+    try:
+        prompt = files("coga.resources").joinpath("prompt-queue.md").read_text()
+    except OSError as exc:
+        raise ComposeError(
+            "Queue execution prompt is missing from the installed Coga "
+            "package: prompt-queue.md"
+        ) from exc
+    return f"\n\n{prompt.strip()}\n"
 
 
 # Linux caps a single execve() argument at MAX_ARG_STRLEN (32 pages =

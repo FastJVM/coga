@@ -511,6 +511,11 @@ def run_recurring_scan(
             idle_timeout=idle_timeout,
             max_session=max_session,
             return_timeout=True,
+            # An automatic sweep's agent must announce-and-continue and end
+            # owner decisions in `coga block` — a conversational ask hangs the
+            # queue until a liveness timeout fails the task. `--interactive`
+            # is a human stepping through by hand, so it keeps plain launches.
+            queue_guidance=not interactive,
         )
         _stop_if_unfinished_after_launch(
             cfg, task.ref, interactive=interactive, timed_out=(kind == "timeout")
@@ -668,6 +673,10 @@ def _launch_created(
         idle_timeout=idle_timeout,
         max_session=max_session,
         return_timeout=False,
+        # Same queue posture as the full sweep: automatic launches get the
+        # announce-and-continue / block-don't-ask guidance; `--interactive`
+        # human-stepped runs keep plain launches.
+        queue_guidance=not interactive,
     )
 
 

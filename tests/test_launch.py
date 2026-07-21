@@ -2960,3 +2960,15 @@ def test_launch_chains_agent_into_scripted_step(
     ticket = Ticket.read(Path(created["path"]))
     assert ticket.step == "3 (review)"
     assert ticket.assignee == "marc"
+
+
+def test_queue_prompt_suffix_carries_block_guidance() -> None:
+    """The package-backed queue guidance rides as a prompt suffix and names the
+    non-negotiables: block for owner decisions, finish via bump/done/block."""
+    from coga.commands.launch import _queue_prompt_suffix
+
+    suffix = _queue_prompt_suffix()
+    assert suffix.startswith("\n\n")
+    assert "coga block" in suffix
+    assert "coga bump" in suffix
+    assert "does not release the queue" in suffix

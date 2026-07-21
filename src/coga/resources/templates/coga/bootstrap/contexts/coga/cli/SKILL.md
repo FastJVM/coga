@@ -767,6 +767,15 @@ skipped when `coga recurring` has no stdin/stdout TTY, because the agent REPL
 cannot be driven. Templates intended for cron or other unattended schedulers
 should carry a script.
 
+**Queue guidance.** Like megalaunch, automatic recurring launches (the bare
+sweep, `--force`, and on-demand `recurring launch <name>` — everything except
+`--interactive`) append package-backed queue guidance (`prompt-queue.md`, via
+`coga launch --queue-guidance`) to each composed agent prompt: the TTY is
+transport, not an approval gate, so the agent announces its plan and
+continues, and a decision or capability that genuinely requires the owner must
+end in `coga block` — not a conversational "shall I proceed?" that hangs the
+queue until the liveness backstop fails the task.
+
 **Idle-timeout backstop.** An agent template that *does* launch (a TTY is
 present) but whose agent stalls or crashes before signalling done — never
 reaching `coga bump` / `mark done` / `block` — would otherwise block the
