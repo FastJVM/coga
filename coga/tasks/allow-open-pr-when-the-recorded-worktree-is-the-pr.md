@@ -54,6 +54,32 @@ assumption while there.
 - The wrapper docstring states the design assumption to revisit: it "operates on the `## Dev`
   feature branch by name, pushing from the recorded worktree rather than the process's own
   checkout" — which presumes worktree ≠ control checkout.
+- Not a one-line conditional: `_require_control_checkout(cfg)` runs *before* task resolution
+  and only sees `cfg`, so the fix must resolve the ticket first (from a checkout possibly on
+  the feature branch) and compare checkouts robustly — path equality is not enough; use
+  `realpath` or `git rev-parse --git-common-dir` comparison.
+- `pr:` write-back gap (most likely place to go subtly wrong): `open_pr` writes `pr: <url>`
+  to the blackboard *after* pushing (open_pr.py:324–330). In single-checkout mode that
+  dirties the feature-branch working tree, so (1) the pushed PR lacks its own `pr:` record
+  until committed, and (2) a re-run hits the command's own "uncommitted changes" refusal
+  (open_pr.py:202–207), breaking its advertised idempotency. The fix must commit the `pr:`
+  write in single-checkout mode or exempt the ticket file from the dirty check — and state
+  which in the PR.
+- Safety argument to make explicit in code/docs: in single-checkout mode the feature-branch
+  copy of the ticket is the *live* one (bumps commit onto it), which is why reading it from
+  the feature branch is sound. Also note `check_branch_contains_control` hard-fails if the
+  control branch advanced this same ticket file — the mandatory peer-review rebase covers
+  this in practice.
+- Self-reference trap: this ticket's own `open-pr` workflow step runs `coga open-pr`. Develop
+  this ticket in a **linked feature worktree** (the classic layout) so the step runs the
+  installed, unpatched code on the satisfiable two-gate path; a single-checkout dev layout
+  would dead-end in exactly the bug being fixed unless the install is editable and patched.
+- Tests live in `tests/test_open_pr.py` and `tests/test_open_pr_command.py` — put the
+  two-layout coverage there.
+- Out of scope: `coga/contexts/dev/code/SKILL.md` (and its packaged copy under
+  `src/coga/resources/templates/`) still instructs "do code changes in a feature worktree",
+  contradicting the worktree-retirement premise. Updating that context for the retirement is
+  a separate follow-up ticket — don't absorb it here.
 
 <!-- coga:blackboard -->
 
