@@ -24,8 +24,26 @@ Append-only run history is not beside the template: `coga recurring` adds a
 line to the repo-global `coga/log.md` (tagged `recurring/<name>`) each time
 it creates a period task.
 
+Templates deliberately live outside `tasks/`. Anything holding a `ticket.md`
+under `coga/tasks/` *is* a task — discovered, status-carrying, launchable —
+with no exceptions, and a template is none of those: it carries no `status:`,
+is never launched directly, and must survive across periods. Its instances
+are the opposite — ordinary tasks the scanner deletes and recreates each
+period. Keeping the two in separate directories keeps the task-tree invariant
+exception-free (no "unless it's a template" branch in status, validate, or
+megalaunch) and makes the instance path itself the marker: the `recurring/`
+prefix under `tasks/` says "machine-generated, safe to reap and regenerate",
+which is what licenses the scan to replace a prior-period `done` task and
+Dream's retro pass to direct-delete finished period tasks without a PR. A
+hand-authored task never gets that treatment.
+
 A directory whose name starts with `_` (`_template/`, `_rem/`) is inert — the
-scanner skips it. That is how the starter templates ship without firing.
+scanner skips it. That is how the starter templates ship without firing, and
+also how you park a live template without deleting it: rename `foo/` to
+`_foo/`. `_template/` itself is pure convenience — a pre-filled frontmatter
+shape to copy. Nothing depends on it existing; the whole mechanism is
+"non-underscore directory under `coga/recurring/` with a `schedule:` in its
+`ticket.md`".
 
 - `coga recurring` (bare) — the public command head parses `--interactive`
   and `--force`, then launches the package-backed `bootstrap/recurring-scan`
