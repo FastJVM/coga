@@ -89,12 +89,23 @@ no in-memory state.
   failures still fail that repo, and the parent keeps sweeping before returning
   the aggregate result. `--force` is the explicit schedule/status bypass and
   composes with the parent sweep.
-- **Bootstrap tickets** in package `bootstrap/<name>/ticket.md` resources
-  are stateless launch targets for skills or ticket-owned scripts. No status,
-  no workflow. Used for ticket-less re-entry points like `coga launch
-  bootstrap/orient` (the `chat` alias) and deterministic bootstrap scripts
-  like `bootstrap/recurring-scan`. `coga launch` does not create new tickets
-  merely because a target is under `bootstrap/`; use `coga create` for that.
+- **Bootstrap tickets** are stateless launch targets for skills or
+  ticket-owned scripts. No status, no workflow. Resolution is **local-first**,
+  exactly like skills/contexts/workflows: `coga launch bootstrap/<name>`
+  checks a repo-local `coga/bootstrap/<name>/ticket.md` before the package
+  `bootstrap/<name>/ticket.md` resource. Used for ticket-less re-entry points
+  like `coga launch bootstrap/orient` (the `chat` alias), deterministic
+  bootstrap scripts like `bootstrap/recurring-scan`, and **command tickets** —
+  a ticket that is a verb's durable *definition* (body as docs, `script:` as
+  implementation, `secrets:` as capability grant), launched in place each
+  time with no per-invocation task instance. Trailing launch args
+  (`coga launch <target> [ARGS...]`) reach a *script* launch as
+  `COGA_ARG_1..N` plus `COGA_ARGC`; an agent launch given trailing args
+  fails loud. `coga open-pr` is the first shipped command ticket
+  (`bootstrap/open-pr`, fronted by a default alias); a repo mints its own
+  `coga <verb>` with a local command ticket plus an `[aliases]` line — zero
+  core Python. `coga launch` does not create new tickets merely because a
+  target is under `bootstrap/`; use `coga create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, reusable
   workflows, hooks, and launch targets shipped in the installed package.
   `pip install coga` puts them in the wheel; `coga init` does not
@@ -355,11 +366,13 @@ artifact. This is a data check, independent of whether the step is agent- or
 script-owned; human rewinds (`--to` / `--backward`) are never gated.
 
 `code/open-pr` is an ordinary agent step with `requires: pr`. The agent runs
-`coga open-pr <slug>` from the primary control checkout; the command pushes the
-recorded feature branch by name, opens or readies the PR, and writes `pr:` under
-`## Dev`. A skipped command cannot be papered over with a bump because the gate
-reads the recorded artifact. The registry remains generic (`step_gate.py` owns
-`pr`); `bump` never hardcodes a `code/*` skill name.
+`coga open-pr <slug>` from the primary control checkout — a default alias for
+`coga launch bootstrap/open-pr <slug>`, a stateless script launch of the
+open-pr command ticket; the recipe pushes the recorded feature branch by
+name, opens or readies the PR, and writes `pr:` under `## Dev`. A skipped
+command cannot be papered over with a bump because the gate reads the
+recorded artifact. The registry remains generic (`step_gate.py` owns `pr`);
+`bump` never hardcodes a `code/*` skill name.
 
 ## Prompt composition
 
@@ -505,6 +518,30 @@ Add a new command's difference as a parameter on the shared path instead.
 The command reference lives in `coga/cli`. The important architectural split
 is that foreground commands operate on files in the current `coga/`; there
 is no server-side state behind them.
+
+### Commands as tickets — the migration rule
+
+The open-pr pilot (2026-07) settled when a core command leaves the kernel for
+a command ticket:
+
+> A core command migrates to a command ticket when it is a deterministic
+> verb: script-shaped, parameterized by trailing args + env, owning no
+> control/data-plane state transition. Its completion gate, if any, stays a
+> declarative `requires:` data check in `bump`. State-machine commands
+> (`create`, `mark`, `bump`, `block`, `unblock`, `launch`, `megalaunch`) are
+> the kernel. Shared parsers/preflights stay core once ≥2 consumers exist.
+> Read-only surfaces (`status`, `show`, `validate`, `usage`) are explicitly
+> *unruled* — deferred until a driving case (owner, 2026-07-21).
+
+The shape a migrated verb takes is the `bootstrap/open-pr` command ticket:
+`ticket.md` (definition + docs) beside `run.py` (the seam, reading
+`COGA_ARG_*`) and `recipe.py` (the deterministic logic, importing shared core
+infra freely), fronted by a default alias so the operator spelling never
+changes. What deliberately stays core regardless: the `requires:` gate
+registry (`step_gate.py`), shared parsers (`coga.autoclose`), preflights
+(`github_preflight`), and the secrets/config machinery — the kernel trades
+verb implementations for the generic seams (arg channel, local-first
+bootstrap resolution) that let any verb live outside it.
 
 ## Dream's known-skill contract
 

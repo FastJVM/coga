@@ -53,11 +53,15 @@ interview.
 
 ## Running work
 
-### `coga launch TASK`
+### `coga launch TASK [ARGS...]`
 Compose context and start work on a task. Accepts a task slug, id-slug, or a
-`bootstrap/<name>` ticket. Activates a `draft`/`paused` ticket inline, flips
-`active → in_progress`, composes the prompt, and spawns the assignee's agent (or
-runs a script step directly). A `done` ticket is refused and left untouched.
+`bootstrap/<name>` ticket (resolved local-first: a repo-local
+`coga/bootstrap/<name>/ticket.md` overrides the packaged one). Activates a
+`draft`/`paused` ticket inline, flips `active → in_progress`, composes the
+prompt, and spawns the assignee's agent (or runs a script step directly). A
+`done` ticket is refused and left untouched. Trailing `ARGS` are forwarded to
+*script* launches as `COGA_ARG_1..N` plus `COGA_ARGC` env vars; an agent
+launch given trailing args fails loud.
 
 - `--agent <nickname>` — use this agent for the launch instead of the ticket
   assignee.
@@ -169,10 +173,11 @@ put), preserving the step.
 
 ### `coga open-pr TASK`
 Push the branch recorded under `## Dev` on the blackboard and open (or ready) its
-PR. Run from the primary control checkout: it reads `branch:`/`worktree:`,
-confirms the worktree is clean and ahead of `main`, pushes the branch by name,
-opens the PR (or marks an existing draft ready), and writes `pr: <url>` back
-under `## Dev`. Idempotent.
+PR. A default alias for `coga launch bootstrap/open-pr TASK` — a stateless
+script launch of the packaged open-pr command ticket. Run from the primary
+control checkout: it reads `branch:`/`worktree:`, confirms the worktree is
+clean and ahead of `main`, pushes the branch by name, opens the PR (or marks an
+existing draft ready), and writes `pr: <url>` back under `## Dev`. Idempotent.
 
 ### `coga retire TASK`
 Wrap up a **done** task: prune its Git branch (local and its merged `origin`
@@ -287,5 +292,6 @@ Positional args after the alias name forward to the expanded form.
 | `coga skill-update` | `coga recurring launch skill-update` |
 | `coga autoclose` | `coga recurring launch autoclose-merged` |
 | `coga pick` | `coga megalaunch --pick` |
+| `coga open-pr` | `coga launch bootstrap/open-pr` |
 
 Aliases are just config — edit or add your own in `coga.toml`.
