@@ -1,16 +1,35 @@
 ---
 slug: remove-autonomy-triage
 title: remove autonomy triage
-status: draft
+status: active
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: code/with-self-review
+workflow:
+  name: code/with-self-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: self-qa
+    skills:
+    - code/self-qa
+    assignee: agent
+  - name: pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
