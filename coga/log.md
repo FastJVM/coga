@@ -2289,3 +2289,14 @@ Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
 CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
 2026-07-20 18:06 [install/harden-packaging-and-install-before-launch] [megalaunch] launched via coga megalaunch
 2026-07-20 18:08 [install/harden-packaging-and-install-before-launch] [human:nicktoper] unblocked (asks resolved, still in_progress): 2026-07-20 audit: the ask's sibling-merge condition is now met — all named install/ siblings plus cut-release-to-realign-pypi-with-main are done and merged (origin/main 2d799810 has the fixes; init.py no longer clones upstream; pyproject.toml says 0.3.0 via merged PR #587). The remaining condition (realigned version on PyPI) is still unmet solely because the v0.3.0 GitHub release was never published — that step was reserved for the human in docs/releasing.md. Re-blocking with that single narrowed ask.
+2026-07-20 18:08 [install/harden-packaging-and-install-before-launch] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/31)
+Rebasing (2/31)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
