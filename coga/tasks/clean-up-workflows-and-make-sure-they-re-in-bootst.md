@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/codebase
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -104,6 +104,7 @@ before merge. That gate is intentional and fine; treat it as the commit point.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/619
 branch: workflow-cleanup
 worktree: ../coga-workflow-cleanup
 
