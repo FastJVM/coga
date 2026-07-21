@@ -75,4 +75,21 @@ problem, reopen a fresh ticket for the directive.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Production notes
+
+2026-07-21 (ticket-edit session, nicktoper + claude): parked pending
+`cli-extension-model/move-command-logic-to-tickets` (pass 2 execution).
+Findings worth keeping from the discussion:
+
+- Confirmed an alias cannot substitute for this doc: aliases can't shadow
+  built-ins (`_validate_aliases`) and only rewrite argv — they can't redirect
+  the hardcoded `AUTHORING_SKILL = "bootstrap/ticket"` ref. Local-first file
+  override is the only zero-build path. That confusion arose naturally in this
+  very session, which is evidence the note is needed.
+- The command→ticket externalization makes the doc *more* relevant, not less:
+  the collapsed `ticket` shape keeps the interview as a local-first-resolved
+  ref, and pass 2 multiplies the refs that resolve this way. Post-move, the
+  note's framing should shift from "obscure workaround" to "this is how you
+  customize coga — commands are heads over refs, local files win".
+- Blocked (not dropped) so it can be re-framed against the settled surface
+  after the move executes, instead of documenting a moving target now.
