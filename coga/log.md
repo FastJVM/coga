@@ -2403,3 +2403,14 @@ Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
 CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
 2026-07-20 18:24 [why-browser-autoamtion-as-a-ticket] [megalaunch] launched via coga megalaunch
 2026-07-20 18:27 [why-browser-autoamtion-as-a-ticket] [agent:claude] advanced to step 2 (human-owns-and-finishes) → assigned to nicktoper — Recommendation on blackboard: seeding was incidental (May port predates June prune gate) — recommend stop seeding, keep as example/ demo fixture (option 2); option 1 (prune list) is the fallback.
+2026-07-20 18:27 [why-browser-autoamtion-as-a-ticket] [git] sync failed: could not rebase 'main' onto origin/main: Rebasing (1/45)
+Rebasing (2/45)
+error: could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+hint: Resolve all conflicts manually, mark them as resolved with
+hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
+hint: You can instead skip this commit: run "git rebase --skip".
+hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
+Could not apply 09b7e643... Ticket: write-real-coga-documentation-command-reference-gu — active
+Auto-merging coga/log.md
+Auto-merging coga/tasks/write-real-coga-documentation-command-reference-gu.md
+CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-command-reference-gu.md
