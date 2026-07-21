@@ -36,7 +36,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -236,6 +236,67 @@ ownership of step gates.
 
 <!-- coga:blackboard -->
 
+## Dev
+branch: commands-as-tickets-open-pr
+worktree: /home/n/Code/claude/coga-commands-as-tickets
+
+## Implement step (2026-07-21)
+
+Landed on the branch as four commits (seams → migration → docs), exactly the
+ticket's Proposed Shape:
+
+1. **Arg channel** (`0b977e5b`): `launch()` takes variadic trailing args;
+   `run_script_mode` injects `COGA_ARG_1..N` + always-present `COGA_ARGC`
+   via `build_arg_env` (launch_script.py); agent launch with args fails loud
+   *before* the TTY gate so the refusal is testable headless. Sentinel
+   normalization up front (`isinstance` check) covers in-process callers
+   (recurring/retire) that omit the new param — the coga/codebase
+   OptionInfo gotcha.
+2. **Local-first bootstrap** (`0378918d`): `resolve_bootstrap` checks
+   `coga/bootstrap/<name>/ticket.md` before the package resource
+   (`bootstrap_resolution_paths` in paths.py); not-found names both paths.
+3. **Migration** (`745eb273`): `src/coga/open_pr.py` → packaged
+   `bootstrap/open-pr/recipe.py` (git rename, R092 detected);
+   `commands/open_pr.py` deleted, replaced by `bootstrap/open-pr/run.py`
+   (reads `COGA_ARG_1`, own `_control_checkout_refusal` copy — chosen over a
+   shared helper since core no longer has one); `ticket.md` documents the
+   verb; `open-pr` left `BUILTIN_COMMANDS`, added to `DEFAULT_ALIASES` →
+   `launch bootstrap/open-pr`. run.py mirrors the sibling branch's
+   sys.path.insert + sibling-import pattern; tests load the recipe via new
+   `conftest.load_bootstrap_recipe` (named to merge cleanly beside the
+   sibling's `load_skill_recipe`).
+4. **Docs** (`d514e9cc`): architecture context (live+packaged) — local-first
+   bootstrap bullet incl. command-ticket definition + arg channel, alias
+   mechanism in the `requires: pr` paragraph, and the generalization rule as
+   "Commands as tickets — the migration rule" under Command Surface;
+   codebase context warning rescoped to *repairs* (deliberate authoring
+   sanctioned); code/open-pr SKILL.md mechanism note (live+packaged in
+   sync); docs/reference.md (launch args, open-pr alias, alias table).
+
+Implementation-level picks (left open by design): `COGA_ARGC` spelling;
+run.py carries its own control-checkout helper. Wheel packaging needs no
+change — the whole `bootstrap/` tree is already exclude+force-included.
+
+Verification: full suite green in the worktree (1393 passed, 1 skipped;
+`PYTHONPATH=$PWD/src python3.12 -m pytest`); `coga validate --task
+commands-as-tickets-open-pr-pilot` clean; `coga launch --help` shows the
+args channel and `--help` lists the open-pr alias; branch rebased-checked
+against origin/main (already up to date). Coverage preserved per acceptance:
+control-checkout refusal, no-commits-ahead, lease retry, byte-spliced `pr:`
+write-back all still tested against the packaged copy; new end-to-end tests
+for the alias spelling, stateless launch path, arg env, local override, and
+a zero-Python toy verb (`coga hello`).
+
+**Coordination note:** the sibling
+`agree-the-core-vs-skills-move-list-then-execute` PR (microkernel policy in
+CLAUDE.md/codebase context) has not landed yet — its branch
+`microkernel-move-recipes` is still in flight. The command-ticket rule
+therefore lands here in the architecture context only; whichever PR merges
+second should reconcile CLAUDE.md's policy paragraph with this rule (both
+texts were written to compose — different sections, no overlapping edits
+except `coga/contexts/coga/codebase/SKILL.md`, where the sibling adds a new
+section and this ticket edits the existing bootstrap-repair gotcha).
+
 ## Design-step investigation (2026-07-21)
 
 Facts an implementer/designer should not re-derive:
@@ -305,3 +366,45 @@ Decisions). Implementation-level choices left open deliberately: exact env
 var spelling (`COGA_ARGC` vs `COGA_ARG_COUNT`) and whether run.py shares a
 `_require_control_checkout` helper with core or carries its own copy — the
 implementer picks whichever reads cleaner.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-21T22:20:26+00:00
+Command: `coga validate --json --fix`
+Task: `commands-as-tickets-open-pr-pilot`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-21T22:24:49+00:00
+Command: `coga validate --json --fix`
+Task: `commands-as-tickets-open-pr-pilot`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-21T22:28:03+00:00
+Command: `coga validate --json --fix`
+Task: `commands-as-tickets-open-pr-pilot`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
