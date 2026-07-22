@@ -197,10 +197,19 @@ def launch(
 
     ticket = _read(ref)
 
+    # A stateless script launch is a command ticket being invoked as a verb
+    # (`coga open-pr <slug>` = `coga launch bootstrap/open-pr <slug>`). Its
+    # stdout is the command's own — open-pr's is a bare PR URL — so the
+    # launcher's framing goes to stderr, still visible to a human, out of the
+    # way of a caller capturing the output. Every command ticket inherits this;
+    # moving a verb behind a ticket must not change what the verb prints.
+    command_ticket = is_bootstrap and is_script_launch(cfg, ticket)
+
     typer.echo(
         f"Launch: task {ref.id_slug} "
         f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
-        f"assignee={ticket.assignee or 'unassigned'})"
+        f"assignee={ticket.assignee or 'unassigned'})",
+        err=command_ticket,
     )
 
     # A `done` ticket is finished: launching it must not restart its frozen

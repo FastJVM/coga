@@ -104,8 +104,8 @@ def build_task_env(
     return env
 
 
-def build_arg_env(args: Sequence[str] | None) -> dict[str, str]:
-    """The trailing-launch-argument environment contract (`COGA_ARG_*`).
+def apply_arg_env(env: dict[str, str], args: Sequence[str] | None) -> None:
+    """Write the trailing-launch-argument contract (`COGA_ARG_*`) into `env`.
 
     `coga launch <target> [ARGS...]` forwards trailing args to *script*
     launches only, as `COGA_ARG_1..N` plus `COGA_ARGC` (agent launches refuse
@@ -114,12 +114,21 @@ def build_arg_env(args: Sequence[str] | None) -> dict[str, str]:
     without probing for `COGA_ARG_1`. The `COGA_` namespace is reserved for
     launch metadata (secrets named `COGA_*` are rejected at config parse), so
     these variables cannot collide with a declared secret.
+
+    The whole `COGA_ARG_*` namespace is rewritten, not merely overlaid: `env`
+    starts from the launcher's own environment, so a nested launch with fewer
+    args than its parent (a command ticket's script invoking `coga launch`)
+    would otherwise inherit a stale `COGA_ARG_2` alongside a fresh
+    `COGA_ARGC=1`. Scrubbing first keeps the channel per launch invocation, as
+    documented — a script that reads `COGA_ARG_<n>` can trust it came from
+    *this* launch.
     """
+    for key in [k for k in env if k.startswith("COGA_ARG_")]:
+        del env[key]
     values = list(args or [])
-    env = {"COGA_ARGC": str(len(values))}
+    env["COGA_ARGC"] = str(len(values))
     for i, value in enumerate(values, 1):
         env[f"COGA_ARG_{i}"] = value
-    return env
 
 
 def build_script_command(script_path: Path) -> list[str]:
@@ -163,7 +172,7 @@ def run_script_mode(
     task lifecycle writes because there is no task.
 
     `args` carries `coga launch`'s trailing arguments into the child env as
-    `COGA_ARG_1..N` + `COGA_ARGC` (see `build_arg_env`). Mid-chain script
+    `COGA_ARG_1..N` + `COGA_ARGC` (see `apply_arg_env`). Mid-chain script
     steps and sweep launches pass none — the channel is per launch invocation.
     """
     skill, cmd, log_label, cleanup = _resolve_script(cfg, ref, ticket)
@@ -199,7 +208,7 @@ def run_script_mode(
     # Same secret chokepoint as agent-mode `coga launch`: a script task still
     # receives its scoped secrets here (folded in, not dropped).
     env.update(build_task_env(cfg, ref, skill))
-    env.update(build_arg_env(args))
+    apply_arg_env(env, args)
     cwd = script_repo_root(cfg)
 
     if not stateless:
@@ -237,7 +246,14 @@ def run_script_mode(
         typer.secho(f"Script exited with {exit_code}.", fg=typer.colors.YELLOW, err=True)
         sys.exit(exit_code)
 
-    typer.echo(f"{ref.id_slug}: script ran successfully")
+    # A stateless script launch is a *command ticket* invocation — `coga
+    # open-pr <slug>` is `coga launch bootstrap/open-pr <slug>` — so stdout
+    # belongs to the command (open-pr prints its PR URL there), not to the
+    # launcher. Keep launch's own completion note on stderr so `$(coga
+    # open-pr <slug>)` still captures exactly what the pre-ticket command
+    # printed. Stateful script steps keep it on stdout: their output is launch
+    # progress, not a command's return value.
+    typer.echo(f"{ref.id_slug}: script ran successfully", err=stateless)
     if stateless:
         return
 

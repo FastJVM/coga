@@ -101,7 +101,12 @@ no in-memory state.
   time with no per-invocation task instance. Trailing launch args
   (`coga launch <target> [ARGS...]`) reach a *script* launch as
   `COGA_ARG_1..N` plus `COGA_ARGC`; an agent launch given trailing args
-  fails loud. `coga open-pr` is the first shipped command ticket
+  fails loud. The arg namespace is rewritten per launch invocation, not
+  overlaid on the launcher's environment, so a nested launch with fewer args
+  cannot see its parent's leftovers. Stdout belongs to the command: a
+  stateless script launch keeps launch's own framing on stderr, so moving a
+  verb behind a ticket does not change what the verb prints (`coga open-pr`
+  still emits a bare PR URL). `coga open-pr` is the first shipped command ticket
   (`bootstrap/open-pr`, fronted by a default alias); a repo mints its own
   `coga <verb>` with a local command ticket plus an `[aliases]` line — zero
   core Python. `coga launch` does not create new tickets merely because a

@@ -329,6 +329,33 @@ def test_script_launch_without_args_sets_argc_zero(repo: Path) -> None:
     assert "arg1=\n" in output
 
 
+def test_script_launch_scrubs_inherited_arg_env(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The arg channel is per launch invocation, so a nested launch with fewer
+    args than its parent must not see the parent's leftovers. Without the
+    scrub, `COGA_ARGC=1` would arrive alongside a stale `COGA_ARG_2` and a
+    script could act on the outer launch's task ref."""
+    _install_arg_echo_script(repo)
+    monkeypatch.setenv("COGA_ARG_1", "stale-one")
+    monkeypatch.setenv("COGA_ARG_2", "stale-two")
+    monkeypatch.setenv("COGA_ARGC", "2")
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "check", "alpha"])
+
+    assert result.exit_code == 0, result.output
+    output = (cfg.repo_root.parent / "arg-output.txt").read_text()
+    assert "argc=1\n" in output
+    assert "arg1=alpha\n" in output
+    assert "arg2=\n" in output
+
+
 def test_agent_launch_with_trailing_args_fails_loud(repo: Path) -> None:
     """Trailing args are a script channel; an agent launch must refuse them
     rather than silently drop them — before the TTY gate would fire."""

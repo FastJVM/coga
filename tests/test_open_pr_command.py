@@ -167,6 +167,38 @@ def test_open_pr_alias_spelling_end_to_end(tmp_path, monkeypatch):
     assert parse_pr_url(read_blackboard(ticket)) == "https://github.com/acme/repo/pull/8"
 
 
+def test_open_pr_launch_stdout_is_only_the_url(tmp_path, monkeypatch, capfd):
+    """Moving a verb behind a command ticket must not change what the verb
+    prints. `coga open-pr <slug>` printed exactly the PR URL on stdout before
+    the move, so the launcher's own framing ("Launch: task ...", "script ran
+    successfully") belongs on stderr — otherwise `$(coga open-pr <slug>)`
+    captures unparsable output even though the PR was created.
+
+    The script is a real child process, so its URL lands on the *file
+    descriptor* (read here with `capfd`) while the launcher's own echoes go
+    through `sys.stdout` / `sys.stderr` (read from the runner result). Both
+    are one stream at a terminal; the assertion is that the launcher puts
+    nothing on the value channel."""
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir, create_url="https://github.com/acme/repo/pull/9")
+    _export_child_import_path(monkeypatch)
+
+    wt = _feature_worktree(repo, tmp_path, "feature-q", commit=True)
+    _write_ticket(repo.coga_os, "quiet-out", branch="feature-q", worktree=wt)
+
+    monkeypatch.chdir(repo.coga_os)
+    result = CliRunner().invoke(app, ["launch", "bootstrap/open-pr", "quiet-out"])
+
+    assert result.exit_code == 0, result.stderr
+    assert result.stdout.strip() == ""
+    # Still visible to a human running it by hand, just off the value channel.
+    assert "Launch: task bootstrap/open-pr" in result.stderr
+    assert "script ran successfully" in result.stderr
+    assert capfd.readouterr().out.strip() == "https://github.com/acme/repo/pull/9"
+
+
 def test_open_pr_launch_fails_loud_on_no_commits(tmp_path, monkeypatch):
     """The incident case surfaced through the CLI: nothing built → non-zero exit,
     no PR, no recorded `pr:` — and the stateless launch advances nothing."""
