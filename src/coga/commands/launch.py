@@ -70,6 +70,7 @@ from coga.repl_supervisor import (
     EXPECTED_TASK_ENV,
     run_with_done_marker,
 )
+from coga.step_gate import gate_publishes_current_branch
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -962,6 +963,7 @@ def spawn_agent_session(
     usage_cwd = Path.cwd().resolve()
     usage_window_start = datetime.now(timezone.utc)
     spawn_started = False
+    publish_session_log = False
     outcome_status: usage_tracking.OutcomeStatus = "unknown"
 
     try:
@@ -1012,6 +1014,7 @@ def spawn_agent_session(
             max_session=max_session,
         )
         outcome_status = _session_outcome_status(outcome)
+        publish_session_log = _completed_publishing_gate(ticket, ref, outcome)
         return AgentSessionResult(outcome.exit_code, outcome.kind, outcome.reason)
     except KeyboardInterrupt:
         outcome_status = "interrupted"
@@ -1058,9 +1061,16 @@ def spawn_agent_session(
             # merge=union only saves committed content). Commit exactly the
             # log via its union-safe path; it also carries this launch's own
             # log line. A supervised chain reaches this finally per step, so
-            # each step's record commits promptly. Non-fatal.
+            # each step's record commits promptly. When a successful
+            # artifact-gated bump just published an open PR branch, publish
+            # this trailing commit there too so the local and PR tips stay in
+            # lockstep. Non-fatal.
             if isinstance(cfg, Config):
-                git.sync_log(cfg, message=f"Log: {session_slug}")
+                git.sync_log(
+                    cfg,
+                    message=f"Log: {session_slug}",
+                    publish_current_branch=publish_session_log,
+                )
         try:
             prompt_file.unlink()
         except FileNotFoundError:
@@ -1112,6 +1122,39 @@ def _session_outcome_status(outcome) -> usage_tracking.OutcomeStatus:
     if outcome.kind == "crash" or outcome.exit_code != 0:
         return "failed"
     return "completed"
+
+
+def _completed_publishing_gate(
+    ticket: Ticket,
+    ref: TaskRef | BootstrapRef,
+    outcome,
+) -> bool:
+    """Whether this done-signalled session advanced off a publishing gate.
+
+    The gated bump publishes its transition commit before it emits the done
+    marker. Session usage is appended later, in this process's teardown. Read
+    the durable ticket to prove the original gated step advanced before asking
+    `sync_log` to publish that final feature-branch commit. Blocks, natural
+    exits, crashes, and rewinds therefore keep the ordinary local-only feature
+    log behavior.
+    """
+    if outcome.kind != "done" or not isinstance(ref, TaskRef):
+        return False
+    current = ticket.current_step()
+    if not isinstance(current, dict) or not gate_publishes_current_branch(
+        current.get("requires")
+    ):
+        return False
+    before = ticket.step_index()
+    if before is None or not ref.ticket_path.is_file():
+        return False
+    try:
+        after = Ticket.read(ref.ticket_path).step_index()
+    except Exception:
+        # Teardown must never hide the agent's real outcome because a ticket was
+        # concurrently removed or malformed after the session ended.
+        return False
+    return after is not None and after > before
 
 
 def _current_step_name(ticket: Ticket) -> str | None:

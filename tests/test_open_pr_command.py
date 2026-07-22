@@ -34,6 +34,7 @@ from conftest import init_git_repo
 from coga.autoclose import parse_pr_url
 from coga.cli import app, main
 from coga.paths import packaged_template_path
+from coga.repl_supervisor import EXPECTED_TASK_ENV
 from coga.taskfile import read_blackboard
 
 
@@ -73,6 +74,22 @@ def _export_child_import_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(
         "PYTHONPATH", str(Path(coga.__file__).resolve().parents[1])
     )
+
+
+def _seed_coga_gitignore(repo) -> None:
+    """Give the harness repo the ignore rules a real `coga init` writes.
+
+    `coga launch` rebuilds the merged `coga/.agent-skills/` view on every run.
+    A real repo ignores it (see the packaged `coga/.gitignore`); without that,
+    launching into the *primary* checkout leaves it untracked and the recipe's
+    clean-tree gate refuses. Only the single-checkout tests notice, because
+    they are the ones that launch into the checkout being published.
+    """
+    (repo.coga_os / ".gitignore").write_text(
+        packaged_template_path(".gitignore").read_text()
+    )
+    repo.git("add", "--", "coga/.gitignore")
+    repo.git("commit", "-m", "chore: seed coga-managed ignore rules")
 
 
 def _feature_worktree(repo, tmp_path: Path, branch: str, *, commit: bool) -> Path:
@@ -285,6 +302,162 @@ def test_open_pr_launch_pushes_recorded_branch_by_name(tmp_path, monkeypatch):
     origin_head = repo.git("rev-parse", "refs/heads/detached-feature", cwd=repo.origin).strip()
     assert origin_head == feature_head
     assert parse_pr_url(read_blackboard(ticket)) == "https://github.com/acme/repo/pull/9"
+
+
+def test_open_pr_launch_allows_primary_checkout_feature_branch(
+    tmp_path, monkeypatch
+):
+    """Single-checkout development has no separate control checkout to use.
+
+    Record the primary checkout through a symlink so the seam must compare
+    checkout identity rather than raw path strings.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(
+        monkeypatch, bin_dir, create_url="https://github.com/acme/repo/pull/11"
+    )
+    _export_child_import_path(monkeypatch)
+
+    checkout_alias = tmp_path / "primary-checkout"
+    checkout_alias.symlink_to(repo.root, target_is_directory=True)
+    ticket = _write_ticket(
+        repo.coga_os,
+        "single-checkout",
+        branch="single-checkout-feature",
+        worktree=checkout_alias,
+    )
+    _seed_coga_gitignore(repo)
+    repo.git("add", "--", "coga/tasks/single-checkout/ticket.md")
+    repo.git("commit", "-m", "ticket: add single-checkout")
+    repo.git("push", "origin", "main")
+
+    repo.checkout_branch("single-checkout-feature")
+    (repo.coga_os / "change.txt").write_text("a real change\n")
+    repo.git("add", "--", "coga/change.txt")
+    repo.git("commit", "-m", "feature: a real change")
+
+    monkeypatch.chdir(repo.coga_os)
+    monkeypatch.setenv(EXPECTED_TASK_ENV, str(ticket.parent.resolve()))
+    first = CliRunner().invoke(app, ["launch", "bootstrap/open-pr", "single-checkout"])
+    second = CliRunner().invoke(app, ["launch", "bootstrap/open-pr", "single-checkout"])
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    assert parse_pr_url(read_blackboard(ticket)) == (
+        "https://github.com/acme/repo/pull/11"
+    )
+    assert repo.git("status", "--porcelain").strip() == ""
+    published_ticket = repo.git(
+        "show",
+        "refs/heads/single-checkout-feature:coga/tasks/single-checkout/ticket.md",
+        cwd=repo.origin,
+    )
+    assert "pr: https://github.com/acme/repo/pull/11" in published_ticket
+
+
+def test_single_checkout_open_pr_bump_republishes_final_ticket_state(
+    tmp_path, monkeypatch, real_git
+):
+    """The required bump must not leave a conflicting stale ticket in the PR."""
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(
+        monkeypatch, bin_dir, create_url="https://github.com/acme/repo/pull/15"
+    )
+    _export_child_import_path(monkeypatch)
+
+    branch = "single-checkout-final-state"
+    slug = "single-checkout-final-state"
+    ticket = _write_ticket(repo.coga_os, slug, branch=branch, worktree=repo.root)
+    ticket.write_text(
+        ticket.read_text().replace(
+            "    - name: open-pr\n",
+            "    - name: open-pr\n      requires: pr\n",
+        )
+    )
+    _seed_coga_gitignore(repo)
+    ticket_rel = f"coga/tasks/{slug}/ticket.md"
+    repo.git("add", "--", ticket_rel)
+    repo.git("commit", "-m", "ticket: seed single-checkout workflow")
+    repo.git("push", "origin", "main")
+
+    repo.checkout_branch(branch)
+    (repo.root / "implementation.txt").write_text("publishable work\n")
+    repo.git("add", "--", "implementation.txt")
+    repo.git("commit", "-m", "feature: add publishable work")
+
+    monkeypatch.chdir(repo.coga_os)
+    monkeypatch.setenv(EXPECTED_TASK_ENV, str(ticket.parent.resolve()))
+    opened = CliRunner().invoke(app, ["launch", "bootstrap/open-pr", slug])
+    assert opened.exit_code == 0, opened.output
+
+    bumped = CliRunner().invoke(app, ["bump", slug])
+    assert bumped.exit_code == 0, bumped.output
+
+    control_ticket = repo.git(
+        "show", f"refs/heads/main:{ticket_rel}", cwd=repo.origin
+    )
+    feature_ticket = repo.git(
+        "show", f"refs/heads/{branch}:{ticket_rel}", cwd=repo.origin
+    )
+    assert feature_ticket == control_ticket
+    assert "step: 2 (review)" in feature_ticket
+    assert "pr: https://github.com/acme/repo/pull/15" in feature_ticket
+    assert repo.git("rev-parse", "HEAD").strip() == repo.git(
+        "rev-parse", f"refs/heads/{branch}", cwd=repo.origin
+    ).strip()
+
+
+def test_open_pr_launch_refuses_independent_feature_clone(
+    tmp_path, monkeypatch, capfd
+):
+    """An inherited launch anchor keeps a fallback clone non-authoritative."""
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+    _export_child_import_path(monkeypatch)
+    clone = tmp_path / "feature-clone"
+
+    ticket = _write_ticket(
+        repo.coga_os, "clone-task", branch="clone-feature", worktree=clone
+    )
+    repo.git("add", "--", "coga/tasks/clone-task/ticket.md")
+    repo.git("commit", "-m", "ticket: add clone-task")
+    repo.git("push", "origin", "main")
+
+    repo.git("clone", "--no-hardlinks", str(repo.root), str(clone), cwd=tmp_path)
+    repo.git("config", "user.email", "clone@example.com", cwd=clone)
+    repo.git("config", "user.name", "Clone", cwd=clone)
+    repo.git("config", "commit.gpgsign", "false", cwd=clone)
+    repo.git("remote", "set-url", "origin", str(repo.origin), cwd=clone)
+    (clone / "coga" / "coga.local.toml").write_text('user = "marc"\n')
+    repo.git("checkout", "-b", "clone-feature", cwd=clone)
+    (clone / "coga" / "change.txt").write_text("a real change\n")
+    repo.git("add", "--", "coga/change.txt", cwd=clone)
+    repo.git("commit", "-m", "feature: a real change", cwd=clone)
+
+    # The anchor names the *primary* checkout's task, so the clone's identical
+    # copy at a different path cannot match it and stays non-authoritative.
+    monkeypatch.setenv(EXPECTED_TASK_ENV, str(ticket.parent.resolve()))
+    monkeypatch.chdir(clone / "coga")
+    result = CliRunner().invoke(app, ["launch", "bootstrap/open-pr", "clone-task"])
+
+    assert result.exit_code == 2, result.output
+    assert (
+        "cannot prove that this feature checkout owns the live ticket"
+        in capfd.readouterr().err
+    )
+    assert not log.exists() or "pr create" not in log.read_text()
+    assert (
+        parse_pr_url(
+            read_blackboard(clone / "coga" / "tasks" / "clone-task" / "ticket.md")
+        )
+        is None
+    )
 
 
 def test_open_pr_ships_as_a_command_ticket() -> None:

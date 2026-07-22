@@ -87,6 +87,7 @@ def advance_step(
     notify_slack: bool = False,
     echo: str | None = None,
     rewind: bool = False,
+    publish_current_branch: bool = False,
 ) -> None:
     """Move a ticket to a workflow step.
 
@@ -94,7 +95,10 @@ def advance_step(
     nickname. Caller is responsible for resolving role tokens against the
     ticket beforehand (see `resolve_step_assignee`). Step movement is normally
     silent in Slack; callers set `notify_slack=True` only for an explicit
-    operator FYI such as `coga bump --message`.
+    operator FYI such as `coga bump --message`. A completion gate may request
+    that the transition commit also update the current feature branch; the PR
+    gate uses this in primary-checkout development so the PR branch and control
+    branch receive the same final ticket state.
 
     `rewind=True` marks a human `coga bump --to/--backward`, the one deliberate
     backward step move. It relaxes exactly the step-backward rule in the sync
@@ -120,6 +124,7 @@ def advance_step(
         guard=git.ticket_state_guard(
             cfg, ref.ticket_path, allow_step_rewind=rewind
         ),
+        publish_current_branch=publish_current_branch,
     )
 
 

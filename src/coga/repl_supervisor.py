@@ -39,9 +39,18 @@ from coga.atomicio import atomic_write_text
 # the child. `emit_done_marker` reads this. Stable name = stable contract.
 SENTINEL_ENV = "COGA_DONE_SENTINEL"
 
-# Env vars scoped to a supervised launch step. A child `coga bump` uses these
-# as a compare-and-swap guard: it may only bump the ticket/step that composed
-# the session it is finishing.
+# Env vars scoped to a supervised launch step, naming the task/step that
+# composed the session. Two readers, so this is a launch-wide contract rather
+# than a bump-private one — do not narrow it:
+#
+#   - `coga bump` uses both as a compare-and-swap guard: it may only bump the
+#     ticket/step that composed the session it is finishing.
+#   - `bootstrap/open-pr`'s `run.py` reads `EXPECTED_TASK_ENV` to prove a
+#     single-checkout feature branch owns the live ticket. It cannot use the
+#     `COGA_TASK_*` contract for that: `coga open-pr` is itself a launch, so
+#     `build_task_env` has already rewritten those to name the command ticket.
+#     This pair survives because no nested launch rewrites it — which is
+#     precisely why it must keep naming the *outer* task.
 EXPECTED_TASK_ENV = "COGA_EXPECTED_TASK"
 EXPECTED_STEP_ENV = "COGA_EXPECTED_STEP"
 

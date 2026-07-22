@@ -200,6 +200,7 @@ def sync_task_state(
     *,
     message: str,
     guard: _StateGuard | None = None,
+    publish_current_branch: bool = False,
 ) -> None:
     """Commit the task directory's files and push to the control branch.
 
@@ -211,7 +212,10 @@ def sync_task_state(
         is staged, commit with `message` and push to the configured remote.
       - HEAD is a feature branch → commit the task dir on the current branch
         (so the checkout reflects ticket state), then land the same files on
-        the control branch via the working-tree-free plumbing path.
+        the control branch via the working-tree-free plumbing path. When
+        `publish_current_branch` is true, also push that feature commit after
+        the control landing; completion gates use this only once an artifact
+        such as an open PR makes the branch itself shared state.
       - Detached HEAD → skip the local commit (it would be orphaned), still
         land on the control branch.
 
@@ -228,7 +232,14 @@ def sync_task_state(
     `guard_ticket_state` so a stale checkout cannot overlay its ticket onto a
     newer control tip.
     """
-    sync_paths(cfg, task_path, [task_path], message=message, guard=guard)
+    sync_paths(
+        cfg,
+        task_path,
+        [task_path],
+        message=message,
+        guard=guard,
+        publish_current_branch=publish_current_branch,
+    )
 
 
 def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
@@ -290,8 +301,10 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
         return []
 
 
-def sync_log(cfg: Config, *, message: str) -> None:
-    """Commit (and on the control branch, push) the repo-global `log.md` alone.
+def sync_log(
+    cfg: Config, *, message: str, publish_current_branch: bool = False
+) -> None:
+    """Commit the repo-global `log.md` alone, and publish when required.
 
     For the union-safe audit log to survive a `git pull`, its appended lines
     must be *committed*: `merge=union` only resolves committed-vs-committed
@@ -307,10 +320,12 @@ def sync_log(cfg: Config, *, message: str) -> None:
       - Control branch: commit + push. A moved `origin/<control>` is absorbed by
         `_push_control_branch`'s fetch + rebase, which union-merges the log, so
         a concurrent append is never clobbered.
-      - Feature branch: commit the log locally only. It reaches the control
-        branch union-safely when the branch's PR merges — never via the
+      - Feature branch: normally commit the log locally only. It reaches the
+        control branch union-safely when the branch's PR merges — never via the
         cross-branch overlay, which replaces the file wholesale and would drop
-        lines another branch appended.
+        lines another branch appended. A successful artifact-gated handoff may
+        set `publish_current_branch` so the final session-usage commit also
+        reaches the already-open PR branch.
       - Detached HEAD: skip (the commit would be orphaned); the line stays
         dirty, reported to stderr.
 
@@ -346,6 +361,13 @@ def sync_log(cfg: Config, *, message: str) -> None:
             )
         else:
             _commit_paths(root, [log_rel], message)
+            if publish_current_branch:
+                result = _push_ref(root, cfg.git_remote, branch)
+                if result is not None:
+                    raise GitError(
+                        f"`git push {cfg.git_remote} {branch}` failed while "
+                        f"publishing the session log: {result}"
+                    )
     except GitError as exc:
         sys.stderr.write(f"[git] log sync failed: {exc}. Message was: {message}\n")
 
@@ -359,6 +381,7 @@ def sync_paths(
     update_local_control_ref: bool = True,
     land_union_files_to_control: bool = False,
     guard: _StateGuard | None = None,
+    publish_current_branch: bool = False,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -373,7 +396,10 @@ def sync_paths(
     checked out. ``land_union_files_to_control=True`` is the narrow terminal-
     abandonment path: merge=union evidence files are three-way unioned onto
     the control branch immediately because the current feature branch may
-    intentionally never merge.
+    intentionally never merge. `publish_current_branch` is the narrower
+    post-artifact path: after committing locally and landing the selected
+    state on control, also fast-forward the current feature branch on the
+    configured remote.
 
     `guard` is called with each candidate control-branch base before the
     overlay is built — including the base refetched after a non-fast-forward
@@ -432,6 +458,7 @@ def sync_paths(
             message=message,
             guard=guard,
             update_local_control_ref=update_local_control_ref,
+            publish_current_branch=publish_current_branch,
         )
     except StateRegressionError as exc:
         # A refusal is not a failure to reach git — it is git refusing to bury
@@ -812,6 +839,7 @@ def _dispatch_branch_sync(
     message: str,
     guard: _StateGuard | None = None,
     update_local_control_ref: bool = True,
+    publish_current_branch: bool = False,
 ) -> None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
@@ -822,7 +850,9 @@ def _dispatch_branch_sync(
       - Feature branch → commit `local_rels` locally (so the checkout reflects
         OS state), then land `overlay_rels` on the control branch via the
         working-tree-free overlay. A caller may also explicitly land selected
-        merge=union files when their evidence cannot wait for a future PR.
+        merge=union files when their evidence cannot wait for a future PR, and
+        may additionally publish that feature commit after the control
+        landing.
       - Detached HEAD → skip the local commit (it would be orphaned); still land
         `overlay_rels` on the control branch.
     """
@@ -870,6 +900,13 @@ def _dispatch_branch_sync(
             guard=guard,
             update_local_control_ref=update_local_control_ref,
         )
+        if publish_current_branch:
+            result = _push_ref(root, cfg.git_remote, branch)
+            if result is not None:
+                raise GitError(
+                    f"`git push {cfg.git_remote} {branch}` failed while "
+                    f"publishing gated task state: {result}"
+                )
     except StateRegressionError:
         if before is not None:
             _restore_unpushed_sync_commit(root, before, local_rels)
