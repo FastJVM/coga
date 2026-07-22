@@ -91,6 +91,12 @@ DEFAULT_DISCUSSION_TEMPLATES = {
 
 def launch(
     task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` ticket."),
+    args: list[str] | None = typer.Argument(
+        None,
+        help="Trailing arguments for a script launch, injected into the "
+        "script's environment as COGA_ARG_1..N plus COGA_ARGC. An agent "
+        "launch given trailing args fails loud (nothing consumes them).",
+    ),
     agent_override: str | None = typer.Option(
         None,
         "--agent",
@@ -143,6 +149,11 @@ def launch(
     a timed-out sweep launch honestly instead of mistaking it for a human pause;
     public CLI timeouts exit with the supervisor's non-zero timeout code.
     """
+    # In-process callers (recurring, retire) invoke this Typer command function
+    # directly without passing every parameter, so an omitted `args` arrives as
+    # Typer's ArgumentInfo sentinel rather than None. Normalize once up front.
+    script_args: list[str] = list(args) if isinstance(args, (list, tuple)) else []
+
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -186,10 +197,19 @@ def launch(
 
     ticket = _read(ref)
 
+    # A stateless script launch is a command ticket being invoked as a verb
+    # (`coga open-pr <slug>` = `coga launch bootstrap/open-pr <slug>`). Its
+    # stdout is the command's own — open-pr's is a bare PR URL — so the
+    # launcher's framing goes to stderr, still visible to a human, out of the
+    # way of a caller capturing the output. Every command ticket inherits this;
+    # moving a verb behind a ticket must not change what the verb prints.
+    command_ticket = is_bootstrap and is_script_launch(cfg, ticket)
+
     typer.echo(
         f"Launch: task {ref.id_slug} "
         f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
-        f"assignee={ticket.assignee or 'unassigned'})"
+        f"assignee={ticket.assignee or 'unassigned'})",
+        err=command_ticket,
     )
 
     # A `done` ticket is finished: launching it must not restart its frozen
@@ -286,12 +306,28 @@ def launch(
             if agent_override is not None:
                 _bail("--agent is only supported for agent launches.")
             from coga.commands.launch_script import run_script_mode
-            run_script_mode(cfg, ref, ticket, stateless=is_bootstrap)
+            run_script_mode(
+                cfg, ref, ticket, stateless=is_bootstrap, args=script_args
+            )
             # A failed script sys.exits inside run_script_mode; that path is
             # refreshed by the BaseException handler below, so this fires
             # exactly once per script launch.
             _refresh_launch_checkout(cfg)
             return
+
+        # Trailing args are a script-launch channel (COGA_ARG_1..N). An agent
+        # launch has nothing that consumes them — composing them into the
+        # prompt is deliberately deferred — so dropping them silently would be
+        # a fail-quiet wrong answer. Refuse before any TTY/CLI/auth setup.
+        if script_args:
+            listed = " ".join(script_args)
+            _bail(
+                f"Cannot launch {ref.id_slug} with trailing arguments "
+                f"({listed!r}): launch arguments are only supported for "
+                "script launches, where they are injected as COGA_ARG_1..N. "
+                "An agent launch does not consume them. Remove the arguments, "
+                "or target a script-backed ticket."
+            )
 
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 

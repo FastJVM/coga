@@ -276,6 +276,196 @@ def test_bootstrap_script_launch_is_stateless(
     assert not log_path.exists() or log_path.read_text() == ""
 
 
+# --- trailing-arg channel (COGA_ARG_1..N + COGA_ARGC) --------------------------
+
+
+def _install_arg_echo_script(repo: Path) -> None:
+    script = repo / "skills" / "ops" / "checker" / "check.sh"
+    script.write_text(
+        "#!/bin/sh\n"
+        "{\n"
+        "  echo \"argc=$COGA_ARGC\"\n"
+        "  echo \"arg1=$COGA_ARG_1\"\n"
+        "  echo \"arg2=$COGA_ARG_2\"\n"
+        "} > \"$PWD/arg-output.txt\"\n"
+    )
+    script.chmod(0o755)
+
+
+def test_script_launch_injects_trailing_args_as_env(repo: Path) -> None:
+    """`coga launch <task> a b` lands as COGA_ARG_1/COGA_ARG_2 + COGA_ARGC=2."""
+    _install_arg_echo_script(repo)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "check", "alpha", "beta two"])
+
+    assert result.exit_code == 0, result.output
+    output = (cfg.repo_root.parent / "arg-output.txt").read_text()
+    assert "argc=2\n" in output
+    assert "arg1=alpha\n" in output
+    assert "arg2=beta two\n" in output
+
+
+def test_script_launch_without_args_sets_argc_zero(repo: Path) -> None:
+    """COGA_ARGC is always present so a script can rely on the contract."""
+    _install_arg_echo_script(repo)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "check"])
+
+    assert result.exit_code == 0, result.output
+    output = (cfg.repo_root.parent / "arg-output.txt").read_text()
+    assert "argc=0\n" in output
+    assert "arg1=\n" in output
+
+
+def test_script_launch_scrubs_inherited_arg_env(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The arg channel is per launch invocation, so a nested launch with fewer
+    args than its parent must not see the parent's leftovers. Without the
+    scrub, `COGA_ARGC=1` would arrive alongside a stale `COGA_ARG_2` and a
+    script could act on the outer launch's task ref."""
+    _install_arg_echo_script(repo)
+    monkeypatch.setenv("COGA_ARG_1", "stale-one")
+    monkeypatch.setenv("COGA_ARG_2", "stale-two")
+    monkeypatch.setenv("COGA_ARGC", "2")
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "check", "alpha"])
+
+    assert result.exit_code == 0, result.output
+    output = (cfg.repo_root.parent / "arg-output.txt").read_text()
+    assert "argc=1\n" in output
+    assert "arg1=alpha\n" in output
+    assert "arg2=\n" in output
+
+
+def test_agent_launch_with_trailing_args_fails_loud(repo: Path) -> None:
+    """Trailing args are a script channel; an agent launch must refuse them
+    rather than silently drop them — before the TTY gate would fire."""
+    skill_md = repo / "skills" / "ops" / "checker" / "SKILL.md"
+    skill_md.write_text(
+        "---\nname: ops/checker\ndescription: runs a health check.\n---\n"
+    )
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "check", "alpha"])
+
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "trailing arguments" in combined
+    assert "COGA_ARG_1" in combined
+
+
+# --- local-first bootstrap resolution ------------------------------------------
+
+
+def test_local_bootstrap_ticket_overrides_packaged(repo: Path) -> None:
+    """A repo-local `coga/bootstrap/<name>/ticket.md` wins over the package
+    resource, mirroring skills/contexts/workflows."""
+    from coga.tasks import resolve_bootstrap
+
+    local = repo / "bootstrap" / "recurring-scan"
+    _write(
+        local / "ticket.md",
+        """
+        ---
+        title: Local override
+        assignee: system
+        secrets: null
+        script: run.sh
+        ---
+        """,
+    )
+    cfg = load_config(repo)
+    ref = resolve_bootstrap(cfg, "recurring-scan")
+    assert ref.path == local
+    assert ref.id_slug == "bootstrap/recurring-scan"
+
+
+def test_unknown_bootstrap_ticket_names_both_checked_paths(repo: Path) -> None:
+    from coga.tasks import TaskNotFoundError, resolve_bootstrap
+
+    cfg = load_config(repo)
+    with pytest.raises(TaskNotFoundError) as exc:
+        resolve_bootstrap(cfg, "no-such-verb")
+    msg = str(exc.value)
+    assert str(repo / "bootstrap" / "no-such-verb" / "ticket.md") in msg
+    assert "bootstrap/no-such-verb" in msg
+
+
+def test_local_command_ticket_plus_alias_mints_new_verb(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The extensibility receipt: a repo mints `coga hello` with a local
+    command ticket plus an `[aliases]` line — zero core Python. The trailing
+    arg rides the argv rewrite into COGA_ARG_1."""
+    from coga.cli import main
+
+    verb = repo / "bootstrap" / "hello"
+    _write(
+        verb / "ticket.md",
+        """
+        ---
+        title: Hello
+        assignee: system
+        secrets: null
+        script: run.sh
+        ---
+
+        ## Description
+
+        Toy verb for the command-ticket seam.
+        """,
+    )
+    script = verb / "run.sh"
+    script.write_text(
+        "#!/bin/sh\n"
+        "echo \"hello $COGA_ARG_1 ($COGA_ARGC)\" > \"$PWD/hello-output.txt\"\n"
+    )
+    script.chmod(0o755)
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[aliases]\nhello = "launch bootstrap/hello"\n'
+    )
+
+    # Keep the module-level Typer app clean: dispatch is argv rewriting, and
+    # registering a placeholder for the ad-hoc alias would leak into the
+    # registered-command set other tests assert on.
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    monkeypatch.setattr("sys.argv", ["coga", "hello", "world"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+
+    assert exc.value.code in (0, None)
+    cfg = load_config(repo)
+    output = (cfg.repo_root.parent / "hello-output.txt").read_text()
+    assert output == "hello world (1)\n"
+    # Stateless: no task instance was created, no log written.
+    assert list_tasks(cfg) == []
+
+
 def test_draft_bare_script_workflow_recomputes_dispatch_after_activation(
     repo: Path,
 ) -> None:

@@ -152,6 +152,16 @@ def bootstrap_path(cfg: Config, name: str) -> Path:
     return packaged_template_path("bootstrap", name)
 
 
+def local_bootstrap_path(cfg: Config, name: str) -> Path:
+    """A repo-local bootstrap ticket directory (`coga/bootstrap/<name>/`)."""
+    return cfg.repo_root / "bootstrap" / name
+
+
+def bootstrap_resolution_paths(cfg: Config, name: str) -> tuple[Path, Path]:
+    """Local-first candidates for a bootstrap ticket, mirroring skills/contexts."""
+    return (local_bootstrap_path(cfg, name), bootstrap_path(cfg, name))
+
+
 __all__ = [
     "packaged_template_path",
     "workflow_path",
@@ -176,4 +186,6 @@ __all__ = [
     "tasks_dir",
     "bootstrap_dir",
     "bootstrap_path",
+    "local_bootstrap_path",
+    "bootstrap_resolution_paths",
 ]

@@ -75,11 +75,17 @@ template payload.
 
 Two sharp gotchas live here:
 
-- **Do not repair bundled bootstrap by copying it into `coga/bootstrap/`.**
-  If `bootstrap/orient`, `bootstrap/ticket`, a bundled skill, a bundled
-  context, or a bundled `bootstrap/workflows/*` workflow cannot be found, the
-  fix belongs in package resources, package data, or the local-then-package
-  resolver. A repo-local mirror hides the packaging bug and will drift.
+- **Do not *repair* bundled resources by copying them into
+  `coga/bootstrap/`.** If `bootstrap/orient`, `bootstrap/ticket`, a bundled
+  skill, a bundled context, or a bundled `bootstrap/workflows/*` workflow
+  cannot be found, the fix belongs in package resources, package data, or the
+  local-then-package resolver — a repo-local mirror hides the packaging bug
+  and will drift. *Deliberate* authoring under `coga/bootstrap/` is
+  sanctioned and resolved local-first, exactly like skills/contexts: a repo
+  mints its own command ticket (`coga/bootstrap/<verb>/ticket.md` plus an
+  `[aliases]` line) or intentionally overrides a shipped bootstrap ticket.
+  The line is intent — new/overriding behavior you own, never a copy standing
+  in for a broken package.
 - **Skill Python deps via `requirements.txt`.** A skill declares its
   dependencies in a `requirements.txt` beside its `SKILL.md`.
   `install_skill_requirements` (the tail of `install_venv` in

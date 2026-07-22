@@ -9,8 +9,10 @@ the real env can override these with `monkeypatch.setenv` themselves.
 
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
@@ -22,6 +24,25 @@ _TEMPLATES_COGA_OS = (
     Path(__file__).resolve().parents[1]
     / "src" / "coga" / "resources" / "templates" / "coga"
 )
+
+
+def load_bootstrap_recipe(name: str):
+    """Load a bootstrap command ticket's `recipe.py` sibling module by name.
+
+    A command-ticket recipe (e.g. `bootstrap/open-pr`) lives beside its
+    `run.py` in the packaged ticket dir, not in importable `coga.*` core.
+    Tests load the module the same way the ticket's `run.py` does — by file
+    path off the packaged dir — since it is not on `sys.path` as a package.
+    `name` is the bootstrap ticket name, e.g. `open-pr`.
+    """
+    recipe_path = _TEMPLATES_COGA_OS / "bootstrap" / name / "recipe.py"
+    module_name = "bootstrap_recipe_" + name.replace("-", "_")
+    spec = importlib.util.spec_from_file_location(module_name, recipe_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def seed_direct_body_workflow(coga_os: Path) -> None:

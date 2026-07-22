@@ -11,6 +11,12 @@ run it, confirm it recorded the PR, then bump. The *judgment* (what the PR says,
 whether the branch is mergeable) belongs to the earlier implement / peer-review
 steps; this step just turns the recorded branch into a PR.
 
+(Mechanism note: `coga open-pr <slug>` is a default alias for `coga launch
+bootstrap/open-pr <slug>` — a stateless script launch of the packaged open-pr
+command ticket. Same spelling, same behavior; as a stateless nested script
+launch it is sanctioned inside your supervised session and never touches your
+session's done sentinel.)
+
 The step declares `requires: pr`, so `coga bump` refuses to advance until a
 `pr:` line is recorded under `## Dev`. That is a **data check**: skipping
 `coga open-pr` and bumping anyway fails loud — the recorded artifact is the
