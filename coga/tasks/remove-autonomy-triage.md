@@ -1,7 +1,7 @@
 ---
 slug: remove-autonomy-triage
 title: remove autonomy triage
-status: active
+status: in_progress
 owner: nick
 human: nick
 agent: claude
