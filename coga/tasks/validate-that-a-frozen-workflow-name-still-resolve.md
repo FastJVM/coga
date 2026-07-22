@@ -5,10 +5,12 @@ status: draft
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
+assignee: claude
+contexts:
+  - dev/code
+  - coga/codebase
 skills: []
-workflow: null
+workflow: code/with-review
 secrets: null
 script: null
 ---
@@ -19,17 +21,38 @@ script: null
 resolves to a workflow file. Add that check, so deleting or renaming a workflow
 surfaces the tickets it strands instead of degrading them silently at launch.
 
-The rule: for every ticket whose `workflow` is frozen, `resolve_workflow_path`
-must find a file for `workflow.name`. A dangling ref on a live ticket
-(`active` / `in_progress` / `paused`) is an **error** — the same reasoning
-`active-no-workflow` already uses, since the ticket composes a placeholder
-instead of its step instructions. A `done` ticket is finished and immutable;
-leave it alone.
+Two rules, both **errors**, both scoped to live tickets
+(`active` / `in_progress` / `paused`) with a frozen `workflow`. A `done` ticket
+is finished and immutable; leave it alone. The severity matches
+`active-no-workflow`: in every case below the ticket composes a placeholder
+instead of its step instructions.
 
-Worth deciding while implementing: whether a frozen step *name* that matches no
-`## <step-name>` section in the resolved workflow deserves the same treatment.
-It produces the sibling failure ("*No instructions attached to this step.*") and
-was present on a live ticket for some time without anyone noticing.
+1. **Dangling workflow name.** `resolve_workflow_path` must find a file for
+   `workflow.name`. A miss means the workflow file was deleted or renamed, and
+   every step of that ticket composes
+   `*Workflow definition not found; using frozen snapshot only.*`
+   (`src/coga/compose.py:360`).
+
+2. **Dangling step name.** For a frozen step with an **empty `skills:` list**,
+   the resolved workflow must contain a matching `## <step-name>` section.
+   A step with no skills draws its instructions solely from that inline prose
+   (`compose._step_layers`, `src/coga/compose.py:352`); when the heading is
+   absent the step composes `*No instructions attached to this step.*`
+   (`src/coga/compose.py:375`) and the agent launches with no idea what the
+   step is for.
+
+Rule 2's `skills:`-empty condition is the whole subtlety and must not be
+dropped: a step whose instructions come from `skills:` refs legitimately has no
+`## <step-name>` section, so an unconditional heading check would fire on most
+steps in the repo. Only the skill-less steps depend on the heading. Note also
+that rule 2 can fire while rule 1 passes — the workflow file is present, but a
+step was renamed or its prose removed after the ticket froze.
+
+Scope note: rule 2 compares the *frozen* step names against the *current*
+workflow file. Broader frozen-vs-current drift (steps added, removed, or
+reordered; `assignee` or `requires` changed) is a real question but is out of
+scope here — this ticket only covers the two cases that strip instructions from
+a composed prompt.
 
 ## Context
 
@@ -54,6 +77,25 @@ from a deletion for an already-frozen ticket.
 
 The three stranded tickets were migrated by hand in PR #627; this ticket is
 about catching the next one at validate time rather than at launch.
+
+A live example of rule 2's blast radius: `code/with-review` declares a
+`peer-review` step with no `skills:`, so its entire instruction set is the
+`## peer-review` section of the workflow file. Renaming that heading would leave
+every ticket already frozen on `code/with-review` composing an empty peer-review
+step, with `resolve_workflow_path` still succeeding.
+
+`_check_frozen_workflow` is the natural home for both checks — it already walks
+frozen steps and resolves their `skills:` refs, and rule 2 needs exactly the
+`skills:`-empty branch it is already looking at. Rule 1 needs `Workflow.load` (or
+just `resolve_workflow_path`) rather than a path check alone if you want the
+inline headings; `inline_instructions` is parsed by `Workflow.load`
+(`src/coga/workflow.py:71`), so one load serves both rules.
+
+Regression test to beat: the bug's signature was that `coga validate --json` was
+byte-identical before and after the workflow deletion. A test that freezes a
+ticket on a workflow, deletes the file, and asserts a new error appears in the
+JSON output covers rule 1; the same shape with a renamed `##` heading covers
+rule 2.
 
 <!-- coga:blackboard -->
 
