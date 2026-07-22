@@ -194,7 +194,13 @@ class _TicketState:
     blackboard_bytes: int | None
 
 
-def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
+def sync_task_state(
+    cfg: Config,
+    task_path: Path,
+    *,
+    message: str,
+    guard: _StateGuard | None = None,
+) -> None:
     """Commit the task directory's files and push to the control branch.
 
     Always-on git analogue of the live notification path. Behaviour:
@@ -217,8 +223,12 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
     `task_path` is the resolved task directory under `coga/tasks/`; only
     files under it are staged, never `git add -A`, so unrelated working-tree
     changes are not swept in.
+
+    `guard` is forwarded to `sync_paths`; status-transition callers pass
+    `guard_ticket_state` so a stale checkout cannot overlay its ticket onto a
+    newer control tip.
     """
-    sync_paths(cfg, task_path, [task_path], message=message)
+    sync_paths(cfg, task_path, [task_path], message=message, guard=guard)
 
 
 def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
@@ -348,6 +358,7 @@ def sync_paths(
     message: str,
     update_local_control_ref: bool = True,
     land_union_files_to_control: bool = False,
+    guard: _StateGuard | None = None,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -363,6 +374,13 @@ def sync_paths(
     abandonment path: merge=union evidence files are three-way unioned onto
     the control branch immediately because the current feature branch may
     intentionally never merge.
+
+    `guard` is called with each candidate control-branch base before the
+    overlay is built — including the base refetched after a non-fast-forward
+    retry — and raises `StateRegressionError` to abort the landing. Status
+    transitions pass `guard_ticket_state`: the overlay replaces the ticket
+    wholesale on the control tip, so without it a stale checkout can bury a
+    newer copy that another checkout already landed.
     """
     selected = _dedupe_paths(paths)
     if not selected:
@@ -412,8 +430,16 @@ def sync_paths(
             overlay_rels=overlay_rels,
             control_union_rels=control_union_rels,
             message=message,
+            guard=guard,
             update_local_control_ref=update_local_control_ref,
         )
+    except StateRegressionError as exc:
+        # A refusal is not a failure to reach git — it is git refusing to bury
+        # newer state, so it gets its own line and no `sync failed` log entry
+        # (the guard already recorded the reason against the task). The local
+        # write stands and the checkout is now knowingly behind control;
+        # `stale_coga_task_rels` keeps surfacing that divergence in views.
+        sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
     except GitError as exc:
         # Non-fatal: surface loudly (stderr + log.md) but do NOT abort the
         # command. The task's markdown on disk is the source of truth; git is
@@ -922,6 +948,27 @@ def _union_merge_paths(root: Path, rels: list[str]) -> set[str]:
         if value == "union":
             union.add(path)
     return union
+
+
+def guard_ticket_state(cfg: Config, ticket_path: Path, base: str) -> None:
+    """Refuse to land one ticket over a newer copy already on `base`.
+
+    The per-transition counterpart of `_guard_coga_state_regressions`. The
+    catch-all sweep guards whatever it happened to find dirty; a status
+    transition knows exactly which ticket it is about to overlay, so it binds
+    this to that ticket and hands the result to `sync_paths(guard=...)`. Same
+    rules, same refusal: a terminal control-branch status is never replaced, and
+    step/status never move backward.
+
+    Pass the ticket file (`TaskRef.ticket_path`), not the task directory — the
+    comparison reads ticket frontmatter, and a directory rel matches nothing.
+    """
+    root = _toplevel(ticket_path)
+    if root is None:
+        return
+    _guard_coga_state_regressions(
+        cfg, root, [_relative_to_root(root, ticket_path)], base
+    )
 
 
 def _guard_coga_state_regressions(
@@ -2018,6 +2065,8 @@ def _path_exists(root: Path, rel: str) -> bool:
 
 __all__ = [
     "GitError",
+    "StateRegressionError",
+    "guard_ticket_state",
     "is_linked_worktree",
     "refresh_coga_state_from_control",
     "stale_coga_task_rels",

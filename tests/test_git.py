@@ -1612,6 +1612,131 @@ def test_sync_coga_state_refuses_reactivation_of_canceled_ticket(
     assert "reopened" not in origin_ticket
 
 
+def _seed_demo_ticket(git_repo, *, status: str, blackboard: str) -> Path:
+    """Commit and push a `demo` ticket on main, returning its working path."""
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True, exist_ok=True)
+    ticket = task / "ticket.md"
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status=status, blackboard=blackboard
+        )
+    )
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", f"seed demo {status}")
+    git_repo.git("push", "origin", "main")
+    return ticket
+
+
+def test_sync_paths_guard_refuses_stale_overwrite_of_terminal_control_copy(
+    git_repo, capsys
+):
+    """The per-transition guard catches what only the retry can see.
+
+    Attempt 0 builds on the *local* control ref, which still looks stale-clean;
+    only the non-fast-forward retry refetches the tip another checkout already
+    closed. The guard runs on every attempt, so the refusal happens there —
+    exactly the window in which a wholesale overlay would bury `done`.
+    """
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/stale")
+
+    # Another checkout finishes the ticket and lands it on the control branch.
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(
+            step="1 (implement)", status="done", blackboard="finished\n"
+        ),
+    )
+    # This checkout never saw that, and marks its stale copy in_progress.
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="stale\n"
+        )
+    )
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    git.sync_paths(
+        cfg,
+        ticket.parent,
+        [ticket.parent],
+        message="Ticket: demo — in_progress",
+        guard=lambda base: git.guard_ticket_state(cfg, ticket, base),
+    )
+
+    captured = capsys.readouterr()
+    assert "sync refused" in captured.err
+    assert "terminal status would change from 'done' to 'in_progress'" in captured.err
+    assert "sync failed" not in captured.err
+
+    origin_ticket = git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert "status: done" in origin_ticket
+    assert "stale" not in origin_ticket
+    assert "Ticket: demo — in_progress" not in git_repo.origin_subjects()
+
+    # The refused landing unwinds its local commit but keeps the transition on
+    # disk: the checkout is now knowingly behind control, not silently reverted.
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
+    assert "status: in_progress" in ticket.read_text()
+
+
+def test_sync_paths_guard_allows_forward_transition(git_repo):
+    """The guard only blocks regressions — normal progress still lands."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/forward")
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="working\n"
+        )
+    )
+
+    git.sync_paths(
+        cfg,
+        ticket.parent,
+        [ticket.parent],
+        message="Ticket: demo — in_progress",
+        guard=lambda base: git.guard_ticket_state(cfg, ticket, base),
+    )
+
+    origin_ticket = git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert "status: in_progress" in origin_ticket
+    assert "working" in origin_ticket
+
+
+def test_sync_paths_without_guard_still_overlays(git_repo):
+    """Unguarded callers are unchanged — the guard is opt-in, not ambient."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/unguarded")
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(
+            step="1 (implement)", status="done", blackboard="finished\n"
+        ),
+    )
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="stale\n"
+        )
+    )
+
+    git.sync_paths(
+        cfg, ticket.parent, [ticket.parent], message="Ticket: demo — in_progress"
+    )
+
+    origin_ticket = git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert "status: in_progress" in origin_ticket
+
+
 @pytest.mark.parametrize(
     ("committed_status", "working_status"),
     [("blocked", "active"), ("paused", "in_progress")],

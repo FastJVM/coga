@@ -12,6 +12,8 @@ shape stays identical regardless of who triggered the transition.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import typer
 
 from coga import git
@@ -76,6 +78,30 @@ def _assert_no_stranded_product_code(cfg: Config, ref: TaskRef, ticket: Ticket) 
     stranded = git.stranded_product_paths(cfg, ref.path)
     if stranded:
         raise StrandedProductCode(name or "direct/body", stranded)
+
+
+def _state_guard(cfg: Config, ref: TaskRef) -> Callable[[str], None]:
+    """The regression guard every transition below hands to its git sync.
+
+    A transition's sync overlays this ticket wholesale onto the control tip, so
+    a checkout holding a stale copy — one that went stale while an agent worked,
+    or while the `autoclose-merged` sweep closed the ticket from the primary
+    checkout — would otherwise bury the newer state. The guard re-checks the
+    control copy on every landing attempt, including the base refetched after a
+    non-fast-forward retry, and refuses rather than overwriting terminal or
+    further-advanced state.
+
+    The refusal is loud but non-fatal, and deliberately lands *after* the local
+    ticket write: the transition the human asked for stays on disk, git declines
+    to publish it, and the checkout is left visibly behind control (`coga
+    status` flags it via `stale_coga_task_rels`). Moving the write behind a
+    fetch would put the network on every status transition.
+    """
+
+    def guard(base: str) -> None:
+        git.guard_ticket_state(cfg, ref.ticket_path, base)
+
+    return guard
 
 
 def mark_done(
@@ -206,6 +232,7 @@ def mark_canceled(
         paths,
         message=f"Ticket: {ref.id_slug} — canceled",
         land_union_files_to_control=True,
+        guard=_state_guard(cfg, ref),
     )
 
 
@@ -213,8 +240,9 @@ def _sync_done_state(
     cfg: Config, ref: TaskRef, snapshot: StateSnapshot | None
 ) -> None:
     message = f"Ticket: {ref.id_slug} — done"
+    guard = _state_guard(cfg, ref)
     if snapshot is None:
-        git.sync_task_state(cfg, ref.path, message=message)
+        git.sync_task_state(cfg, ref.path, message=message, guard=guard)
         return
 
     paths = [ref.path]
@@ -223,7 +251,7 @@ def _sync_done_state(
     parent_ticket = recurring_dir(cfg) / snapshot.parent / "ticket.md"
     if parent_ticket.parent.is_dir():
         paths.append(parent_ticket)
-    git.sync_paths(cfg, ref.path, paths, message=message)
+    git.sync_paths(cfg, ref.path, paths, message=message, guard=guard)
 
 
 def _warn_if_state_not_advanced(
@@ -420,7 +448,12 @@ def mark_active(
     append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — active")
+    git.sync_task_state(
+        cfg,
+        ref.path,
+        message=f"Ticket: {ref.id_slug} — active",
+        guard=_state_guard(cfg, ref),
+    )
 
 
 def mark_in_progress(
@@ -443,7 +476,12 @@ def mark_in_progress(
         typer.echo(echo)
     if slack_text is not None:
         post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — in_progress")
+    git.sync_task_state(
+        cfg,
+        ref.path,
+        message=f"Ticket: {ref.id_slug} — in_progress",
+        guard=_state_guard(cfg, ref),
+    )
 
 
 def mark_blocked(
@@ -473,7 +511,12 @@ def mark_blocked(
         watchers=ticket.watchers,
         image_url=image_url,
     )
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — blocked")
+    git.sync_task_state(
+        cfg,
+        ref.path,
+        message=f"Ticket: {ref.id_slug} — blocked",
+        guard=_state_guard(cfg, ref),
+    )
 
 
 def mark_paused(
@@ -515,7 +558,12 @@ def mark_paused(
             watchers=ticket.watchers,
             task_path=ref.path,
         )
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — paused")
+    git.sync_task_state(
+        cfg,
+        ref.path,
+        message=f"Ticket: {ref.id_slug} — paused",
+        guard=_state_guard(cfg, ref),
+    )
 
 
 __all__ = [

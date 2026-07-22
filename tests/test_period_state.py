@@ -327,7 +327,7 @@ def test_mark_done_syncs_parent_blackboard_when_cursor_advanced(
 
     synced: list[tuple[Path, list[Path], str]] = []
 
-    def _capture_sync(cfg, anchor_path, paths, *, message):
+    def _capture_sync(cfg, anchor_path, paths, *, message, guard=None):
         synced.append((anchor_path, list(paths), message))
 
     def _unexpected_task_sync(*args, **kwargs):

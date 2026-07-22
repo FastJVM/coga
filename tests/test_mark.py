@@ -748,3 +748,73 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
     assert '"id":"rival"' in control_spool
     assert git_repo.git("branch", "--show-current").strip() == "feature/cancel"
     assert git_repo.git("status", "--short") == ""
+
+
+def _seed_pushed_task(git_repo, cfg, *, title: str, status: str = "active") -> dict:
+    """Create a task and land it on the control branch, returning its ref."""
+    ref = create_task(
+        cfg=cfg,
+        title=title,
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status=status,
+    )
+    rel = str(Path(ref["path"]).relative_to(git_repo.root))
+    git_repo.git("add", rel)
+    git_repo.git("commit", "-m", f"seed {ref['slug']}")
+    git_repo.git("push", "origin", "main")
+    return ref
+
+
+@pytest.mark.parametrize(
+    ("seed_status", "landed_status", "argv", "expected_local"),
+    [
+        ("active", "done", ["canceled", "--message", "Owner declined"], "canceled"),
+        ("active", "canceled", ["done"], "done"),
+        ("active", "done", ["paused"], "paused"),
+        ("paused", "done", ["active"], "active"),
+    ],
+)
+def test_transition_refuses_to_bury_terminal_control_copy(
+    git_repo, seed_status, landed_status, argv, expected_local
+):
+    """No `mark` verb can overlay a stale ticket onto a closed control copy.
+
+    Each transition syncs by overlaying its ticket wholesale onto the control
+    tip, so every verb needs the guard — not just cancellation. The refusal is
+    non-fatal by design: the local transition stands, git declines to publish
+    it, and the divergence is recorded rather than resolved behind the human's
+    back.
+    """
+    cfg = load_config(git_repo.coga_os)
+    ref = _seed_pushed_task(git_repo, cfg, title="Contended work", status=seed_status)
+    ticket_path = Path(ref["path"])
+    rel = str(ticket_path.relative_to(git_repo.root))
+    git_repo.checkout_branch("feature/contended")
+
+    # Another checkout closes the ticket on the control branch under us.
+    git_repo.push_competing_commit(
+        rel,
+        ticket_path.read_text().replace(
+            f"status: {seed_status}", f"status: {landed_status}"
+        ),
+    )
+
+    verb, *rest = argv
+    result = CliRunner().invoke(app, ["mark", verb, ref["slug"], *rest])
+
+    # Non-fatal: the command succeeds and the local transition is on disk.
+    assert result.exit_code == 0, result.output
+    assert read_ticket(resolve_task(cfg, ref["slug"])).status == expected_local
+
+    # The control branch keeps the terminal copy it already had.
+    control = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
+    assert control.status == landed_status
+
+    # And the refusal is legible, not silent: it names the ticket in the log.
+    log = (git_repo.coga_os / "log.md").read_text()
+    assert "sync refused" in log
+    assert f"terminal status would change from '{landed_status}'" in log
