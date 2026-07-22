@@ -2,7 +2,7 @@
 slug: distill-git-conflict-errors-and-stop-compounding-d
 title: Distill git conflict errors and stop compounding diverged-checkout failures
   in recurring sweeps
-status: draft
+status: active
 owner: nick
 human: nick
 agent: claude
@@ -73,16 +73,14 @@ precedence; recurring queue guidance; `coga create` prefix guard.
 
 ## Context
 
-<!-- coga:blackboard -->
+**Shipped ahead of this ticket's workflow.** A–C were scoped with the owner
+and implemented in a single attended orient session on 2026-07-20, before this
+draft was ever launched. The change merged as
+[PR #620](https://github.com/FastJVM/coga/pull/620) (`baa70a43` on `main`,
+branch `claude/git-error-hygiene`), so the `implement` / `self-qa` / `pr` steps
+have no work left to do. The ticket is closed as a record of the change.
 
-## Dev
-
-- branch: claude/git-error-hygiene
-- pr: https://github.com/FastJVM/coga/pull/620
-
-## Implementation notes (2026-07-20, attended orient session)
-
-Scope A–C agreed with owner; implemented and verified in one pass.
+What landed:
 
 - **A (distill):** new `git.summarize_git_failure` keeps `error:`/`fatal:`/
   `CONFLICT` lines only (deduped, `\r`-progress aware, last-line fallback);
@@ -90,26 +88,31 @@ Scope A–C agreed with owner; implemented and verified in one pass.
   `_rebase_checked_out_branch_onto`. `_sync_control_checkout_ahead` grew
   `announce_failure=` so the `--all` gate reports the conflict exactly once,
   and appends the resolve command (`git -C <root> rebase <remote>/<branch>`)
-  only when the fetch succeeded (a fetch failure gets no rebase advice).
-- **B (short-circuit):** freshness refusal now exits
-  `git.STALE_CONTROL_EXIT_CODE` (**75**, EX_TEMPFAIL — first pick was 3, but
-  an existing test legitimately uses a user script exiting 3, proving the
-  collision risk). On that code: launch skips the post-exit control refresh
-  (scoped to bootstrap scripts — the exit-code contract is coga-owned, user
-  scripts keep the unconditional refresh) and `cli.main` skips the
-  end-of-command state sweep (which previously stacked one local `Sync coga
-  state` commit per failed run — the observed 14→15 commit growth).
-- **C (summary):** `--all` parent prints a cause-naming line for code-75
-  children and the final summary names each failed repo.
+  only when the fetch succeeded — a fetch failure gets no rebase advice.
+- **B (short-circuit):** the freshness refusal exits
+  `git.STALE_CONTROL_EXIT_CODE` (**75**, EX_TEMPFAIL). Exit 3 was the first
+  pick and was rejected: an existing test legitimately runs a user script that
+  exits 3, so the code would collide. On 75, `launch` skips the post-exit
+  control refresh — scoped to bootstrap scripts, since the exit-code contract
+  is coga-owned and user scripts keep the unconditional refresh — and
+  `cli.main` skips the end-of-command state sweep that previously stacked one
+  local `Sync coga state` commit per failed run (the observed 14→15 growth).
+- **C (summary):** the `--all` parent prints a cause-naming line for code-75
+  children, and the final summary names each failed repo.
 
-Contexts updated in the same change: `coga/sync` (live + packaged copies,
-gate bullet) and packaged `coga/cli` (`--all` paragraph).
+Contexts updated in the same change: `coga/sync` (live + packaged copies, gate
+bullet) and packaged `coga/cli` (`--all` paragraph).
 
-Verification: `python3.12 -m pytest` → 1370 passed, 1 skipped. New tests:
-4 in test_git.py (distiller + cli sweep skip), 3 in test_recurring.py
+Verification: `python3.12 -m pytest` → 1370 passed, 1 skipped. New tests: 4 in
+`test_git.py` (distiller + cli sweep skip), 3 in `test_recurring.py`
 (real-divergence remediation, bare-sweep single note, parent naming), 2 in
-test_launch_script.py (bootstrap skip vs user-script non-skip); 3 existing
+`test_launch_script.py` (bootstrap skip vs user-script non-skip); 3 existing
 gate tests updated to the new exit code.
 
-Out of scope per owner: create-prefix guard (D), recurring queue guidance
-(F), ticket-conflict auto-resolution (E).
+Deferred by the owner, still unclaimed if anyone wants to pick them up:
+auto-resolving ticket-file conflicts by status precedence (E), recurring queue
+guidance (F), and a `coga create` prefix guard (D).
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.
