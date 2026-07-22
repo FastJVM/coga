@@ -115,8 +115,31 @@ Downstream repos already seeded with `autonomy/*` workflows (magicator,
 xpref, worktree clones) are not cleaned by this ticket — accepted; they pick
 up the change whenever they re-seed.
 
-Tickets already on `autonomy/*` workflows keep working: their workflow
-snapshots are frozen in frontmatter and are not rewritten.
+Tickets already on `autonomy/*` workflows do NOT keep working by themselves.
+`Workflow.freeze()` snapshots only each step's `name`/`skills`/`assignee`/
+`requires` — never the inline `## <step>` prose. At launch,
+`compose._step_layers` re-resolves the workflow file by the frozen
+`workflow.name` and, when the file is gone, substitutes
+`*Workflow definition not found; using frozen snapshot only.*`. So deleting or
+renaming a workflow silently strips the step instructions from every live
+ticket frozen on it, and `coga validate` does not flag it (it checks step
+`skills:` refs, not that `workflow.name` resolves).
+
+Live tickets were therefore migrated with this change:
+- `tasks/launch-prompt/review-and-edit-the-relay-launch-prompt-editorial.md`
+  (paused, step 1) — repointed to `draft-for-human`; its frozen step 3 was
+  also renamed `report-to-relay` → `report-to-coga` to match the file (that
+  step already resolved to the "no instructions attached" placeholder).
+- `tasks/marketing/relay-discord.md` (paused, step 1) — the `human-only`
+  shape (agent briefs read-only → human executes → agent verifies) has no
+  equivalent among the surviving workflows, and repointing it to
+  `draft-for-human` would have silently changed what the ticket means. It
+  survives under a tier-free name as `workflows/brief-for-human.md` (live +
+  packaged), same treatment as `assist-only` → `draft-for-human`.
+- `tasks/improve-prompt-for-relay-ticket.md` (in_progress, step 3) needed no
+  migration: its frozen `report-to-relay` never matched the workflow file, so
+  it already composed the placeholder before this change.
+- `tasks/why-browser-autoamtion-as-a-ticket.md` is `done`; not migrated.
 
 Verify with `python -m pytest` and `coga validate --json`; grep for
 `autonomy/` afterward to confirm only frozen ticket snapshots and

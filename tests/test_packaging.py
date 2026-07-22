@@ -46,6 +46,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/recurring/skill-update/ticket.md",
     "coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
     "coga/resources/templates/coga/workflows/blocker-reminders/run.md",
+    "coga/resources/templates/coga/workflows/brief-for-human.md",
     "coga/resources/templates/coga/workflows/direct/body.md",
     "coga/resources/templates/coga/workflows/draft-for-human.md",
     "coga/resources/templates/coga/workflows/skill-update/run.md",
@@ -97,6 +98,10 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
     (
         "coga/workflows/draft-for-human.md",
         "src/coga/resources/templates/coga/workflows/draft-for-human.md",
+    ),
+    (
+        "coga/workflows/brief-for-human.md",
+        "src/coga/resources/templates/coga/workflows/brief-for-human.md",
     ),
 )
 

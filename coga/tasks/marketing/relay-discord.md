@@ -11,7 +11,7 @@ contexts:
   - marketing/positioning
 skills: []
 workflow:
-  name: autonomy/human-only
+  name: brief-for-human
   steps:
   - name: brief-and-hand-off
     skills: []

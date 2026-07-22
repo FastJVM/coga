@@ -1022,6 +1022,7 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
         target / "coga" / "contexts" / "browser" / "dom-backed" / "SKILL.md"
     ).is_file()
     assert (target / "coga" / "workflows" / "draft-for-human.md").is_file()
+    assert (target / "coga" / "workflows" / "brief-for-human.md").is_file()
     assert not (target / "coga" / "workflows" / "autonomy").exists()
     assert not (target / "coga" / "contexts" / "autonomy").exists()
     assert not (

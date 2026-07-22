@@ -11,7 +11,7 @@ contexts:
 - coga/principles
 skills: []
 workflow:
-  name: autonomy/assist-only
+  name: draft-for-human
   steps:
   - name: agent-produces
     skills: []
@@ -19,7 +19,7 @@ workflow:
   - name: human-owns-and-finishes
     skills: []
     assignee: human
-  - name: report-to-relay
+  - name: report-to-coga
     skills: []
     assignee: agent
 secrets: null
