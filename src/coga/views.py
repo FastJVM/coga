@@ -28,6 +28,7 @@ from coga.logfile import (
     last_activity_map,
     task_log_lines,
 )
+from coga.lifecycle import STATUS_DISPLAY_ORDER, TERMINAL_STATUSES
 from coga.recurring import TemplateStatus, firing_stamp, list_templates
 from coga.taskfile import TaskFileError
 from coga.tasks import (
@@ -231,7 +232,7 @@ def render_status(
 
     rows = []
     blocked_rows = []
-    hidden_done = 0
+    hidden_terminal: dict[str, int] = {}
     for ref in refs:
         try:
             ticket = read_ticket(ref)
@@ -249,8 +250,8 @@ def render_status(
                 "step": ticket.step or "-",
                 "blockers": _safe_open_blockers(ref.ticket_path),
             })
-        if not show_all and ticket.status == "done":
-            hidden_done += 1
+        if not show_all and ticket.status in TERMINAL_STATUSES:
+            hidden_terminal[ticket.status] = hidden_terminal.get(ticket.status, 0) + 1
             continue
         rows.append({
             "slug": ref.id_slug,
@@ -303,21 +304,21 @@ def render_status(
             # mistaken for "no tasks anywhere". --no-recurse means "directly
             # in it", so spell that out too.
             where = f"directly in {directory}" if no_recurse else f"in {directory}"
-            print(f"(no tasks {where}){_done_hint(hidden_done)}")
+            print(f"(no tasks {where}){_terminal_hint(hidden_terminal)}")
         elif no_recurse:
             # Top-level slice is empty, but nested tasks may still exist —
             # don't claim "no tasks" outright.
-            print(f"(no top-level tasks){_done_hint(hidden_done)}")
+            print(f"(no top-level tasks){_terminal_hint(hidden_terminal)}")
         else:
-            print(f"(no tasks){_done_hint(hidden_done)}")
+            print(f"(no tasks){_terminal_hint(hidden_terminal)}")
         _print_recurring_templates(console, templates, leading_blank=False)
         return
 
     console.print(_build_table(rows, narrow, now))
     console.print(_summary_line(rows), style="dim")
     _print_recurring_templates(console, templates, leading_blank=True)
-    if hidden_done:
-        console.print(_done_hint(hidden_done).lstrip(), style="dim")
+    if hidden_terminal:
+        console.print(_terminal_hint(hidden_terminal).lstrip(), style="dim")
 
 
 def _covers_recurring(directory: str | None, *, no_recurse: bool) -> bool:
@@ -421,12 +422,22 @@ def _list_dirs(cfg: Config, directory: str | None, *, no_recurse: bool) -> None:
         print(d)
 
 
-def _done_hint(hidden_done: int) -> str:
-    """Trailing note pointing at --all when done tasks were filtered out."""
-    if not hidden_done:
+def _terminal_hint(hidden: Mapping[str, int]) -> str:
+    """Trailing note pointing at ``--all`` for filtered terminal tasks."""
+    total = sum(hidden.values())
+    if not total:
         return ""
-    noun = "done task" if hidden_done == 1 else "done tasks"
-    return f"  ({hidden_done} {noun} hidden — use --all to show)"
+    present = [(status, hidden.get(status, 0)) for status in ("done", "canceled")]
+    present = [(status, count) for status, count in present if count]
+    if len(present) == 1:
+        status, count = present[0]
+        noun = f"{status} task" if count == 1 else f"{status} tasks"
+        return f"  ({count} {noun} hidden — use --all to show)"
+    breakdown = ", ".join(f"{count} {status}" for status, count in present)
+    noun = "terminal task" if total == 1 else "terminal tasks"
+    return (
+        f"  ({total} {noun} hidden: {breakdown} — use --all to show)"
+    )
 
 
 def _safe_open_blockers(ticket_path: Path) -> list[Blocker]:
@@ -469,12 +480,11 @@ def _summary_line(rows: list[dict]) -> str:
     counts: dict[str, int] = {}
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
-    canonical = ("in_progress", "blocked", "active", "draft", "paused", "done")
-    parts = [f"{counts[s]} {s}" for s in canonical if counts.get(s)]
+    parts = [f"{counts[s]} {s}" for s in STATUS_DISPLAY_ORDER if counts.get(s)]
     parts += [
         f"{counts[s]} {s}"
         for s in sorted(counts)
-        if s not in canonical
+        if s not in STATUS_DISPLAY_ORDER
     ]
     label = "task" if len(rows) == 1 else "tasks"
     summary = f"{len(rows)} {label}"

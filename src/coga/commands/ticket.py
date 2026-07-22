@@ -36,10 +36,17 @@ from coga.validate import TaskValidationError
 
 AUTHORING_SKILL = "bootstrap/ticket"
 # Guided editing is allowed from any lifecycle status — the human owns the
-# ticket and may revise it at any stage. `in_progress` and `done` are unusual
-# enough to warrant a heads-up (see CAUTION_STATUSES) but are not refused.
-EDITABLE_STATUSES = {"draft", "active", "in_progress", "paused", "done"}
-CAUTION_STATUSES = {"in_progress", "done"}
+# ticket and may revise it at any stage. `in_progress` and terminal tickets are
+# unusual enough to warrant a heads-up (see CAUTION_STATUSES) but are not refused.
+EDITABLE_STATUSES = {
+    "draft",
+    "active",
+    "in_progress",
+    "paused",
+    "done",
+    "canceled",
+}
+CAUTION_STATUSES = {"in_progress", "done", "canceled"}
 
 # Kickoff tokens — the authoring session's first user turn, which the
 # `bootstrap/ticket` skill reads to greet the human as the right launch shape.
@@ -168,12 +175,14 @@ def _resolve_existing(ref: TaskRef) -> tuple[TaskRef, Ticket, bool]:
             "refusing guided ticket editing."
         )
     if ticket.status in CAUTION_STATUSES:
+        lifecycle_note = {
+            "in_progress": "already in flight",
+            "done": "already finished",
+            "canceled": "already canceled",
+        }[ticket.status]
         typer.secho(
             f"Note: {ref.id_slug} is {ticket.status!r}. Editing leaves its "
-            "status unchanged; this revises a ticket already in flight"
-            if ticket.status == "in_progress"
-            else f"Note: {ref.id_slug} is {ticket.status!r}. Editing leaves its "
-            "status unchanged; this revises a finished ticket",
+            f"status unchanged; this revises a ticket {lifecycle_note}",
             fg=typer.colors.YELLOW,
             err=True,
         )

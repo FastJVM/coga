@@ -149,9 +149,11 @@ class DueTask:
         # than a liveness mechanism. The orphan need not be the *current*
         # period's — identity is the `recurring` directory plus the template
         # leaf slug, so a stale leftover is found and resumed too (and defers
-        # the next period until it reaches done/paused: one live task per
+        # the next period until it reaches a closed/paused state: one live task per
         # template).
-        # `done` → finished work, never re-run. `paused` → a human parked it.
+        # `done` → finished work, never re-run normally. `canceled` →
+        # intentionally abandoned and never reactivated. `paused` → a human
+        # parked it.
         return self.status in {"active", "in_progress"}
 
     @property
@@ -201,10 +203,10 @@ class DueScan:
         """Every materialized template task in launch order — for `coga
         recurring --force`.
 
-        Unlike `due`, this does **not** filter to launchable status: a `done`
-        or `paused` period task is still included, because `--force` force-runs
-        every template and `coga launch` re-activates a finished/parked ticket
-        (restarting its workflow at step 1). The same Dream-last / resume-first
+        Unlike `due`, this does **not** filter to launchable status: a `done`,
+        `canceled`, or `paused` period task is still included. The force runner
+        reactivates done/paused tasks but refuses canceled tasks; they
+        must be deleted before a fresh run. The same Dream-last / resume-first
         ordering as `due` applies.
         """
         return _order_for_launch(t for t in self.tasks if t.ref is not None)
@@ -370,7 +372,7 @@ def create_template(
     # One live task per template: an `active`/`in_progress` instance — current
     # period or a dead sweep's prior-period orphan — is *the* live run. Return
     # it (resume) instead of creating a competing new period. A stuck run
-    # therefore defers the next period until it reaches `done`/`paused`; that
+    # therefore defers the next period until it reaches a terminal/paused state; that
     # is deliberate — finish the in-flight run before piling another on.
     #
     # The TTY check is evaluated *after* the resume short-circuits: resuming an

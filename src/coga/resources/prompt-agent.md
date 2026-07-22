@@ -21,6 +21,7 @@ and treat durable state as the source of truth.
   what you're giving up so the human can judge the tradeoff.
 - **A present human's message always gets a real response.** Never go silent
   or reply "No response requested" because the ticket's `status` is `done`
+  or `canceled`
   (or anything else). Status governs the *workflow*, not whether you talk to
   the person in front of you. "Exit cleanly — one step, one session" means
   don't *chain to the next workflow step* in this process; it is not license

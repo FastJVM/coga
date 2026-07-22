@@ -51,6 +51,8 @@ Outcome digest surface — spooled into the daily digest (live fallback below):
 
 - `coga mark done` — done tickets, including manual/script-mode completions
   that have no PR number.
+- `coga mark canceled` — intentionally abandoned tickets, with the required
+  cancellation reason kept in the outcome record and audit log.
 - the `autoclose-merged` recurring sweep (never `coga status`, which is
   read-only) — auto-bumps active/in-progress
   tickets to `done` when their blackboard `## Dev` PR has merged. This daily
@@ -262,9 +264,10 @@ new string:
   `commands/bump.py` when `--message` is present, and
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
   session start), plus `coga.blocker_reminders.remind_blocked_tasks` for
-  unresolved blocker reminders. Outcome callers (`notify`): `mark.mark_done` (including
-  the autoclose sweep and script-mode completion) and `coga/recurring_runner.py`'s error
-  summary. Both paths pass
+  unresolved blocker reminders. Outcome callers (`notify`): `mark.mark_done`
+  (including the autoclose sweep and script-mode completion),
+  `mark.mark_canceled`, and `coga/recurring_runner.py`'s error summary. Both
+  paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
   in the repo-global `coga/log.md`, tagged with the task ref.
 - `coga validate --check-slack` — probes the webhook with an
@@ -398,7 +401,7 @@ Current surface:
 
 - `coga create` raw creates.
 - `coga mark active`, launch-time `active → in_progress`, `coga mark paused`,
-  and `coga mark done`.
+  `coga mark done`, and `coga mark canceled`.
 - `coga bump`.
 - the `autoclose-merged` sweep, through the shared `mark_done` finalizer.
 - `coga recurring` and `coga retire` creates.
@@ -427,6 +430,15 @@ alike — is never touched, stashed, or reset. A detached HEAD takes the same
 cross-branch path but skips the local commit (it would be orphaned); any dirty
 `merge=union` files that would otherwise have ridden that local commit are
 union-merged directly into the control-branch commit.
+
+Cancellation is the deliberate feature-branch exception for union files. A
+canceled ticket's branch may never merge by definition, so `mark_canceled`
+calls `sync_paths(..., land_union_files_to_control=True)`: the task still lands
+through the scoped overlay, while `coga/log.md` and an installed digest spool
+are three-way unioned into the same control-branch tree immediately. The
+compare-and-swap retry below rebuilds that union on a newly fetched tip, so the
+required reason and outcome cannot strand with the abandoned code or overwrite
+concurrent audit/digest appends.
 
 The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
 moved under us (another coga process, a teammate), the
@@ -465,6 +477,63 @@ message)` stages and commits only the task directory pathspec. It must not use
 `git add -A`, and it must not sweep unrelated unstaged or pre-staged files into
 the task-state commit — the temp-index plumbing makes that structural for the
 cross-branch land, since every staging op runs against the throwaway index.
+
+### The state-regression guard
+
+Compare-and-swap keeps two writers from *losing* a push; it does not keep a
+stale writer from pushing the wrong thing. The overlay replaces the ticket
+wholesale on the control tip, so a checkout whose copy went stale — an agent
+worktree that held `active` while the `autoclose-merged` sweep closed the same
+ticket from the primary checkout — would land its old status straight over the
+newer one, and the retry loop would faithfully rebuild that overwrite on the
+refetched tip.
+
+So every landing is guarded. Before each overlay is built, the guard compares
+the working-tree ticket against the *committed* control-branch copy at that
+attempt's base and refuses when the transition would move state backward: a
+terminal control status (`done`, `canceled`) is never replaced by a different
+one, and neither step index nor status progress may decrease. Because it runs
+per attempt, it re-checks the tip refetched after a non-fast-forward rejection
+— the one base that reveals a concurrent close, and the only place the race is
+visible at all.
+
+Two kinds of caller supply it. The catch-all sweep guards whatever it found
+dirty (`_guard_coga_state_regressions`); every publisher of a *specific*
+ticket's state knows which file it is about to overlay and binds
+`ticket_state_guard` to it, passing the result through
+`sync_task_state`/`sync_paths(guard=...)`. That is all of them, not just
+cancellation:
+
+- **`mark`** — `done`, `canceled`, `paused`, `active`, `blocked`, and launch's
+  `in_progress` flip.
+- **`bump`** — `advance_step` publishes `step:`, so a stale checkout can rewind
+  the workflow for everyone. This covers `launch_script`'s script-step advance
+  too, which shares the same finalizer.
+- **`unblock`** — the `in_progress` resolve-only branch, which writes the
+  blackboard without a status flip. Its `blocked → active` branch delegates to
+  `mark_active` and is guarded there.
+
+Callers that are not publishing a ticket's state (authoring, deletes, recurring
+child writes) pass no guard.
+
+**The one deliberate backward move is a human rewind.** `coga bump
+--to/--backward` moves `step:` backward on purpose, and it shares
+`advance_step` with forward bumps, so guarding it naively would refuse exactly
+the thing the human asked for. `advance_step(rewind=True)` therefore passes
+`allow_step_rewind`, which drops *only* the step-backward rule. The status
+rules stay armed: a rewind never changes status, so a status regression during
+one means the checkout is stale rather than the human deliberate — rewinding a
+ticket another checkout has already closed is still refused.
+
+A refusal is loud but non-fatal, and deliberately lands *after* the local
+ticket write: `StateRegressionError` is caught at the sync entry point, the
+reason is written to stderr as `sync refused` and recorded against the task in
+`coga/log.md`, and a local sync commit already made on a feature branch is
+unwound while its files stay dirty. The transition the human asked for stays on
+disk and the checkout is left visibly behind control (`coga status` flags it
+through `stale_coga_task_rels`) rather than being reverted behind their back.
+Moving the write behind a fetch instead would put the network on the hot path
+of every status transition, which the always-on sync contract does not accept.
 
 ### The catch-all subtree sweep — `sync_coga_state`
 
@@ -592,8 +661,9 @@ typed `coga status` in the same terminal, and saw the old step with no signal
 that the view was stale.
 
 `coga launch` closes that loop at the end of every run (bump handoff,
-`mark done`, `block`, agent exit, a failed setup after state was published —
-each exit path the supervisor sees): it fetches `origin/<control>` and folds
+`mark done`, `mark canceled`, `block`, agent exit, a failed setup after state
+was published — each exit path the supervisor sees): it fetches
+`origin/<control>` and folds
 the control tip's `coga/tasks/**` back into the checkout the launch was
 invoked from. On the control branch that is a plain `merge --ff-only`. On a
 feature branch only task files changed on control since the branches' merge

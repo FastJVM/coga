@@ -206,6 +206,7 @@ def bump(
             new_assignee=new_assignee,
             notify_slack=message is not None,
             echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
+            rewind=rewind,
         )
     except TaskValidationError as exc:
         _bail(str(exc))

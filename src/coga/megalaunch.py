@@ -5,7 +5,7 @@ The default sweep covers the operator's `active` and `in_progress` tickets:
 that has since crashed or been torn down mid-step — resumes, exactly like a
 manual `coga launch <slug>`. An **explicit selection** (the `--pick` picker
 or `--relaunch`) runs only the named tasks, any owner's, and reaches wider —
-any status but `done` — by staging the run in three phases so every
+any non-terminal status — by staging the run in three phases so every
 human-in-the-loop step lands before the first launch: **prepare** (when the
 operator accepts the CLI's batch prompt, each picked `draft` runs the guided
 `coga ticket` authoring interview so a not-ready ticket becomes launchable),
@@ -13,7 +13,7 @@ operator accepts the CLI's batch prompt, each picked `draft` runs the guided
 activated ticket runs). A picked `blocked`
 ticket resumes interactively with the resolve-or-re-block preamble, returning
 to `blocked` if the session exits with the ask still open. A selected ticket
-that still can't launch (done, or a draft the interview left with no workflow)
+that still can't launch (terminal, or a draft the interview left with no workflow)
 is reported loudly instead of silently skipped — the human named it, so its
 outcome is owed back. An optional directory narrows either mode to a `tasks/`
 sub-tree, exactly like `coga status <dir>`.
@@ -21,8 +21,8 @@ sub-tree, exactly like `coga status <dir>`.
 Megalaunch is a set of normal interactive launches, not a headless drain: each
 eligible step spawns the agent REPL under the PTY watcher exactly like
 `coga launch`, so output streams live to the console and the done-sentinel
-(`coga bump` / `mark done` / `block`) tears the REPL down and hands control
-back to the sweep. Recurring's idle-timeout / max-session backstops are armed
+(`coga bump` / `mark done` / `mark canceled` / `block`) tears the REPL down
+and hands control back to the sweep. Recurring's idle-timeout / max-session backstops are armed
 so one wedged agent can't starve the rest of the queue. Because the spawned
 REPLs are interactive, the whole run requires a TTY — fail loud otherwise.
 The TTY is transport, not an approval gate: a package-backed megalaunch prompt
@@ -68,6 +68,7 @@ from coga.config import Config, ConfigError, SecretError, build_launch_env, load
 from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga.logfile import first_activity_map
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.mark import (
     BlackboardNeedsSynthesis,
     RequiredExtensionMissing,
@@ -96,6 +97,7 @@ class MegalaunchError(Exception):
 
 MegalaunchOutcome = Literal[
     "completed",
+    "canceled",
     "blocked",
     "skipped-human-gate",
     "skipped-unresolved-blocker",
@@ -126,6 +128,7 @@ class MegalaunchRun:
         counts = {
             "launched": sum(1 for result in self.results if result.launched),
             "completed": 0,
+            "canceled": 0,
             "blocked": 0,
             "skipped-human-gate": 0,
             "skipped-unresolved-blocker": 0,
@@ -247,9 +250,9 @@ def _run_sweep(
     max_session: float | None,
 ) -> list[MegalaunchResult]:
     """The unattended sweep: the operator's own ready `active` / `in_progress`
-    work, one launchable step at a time. Draft/paused/done are ignored and
-    blocked is reported, never launched — resuming those needs a human, which
-    only the explicit picker path provides.
+    work, one launchable step at a time. Draft/paused/terminal tasks are ignored
+    and blocked is reported, never launched — resuming those needs a human,
+    which only the explicit picker path provides.
     """
     results: list[MegalaunchResult] = []
     attempted = 0
@@ -354,9 +357,14 @@ def _run_selection(
         except TicketError as exc:
             results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
             continue
-        if ticket.status == "done":
+        if ticket.status in TERMINAL_STATUSES:
             results.append(
-                _result(ref, "skipped-unlaunchable", "status is done", ticket.assignee)
+                _result(
+                    ref,
+                    "skipped-unlaunchable",
+                    f"status is {ticket.status}",
+                    ticket.assignee,
+                )
             )
             continue
         candidate = _candidate_result(cfg, ref, ticket, explicit=True)
@@ -464,8 +472,8 @@ def launchable_candidates(
 ) -> list[tuple[TaskRef, Ticket]]:
     """The tasks the interactive picker offers, oldest-first.
 
-    Everything an explicit pick could actually launch — any owner, any status
-    but `done`: `active`/`in_progress` start or resume, `blocked` resumes
+    Everything an explicit pick could actually launch — any owner, any
+    non-terminal status: `active`/`in_progress` start or resume, `blocked` resumes
     interactively when it has open asks, and any `draft` is offered
     unconditionally — the picker runs the guided authoring interview on a
     picked draft first, so a not-yet-ready draft (no workflow or agent
@@ -481,7 +489,7 @@ def launchable_candidates(
             ticket = read_ticket(ref)
         except TicketError:
             continue
-        if ticket.status == "done":
+        if ticket.status in TERMINAL_STATUSES:
             continue
         if ticket.status == "draft":
             # Offered as-is: the prepare phase authors it into shape.
@@ -719,7 +727,8 @@ def _launch_until_stop(
             env["COGA_SUPERVISED"] = "1"
             # A normal interactive launch: the REPL streams to the console
             # under the PTY watcher, and the done-sentinel (`coga bump` /
-            # `mark done` / `block`) releases it — never headless `-p`, which
+            # `mark done` / `mark canceled` / `block`) releases it — never
+            # headless `-p`, which
             # buffers all output until the run ends.
             session = spawn_agent_session(
                 cfg,
@@ -927,8 +936,22 @@ def _chain_stop_result(
         blockers = open_blockers(ref.ticket_path)
         detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
         return _result(ref, "blocked", detail, after.assignee, launched=True)
-    if after.status == "done":
-        return _result(ref, "completed", "task done", after.assignee, launched=True)
+    if after.status == "canceled":
+        return _result(
+            ref,
+            "canceled",
+            "task canceled",
+            after.assignee,
+            launched=True,
+        )
+    if after.status in TERMINAL_STATUSES:
+        return _result(
+            ref,
+            "completed",
+            f"task {after.status}",
+            after.assignee,
+            launched=True,
+        )
     if after.status != "in_progress":
         return _result(
             ref,
@@ -1017,6 +1040,7 @@ def render_run_summary(run: MegalaunchRun) -> str:
     for key in (
         "launched",
         "completed",
+        "canceled",
         "blocked",
         "skipped-human-gate",
         "skipped-unresolved-blocker",

@@ -103,6 +103,49 @@ def test_megalaunch_runs_active_agent_task(
     assert Ticket.read(ref["path"]).status == "done"
 
 
+def test_megalaunch_records_cancellation_as_distinct_outcome(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Decline during run",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(  # type: ignore[no-untyped-def]
+        cfg, ref_obj, ticket, agent, **kwargs
+    ):
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "canceled"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["launched"] == 1
+    assert run.counts["canceled"] == 1
+    assert run.counts["completed"] == 0
+    assert run.results[0].outcome == "canceled"
+    assert run.results[0].detail == "task canceled"
+    assert Ticket.read(ref["path"]).status == "canceled"
+
+
 def test_megalaunch_skips_task_deleted_mid_sweep(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -758,10 +801,11 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
 def test_megalaunch_ignores_non_active_tickets(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """done/draft/paused tickets are ignored — never launched, never `failed`."""
+    """Terminal/draft/paused tickets are ignored — never launched or failed."""
     cfg = load_config(repo)
     for title, status in (
         ("Done", "done"),
+        ("Canceled", "canceled"),
         ("Draft", "draft"),
         ("Paused", "paused"),
     ):
@@ -777,7 +821,7 @@ def test_megalaunch_ignores_non_active_tickets(
         )
         ticket = Ticket.read(ref["path"])
         ticket.frontmatter["status"] = status
-        if status == "done":
+        if status in {"done", "canceled"}:
             ticket.frontmatter.pop("step", None)
         ticket.write(ref["path"])
 
@@ -1003,6 +1047,16 @@ def test_megalaunch_selection_reports_unlaunchable_picks(
     ticket.frontmatter["status"] = "done"
     ticket.frontmatter.pop("step", None)
     ticket.write(done["path"])
+    canceled = create_task(
+        cfg=cfg,
+        title="Intentionally declined",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="canceled",
+        watchers=[],
+    )
     workflowless = create_task(
         cfg=cfg,
         title="Shapeless draft",
@@ -1019,12 +1073,16 @@ def test_megalaunch_selection_reports_unlaunchable_picks(
 
     launched = _done_on_spawn(monkeypatch)
 
-    run = run_megalaunch(cfg, selection=[done["slug"], workflowless["slug"]])
+    run = run_megalaunch(
+        cfg,
+        selection=[done["slug"], canceled["slug"], workflowless["slug"]],
+    )
 
     assert launched == []
-    assert run.counts["skipped-unlaunchable"] == 2
+    assert run.counts["skipped-unlaunchable"] == 3
     outcomes = {result.slug: result.detail for result in run.results}
     assert outcomes[done["slug"]] == "status is done"
+    assert outcomes[canceled["slug"]] == "status is canceled"
     assert "no workflow" in outcomes[workflowless["slug"]]
 
 
@@ -1360,7 +1418,7 @@ def test_megalaunch_selection_unknown_slug_fails_loud(repo: Path) -> None:
         run_megalaunch(cfg, selection=["no-such-task"])
 
 
-def test_launchable_candidates_offers_any_owner_any_status_but_done(
+def test_launchable_candidates_offers_any_owner_any_non_terminal_status(
     repo: Path,
 ) -> None:
     """The picker offers every explicitly launchable task, not just mine."""
@@ -1437,6 +1495,16 @@ def test_launchable_candidates_offers_any_owner_any_status_but_done(
     ticket.frontmatter["status"] = "done"
     ticket.frontmatter.pop("step", None)
     ticket.write(done["path"])
+    canceled = create_task(  # canceled — never offered
+        cfg=cfg,
+        title="Declined",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="canceled",
+        watchers=[],
+    )
     human = create_task(  # human-assigned — never offered (no agent to spawn)
         cfg=cfg,
         title="Human work",

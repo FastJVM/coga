@@ -13,7 +13,7 @@ a ticket is deleted without going through retire or a session dies mid-flight.
 
 1. enumerate every local branch and every branch on `[git].remote`,
 2. skip `[git].control_branch`, the checked-out branch, and any branch recorded under a
-   not-`done` ticket's `## Dev` `branch:` line,
+   non-terminal ticket's `## Dev` `branch:` line,
 3. for the rest, check GitHub by **head branch name** and current tip SHA
    (`gh pr list --head <branch>` with `headRefOid`): delete only when a
    merged PR exists for that exact tip and no PR is currently open for the

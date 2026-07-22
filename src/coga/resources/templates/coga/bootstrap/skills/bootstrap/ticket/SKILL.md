@@ -82,9 +82,9 @@ signal of anything. Open with:
 > I'll turn your answer into the ticket."
 
 - **Existing-ticket edit** — kickoff `Begin (editing existing ticket)`; a real
-`tasks/<slug>` at any status (`draft`, `active`, `in_progress`, `paused`, or
-`done`). You're revising a ticket that already exists — **even if its body is
-still empty**, which is exactly the state of a draft batch-created with `coga
+`tasks/<slug>` at any editable status (`draft`, `active`, `in_progress`,
+`paused`, `done`, or `canceled`). You're revising a ticket that already exists
+— **even if its body is still empty**, which is exactly the state of a draft batch-created with `coga
 create` and then opened here. Open with:
 > "You're editing `<slug>` (status: `<status>`). What would you like to change?"
 
@@ -92,7 +92,8 @@ create` and then opened here. Open with:
   they want to change. If the body is empty there's nothing to preserve, so
   greet as an edit but pivot straight to filling it ("…it's empty right now, so:
   what should it do, and why?") — never announce it "has been created". For an
-  `in_progress` or `done` ticket, note you are revising one already in flight or
+  `in_progress`, `done`, or `canceled` ticket, note you are revising one already
+  in flight or
   finished — confirm intent if the change looks substantive.
 
 New-title and existing-*draft* tickets both show `Status: draft` with an empty
@@ -432,8 +433,8 @@ After confirmation, do one final cleanup pass before printing the closing line:
    stock placeholder for this ticket title. Do not leave empty authoring
    headings behind.
 4. If editing an existing non-draft ticket (`active`, `in_progress`, `paused`,
-   or `done`), preserve unrelated blackboard content such as blockers, dev
-   notes, production notes, and handoff notes; remove only the authoring
+   `done`, or `canceled`), preserve unrelated blackboard content such as blockers,
+   dev notes, production notes, and handoff notes; remove only the authoring
    sections you used.
 5. Re-read the ticket and verify the durable notes now live above the
    blackboard fence and the blackboard cleanup matches the ticket status.

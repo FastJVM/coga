@@ -47,7 +47,8 @@ peer → author), it relaunches the *next* agent as a fresh process under
 the same supervisor — claude's REPL exits and codex's starts, or vice
 versa. Each step is a clean session with a freshly composed prompt; it
 only returns control to the human at the final `review` step (an
-owner/human handoff), or on `done`/`paused`/panic.
+owner/human handoff), or on a terminal (`done`/`canceled`), `paused`, or panic
+state.
 
 ## implement
 

@@ -165,7 +165,10 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
         )
         typer.echo(f"{ref.id_slug}: open asks resolved (still in_progress)")
         git.sync_task_state(
-            cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved"
+            cfg,
+            ref.path,
+            message=f"Ticket: {ref.id_slug} — asks resolved",
+            guard=git.ticket_state_guard(cfg, ref.ticket_path),
         )
         return
 

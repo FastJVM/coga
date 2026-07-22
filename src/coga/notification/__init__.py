@@ -10,7 +10,8 @@ notification channel(s) and dispatches through their backend implementation.
 Slack preserves the previous crash-loud/no-retry semantics.
 
 `notify` is the **outcome digest** path, not a generic lifecycle broadcaster.
-Only ticket outcomes (`done`) and recurring scan errors enter the daily digest.
+Only ticket outcomes (`done` / `canceled`) and recurring scan errors enter the
+daily digest.
 Routine lifecycle churn (draft, active, bump, paused, retire, recurring
 create) is intentionally silent: the repo-global `coga/log.md` remains the audit trail,
 while notifications carry outcomes and urgent exceptions. When the daily-digest
@@ -76,7 +77,7 @@ def post(
 # --- digest (outcome) path ----------------------------------------------------
 
 DIGEST_RECURRING_NAME = "digest"
-DIGEST_EVENT_KINDS = {"done", "recurring-error"}
+DIGEST_EVENT_KINDS = {"done", "canceled", "recurring-error"}
 _DETAIL_PR_RE = re.compile(r"PR #(\d+)")
 _SLACK_PR_LINK_RE = re.compile(r"<[^>|]+?\|PR #\d+>")
 _DIGEST_SPOOL_SEED = """# Daily digest spool
@@ -199,8 +200,8 @@ def notify(
 ) -> None:
     """Route an outcome/error event: spool it, or post live.
 
-    Only `done` and `recurring-error` belong here. Other lifecycle transitions
-    are intentionally silent and should not call this helper.
+    Only `done`, `canceled`, and `recurring-error` belong here. Other lifecycle
+    transitions are intentionally silent and should not call this helper.
 
     When the digest ticket is installed, append a structured JSONL record to
     its spool (rendered and posted later by `coga digest`). Otherwise fall back
@@ -274,6 +275,7 @@ def render_digest(
     a live event.
     """
     done_records = [rec for rec in records if rec.get("kind") == "done"]
+    canceled_records = [rec for rec in records if rec.get("kind") == "canceled"]
     error_records = [rec for rec in records if rec.get("kind") == "recurring-error"]
     merged = also_merged or []
 
@@ -281,6 +283,17 @@ def render_digest(
     if done_records:
         lines.append("Done:")
         lines.extend(_render_done_people(cfg, done_records))
+    if canceled_records:
+        if len(lines) > 1:
+            lines.append("")
+        lines.append("Canceled:")
+        for rec in canceled_records:
+            slug = rec.get("ticket") or "(no ticket)"
+            owner = rec.get("owner")
+            owner_text = f" ({_mention(cfg, owner)})" if owner else ""
+            cc = _cc_trailer(cfg, [rec])
+            detail = str(rec.get("detail") or "canceled").strip()
+            lines.append(f" • {slug}{owner_text}{cc} — {detail}")
     if merged:
         if len(lines) > 1:
             lines.append("")

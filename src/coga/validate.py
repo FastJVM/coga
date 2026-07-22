@@ -56,6 +56,7 @@ from coga.config import (
     parse_inline_secrets,
 )
 from coga.logfile import last_activity
+from coga.lifecycle import TERMINAL_STATUSES, VALID_STATUSES
 from coga.taskfile import BLACKBOARD_FENCE, fence_count
 from coga.period_state import read_snapshot, stale_keys
 from coga.paths import (
@@ -77,8 +78,6 @@ from coga.tasks import (
 from coga.ticket import Ticket, TicketError
 from coga.step_gate import known_gate_tokens
 from coga.workflow import VALID_ASSIGNEE_ROLES, Workflow, WorkflowError
-
-VALID_STATUSES = {"draft", "active", "in_progress", "blocked", "paused", "done"}
 
 # Canonical ticket frontmatter schema.
 REQUIRED_TASK_KEYS: tuple[str, ...] = (
@@ -266,11 +265,18 @@ def validate_task(
     return report
 
 
-def validate_task_dir(cfg: Config, ref: TaskRef) -> list[Issue]:
+def validate_task_dir(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    ticket_override: Ticket | None = None,
+) -> list[Issue]:
     """File-presence + frontmatter schema check for one task directory.
 
     Skips the idle-time `stuck-in-progress` heuristic — that's a sweep-only
-    signal, not something to gate every edit on.
+    signal, not something to gate every edit on. ``ticket_override`` validates
+    a prospective in-memory edit against the task's existing files, allowing a
+    caller to reject an invalid transition before it writes terminal state.
     """
     return _check_one_task(
         cfg,
@@ -279,6 +285,7 @@ def validate_task_dir(cfg: Config, ref: TaskRef) -> list[Issue]:
         max_blackboard_bytes=BLACKBOARD_WARN_BYTES,
         idle_hours=float("inf"),
         now=datetime.now(timezone.utc),
+        ticket_override=ticket_override,
     )
 
 
@@ -307,14 +314,20 @@ class TaskValidationError(RuntimeError):
         )
 
 
-def assert_task_valid(cfg: Config, ref: TaskRef, *, action: str) -> None:
+def assert_task_valid(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    action: str,
+    ticket_override: Ticket | None = None,
+) -> None:
     """Re-validate a task after an edit. Raise TaskValidationError on errors.
 
     Called by every Coga-owned command that mutates a task file, so a bad
     write is surfaced at the edge of the edit instead of later at launch /
     Dream time. Warnings are not fatal.
     """
-    issues = validate_task_dir(cfg, ref)
+    issues = validate_task_dir(cfg, ref, ticket_override=ticket_override)
     errors = [i for i in issues if i.severity == "error"]
     if errors:
         raise TaskValidationError(errors, action=action)
@@ -331,6 +344,7 @@ def _check_one_task(
     max_blackboard_bytes: int,
     idle_hours: float,
     now: datetime,
+    ticket_override: Ticket | None = None,
 ) -> list[Issue]:
     out: list[Issue] = []
     task_label = ref.id_slug
@@ -359,16 +373,19 @@ def _check_one_task(
             severity="warn",
         ))
 
-    try:
-        ticket = Ticket.read(ref.ticket_path)
-    except TicketError as exc:
-        out.append(Issue(
-            kind="bad-frontmatter",
-            task=task_label,
-            message=str(exc),
-            severity="error",
-        ))
-        return out
+    if ticket_override is None:
+        try:
+            ticket = Ticket.read(ref.ticket_path)
+        except TicketError as exc:
+            out.append(Issue(
+                kind="bad-frontmatter",
+                task=task_label,
+                message=str(exc),
+                severity="error",
+            ))
+            return out
+    else:
+        ticket = ticket_override
 
     # Exactly one blackboard fence: the single-file format splits body from
     # blackboard on it, so zero or many is a structural error.
@@ -834,9 +851,19 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
     out: list[Issue] = []
     wf = ticket.workflow
     step = ticket.step
+    status = ticket.status
+
+    terminal_has_step = status in TERMINAL_STATUSES and step is not None
+    if terminal_has_step:
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=f"`step:` must be absent when status is `{status}`",
+            severity="error",
+        ))
 
     if wf is None:
-        if step is not None:
+        if step is not None and not terminal_has_step:
             out.append(Issue(
                 kind="bad-shape",
                 task=task_label,
@@ -848,9 +875,10 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
         # workflow-less draft (concept-capture: stash an idea before its shape
         # settles) is valid and intentional, so it is NOT flagged. Once a
         # ticket is `active`/`in_progress`/`blocked`/`paused`, a missing workflow means it
-        # can never be bumped — structurally stuck — so that is an error. (`done`
-        # is left alone: a finished workflow-less task is harmless and flagging
-        # it would only nag immutable history.) Machine-authored tasks that
+        # can never be bumped — structurally stuck — so that is an error.
+        # Terminal tickets (`done` / `canceled`) are left alone: a closed
+        # workflow-less task is harmless and flagging it would only nag closed
+        # history. Machine-authored tasks that
         # used to be workflow-less here — recurring/Dream and retire — now
         # create with the `direct/body` workflow, so no whitelist is needed.
         if ticket.status in {"active", "in_progress", "blocked", "paused"}:
@@ -871,15 +899,7 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
     if not isinstance(wf, dict):
         return out  # already reported by shape/ref checks
 
-    status = ticket.status
-    if status == "done":
-        if step is not None:
-            out.append(Issue(
-                kind="bad-shape",
-                task=task_label,
-                message="`step:` must be absent when status is `done`",
-                severity="error",
-            ))
+    if status in TERMINAL_STATUSES:
         return out
 
     if step is None:

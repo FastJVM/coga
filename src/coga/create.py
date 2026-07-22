@@ -9,6 +9,7 @@ from typing import Any
 from coga.blackboard import render_blackboard
 from coga.bump import AssigneeResolutionError, resolve_other_agent
 from coga.config import Config
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log
 from coga.paths import (
     missing_skill_message,
@@ -194,7 +195,7 @@ def create_task(
         "secrets": secrets,
         "script": script,
     }
-    if wf and status != "done":
+    if wf and status not in TERMINAL_STATUSES:
         first_step = wf.steps[0].name
         fm["step"] = f"1 ({first_step})"
     if watchers:

@@ -205,6 +205,29 @@ def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
     assert "script exited with code 3" in log
 
 
+def test_script_launch_preserves_cancellation_made_by_script(repo: Path) -> None:
+    script = repo / "skills" / "ops" / "checker" / "check.sh"
+    script.write_text(
+        "#!/bin/sh\n"
+        "sed -i 's/status: in_progress/status: canceled/;/^step:/d' "
+        '"$COGA_TASK_BLACKBOARD"\n'
+    )
+    script.chmod(0o755)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Decline", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "decline"])
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(list_tasks(cfg)[0].ticket_path)
+    assert ticket.status == "canceled"
+    assert ticket.step is None
+
+
 def test_script_launch_refreshes_launch_checkout(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

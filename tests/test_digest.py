@@ -331,6 +331,9 @@ def test_render_digest_groups_and_mentions(repo: Path) -> None:
          "kind": "done", "detail": "nick finished → done ✅"},
         {"project": cfg.project_name, "owner": "alice", "ticket": "beta",
          "kind": "done", "detail": "→ done ✅"},
+        {"project": cfg.project_name, "owner": "nick", "ticket": "gamma",
+         "kind": "canceled", "detail": "marc canceled — declined",
+         "watchers": ["bob"]},
         {"project": cfg.project_name, "kind": "recurring-error",
          "detail": "⚠️ recurring scan skipped 1 template"},
     ]
@@ -347,11 +350,14 @@ def test_render_digest_groups_and_mentions(repo: Path) -> None:
     assert "alice" in out and "<@" not in out.split("alice")[1].split("\n")[0]
     assert " • alpha (cc <@Ubob>) — <https://example/pr|PR #4> merged ✅" in out
     assert " • alpha — nick finished → done ✅" in out
+    assert "Canceled:" in out
+    assert " • gamma (<@Unick>) (cc <@Ubob>) — marc canceled — declined" in out
     assert "Also merged (no ticket):" in out
     assert " • abcdef0 Fix typo" in out
     assert "Recurring errors:" in out
     assert "recurring scan skipped 1 template" in out
-    assert out.index("Done:") < out.index("Also merged")
+    assert out.index("Done:") < out.index("Canceled:")
+    assert out.index("Canceled:") < out.index("Also merged")
     assert out.index("Also merged") < out.index("Recurring errors")
 
 

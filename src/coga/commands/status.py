@@ -47,7 +47,7 @@ def status(
         False,
         "--all",
         "-a",
-        help="Include tasks whose status is `done` (hidden by default).",
+        help="Include terminal `done` and `canceled` tasks (hidden by default).",
     ),
     dirs: bool = typer.Option(
         False,

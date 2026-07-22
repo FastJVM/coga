@@ -19,6 +19,7 @@ from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.commands.launch import _interactive_stdio_has_tty
 from coga.commands.launch_script import is_script_launch
 from coga.config import Config, ConfigError, load_config
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, ref_tag_for_path, task_log_lines
 from coga.paths import log_path
 from coga.taskfile import read_blackboard
@@ -418,17 +419,20 @@ def run_recurring_scan(
     sweep whose supervisor died mid-run (laptop sleep, SSH drop) is **resumed**
     from its current step on the next sweep. If an interactive launch returns
     unfinished, the sweep pauses it before continuing, so a frozen
-    `in_progress` can still mean "dead run's orphan". `done` and `paused` tasks
-    are skipped. Current period only: running this once a month for a weekly
+    `in_progress` can still mean "dead run's orphan". `done`, `canceled`, and
+    `paused` tasks are skipped. Current period only: running this once a month for a weekly
     template produces one run, not a backlog. It does not install or manage
     system cron; nothing runs unless you invoke it.
 
     `--force` forces a real, full run: the only difference from the bare sweep is
     that it ignores the schedule and the status filter, so every template is
     launched — including ones already serviced this period (re-launched) and
-    `done`/`paused` ones (`coga launch` re-activates them). Everything else —
-    Slack, the digest spool, git task-state sync, the `last_serviced_period`
-    high-water advance — is identical to a normal run.
+    `done`/`paused` ones (the runner reactivates them). Canceled tasks are
+    included in discovery but refused rather than reactivated; the sweep
+    reports each refusal, continues with later templates, and returns non-zero
+    after the remaining work finishes. Everything else — Slack, the digest
+    spool, git task-state sync, the `last_serviced_period` high-water advance —
+    is identical to a normal run.
 
     `agent_override` temporarily selects the configured agent for agent-backed
     tasks. It never rewrites the ticket, and script tasks still run as scripts.
@@ -488,12 +492,18 @@ def run_recurring_scan(
     typer.echo(f"\nLaunching {len(due)} {label} sequentially...\n")
     from coga.commands.launch import launch as launch_cmd
 
+    forced_refusals = 0
     for i, task in enumerate(due, 1):
         typer.secho(
             f"[{i}/{len(due)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
         )
         if force:
-            _prepare_forced_launch(cfg, task)
+            try:
+                _prepare_forced_launch(cfg, task)
+            except RecurringError as exc:
+                forced_refusals += 1
+                typer.secho(str(exc), fg=typer.colors.RED, err=True)
+                continue
         # Sequential by design: each launch blocks until the agent session
         # exits before the next begins. `scan_due` filters out templates that
         # cannot run in the current stdio context (an agent run with no TTY), and
@@ -520,7 +530,7 @@ def run_recurring_scan(
         _stop_if_unfinished_after_launch(
             cfg, task.ref, interactive=interactive, timed_out=(kind == "timeout")
         )
-    return 0
+    return 2 if forced_refusals else 0
 
 
 def run_recurring_named(
@@ -641,9 +651,9 @@ def _launch_created(
     jobs, no separate activation step. An `in_progress` task is a *resume*: a
     past sweep died mid-run and left it frozen (`coga recurring` is a
     foreground command with no concurrent sweep, so it can only be an orphan),
-    and `coga launch` re-composes it from its current `step:`. `done`/`paused`
-    are left alone — re-launching finished or human-parked work would be wrong,
-    and saying so beats silently doing nothing.
+    and `coga launch` re-composes it from its current `step:`.
+    `done`/`canceled`/`paused` are left alone — re-launching closed or
+    human-parked work would be wrong, and saying so beats silently doing nothing.
     """
     if not (ref.ticket_path).is_file():
         typer.secho(
@@ -1524,7 +1534,7 @@ def _stop_if_unfinished_after_launch(
         return
 
     ticket = read_ticket(ref)
-    if ticket.status in {"done", "paused"}:
+    if ticket.status in TERMINAL_STATUSES or ticket.status == "paused":
         return
 
     if timed_out:
@@ -1643,10 +1653,11 @@ def _recurring_max_session(cfg) -> float | None:
 def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
     """Record a forced rerun only once the sweep reaches this task.
 
-    `coga recurring --force` includes existing `done`/`paused` period tasks.
-    Those tasks must not advance the parent high-water during scan: a prior
-    task might stop the sequential sweep first. Once we reach the task, flip it
-    back to `active`, then record the forced period and sync the real task.
+    `coga recurring --force` includes existing `done`/`canceled`/`paused`
+    period tasks. Those tasks must not advance the parent high-water during
+    scan: a prior task might stop the sequential sweep first. Once we reach the
+    task, refuse it if canceled; otherwise flip it back to `active`, then record
+    the forced period and sync the real task.
     If the later launch preflight fails, the task is at least live for a future
     normal sweep instead of being silently skipped as already serviced.
     """
@@ -1674,6 +1685,11 @@ def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
 
     ticket = read_ticket(task.ref)
     task.status = ticket.status
+    if ticket.status == "canceled":
+        raise RecurringError(
+            f"cannot force-run {task.ref.id_slug}: its task is canceled and "
+            "cannot be reactivated; delete it before starting a fresh run"
+        )
     if not task.created and ticket.status in {"active", "in_progress"}:
         return
 

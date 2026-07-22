@@ -446,6 +446,33 @@ def test_ticket_edits_in_progress_task(
     assert len(prompts) == 1
 
 
+def test_ticket_can_edit_canceled_task_without_reopening(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Declined work",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="canceled",
+    )
+    prompts: list[str] = []
+    _allow_ticket_launch(monkeypatch, prompts)
+
+    result = CliRunner().invoke(app, ["ticket", "declined-work"])
+
+    assert result.exit_code == 0, result.output
+    combined = result.output + (result.stderr or "")
+    assert "already canceled" in combined
+    assert Ticket.read(ref["path"]).status == "canceled"
+    assert len(prompts) == 1
+
+
 def _capture_ticket_launch(
     monkeypatch: pytest.MonkeyPatch,
     captured: dict[str, object],

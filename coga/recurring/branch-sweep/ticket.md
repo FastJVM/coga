@@ -25,7 +25,7 @@ Once a week this recurring task's script step runs the branch sweep, which:
 
 1. enumerates every local branch and every branch on the configured git remote,
 2. skips the configured control branch, the checked-out branch, and any branch recorded under a
-   not-`done` ticket's `## Dev` `branch:` line,
+   non-terminal ticket's `## Dev` `branch:` line,
 3. for the rest, checks GitHub by head branch name and current tip SHA —
    deletes only when a merged PR exists for that exact tip and no PR is
    currently open for the head branch, and

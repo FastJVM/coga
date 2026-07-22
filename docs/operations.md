@@ -15,10 +15,10 @@ reaches it. Events fall into three tiers:
   in_progress`), a `coga block`, blocker reminders, a script-step failure, and
   explicit FYIs (`coga slack`, `coga bump --message`). Anything urgent or
   human-directed never waits.
-- **Outcome digest** — done tickets, `autoclose-merged` completions, and
-  recurring-scan parse errors are spooled and posted together on a schedule by
-  `coga digest`. If the digest ticket isn't installed, these fall back to a live
-  post.
+- **Outcome digest** — done and canceled tickets, `autoclose-merged`
+  completions, and recurring-scan parse errors are spooled and posted together
+  on a schedule by `coga digest`. Cancellation entries retain their required
+  reason. If the digest ticket isn't installed, these fall back to a live post.
 - **Silent** — routine lifecycle churn posts nothing at all: draft creation,
   `mark active`/`mark paused`, message-less `coga bump`, successful recurring
   creates, and relaunching an already-`in_progress` ticket.

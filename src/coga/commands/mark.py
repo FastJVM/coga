@@ -1,6 +1,7 @@
 """`coga mark <state> <slug>` — change a ticket's status.
 
-Three subcommands: `mark active`, `mark paused`, `mark done`. Each verb is
+Four subcommands: `mark active`, `mark paused`, `mark done`, and `mark
+canceled`. Each verb is
 the literal `status` value it sets, so the command shape mirrors the
 frontmatter field.
 
@@ -15,14 +16,17 @@ import sys
 import typer
 
 from coga.config import ConfigError, load_config
+from coga.lifecycle import CANCELABLE_STATUSES
 from coga.mark import (
     BlackboardNeedsSynthesis,
+    CancellationError,
     RequiredExtensionMissing,
     StrandedProductCode,
     WorkflowMissing,
 )
 from coga.mark import format_blackboard_synthesis_refusal
 from coga.mark import mark_active as _mark_active
+from coga.mark import mark_canceled as _mark_canceled
 from coga.mark import mark_done as _mark_done
 from coga.mark import mark_paused as _mark_paused
 from coga.repl_supervisor import emit_done_marker
@@ -32,7 +36,7 @@ from coga.workflow import WorkflowError
 
 app = typer.Typer(
     name="mark",
-    help="Change a ticket's status (active / paused / done).",
+    help="Change a ticket's status (active / paused / done / canceled).",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -41,6 +45,7 @@ app = typer.Typer(
 _ACTIVE_FROM = {"draft", "paused"}
 _PAUSED_FROM = {"active", "in_progress"}
 _DONE_FROM = {"active", "in_progress"}
+_CANCELED_FROM = set(CANCELABLE_STATUSES)
 
 
 @app.command("active")
@@ -190,6 +195,46 @@ def done(
     # skip the marker. The task's `id_slug` scopes the signal to this
     # ticket (see `emit_done_marker`) — worktree-independent, unlike a
     # resolved path, so it matches whichever checkout the command runs in.
+    emit_done_marker(session_id=ref.id_slug)
+
+
+@app.command("canceled")
+def canceled(
+    task: str = typer.Argument(..., help="Task ID or id-slug."),
+    message: str = typer.Option(
+        ...,
+        "--message",
+        help="Required reason for cancellation; persisted in the audit log.",
+    ),
+) -> None:
+    """Set status to `canceled`. Allowed from every non-terminal status."""
+    cfg, ref, ticket = _load(task)
+    reason = message.strip()
+    if not reason:
+        _bail("--message cannot be empty")
+    _check_transition(ref.id_slug, ticket.status, _CANCELED_FROM, "canceled")
+
+    canceler = cfg.current_user
+    try:
+        _mark_canceled(
+            cfg,
+            ref,
+            ticket,
+            actor=f"human:{canceler}",
+            reason=reason,
+            slack_text=(
+                f"🚫 {canceler} canceled *{ref.id_slug}* "
+                f'"{ticket.title}": {reason}'
+            ),
+            digest_detail=f"{canceler} canceled — {reason}",
+            image_url=cfg.gif_for("canceled"),
+            echo=f"{ref.id_slug}: canceled — {reason}",
+        )
+    except (CancellationError, TaskValidationError) as exc:
+        _bail(str(exc))
+
+    # Cancellation is terminal and can happen from inside a launched agent
+    # session. Release the same supervisor sentinel as `mark done` / `block`.
     emit_done_marker(session_id=ref.id_slug)
 
 

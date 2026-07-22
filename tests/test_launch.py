@@ -2035,13 +2035,36 @@ def test_launch_refuses_done_ticket(
     assert result.exit_code == 2, result.output
     combined = result.output + (result.stderr or "")
     assert "is done" in combined
-    assert "Reopen it deliberately" in combined
+    assert "terminal status" in combined
     assert calls == []  # no agent spawned
 
     after = Ticket.read(ticket_md)
     assert after.status == "done"
     assert after.step is None
     assert ticket_md.read_text() == before  # ticket file untouched
+
+
+def test_launch_refuses_canceled_ticket(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    ticket_md = Path(ref["path"])
+    ticket = Ticket.read(ticket_md)
+    ticket.frontmatter["status"] = "canceled"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(ticket_md)
+    before = ticket_md.read_text()
+
+    calls = _launch_single_spawn(monkeypatch)
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code == 2, result.output
+    combined = result.output + (result.stderr or "")
+    assert "is canceled" in combined
+    assert "terminal status" in combined
+    assert calls == []
+    assert ticket_md.read_text() == before
 
 
 def test_launch_auto_activate_bails_without_workflow(
@@ -2580,15 +2603,17 @@ def test_harness_stops_on_human_handoff(active_task: Path) -> None:
     assert "hands off to marc" in reason
 
 
-def test_harness_stops_on_done_and_paused(active_task: Path) -> None:
+def test_harness_stops_on_terminal_and_paused(active_task: Path) -> None:
     from coga.commands.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     before = _wf_ticket("1 (a)", "claude")
     done = _wf_ticket("2 (b)", "claude", status="done")
+    canceled = _wf_ticket("2 (b)", "claude", status="canceled")
     paused = _wf_ticket("2 (b)", "claude", status="paused")
     assert "done" in (_harness_stop_reason(ref, before, done, cfg) or "")
+    assert "canceled" in (_harness_stop_reason(ref, before, canceled, cfg) or "")
     assert "paused" in (_harness_stop_reason(ref, before, paused, cfg) or "")
 
 

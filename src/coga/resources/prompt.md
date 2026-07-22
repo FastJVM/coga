@@ -63,7 +63,8 @@ for why. The rules that govern it:
   cannot skip ahead.
 - **After bumping, exit cleanly.** One step, one session: don't read the new
   step and keep working in the same process. Under a `coga launch`
-  supervisor, `coga bump` / `coga mark done` / `coga block` signal it to
+  supervisor, `coga bump` / `coga mark done` / `coga mark canceled` /
+  `coga block` signal it to
   tear down your session and spawn the next step itself — just run the command
   and stop. (How the supervisor chains steps is in `coga/architecture`; you
   don't drive it.)

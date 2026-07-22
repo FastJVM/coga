@@ -5,8 +5,8 @@ is activated inline first — typing `coga launch` is the readiness signal, so
 launch performs the `coga mark active` step itself rather than refusing. (A
 workflow-less or required-extension-incomplete ticket still can't be activated,
 so those fail loud with the same remedy `mark active` gives.) An
-already-`in_progress` ticket resumes without another status flip. A `done`
-ticket is refused and left untouched.
+already-`in_progress` ticket resumes without another status flip. Terminal
+`done` / `canceled` tickets are refused and left untouched.
 
 Bootstrap tickets are stateless re-entry points (no status, no log of state
 changes) — launch is the only way to run a skill against one.
@@ -54,6 +54,7 @@ from coga.config import (
 from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga import git
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log
 from coga.mark import (
     BlackboardNeedsSynthesis,
@@ -212,18 +213,20 @@ def launch(
         err=command_ticket,
     )
 
-    # A `done` ticket is finished: launching it must not restart its frozen
+    # A terminal ticket is closed: launching it must not restart its frozen
     # workflow. Re-activating would re-seed `step: 1` without re-resolving
     # `assignee` (which still holds the final step's resolved human owner),
     # crashing the agent-type lookup and leaving the ticket wedged
-    # (`active, step 1, assignee=<human>`). Refuse loud; reopening a finished
-    # ticket is a deliberate workflow decision outside launch. Draft/paused
-    # still activate inline below.
-    if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "done":
+    # (`active, step 1, assignee=<human>`). Refuse loud. Draft/paused still
+    # activate inline below.
+    if (
+        not is_bootstrap
+        and isinstance(ref, TaskRef)
+        and ticket.status in TERMINAL_STATUSES
+    ):
         _bail(
-            f"Cannot launch {ref.id_slug}: it is done; nothing to launch. "
-            "Reopen it deliberately before launching again, or launch a "
-            "different ticket."
+            f"Cannot launch {ref.id_slug}: it is {ticket.status}, a terminal "
+            "status; nothing to launch. Launch a different ticket."
         )
 
     blocked_resume = False
@@ -413,7 +416,8 @@ def launch(
 
         # Agent launches chain across consecutive agent-owned steps. After the
         # agent exits (via autoquit on
-        # `coga bump` / `mark done` / `block`, or via `/exit`), we re-read the
+        # `coga bump` / `mark done` / `mark canceled` / `block`, or via
+        # `/exit`), we re-read the
         # ticket and either relaunch the next step's agent as a fresh process —
         # rotating the CLI when the step hands off to a different agent (e.g.
         # claude -> codex for peer review) — or stop and return control to the
@@ -623,8 +627,8 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     readiness decision, so we run that activation here. The core `mark_active`
     mutates `ticket` in place — status → active, a bare-string `workflow:`
     frozen, and `step:` seeded — so the later `mark_in_progress` flip fires off
-    the same object. (A `done` ticket never reaches here: launch refuses it
-    earlier rather than restart a finished workflow. A blocked ticket reaches
+    the same object. (A terminal ticket never reaches here: launch refuses it
+    earlier rather than restart closed work. A blocked ticket reaches
     here only after the launch preflights have passed.)
 
     Fails loud, leaving the ticket untouched, when activation can't legally
@@ -991,7 +995,8 @@ def spawn_agent_session(
         spawn_started = True
         # Agent CLIs (`claude`, `codex`) don't exit on their own. Run through a
         # PTY watcher so an agent that writes the session-done sentinel after
-        # `coga bump` / `coga mark done` / `coga block` releases the REPL.
+        # `coga bump` / `coga mark done` / `coga mark canceled` / `coga block`
+        # releases the REPL.
         # Scope the sentinel by the task's `id_slug`, the identifier `bump` /
         # `mark` / `block` write. It must be the slug, not `ref.path.resolve()`:
         # a path-scoped marker only matches when the agent's `coga bump` ran
@@ -1150,8 +1155,8 @@ def _harness_stop_reason(
     ref: TaskRef, before: Ticket, after: Ticket, cfg: Config
 ) -> str | None:
     if after.status != "in_progress":
-        if after.status == "done":
-            return f"{ref.id_slug}: task is done"
+        if after.status in TERMINAL_STATUSES:
+            return f"{ref.id_slug}: task is {after.status}"
         if after.status == "paused":
             return f"{ref.id_slug}: task is paused"
         return f"{ref.id_slug}: task status is {after.status!r}"

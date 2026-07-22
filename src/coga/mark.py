@@ -1,8 +1,8 @@
-"""Status transitions — the shared core of `coga mark` and the autoclose sweep.
+"""Status transitions — the shared core of `coga mark` and lifecycle callers.
 
 These finalizers mutate ticket frontmatter, append a repo-global `log.md`
 line (tagged by task ref), and echo
-the local outcome. Done outcomes still enter Slack through the digest path;
+the local outcome. Terminal outcomes still enter Slack through the digest path;
 routine active/paused transitions are intentionally local-only noise. The CLI
 commands and the auto-merge scanner all reuse the same helpers so the on-disk
 shape stays identical regardless of who triggered the transition.
@@ -12,15 +12,18 @@ shape stays identical regardless of who triggered the transition.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import typer
 
 from coga import git
 from coga.blackboard import prelaunch_blackboard_synthesis_reason
 from coga.config import Config
+from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import append_log
 from coga.paths import recurring_dir, resolve_workflow_path
 from coga.period_state import StateSnapshot, read_snapshot, stale_keys
-from coga.notification import notify, post
+from coga.notification import digest_spool_path, notify, post
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
 from coga.validate import assert_task_valid
@@ -77,6 +80,26 @@ def _assert_no_stranded_product_code(cfg: Config, ref: TaskRef, ticket: Ticket) 
         raise StrandedProductCode(name or "direct/body", stranded)
 
 
+def _state_guard(cfg: Config, ref: TaskRef) -> Callable[[str], None]:
+    """The regression guard every transition below hands to its git sync.
+
+    A transition's sync overlays this ticket wholesale onto the control tip, so
+    a checkout holding a stale copy — one that went stale while an agent worked,
+    or while the `autoclose-merged` sweep closed the ticket from the primary
+    checkout — would otherwise bury the newer state. The guard re-checks the
+    control copy on every landing attempt, including the base refetched after a
+    non-fast-forward retry, and refuses rather than overwriting terminal or
+    further-advanced state.
+
+    The refusal is loud but non-fatal, and deliberately lands *after* the local
+    ticket write: the transition the human asked for stays on disk, git declines
+    to publish it, and the checkout is left visibly behind control (`coga
+    status` flags it via `stale_coga_task_rels`). Moving the write behind a
+    fetch would put the network on every status transition.
+    """
+    return git.ticket_state_guard(cfg, ref.ticket_path)
+
+
 def mark_done(
     cfg: Config,
     ref: TaskRef,
@@ -131,12 +154,91 @@ def mark_done(
     _warn_if_state_not_advanced(cfg, ref, ticket, owner, snapshot)
 
 
+class CancellationError(RuntimeError):
+    """A requested transition would violate cancellation semantics."""
+
+
+def mark_canceled(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    *,
+    actor: str,
+    reason: str,
+    slack_text: str,
+    digest_detail: str,
+    image_url: str | None = None,
+    echo: str | None = None,
+) -> None:
+    """Flip any non-terminal ticket to ``canceled`` and record why.
+
+    The reason is required in this shared layer, not only by Typer, so an
+    internal caller cannot create an illegible cancellation. Cancellation
+    clears ``step:`` like completion but deliberately leaves the body and
+    blackboard untouched; an unresolved blocker therefore remains historical
+    context while the ticket itself becomes terminal.
+    """
+    reason = reason.strip()
+    if not reason:
+        raise CancellationError("cancellation reason cannot be empty")
+    if ticket.status not in CANCELABLE_STATUSES:
+        raise CancellationError(
+            f"status {ticket.status!r} cannot transition to 'canceled'"
+        )
+
+    prior_status = ticket.status
+    owner = ticket.owner or cfg.current_user
+    prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+    prospective.frontmatter["status"] = "canceled"
+    prospective.frontmatter.pop("step", None)
+    assert_task_valid(
+        cfg,
+        ref,
+        action="mark canceled",
+        ticket_override=prospective,
+    )
+    ticket.frontmatter = prospective.frontmatter
+    ticket.write(ref.ticket_path)
+    append_log(
+        cfg,
+        ref.id_slug,
+        actor,
+        f"canceled ({prior_status} → canceled): {reason}",
+    )
+    if echo is not None:
+        typer.echo(echo)
+    notify(
+        cfg,
+        slack_text,
+        kind="canceled",
+        detail=digest_detail,
+        ticket=ref.id_slug,
+        owner=owner,
+        watchers=ticket.watchers,
+        task_path=ref.path,
+        image_url=image_url,
+    )
+    paths = [ref.path]
+    spool_path = digest_spool_path(cfg)
+    if spool_path is not None:
+        paths.append(spool_path)
+    git.sync_paths(
+        cfg,
+        ref.path,
+        paths,
+        message=f"Ticket: {ref.id_slug} — canceled",
+        land_union_files_to_control=True,
+        guard=_state_guard(cfg, ref),
+    )
+
+
 def _sync_done_state(
     cfg: Config, ref: TaskRef, snapshot: StateSnapshot | None
 ) -> None:
     message = f"Ticket: {ref.id_slug} — done"
+    guard = _state_guard(cfg, ref)
     if snapshot is None:
-        git.sync_task_state(cfg, ref.path, message=message)
+        git.sync_task_state(cfg, ref.path, message=message, guard=guard)
         return
 
     paths = [ref.path]
@@ -145,7 +247,7 @@ def _sync_done_state(
     parent_ticket = recurring_dir(cfg) / snapshot.parent / "ticket.md"
     if parent_ticket.parent.is_dir():
         paths.append(parent_ticket)
-    git.sync_paths(cfg, ref.path, paths, message=message)
+    git.sync_paths(cfg, ref.path, paths, message=message, guard=guard)
 
 
 def _warn_if_state_not_advanced(
@@ -261,13 +363,10 @@ def _freeze_workflow_ref(cfg: Config, ticket: Ticket) -> None:
     Hand-authored / guided-authored draft tickets carry `workflow:` as a
     plain workflow name. Activation is when that becomes real: we freeze the
     snapshot. We also seed `step: 1` whenever the ticket has no current step,
-    so the activated ticket is launch-ready — `coga launch` composes the
-    current step's skill from the frozen workflow. That covers two cases: a
-    fresh draft (never stepped) and a re-activated `done` ticket whose `step:`
-    was cleared by `mark done` — re-activation restarts the frozen workflow
-    from the top. No-op for the workflow dict of an `active`/`paused` ticket
-    that already carries a step. Raises `WorkflowError` if a string ref names
-    no known workflow.
+    so a fresh draft is launch-ready — `coga launch` composes the current
+    step's skill from the frozen workflow. It is a no-op for the workflow dict
+    of an `active`/`paused` ticket that already carries a step. Raises
+    `WorkflowError` if a string ref names no known workflow.
 
     Precondition: `_has_workflow(ticket)` is true, so `ticket.workflow` is a
     non-empty string or dict by the time we read its steps.
@@ -327,6 +426,8 @@ def mark_active(
     sync remain the audit trail.
     """
     prior_status = ticket.status
+    if prior_status == "canceled":
+        raise CancellationError("a canceled ticket cannot be reactivated")
     _refuse_unsynthesized_draft_blackboard(ref, prior_status)
 
     if not _has_workflow(ticket):
@@ -343,7 +444,12 @@ def mark_active(
     append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — active")
+    git.sync_task_state(
+        cfg,
+        ref.path,
+        message=f"Ticket: {ref.id_slug} — active",
+        guard=_state_guard(cfg, ref),
+    )
 
 
 def mark_in_progress(
@@ -366,7 +472,12 @@ def mark_in_progress(
         typer.echo(echo)
     if slack_text is not None:
         post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — in_progress")
+    git.sync_task_state(
+        cfg,
+        ref.path,
+        message=f"Ticket: {ref.id_slug} — in_progress",
+        guard=_state_guard(cfg, ref),
+    )
 
 
 def mark_blocked(
@@ -396,7 +507,12 @@ def mark_blocked(
         watchers=ticket.watchers,
         image_url=image_url,
     )
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — blocked")
+    git.sync_task_state(
+        cfg,
+        ref.path,
+        message=f"Ticket: {ref.id_slug} — blocked",
+        guard=_state_guard(cfg, ref),
+    )
 
 
 def mark_paused(
@@ -438,7 +554,12 @@ def mark_paused(
             watchers=ticket.watchers,
             task_path=ref.path,
         )
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — paused")
+    git.sync_task_state(
+        cfg,
+        ref.path,
+        message=f"Ticket: {ref.id_slug} — paused",
+        guard=_state_guard(cfg, ref),
+    )
 
 
 __all__ = [
@@ -447,6 +568,8 @@ __all__ = [
     "mark_blocked",
     "mark_paused",
     "mark_done",
+    "mark_canceled",
+    "CancellationError",
     "RequiredExtensionMissing",
     "WorkflowMissing",
     "StrandedProductCode",

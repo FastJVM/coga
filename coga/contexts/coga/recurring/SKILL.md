@@ -77,6 +77,12 @@ the example under "Extend recurring with a task-specific workflow").
   period work for that template; there is only one instantiated path per
   template. If a script-launched task returns still unfinished, the sweep
   stops before the next due task.
+- `coga recurring --force` — ignores schedule and status filters and attempts
+  the real period task for every template, reactivating `done` and `paused`
+  runs. A `canceled` task remains terminal: the runner reports a controlled
+  refusal for it, continues through later templates, and exits non-zero after
+  the sweep. Deleting that canceled period task is the explicit prerequisite
+  for a fresh run.
 - `coga recurring --all <path>` — discovers every Coga repo below an explicit
   parent directory, pruning dependency/tool-state and `_`-prefixed directory
   trees, and runs the ordinary due sweep in each configured target,

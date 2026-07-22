@@ -8,10 +8,13 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from coga.blackboard import append_blocker, open_blockers
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
+from coga.mark import CancellationError, mark_active, mark_canceled
 from coga.taskfile import read_blackboard, replace_blackboard
+from coga.tasks import read_ticket, resolve_task
 from coga.ticket import Ticket
 
 
@@ -377,6 +380,157 @@ def test_mark_done_already_done_errors(repo: Path) -> None:
     assert "already 'done'" in result.output
 
 
+# --- mark canceled ------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "status", ["draft", "active", "in_progress", "blocked", "paused"]
+)
+def test_mark_canceled_from_every_non_terminal_status(
+    repo: Path, status: str
+) -> None:
+    slug, task_path = _make_task(repo, status=status)
+
+    result = CliRunner().invoke(
+        app,
+        ["mark", "canceled", slug, "--message", "Decision no longer fits"],
+    )
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "canceled"
+    assert ticket.step is None
+    assert (
+        f"canceled ({status} → canceled): Decision no longer fits"
+        in _read_log(repo)
+    )
+
+
+def test_mark_canceled_accepts_workflow_less_draft(repo: Path) -> None:
+    slug, task_path = _make_task(repo, workflow=None, status="draft")
+
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "Dream finding declined"]
+    )
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "canceled"
+    assert ticket.workflow is None
+    assert ticket.step is None
+
+
+def test_mark_canceled_requires_non_empty_reason(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="draft")
+    runner = CliRunner()
+
+    missing = runner.invoke(app, ["mark", "canceled", slug])
+    blank = runner.invoke(
+        app, ["mark", "canceled", slug, "--message", "   "]
+    )
+
+    assert missing.exit_code == 2
+    assert blank.exit_code == 2
+    assert "--message cannot be empty" in blank.output
+    assert Ticket.read(task_path).status == "draft"
+    assert "→ canceled" not in _read_log(repo)
+
+
+def test_shared_mark_canceled_requires_reason_before_mutating(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="active")
+    cfg = load_config(repo)
+    ref = resolve_task(cfg, slug)
+
+    with pytest.raises(CancellationError, match="reason cannot be empty"):
+        mark_canceled(
+            cfg,
+            ref,
+            read_ticket(ref),
+            actor="human:marc",
+            reason="   ",
+            slack_text="unused",
+            digest_detail="unused",
+        )
+
+    assert Ticket.read(task_path).status == "active"
+
+
+def test_mark_canceled_validates_before_writing_terminal_state(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="active")
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["contexts"] = ["missing/context"]
+    ticket.write(task_path)
+    before = ticket.render()
+
+    result = CliRunner().invoke(
+        app,
+        ["mark", "canceled", slug, "--message", "No longer wanted"],
+    )
+
+    assert result.exit_code == 2
+    assert "missing/context" in result.output
+    assert task_path.read_text() == before
+    assert Ticket.read(task_path).status == "active"
+    assert "No longer wanted" not in _read_log(repo)
+
+
+@pytest.mark.parametrize("status", ["done", "canceled"])
+def test_mark_canceled_rejects_terminal_status(repo: Path, status: str) -> None:
+    slug, task_path = _make_task(repo, status=status)
+
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "No longer wanted"]
+    )
+
+    assert result.exit_code == 2
+    assert status in result.output
+    assert Ticket.read(task_path).status == status
+
+
+def test_mark_canceled_from_blocked_preserves_historical_blocker(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="blocked")
+    append_blocker(task_path, "agent:claude", "Which retry ceiling?")
+    before_blackboard = read_blackboard(task_path)
+
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "Declined by owner"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "canceled"
+    assert read_blackboard(task_path) == before_blackboard
+    blockers = open_blockers(task_path)
+    assert len(blockers) == 1
+    assert blockers[0].reason == "Which retry ceiling?"
+
+
+def test_mark_active_from_canceled_errors(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="canceled")
+
+    result = CliRunner().invoke(app, ["mark", "active", slug])
+
+    assert result.exit_code == 2
+    assert "'canceled'" in result.output
+    assert Ticket.read(task_path).status == "canceled"
+
+
+def test_shared_mark_active_refuses_canceled_ticket(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="canceled")
+    cfg = load_config(repo)
+    ref = resolve_task(cfg, slug)
+
+    with pytest.raises(CancellationError, match="cannot be reactivated"):
+        mark_active(
+            cfg,
+            ref,
+            read_ticket(ref),
+            actor="human:marc",
+            log_message="must not land",
+        )
+
+    assert Ticket.read(task_path).status == "canceled"
+
+
 # --- --message ----------------------------------------------------------------
 
 
@@ -494,3 +648,173 @@ def test_mark_done_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
     result = runner.invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
     assert any(f"🎉 claude finished *{slug}*" in m for m in posts)
+
+
+def test_mark_canceled_slack_text_includes_reason(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(repo, status="active")
+    posts: list[str] = []
+
+    def _capture(url, json=None, timeout=None):
+        posts.append(json["text"])
+
+        class R:
+            status_code = 200
+            text = "ok"
+
+        return R()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
+
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "Owner declined"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert any(
+        f"🚫 marc canceled *{slug}*" in message
+        and "Owner declined" in message
+        for message in posts
+    )
+
+
+def test_mark_canceled_on_feature_lands_union_evidence_on_control(
+    git_repo,
+) -> None:
+    """An abandoned feature branch cannot strand the cancellation reason."""
+    cfg = load_config(git_repo.coga_os)
+    ref = create_task(
+        cfg=cfg,
+        title="Decline this work",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    spool = git_repo.coga_os / "recurring" / "digest" / "spool.md"
+    _write(
+        spool,
+        """
+        # Digest spool
+
+        ## Spool (pending)
+
+        consumed_through:
+        """,
+    )
+    git_repo.git("add", "coga/recurring/digest/spool.md")
+    git_repo.git("commit", "-m", "seed digest spool")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/cancel")
+
+    # Move origin/main under the feature checkout with concurrent union-file
+    # appends. The cancellation sync must retry and preserve both writers.
+    local_log = (git_repo.coga_os / "log.md").read_text()
+    git_repo.push_competing_commit(
+        "coga/log.md", local_log + "2026-01-01 00:00 rival: unrelated event\n"
+    )
+    local_spool = spool.read_text()
+    git_repo.push_competing_commit(
+        "coga/recurring/digest/spool.md",
+        local_spool
+        + '{"id":"rival","kind":"done","ticket":"other"}\n',
+    )
+
+    result = CliRunner().invoke(
+        app,
+        ["mark", "canceled", ref["slug"], "--message", "Owner declined"],
+    )
+
+    assert result.exit_code == 0, result.output
+    task_rel = str(Path(ref["path"]).relative_to(git_repo.root))
+    control_ticket = Ticket.parse(
+        git_repo.git("show", f"main:{task_rel}", cwd=git_repo.origin)
+    )
+    control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    control_spool = git_repo.git(
+        "show",
+        "main:coga/recurring/digest/spool.md",
+        cwd=git_repo.origin,
+    )
+    assert control_ticket.status == "canceled"
+    assert control_ticket.step is None
+    assert "canceled (active → canceled): Owner declined" in control_log
+    assert "rival: unrelated event" in control_log
+    assert '"kind":"canceled"' in control_spool
+    assert "Owner declined" in control_spool
+    assert '"id":"rival"' in control_spool
+    assert git_repo.git("branch", "--show-current").strip() == "feature/cancel"
+    assert git_repo.git("status", "--short") == ""
+
+
+def _seed_pushed_task(git_repo, cfg, *, title: str, status: str = "active") -> dict:
+    """Create a task and land it on the control branch, returning its ref."""
+    ref = create_task(
+        cfg=cfg,
+        title=title,
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status=status,
+    )
+    rel = str(Path(ref["path"]).relative_to(git_repo.root))
+    git_repo.git("add", rel)
+    git_repo.git("commit", "-m", f"seed {ref['slug']}")
+    git_repo.git("push", "origin", "main")
+    return ref
+
+
+@pytest.mark.parametrize(
+    ("seed_status", "landed_status", "argv", "expected_local"),
+    [
+        ("active", "done", ["canceled", "--message", "Owner declined"], "canceled"),
+        ("active", "canceled", ["done"], "done"),
+        ("active", "done", ["paused"], "paused"),
+        ("paused", "done", ["active"], "active"),
+    ],
+)
+def test_transition_refuses_to_bury_terminal_control_copy(
+    git_repo, seed_status, landed_status, argv, expected_local
+):
+    """No `mark` verb can overlay a stale ticket onto a closed control copy.
+
+    Each transition syncs by overlaying its ticket wholesale onto the control
+    tip, so every verb needs the guard — not just cancellation. The refusal is
+    non-fatal by design: the local transition stands, git declines to publish
+    it, and the divergence is recorded rather than resolved behind the human's
+    back.
+    """
+    cfg = load_config(git_repo.coga_os)
+    ref = _seed_pushed_task(git_repo, cfg, title="Contended work", status=seed_status)
+    ticket_path = Path(ref["path"])
+    rel = str(ticket_path.relative_to(git_repo.root))
+    git_repo.checkout_branch("feature/contended")
+
+    # Another checkout closes the ticket on the control branch under us.
+    git_repo.push_competing_commit(
+        rel,
+        ticket_path.read_text().replace(
+            f"status: {seed_status}", f"status: {landed_status}"
+        ),
+    )
+
+    verb, *rest = argv
+    result = CliRunner().invoke(app, ["mark", verb, ref["slug"], *rest])
+
+    # Non-fatal: the command succeeds and the local transition is on disk.
+    assert result.exit_code == 0, result.output
+    assert read_ticket(resolve_task(cfg, ref["slug"])).status == expected_local
+
+    # The control branch keeps the terminal copy it already had.
+    control = Ticket.parse(git_repo.git("show", f"main:{rel}", cwd=git_repo.origin))
+    assert control.status == landed_status
+
+    # And the refusal is legible, not silent: it names the ticket in the log.
+    log = (git_repo.coga_os / "log.md").read_text()
+    assert "sync refused" in log
+    assert f"terminal status would change from '{landed_status}'" in log

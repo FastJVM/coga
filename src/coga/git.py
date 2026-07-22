@@ -94,6 +94,7 @@ from pathlib import Path
 
 from coga.config import Config
 from coga.logfile import append_log, ref_tag_for_path
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.paths import log_path, tasks_dir
 from coga.taskfile import TaskFileError, split_body
 from coga.ticket import Ticket, TicketError
@@ -133,6 +134,7 @@ _STATUS_PROGRESS = {
     "active": 1,
     "in_progress": 2,
     "done": 3,
+    "canceled": 3,
 }
 
 _StateGuard = Callable[[str], None]
@@ -192,7 +194,13 @@ class _TicketState:
     blackboard_bytes: int | None
 
 
-def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
+def sync_task_state(
+    cfg: Config,
+    task_path: Path,
+    *,
+    message: str,
+    guard: _StateGuard | None = None,
+) -> None:
     """Commit the task directory's files and push to the control branch.
 
     Always-on git analogue of the live notification path. Behaviour:
@@ -215,8 +223,12 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
     `task_path` is the resolved task directory under `coga/tasks/`; only
     files under it are staged, never `git add -A`, so unrelated working-tree
     changes are not swept in.
+
+    `guard` is forwarded to `sync_paths`; status-transition callers pass
+    `guard_ticket_state` so a stale checkout cannot overlay its ticket onto a
+    newer control tip.
     """
-    sync_paths(cfg, task_path, [task_path], message=message)
+    sync_paths(cfg, task_path, [task_path], message=message, guard=guard)
 
 
 def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
@@ -345,6 +357,8 @@ def sync_paths(
     *,
     message: str,
     update_local_control_ref: bool = True,
+    land_union_files_to_control: bool = False,
+    guard: _StateGuard | None = None,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -356,7 +370,17 @@ def sync_paths(
     narrow isolated-worktree escape hatch used by Retro's direct deletes: the
     removal still lands on the remote control branch, but Coga does not then
     fast-forward a different worktree that has the local control branch
-    checked out.
+    checked out. ``land_union_files_to_control=True`` is the narrow terminal-
+    abandonment path: merge=union evidence files are three-way unioned onto
+    the control branch immediately because the current feature branch may
+    intentionally never merge.
+
+    `guard` is called with each candidate control-branch base before the
+    overlay is built — including the base refetched after a non-fast-forward
+    retry — and raises `StateRegressionError` to abort the landing. Status
+    transitions pass `guard_ticket_state`: the overlay replaces the ticket
+    wholesale on the control tip, so without it a stale checkout can bury a
+    newer copy that another checkout already landed.
     """
     selected = _dedupe_paths(paths)
     if not selected:
@@ -382,25 +406,40 @@ def sync_paths(
 
         rels = [_relative_to_root(root, path) for path in selected]
 
-        # The repo-global `coga/log.md` is `merge=union`, so it must NOT
-        # ride the cross-branch overlay — an overlay replaces the file wholesale
-        # on the control tip, dropping log lines another branch appended
-        # concurrently. Instead it is folded into the *local* commit only and
-        # reaches the control branch the union-safe way: the same-branch push
-        # rebases (union-merging the log), or the feature branch's PR merges
-        # (union again). `local_rels` therefore carries the log; `rels` (the
-        # overlay set) never does.
+        # Merge=union files must NOT ride the cross-branch overlay — an overlay
+        # replaces a file wholesale on the control tip, dropping lines another
+        # branch appended concurrently. Instead they are folded into the local
+        # commit and ordinarily reach control through a same-branch push or the
+        # feature PR. Cancellation is the exception: its branch may never merge,
+        # so the caller asks us to union-land the audit/digest evidence now.
         log_rel = _relative_to_root(root, log_path(cfg))
         local_rels = rels + [log_rel] if log_path(cfg).exists() else rels
+        local_rels = list(dict.fromkeys(local_rels))
+        union_rels = _union_merge_paths(root, local_rels)
+        overlay_rels = [rel for rel in rels if rel not in union_rels]
+        control_union_rels = (
+            [rel for rel in local_rels if rel in union_rels]
+            if land_union_files_to_control
+            else []
+        )
 
         _dispatch_branch_sync(
             cfg,
             root,
             local_rels=local_rels,
-            overlay_rels=rels,
+            overlay_rels=overlay_rels,
+            control_union_rels=control_union_rels,
             message=message,
+            guard=guard,
             update_local_control_ref=update_local_control_ref,
         )
+    except StateRegressionError as exc:
+        # A refusal is not a failure to reach git — it is git refusing to bury
+        # newer state, so it gets its own line and no `sync failed` log entry
+        # (the guard already recorded the reason against the task). The local
+        # write stands and the checkout is now knowingly behind control;
+        # `stale_coga_task_rels` keeps surfacing that divergence in views.
+        sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
     except GitError as exc:
         # Non-fatal: surface loudly (stderr + log.md) but do NOT abort the
         # command. The task's markdown on disk is the source of truth; git is
@@ -504,7 +543,8 @@ def refresh_coga_state_from_control(
     """Pull the control branch's task state back into this checkout.
 
     The pull-back half of the always-on sync contract, run by `coga launch`
-    when a run ends (bump handoff, `mark done`, `block`, agent exit — every
+    when a run ends (bump handoff, `mark done`, `mark canceled`, `block`,
+    agent exit — every
     exit path the supervisor sees). The publish half above lands each
     transition on `origin/<control>` but fast-forwards only the local control
     *ref*, so a checkout parked on any other branch keeps rendering task state
@@ -768,6 +808,7 @@ def _dispatch_branch_sync(
     *,
     local_rels: list[str],
     overlay_rels: list[str],
+    control_union_rels: list[str] | None = None,
     message: str,
     guard: _StateGuard | None = None,
     update_local_control_ref: bool = True,
@@ -780,10 +821,12 @@ def _dispatch_branch_sync(
         files in `local_rels` ride the push-rebase's union merge.
       - Feature branch → commit `local_rels` locally (so the checkout reflects
         OS state), then land `overlay_rels` on the control branch via the
-        working-tree-free overlay.
+        working-tree-free overlay. A caller may also explicitly land selected
+        merge=union files when their evidence cannot wait for a future PR.
       - Detached HEAD → skip the local commit (it would be orphaned); still land
         `overlay_rels` on the control branch.
     """
+    control_union_rels = control_union_rels or []
     branch = _current_branch(root)
     if branch == cfg.git_control_branch:
         _sync_paths_on_control_branch(
@@ -798,7 +841,12 @@ def _dispatch_branch_sync(
         # worktree delete can suppress that refresh. Only a fast-forward miss
         # warrants a stderr note, printed there.
         overlay = set(overlay_rels)
-        union_rels = [rel for rel in local_rels if rel not in overlay]
+        union_rels = list(
+            dict.fromkeys(
+                [rel for rel in local_rels if rel not in overlay]
+                + control_union_rels
+            )
+        )
         _land_paths_on_control_branch(
             cfg,
             root,
@@ -817,6 +865,7 @@ def _dispatch_branch_sync(
             cfg,
             root,
             overlay_rels,
+            union_rels=control_union_rels,
             message=message,
             guard=guard,
             update_local_control_ref=update_local_control_ref,
@@ -901,8 +950,66 @@ def _union_merge_paths(root: Path, rels: list[str]) -> set[str]:
     return union
 
 
+def guard_ticket_state(
+    cfg: Config,
+    ticket_path: Path,
+    base: str,
+    *,
+    allow_step_rewind: bool = False,
+) -> None:
+    """Refuse to land one ticket over a newer copy already on `base`.
+
+    The per-transition counterpart of `_guard_coga_state_regressions`. The
+    catch-all sweep guards whatever it happened to find dirty; a state
+    transition knows exactly which ticket it is about to overlay, so it binds
+    this to that ticket and hands the result to `sync_paths(guard=...)`. Same
+    rules, same refusal: a terminal control-branch status is never replaced, and
+    step/status never move backward.
+
+    Pass the ticket file (`TaskRef.ticket_path`), not the task directory — the
+    comparison reads ticket frontmatter, and a directory rel matches nothing.
+    """
+    root = _toplevel(ticket_path)
+    if root is None:
+        return
+    _guard_coga_state_regressions(
+        cfg,
+        root,
+        [_relative_to_root(root, ticket_path)],
+        base,
+        allow_step_rewind=allow_step_rewind,
+    )
+
+
+def ticket_state_guard(
+    cfg: Config, ticket_path: Path, *, allow_step_rewind: bool = False
+) -> _StateGuard:
+    """Bind `guard_ticket_state` to one ticket, ready for `sync_paths(guard=)`.
+
+    Every publisher of ticket state uses this: `mark`'s status transitions,
+    `bump`'s step moves, and `unblock`'s resolve-only write. The sync layer
+    calls the result once per landing attempt, so the check re-runs against the
+    tip refetched after a non-fast-forward retry.
+
+    `allow_step_rewind=True` is for `coga bump --to/--backward` only — see
+    `_ticket_state_regression_reason`.
+    """
+
+    def guard(base: str) -> None:
+        guard_ticket_state(
+            cfg, ticket_path, base, allow_step_rewind=allow_step_rewind
+        )
+
+    return guard
+
+
 def _guard_coga_state_regressions(
-    cfg: Config, root: Path, rels: list[str], base: str
+    cfg: Config,
+    root: Path,
+    rels: list[str],
+    base: str,
+    *,
+    allow_step_rewind: bool = False,
 ) -> None:
     """Fail loud before a catch-all sweep commits stale task frontmatter.
 
@@ -925,7 +1032,10 @@ def _guard_coga_state_regressions(
         if working_state is None or committed_state is None:
             continue
         reason = _ticket_state_regression_reason(
-            rel, committed=committed_state, working=working_state
+            rel,
+            committed=committed_state,
+            working=working_state,
+            allow_step_rewind=allow_step_rewind,
         )
         if reason is None:
             continue
@@ -990,10 +1100,22 @@ def _ticket_state_from_bytes(data: bytes) -> _TicketState | None:
 
 
 def _ticket_state_regression_reason(
-    rel: str, *, committed: _TicketState, working: _TicketState
+    rel: str,
+    *,
+    committed: _TicketState,
+    working: _TicketState,
+    allow_step_rewind: bool = False,
 ) -> str | None:
+    """Why landing `working` over `committed` would lose state, or `None`.
+
+    `allow_step_rewind=True` drops *only* the step-backward rule, for the one
+    caller whose backward move is the point: a human `coga bump --to/--backward`
+    rewind. The status rules below still apply — a rewind never changes status,
+    so a status regression there means the checkout is stale, not deliberate.
+    """
     if (
-        committed.step_index is not None
+        not allow_step_rewind
+        and committed.step_index is not None
         and working.step_index is not None
         and working.step_index < committed.step_index
     ):
@@ -1011,6 +1133,15 @@ def _ticket_state_regression_reason(
                 f"to {working.blackboard_bytes} bytes"
             )
         return detail
+
+    if (
+        committed.status in TERMINAL_STATUSES
+        and working.status != committed.status
+    ):
+        return (
+            f"{rel}: terminal status would change from "
+            f"{committed.status!r} to {working.status!r}"
+        )
 
     committed_status = _STATUS_PROGRESS.get(committed.status or "")
     working_status = _STATUS_PROGRESS.get(working.status or "")
@@ -1986,6 +2117,8 @@ def _path_exists(root: Path, rel: str) -> bool:
 
 __all__ = [
     "GitError",
+    "StateRegressionError",
+    "guard_ticket_state",
     "is_linked_worktree",
     "refresh_coga_state_from_control",
     "stale_coga_task_rels",
@@ -1993,4 +2126,5 @@ __all__ = [
     "sync_log",
     "sync_paths",
     "sync_task_state",
+    "ticket_state_guard",
 ]
