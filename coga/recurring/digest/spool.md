@@ -46,3 +46,4 @@ consumed_through: a20bb1814a33
 {"id":"df9b9c78cfed","ts":"2026-07-20T18:24","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"make-ticket-script-form-works","owner":"nicktoper"}
 {"id":"fd8cda7923cd","ts":"2026-07-21T17:33","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"fail-validation-for-unsynthesized-draft-blackboard","owner":"nicktoper"}
 {"id":"9b167eb24fd8","ts":"2026-07-21T19:42","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"append-queue-execution-guidance-to-recurring-agent","owner":"nick"}
+{"id":"b108750fddb7","ts":"2026-07-21T19:44","project":"coga","kind":"done","detail":"claude finished: implement → done ✅ — shipped in PR #620 (merged); closing the ticket as the record","ticket":"distill-git-conflict-errors-and-stop-compounding-d","owner":"nick"}
