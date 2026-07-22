@@ -1,7 +1,7 @@
 ---
 slug: append-queue-execution-guidance-to-recurring-agent
 title: Append queue execution guidance to recurring agent launches
-status: active
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description
