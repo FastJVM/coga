@@ -1,7 +1,7 @@
 ---
 slug: allow-open-pr-when-the-recorded-worktree-is-the-pr
 title: Allow open-pr when the recorded worktree is the primary checkout
-status: active
+status: in_progress
 owner: nick
 human: nick
 agent: claude
