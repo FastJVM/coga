@@ -5,7 +5,7 @@ status: in_progress
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -102,3 +102,47 @@ assumption while there.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: fix/open-pr-primary-checkout
+worktree: /tmp/coga-open-pr-primary-checkout
+
+## Implementation notes
+
+- Preserve the existing control-branch gate for distinct control and feature checkouts.
+- Resolve the ticket before applying that gate so a primary-checkout feature branch can be
+  recognized from its recorded `worktree:` metadata.
+- In the single-checkout layout, commit the generated `pr:` blackboard write to the feature
+  branch so the PR contains its linkage and a retry does not fail the clean-tree preflight.
+
+Implemented checkout-aware gating with two independent checks: resolved Git toplevels must
+match, and the command checkout's Git directory must equal its common directory. The second
+check preserves the legacy refusal when the command is accidentally run inside a linked
+feature worktree, whose recorded path would otherwise look like the same checkout.
+
+The recipe now commits the generated `pr:` line as `Ticket: <slug> — PR opened` and pushes
+that commit in single-checkout mode. This keeps the live feature checkout clean, makes a
+retry idempotent, and ensures the PR branch contains its own ticket linkage. Legacy
+cross-worktree URL writes remain on the control checkout for the usual Coga state sync.
+
+Regression status: `tests/test_open_pr.py` + `tests/test_open_pr_command.py` pass (27 tests),
+including a symlinked primary-checkout path, linked-worktree refusal, clean retry, and remote
+verification of the committed `pr:` record.
+
+## Implement handoff
+
+- Commit: `aa142bc3` (`Allow open-pr from the primary feature checkout`).
+- Final freshness: rebased cleanly onto `origin/main` at `94ee0782`; branch is one commit
+  ahead and the linked feature worktree is clean.
+- Final verification after rebase: `python -m pytest` → 1,384 passed, 1 skipped.
+- Task-scoped `coga validate --json` → 1 ok, 0 issues.
+- Updated the live/packaged open-pr skill, packaged code workflows, live/packaged architecture
+  context, and command reference for both layouts. Per ticket scope, did not change the broader
+  worktree guidance in `coga/contexts/dev/code/SKILL.md` or its packaged copy.
+
+## Follow-up found
+
+- The pytest environment isolation does not clear inherited `COGA_TASK_*` variables. Three
+  full-suite runs caused Dream validate-drift fixture output to append to this live ticket;
+  the synthetic sections were removed. Fixing that test-harness leak is unrelated to open-pr
+  and should be ticketed separately.
