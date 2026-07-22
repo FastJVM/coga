@@ -66,7 +66,7 @@ from coga.paths import (
     resolve_skill_path,
     resolve_workflow_path,
 )
-from coga.slack_response import classify_slack_response
+from coga.slack_response import classify_slack_response, format_slack_request_error
 from coga.tasks import (
     DuplicateTaskSlugError,
     TaskNotFoundError,
@@ -1094,7 +1094,7 @@ def probe_slack(webhook_url: str) -> tuple[str, str]:
     try:
         resp = requests.post(webhook_url, json={"text": ""}, timeout=5)
     except requests.RequestException as exc:
-        return "unreachable", f"{type(exc).__name__}: {exc}"
+        return "unreachable", format_slack_request_error(exc)
 
     return classify_slack_response(resp.status_code, resp.text)
 

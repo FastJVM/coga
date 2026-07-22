@@ -12,7 +12,7 @@ from coga.config import load_config
 from coga.taskfile import replace_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
-from coga.validate import apply_safe_fixes, probe_slack, run
+from coga.validate import _main, apply_safe_fixes, probe_slack, run
 
 
 def _write(path: Path, text: str) -> None:
@@ -545,6 +545,44 @@ def test_probe_slack_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
     status, detail = probe_slack("https://hooks.slack.com/services/x")
     assert status == "unreachable"
     assert "ConnectionError" in detail
+
+
+@pytest.mark.parametrize("argv", [["--check-slack"], ["--check-slack", "--json"]])
+def test_check_slack_redacts_relative_webhook_path_from_validation_output(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+) -> None:
+    fake_secret = "C0GA_FAKE_PROBE_TOKEN_42F1D8"
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[notification]\nchannels = ["slack"]\n'
+        '[notification.slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
+    )
+    monkeypatch.setenv(
+        "SLACK_WEBHOOK_URL",
+        f"https://hooks.slack.com/services/TFAKE/BFAKE/{fake_secret}",
+    )
+    monkeypatch.setattr(
+        "coga.validate.requests.post",
+        _fake_post_factory(
+            requests.exceptions.ProxyError(
+                "HTTPSConnectionPool(host='hooks.slack.com', port=443): "
+                "Max retries exceeded with url: /services/TFAKE/BFAKE/"
+                f"{fake_secret} (Caused by ProxyError('proxy unavailable'))"
+            )
+        ),
+    )
+    monkeypatch.chdir(repo)
+
+    assert _main(argv) == 1
+    captured = capsys.readouterr()
+    for diagnostic in (captured.out, captured.err):
+        assert fake_secret not in diagnostic
+        assert "/services/" not in diagnostic
+    assert "ProxyError" in captured.out
+    assert "proxy connection failure" in captured.out
 
 
 def test_run_check_slack_emits_issue_for_revoked(
