@@ -1,7 +1,7 @@
 ---
 slug: fail-loud-on-prose-sub-directory-prefixes-in-coga
 title: Fail loud on prose sub-directory prefixes in coga create
-status: active
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description
