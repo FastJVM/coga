@@ -81,13 +81,16 @@ open-pr` refuses to publish an empty branch.
 
 ## open-pr
 
-Follow the `code/open-pr` skill: from the primary control checkout, run `coga
-open-pr <slug>`, then `coga bump`.
+Follow the `code/open-pr` skill: run `coga open-pr <slug>` from the checkout that
+owns the live ticket, then `coga bump`. That is the primary control checkout for
+a separate recorded worktree, or the recorded primary checkout on its feature
+branch for the single-checkout layout.
 The command is deterministic — it reads `branch:` / `worktree:` from `## Dev`,
-confirms the worktree is on that branch, clean, ahead of `main`, and not stale,
-pushes, opens the PR (`gh pr create`, or `gh pr ready` for an existing draft),
-and writes `pr: <url>` back under `## Dev`. The command stays on the control
-checkout but pushes the recorded feature branch **by name**.
+confirms the recorded checkout is on that branch, clean, ahead of `main`, and
+not stale, pushes, opens the PR (`gh pr create`, or `gh pr ready` for an
+existing draft), and writes `pr: <url>` back under `## Dev`. It pushes the
+recorded feature branch **by name** and, in the single-checkout layout, commits
+and pushes the generated ticket write so the branch remains clean.
 
 This step declares `requires: pr`: `coga bump` refuses to advance until `pr:` is
 recorded under `## Dev`. So a skipped or failed `coga open-pr` (missing `## Dev`
@@ -95,7 +98,9 @@ fields, nothing committed ahead of `main`, a stale branch, or a git/`gh` auth
 problem) leaves the step put — the gate is a **data check** on the recorded PR,
 not a matter of the agent's say-so. Fix the cause and re-run `coga open-pr`
 (it's idempotent), or `coga block`. That is what makes the step require a real
-PR by construction.
+PR by construction. On a successful single-checkout bump, the gate republishes
+the post-transition ticket commit to the PR branch so it stays mergeable with
+the control copy.
 
 ## review
 

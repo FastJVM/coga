@@ -185,13 +185,16 @@ def check_branch_contains_control(
     *,
     cwd: str | Path | None = None,
     coga_root: str | Path,
+    allow_identical_coga_state_overlaps: bool = False,
 ) -> CheckResult:
     """Verify the branch contains material control changes.
 
     Coga advances the control branch for task and audit-log state between agent
     steps. Missing only that generated state is safe when the feature branch did
-    not touch the same files; source, documentation, config, mixed, or
-    overlapping state drift remains a hard failure.
+    not touch the same files. A proven single-checkout caller may also allow
+    generated task/log paths that changed on both sides, but each such blob must
+    be byte-identical at both tips; source, documentation, config, mixed, or
+    divergent overlapping state remains a hard failure.
     """
     rc, _out, err = _run(["git", "fetch", remote, control_branch], cwd=cwd)
     if rc is None:
@@ -269,24 +272,51 @@ def check_branch_contains_control(
         )
 
     overlapping = control_paths & feature_paths
+    identical_overlaps: set[str] = set()
+    identical_candidates = (
+        {
+            path
+            for path in overlapping
+            if _is_coga_state_path(path, coga_prefix=coga_prefix)
+        }
+        if allow_identical_coga_state_overlaps
+        else set()
+    )
+    for path in identical_candidates:
+        rc, _out, err = _run(
+            ["git", "diff", "--quiet", "FETCH_HEAD", "HEAD", "--", path],
+            cwd=cwd,
+        )
+        if rc == 0:
+            identical_overlaps.add(path)
+        elif rc not in (1,):
+            return CheckResult(
+                "git-branch-current",
+                False,
+                f"could not compare generated state path {path!r} between "
+                f"HEAD and {remote}/{control_branch} "
+                f"({_first_line(err) or 'no output'}).",
+            )
+    unsafe_overlaps = overlapping - identical_overlaps
     if (
         all(
             _is_coga_state_path(path, coga_prefix=coga_prefix)
             for path in control_paths
         )
-        and not overlapping
+        and not unsafe_overlaps
     ):
+        overlap_note = " or byte-identical" if identical_overlaps else ""
         return CheckResult(
             "git-branch-current",
             True,
-            f"{remote}/{control_branch} advanced only through non-overlapping "
-            "Coga task/log state; branch is safe to publish",
+            f"{remote}/{control_branch} advanced only through non-overlapping"
+            f"{overlap_note} Coga task/log state; branch is safe to publish",
             value="state-only-drift",
         )
 
     reason = ""
-    if overlapping:
-        reason = f" Overlapping paths: {', '.join(sorted(overlapping))}."
+    if unsafe_overlaps:
+        reason = f" Overlapping paths: {', '.join(sorted(unsafe_overlaps))}."
     return CheckResult(
         "git-branch-current",
         False,

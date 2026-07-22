@@ -32,14 +32,19 @@ enough to redo, relaunch the `design` step instead of bumping.
 
 ## open-pr
 
-Follow the `code/open-pr` skill: from the primary control checkout, run `coga
-open-pr <slug>`, then `coga bump`.
-The command reads `branch:` / `worktree:` from `## Dev`, confirms the worktree
-is on that branch, clean, ahead of `main`, and not stale, pushes, opens the PR,
-and records `pr: <url>`. This step declares `requires: pr`, so `coga bump`
-refuses to advance until `pr:` is recorded — a skipped or failed `coga open-pr`
-(nothing committed to PR, a stale branch, or broken auth) leaves the step put.
-Fix the cause and re-run it (idempotent), or `coga block`.
+Follow the `code/open-pr` skill: run `coga open-pr <slug>` from the checkout that
+owns the live ticket, then `coga bump`. That is the primary control checkout for
+a separate recorded worktree, or the recorded primary checkout on its feature
+branch for the single-checkout layout.
+The command reads `branch:` / `worktree:` from `## Dev`, confirms the recorded
+checkout is on that branch, clean, ahead of `main`, and not stale, pushes, opens
+the PR, and records `pr: <url>`. In the single-checkout layout it commits and
+pushes that generated ticket write. This step declares `requires: pr`, so `coga
+bump` refuses to advance until `pr:` is recorded — a skipped or failed `coga
+open-pr` (nothing committed to PR, a stale branch, or broken auth) leaves the
+step put. On a successful single-checkout bump, the gate republishes the
+post-transition ticket commit to the PR branch so it stays mergeable with the
+control copy. Fix the cause and re-run it (idempotent), or `coga block`.
 
 There is no peer/self-review step here, so the PR body falls back to the
 ticket's `## Description` (the reviewed design spec). If the `implement` step

@@ -187,10 +187,26 @@ put), preserving the step.
 ### `coga open-pr TASK`
 Push the branch recorded under `## Dev` on the blackboard and open (or ready) its
 PR. A default alias for `coga launch bootstrap/open-pr TASK` — a stateless
-script launch of the packaged open-pr command ticket. Run from the primary
-control checkout: it reads `branch:`/`worktree:`, confirms the worktree is
-clean and ahead of `main`, pushes the branch by name, opens the PR (or marks an
-existing draft ready), and writes `pr: <url>` back under `## Dev`. Idempotent.
+script launch of the packaged open-pr command ticket. Run it from the primary
+control checkout when `worktree:` is a separate linked checkout; when it records
+the primary checkout itself, run it there on the feature branch from the task's
+active launch session (the seam matches `COGA_EXPECTED_TASK`, which that outer
+launch pins and no nested launch rewrites, to prove the checkout owns the live
+ticket). The command reads `branch:`/`worktree:`, commits the pending generated
+launch-log append, confirms the recorded checkout is clean and ahead of `main`,
+accepts only byte-identical generated task/log overlaps, and rejects a
+single-checkout branch whose only commits are generated task/log state. It
+pushes the branch by name, opens the PR (or marks an existing draft ready), and
+writes `pr: <url>` back under `## Dev`. In the single-checkout layout it syncs
+that generated ticket write to the feature branch *and* the control branch, so
+the checkout stays clean and both tips keep identical ticket bytes — a retry
+stays idempotent instead of tripping the overlap gate on the command's own
+record. That sync is reported but not fatal: the PR is already open by then, so
+a failed push must not fail the command. The subsequent `requires: pr` bump
+republishes its post-transition ticket state, and launch teardown publishes the
+trailing usage record, keeping the PR branch mergeable with control and aligned
+with the local tip. Independent fallback clones keep using the primary control
+checkout for this command.
 
 ### `coga retire TASK`
 Wrap up a **done** task: prune its Git branch (local and its merged `origin`

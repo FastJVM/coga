@@ -375,12 +375,34 @@ artifact. This is a data check, independent of whether the step is agent- or
 script-owned; human rewinds (`--to` / `--backward`) are never gated.
 
 `code/open-pr` is an ordinary agent step with `requires: pr`. The agent runs
-`coga open-pr <slug>` from the primary control checkout — a default alias for
-`coga launch bootstrap/open-pr <slug>`, a stateless script launch of the
-open-pr command ticket; the recipe pushes the recorded feature branch by
-name, opens or readies the PR, and writes `pr:` under `## Dev`. A skipped
-command cannot be papered over with a bump because the gate reads the
-recorded artifact. The registry remains generic (`step_gate.py` owns `pr`);
+`coga open-pr <slug>` — a default alias for `coga launch bootstrap/open-pr
+<slug>`, a stateless script launch of the open-pr command ticket — from the
+checkout that owns the live ticket: the primary control checkout when
+`worktree:` is a separate linked checkout, or the primary checkout's recorded
+feature branch when both are the same checkout. Because the command is itself a
+launch, `build_task_env` rewrites `COGA_TASK_*` to name the command ticket; the
+seam therefore proves live-ticket ownership with `COGA_EXPECTED_TASK`, which the
+outer agent launch pins to its own task and no nested launch rewrites. That is
+what separates a real session from an independent fallback clone. The recipe
+pushes the recorded feature branch by name, opens or readies the PR, and writes
+`pr:` under `## Dev`; in the single-checkout layout it syncs that generated
+ticket write to the feature branch *and* the control branch, so the branch stays
+clean and both tips keep identical ticket bytes — otherwise the next run's
+freshness gate would reject the command's own record as a divergent overlap.
+That sync is reported but not fatal: the PR is already open once it runs, so a
+failed push must not fail the command. Before its clean-tree gate it commits the
+pending generated launch-log append, without exempting any other dirt. Its
+freshness gate accepts byte-identical generated task/log overlaps created when
+preceding lifecycle syncs committed the same state on the feature and control
+branches, but still rejects any divergent blob; lifecycle-only task/log commits
+do not satisfy the single-checkout branch's non-empty implementation guard.
+After the command, the successful `requires: pr` transition lands the updated
+ticket on control and republishes that transition commit to the PR branch, so
+its `step:` / `assignee:` state cannot conflict at merge. Launch teardown then
+publishes the trailing usage-log commit to the already-open branch, keeping its
+remote and local tips aligned. A skipped command cannot be papered over with a
+bump because the gate reads the recorded artifact. The registry remains generic
+(`step_gate.py` owns both `pr` policies);
 `bump` never hardcodes a `code/*` skill name.
 
 ## Prompt composition

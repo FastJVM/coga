@@ -611,6 +611,113 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
     assert "outside.txt" in git_repo.git("status", "--porcelain")
 
 
+def test_spawn_publishes_usage_log_after_pr_gated_handoff(git_repo, monkeypatch):
+    """The usage commit made after a PR-gated bump reaches the PR branch."""
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "ship-it"
+    task.mkdir(parents=True)
+    ticket_path = task / "ticket.md"
+    ticket_path.write_text(
+        dedent(
+            """
+            ---
+            slug: ship-it
+            title: Ship it
+            status: in_progress
+            owner: marc
+            human: marc
+            agent: claude
+            assignee: claude
+            contexts: []
+            skills: []
+            workflow:
+              name: code/with-review
+              steps:
+                - name: open-pr
+                  requires: pr
+                - name: review
+                  assignee: owner
+            step: 1 (open-pr)
+            secrets: null
+            script: null
+            ---
+
+            ## Description
+
+            Ship it.
+
+            <!-- coga:blackboard -->
+
+            ## Dev
+            pr: https://github.com/acme/repo/pull/1
+            """
+        ).lstrip()
+    )
+    git_repo.git("add", "--", "coga/tasks/ship-it/ticket.md")
+    git_repo.git("commit", "-m", "ticket: seed ship-it")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("ship-it")
+    (git_repo.root / "implementation.txt").write_text("done\n")
+    git_repo.git("add", "--", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: ship it")
+
+    ref = TaskRef(slug="ship-it", path=task)
+    ticket = Ticket.read(ticket_path)
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
+    )
+
+    def finish_with_publishing_bump(*args, **kwargs):  # type: ignore[no-untyped-def]
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "step: 1 (open-pr)", "step: 2 (review)"
+            )
+        )
+        from coga import git
+
+        git.sync_task_state(
+            cfg,
+            task,
+            message="Ticket: ship-it — step 2 (review)",
+            publish_current_branch=True,
+        )
+        return ReplOutcome(exit_code=0, kind="done")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", finish_with_publishing_bump
+    )
+
+    def fake_capture(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        log = git_repo.coga_os / "log.md"
+        log.write_text(
+            log.read_text()
+            + '2026-07-21 12:00 [ship-it] [system] {"tokens": 1}\n'
+        )
+
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session", fake_capture
+    )
+
+    spawn_agent_session(
+        cfg,
+        ref,
+        ticket,
+        AgentType(name="claude", cli="my-cli", file="AGENTS.md", mode="local"),
+        env={},
+        actor="human:marc",
+        log_message="launched",
+    )
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/ship-it", cwd=git_repo.origin
+    ).strip()
+    assert '{"tokens": 1}' in git_repo.git(
+        "show", "refs/heads/ship-it:coga/log.md", cwd=git_repo.origin
+    )
+
+
 def test_spawn_agent_session_without_kickoff_stays_silent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

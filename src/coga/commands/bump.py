@@ -14,7 +14,7 @@ from coga.bump import (
 )
 from coga.config import ConfigError, load_config
 from coga.paths import resolve_workflow_path
-from coga.step_gate import gate_unmet_reason
+from coga.step_gate import gate_publishes_current_branch, gate_unmet_reason
 from coga.taskfile import read_blackboard
 from coga.repl_supervisor import (
     EXPECTED_STEP_ENV,
@@ -145,6 +145,7 @@ def bump(
     # (`coga/step_gate`), not an exit-code check: a step like `open-pr` that
     # declares `requires: pr` cannot be bumped past until `coga open-pr` has
     # written `pr:` under `## Dev`.
+    publish_current_branch = False
     if not rewind and 1 <= current_idx <= total:
         requires = steps[current_idx - 1].get("requires")
         if requires is not None:
@@ -154,6 +155,7 @@ def bump(
             reason = gate_unmet_reason(requires, blackboard, slug=ref.id_slug)
             if reason:
                 _bail(reason)
+            publish_current_branch = gate_publishes_current_branch(requires)
 
     new_step = steps[next_step - 1]
     new_step_name = new_step["name"]
@@ -207,6 +209,7 @@ def bump(
             notify_slack=message is not None,
             echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
             rewind=rewind,
+            publish_current_branch=publish_current_branch,
         )
     except TaskValidationError as exc:
         _bail(str(exc))

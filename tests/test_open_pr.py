@@ -25,6 +25,8 @@ from conftest import init_git_repo, load_bootstrap_recipe
 from coga.autoclose import parse_pr_url, parse_worktree_path
 from coga.config import load_config
 from coga.github_preflight import CheckResult
+from coga.git import sync_task_state
+from coga.logfile import append_log
 from coga.taskfile import read_blackboard
 from coga.ticket import Ticket
 
@@ -179,6 +181,358 @@ def test_open_pr_refuses_canceled_ticket_before_git_mutation(tmp_path) -> None:
 
     with pytest.raises(OpenPrError, match="status 'canceled' is terminal"):
         open_pr(load_config(repo.coga_os), slug="declined", blackboard_path=ticket_path)
+
+
+def test_open_pr_commits_and_pushes_record_in_single_checkout(
+    tmp_path, monkeypatch
+):
+    """The live ticket is on the feature branch in single-checkout mode.
+
+    Recording the PR must leave that checkout clean and publish the record so a
+    retry stays idempotent and the PR contains its own ticket linkage.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(
+        monkeypatch,
+        bin_dir,
+        create_url="https://github.com/acme/repo/pull/12",
+    )
+
+    ticket = _write_ticket(
+        repo.coga_os,
+        "single-checkout-record",
+        branch="single-checkout-record",
+        worktree=repo.root,
+    )
+    repo.git("add", "--", "coga/tasks/single-checkout-record/ticket.md")
+    repo.git("commit", "-m", "ticket: add single-checkout record")
+    repo.git("push", "origin", "main")
+
+    repo.checkout_branch("single-checkout-record")
+    (repo.coga_os / "change.txt").write_text("a real change\n")
+    repo.git("add", "--", "coga/change.txt")
+    repo.git("commit", "-m", "feature: a real change")
+
+    cfg = load_config(repo.coga_os)
+    # A real supervised launch appends this before the agent invokes open-pr.
+    # The single checkout must absorb that generated dirt without relaxing the
+    # clean-tree refusal for any other path.
+    append_log(cfg, "single-checkout-record", "human:marc", "launched")
+
+    url = open_pr(
+        cfg,
+        slug="single-checkout-record",
+        blackboard_path=ticket,
+        single_checkout=True,
+    )
+
+    assert url == "https://github.com/acme/repo/pull/12"
+    assert repo.git("status", "--porcelain").strip() == ""
+    assert repo.git("log", "-1", "--format=%s").strip() == (
+        "Ticket: single-checkout-record — PR opened"
+    )
+    published_ticket = repo.git(
+        "show",
+        "refs/heads/single-checkout-record:coga/tasks/single-checkout-record/ticket.md",
+        cwd=repo.origin,
+    )
+    assert "pr: https://github.com/acme/repo/pull/12" in published_ticket
+    assert "[single-checkout-record] [human:marc] launched" in repo.git(
+        "show",
+        "refs/heads/single-checkout-record:coga/log.md",
+        cwd=repo.origin,
+    )
+
+
+def test_open_pr_accepts_identical_generated_state_overlaps_from_preceding_bumps(
+    tmp_path, monkeypatch, real_git
+):
+    """Lifecycle sync can mirror task artifacts and multiple tickets.
+
+    Those generated overlaps are safe only while both branch tips carry
+    identical bytes for every overlapping path.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(
+        monkeypatch,
+        bin_dir,
+        create_url="https://github.com/acme/repo/pull/13",
+    )
+
+    ticket = _write_ticket(
+        repo.coga_os,
+        "post-bump",
+        branch="post-bump",
+        worktree=repo.root,
+    )
+    companion = _write_ticket(
+        repo.coga_os,
+        "post-bump-companion",
+        branch="post-bump",
+        worktree=repo.root,
+    )
+    repo.git(
+        "add",
+        "--",
+        "coga/tasks/post-bump",
+        "coga/tasks/post-bump-companion",
+    )
+    repo.git("commit", "-m", "ticket: add post-bump")
+    repo.git("push", "origin", "main")
+
+    repo.checkout_branch("post-bump")
+    (repo.coga_os / "change.txt").write_text("a real change\n")
+    repo.git("add", "--", "coga/change.txt")
+    repo.git("commit", "-m", "feature: a real change")
+
+    companion.write_text(
+        companion.read_text().replace("step: 1 (open-pr)", "step: 2 (review)")
+    )
+    artifact = ticket.parent / "review.md"
+    artifact.write_text("generated review artifact\n")
+    ticket.write_text(
+        ticket.read_text().replace("step: 1 (open-pr)", "step: 2 (open-pr)")
+    )
+    cfg = load_config(repo.coga_os)
+    sync_task_state(
+        cfg,
+        companion.parent,
+        message="Ticket: post-bump-companion — step 2 (review)",
+    )
+    sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: post-bump — step 2 (open-pr)",
+    )
+
+    url = open_pr(
+        cfg,
+        slug="post-bump",
+        blackboard_path=ticket,
+        single_checkout=True,
+    )
+
+    assert url == "https://github.com/acme/repo/pull/13"
+    assert repo.git("status", "--porcelain").strip() == ""
+    assert "pr: https://github.com/acme/repo/pull/13" in repo.git(
+        "show",
+        "refs/heads/post-bump:coga/tasks/post-bump/ticket.md",
+        cwd=repo.origin,
+    )
+    assert repo.git(
+        "show",
+        "refs/heads/post-bump:coga/tasks/post-bump/review.md",
+        cwd=repo.origin,
+    ) == "generated review artifact\n"
+
+
+def test_open_pr_rejects_single_checkout_with_only_generated_state(
+    tmp_path, monkeypatch, real_git
+):
+    """Lifecycle commits do not count as an implementation to review."""
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+
+    ticket = _write_ticket(
+        repo.coga_os,
+        "state-only-single-checkout",
+        branch="state-only-single-checkout",
+        worktree=repo.root,
+    )
+    repo.git("add", "--", "coga/tasks/state-only-single-checkout/ticket.md")
+    repo.git("commit", "-m", "ticket: seed state-only task")
+    repo.git("push", "origin", "main")
+
+    repo.checkout_branch("state-only-single-checkout")
+    ticket.write_text(
+        ticket.read_text().replace("step: 1 (open-pr)", "step: 2 (open-pr)")
+    )
+    (repo.coga_os / "log.md").write_text("generated lifecycle state\n")
+    cfg = load_config(repo.coga_os)
+    sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: state-only-single-checkout — step 2 (open-pr)",
+    )
+
+    assert repo.git("rev-list", "--count", "main..HEAD").strip() != "0"
+    with pytest.raises(OpenPrError, match="outside generated Coga task/log state"):
+        open_pr(
+            cfg,
+            slug="state-only-single-checkout",
+            blackboard_path=ticket,
+            single_checkout=True,
+        )
+
+    assert not log.exists() or "pr create" not in log.read_text()
+    assert parse_pr_url(read_blackboard(ticket)) is None
+
+
+def test_open_pr_rejects_divergent_ticket_overlap_in_single_checkout(
+    tmp_path, monkeypatch, real_git
+):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+
+    ticket = _write_ticket(
+        repo.coga_os,
+        "divergent-post-bump",
+        branch="divergent-post-bump",
+        worktree=repo.root,
+    )
+    repo.git("add", "--", "coga/tasks/divergent-post-bump/ticket.md")
+    repo.git("commit", "-m", "ticket: add divergent post-bump")
+    repo.git("push", "origin", "main")
+
+    repo.checkout_branch("divergent-post-bump")
+    (repo.coga_os / "change.txt").write_text("a real change\n")
+    repo.git("add", "--", "coga/change.txt")
+    repo.git("commit", "-m", "feature: a real change")
+    ticket.write_text(
+        ticket.read_text().replace("step: 1 (open-pr)", "step: 2 (open-pr)")
+    )
+    cfg = load_config(repo.coga_os)
+    sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: divergent-post-bump — step 2 (open-pr)",
+    )
+
+    repo.push_competing_commit(
+        "coga/tasks/divergent-post-bump/ticket.md",
+        ticket.read_text() + "\ncontrol-only change\n",
+    )
+
+    with pytest.raises(OpenPrError, match="divergent-post-bump/ticket.md"):
+        open_pr(
+            cfg,
+            slug="divergent-post-bump",
+            blackboard_path=ticket,
+            single_checkout=True,
+        )
+
+    assert not log.exists() or "pr create" not in log.read_text()
+    assert parse_pr_url(read_blackboard(ticket)) is None
+
+
+def test_open_pr_record_reaches_control_so_retry_is_not_stale(
+    tmp_path, monkeypatch, real_git
+):
+    """The generated `pr:` record must land on control, not only the branch.
+
+    Publishing the record to the feature branch alone leaves the ticket
+    divergent between the two tips. The freshness check accepts an overlapping
+    generated path only while both tips carry identical bytes, so the next run
+    would reject open-pr's own record as a stale branch and wedge the
+    documented idempotent retry.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(
+        monkeypatch,
+        bin_dir,
+        create_url="https://github.com/acme/repo/pull/21",
+    )
+
+    ticket = _write_ticket(
+        repo.coga_os,
+        "record-retry",
+        branch="record-retry",
+        worktree=repo.root,
+    )
+    repo.git("add", "--", "coga/tasks/record-retry/ticket.md")
+    repo.git("commit", "-m", "ticket: add record retry")
+    repo.git("push", "origin", "main")
+
+    repo.checkout_branch("record-retry")
+    (repo.coga_os / "change.txt").write_text("a real change\n")
+    repo.git("add", "--", "coga/change.txt")
+    repo.git("commit", "-m", "feature: a real change")
+
+    cfg = load_config(repo.coga_os)
+    # A preceding bump advances control through generated task state. Without
+    # it the retry's freshness check short-circuits on "HEAD contains latest
+    # control" and never reaches the overlap classifier this guards.
+    ticket.write_text(
+        ticket.read_text().replace("step: 1 (open-pr)", "step: 2 (open-pr)")
+    )
+    sync_task_state(
+        cfg, ticket.parent, message="Ticket: record-retry — step 2 (open-pr)"
+    )
+
+    url = open_pr(
+        cfg,
+        slug="record-retry",
+        blackboard_path=ticket,
+        single_checkout=True,
+    )
+
+    # The documented idempotent retry is accepted, not refused as stale.
+    assert (
+        open_pr(
+            cfg,
+            slug="record-retry",
+            blackboard_path=ticket,
+            single_checkout=True,
+        )
+        == url
+    )
+
+    # Because the record reached control as well as the feature branch.
+    published = repo.git(
+        "show", "refs/heads/main:coga/tasks/record-retry/ticket.md", cwd=repo.origin
+    )
+    assert f"pr: {url}" in published
+    assert repo.git("status", "--porcelain").strip() == ""
+
+
+def test_open_pr_commits_single_checkout_record_from_nested_recorded_path(
+    tmp_path, monkeypatch
+):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(
+        monkeypatch,
+        bin_dir,
+        create_url="https://github.com/acme/repo/pull/14",
+    )
+
+    ticket = _write_ticket(
+        repo.coga_os,
+        "nested-recorded-path",
+        branch="nested-recorded-path",
+        worktree=repo.coga_os,
+    )
+    repo.git("add", "--", "coga/tasks/nested-recorded-path/ticket.md")
+    repo.git("commit", "-m", "ticket: add nested recorded path")
+    repo.git("push", "origin", "main")
+    repo.checkout_branch("nested-recorded-path")
+    (repo.coga_os / "change.txt").write_text("a real change\n")
+    repo.git("add", "--", "coga/change.txt")
+    repo.git("commit", "-m", "feature: a real change")
+
+    url = open_pr(
+        load_config(repo.coga_os),
+        slug="nested-recorded-path",
+        blackboard_path=ticket,
+        single_checkout=True,
+    )
+
+    assert url == "https://github.com/acme/repo/pull/14"
+    assert repo.git("status", "--porcelain").strip() == ""
+    assert repo.git("log", "-1", "--format=%s").strip() == (
+        "Ticket: nested-recorded-path — PR opened"
+    )
 
 
 def test_open_pr_uses_annotated_quoted_dev_metadata(tmp_path, monkeypatch):

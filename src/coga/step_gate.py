@@ -21,15 +21,20 @@ from typing import Callable
 
 @dataclass(frozen=True)
 class StepGate:
-    """A completion gate: a predicate over blackboard text plus a fix hint.
+    """A completion gate: a predicate, fix hint, and transition policy.
 
     `check` returns a truthy value when the required artifact is present. The
     `remediation` string may reference `{slug}`; it is appended to the fail-loud
     message so the operator knows exactly how to satisfy the gate.
+    `publish_current_branch` is reserved for artifacts such as a PR whose
+    branch must receive the transition commit after the gate passes. Keeping
+    that policy on the token means `bump` stays independent of workflow/skill
+    names.
     """
 
     check: Callable[[str], object]
     remediation: str
+    publish_current_branch: bool = False
 
 
 def _has_pr(blackboard_text: str) -> object:
@@ -49,6 +54,7 @@ STEP_GATES: dict[str, StepGate] = {
             "Run `coga open-pr {slug}` from the open-pr step to push the recorded "
             "branch and open the PR (it writes `pr:` under `## Dev`), then bump."
         ),
+        publish_current_branch=True,
     ),
 }
 
@@ -85,4 +91,18 @@ def gate_unmet_reason(token: object, blackboard_text: str, *, slug: str) -> str 
     )
 
 
-__all__ = ["StepGate", "STEP_GATES", "known_gate_tokens", "gate_unmet_reason"]
+def gate_publishes_current_branch(token: object) -> bool:
+    """Whether a satisfied gate's transition commit must update its branch."""
+    if not isinstance(token, str):
+        return False
+    gate = STEP_GATES.get(token)
+    return bool(gate and gate.publish_current_branch)
+
+
+__all__ = [
+    "StepGate",
+    "STEP_GATES",
+    "known_gate_tokens",
+    "gate_unmet_reason",
+    "gate_publishes_current_branch",
+]

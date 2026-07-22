@@ -254,6 +254,27 @@ def test_sync_log_commits_locally_only_on_feature_branch(git_repo):
     assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
 
 
+def test_sync_log_can_publish_feature_branch_after_shared_artifact(git_repo):
+    """A completed PR-gated session publishes its trailing usage commit."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    append_log(cfg, "ship-it", "system", '{"tokens": 1}')
+
+    git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_current_branch=True,
+    )
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    assert '{"tokens": 1}' in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+
+
 def test_sync_log_failure_does_not_redirty_the_log(git_repo, capsys):
     """A failed log sync surfaces to stderr but does NOT append to log.md —
     re-dirtying the file it failed to commit would recreate the dangling line."""

@@ -478,6 +478,24 @@ message)` stages and commits only the task directory pathspec. It must not use
 the task-state commit — the temp-index plumbing makes that structural for the
 cross-branch land, since every staging op runs against the throwaway index.
 
+`sync_log` is narrower still: it commits only the union-marked global audit log.
+On a feature branch it normally leaves that commit local for a later PR merge.
+The one publishing exception is teardown after a successfully advanced
+artifact gate such as `requires: pr`: the gated bump already made the branch a
+shared PR ref, so teardown pushes its subsequently appended usage-log commit to
+that same branch. The durable ticket proves the step advanced before this flag
+is set; blocks, crashes, natural exits, and rewinds retain local-only behavior.
+
+`open-pr`'s generated `pr:` record uses the same publishing form —
+`sync_paths(..., publish_current_branch=True)` on the ticket alone — in the
+single-checkout layout. It must reach the control branch too, not only the PR
+branch: the freshness gate accepts an overlapping generated task path only while
+both tips hold identical bytes, so a record published to the feature branch
+alone would make the *next* `coga open-pr` reject the command's own write as a
+divergent overlap. Because that sync runs after `gh` opened the PR, its failure
+is reported rather than raised — the recorded artifact is the gate, and the
+following gated bump syncs the same state again.
+
 ### The state-regression guard
 
 Compare-and-swap keeps two writers from *losing* a push; it does not keep a
