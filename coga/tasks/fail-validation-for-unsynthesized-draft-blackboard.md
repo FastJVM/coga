@@ -1,7 +1,7 @@
 ---
 slug: fail-validation-for-unsynthesized-draft-blackboard
 title: Fail validation for unsynthesized draft blackboards
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
