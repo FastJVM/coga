@@ -29,7 +29,12 @@ from coga.github_preflight import (
     check_git_remote,
     check_gh_auth,
 )
-from coga.git import is_linked_worktree, sync_log, sync_paths
+from coga.git import (
+    is_linked_worktree,
+    sync_log,
+    sync_paths,
+    ticket_state_guard,
+)
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.taskfile import read_blackboard, replace_blackboard, split_body
 from coga.ticket import Ticket
@@ -182,6 +187,14 @@ def _sync_pr_record(
     URL is on the live ticket, so a failed push must not fail the command: the
     recorded artifact is the gate, and the following bump's own publishing sync
     lands the same state.
+
+    Guarded like every other publisher of a specific ticket's state. The
+    terminal-status check at the top of `open_pr` reads the *local* ticket; this
+    reads the committed control copy at each landing attempt, which is the only
+    place a concurrent close is visible. Without it the overlay would replace a
+    ticket another checkout had already finished — writing a `pr:` line over a
+    `done` copy — and the non-fast-forward retry would faithfully rebuild that
+    overwrite on the refetched tip.
     """
     checkout_root = _git_checkout_root(worktree)
     if checkout_root is None:
@@ -203,6 +216,7 @@ def _sync_pr_record(
         [blackboard_path],
         message=f"Ticket: {slug} — PR opened",
         publish_current_branch=True,
+        guard=ticket_state_guard(cfg, blackboard_path),
     )
 
 

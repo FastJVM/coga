@@ -495,6 +495,72 @@ def test_open_pr_record_reaches_control_so_retry_is_not_stale(
     assert repo.git("status", "--porcelain").strip() == ""
 
 
+def test_open_pr_record_sync_refuses_to_bury_a_concurrent_close(
+    tmp_path, monkeypatch, real_git, capsys
+):
+    """The record sync must not overwrite a ticket another checkout finished.
+
+    `open_pr`'s terminal-status gate reads the *local* ticket, which still says
+    `in_progress` here; the close is only visible in the committed control copy
+    that the landing overlay is about to replace. So the guard has to run at the
+    sync layer, and its refusal must stay non-fatal: the PR is already open, so
+    this is exactly as survivable as a failed push.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(
+        monkeypatch,
+        bin_dir,
+        create_url="https://github.com/acme/repo/pull/22",
+    )
+
+    slug = "closed-elsewhere"
+    ticket_rel = f"coga/tasks/{slug}/ticket.md"
+    ticket = _write_ticket(
+        repo.coga_os, slug, branch=slug, worktree=repo.root
+    )
+    repo.git("add", "--", ticket_rel)
+    repo.git("commit", "-m", "ticket: add closed-elsewhere")
+    repo.git("push", "origin", "main")
+
+    repo.checkout_branch(slug)
+    (repo.coga_os / "change.txt").write_text("a real change\n")
+    repo.git("add", "--", "coga/change.txt")
+    repo.git("commit", "-m", "feature: a real change")
+
+    # Another checkout finishes the task and lands that on control. The feature
+    # branch never touched the ticket, so this stays non-overlapping generated
+    # drift and the freshness gate still lets the publish through.
+    repo.push_competing_commit(
+        ticket_rel, ticket.read_text().replace("status: in_progress", "status: done")
+    )
+
+    url = open_pr(
+        load_config(repo.coga_os),
+        slug=slug,
+        blackboard_path=ticket,
+        single_checkout=True,
+    )
+
+    # Non-fatal: the PR was opened and its URL still comes back.
+    assert url == "https://github.com/acme/repo/pull/22"
+
+    # The finished control copy is intact — not replaced by our `pr:` write.
+    control_ticket = repo.git(
+        "show", f"refs/heads/main:{ticket_rel}", cwd=repo.origin
+    )
+    assert "status: done" in control_ticket
+    assert url not in control_ticket
+
+    # Surfaced as a refusal, not a plain sync failure, on both channels.
+    assert "sync refused" in capsys.readouterr().err
+    assert "sync refused" in (repo.coga_os / "log.md").read_text()
+
+    # The local write stands; the checkout is knowingly behind control.
+    assert parse_pr_url(read_blackboard(ticket)) == url
+
+
 def test_open_pr_commits_single_checkout_record_from_nested_recorded_path(
     tmp_path, monkeypatch
 ):
