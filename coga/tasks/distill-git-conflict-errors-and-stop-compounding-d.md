@@ -2,7 +2,7 @@
 slug: distill-git-conflict-errors-and-stop-compounding-d
 title: Distill git conflict errors and stop compounding diverged-checkout failures
   in recurring sweeps
-status: active
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -30,7 +30,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description

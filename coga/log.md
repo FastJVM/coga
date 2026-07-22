@@ -2752,3 +2752,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-21 19:43 [implement-accepted-ticket-interview-improvements] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-21 19:42 [distill-git-conflict-errors-and-stop-compounding-d] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-21 19:44 [distill-git-conflict-errors-and-stop-compounding-d] [human:nicktoper] activated (draft → active) — work already shipped in PR #620; activating only to close the record
+2026-07-21 19:44 [distill-git-conflict-errors-and-stop-compounding-d] [human:nicktoper] task done — shipped in PR #620 (merged); closing the ticket as the record
