@@ -33,49 +33,30 @@ step: 2 (peer-review)
 
 ## Description
 
-`coga open-pr` is jointly unsatisfiable when a repo develops in its primary checkout instead
-of a linked worktree:
+`coga open-pr` still encodes a linked-worktree development model: its wrapper requires the
+primary checkout on the control branch, while its recipe requires a separately recorded
+`worktree:` on the feature branch. Repositories are moving to ordinary branches in the primary
+checkout only, so those joint gates make the command impossible to run in the supported layout.
 
-- `commands/open_pr.py::_require_control_checkout` refuses unless `cfg.repo_root` is checked
-  out on the control branch.
-- `open_pr.py::open_pr` refuses unless the recorded `## Dev` `worktree:` is checked out on the
-  recorded feature branch.
-
-When the recorded worktree *is* the primary checkout, those are the same git checkout: on the
-control branch the recipe's branch check fails, on the feature branch the wrapper's gate fails.
-The command can never run, and the workflow's `open-pr` step dead-ends in a blocker.
-
-This is not an edge case: worktree-based development is being retired, so the recorded
-`worktree:` being the primary checkout is the standard layout going forward, and open-pr's
-control-checkout gate is a worktree-era assumption.
-
-Fix: in `_require_control_checkout`, when the task's recorded `worktree:` resolves to the same
-checkout as `cfg.repo_root`, skip the control-branch requirement — with a single checkout there
-is no second copy of the ticket for blackboard writes to diverge from, which is the trap the
-gate exists to prevent. Legacy cross-worktree layouts keep the existing gate. Cover both
-layouts with tests, and audit open-pr's docstrings/messages for the retired worktree≠checkout
-assumption while there.
+Fix: make `branch:` the only development-location input to `open-pr`. Run from the primary
+checkout on that recorded feature branch, then apply the existing cleanliness, ahead-of-main,
+freshness, authentication, push, and PR-recording checks there. Remove `worktree:` from the
+command's operational contract; legacy lines may remain as inert task history during migration,
+but the command must neither require nor inspect them. Update shipped rules and tests to describe
+and exercise branch-only development rather than retaining a second worktree mode.
 
 ## Context
 
-- Hit for real by `staticization/capture-and-correlate-generated-classes` in the magicator2
-  repo (blocker id=20260720T183536): that repo's `AGENTS.md` forbids linked worktrees and
-  fallback clones, so `## Dev` records the primary checkout path as `worktree:` and the
-  feature branch is checked out there.
+- Hit for real by `staticization/capture-and-correlate-generated-classes` and again by
+  `staticization/classify-captured-definitions-against-the-approved` in the magicator2 repo:
+  that repo's `AGENTS.md` permits ordinary branches in the primary checkout only.
 - The rest of the workflow already tolerates single-checkout mode: implement, peer-review, and
   every `coga bump`/`coga block` on that ticket ran from the primary checkout while on the
   feature branch, committing ticket state onto it. Only `open-pr` hard-gates on the control
   branch.
-- The recipe's freshness check (`check_branch_contains_control`) already accepts
-  non-overlapping generated `coga/tasks/**` / `coga/log.md` drift between branches, so
-  accepting the same-checkout layout is consistent with the existing contract.
-- The wrapper docstring states the design assumption to revisit: it "operates on the `## Dev`
-  feature branch by name, pushing from the recorded worktree rather than the process's own
-  checkout" — which presumes worktree ≠ control checkout.
-- Not a one-line conditional: `_require_control_checkout(cfg)` runs *before* task resolution
-  and only sees `cfg`, so the fix must resolve the ticket first (from a checkout possibly on
-  the feature branch) and compare checkouts robustly — path equality is not enough; use
-  `realpath` or `git rev-parse --git-common-dir` comparison.
+- The recipe's freshness check (`check_branch_contains_control`) already handles generated
+  `coga/tasks/**` / `coga/log.md` drift. Branch-only mode must continue to accept only the
+  byte-identical task overlap produced by the preceding bump and reject divergent ticket state.
 - `pr:` write-back gap (most likely place to go subtly wrong): `open_pr` writes `pr: <url>`
   to the blackboard *after* pushing (open_pr.py:324–330). In single-checkout mode that
   dirties the feature-branch working tree, so (1) the pushed PR lacks its own `pr:` record
@@ -83,21 +64,19 @@ assumption while there.
   (open_pr.py:202–207), breaking its advertised idempotency. The fix must commit the `pr:`
   write in single-checkout mode or exempt the ticket file from the dirty check — and state
   which in the PR.
-- Safety argument to make explicit in code/docs: in single-checkout mode the feature-branch
+- Safety argument to make explicit in code/docs: in branch-only mode the feature-branch
   copy of the ticket is the *live* one (bumps commit onto it), which is why reading it from
   the feature branch is sound. `check_branch_contains_control` may accept the preceding
   bump's byte-identical copy of this ticket on the control branch, but must hard-fail if the
   two copies diverge.
-- Self-reference trap: this ticket's own `open-pr` workflow step runs `coga open-pr`. Develop
-  this ticket in a **linked feature worktree** (the classic layout) so the step runs the
-  installed, unpatched code on the satisfiable two-gate path; a single-checkout dev layout
-  would dead-end in exactly the bug being fixed unless the install is editable and patched.
-- Tests live in `tests/test_open_pr.py` and `tests/test_open_pr_command.py` — put the
-  two-layout coverage there.
-- Out of scope: `coga/contexts/dev/code/SKILL.md` (and its packaged copy under
-  `src/coga/resources/templates/`) still instructs "do code changes in a feature worktree",
-  contradicting the worktree-retirement premise. Updating that context for the retirement is
-  a separate follow-up ticket — don't absorb it here.
+- This ticket's own publication must use the branch-only path once the editable install contains
+  the fix, or use the same explicit manual publication fallback as the two magicator incidents;
+  do not create a linked worktree to escape the bug.
+- Tests live in `tests/test_open_pr.py` and `tests/test_open_pr_command.py`. Replace two-layout
+  expectations with branch-only success plus wrong-branch, stale-state, dirty-tree, fallback-clone,
+  and missing-authority failures.
+- Update both live and packaged development guidance that still instructs agents to create feature
+  worktrees. Leaving those rules intact would recreate the unsupported topology.
 
 <!-- coga:blackboard -->
 
@@ -105,7 +84,13 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 branch: fix/open-pr-primary-checkout
-worktree: /tmp/coga-open-pr-primary-checkout
+
+## Owner direction superseding the implementation below — 2026-07-21
+
+- Branch-only for now. Do not preserve or document a linked-worktree execution path.
+- Remove `worktree:` from `open-pr` inputs and revise the current dual-mode implementation before
+  publication. The existing implementation and peer-review notes below are retained as history,
+  not as the accepted design.
 
 ## Implementation notes
 
@@ -188,11 +173,5 @@ Final peer-review handoff:
 
 ## PR
 
-Allow `coga open-pr` to publish from a primary checkout on its recorded feature branch while
-preserving the control-checkout gate for linked worktrees, independent fallback clones, and
-unproven ticket copies. The command uses the launcher's exact task path as the authority proof,
-accepts only the byte-identical ticket overlap generated by the preceding bump, and commits then
-pushes its generated `pr:` record so the PR contains its own linkage and retries stay clean.
-Documentation and real-Git coverage now describe and exercise both checkout layouts.
-
-Test plan: `python -m pytest` (1,388 passed, 1 skipped); task-scoped `coga validate --json` (1 ok, 0 errors).
+Superseded by the 2026-07-21 owner direction. Do not publish the current dual-mode implementation;
+rewrite this section after the branch-only rework and its verification are complete.
