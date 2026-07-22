@@ -222,6 +222,9 @@ anything else spawns the assignee's agent, which requires stdin and stdout to
 both be terminals. Script launches run deterministic code directly without
 composing an agent prompt and inject task metadata env vars including
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, and `COGA_TASK_BLACKBOARD`.
+Trailing positional arguments follow the same split: scripts receive
+`COGA_ARG_1..N` plus `COGA_ARGC`, while agents receive an ordered
+`## Launch arguments` block appended to the prompt.
 
 - `coga launch <slug>` — accepts any unique prefix (git-short-SHA-style).
   A top-level task is its bare leaf slug; a nested task is referenced by its

@@ -59,9 +59,10 @@ Compose context and start work on a task. Accepts a task slug, id-slug, or a
 `coga/bootstrap/<name>/ticket.md` overrides the packaged one). Activates a
 `draft`/`paused` ticket inline, flips `active → in_progress`, composes the
 prompt, and spawns the assignee's agent (or runs a script step directly). A
-`done` ticket is refused and left untouched. Trailing `ARGS` are forwarded to
-*script* launches as `COGA_ARG_1..N` plus `COGA_ARGC` env vars; an agent
-launch given trailing args fails loud.
+`done` ticket is refused and left untouched. Trailing `ARGS` follow the target's
+execution medium: *script* launches receive `COGA_ARG_1..N` plus `COGA_ARGC`
+env vars, while *agent* launches receive the ordered values in an appended
+`## Launch arguments` prompt block.
 
 - `--agent <nickname>` — use this agent for the launch instead of the ticket
   assignee.
