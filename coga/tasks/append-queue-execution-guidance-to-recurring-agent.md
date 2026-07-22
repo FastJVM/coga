@@ -69,6 +69,26 @@ change.
 - branch: claude/recurring-queue-guidance
 - pr: https://github.com/FastJVM/coga/pull/623
 
+## Already satisfied (verified 2026-07-21)
+
+PR #623 merged to `main` at 2026-07-21T19:11:52Z as commit `0b22fdab`
+("Append queue execution guidance to recurring agent launches"). Every
+checklist item in the description is live on `main`:
+
+- **New package resource** — `src/coga/resources/prompt-queue.md` exists;
+  `tests/test_packaging.py:15` lists it in the expected-resources manifest.
+- **Hidden `--queue-guidance` flag** — `src/coga/commands/launch.py:126-128`
+  declares the option; line 500 appends `_queue_prompt_suffix()` to the
+  composed prompt when it is set.
+- **Recurring passes `queue_guidance=not interactive`** — both call sites are
+  present: `src/coga/recurring_runner.py:518` (sweep) and `:679`
+  (`_launch_created` / named launch).
+- **Packaged `coga/cli` context** — the **Queue guidance** paragraph is in
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`.
+
+No branch, diff, or PR left to create — closing via the already-satisfied
+path rather than the remaining self-qa/pr/review steps.
+
 ## Implementation notes (2026-07-20, attended orient session)
 
 - New resource `src/coga/resources/prompt-queue.md` (recurring counterpart of
