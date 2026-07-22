@@ -930,6 +930,74 @@ def test_megalaunch_redrains_ticket_that_blocked_during_main_sweep(
     assert Ticket.read(dependent["path"]).status == "done"
 
 
+def test_megalaunch_drain_preserves_prior_launch_on_pre_spawn_retry_skip(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed retry cannot erase that the task ran in the main sweep."""
+    from coga.blackboard import append_blocker
+
+    cfg = load_config(repo)
+    dependent = create_task(
+        cfg=cfg,
+        title="A dependent",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency = create_task(
+        cfg=cfg,
+        title="B dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    launched: list[str] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref_obj.id_slug)
+        updated = Ticket.read(ref_obj.ticket_path)
+        if ref_obj.id_slug == dependent["slug"]:
+            append_blocker(
+                ref_obj.ticket_path,
+                actor="claude",
+                reason=f"Waiting for {dependency['slug']}",
+            )
+            updated = Ticket.read(ref_obj.ticket_path)
+            updated.frontmatter["status"] = "blocked"
+            # Make the satisfied retry fail the candidate check before another
+            # session starts, after the task already launched once.
+            updated.frontmatter["assignee"] = "marc"
+        else:
+            updated.frontmatter["status"] = "done"
+            updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert launched == [dependent["slug"], dependency["slug"]]
+    assert run.counts["launched"] == 2
+    dependent_result = next(
+        result for result in run.results if result.slug == dependent["slug"]
+    )
+    assert dependent_result.drained is True
+    assert dependent_result.launched is True
+    assert dependent_result.outcome == "skipped-human-gate"
+
+
 def test_megalaunch_dependency_drain_reaches_fixed_point(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1222,6 +1290,120 @@ def test_megalaunch_drain_matches_complete_task_slug_not_substring(
     assert run.counts["drained"] == 0
     assert run.counts["skipped-unresolved-blocker"] == 1
     assert len(open_blockers(Path(blocked["path"]))) == 1
+
+
+def test_megalaunch_drain_does_not_match_short_slug_inside_dotted_ref(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A done `v1` cannot satisfy a blocker naming unfinished `v1.2/api`."""
+    from coga.blackboard import append_blocker, open_blockers
+
+    cfg = load_config(repo)
+    short = create_task(
+        cfg=cfg,
+        title="V1",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    short_ticket = Ticket.read(short["path"])
+    short_ticket.frontmatter["status"] = "done"
+    short_ticket.frontmatter.pop("step", None)
+    short_ticket.write(short["path"])
+    actual = create_task(
+        cfg=cfg,
+        title="API",
+        directory="v1.2",
+        workflow_name="code",
+        contexts=[],
+        owner="lea",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    blocked = create_task(
+        cfg=cfg,
+        title="Dotted ref blocker",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(
+        Path(blocked["path"]),
+        actor="claude",
+        reason=f"Waiting for {actual['slug']}",
+    )
+    ticket = Ticket.read(blocked["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(blocked["path"])
+
+    def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("unfinished dotted dependency must not trigger a drain")
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["drained"] == 0
+    assert run.counts["skipped-unresolved-blocker"] == 1
+    assert len(open_blockers(Path(blocked["path"]))) == 1
+
+
+def test_megalaunch_drain_normalizes_trailing_slash_directory_scope(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The drain uses the same normalized directory scope as the main sweep."""
+    from coga.blackboard import append_blocker
+
+    cfg = load_config(repo)
+    dependency = create_task(
+        cfg=cfg,
+        title="Dependency",
+        directory="marketing",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency_ticket = Ticket.read(dependency["path"])
+    dependency_ticket.frontmatter["status"] = "done"
+    dependency_ticket.frontmatter.pop("step", None)
+    dependency_ticket.write(dependency["path"])
+    blocked = create_task(
+        cfg=cfg,
+        title="Blocked",
+        directory="marketing",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(
+        Path(blocked["path"]),
+        actor="claude",
+        reason=f"Waiting for {dependency['slug']}",
+    )
+    ticket = Ticket.read(blocked["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(blocked["path"])
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, directory="marketing/")
+
+    assert launched == [blocked["slug"]]
+    assert run.counts["drained"] == 1
+    assert Ticket.read(blocked["path"]).status == "done"
 
 
 def test_megalaunch_explicit_selection_does_not_expand_into_dependency_drain(

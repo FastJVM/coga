@@ -50,7 +50,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
@@ -359,6 +359,10 @@ def _drain_satisfied_blockers(
     preamble; the explicit per-run set also prevents a newly-created blocker
     from relaunching the same task forever.
     """
+    # `filter_tasks_under` accepts a human-friendly leading/trailing slash and
+    # normalizes it for the main queue. Apply the same normalization to the
+    # re-listed drain scope so the two phases cover exactly the same subtree.
+    scope_directory = directory.strip("/") if directory is not None else None
     known = {ref.id_slug: ref for ref in known_refs}
     drained_slugs: set[str] = set()
 
@@ -369,7 +373,9 @@ def _drain_satisfied_blockers(
             known[current.id_slug] = current
 
         for ref in current_refs:
-            if directory is not None and not is_under(ref.directory, directory):
+            if scope_directory is not None and not is_under(
+                ref.directory, scope_directory
+            ):
                 continue
             if ref.id_slug in drained_slugs:
                 continue
@@ -509,7 +515,7 @@ def _finished_blocker_dependency(
 
 def _reason_names_task(reason: str, slug: str) -> bool:
     """True when `reason` contains the complete path-qualified task ref."""
-    task_ref_char = r"A-Za-z0-9_/-"
+    task_ref_char = r"A-Za-z0-9_./-"
     return re.search(
         rf"(?<![{task_ref_char}]){re.escape(slug)}(?![{task_ref_char}])",
         reason,
@@ -523,10 +529,13 @@ def _has_result(results: list[MegalaunchResult], slug: str) -> bool:
 def _replace_result(
     results: list[MegalaunchResult], replacement: MegalaunchResult
 ) -> None:
-    """Keep one summary row per task while preserving its first-seen order."""
+    """Keep one row per task, its first-seen order, and any prior launch."""
     for index, result in enumerate(results):
         if result.slug == replacement.slug:
-            results[index] = replacement
+            results[index] = replace(
+                replacement,
+                launched=result.launched or replacement.launched,
+            )
             return
     results.append(replacement)
 
