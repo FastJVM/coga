@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/codebase
 - dev/code
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -147,13 +147,47 @@ worktree: /tmp/coga-redact-slack-webhook
   output. Fail-loud exits and safe diagnostic context remain covered.
 - Added operator remediation and Git-history recovery boundaries to
   `docs/operations.md`.
-- Commit: `f89c0363b560ebefbcf557da680c8b5eb68600cb` (`Redact Slack webhook request failures`).
+- Rebased onto `origin/main` at
+  `8919972cfb29f10a50f953bb0ffddb0948a97f9e`.
+- Implementation commit: `62676487` (`Redact Slack webhook request failures`).
+- Peer-review fix commit: `cf3074d1` (`peer-review: preserve Slack response
+  classification`).
 
 ## Verification
 
-- `tests/test_notification.py`: 61 passed.
+- `tests/test_notification.py`: 62 passed after the peer-review regression.
 - `tests/test_validate.py`: 53 passed.
-- Full suite: 1392 passed, 1 skipped.
-- Example fixture: `python -m coga.validate --json` returned no issues.
+- Post-rebase full suite: 1393 passed, 1 skipped.
+- Example fixture: `python -m coga.validate --json` returned one checked task,
+  no fixes, and no issues.
+- Scoped task validation returned one checked task, no fixes, and no issues.
 - `git diff --check` passed.
-- Final refresh: branch is 0 behind / 1 ahead of freshly fetched `origin/main`.
+- Final refresh: branch is clean and 0 behind / 2 ahead of freshly fetched
+  `origin/main`.
+
+## Peer review
+
+- `codex review --base main` found one P2 correctness issue: redacting an HTTP
+  response body before classification could consume a compact JSON
+  `no_service` marker and falsely report a revoked webhook as live.
+- Fixed by classifying from the original bounded body and redacting only the
+  diagnostic copy; added a compact-response regression.
+- Post-fix full suite before rebase: 1393 passed, 1 skipped. `git diff --check`
+  passed.
+
+## PR
+
+Summary:
+
+- Replace raw Slack Requests exception rendering with a shared safe formatter
+  that preserves the exception class and DNS, timeout, connection, proxy, or
+  TLS category without emitting request data.
+- Cover routine and important notification webhooks plus human and JSON Slack
+  validation output, and redact credential-bearing webhook paths echoed in HTTP
+  response bodies without changing revoked-webhook classification.
+- Document the audited Slack HTTP call sites and the operator boundary for
+  rotation, tracked-log redaction, and separately coordinated Git-history
+  recovery.
+
+Test plan: `python -m pytest` (1393 passed, 1 skipped); seeded example and scoped
+task validation returned no issues; `git diff --check` passed.
