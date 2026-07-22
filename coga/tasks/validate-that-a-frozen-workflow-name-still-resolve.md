@@ -112,11 +112,12 @@ falls back to `*Workflow definition not found; using frozen snapshot only.*`
 (`src/coga/compose.py:360`) when it is missing. So a deleted workflow silently
 strips step instructions from every frozen ticket pointing at it.
 
-`_check_frozen_workflow` (`src/coga/validate.py:750-780`) resolves step
-`skills:` refs and warns on an unfrozen (string) workflow, but never checks
-`workflow.name` itself. `resolve_workflow_path` (`src/coga/paths.py:32`) is a
-pure path lookup with no alias or rename map, so a rename is indistinguishable
-from a deletion for an already-frozen ticket.
+`_check_refs` (`src/coga/validate.py:739`) already walks the frozen workflow: its
+`isinstance(wf, dict)` branch resolves each step's `skills:` refs (767-787) and
+warns on an unfrozen (string) workflow (788-797). It never checks
+`workflow.name` itself. And `resolve_workflow_path` (`src/coga/paths.py:32`) has
+no alias or rename map, so a rename is indistinguishable from a deletion for an
+already-frozen ticket.
 
 The three stranded tickets were migrated by hand in PR #627; this ticket is
 about catching the next one at validate time rather than at launch.
@@ -127,14 +128,12 @@ A live example of rule 2's blast radius: `code/with-review` declares a
 every ticket already frozen on `code/with-review` composing an empty peer-review
 step, with `resolve_workflow_path` still succeeding.
 
-**There is no `_check_frozen_workflow` function** — an earlier draft of this
-ticket named one and it does not exist; don't grep for it. The frozen-workflow
-walk lives in `_check_refs` (`src/coga/validate.py:739`), whose
-`isinstance(wf, dict)` branch is lines 767-787 and whose `unfrozen-workflow`
-warn is 788-797. Note it has no `skills:`-empty branch today — line 772 is
+Note there is **no `_check_frozen_workflow` function**, despite the name being an
+easy guess for the walk described above — don't waste a grep on it. Note also
+that `_check_refs` has no `skills:`-empty branch today: line 772 is
 `for ref_name in step.get("skills", []) or []:`, which simply iterates zero
-times — so rule 2 needs a new `if not step.get("skills"):` branch, not a tweak
-to an existing one. `inline_instructions` is parsed by `Workflow.load`
+times. Rule 2 therefore needs a new `if not step.get("skills"):` branch, not a
+tweak to an existing one. `inline_instructions` is parsed by `Workflow.load`
 (`src/coga/workflow.py:71`), so one load serves both rules.
 
 Placement is worth a moment's thought rather than defaulting to `_check_refs`:
