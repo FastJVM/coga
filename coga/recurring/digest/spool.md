@@ -48,3 +48,4 @@ consumed_through: a20bb1814a33
 {"id":"9b167eb24fd8","ts":"2026-07-21T19:42","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"append-queue-execution-guidance-to-recurring-agent","owner":"nick"}
 {"id":"b108750fddb7","ts":"2026-07-21T19:44","project":"coga","kind":"done","detail":"claude finished: implement → done ✅ — shipped in PR #620 (merged); closing the ticket as the record","ticket":"distill-git-conflict-errors-and-stop-compounding-d","owner":"nick"}
 {"id":"fbd7bcbf33df","ts":"2026-07-21T19:47","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"fail-loud-on-prose-sub-directory-prefixes-in-coga","owner":"nick"}
+{"id":"c2ecc1116bfb","ts":"2026-07-22T16:20","project":"coga","kind":"done","detail":"codex finished: report-to-coga → done ✅","ticket":"improve-prompt-for-relay-ticket","owner":"nicktoper"}

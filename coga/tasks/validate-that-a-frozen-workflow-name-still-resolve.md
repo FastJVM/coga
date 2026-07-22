@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -222,3 +222,68 @@ a softer severity.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+pr: https://github.com/FastJVM/coga/pull/632
+branch: validate-frozen-workflow
+worktree: /tmp/coga-validate-frozen-workflow
+commit: 5acd496e
+
+## Plan
+- Add JSON-level regressions for an unloadable frozen workflow and a skill-less frozen step whose current inline instructions are empty.
+- Put the live-status workflow checks beside `active-no-workflow`, sharing its status constant, then document the invariant in source and both architecture copies.
+
+## Implementation notes
+- `_check_workflow_shape` now loads the current definition for frozen workflows on `active`, `in_progress`, `blocked`, and `paused` tickets. Any exception produces an error, matching compose's degradation boundary.
+- Skill-less frozen steps require non-empty current inline instructions; skill-backed steps and draft/done/canceled tickets are exempt.
+- Kept bundled resolution strict as specified: validation uses the same local-then-package resolver as launch, so source-backed verification uses an explicit `PYTHONPATH` to avoid installed-wheel skew.
+- The new post-edit gate exposed many test workflows that created live skill-less steps without prose. Updated those fixtures with minimal matching inline sections; two validator tests that intentionally need invalid fixture state now construct it directly from a valid draft.
+
+## Verification
+- `tests/test_validate.py`: 65 passed.
+- Full suite: 1487 passed, 1 skipped.
+- Task-scoped source validation: clean apart from the isolated worktree's expected warn-only missing local user.
+- Final `git fetch origin main` + `git rebase FETCH_HEAD`: rebased cleanly onto `e4d809f6`; worktree clean and one commit ahead of `origin/main`.
+
+## Peer review
+- `codex review --base main` found no correctness issues after tracing the live-status gate, broad workflow-load exception boundary, frozen-step/inline-instruction comparison, and both architecture copies.
+- The review's first full-suite run inherited this launch's `COGA_TASK_*` metadata and redirected one Dream test at the live task file. With those launch-only variables cleared, the full suite passed: 1487 passed, 1 skipped.
+- No review-fix commit was needed; the rebased feature commit is `5acd496e`.
+
+## PR
+
+Validate that live tickets' frozen workflow instruction sources still work.
+
+- Report an error when a frozen `workflow.name` no longer loads its current definition, including malformed definitions.
+- Report an error when a frozen skill-less step no longer has non-empty matching inline instructions, while exempting skill-backed and non-live tickets.
+- Cover the regressions at the JSON boundary and keep validator documentation plus affected test workflows aligned with the new invariant.
+
+Test plan: `PYTHONPATH=$PWD/src python3.12 -m pytest` (1487 passed, 1 skipped); task-scoped source validation reports no task errors.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-22T23:27:28+00:00
+Command: `coga validate --json --fix`
+Task: `validate-that-a-frozen-workflow-name-still-resolve`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-22T23:31:35+00:00
+Command: `coga validate --json --fix`
+Task: `validate-that-a-frozen-workflow-name-still-resolve`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
