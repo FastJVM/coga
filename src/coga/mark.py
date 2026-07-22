@@ -97,11 +97,7 @@ def _state_guard(cfg: Config, ref: TaskRef) -> Callable[[str], None]:
     status` flags it via `stale_coga_task_rels`). Moving the write behind a
     fetch would put the network on every status transition.
     """
-
-    def guard(base: str) -> None:
-        git.guard_ticket_state(cfg, ref.ticket_path, base)
-
-    return guard
+    return git.ticket_state_guard(cfg, ref.ticket_path)
 
 
 def mark_done(

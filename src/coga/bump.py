@@ -86,6 +86,7 @@ def advance_step(
     new_assignee: str | None = None,
     notify_slack: bool = False,
     echo: str | None = None,
+    rewind: bool = False,
 ) -> None:
     """Move a ticket to a workflow step.
 
@@ -94,6 +95,12 @@ def advance_step(
     ticket beforehand (see `resolve_step_assignee`). Step movement is normally
     silent in Slack; callers set `notify_slack=True` only for an explicit
     operator FYI such as `coga bump --message`.
+
+    `rewind=True` marks a human `coga bump --to/--backward`, the one deliberate
+    backward step move. It relaxes exactly the step-backward rule in the sync
+    guard — the human is the authority on their own rewind — while leaving the
+    rest of the guard on, so a rewind still cannot bury a ticket another
+    checkout has already closed or advanced past.
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
@@ -110,6 +117,9 @@ def advance_step(
         cfg,
         ref.path,
         message=f"Ticket: {ref.id_slug} — step {next_step} ({new_step_name})",
+        guard=git.ticket_state_guard(
+            cfg, ref.ticket_path, allow_step_rewind=rewind
+        ),
     )
 
 

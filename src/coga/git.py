@@ -950,11 +950,17 @@ def _union_merge_paths(root: Path, rels: list[str]) -> set[str]:
     return union
 
 
-def guard_ticket_state(cfg: Config, ticket_path: Path, base: str) -> None:
+def guard_ticket_state(
+    cfg: Config,
+    ticket_path: Path,
+    base: str,
+    *,
+    allow_step_rewind: bool = False,
+) -> None:
     """Refuse to land one ticket over a newer copy already on `base`.
 
     The per-transition counterpart of `_guard_coga_state_regressions`. The
-    catch-all sweep guards whatever it happened to find dirty; a status
+    catch-all sweep guards whatever it happened to find dirty; a state
     transition knows exactly which ticket it is about to overlay, so it binds
     this to that ticket and hands the result to `sync_paths(guard=...)`. Same
     rules, same refusal: a terminal control-branch status is never replaced, and
@@ -967,12 +973,43 @@ def guard_ticket_state(cfg: Config, ticket_path: Path, base: str) -> None:
     if root is None:
         return
     _guard_coga_state_regressions(
-        cfg, root, [_relative_to_root(root, ticket_path)], base
+        cfg,
+        root,
+        [_relative_to_root(root, ticket_path)],
+        base,
+        allow_step_rewind=allow_step_rewind,
     )
 
 
+def ticket_state_guard(
+    cfg: Config, ticket_path: Path, *, allow_step_rewind: bool = False
+) -> _StateGuard:
+    """Bind `guard_ticket_state` to one ticket, ready for `sync_paths(guard=)`.
+
+    Every publisher of ticket state uses this: `mark`'s status transitions,
+    `bump`'s step moves, and `unblock`'s resolve-only write. The sync layer
+    calls the result once per landing attempt, so the check re-runs against the
+    tip refetched after a non-fast-forward retry.
+
+    `allow_step_rewind=True` is for `coga bump --to/--backward` only — see
+    `_ticket_state_regression_reason`.
+    """
+
+    def guard(base: str) -> None:
+        guard_ticket_state(
+            cfg, ticket_path, base, allow_step_rewind=allow_step_rewind
+        )
+
+    return guard
+
+
 def _guard_coga_state_regressions(
-    cfg: Config, root: Path, rels: list[str], base: str
+    cfg: Config,
+    root: Path,
+    rels: list[str],
+    base: str,
+    *,
+    allow_step_rewind: bool = False,
 ) -> None:
     """Fail loud before a catch-all sweep commits stale task frontmatter.
 
@@ -995,7 +1032,10 @@ def _guard_coga_state_regressions(
         if working_state is None or committed_state is None:
             continue
         reason = _ticket_state_regression_reason(
-            rel, committed=committed_state, working=working_state
+            rel,
+            committed=committed_state,
+            working=working_state,
+            allow_step_rewind=allow_step_rewind,
         )
         if reason is None:
             continue
@@ -1060,10 +1100,22 @@ def _ticket_state_from_bytes(data: bytes) -> _TicketState | None:
 
 
 def _ticket_state_regression_reason(
-    rel: str, *, committed: _TicketState, working: _TicketState
+    rel: str,
+    *,
+    committed: _TicketState,
+    working: _TicketState,
+    allow_step_rewind: bool = False,
 ) -> str | None:
+    """Why landing `working` over `committed` would lose state, or `None`.
+
+    `allow_step_rewind=True` drops *only* the step-backward rule, for the one
+    caller whose backward move is the point: a human `coga bump --to/--backward`
+    rewind. The status rules below still apply — a rewind never changes status,
+    so a status regression there means the checkout is stale, not deliberate.
+    """
     if (
-        committed.step_index is not None
+        not allow_step_rewind
+        and committed.step_index is not None
         and working.step_index is not None
         and working.step_index < committed.step_index
     ):
@@ -2074,4 +2126,5 @@ __all__ = [
     "sync_log",
     "sync_paths",
     "sync_task_state",
+    "ticket_state_guard",
 ]

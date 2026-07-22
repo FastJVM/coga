@@ -497,14 +497,33 @@ per attempt, it re-checks the tip refetched after a non-fast-forward rejection
 — the one base that reveals a concurrent close, and the only place the race is
 visible at all.
 
-Two callers supply it. The catch-all sweep guards whatever it found dirty
-(`_guard_coga_state_regressions`); each `mark` transition knows exactly which
-ticket it is about to overlay and binds `guard_ticket_state` to that ticket,
-passing it through `sync_task_state`/`sync_paths(guard=...)`. Every verb needs
-it, not just cancellation — `done`, `canceled`, `paused`, `active`, `blocked`,
-and launch's `in_progress` flip all overlay the same way. Callers that are not
-publishing a ticket status (authoring, deletes, recurring child writes) pass no
-guard.
+Two kinds of caller supply it. The catch-all sweep guards whatever it found
+dirty (`_guard_coga_state_regressions`); every publisher of a *specific*
+ticket's state knows which file it is about to overlay and binds
+`ticket_state_guard` to it, passing the result through
+`sync_task_state`/`sync_paths(guard=...)`. That is all of them, not just
+cancellation:
+
+- **`mark`** — `done`, `canceled`, `paused`, `active`, `blocked`, and launch's
+  `in_progress` flip.
+- **`bump`** — `advance_step` publishes `step:`, so a stale checkout can rewind
+  the workflow for everyone. This covers `launch_script`'s script-step advance
+  too, which shares the same finalizer.
+- **`unblock`** — the `in_progress` resolve-only branch, which writes the
+  blackboard without a status flip. Its `blocked → active` branch delegates to
+  `mark_active` and is guarded there.
+
+Callers that are not publishing a ticket's state (authoring, deletes, recurring
+child writes) pass no guard.
+
+**The one deliberate backward move is a human rewind.** `coga bump
+--to/--backward` moves `step:` backward on purpose, and it shares
+`advance_step` with forward bumps, so guarding it naively would refuse exactly
+the thing the human asked for. `advance_step(rewind=True)` therefore passes
+`allow_step_rewind`, which drops *only* the step-backward rule. The status
+rules stay armed: a rewind never changes status, so a status regression during
+one means the checkout is stale rather than the human deliberate — rewinding a
+ticket another checkout has already closed is still refused.
 
 A refusal is loud but non-fatal, and deliberately lands *after* the local
 ticket write: `StateRegressionError` is caught at the sync entry point, the
