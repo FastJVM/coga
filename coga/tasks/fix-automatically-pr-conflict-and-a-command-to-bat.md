@@ -1,7 +1,7 @@
 ---
 slug: fix-automatically-pr-conflict-and-a-command-to-bat
 title: fix automatically PR conflict and a command to batch fix them
-status: draft
+status: active
 owner: nick
 human: nick
 agent: claude
@@ -11,9 +11,27 @@ contexts:
 - coga/principles
 - dev/code
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
