@@ -67,8 +67,9 @@ def format_slack_request_error(exc: requests.RequestException) -> str:
 
 def classify_slack_response(status_code: int, text: str) -> tuple[SlackResponseStatus, str]:
     """Classify Slack webhook responses using the validator's existing contract."""
-    body = redact_slack_webhook_credentials(text.strip())[:200]
-    detail = f"HTTP {status_code}: {body!r}"
+    body = text.strip()[:200]
+    safe_body = redact_slack_webhook_credentials(body)
+    detail = f"HTTP {status_code}: {safe_body!r}"
     if status_code == 404 or "no_service" in body:
         return "revoked", detail
     if 200 <= status_code < 500:

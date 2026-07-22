@@ -891,6 +891,18 @@ def test_slack_response_detail_redacts_echoed_webhook_path() -> None:
     assert "/services/" not in detail
 
 
+def test_slack_response_classifies_before_redacting_compact_body() -> None:
+    status, detail = classify_slack_response(
+        400,
+        '{"url":"https://hooks.slack.com/services/TFAKE/BFAKE/'
+        f'{_FAKE_SLACK_WEBHOOK_SECRET}","error":"no_service"}}',
+    )
+
+    assert status == "revoked"
+    assert _FAKE_SLACK_WEBHOOK_SECRET not in detail
+    assert "/services/" not in detail
+
+
 @pytest.mark.parametrize(
     ("important", "failure", "safe_detail"),
     [
