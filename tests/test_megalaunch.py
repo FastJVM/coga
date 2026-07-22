@@ -54,6 +54,12 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
           - name: review
             assignee: owner
         ---
+
+        ## implement
+        Write the code.
+
+        ## review
+        Review the code.
         """,
     )
     monkeypatch.chdir(company)
@@ -225,6 +231,12 @@ def test_megalaunch_chains_agent_owned_steps(
           - name: verify
             assignee: agent
         ---
+
+        ## implement
+        Write the code.
+
+        ## verify
+        Verify the code.
         """,
     )
     cfg = load_config(repo)
@@ -411,6 +423,12 @@ def test_megalaunch_agent_override_applies_to_first_step_only(
           - name: verify
             assignee: agent
         ---
+
+        ## implement
+        Write the code.
+
+        ## verify
+        Verify the code.
         """,
     )
     cfg = load_config(repo)
@@ -2845,6 +2863,12 @@ def _write_script_step_workflow(repo: Path) -> None:
           - name: review
             assignee: owner
         ---
+
+        ## implement
+        Write the code.
+
+        ## review
+        Review the code.
         """,
     )
     _write(

@@ -345,10 +345,17 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             steps:
               - name: implement
               - name: review
+              - name: merge
             ---
 
             ## implement
             Write the code.
+
+            ## review
+            Review the code.
+
+            ## merge
+            Merge the code.
             """
         ).lstrip()
     )

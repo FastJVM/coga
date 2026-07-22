@@ -20,6 +20,7 @@ Checks (whole-repo):
 - ticket.md parses as YAML frontmatter + body.
 - Frontmatter has the canonical key set with the right shapes.
 - contexts / skills / workflow step skills resolve to real files.
+- Live frozen workflows load, and skill-less steps retain inline instructions.
 - step is consistent with workflow shape and status.
 - Blackboard files are not large enough to bloat composed prompts.
 - Draft blackboards do not still carry prelaunch authoring notes.
@@ -102,6 +103,9 @@ _NON_EMPTY_STRING_KEYS: tuple[str, ...] = (
     "human",
     "agent",
     "assignee",
+)
+_LIVE_WORKFLOW_STATUSES: frozenset[str] = frozenset(
+    {"active", "in_progress", "blocked", "paused"}
 )
 
 
@@ -420,7 +424,7 @@ def _check_one_task(
         ))
 
     out.extend(_check_refs(cfg, task_label, ticket))
-    out.extend(_check_workflow_shape(task_label, ticket))
+    out.extend(_check_workflow_shape(cfg, task_label, ticket))
 
     if ticket.status == "draft" and fences == 1:
         reason = prelaunch_blackboard_synthesis_reason(
@@ -847,7 +851,9 @@ def _format_paths(paths: tuple[Path, ...] | tuple[Path, Path]) -> str:
     return ", ".join(str(path) for path in paths)
 
 
-def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
+def _check_workflow_shape(
+    cfg: Config, task_label: str, ticket: Ticket
+) -> list[Issue]:
     out: list[Issue] = []
     wf = ticket.workflow
     step = ticket.step
@@ -881,7 +887,7 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
         # history. Machine-authored tasks that
         # used to be workflow-less here — recurring/Dream and retire — now
         # create with the `direct/body` workflow, so no whitelist is needed.
-        if ticket.status in {"active", "in_progress", "blocked", "paused"}:
+        if ticket.status in _LIVE_WORKFLOW_STATUSES:
             out.append(Issue(
                 kind="active-no-workflow",
                 task=task_label,
@@ -898,6 +904,48 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
 
     if not isinstance(wf, dict):
         return out  # already reported by shape/ref checks
+
+    if status in _LIVE_WORKFLOW_STATUSES:
+        workflow_name = wf.get("name")
+        if isinstance(workflow_name, str):
+            # Match compose's degradation boundary: every load failure drops
+            # the current workflow's inline instructions from the prompt.
+            try:
+                current_workflow = Workflow.load(
+                    resolve_workflow_path(cfg, workflow_name)
+                )
+            except Exception as exc:
+                out.append(Issue(
+                    kind="broken-workflow",
+                    task=task_label,
+                    message=(
+                        f"frozen workflow {workflow_name!r} cannot load its "
+                        f"current definition: {exc}"
+                    ),
+                    severity="error",
+                ))
+            else:
+                for frozen_step in wf.get("steps", []) or []:
+                    if not isinstance(frozen_step, dict):
+                        continue
+                    if frozen_step.get("skills"):
+                        continue
+                    step_name = frozen_step.get("name")
+                    if not isinstance(step_name, str):
+                        continue
+                    if current_workflow.inline_instructions.get(step_name):
+                        continue
+                    out.append(Issue(
+                        kind="missing-step-instructions",
+                        task=task_label,
+                        message=(
+                            f"frozen workflow {workflow_name!r} step "
+                            f"{step_name!r} has no skills and no non-empty "
+                            "inline instructions in the current workflow "
+                            "definition"
+                        ),
+                        severity="error",
+                    ))
 
     if status in TERMINAL_STATUSES:
         return out

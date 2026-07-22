@@ -59,6 +59,15 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
           - name: pr
           - name: merge
         ---
+
+        ## implement
+        Write the code.
+
+        ## pr
+        Open the pull request.
+
+        ## merge
+        Merge the change.
         """,
     )
     monkeypatch.chdir(company)

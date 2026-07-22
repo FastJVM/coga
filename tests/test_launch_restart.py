@@ -54,6 +54,9 @@ def _chain_workflow(step_names: list[str]) -> str:
     steps = "\n".join(
         f"  - name: {name}\n    assignee: agent" for name in step_names
     )
+    sections = "\n\n".join(
+        f"## {name}\n\nRun the {name} step." for name in step_names
+    )
     return dedent(
         """\
         ---
@@ -62,8 +65,10 @@ def _chain_workflow(step_names: list[str]) -> str:
         steps:
         {steps}
         ---
+
+        {sections}
         """
-    ).format(steps=steps)
+    ).format(steps=steps, sections=sections)
 
 
 def _create_agent_task(coga_os: Path, step_names: list[str]) -> str:

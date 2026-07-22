@@ -86,6 +86,12 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         ## implement
         Write the code.
+
+        ## pr
+        Open the pull request.
+
+        ## merge
+        Merge the change.
         """,
     )
     monkeypatch.chdir(company)
@@ -277,6 +283,12 @@ def test_bump_supervised_prints_handoff_hint_when_assignee_changes(repo: Path) -
           - name: review
             assignee: owner
         ---
+
+        ## implement
+        Write the code.
+
+        ## review
+        Review the code.
         """,
     )
     slug, _ = _make_task(repo, workflow="handoff")
@@ -902,6 +914,15 @@ def _write_assignee_workflow(repo: Path) -> None:
           - name: signoff
             assignee: owner
         ---
+
+        ## implement
+        Write the code.
+
+        ## review
+        Review the code.
+
+        ## signoff
+        Sign off on the change.
         """,
     )
 
@@ -1008,6 +1029,15 @@ def _write_peer_review_workflow(repo: Path) -> None:
           - name: signoff
             assignee: owner
         ---
+
+        ## implement
+        Write the code.
+
+        ## peer-review
+        Review the code.
+
+        ## signoff
+        Sign off on the change.
         """,
     )
 
@@ -1101,6 +1131,9 @@ def test_other_agent_step_one_resolves_at_create_time(repo: Path) -> None:
           - name: peer-review
             assignee: other-agent
         ---
+
+        ## peer-review
+        Review the code.
         """,
     )
     cfg = load_config(repo)

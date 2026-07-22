@@ -247,6 +247,14 @@ instead of the validator nagging the one state (`draft`) where workflow-less
 is allowed. A workflow-less terminal ticket (`done` or `canceled`) is closed,
 so it is left alone.
 
+For those same live statuses, validation also requires a frozen
+`workflow.name` to load its current workflow definition. Each frozen step with
+no `skills:` must still have non-empty inline instructions under the matching
+`## <step-name>` heading in that definition. Both failures are errors because
+inline prose is not part of the frozen snapshot: launch otherwise falls back
+to a missing-workflow or no-instructions placeholder. Draft and terminal
+tickets are left alone.
+
 `coga ticket` (guided authoring) fills the workflow in through its
 interview skill. The `bootstrap/recurring-scan` script target, on-demand
 `recurring launch <name>` (including the `coga dream` alias), and `coga
