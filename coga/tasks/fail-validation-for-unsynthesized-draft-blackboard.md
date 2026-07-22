@@ -1,7 +1,7 @@
 ---
 slug: fail-validation-for-unsynthesized-draft-blackboard
 title: Fail validation for unsynthesized draft blackboards
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -30,7 +30,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description
@@ -55,3 +54,16 @@ The blackboard is a notepad to be written to often as the human and agent works 
 branch: codex/fail-unsynthesized-draft-validation
 worktree: /tmp/coga-fail-unsynthesized-draft-validation
 pr: https://github.com/FastJVM/coga/pull/611
+
+## Already satisfied
+
+- PR #611 was merged to `main` as commit `5f4a0ec8`.
+- `src/coga/validate.py` emits `unsynthesized-draft-blackboard` as an error;
+  the existing CLI error path therefore exits nonzero and retains the synthesis
+  guidance.
+- Focused tests retain the draft-only scope, `## Production notes` escape
+  hatch, and separate warn-only `large-blackboard` check.
+- The live and packaged `coga/architecture` contexts both document the error.
+- Verification on current `main`: focused validation tests `55 passed`; full
+  suite `1382 passed, 1 skipped`; scoped validation clean (`1` task, no
+  fixes or issues).
