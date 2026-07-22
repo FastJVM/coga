@@ -9,6 +9,7 @@ import typer
 
 from coga.config import load_config
 from coga.notification import post
+from coga.slack_response import classify_slack_response, format_slack_request_error
 
 
 def _write(path: Path, text: str) -> None:
@@ -840,6 +841,115 @@ def test_post_failure_with_task_path_appends_to_log_then_crashes(
     assert "[slack]" in log_text
     assert "post failed" in log_text
     assert "ConnectionError" in log_text
+
+
+_FAKE_SLACK_WEBHOOK_SECRET = "C0GA_FAKE_WEBHOOK_TOKEN_7D3A9B"
+
+
+@pytest.mark.parametrize(
+    ("failure", "safe_detail"),
+    [
+        (
+            requests.ConnectionError("NameResolutionError: failed to resolve"),
+            "DNS/name-resolution failure",
+        ),
+        (requests.exceptions.Timeout("read timed out"), "request timed out"),
+        (requests.ConnectionError("connection reset"), "connection failure"),
+        (
+            requests.exceptions.ProxyError("proxy unavailable"),
+            "proxy connection failure",
+        ),
+        (requests.exceptions.SSLError("certificate verify failed"), "TLS/SSL failure"),
+    ],
+)
+def test_slack_request_error_formatter_keeps_only_safe_network_context(
+    failure: requests.RequestException,
+    safe_detail: str,
+) -> None:
+    failure.args = (
+        f"{failure} at /services/TFAKE/BFAKE/{_FAKE_SLACK_WEBHOOK_SECRET}",
+    )
+
+    detail = format_slack_request_error(failure)
+
+    assert type(failure).__name__ in detail
+    assert safe_detail in detail
+    assert _FAKE_SLACK_WEBHOOK_SECRET not in detail
+    assert "/services/" not in detail
+
+
+def test_slack_response_detail_redacts_echoed_webhook_path() -> None:
+    status, detail = classify_slack_response(
+        502,
+        "proxy failed for https://hooks.slack.com/services/TFAKE/BFAKE/"
+        f"{_FAKE_SLACK_WEBHOOK_SECRET}",
+    )
+
+    assert status == "unreachable"
+    assert "[redacted Slack webhook]" in detail
+    assert _FAKE_SLACK_WEBHOOK_SECRET not in detail
+    assert "/services/" not in detail
+
+
+@pytest.mark.parametrize(
+    ("important", "failure", "safe_detail"),
+    [
+        (
+            False,
+            requests.ConnectionError(
+                "HTTPSConnectionPool(host='hooks.slack.com', port=443): "
+                "Max retries exceeded with url: "
+                "https://hooks.slack.com/services/TFAKE/BFAKE/"
+                f"{_FAKE_SLACK_WEBHOOK_SECRET} (Caused by "
+                "NameResolutionError(\"Failed to resolve 'hooks.slack.com'\"))"
+            ),
+            "DNS/name-resolution failure",
+        ),
+        (
+            True,
+            requests.exceptions.SSLError(
+                "HTTPSConnectionPool(host='hooks.slack.com', port=443): "
+                "Max retries exceeded with url: /services/TFAKE/BFAKE/"
+                f"{_FAKE_SLACK_WEBHOOK_SECRET} (Caused by "
+                "SSLCertVerificationError('certificate verify failed'))"
+            ),
+            "TLS/SSL failure",
+        ),
+    ],
+)
+def test_post_request_failure_redacts_webhook_from_stderr_and_log(
+    cfg_with_both_webhooks,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    important: bool,
+    failure: requests.RequestException,
+    safe_detail: str,
+) -> None:
+    task_path = cfg_with_both_webhooks.repo_root / "tasks" / "001-x"
+    task_path.mkdir(parents=True)
+
+    def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise failure
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    with pytest.raises(typer.Exit) as exc:
+        post(
+            cfg_with_both_webhooks,
+            "credential-safe failure",
+            task_path=task_path,
+            important=important,
+        )
+    assert exc.value.exit_code == 1
+
+    captured = capsys.readouterr()
+    log_text = (cfg_with_both_webhooks.repo_root / "log.md").read_text()
+    for diagnostic in (captured.out, captured.err, log_text):
+        assert _FAKE_SLACK_WEBHOOK_SECRET not in diagnostic
+        assert "/services/" not in diagnostic
+    assert type(failure).__name__ in captured.err
+    assert type(failure).__name__ in log_text
+    assert safe_detail in captured.err
+    assert safe_detail in log_text
 
 
 def test_post_revoked_webhook_response_logs_then_crashes(

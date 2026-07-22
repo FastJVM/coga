@@ -66,6 +66,31 @@ You can probe the webhook with `coga validate --check-slack`. It POSTs an
 empty-text payload to the webhook — a real network call, but nothing visible
 lands in the channel — and reports whether the endpoint accepted it.
 
+### Webhook failure safety and incident response
+
+Slack request failures report the Requests exception class and a safe network
+category (DNS, timeout, connection, proxy, or TLS). Coga deliberately does not
+render the exception message because Requests may include the incoming-webhook
+URL — including its bearer credential — in that text. The same formatter covers
+both notification destinations and the validation probe. The direct Slack HTTP
+call-site audit is intentionally small:
+
+- `SlackChannel.send` owns notification posting; both `webhook` and
+  `important_webhook` select a destination before going through that one request
+  and failure path.
+- `probe_slack` owns the opt-in `coga validate --check-slack` request and uses
+  the same safe failure formatter.
+- Coga has no other direct Slack webhook HTTP request call site.
+
+If a webhook URL or `/services/...` path has appeared in a diagnostic, treat the
+webhook as compromised. Rotate or revoke it in Slack, redact the current tracked
+`coga/log.md`, and inspect every reachable Git commit plus other copies such as
+forks, clones, CI logs, and caches. Committing a redaction removes the value only
+from the new tree; it does not erase earlier commits. Rewriting published Git
+history and force-pushing is a separate destructive operation that must be
+explicitly approved and coordinated with collaborators, and it still cannot
+retract credentials from existing copies or logs.
+
 ## The digest
 
 Instead of posting every completed ticket the instant it merges, Coga can spool

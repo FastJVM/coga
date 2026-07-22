@@ -10,7 +10,7 @@ import typer
 
 from coga.config import Config
 from coga.logfile import append_log, ref_tag_for_path
-from coga.slack_response import classify_slack_response
+from coga.slack_response import classify_slack_response, format_slack_request_error
 
 
 def mention(cfg: Config, name: str) -> str:
@@ -124,9 +124,10 @@ class SlackChannel:
                 timeout=5,
             )
         except requests.RequestException as exc:
+            detail = format_slack_request_error(exc)
             fail(
-                f"network error: {exc}",
-                f"{type(exc).__name__}: {exc}",
+                f"network error: {detail}",
+                detail,
             )
 
         status, detail = classify_slack_response(resp.status_code, resp.text)
