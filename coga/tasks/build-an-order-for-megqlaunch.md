@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -191,3 +191,64 @@ signature.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: megalaunch-blocker-drain
+worktree: /tmp/coga-megalaunch-blocker-drain
+
+## Implementation plan (confirmed 2026-07-22)
+
+- Run the fixed-point dependency drain only after the default sweep. An explicit
+  `--pick` / `--relaunch` selection must not expand into unpicked work.
+- Re-list owner- and directory-scoped blocked tickets on each pass; match blocker
+  text against known task refs, treating `done` and a ref deleted during the run
+  as finished.
+- Resolve the open asks with a legible megalaunch answer naming the matched
+  dependency before activation/launch, and never drain the same ticket twice in
+  one run.
+- Keep one result row per task: a drain replaces its earlier blocker-skip row,
+  carries a `drained` marker/count, and retains the final launch outcome. A
+  terminal unsatisfied blocker keeps `skipped-unresolved-blocker`.
+- Share `--max-tasks` across the main sweep and drain attempts; restart the scan
+  after every actual drain launch.
+
+Accepted tradeoffs: explicit selections will not chain into
+unselected blocked tickets, and terminal reporting will not distinguish a
+recognized-but-unfinished dependency from a blocker with no recognized task ref.
+
+Primary checkout note: `coga/log.md` was already modified before implementation;
+preserve it as unrelated control-plane state.
+
+## Implementation progress
+
+- Added the default-sweep fixed-point drain. It re-lists current-owner blocked
+  work in scope, remembers refs deleted during the run, resolves exact-slug
+  blockers before activation, and drains each ticket at most once.
+- Drain attempts share the main `--max-tasks` budget. Results remain one row
+  per task and carry an orthogonal `drained` marker/count; explicit selections
+  do not drain unpicked work.
+- Important write invariant: re-read the ticket after
+  `resolve_open_blockers(...)` and before `mark_active(...)`; otherwise the
+  stale `Ticket.body` would reopen the blocker while writing frontmatter.
+- Updated `prompt-megalaunch.md` with the exact path-qualified slug convention
+  and documented the behavior in both architecture-context copies.
+- Verification so far: `tests/test_megalaunch.py` (62 passed); full suite
+  (1402 passed, 1 skipped); task-scoped validation passed with only the
+  worktree's expected missing-local-user warning.
+
+## Implement handoff
+
+- commit: `454b028d` (`Drain megalaunch blockers after dependencies finish`)
+- rebased onto: `origin/main` at `44c73a5c`
+- post-rebase verification: `tests/test_megalaunch.py` (62 passed), full suite
+  (1402 passed, 1 skipped), `git diff --check` clean.
+- The live and packaged architecture files carry the same new megalaunch
+  section. Their unrelated pre-existing deprecated-config paragraph difference
+  was preserved.
+
+## Follow-up
+
+- The full pytest run inherited this launch's `COGA_TASK_BLACKBOARD`; two
+  Dream-script tests appended fixture output to the live ticket. The artifacts
+  were removed. A separate test-harness fix should scrub inherited
+  `COGA_TASK_*` metadata before subprocess tests.
