@@ -36,11 +36,14 @@ def test_browser_router_methodology_moved_from_workflow_to_bundled_skill() -> No
 
     assert "## 1. Understand the task" in text
     assert "## 2. Choose the approach" in text
-    assert "## 3. Choose the autonomy workflow" in text
+    assert "## 3. Choose the workflow" in text
     assert "## 4. Create and launch the concrete ticket" in text
     assert "browser/api-first" in text
     assert "browser/dom-backed" in text
     assert "browser/playwright" in text
+    # Routing is by real workflow handoff shape, not by the removed tier names.
+    assert "human or owner gate" in text
+    assert "autonomy/" not in text.lower()
     assert not (
         REPO_ROOT / "coga" / "workflows" / "browser" / "build-automation.md"
     ).exists()
@@ -61,8 +64,19 @@ def test_browser_capability_remains_without_seeded_task_or_audit_line() -> None:
     assert (
         TEMPLATES / "bootstrap" / "skills" / "browser" / "playwright" / "SKILL.md"
     ).is_file()
-    assert (TEMPLATES / "workflows" / "autonomy" / "fully-automated.md").is_file()
-    assert (TEMPLATES / "workflows" / "autonomy" / "human-verify.md").is_file()
+
+
+def test_autonomy_triage_apparatus_is_gone_from_both_trees() -> None:
+    """The router used to send tickets at `autonomy/*` tier workflows. Those
+    and the `autonomy/triage` context are removed from the live and packaged
+    trees alike; `draft-for-human` is the one survivor of the namespace.
+    Packaging (wheel inclusion, live/packaged parity) is owned by
+    `tests/test_packaging.py`.
+    """
+    for tree in (TEMPLATES, REPO_ROOT / "coga"):
+        assert not (tree / "workflows" / "autonomy").exists()
+        assert not (tree / "contexts" / "autonomy").exists()
+        assert (tree / "workflows" / "draft-for-human.md").is_file()
 
 
 def test_reference_documents_browser_router_and_runner_roles() -> None:

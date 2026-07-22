@@ -78,10 +78,11 @@ launch given trailing args fails loud.
 A stateless setup session that turns a concrete browser task into durable,
 reviewable work. Describe the target site, desired outcome, and success check
 when the agent asks. The bundled `browser/build-automation` skill first checks
-whether an API or an ordinary script is a better fit, then selects the
-appropriate autonomy workflow and creates and launches a ticket for the actual
-task. Launching it creates no standing task of its own, and installing Coga does
-not seed a generic browser-automation draft in your task list.
+whether an API or an ordinary script is a better fit, then picks a workflow
+whose handoffs match the requested action and creates and launches a ticket for
+the actual task. Launching it creates no standing task of its own, and
+installing Coga does not seed a generic browser-automation draft in your task
+list.
 
 The two browser skills split by role.
 `browser/build-automation` is the orchestration skill: it routes the request and

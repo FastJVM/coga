@@ -1,5 +1,5 @@
 ---
-name: autonomy/human-only
+name: brief-for-human
 description: Human performs a task the machine cannot safely own; agent only provides read-only support.
 steps:
   - name: brief-and-hand-off
@@ -13,8 +13,7 @@ steps:
 ## brief-and-hand-off
 
 Using read-only access, brief the human on the goal, ordered steps, irreversible
-action, and done check. Then hand off. Take no live action; feasibility was
-already settled at triage, so don't re-assess it.
+action, and done check. Then hand off. Take no live action.
 
 ## human-executes
 

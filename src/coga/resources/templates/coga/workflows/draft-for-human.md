@@ -1,6 +1,6 @@
 ---
-name: autonomy/assist-only
-description: Agent drafts support material; human finishes and owns work when conventional output is not enough.
+name: draft-for-human
+description: Agent drafts support material; human finishes and owns the result when taste or judgment decides the outcome.
 steps:
   - name: agent-produces
     assignee: agent
@@ -12,10 +12,9 @@ steps:
 
 ## agent-produces
 
-Draft the deliverable as useful input for the human. This workflow is for
-quality, taste, or differentiating judgment, not feasibility, so do not run the
-automated-tier downgrade ladder. Make the output easy to inspect and edit, and
-call out assumptions or weak spots rather than hiding them.
+Draft the deliverable as useful input for the human. Make the output easy to
+inspect and edit, and call out assumptions or weak spots rather than hiding
+them.
 
 ## human-owns-and-finishes
 

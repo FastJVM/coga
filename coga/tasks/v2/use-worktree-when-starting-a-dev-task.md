@@ -130,18 +130,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - **Scope:** folded cleanup INTO this ticket. `autocleanup-worktree-branche`
   (empty sibling draft) is superseded — close on review.
 - **Workflow:** `code/with-review` (not `code/with-self-review`) — git-lifecycle
-  code with medium failure radius wants a peer pass + owner gate.
+  code with medium failure radius wants a peer pass + owner gate before merge;
+  a bad `git worktree remove --force` can delete real work.
 - **Contexts:** relay/codebase, relay/sync, dev/code.
-
-## Autonomy triage
-
-- Tier: **human-verify** (verifiable + bounded, but medium failure radius —
-  a bad `git worktree remove --force` can delete real work). Expressed via
-  `code/with-review`'s owner gate before merge.
-- Q1 documented: yes — desired behavior (create at fixed path, clean up on
-  done/merge) is concrete.
-- Q2 conventional enough: yes — mechanical lifecycle feature.
-- Q3 verifiable/bounded: yes — pytest + manual, scoped to relay's git layer.
 
 ## Evaluator review
 

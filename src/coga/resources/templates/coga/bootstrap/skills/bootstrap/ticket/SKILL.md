@@ -162,44 +162,19 @@ answer.
 2. **Context** — what's the agent who picks this up later going to wish they
    knew? Codebase pointers, gotchas, related tickets, out-of-scope notes.
    This becomes the `## Context` body.
-3. **Autonomy triage** — before settling the workflow, run the three-question
-   test from `coga/contexts/autonomy/triage/SKILL.md` against the task as
-   described so far. Land on exactly one tier and capture a one-line answer per
-   question (you surface all three in the step-7 summary):
-   - **fully-automated** — all three questions pass and the failure radius is
-     low; the task can run unattended.
-   - **assist-only** — Q2 fails: feasible, but conventional output isn't good
-     enough, so a human owns the result.
-   - **human-verify** — verifiable or bounded, but medium/high failure radius;
-     an agent prepares to the brink and a human commits.
-   - **human-only** — Q1 fails outright, or the task is unverifiable with high
-     failure radius; the human performs it, the agent supports read-only.
-   The tier is **advisory input to the workflow choice below** — it is never
-   stored in a ticket field or body section (it's read off the chosen
-   workflow/assignees). Advisory tier→workflow mapping:
-   - `human-only` → `autonomy/human-only`
-   - `assist-only` → `autonomy/assist-only`
-   - `human-verify` → any workflow with an owner gate before the irreversible
-     step (`autonomy/human-verify`, or a `code/*` workflow with an owner
-     review step already qualifies)
-   - `fully-automated` → an all-agent workflow (`autonomy/fully-automated`, or
-     an all-agent `code/*`). Do not encode a tier↔substance mapping; whether a
-     launch runs a script or an agent is deduced from the ticket's `script:`
-     and its workflow steps, not from the autonomy tier.
-4. **Workflow** — which workflow fits? `ls coga/workflows/
+3. **Workflow** — which workflow fits? `ls coga/workflows/
    <package-bootstrap>/workflows/` for the options (e.g. `code/with-review`
    for a code change shipped via PR — a bundled package `bootstrap/workflows/`
-   battery). Let the
-   triage tier above advise this choice, but never override a workflow the
-   human explicitly picks. Every ticket needs one before activation — a
-   workflow-less ticket can't be activated and `coga validate` errors on a
-   workflow-less active ticket — so pick the lightest workflow that matches
-   the shape of the work. If genuinely nothing fits (e.g. pure
-   concept-capture with no sequence of steps), tell the human: either the repo
-   needs a new workflow, or the idea stays a deliberate workflow-less *draft*
-   (valid, but un-activatable until a workflow is added) until it is ready to
-   be a real ticket.
-5. **Script execution (conditional)** — Only ask this when the task actually
+   battery). Every ticket needs one before activation — a workflow-less ticket
+   can't be activated and `coga validate` errors on a workflow-less active
+   ticket — so pick the lightest workflow that matches the shape of the work,
+   unless the human explicitly picked one. If the task has an irreversible or
+   outward-facing step, pick a workflow with a human gate before it. If
+   genuinely nothing fits (e.g. pure concept-capture with no sequence of
+   steps), tell the human: either the repo needs a new workflow, or the idea
+   stays a deliberate workflow-less *draft* (valid, but un-activatable until a
+   workflow is added) until it is ready to be a real ticket.
+4. **Script execution (conditional)** — Only ask this when the task actually
    looks script-shaped: deterministic, repeatable work that can run without an
    agent making judgments. Ask whether launch should run a script or an agent.
    If it should run a script, get enough detail to author the script and choose
@@ -217,16 +192,15 @@ answer.
    script on a skill wired only to the intended workflow step. Do not put a
    ticket-owned script on that workflow and assume it will run only once or
    honor the gate.
-   Do not add this question to an ordinary agent task, and do not infer the
-   answer from the autonomy tier. A task that still needs agent judgment keeps
-   `script: null` (or no `script:` field).
-6. **Contexts to attach** — which exact context bodies must be included in the
+   Do not add this question to an ordinary agent task. A task that still needs
+   agent judgment keeps `script: null` (or no `script:` field).
+5. **Contexts to attach** — which exact context bodies must be included in the
    future prompt? Keep the list narrow. If only a specific fact is needed, put
    it in `## Context` instead of attaching the whole context.
-7. **Assignee** — default to whatever the bootstrap ticket seeded (usually the human's
+6. **Assignee** — default to whatever the bootstrap ticket seeded (usually the human's
    primary agent). Confirm if the work clearly fits a different agent or
    needs to go to a human.
-8. **Extension fields** — if `coga.toml` declares any `[ticket.fields.<name>]`
+7. **Extension fields** — if `coga.toml` declares any `[ticket.fields.<name>]`
    entries, the scaffold seeded each one with its default (or `""`) below
    the `# --- extensions ---` marker. For every declared field that is empty
    on the draft, ask the human for a value — particularly anything marked
@@ -412,9 +386,8 @@ it directly.
 
 Before exiting, print a compact summary the human can sanity-check at a
 glance. The point is to surface the choices that are easy to get wrong and
-hard to spot once the ticket has launched — workflow shape, the skills each
-step will run, and the autonomy tier you landed on (so the human validates the
-classification before launch).
+hard to spot once the ticket has launched — workflow shape and the skills each
+step will run.
 
 Read `coga/workflows/<name>.md` (or
 package `bootstrap/workflows/<name>.md` for a bundled battery) for the
@@ -433,11 +406,6 @@ Contexts: <ref>, <ref>          # or "none"
 Skills (ticket-level): <ref>    # omit line if empty
 Assignee: <agent-or-human>
 Execution: <agent | script: inline (<language>) | script: <filename> (sibling)>
-
-Autonomy tier: <tier>  (advisory — expressed via the workflow/assignees above)
-  Q1 documented:           <one line>
-  Q2 conventional enough:  <one line>
-  Q3 verifiable/bounded:   <one line>
 
 Summary
   <2–3 sentences in your own words: what this ticket is, what done looks

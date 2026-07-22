@@ -231,8 +231,9 @@ composing an agent prompt and inject task metadata env vars including
   safe.
 - `coga launch bootstrap/browser-automation` — stateless browser-automation
   setup. The bundled `browser/build-automation` orchestration skill checks for
-  an API first, creates a concrete autonomy-tier ticket, and attaches the
-  separate `browser/playwright` runner only when browser execution is needed.
+  an API first, creates a concrete ticket with matching operator handoffs, and
+  attaches the separate `browser/playwright` runner only when browser execution
+  is needed.
 
 Discussion bootstrap tickets (`bootstrap/orient`, `bootstrap/ticket`) use
 built-in templates for the standard `claude` and `codex` CLIs, or the selected
