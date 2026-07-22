@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
@@ -157,3 +157,82 @@ worktree: /tmp/coga-remove-autonomy-triage
 - Note: the inherited test environment twice appended synthetic
   `## Dream Skill: validate-drift` fixture output to this live blackboard;
   those test-only sections were removed before handoff.
+
+## Self-QA
+
+Commit `ad2c91b1`. `/code-review` is user-invocable only, so the review pass
+ran in-loop; `/simplify` ran its four-agent fan-out. Applied:
+
+- **Missed scope (3).** `docs/reference.md:77` still said the browser bootstrap
+  "selects the appropriate autonomy workflow" — same wording the ticket had us
+  fix in two sibling files, but that file was never listed. Also
+  `nightly-auto-drain:227` ("`ready` = fully-automated-tier") and a whole
+  `## Autonomy triage` section in `v2/use-worktree-when-starting-a-dev-task`
+  (its one concrete detail folded into the workflow rationale two lines above).
+- **`browser/build-automation`.** Removed prose that only parsed if you
+  remembered the deleted tiers; fixed §2's dangling promise of a
+  "prerequisites step" no surviving workflow has (it contradicted §4); aligned
+  the "nothing fits" escape hatch with `bootstrap/ticket` — surface it to the
+  human instead of authoring a workflow mid-flow.
+- **`draft-for-human`.** Restored a "when to pick this" cue; the new
+  description had replaced it with a restatement of its own step body, and the
+  description is now the selection surface (`ls coga/workflows/`).
+- **`bootstrap/ticket`.** Refolded "never override a workflow the human picks",
+  which lost its referent when the tier advisory it qualified was deleted.
+- **Tests.** Registered the live/packaged pair in `test_packaging.py`'s
+  `IDENTICAL_LIVE_PACKAGED_PAIRS` + `EXPECTED_BOOTSTRAP_RESOURCES` (the real
+  owners, with wheel-inclusion coverage) instead of a weaker re-implementation
+  in the browser test; split the removal asserts into their own test; scoped
+  the vocabulary bans to `autonomy/` so they can't fire on the live
+  `autonomy: auto` execution axis.
+
+Verification: `python3.12 -m pytest` → 1384 passed, 1 skipped.
+`coga validate --json` → 8 errors, **byte-identical to the set on untouched
+`origin/main`** (verified against a pristine clone at `b6dcc7d4`); all are
+pre-existing `v2/*` + `op-service-account` draft-ticket errors. Zero
+introduced.
+
+The synthetic `## Dream Skill: validate-drift` fixture output appended itself to
+this blackboard twice more during this step (same as implement saw); removed
+again. It references a `coga/tasks/x/` and a `repair-branch` that don't exist —
+nothing real was written.
+
+## For PR review — four judgment calls left to the human
+
+Not applied: each reverses or extends a decision the ticket states explicitly.
+
+1. **The strongest finding — the usage audit may have measured too early.**
+   "Zero tickets ever used fully-automated or human-verify" is true but those
+   two were never author-picked; they were the *output set* of
+   `browser/build-automation`, which shipped 2026-07-19 (PR #607). The audit
+   ran 2026-07-20 — one day later. A fresh install now seeds no all-agent
+   browser-shaped workflow, no workflow with a gate before an irreversible
+   action, and no human-performs/agent-read-only workflow, so the router's §3
+   routes to an empty set and every user hand-authors what was deleted. The
+   audit disproved the *rubric*; it says nothing about the *handoff shapes*,
+   which are separable. Worth deciding before merge whether `human-verify` /
+   `human-only` should survive as domain-generic shapes under non-tier names.
+2. **Deleting a workflow degrades in-flight tickets.** Freezing covers step
+   names/assignees/skills, not the step's instruction prose —
+   `src/coga/compose.py:355` re-reads the workflow file each launch and falls
+   back to `*Workflow definition not found; using frozen snapshot only.*`. So
+   `marketing/relay-discord` (paused, step 1) and `improve-prompt-for-relay-
+   ticket` (in_progress, step 3) now resume with a placeholder where their step
+   instructions were. They don't error — they just lose the instructions, which
+   is quieter than the ticket's "keep working" implies, and
+   `contexts/coga/architecture/SKILL.md:59-60` ("in-flight tickets are
+   unaffected by later workflow edits") is imprecise as written.
+3. **Namespacing.** `workflows/_template.md:3` instructs
+   `workflows/<namespace>/<your-workflow>.md`, and `draft-for-human` is now the
+   only unnamespaced workflow in either tree (`_template.md` is
+   underscore-prefixed precisely because it isn't one). `draft/for-human` would
+   restore that invariant and read like `code/with-review`. Left as-is because
+   the ticket prescribes the literal name; flagging since the ticket already
+   marked this a PR-review taste call.
+4. **Where the human-gate rule lives.** It now exists only as skill prose, in
+   two independently-worded copies (`bootstrap/ticket` q3 and
+   `browser/build-automation` §3), where before it had one home in the deleted
+   triage context. Reviewers argued it belongs in
+   `contexts/coga/principles/SKILL.md` §2 with both skills pointing at it. Not
+   applied — the ticket's stated design is the one sentence in the interview
+   question.
