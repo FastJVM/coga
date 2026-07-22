@@ -1,7 +1,7 @@
 ---
 slug: append-queue-execution-guidance-to-recurring-agent
 title: Append queue execution guidance to recurring agent launches
-status: draft
+status: active
 owner: nick
 human: nick
 agent: claude
@@ -62,53 +62,43 @@ change.
 
 ## Context
 
-<!-- coga:blackboard -->
+**Shipped before this ticket was activated.** The work was done in an attended
+orient session on 2026-07-20 on branch `claude/recurring-queue-guidance`;
+PR [#623](https://github.com/FastJVM/coga/pull/623) merged to `main` at
+2026-07-21T19:11:52Z as commit `0b22fdab`. Verified 2026-07-21 that every
+checklist item above is live on `main`:
 
-## Dev
-
-- branch: claude/recurring-queue-guidance
-- pr: https://github.com/FastJVM/coga/pull/623
-
-## Already satisfied (verified 2026-07-21)
-
-PR #623 merged to `main` at 2026-07-21T19:11:52Z as commit `0b22fdab`
-("Append queue execution guidance to recurring agent launches"). Every
-checklist item in the description is live on `main`:
-
-- **New package resource** — `src/coga/resources/prompt-queue.md` exists;
-  `tests/test_packaging.py:15` lists it in the expected-resources manifest.
+- **New package resource** — `src/coga/resources/prompt-queue.md`: the
+  recurring counterpart of `prompt-megalaunch.md` (announce-and-continue,
+  `coga block` as the terminal action for owner decisions, worktree-fallback
+  note, finish via bump/mark done/block). Ships automatically because
+  hatchling packages `src/coga/resources/**`; `tests/test_packaging.py:15`
+  lists it in `EXPECTED_BOOTSTRAP_RESOURCES`.
 - **Hidden `--queue-guidance` flag** — `src/coga/commands/launch.py:126-128`
-  declares the option; line 500 appends `_queue_prompt_suffix()` to the
-  composed prompt when it is set.
+  declares the option (mirroring `--return-timeout`); line 500 appends
+  `_queue_prompt_suffix()` to the composed prompt when it is set, riding the
+  existing `prompt_suffix` seam on `spawn_agent_session`. The suffix loader
+  raises `ComposeError` if the resource is missing. Script launches are
+  unaffected (no composed prompt); manual `coga launch` is unchanged
+  (default `False`).
 - **Recurring passes `queue_guidance=not interactive`** — both call sites are
   present: `src/coga/recurring_runner.py:518` (sweep) and `:679`
-  (`_launch_created` / named launch).
-- **Packaged `coga/cli` context** — the **Queue guidance** paragraph is in
+  (`_launch_created` / named launch). The sweep, `--force`, and on-demand
+  `recurring launch <name>` (including the `coga dream` alias) get the
+  guidance; `--interactive` human-stepped debugging runs stay plain.
+- **Packaged `coga/cli` context** — the **Queue guidance** paragraph is in the
+  recurring section of
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`.
 
-No branch, diff, or PR left to create — closing via the already-satisfied
-path rather than the remaining self-qa/pr/review steps.
+Tests added: sweep passes `True` / interactive passes `False` / named launch
+passes `True`; a suffix-content unit test; the packaging manifest entry. One
+existing strict-signature fake was updated to accept and assert the new kwarg.
+Verified with `python3.12 -m pytest` → 1374 passed, 1 skipped.
 
-## Implementation notes (2026-07-20, attended orient session)
+Because there was no branch, diff, or PR left to create, this ticket was closed
+via the already-satisfied path rather than running the remaining
+self-qa/pr/review steps.
 
-- New resource `src/coga/resources/prompt-queue.md` (recurring counterpart of
-  `prompt-megalaunch.md`): announce-and-continue, `coga block` as the terminal
-  action for owner decisions, worktree-fallback note, finish via
-  bump/mark done/block. Ships automatically (hatchling packages
-  `src/coga/resources/**`); added to `EXPECTED_BOOTSTRAP_RESOURCES` in
-  test_packaging.py.
-- `coga launch` hidden `--queue-guidance` flag (mirrors `--return-timeout`);
-  `_queue_prompt_suffix()` loads the resource (ComposeError if missing) and
-  rides the existing `prompt_suffix` seam on `spawn_agent_session`. Script
-  launches unaffected (no composed prompt); manual `coga launch` unchanged
-  (default False).
-- `run_recurring_scan` and `_launch_created` pass
-  `queue_guidance=not interactive` — the sweep, `--force`, and on-demand
-  `recurring launch <name>` (incl. the `coga dream` alias) get the guidance;
-  `--interactive` human-stepped runs stay plain.
-- Packaged `coga/cli` context: new **Queue guidance** paragraph in the
-  recurring section.
-- Tests: sweep passes True / interactive passes False / named launch passes
-  True; suffix content unit test; packaging manifest entry. One existing
-  strict-signature fake updated to accept + assert the new kwarg.
-- Verified: `python3.12 -m pytest` → 1374 passed, 1 skipped.
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.
