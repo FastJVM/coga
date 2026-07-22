@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: nicktoper
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -20,7 +20,7 @@ workflow:
   - name: report-to-relay
     skills: []
     assignee: agent
-step: 2 (human-owns-and-finishes)
+step: 3 (report-to-relay)
 ---
 
 ## Description
@@ -73,6 +73,18 @@ whatever is accepted. **Do not edit the skill in this ticket.**
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Human decision (2026-07-21)
+
+Nick accepted the proposal below: all three P0 changes and all three P1
+changes. P2 stands as written (no formal Acceptance Criteria section for now).
+Follow-up implementation ticket created:
+`implement-accepted-ticket-interview-improvements` (draft, `code/with-review`).
+Two facts discovered while scoping it, corrections to the proposal's
+implementation notes: `eval/ticket-diagnostic` was already deleted in PR #603
+(its signal folded into ticket Step 6), and the packaged copy under `src/` is
+the only source of the skill — there is no live `coga/skills/` override to
+sync.
 
 ## Evaluator review
 
