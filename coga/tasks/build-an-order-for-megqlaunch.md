@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -250,5 +250,50 @@ preserve it as unrelated control-plane state.
 
 - The full pytest run inherited this launch's `COGA_TASK_BLACKBOARD`; two
   Dream-script tests appended fixture output to the live ticket. The artifacts
-  were removed. A separate test-harness fix should scrub inherited
-  `COGA_TASK_*` metadata before subprocess tests.
+  were removed. The peer-review tool reproduced the same leak before later
+  verification runs explicitly scrubbed the metadata. A separate test-harness
+  fix should scrub inherited `COGA_TASK_*` metadata before subprocess tests.
+
+## Peer review
+
+`codex review --base main` found three must-fix edge cases; all were confirmed:
+
+- dotted directory refs can let a shorter completed slug false-match inside an
+  unfinished dependency ref;
+- a caller-accepted trailing slash in the directory scope is normalized for the
+  main sweep but not for the blocker drain;
+- replacing a main-sweep result with a pre-spawn drain failure can erase that
+  the task launched earlier in the same run.
+
+Applied the three focused fixes: task-ref boundaries now include dotted path
+segments, the drain normalizes the accepted directory spelling, and result
+replacement preserves whether any attempt launched. Verification before the
+freshness rebase: `tests/test_megalaunch.py` (65 passed), full suite (1405
+passed, 1 skipped), and `git diff --check` clean.
+
+## Peer-review handoff
+
+- implementation commit: `95824c9b` (`Drain megalaunch blockers after dependencies finish`)
+- peer-review commit: `60b1ac39` (`peer-review: fix megalaunch drain edge cases`)
+- rebased onto: `origin/main` at `326bb553`
+- post-rebase verification: full suite (1420 passed, 1 skipped), and
+  `git diff --check` clean; task-scoped validation passed with only the
+  installed-version-skew warning; feature worktree clean.
+
+## PR
+
+Summary:
+
+- Add a fixed-point post-sweep drain that recognizes finished task refs in open
+  blockers, resolves those asks before composition, and relaunches the blocked
+  task through the normal megalaunch path.
+- Re-list current-owner blocked work on every pass, handle dependencies deleted
+  after finishing, share `--max-tasks`, keep one summary row per task, and leave
+  explicit selections scoped to exactly what the operator picked.
+- Make exact-ref matching safe for nested and dotted task paths, normalize the
+  directory scope across both phases, and preserve earlier launch accounting on
+  a failed retry.
+- Document the behavior in both architecture-context copies and teach queued
+  agents to include the exact path-qualified dependency slug in blocker text.
+
+Test plan: `python -m pytest` (1420 passed, 1 skipped).
