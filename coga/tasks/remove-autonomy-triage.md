@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -125,3 +125,35 @@ out-of-scope mentions remain.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: remove-autonomy-triage
+worktree: /tmp/coga-remove-autonomy-triage
+
+## Implement notes
+
+- 2026-07-21: Started from `main` at `fee62763`. The primary checkout already
+  has unrelated control-plane edits; implementation is isolated in the
+  recorded worktree.
+- Scope decision: keep `draft-for-human` at the top-level workflow namespace,
+  matching the evaluated ticket direction; frozen `autonomy/*` workflow
+  snapshots and explicitly out-of-scope uses remain untouched.
+- Implemented the live + packaged removals/rename, simplified the ticket
+  interview, rerouted browser authoring by real workflow handoff shape, and
+  updated the two named live tickets. Added focused template/init assertions.
+- Verification: targeted template/init tests passed; after rebasing, the full
+  suite passed (1,383 passed, 1 skipped). Repo-wide `coga validate --json`
+  still exits 1 on the same pre-existing draft-ticket errors as untouched
+  `main`; task-scoped validation has no errors (only the isolated worktree's
+  expected missing `coga.local.toml` user warning).
+- Final commit: `a069a6e3` (`Remove autonomy triage workflows`), rebased onto
+  fetched `origin/main` at `b6dcc7d4`; feature worktree is clean and one
+  material commit ahead.
+- Final reference audit: live and packaged `draft-for-human` copies are
+  byte-identical; both `autonomy/` context/workflow directories are absent;
+  changed shipped surfaces and the two named live tickets contain no stale
+  workflow refs. Remaining repo-wide matches are frozen/historical tickets,
+  the removal ticket itself, and explicitly out-of-scope wording.
+- Note: the inherited test environment twice appended synthetic
+  `## Dream Skill: validate-drift` fixture output to this live blackboard;
+  those test-only sections were removed before handoff.
