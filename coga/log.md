@@ -2787,3 +2787,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-21 23:03 [allow-open-pr-when-the-recorded-worktree-is-the-pr] [agent:nick] slack: PR opened: https://github.com/FastJVM/coga/pull/628 — workflow advanced to review and assigned to nick (handoff sync recovered)
 2026-07-22 07:12 [redact-slack-webhook-credentials-from-request-fail] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-07-22 07:12 [redact-slack-webhook-credentials-from-request-fail] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-22 07:12 [redact-slack-webhook-credentials-from-request-fail] [megalaunch] launched via coga megalaunch
+2026-07-22 08:17 [redact-slack-webhook-credentials-from-request-fail] [agent:claude] advanced to step 2 (peer-review) → assigned to codex

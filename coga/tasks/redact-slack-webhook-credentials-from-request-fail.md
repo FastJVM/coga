@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/codebase
 - dev/code
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -127,3 +127,33 @@ logs. Do not automate either action as part of this ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: codex/redact-slack-webhook-errors
+worktree: /tmp/coga-redact-slack-webhook
+
+## Implementation notes
+
+- Started from `origin/main` at `74b09f8c2beffe84d031be850005d101537be439`.
+- Added `format_slack_request_error` as the single exception-rendering boundary
+  for notification posting and `probe_slack`; it emits only the Requests class
+  and a fixed DNS, timeout, connection, proxy, TLS, or generic request category.
+- Audited both direct Slack HTTP call sites. `SlackChannel.send` covers both
+  `webhook` and `important_webhook`; `probe_slack` is the only other request.
+- Also redact any webhook path echoed in an HTTP response body before it reaches
+  the shared Slack response detail.
+- Added regressions for full-URL and relative `/services/...` exceptions across
+  stderr, the repo-global log, human validation output, and JSON validation
+  output. Fail-loud exits and safe diagnostic context remain covered.
+- Added operator remediation and Git-history recovery boundaries to
+  `docs/operations.md`.
+- Commit: `f89c0363b560ebefbcf557da680c8b5eb68600cb` (`Redact Slack webhook request failures`).
+
+## Verification
+
+- `tests/test_notification.py`: 61 passed.
+- `tests/test_validate.py`: 53 passed.
+- Full suite: 1392 passed, 1 skipped.
+- Example fixture: `python -m coga.validate --json` returned no issues.
+- `git diff --check` passed.
+- Final refresh: branch is 0 behind / 1 ahead of freshly fetched `origin/main`.
