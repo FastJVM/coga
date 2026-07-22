@@ -35,7 +35,9 @@ def test_bootstrap_ticket_context_selection_is_prompt_payload() -> None:
 def test_bootstrap_ticket_skill_mandates_a_workflow() -> None:
     """Guided authoring defaults to landing the ticket on a workflow — a
     workflow-less ticket can't be activated. The one exception is a deliberate
-    concept-capture draft, which stays a draft until a workflow is added."""
+    concept-capture draft, which stays a draft until a workflow is added.
+    Workflow choice also carries the human-gate judgment that the removed
+    autonomy-triage question used to ask separately."""
     text = BOOTSTRAP_TICKET_SKILL.read_text()
 
     assert "A ticket carries a workflow" in text
@@ -44,15 +46,17 @@ def test_bootstrap_ticket_skill_mandates_a_workflow() -> None:
     # The concept-capture exemption is stated, not erased.
     assert "concept-capture" in text
     assert "This is required — a ticket with no workflow can't be activated." in text
+    # The one-sentence rule that replaced the three-question tier test.
+    assert "outward-facing step, pick a workflow with a human gate before it." in text
 
 
-def test_bootstrap_ticket_selects_workflow_without_autonomy_triage() -> None:
-    text = BOOTSTRAP_TICKET_SKILL.read_text()
-    lower = text.lower()
+def test_bootstrap_ticket_interview_drops_autonomy_triage() -> None:
+    """The tier test and its tier→workflow mapping are gone. Scoped to the
+    removed refs — bare `autonomy` is still the live execution axis
+    (`autonomy: auto`), so banning the word outright would be wrong."""
+    lower = BOOTSTRAP_TICKET_SKILL.read_text().lower()
 
-    assert "3. **Workflow**" in text
-    assert "irreversible or outward-facing step" in text
-    assert "pick a workflow with a human gate" in text
+    assert "**workflow**" in lower
     assert "autonomy triage" not in lower
     assert "autonomy tier" not in lower
     assert "autonomy/" not in lower

@@ -165,16 +165,15 @@ answer.
 3. **Workflow** — which workflow fits? `ls coga/workflows/
    <package-bootstrap>/workflows/` for the options (e.g. `code/with-review`
    for a code change shipped via PR — a bundled package `bootstrap/workflows/`
-   battery). Never override a workflow the human explicitly picks. Every ticket
-   needs one before activation — a workflow-less ticket can't be activated and
-   `coga validate` errors on a workflow-less active ticket — so pick the
-   lightest workflow that matches the shape of the work. If the task has an
-   irreversible or outward-facing step, pick a workflow with a human gate
-   before it. If genuinely nothing fits (e.g. pure
-   concept-capture with no sequence of steps), tell the human: either the repo
-   needs a new workflow, or the idea stays a deliberate workflow-less *draft*
-   (valid, but un-activatable until a workflow is added) until it is ready to
-   be a real ticket.
+   battery). Every ticket needs one before activation — a workflow-less ticket
+   can't be activated and `coga validate` errors on a workflow-less active
+   ticket — so pick the lightest workflow that matches the shape of the work,
+   unless the human explicitly picked one. If the task has an irreversible or
+   outward-facing step, pick a workflow with a human gate before it. If
+   genuinely nothing fits (e.g. pure concept-capture with no sequence of
+   steps), tell the human: either the repo needs a new workflow, or the idea
+   stays a deliberate workflow-less *draft* (valid, but un-activatable until a
+   workflow is added) until it is ready to be a real ticket.
 4. **Script execution (conditional)** — Only ask this when the task actually
    looks script-shaped: deterministic, repeatable work that can run without an
    agent making judgments. Ask whether launch should run a script or an agent.

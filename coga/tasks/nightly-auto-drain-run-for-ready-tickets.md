@@ -81,9 +81,9 @@ re-probe usage or re-derive guards.
       follow: a ticket is drain-eligible iff `status: active` **and**
       `autonomy: auto` **and** `assignee` resolves to a configured agent type
       **and** it has a frozen workflow whose steps are all agent-assigned (no
-      human/owner gate). It must **not** be a recurring
-      period task (no `tasks/recurring/` path). The predicate reuses the drain
-      sibling's selection helper — no second eligibility function.
+      human/owner gate). It must **not** be a recurring period task (no
+      `tasks/recurring/` path). The predicate reuses the drain sibling's
+      selection helper — no second eligibility function.
 - [ ] **The orchestration is an adaptive sequential loop**, not a fixed batch:
       probe Claude+Codex budget → if any agent passes its guard and a ready ticket
       remains, pick the oldest-first ready ticket, route it to a passing agent, and
@@ -224,8 +224,8 @@ sibling, neither of which that sibling covers:
 2. **Cross-agent reattribution.** The drain sibling respects each ticket's
    existing assignee and only *skips* an exhausted agent. This task instead
    *routes* a ready ticket onto whichever of Claude/Codex still has budget. Safe
-   because "ready" = fully-automated-tier = agent-agnostic by construction. The
-   `v2/autoroute-agent-based-on-remaining-usage` draft is empty, so this is
+   because "ready" = all steps agent-assigned = agent-agnostic by construction.
+   The `v2/autoroute-agent-based-on-remaining-usage` draft is empty, so this is
    net-new; owner's call is to own reattribution **here** and fold/close that
    draft as superseded.
 
@@ -283,8 +283,8 @@ sibling merges. Recorded as an explicit blocker in Acceptance Criteria.
 - **"Flagged ready for autonomous execution"** resolves to shipped primitives:
   `autonomy: auto` (the execution axis, formerly `mode:`) on an `active` ticket
   assigned to a configured agent type, realized through a workflow whose steps
-  are all agent-assigned (no human/owner gate). This matches
-  the drain sibling's eligibility filter — confirm parity, don't fork it.
+  are all agent-assigned (no human/owner gate). This matches the drain
+  sibling's eligibility filter — confirm parity, don't fork it.
 
 ## Decisions (resolved by owner, 2026-06-24)
 1. **De-dup with the drain sibling → sibling = engine, this task = sole trigger.**

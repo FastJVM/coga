@@ -1,6 +1,6 @@
 ---
 name: draft-for-human
-description: Agent drafts support material; human finishes, makes the final judgment calls, and owns the result.
+description: Agent drafts support material; human finishes and owns the result when taste or judgment decides the outcome.
 steps:
   - name: agent-produces
     assignee: agent

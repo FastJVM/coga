@@ -47,6 +47,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
     "coga/resources/templates/coga/workflows/blocker-reminders/run.md",
     "coga/resources/templates/coga/workflows/direct/body.md",
+    "coga/resources/templates/coga/workflows/draft-for-human.md",
     "coga/resources/templates/coga/workflows/skill-update/run.md",
     # Bundled reusable workflows ship under bootstrap/workflows/ (local-first
     # fallback) so a fresh repo can run the core code loop, the docs flow, the
@@ -92,6 +93,10 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
     (
         "coga/contexts/coga/important/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
+    ),
+    (
+        "coga/workflows/draft-for-human.md",
+        "src/coga/resources/templates/coga/workflows/draft-for-human.md",
     ),
 )
 
