@@ -867,6 +867,70 @@ def test_megalaunch_drains_blocker_after_dependency_finishes(
     assert dependency["slug"] in (blocker.answer or "")
 
 
+def test_megalaunch_drain_keeps_ask_open_when_activation_refuses(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A drained ticket that cannot activate keeps its ask and stays reportable."""
+    from coga.blackboard import append_blocker, open_blockers
+    from coga.blocker_reminders import scan_blocker_reminders
+
+    cfg = load_config(repo)
+    blocked = create_task(
+        cfg=cfg,
+        title="Blocked first",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency = create_task(
+        cfg=cfg,
+        title="Dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(
+        Path(blocked["path"]),
+        actor="claude",
+        reason=f"Waiting for {dependency['slug']} to land",
+    )
+    ticket = Ticket.read(blocked["path"])
+    ticket.frontmatter["status"] = "blocked"
+    # No `workflow:` — activation refuses, so the drain must not resolve.
+    ticket.frontmatter.pop("workflow", None)
+    ticket.frontmatter.pop("step", None)
+    ticket.write(blocked["path"])
+
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg)
+
+    assert launched == [dependency["slug"]]
+    assert run.counts["drained"] == 1
+    assert run.counts["skipped-unlaunchable"] == 1
+    blocked_result = next(result for result in run.results if result.slug == blocked["slug"])
+    assert blocked_result.outcome == "skipped-unlaunchable"
+    assert blocked_result.drained is True
+    assert "no workflow" in blocked_result.detail
+
+    # The ask survives the failed drain: still blocked, still open, still the
+    # actionable state `coga unblock` and the blocker reminders work from.
+    after = Ticket.read(blocked["path"])
+    assert after.status == "blocked"
+    still_open = open_blockers(Path(blocked["path"]))
+    assert [b.reason for b in still_open] == [
+        f"Waiting for {dependency['slug']} to land"
+    ]
+    reminded = [r.slug for r in scan_blocker_reminders(cfg)]
+    assert reminded == [blocked["slug"]]
+
+
 def test_megalaunch_redrains_ticket_that_blocked_during_main_sweep(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

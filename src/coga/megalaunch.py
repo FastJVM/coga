@@ -354,10 +354,12 @@ def _drain_satisfied_blockers(
     a finished task may legitimately be retired and removed before its
     dependent reaches this drain.
 
-    Each task is drained at most once per run. Resolving its existing blocker
-    before launch makes the normal path compose no blocker-resolution
-    preamble; the explicit per-run set also prevents a newly-created blocker
-    from relaunching the same task forever.
+    Each task is drained at most once per run. A drained task is activated
+    first and only has its asks resolved once that succeeded, so a ticket that
+    cannot be activated keeps its open ask; resolving before launch makes the
+    normal path compose no blocker-resolution preamble; the explicit per-run
+    set also prevents a newly-created blocker from relaunching the same task
+    forever.
     """
     # `filter_tasks_under` accepts a human-friendly leading/trailing slash and
     # normalizes it for the main queue. Apply the same normalization to the
@@ -414,22 +416,42 @@ def _drain_satisfied_blockers(
             if max_tasks is not None and attempted >= max_tasks:
                 return results
 
+            drained_slugs.add(ref.id_slug)
+
+            # Activate first, resolve second. Activation can refuse a ticket
+            # that is otherwise ready to drain (no workflow, a `workflow:` ref
+            # that will not freeze, an empty required extension field) and
+            # those refusals leave the ticket `blocked`. Resolving the asks
+            # first would strand it blocked with nothing open — a state
+            # `coga launch` and `coga unblock` both refuse and blocker
+            # reminders no longer report — so the owner would lose the ask
+            # instead of repairing it and retrying.
+            failure = _activate_for_launch(
+                cfg,
+                ref,
+                ticket,
+                log_message=(
+                    "activated (blocked → active) — coga megalaunch "
+                    f"resolved finished dependency {dependency}"
+                ),
+            )
+            if failure is not None:
+                _replace_result(results, _as_drained(failure, dependency))
+                continue
+
             answer = (
                 "Coga megalaunch automatically resolved this blocker after "
                 f"dependency {dependency} finished."
             )
-            resolved = resolve_open_blockers(
+            resolve_open_blockers(
                 ref.ticket_path,
                 actor="system",
                 answer=answer,
             )
-            if not resolved:
-                continue
-            drained_slugs.add(ref.id_slug)
 
             try:
                 # The blackboard write above changed the ticket body. Re-read
-                # before activation so writing frontmatter cannot restore the
+                # before launching so writing frontmatter cannot restore the
                 # stale, still-open blocker text.
                 ticket = read_ticket(ref)
             except TicketNotFoundError:
@@ -453,19 +475,6 @@ def _drain_satisfied_blockers(
                         drained=True,
                     ),
                 )
-                continue
-
-            failure = _activate_for_launch(
-                cfg,
-                ref,
-                ticket,
-                log_message=(
-                    "activated (blocked → active) — coga megalaunch "
-                    f"resolved finished dependency {dependency}"
-                ),
-            )
-            if failure is not None:
-                _replace_result(results, _as_drained(failure, dependency))
                 continue
 
             candidate = _candidate_result(cfg, ref, ticket, explicit=False)

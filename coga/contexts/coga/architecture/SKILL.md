@@ -375,10 +375,14 @@ current operator in the same directory scope and looks for exact
 path-qualified task slugs in their open blocker text. A named dependency is
 satisfied when its ticket is `done` or when a task ref seen earlier in the run
 has disappeared (finished work may retire and delete its ticket). Megalaunch
-then records an automatic blocker answer naming that dependency, resolves all
-open asks, activates the ticket, and launches it through the normal path. The
-resolution happens before prompt composition, so an unattended retry never
-inherits the interactive blocker-resolution preamble.
+then activates the ticket and, only once that succeeds, records an automatic
+blocker answer naming that dependency, resolves all open asks, and launches it
+through the normal path. The resolution happens before prompt composition, so
+an unattended retry never inherits the interactive blocker-resolution preamble.
+A drained ticket that refuses to activate (no workflow, an unfreezable
+`workflow:` ref, an empty required extension field) keeps its open ask and
+stays `blocked`, so `coga unblock` and the blocker reminders can still act on
+it.
 
 The drain is a fixed-point walk: after each actual launch it restarts from the
 oldest blocked ticket, and a complete pass with no launch ends the run. A task
