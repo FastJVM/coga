@@ -12,7 +12,7 @@ skills:
 Stateless entry point for turning a described browser task into a concrete
 automation ticket. Run `coga launch bootstrap/browser-automation`, describe the
 task when the agent asks, and let the `browser/build-automation` skill choose
-the implementation path and autonomy workflow.
+the implementation path and matching workflow handoffs.
 
 ## Context
 

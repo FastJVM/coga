@@ -10,7 +10,7 @@ contexts: []
 skills:
 - bootstrap/ticket
 workflow:
-  name: autonomy/assist-only
+  name: draft-for-human
   steps:
   - name: agent-produces
     skills: []
@@ -198,8 +198,8 @@ formulation than session 1:
   `relay launch`; recurring replaces the recurring create.
 
 Wrote all of this into ticket `## Context` (definition + lifecycle +
-re-stock table). Set `workflow: autonomy/assist-only` (design/vocabulary
-deliverable — human owns the mental model; Q2 of triage fails).
+re-stock table). Set `workflow: draft-for-human` (design/vocabulary
+deliverable — human owns the mental model).
 contexts stay [] — body is self-contained.
 
 Still draft. nick launches after review.
@@ -213,7 +213,7 @@ ready to launch — with one factual correction and two flags.
    and why-now, explicitly bounds to "concept-capture only." Two-axis
    model + ASCII lifecycle + "gesture it replaces" table do real work.
 
-2. Workflow fit — correct. `autonomy/assist-only` is right: taste/
+2. Workflow fit — correct. `draft-for-human` is right: taste/
    judgment work, human owns the result, agent produces support
    material (agent-produces → human-owns-and-finishes). No mismatch.
 

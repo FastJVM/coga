@@ -36,11 +36,15 @@ def test_browser_router_methodology_moved_from_workflow_to_bundled_skill() -> No
 
     assert "## 1. Understand the task" in text
     assert "## 2. Choose the approach" in text
-    assert "## 3. Choose the autonomy workflow" in text
+    assert "## 3. Choose the workflow" in text
     assert "## 4. Create and launch the concrete ticket" in text
     assert "browser/api-first" in text
     assert "browser/dom-backed" in text
     assert "browser/playwright" in text
+    assert "all-agent workflow" in text
+    assert "human or owner gate" in text
+    assert "the human performs it" in text
+    assert "autonomy" not in text.lower()
     assert not (
         REPO_ROOT / "coga" / "workflows" / "browser" / "build-automation.md"
     ).exists()
@@ -61,8 +65,14 @@ def test_browser_capability_remains_without_seeded_task_or_audit_line() -> None:
     assert (
         TEMPLATES / "bootstrap" / "skills" / "browser" / "playwright" / "SKILL.md"
     ).is_file()
-    assert (TEMPLATES / "workflows" / "autonomy" / "fully-automated.md").is_file()
-    assert (TEMPLATES / "workflows" / "autonomy" / "human-verify.md").is_file()
+    packaged_workflow = TEMPLATES / "workflows" / "draft-for-human.md"
+    live_workflow = REPO_ROOT / "coga" / "workflows" / "draft-for-human.md"
+    assert packaged_workflow.is_file()
+    assert live_workflow.read_bytes() == packaged_workflow.read_bytes()
+    assert not (TEMPLATES / "workflows" / "autonomy").exists()
+    assert not (REPO_ROOT / "coga" / "workflows" / "autonomy").exists()
+    assert not (TEMPLATES / "contexts" / "autonomy").exists()
+    assert not (REPO_ROOT / "coga" / "contexts" / "autonomy").exists()
 
 
 def test_reference_documents_browser_router_and_runner_roles() -> None:

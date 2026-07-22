@@ -46,6 +46,18 @@ def test_bootstrap_ticket_skill_mandates_a_workflow() -> None:
     assert "This is required — a ticket with no workflow can't be activated." in text
 
 
+def test_bootstrap_ticket_selects_workflow_without_autonomy_triage() -> None:
+    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    lower = text.lower()
+
+    assert "3. **Workflow**" in text
+    assert "irreversible or outward-facing step" in text
+    assert "pick a workflow with a human gate" in text
+    assert "autonomy triage" not in lower
+    assert "autonomy tier" not in lower
+    assert "autonomy/" not in lower
+
+
 def test_bootstrap_ticket_greets_off_kickoff_token_not_body() -> None:
     """Regression: the create-vs-edit greeting keys off the CLI-set kickoff
     token, not body-emptiness — so a `coga create`d empty draft opened for
