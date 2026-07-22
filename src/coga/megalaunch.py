@@ -3,8 +3,14 @@
 The default sweep covers the operator's `active` and `in_progress` tickets:
 `active` work starts, `in_progress` work — a session another process started
 that has since crashed or been torn down mid-step — resumes, exactly like a
-manual `coga launch <slug>`. An **explicit selection** (the `--pick` picker
-or `--relaunch`) runs only the named tasks, any owner's, and reaches wider —
+manual `coga launch <slug>`. After that pass, a fixed-point dependency drain
+re-lists the operator's blocked tickets: when an open blocker names a known
+task that is now done (or was deleted after finishing), megalaunch resolves
+the ask with an explicit automatic answer and relaunches the dependent. Each
+drain launch restarts the walk; a full pass with no launch ends the run.
+
+An **explicit selection** (the `--pick` picker or `--relaunch`) runs only the
+named tasks, any owner's, and reaches wider —
 any non-terminal status — by staging the run in three phases so every
 human-in-the-loop step lands before the first launch: **prepare** (when the
 operator accepts the CLI's batch prompt, each picked `draft` runs the guided
@@ -42,14 +48,15 @@ content, so the order survives clones where file mtimes don't).
 from __future__ import annotations
 
 import json
+import re
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
 from typing import Literal
 
-from coga.blackboard import open_blockers
+from coga.blackboard import Blocker, open_blockers, resolve_open_blockers
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
     spawn_agent_session,
@@ -83,6 +90,7 @@ from coga.tasks import (
     TaskNotFoundError,
     TaskRef,
     filter_tasks_under,
+    is_under,
     list_tasks,
     read_ticket,
     resolve_bootstrap,
@@ -113,6 +121,7 @@ class MegalaunchResult:
     detail: str
     agent: str | None = None
     launched: bool = False
+    drained: bool = False
 
 
 @dataclass(frozen=True)
@@ -127,6 +136,7 @@ class MegalaunchRun:
     def counts(self) -> dict[str, int]:
         counts = {
             "launched": sum(1 for result in self.results if result.launched),
+            "drained": sum(1 for result in self.results if result.drained),
             "completed": 0,
             "canceled": 0,
             "blocked": 0,
@@ -180,6 +190,9 @@ def run_megalaunch(
     `author_drafts` gates the prepare phase: the CLI sets it from a one-shot
     batch prompt when the confirmed selection contains drafts, so authoring is
     an opt-in the operator agreed to, never forced on every pick.
+
+    The dependency drain belongs only to the default sweep. Explicit
+    selections never expand into unpicked work.
     """
     cfg = cfg or load_config()
     if agent_override is not None:
@@ -200,7 +213,8 @@ def run_megalaunch(
 
     # Validates the directory up front (fail loud on a typo) and narrows the
     # queue before any ticket is read, so out-of-scope work is never counted.
-    queue = filter_tasks_under(_tasks_oldest_first(cfg), directory, cfg)
+    all_tasks = _tasks_oldest_first(cfg)
+    queue = filter_tasks_under(all_tasks, directory, cfg)
     explicit = selection is not None
     if explicit:
         wanted = set(selection or [])
@@ -223,6 +237,8 @@ def run_megalaunch(
         results = _run_sweep(
             cfg,
             queue,
+            known_refs=all_tasks,
+            directory=directory,
             agent_override=agent_override,
             max_tasks=max_tasks,
             max_steps_per_task=max_steps_per_task,
@@ -243,6 +259,8 @@ def _run_sweep(
     cfg: Config,
     queue: list[TaskRef],
     *,
+    known_refs: list[TaskRef],
+    directory: str | None,
     agent_override: str | None,
     max_tasks: int | None,
     max_steps_per_task: int,
@@ -250,9 +268,11 @@ def _run_sweep(
     max_session: float | None,
 ) -> list[MegalaunchResult]:
     """The unattended sweep: the operator's own ready `active` / `in_progress`
-    work, one launchable step at a time. Draft/paused/terminal tasks are ignored
-    and blocked is reported, never launched — resuming those needs a human,
-    which only the explicit picker path provides.
+    work, one launchable step at a time. Draft/paused/terminal tasks are
+    ignored and blocked work waits until the post-sweep dependency drain. A
+    blocker that names a known task finished by this run is resolved and
+    relaunched without a human; every other blocker remains reported and
+    parked.
     """
     results: list[MegalaunchResult] = []
     attempted = 0
@@ -300,7 +320,244 @@ def _run_sweep(
                 max_session=max_session,
             )
         )
+    return _drain_satisfied_blockers(
+        cfg,
+        results,
+        known_refs=known_refs,
+        directory=directory,
+        attempted=attempted,
+        max_tasks=max_tasks,
+        agent_override=agent_override,
+        max_steps_per_task=max_steps_per_task,
+        idle_timeout=idle_timeout,
+        max_session=max_session,
+    )
+
+
+def _drain_satisfied_blockers(
+    cfg: Config,
+    results: list[MegalaunchResult],
+    *,
+    known_refs: list[TaskRef],
+    directory: str | None,
+    attempted: int,
+    max_tasks: int | None,
+    agent_override: str | None,
+    max_steps_per_task: int,
+    idle_timeout: float | None,
+    max_session: float | None,
+) -> list[MegalaunchResult]:
+    """Relaunch blocked work whose named task dependency has finished.
+
+    The current task tree is re-listed on every pass so work created during
+    the main sweep is visible. Refs seen earlier remain known after deletion:
+    a finished task may legitimately be retired and removed before its
+    dependent reaches this drain.
+
+    Each task is drained at most once per run. A drained task is activated
+    first and only has its asks resolved once that succeeded, so a ticket that
+    cannot be activated keeps its open ask; resolving before launch makes the
+    normal path compose no blocker-resolution preamble; the explicit per-run
+    set also prevents a newly-created blocker from relaunching the same task
+    forever.
+    """
+    # `filter_tasks_under` accepts a human-friendly leading/trailing slash and
+    # normalizes it for the main queue. Apply the same normalization to the
+    # re-listed drain scope so the two phases cover exactly the same subtree.
+    scope_directory = directory.strip("/") if directory is not None else None
+    known = {ref.id_slug: ref for ref in known_refs}
+    drained_slugs: set[str] = set()
+
+    while max_tasks is None or attempted < max_tasks:
+        launched_in_pass = False
+        current_refs = _tasks_oldest_first(cfg)
+        for current in current_refs:
+            known[current.id_slug] = current
+
+        for ref in current_refs:
+            if scope_directory is not None and not is_under(
+                ref.directory, scope_directory
+            ):
+                continue
+            if ref.id_slug in drained_slugs:
+                continue
+            try:
+                ticket = read_ticket(ref)
+            except TicketNotFoundError:
+                continue
+            except TicketError as exc:
+                if not _has_result(results, ref.id_slug):
+                    _replace_result(
+                        results,
+                        _result(ref, "failed", f"unreadable ticket: {exc}"),
+                    )
+                continue
+            if ticket.owner != cfg.current_user or ticket.status != "blocked":
+                continue
+
+            blockers = open_blockers(ref.ticket_path)
+            if not _has_result(results, ref.id_slug):
+                detail = (
+                    "; ".join(blocker.reason for blocker in blockers)
+                    or "status is blocked"
+                )
+                _replace_result(
+                    results,
+                    _result(
+                        ref,
+                        "skipped-unresolved-blocker",
+                        detail,
+                        ticket.assignee,
+                    ),
+                )
+            dependency = _finished_blocker_dependency(blockers, known)
+            if dependency is None:
+                continue
+            if max_tasks is not None and attempted >= max_tasks:
+                return results
+
+            drained_slugs.add(ref.id_slug)
+
+            # Activate first, resolve second. Activation can refuse a ticket
+            # that is otherwise ready to drain (no workflow, a `workflow:` ref
+            # that will not freeze, an empty required extension field) and
+            # those refusals leave the ticket `blocked`. Resolving the asks
+            # first would strand it blocked with nothing open — a state
+            # `coga launch` and `coga unblock` both refuse and blocker
+            # reminders no longer report — so the owner would lose the ask
+            # instead of repairing it and retrying.
+            failure = _activate_for_launch(
+                cfg,
+                ref,
+                ticket,
+                log_message=(
+                    "activated (blocked → active) — coga megalaunch "
+                    f"resolved finished dependency {dependency}"
+                ),
+            )
+            if failure is not None:
+                _replace_result(results, _as_drained(failure, dependency))
+                continue
+
+            answer = (
+                "Coga megalaunch automatically resolved this blocker after "
+                f"dependency {dependency} finished."
+            )
+            resolve_open_blockers(
+                ref.ticket_path,
+                actor="system",
+                answer=answer,
+            )
+
+            try:
+                # The blackboard write above changed the ticket body. Re-read
+                # before launching so writing frontmatter cannot restore the
+                # stale, still-open blocker text.
+                ticket = read_ticket(ref)
+            except TicketNotFoundError:
+                _replace_result(
+                    results,
+                    _result(
+                        ref,
+                        "completed",
+                        f"dependency {dependency} finished; task was removed",
+                        drained=True,
+                    ),
+                )
+                continue
+            except TicketError as exc:
+                _replace_result(
+                    results,
+                    _result(
+                        ref,
+                        "failed",
+                        f"dependency {dependency} finished; unreadable ticket: {exc}",
+                        drained=True,
+                    ),
+                )
+                continue
+
+            candidate = _candidate_result(cfg, ref, ticket, explicit=False)
+            if candidate is not None:
+                _replace_result(results, _as_drained(candidate, dependency))
+                continue
+
+            attempted += 1
+            result = _launch_until_stop(
+                cfg,
+                ref,
+                ticket,
+                agent_override=agent_override,
+                max_steps_per_task=max_steps_per_task,
+                idle_timeout=idle_timeout,
+                max_session=max_session,
+            )
+            _replace_result(results, _as_drained(result, dependency))
+            if result.launched:
+                launched_in_pass = True
+                break
+
+        if not launched_in_pass:
+            break
     return results
+
+
+def _finished_blocker_dependency(
+    blockers: list[Blocker], known_refs: dict[str, TaskRef]
+) -> str | None:
+    """The first exact task ref named by a blocker that is now finished."""
+    slugs = sorted(known_refs, key=lambda slug: (-len(slug), slug))
+    for blocker in blockers:
+        for slug in slugs:
+            if not _reason_names_task(blocker.reason, slug):
+                continue
+            try:
+                dependency = read_ticket(known_refs[slug])
+            except TicketNotFoundError:
+                return slug
+            except TicketError:
+                continue
+            if dependency.status == "done":
+                return slug
+    return None
+
+
+def _reason_names_task(reason: str, slug: str) -> bool:
+    """True when `reason` contains the complete path-qualified task ref."""
+    task_ref_char = r"A-Za-z0-9_./-"
+    return re.search(
+        rf"(?<![{task_ref_char}]){re.escape(slug)}(?![{task_ref_char}])",
+        reason,
+    ) is not None
+
+
+def _has_result(results: list[MegalaunchResult], slug: str) -> bool:
+    return any(result.slug == slug for result in results)
+
+
+def _replace_result(
+    results: list[MegalaunchResult], replacement: MegalaunchResult
+) -> None:
+    """Keep one row per task, its first-seen order, and any prior launch."""
+    for index, result in enumerate(results):
+        if result.slug == replacement.slug:
+            results[index] = replace(
+                replacement,
+                launched=result.launched or replacement.launched,
+            )
+            return
+    results.append(replacement)
+
+
+def _as_drained(result: MegalaunchResult, dependency: str) -> MegalaunchResult:
+    return MegalaunchResult(
+        slug=result.slug,
+        outcome=result.outcome,
+        detail=f"dependency {dependency} finished; {result.detail}",
+        agent=result.agent,
+        launched=result.launched,
+        drained=True,
+    )
 
 
 def _run_selection(
@@ -568,11 +825,12 @@ def _candidate_result(
 ) -> MegalaunchResult | None:
     blockers = open_blockers(ref.ticket_path)
     if ticket.status == "blocked":
-        # The unattended sweep never resumes a blocked ticket — that needs a
-        # human in the loop. An explicit pick *is* that human act: the launch
-        # activates it and the composed prompt gains the resolve-or-re-block
-        # preamble, so only an ask-less blocked ticket (nothing to resolve)
-        # stays unlaunchable.
+        # The initial unattended pass does not resume a blocked ticket. Its
+        # terminal dependency drain may later resolve and activate one whose
+        # blocker names a finished task. An explicit pick *is* a separate
+        # human act: the launch activates it and the composed prompt gains the
+        # resolve-or-re-block preamble, so only an ask-less blocked ticket
+        # (nothing to resolve) stays unlaunchable.
         if explicit:
             if not blockers:
                 return _result(
@@ -807,12 +1065,16 @@ def _launch_until_stop(
 
 
 def _activate_for_launch(
-    cfg: Config, ref: TaskRef, ticket: Ticket
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    *,
+    log_message: str | None = None,
 ) -> MegalaunchResult | None:
-    """Bring an explicitly picked draft / paused / blocked ticket to `active`.
+    """Bring a picked or dependency-drained ticket to `active`.
 
     Mirrors `coga launch`'s inline auto-activation, but returns a loud result
-    instead of exiting the process — one bad pick must not kill the sweep.
+    instead of exiting the process — one bad task must not kill the sweep.
     `mark_active` mutates `ticket` in place (status, frozen workflow, seeded
     step), so the caller's launch loop continues off the same object.
     """
@@ -823,7 +1085,10 @@ def _activate_for_launch(
             ref,
             ticket,
             actor="megalaunch",
-            log_message=f"activated ({prior} → active) — explicit megalaunch pick",
+            log_message=(
+                log_message
+                or f"activated ({prior} → active) — explicit megalaunch pick"
+            ),
             echo=None,
         )
     except WorkflowMissing:
@@ -1014,6 +1279,7 @@ def _result(
     agent: str | None = None,
     *,
     launched: bool = False,
+    drained: bool = False,
 ) -> MegalaunchResult:
     return MegalaunchResult(
         slug=ref.id_slug,
@@ -1021,6 +1287,7 @@ def _result(
         detail=detail,
         agent=agent,
         launched=launched,
+        drained=drained,
     )
 
 
@@ -1039,6 +1306,7 @@ def render_run_summary(run: MegalaunchRun) -> str:
     lines.extend(["", "Counts:"])
     for key in (
         "launched",
+        "drained",
         "completed",
         "canceled",
         "blocked",
