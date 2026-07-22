@@ -19,6 +19,12 @@ from textwrap import dedent
 
 import pytest
 
+from coga.repl_supervisor import (
+    EXPECTED_STEP_ENV,
+    EXPECTED_TASK_ENV,
+    SENTINEL_ENV,
+)
+
 
 _TEMPLATES_COGA_OS = (
     Path(__file__).resolve().parents[1]
@@ -141,10 +147,10 @@ def _clear_supervised_session_env(monkeypatch):
     here makes the suite hermetic regardless of how it was launched. Tests
     that exercise the supervisor set `COGA_DONE_SENTINEL` themselves
     (autouse runs first, so their `monkeypatch.setenv` wins)."""
-    monkeypatch.delenv("COGA_DONE_SENTINEL", raising=False)
+    monkeypatch.delenv(SENTINEL_ENV, raising=False)
     monkeypatch.delenv("COGA_SUPERVISED", raising=False)
-    monkeypatch.delenv("COGA_EXPECTED_TASK", raising=False)
-    monkeypatch.delenv("COGA_EXPECTED_STEP", raising=False)
+    monkeypatch.delenv(EXPECTED_TASK_ENV, raising=False)
+    monkeypatch.delenv(EXPECTED_STEP_ENV, raising=False)
 
 
 @pytest.fixture(autouse=True)
