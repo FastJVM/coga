@@ -1,7 +1,7 @@
 ---
 slug: improve-prompt-for-relay-ticket
 title: improve prompt for relay ticket
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -20,7 +20,6 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 3 (report-to-coga)
 ---
 
 ## Description
@@ -369,3 +368,16 @@ Accepted changes should be implemented in a separate ticket. Suggested scope:
 - The repo is mid-rename from Relay to Coga in several artifacts. The follow-up
   should decide whether to keep "Relay" wording where it is product-history
   accurate or migrate the authoring skill text fully to Coga.
+
+## Final report (2026-07-22)
+
+- Final artifact: the ranked proposal above, including evidence from thin and
+  strong tickets, exact prompt/flow changes, tradeoffs, and implementation
+  scope.
+- Human decision: accept all three P0 and all three P1 changes; defer P2, so no
+  permanent `Acceptance Criteria` section is added now.
+- Implementation handoff: `coga/tasks/implement-accepted-ticket-interview-improvements.md`
+  now holds the corrected six-change scope and is active on `code/with-review`.
+  It targets the packaged bootstrap skill only and does not resurrect the
+  removed `eval/ticket-diagnostic` skill.
+- This proposal ticket made no skill, template, CLI, or test changes.
