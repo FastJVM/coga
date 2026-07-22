@@ -1,7 +1,7 @@
 ---
 slug: validate-that-a-frozen-workflow-name-still-resolve
 title: Validate that a frozen workflow.name still resolves
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
