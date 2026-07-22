@@ -1,7 +1,7 @@
 ---
 slug: redact-slack-webhook-credentials-from-request-fail
 title: Redact Slack webhook credentials from request failures and Coga logs
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
