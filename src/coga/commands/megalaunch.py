@@ -3,7 +3,8 @@
 Three ways in, one engine:
 
 - bare `coga megalaunch` — sweep every launchable `active` or `in_progress`
-  task (`active` starts, `in_progress` resumes).
+  task (`active` starts, `in_progress` resumes), then fixed-point drain blocked
+  tasks whose named dependency finished during the run.
 - `coga megalaunch --pick` — arrow-key picker over every task worth launching
   (any owner, any non-terminal status, drafts included), nothing pre-checked;
   the confirmed set runs staged — prepare (a batch prompt offers to author
@@ -74,7 +75,10 @@ def megalaunch(
         None,
         "--max-tasks",
         min=1,
-        help="Stop after this many launchable tasks have been attempted.",
+        help=(
+            "Stop after this many launch attempts; dependency-drain retries "
+            "count against the same budget."
+        ),
     ),
     agent: str | None = typer.Option(
         None,
@@ -424,6 +428,8 @@ def _drain_post_text(run: MegalaunchRun) -> str | None:
     )
     if not_launchable:
         parts.append(f"{not_launchable} not launchable")
+    if counts["drained"]:
+        parts.append(f"{counts['drained']} dependency-drained")
     if counts["failed"]:
         parts.append(f"{counts['failed']} failed")
     scope = [run.directory] if run.directory is not None else []

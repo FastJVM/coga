@@ -13,6 +13,9 @@ directive overrides the attended ask-and-wait default in Agent mode.
   run `coga block --task <slug> --reason "<specific ask>"` as the terminal
   action. Merely saying that you are blocked leaves the queue hanging and
   does not notify the owner.
+- When another Coga task is the blocker, include that task's exact
+  path-qualified slug in `--reason`. Megalaunch can then recognize when the
+  dependency finishes later in this run and retry this task automatically.
 - **Existing blocker-resolution exception.** If the composed prompt includes
   `Resolve the open blocker first`, the human explicitly selected this task
   to resolve those already-open asks. Discuss those asks with them, then run

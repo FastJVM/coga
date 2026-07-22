@@ -8,7 +8,11 @@ import pytest
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
-from coga.megalaunch import run_megalaunch, trim_megalaunch_blackboard_text
+from coga.megalaunch import (
+    render_run_summary,
+    run_megalaunch,
+    trim_megalaunch_blackboard_text,
+)
 from coga.ticket import Ticket
 
 
@@ -720,6 +724,7 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
         'run `coga block --task <slug> --reason "<specific ask>"` as the'
         " terminal action" in suffix
     )
+    assert "include that task's exact path-qualified slug" in suffix
 
 
 @pytest.mark.parametrize(
@@ -793,6 +798,543 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
     assert run.counts["launched"] == 0
     assert run.counts["skipped-unresolved-blocker"] == 1
     assert "need owner answer" in run.results[0].detail
+
+
+def test_megalaunch_drains_blocker_after_dependency_finishes(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blocker skipped early in the sweep relaunches after its dependency."""
+    from coga import megalaunch as megalaunch_module
+    from coga.blackboard import append_blocker, open_blockers, read_blockers
+
+    cfg = load_config(repo)
+    blocked = create_task(
+        cfg=cfg,
+        title="Blocked first",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency = create_task(
+        cfg=cfg,
+        title="Dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(
+        Path(blocked["path"]),
+        actor="claude",
+        reason=f"Waiting for {dependency['slug']} to land",
+    )
+    ticket = Ticket.read(blocked["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(blocked["path"])
+
+    launched = _done_on_spawn(monkeypatch)
+    unresolved_at_launch: dict[str, int] = {}
+    original_spawn = megalaunch_module.spawn_agent_session
+
+    def record_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        unresolved_at_launch[ref_obj.id_slug] = len(open_blockers(ref_obj.ticket_path))
+        return original_spawn(cfg_, ref_obj, ticket_, agent, **kwargs)
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", record_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert launched == [dependency["slug"], blocked["slug"]]
+    assert unresolved_at_launch[blocked["slug"]] == 0
+    assert run.counts["launched"] == 2
+    assert run.counts["drained"] == 1
+    assert run.counts["completed"] == 2
+    assert len({result.slug for result in run.results}) == len(run.results)
+    blocked_result = next(result for result in run.results if result.slug == blocked["slug"])
+    assert blocked_result.drained is True
+    assert dependency["slug"] in blocked_result.detail
+    summary = render_run_summary(run)
+    assert "- drained: 1" in summary
+    assert summary.count(f"- {blocked['slug']}:") == 1
+    blocker = read_blockers(Path(blocked["path"]))[0]
+    assert blocker.resolved is True
+    assert "Coga megalaunch automatically resolved" in (blocker.answer or "")
+    assert dependency["slug"] in (blocker.answer or "")
+
+
+def test_megalaunch_redrains_ticket_that_blocked_during_main_sweep(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ticket can block, see its dependency finish, and resume in one run."""
+    from coga.blackboard import append_blocker
+
+    cfg = load_config(repo)
+    dependent = create_task(
+        cfg=cfg,
+        title="A dependent",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency = create_task(
+        cfg=cfg,
+        title="B dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    launched: list[str] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref_obj.id_slug)
+        updated = Ticket.read(ref_obj.ticket_path)
+        if ref_obj.id_slug == dependent["slug"] and launched.count(ref_obj.id_slug) == 1:
+            append_blocker(
+                ref_obj.ticket_path,
+                actor="claude",
+                reason=f"Waiting for {dependency['slug']}",
+            )
+            updated = Ticket.read(ref_obj.ticket_path)
+            updated.frontmatter["status"] = "blocked"
+        else:
+            updated.frontmatter["status"] = "done"
+            updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert launched == [dependent["slug"], dependency["slug"], dependent["slug"]]
+    assert run.counts["launched"] == 2
+    assert run.counts["drained"] == 1
+    assert run.counts["completed"] == 2
+    assert len(run.results) == 2
+    assert Ticket.read(dependent["path"]).status == "done"
+
+
+def test_megalaunch_dependency_drain_reaches_fixed_point(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A drain launch can satisfy an earlier blocked ticket on the next pass."""
+    from coga.blackboard import append_blocker
+
+    cfg = load_config(repo)
+    last = create_task(
+        cfg=cfg,
+        title="Last",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    middle = create_task(
+        cfg=cfg,
+        title="Middle",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    first = create_task(
+        cfg=cfg,
+        title="First",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    for ref, dependency in ((last, middle), (middle, first)):
+        append_blocker(
+            Path(ref["path"]),
+            actor="claude",
+            reason=f"Waiting for {dependency['slug']}",
+        )
+        ticket = Ticket.read(ref["path"])
+        ticket.frontmatter["status"] = "blocked"
+        ticket.write(ref["path"])
+
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg)
+
+    assert launched == [first["slug"], middle["slug"], last["slug"]]
+    assert run.counts["drained"] == 2
+    assert run.counts["completed"] == 3
+    assert len({result.slug for result in run.results}) == 3
+
+
+def test_megalaunch_drain_treats_dependency_deleted_mid_sweep_as_finished(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A known dependency reaped by earlier work satisfies its blocker."""
+    from coga.blackboard import append_blocker
+
+    cfg = load_config(repo)
+    blocked = create_task(
+        cfg=cfg,
+        title="A blocked on reaped task",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    reaper = create_task(
+        cfg=cfg,
+        title="B reaper",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency = create_task(
+        cfg=cfg,
+        title="C reaped dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(
+        Path(blocked["path"]),
+        actor="claude",
+        reason=f"Waiting for {dependency['slug']}",
+    )
+    ticket = Ticket.read(blocked["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(blocked["path"])
+
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    launched: list[str] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref_obj.id_slug)
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        if ref_obj.id_slug == reaper["slug"]:
+            dependency_path = Path(dependency["path"])
+            dependency_path.unlink()
+            if dependency_path.name == "ticket.md":
+                dependency_path.parent.rmdir()
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert launched == [reaper["slug"], blocked["slug"]]
+    assert run.counts["drained"] == 1
+    assert run.counts["completed"] == 2
+    assert not Path(dependency["path"]).exists()
+
+
+def test_megalaunch_drain_relists_blocked_tickets_created_mid_run(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The terminal drain sees blocked tasks absent from the initial snapshot."""
+    from coga.blackboard import append_blocker
+
+    cfg = load_config(repo)
+    dependency = create_task(
+        cfg=cfg,
+        title="Creates blocked followup",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    launched: list[str] = []
+    created: dict[str, str] = {}
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref_obj.id_slug)
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        if ref_obj.id_slug == dependency["slug"]:
+            late = create_task(
+                cfg=cfg,
+                title="Late blocked task",
+                workflow_name="code",
+                contexts=[],
+                owner="marc",
+                assignee="claude",
+                status="active",
+                watchers=[],
+            )
+            created.update(late)
+            append_blocker(
+                Path(late["path"]),
+                actor="claude",
+                reason=f"Waiting for {dependency['slug']}",
+            )
+            late_ticket = Ticket.read(late["path"])
+            late_ticket.frontmatter["status"] = "blocked"
+            late_ticket.write(late["path"])
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert launched == [dependency["slug"], created["slug"]]
+    assert run.counts["drained"] == 1
+    assert Ticket.read(created["path"]).status == "done"
+
+
+def test_megalaunch_drain_shares_max_tasks_budget(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A main-sweep launch can exhaust the budget before a dependency drain."""
+    from coga.blackboard import append_blocker, open_blockers
+
+    cfg = load_config(repo)
+    blocked = create_task(
+        cfg=cfg,
+        title="Budget blocked",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency = create_task(
+        cfg=cfg,
+        title="Budget dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(
+        Path(blocked["path"]),
+        actor="claude",
+        reason=f"Waiting for {dependency['slug']}",
+    )
+    ticket = Ticket.read(blocked["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(blocked["path"])
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, max_tasks=1)
+
+    assert launched == [dependency["slug"]]
+    assert run.counts["launched"] == 1
+    assert run.counts["drained"] == 0
+    assert Ticket.read(blocked["path"]).status == "blocked"
+    assert len(open_blockers(Path(blocked["path"]))) == 1
+
+
+def test_megalaunch_drain_matches_complete_task_slug_not_substring(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A short finished slug inside an unrelated word does not satisfy."""
+    from coga.blackboard import append_blocker, open_blockers
+
+    cfg = load_config(repo)
+    dependency = create_task(
+        cfg=cfg,
+        title="API",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency_ticket = Ticket.read(dependency["path"])
+    dependency_ticket.frontmatter["status"] = "done"
+    dependency_ticket.frontmatter.pop("step", None)
+    dependency_ticket.write(dependency["path"])
+    blocked = create_task(
+        cfg=cfg,
+        title="Substring blocker",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(
+        Path(blocked["path"]),
+        actor="claude",
+        reason="Waiting for rapid rollout approval",
+    )
+    ticket = Ticket.read(blocked["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(blocked["path"])
+
+    def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a slug substring must not trigger a drain")
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["drained"] == 0
+    assert run.counts["skipped-unresolved-blocker"] == 1
+    assert len(open_blockers(Path(blocked["path"]))) == 1
+
+
+def test_megalaunch_explicit_selection_does_not_expand_into_dependency_drain(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Completing a pick never launches an unpicked blocked ticket."""
+    from coga.blackboard import append_blocker, open_blockers
+
+    cfg = load_config(repo)
+    blocked = create_task(
+        cfg=cfg,
+        title="Unpicked blocked",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency = create_task(
+        cfg=cfg,
+        title="Picked dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(
+        Path(blocked["path"]),
+        actor="claude",
+        reason=f"Waiting for {dependency['slug']}",
+    )
+    ticket = Ticket.read(blocked["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(blocked["path"])
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[dependency["slug"]])
+
+    assert launched == [dependency["slug"]]
+    assert run.counts["drained"] == 0
+    assert Ticket.read(blocked["path"]).status == "blocked"
+    assert len(open_blockers(Path(blocked["path"]))) == 1
+
+
+def test_megalaunch_drain_never_relaunches_same_ticket_twice(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A new blocker after a drain cannot make the fixed-point loop repeat it."""
+    from coga.blackboard import append_blocker, open_blockers
+
+    cfg = load_config(repo)
+    dependency = create_task(
+        cfg=cfg,
+        title="Already done dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency_ticket = Ticket.read(dependency["path"])
+    dependency_ticket.frontmatter["status"] = "done"
+    dependency_ticket.frontmatter.pop("step", None)
+    dependency_ticket.write(dependency["path"])
+    blocked = create_task(
+        cfg=cfg,
+        title="Blocks again",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(
+        Path(blocked["path"]),
+        actor="claude",
+        reason=f"Waiting for {dependency['slug']}",
+    )
+    ticket = Ticket.read(blocked["path"])
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(blocked["path"])
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    launched: list[str] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref_obj.id_slug)
+        append_blocker(
+            ref_obj.ticket_path,
+            actor="claude",
+            reason=f"Still waiting for {dependency['slug']}",
+        )
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "blocked"
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert launched == [blocked["slug"]]
+    assert run.counts["drained"] == 1
+    assert run.counts["blocked"] == 1
+    assert len(open_blockers(Path(blocked["path"]))) == 1
 
 
 

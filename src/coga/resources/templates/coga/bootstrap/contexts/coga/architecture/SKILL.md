@@ -366,6 +366,25 @@ producing its output. `coga megalaunch` applies the same per-step rule: its
 sweep runs a script launch directly — at entry or reached mid-chain — and a
 non-zero exit fails that one task without stopping the rest of the sweep.
 
+### Megalaunch dependency drain
+
+After a bare megalaunch sweep, Coga re-lists blocked tickets owned by the
+current operator in the same directory scope and looks for exact
+path-qualified task slugs in their open blocker text. A named dependency is
+satisfied when its ticket is `done` or when a task ref seen earlier in the run
+has disappeared (finished work may retire and delete its ticket). Megalaunch
+then records an automatic blocker answer naming that dependency, resolves all
+open asks, activates the ticket, and launches it through the normal path. The
+resolution happens before prompt composition, so an unattended retry never
+inherits the interactive blocker-resolution preamble.
+
+The drain is a fixed-point walk: after each actual launch it restarts from the
+oldest blocked ticket, and a complete pass with no launch ends the run. A task
+is drained at most once per run, every retry attempt shares `--max-tasks` with
+the main sweep, and the summary keeps one result row per task with a separate
+`drained` count. Explicit `--pick` and `--relaunch` selections do not run this
+drain, because completing a selection must not expand into unpicked work.
+
 ### Step completion gates (`requires:`)
 
 A frozen workflow step may declare `requires: <token>`. Before `coga bump`
