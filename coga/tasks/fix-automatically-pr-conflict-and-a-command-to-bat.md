@@ -7,8 +7,8 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-- coga/architecture
 - coga/codebase
+- coga/principles
 - dev/code
 skills: []
 workflow: code/with-review
@@ -23,10 +23,11 @@ PRs in one pass, and land the launch-side arg channel that lets it target a
 single PR.
 
 The command is authored as a **command ticket** under `coga/bootstrap/`
-(the seam the `commands-as-tickets-open-pr-pilot` pilot just landed —
-local-first `coga/bootstrap/<name>/ticket.md` resolution + `[aliases]`), so
-a ticket plus one alias line mints a new `coga` verb with zero core-Python
-change. It is launched in place each time, not instantiated per run.
+(the seam the `commands-as-tickets-open-pr-pilot` pilot landed — **merged to
+main as PR #625, commit `9965e95e`**: local-first
+`coga/bootstrap/<name>/ticket.md` resolution + `[aliases]`), so a ticket plus
+one alias line mints a new `coga` verb with zero core-Python change. It is
+launched in place each time, not instantiated per run.
 
 Behavior:
 
@@ -43,11 +44,13 @@ Behavior:
 
 Because full agent judgment needs an agent (not a script), the command is an
 **agent** launch. Today `coga launch` fails loud when an agent launch is
-given trailing args — `commands-as-tickets-open-pr-pilot` shipped the arg
-channel for *script* launches only and explicitly deferred composing args
-into agent prompts "until a second use case exists." **This ticket is that
-second use case:** extend `launch` to compose trailing args into the agent
-prompt so `coga resolve-conflicts 631` works.
+given trailing args (`launch_script.py` writes `COGA_ARG_1..N` for *script*
+launches only; #625 explicitly deferred composing args into agent prompts
+"until a second use case exists"). **This ticket is that second use case:**
+extend `launch` to compose trailing args into the agent prompt so
+`coga resolve-conflicts 631` works. This agent-prompt composition is the one
+genuinely unbuilt piece — the bootstrap resolution and the script arg
+channel are already live on main.
 
 This **supersedes** the `rebase-stale-worktrees` recurring task. That task
 already walks live branches and rebases them mechanically; the new command
@@ -92,15 +95,35 @@ tickets' files.
 ## Context
 
 **Reuse the pilot's seam — don't rebuild it.** `commands-as-tickets-open-pr-pilot`
-(PR #625, in review) landed: local-first `coga/bootstrap/<name>/ticket.md`
-resolution (over the package resource), the `COGA_ARG_1..N` + `COGA_ARGC`
-env channel for **script** launches, and `open-pr` as the first shipped
-command ticket + default alias. Read that ticket's blackboard and PR before
-starting — it is the template for authoring `resolve-conflicts` and it
-documents exactly where the agent-arg channel was deferred (`launch()` in
-`src/coga/commands/launch.py`; agent launch with trailing args currently
-fails loud *before* the TTY gate). Coordinate if #625 has not merged yet —
-this ticket builds directly on its seams.
+(**merged, PR #625, commit `9965e95e`**) landed: local-first
+`coga/bootstrap/<name>/ticket.md` resolution (over the package resource), the
+`COGA_ARG_1..N` + `COGA_ARGC` env channel for **script** launches, and
+`open-pr` as the first shipped command ticket + default alias. All of this is
+on `main` now — no coordination or waiting needed. Read that ticket's
+blackboard and PR before starting — it is the template for authoring
+`resolve-conflicts` and it documents exactly where the agent-arg channel was
+deferred (`launch()` in `src/coga/commands/launch.py`; the script channel
+lives in `src/coga/commands/launch_script.py`, and agent launch with trailing
+args currently fails loud *before* the TTY gate). The only unbuilt piece this
+ticket needs from that seam is composing args into the **agent** prompt.
+
+**Sequence the work: seam → command → deletion.** The three deliverables are
+separable and should land as distinct commits in that order: (1) the core
+`launch` change that composes trailing args into an agent prompt, with its own
+tests; (2) the `resolve-conflicts` command ticket that consumes it; (3)
+deleting `rebase-stale-worktrees` and settling its cron. Deliverable (1) is a
+generic kernel seam every future agent-arg use case inherits — treat it as the
+load-bearing part, not an afterthought of the command.
+
+**Supersession is NOT a strict superset — decide the coverage gap before
+deleting.** `rebase-stale-worktrees` enumerates from **live branches**
+(worktrees + `branch:` under non-terminal tickets). The new command
+enumerates from **open PRs** (`gh pr list`). A stale in-flight branch with
+**no PR yet** (a ticket still before its `open-pr` step) is swept by the old
+task but invisible to the new one. Before deleting, either (a) have
+`resolve-conflicts` also enumerate live pre-PR branches, or (b) explicitly
+accept and document that pre-PR branches are no longer auto-rebased. This is
+an owner decision flagged for the review step — see Open Questions.
 
 **The behavior already half-exists.** `coga/recurring/rebase-stale-worktrees/ticket.md`
 enumerates live branches (worktrees + `branch:` under non-terminal tickets),
@@ -145,4 +168,61 @@ the PR.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Open Questions (for owner at review)
+
+1. **Coverage gap on delete.** New command sweeps open PRs; old task swept
+   live branches incl. pre-PR ones. Have `resolve-conflicts` also enumerate
+   live pre-PR branches, or accept that pre-PR branches are no longer
+   auto-rebased? (Evaluator #6.)
+2. **Sweep default.** No-arg `coga resolve-conflicts` resolves *semantic*
+   conflicts and force-pushes across *all* open PRs (~20 live branches at last
+   count). Should the default be single-PR (opt-in `--all` sweep) rather than
+   sweep-by-default? Verify-before-push + abort-on-doubt is the safety net
+   either way. (Evaluator #6.)
+3. **Cron fate.** `rebase-stale-worktrees` runs `0 8 * * 1`. On delete, does
+   the weekly schedule transfer to a scheduled `coga resolve-conflicts` or get
+   dropped? Decide before deletion so there's no coverage window with neither.
+4. **Workflow.** `code/with-review` has no design gate; this is the riskiest
+   ticket in the series (kernel seam + mass force-push + deleting a scheduled
+   task). Keep with-review, or switch to `code/design-then-implement` to lock
+   the safety posture before it's coded? (Owner already leaned with-review;
+   re-confirm.)
+
+## Evaluator review
+
+**1. Description clarity — mostly yes, with one stale fact that will mislead**
+
+- A cold agent can start: the Description states the two deliverables, the Behavior bullets are concrete (`gh pr list`, force-with-lease, verify gate), and ## Context points at the pilot as the authoring template. Good.
+- But it repeatedly says the pilot is "in review" / "PR #625, in review" and "the arg channel... does not exist yet" / "coordinate if #625 has not merged." **This is already stale.** #625 merged to main (commit `9965e95e`), and the seams are live: `launch.py` already has the variadic `args`, `COGA_ARG_1..N`+`COGA_ARGC`, and the agent-launch fail-loud (launch.py:322-331); `resolve_bootstrap`/`bootstrap_resolution_paths` are on main. A picking-up agent reading "coordinate if not merged" may wait or hunt for an unmerged branch that no longer matters. Fix the tense: the prerequisite is satisfied; the only thing genuinely missing is the deferred *agent-prompt* arg composition.
+
+**2. Workflow fit — the one real mismatch: no design gate for the riskiest ticket in the series**
+
+- `code/with-review` is implement → peer-review → open-pr → review. Its only judgment gate (peer-review) fires *after* the code is written.
+- The pilot this builds on used `code/design-then-implement` (design → review-design → …) for arguably lower-stakes work. This successor is riskier: it (a) changes a core kernel seam (`launch` agent-arg composition), (b) authors a command that force-pushes to **every open PR** with **semantic** conflict resolution, and (c) deletes a scheduled recurring task. That is exactly the shape that benefits from a design gate to lock the safety posture and the supersession decision *before* implementation.
+- The Workflow note acknowledges the owner deliberately chose to see the approach at PR time. That's a legitimate owner call, but flag it: with-review means the delete-vs-supersede gap (see #6) and the arg-channel semantics get their first human look only at the PR, when they're already coded.
+
+**3. Contexts — relevant, one notable omission**
+
+- `coga/architecture`, `coga/codebase`, `dev/code` are all on-point for a kernel `launch` edit plus command-ticket authoring.
+- Missing: **`coga/principles`**. The pilot attached it, and this ticket touches the microkernel/stateless-command-ticket model and the correction loop (force-pushing outward, statelessness) — the non-negotiables are directly in play. Worth adding (it's ~2.7k tokens, far cheaper than architecture).
+- Nothing else critical missing; the Slack roll-up is covered by the existing `coga slack` command (confirmed present).
+
+**4. Context size — drop `coga/architecture`; it is not justified here**
+
+- Confirmed: architecture is 40,980 bytes (~10.2k tok, 55% of the prompt), paid on every step of a 4-step workflow. codebase is 13,424 bytes.
+- This ticket needs exactly two facts from architecture: local-first `coga/bootstrap/<name>/ticket.md` resolution, and the `launch` arg-channel seam. **Both are already restated in this ticket's ## Context** and in the pilot's Proposed Shape. The full context adds ~9.5k tokens of primitives/planes/locking that this work doesn't touch.
+- The one apparent reason to keep it — "update the arg-channel docs in `coga/architecture`" — does **not** require composing it into the prompt. The agent Reads/Edits that file directly when it reaches the docs step; a composed context is for *reasoning input*, not for *files you'll edit*.
+- **Recommendation: drop `coga/architecture` from `contexts:`.** Keep the two load-bearing sentences in ## Context. Keep `coga/codebase` and add `coga/principles`. Net prompt roughly halves.
+
+**5. Scope — it bundles genuinely separable work; call it two-PRs-worth**
+
+- Three distinct deliverables: (a) author the `resolve-conflicts` command ticket, (b) a **core kernel change** to compose trailing args into agent prompts, (c) delete `rebase-stale-worktrees` + migrate its cron intent.
+- (b) is not command-authoring — it's a shared `launch` seam that every future agent-arg use case inherits, and it's the hard prerequisite for `resolve-conflicts <PR>`. It deserves its own commit at minimum, arguably its own ticket. The "second use case" framing is why they're coupled, so keeping them together is defensible — but the ticket should sequence it explicitly: **seam first (kernel + tests), then the command that consumes it, then the deletion.** As written the acceptance criteria interleave them.
+
+**6. Assumptions to question before launch**
+
+- **The #625 dependency is real but already satisfied — the ticket says the opposite.** As in #1: correct this or the agent wastes a step. The *genuinely* unbuilt piece is only the agent-prompt composition.
+- **Supersession is not a strict superset — deleting `rebase-stale-worktrees` leaves a coverage gap.** Old task enumerates from **live branches** (worktrees + `branch:` under non-terminal tickets); new command enumerates from **open PRs** (`gh pr list`). A stale in-flight branch with **no PR yet** is rebased by the old task but invisible to the new one. Either enumerate both sets, or explicitly accept and document that pre-PR branches are no longer swept. Decide before delete.
+- **Blast radius of the sweep.** ~20 live branches, almost all conflicting and several likely superseded. A no-arg `coga resolve-conflicts` that resolves **semantic** conflicts and force-pushes across *all* open PRs at once is large, outward-facing, hard-to-reverse. Consider whether the *default* should be single-PR (opt-in sweep). Worth an explicit owner decision.
+- **Cron migration is under-specified.** If the recurring task is deleted in the same PR, the `0 8 * * 1` schedule either transfers to a scheduled `coga resolve-conflicts` or is dropped — decide before deletion so there's no window with neither.
+- Minor: verify `coga slack` posts the way the ticket assumes (one-line roll-up).
