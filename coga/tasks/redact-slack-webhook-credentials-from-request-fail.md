@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/codebase
 - dev/code
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -129,6 +129,7 @@ logs. Do not automate either action as part of this ticket.
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/629
 branch: codex/redact-slack-webhook-errors
 worktree: /tmp/coga-redact-slack-webhook
 
