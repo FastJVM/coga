@@ -1,7 +1,7 @@
 ---
 slug: recurring/dream
 title: Dream
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -621,6 +620,11 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Final scoped validation: `coga validate --json --task recurring/dream`
   reported 1 task OK and 0 issues; the installed CLI emitted a non-blocking
   source-version-skew warning.
+- Final status guard: the shared queue branch contains the product commit from
+  merged PR #634. `git cherry` marked that commit patch-equivalent on `main`;
+  the guard's three-dot path check nevertheless sees its old topology. The
+  terminal mark therefore uses the documented `--force` escape hatch for
+  independently durable product work.
 
 ## Dream Run Summary
 
@@ -656,3 +660,5 @@ PRs opened:
 Human gates: triage the 27 validate-drift reports; review PRs #642 and #643.
 PR #639 records the human decision to close the fallback proposal without
 merge.
+
+Slack summary: posted.
