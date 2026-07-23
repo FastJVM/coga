@@ -283,4 +283,295 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Findings
 
-_Phase 2 knowledge-scan and Phase 3 contract-audit findings will be recorded here._
+### Knowledge scan — coga/codebase
+
+- Title: Scrub inherited launch metadata in subprocess tests
+- Class: `extract`
+- Target: `coga/contexts/coga/codebase/SKILL.md`
+- Source tickets: `allow-open-pr-when-the-recorded-worktree-is-the-pr`,
+  `build-an-order-for-megqlaunch`,
+  `fix-automatically-pr-conflict-and-a-command-to-bat`,
+  `make-ticket-script-form-works`,
+  `validate-that-a-frozen-workflow-name-still-resolve`
+- Multiple done tickets independently found that subprocess tests inherited
+  live `COGA_TASK_*` / `COGA_SKILL_*` metadata and redirected fixture workers
+  into the outer task's blackboard. Add the durable isolation rule: scrub or
+  explicitly replace launch metadata before subprocess tests, preferably in
+  the autouse environment guard.
+
+### Knowledge scan — coga/extension-model
+
+- Title: Document command tickets as the shipped stateless extension surface
+- Class: `extract`
+- Target: `coga/contexts/coga/extension-model/SKILL.md`
+- Source tickets: `commands-as-tickets-open-pr-pilot`,
+  `fix-automatically-pr-conflict-and-a-command-to-bat`
+- The completed command-ticket work supersedes the context's claim that
+  Coga-authored stateless extensions have no implementation. Document
+  local-first bootstrap command tickets, alias-backed verbs, no per-invocation
+  lifecycle, script `COGA_ARG_*` delivery, and structured launch arguments for
+  agent-backed commands.
+
+### Knowledge scan — coga/architecture
+
+- Title: Correct the workflow-freeze guarantee
+- Class: `stale`
+- Target: `coga/contexts/coga/architecture/SKILL.md`
+- The statement that in-flight tickets are unaffected by later workflow edits
+  contradicts `remove-autonomy-triage` and
+  `validate-that-a-frozen-workflow-name-still-resolve`: frozen frontmatter
+  retains step metadata, but skill-less step prose is reloaded from the current
+  workflow definition. State that deleting, renaming, or emptying that
+  definition can degrade composition and now causes validation errors for live
+  tickets.
+
+### Contract audit — packaged architecture migration inventory
+
+- Title: Packaged architecture migration inventory lags live contract
+- Class: `drift`
+- Target: `src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md:220`
+- The packaged twin lists only `[assignees]`; `src/coga/config.py:231-240` and
+  `:462-489` also implement tailored errors for local `[secrets]` and removed
+  agent keys, matching the live architecture context.
+
+### Contract audit — read-only Git fallback
+
+- Title: Read-only Git fallback missing from live code contracts
+- Class: `drift`
+- Targets: `coga/contexts/dev/code/SKILL.md:20`,
+  `coga/skills/code/implement/SKILL.md:27`
+- Their packaged twins specify the independent `/tmp`
+  `git clone --no-hardlinks` fallback, and the Dream contract relies on it.
+  The live/packaged divergence is undocumented despite the twin-sync rule in
+  `AGENTS.md`.
+
+### Contract audit — bump status gate
+
+- Title: `bump` falsely described as status-agnostic
+- Class: `drift`
+- Target: `coga/contexts/coga/architecture/SKILL.md:290`
+- `src/coga/commands/bump.py:84-85` refuses every status except
+  `in_progress`, agreeing with the same context's contradictory statement at
+  lines 293-294.
+
+### Contract audit — launch-time parameters
+
+- Title: Launch-time parameters still documented as forbidden
+- Class: `drift`
+- Targets: `coga/contexts/coga/extension-model/SKILL.md:128-140`,
+  `docs/cli-extension-audit.md:227-231`
+- `src/coga/commands/launch.py:96-100,322-333` implements trailing script
+  arguments as `COGA_ARG_1..N` / `COGA_ARGC`, and `src/coga/aliases.py:52-55`
+  shows `open-pr` consuming that channel.
+
+### Contract audit — default aliases
+
+- Title: Default-alias inventory and implementation references are obsolete
+- Class: `drift`
+- Targets: `coga/contexts/coga/extension-model/SKILL.md:183`,
+  `docs/cli-extension-audit.md:21-28,121-124,168-170,238-240`
+- `src/coga/aliases.py:14-39,56-64` now owns built-ins and ships seven aliases,
+  adding `pick` and `open-pr`; the audit still points to removed `cli.py`
+  symbols and counts five. This overlaps the bootstrap-inventory finding.
+
+### Contract audit — bootstrap ticket inventory
+
+- Title: Bootstrap-ticket inventory omits live command targets
+- Class: `drift`
+- Target: `docs/cli-extension-audit.md:102-105`
+- Packaged artifacts include `bootstrap/browser-automation/ticket.md` and
+  `bootstrap/open-pr/ticket.md` in addition to the four listed. Browser
+  automation remains an unaliased stateless launch target, contradicting the
+  audit's claim that no unaliased passthrough remains.
+
+### Contract audit — create notification
+
+- Title: `coga create` falsely documented as posting Slack
+- Class: `drift`
+- Targets: `docs/cli-extension-audit.md:71`,
+  `coga/contexts/coga/current-direction/SKILL.md:215-219`
+- `src/coga/commands/create.py:1-5,59-62` explicitly defines raw creation as
+  Slack-silent.
+
+### Contract audit — watchers
+
+- Title: Watchers simultaneously documented as removed and implemented
+- Class: `drift`
+- Targets: `coga/contexts/coga/project-stage/SKILL.md:50`,
+  `coga/contexts/coga/current-direction/SKILL.md:230-232`
+- `src/coga/ticket.py:168-172` parses watchers and
+  `src/coga/notification/slack.py:30-49` renders mapped watcher mentions;
+  current-direction itself records their reintroduction at lines 200-205.
+
+### Contract audit — compatibility posture
+
+- Title: “No backwards-compat hacks” contradicts shipped compatibility paths
+- Class: `drift`
+- Target: `coga/contexts/coga/project-stage/SKILL.md:26-35`
+- `src/coga/config.py:793-795,875-890` retains deprecated `[slack]` and
+  bare-env fallbacks, while `src/coga/aliases.py:67-91` soft-migrates the
+  legacy `create` alias.
+
+### Contract audit — important recipient
+
+- Title: Important-recipient configuration still described as pending
+- Class: `drift`
+- Targets: `coga/contexts/coga/important/SKILL.md:32-35,69-71`
+- `src/coga/config.py:919-942` resolves
+  `[notification.slack].important_recipient`, and
+  `coga/contexts/coga/sync/SKILL.md:238-258` documents the shipped behavior.
+
+### Contract audit — period cleanup timing
+
+- Title: Period-task cleanup timing is wrong
+- Class: `drift`
+- Target: `coga/contexts/coga/period-task/SKILL.md:9-14`
+- Completed period tasks remain `status: done` until Dream deletes them or a
+  later recurring scan replaces them, as specified by
+  `coga/contexts/coga/recurring/SKILL.md:299-310` and implemented around
+  `src/coga/recurring_runner.py:1773-1779`.
+
+### Contract audit — canceled digest outcomes
+
+- Title: Canceled outcomes omitted from digest contracts
+- Class: `drift`
+- Targets: `coga/contexts/coga/sync/SKILL.md:204-210`,
+  `coga/skills/coga/digest/flush/SKILL.md:12-26`,
+  `coga/recurring/digest/ticket.md:21-42`
+- `src/coga/notification/__init__.py:80,203-218,277-296` accepts, spools, and
+  renders `canceled` records alongside done/error outcomes.
+
+### Contract audit — workflow snapshot timing
+
+- Title: Workflow snapshots still described as creation-only
+- Class: `drift`
+- Targets: `docs/vision.md:127`, `docs/market-thesis.md:313`
+- `src/coga/mark.py:360-378` freezes a bare workflow reference at activation,
+  and `docs/concepts.md:116-120` states the current creation-or-activation
+  rule.
+
+### Contract audit — lock claim
+
+- Title: Vision still claims local locks
+- Class: `drift`
+- Target: `docs/vision.md:236`
+- The live architecture explicitly rejects filesystem mutexes, while
+  `docs/concepts.md:148-151` identifies task status as the concurrency signal.
+
+### Contract audit — shipped trust layer
+
+- Title: Market thesis says the already-shipped trust layer is missing
+- Class: `drift`
+- Targets: `docs/market-thesis.md:305,358`
+- The same document records supervised liveness, recurring execution, checked
+  notifications, and atomic writes as built at lines 279-298; implementations
+  include `src/coga/repl_supervisor.py`, `src/coga/atomicio.py`, and
+  `src/coga/notification/slack.py`.
+
+## Phase Results
+
+### Phase 1 — validate-drift
+
+- Child task: `dream-validate-drift-w30` (`dream/validate-drift`), completed.
+- Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.validate --json --fix`.
+- Result: `human-needed`; 27 issues, 0 direct fixes, 0 PR proposals.
+- Breakdown: 6 `stuck-in-progress`, 8 `unfrozen-workflow`, 5
+  `unknown-assignee`, 3 `missing-step`, and 5
+  `unsynthesized-draft-blackboard`.
+- No files were repaired. Lifecycle, ownership, routing, and draft synthesis
+  decisions remain explicitly human-owned; full remediation lines are in the
+  child task blackboard.
+
+### Phase 2 — knowledge scan
+
+- Result: `reported`; 3 findings from a complete corpus read (2 `extract`, 1
+  `stale`, 0 `gap`).
+- Corpus: 155 canonical task tickets plus 6 task-tree support/template
+  artifacts, 21 local contexts, 22 local skills, 9 local workflows, and their
+  effective packaged counterparts.
+- Candidate gaps already had durable tickets, so no new gap survived
+  deduplication.
+
+### Phase 3 — contract audit
+
+- Result: `reported`; 15 `drift` findings from 64 living contract files.
+- Corpus: 20 contexts, 21 skills, 7 recurring templates, 13 `docs/*.md`
+  documents, and 3 top-level documentation/instruction files. Frozen task
+  artifacts were excluded.
+- Findings include 3 undocumented divergent twin files (grouped into 2
+  findings) and 13 code/artifact-versus-prose contradictions.
+
+### Phase 4 — Retro
+
+- Result: `pr-opened` + `direct-fixed`; all 56 eligible done tasks received
+  exactly one disposition.
+- [PR #636 — New context: isolate subprocess tests from launch
+  metadata](https://github.com/FastJVM/coga/pull/636) updates
+  `coga/contexts/coga/codebase/SKILL.md` and deletes
+  `allow-open-pr-when-the-recorded-worktree-is-the-pr`.
+- [PR #637 — New context: stateless commands are local-first command
+  tickets](https://github.com/FastJVM/coga/pull/637) updates
+  `coga/contexts/coga/extension-model/SKILL.md` and deletes
+  `commands-as-tickets-open-pr-pilot`.
+- Both PRs are open, clean, mergeable, within the Retro batch limits, and have
+  pushed heads. Their source `## Retro` markers are preserved in branch
+  history before the source paths disappear at the PR tips. Both PR Slack FYIs
+  posted.
+- The other 54 no-new-knowledge tasks were direct-deleted on `origin/main`
+  as 54 exact `Ticket: <slug> — deleted` commits (58 artifact files):
+  `add-a-status-canceled-for-ticket`,
+  `append-queue-execution-guidance-to-recurring-agent`,
+  `bug-if-not-on-megalaunch-don-t-block-ask`,
+  `build-an-order-for-megqlaunch`,
+  `check-we-can-extend-coga-recurring`,
+  `clean-up-workflows-and-make-sure-they-re-in-bootst`,
+  `coga-important/add-coga-slack-important`,
+  `coga-important/add-toml-property-for-notification-recipient`,
+  `coga-important/context`, `coga-important/support-second-webhook`,
+  `distill-git-conflict-errors-and-stop-compounding-d`,
+  `dream-cleanup-orphan-markers-w29`, `dream-validate-drift-w30`,
+  `fail-loud-on-prose-sub-directory-prefixes-in-coga`,
+  `fail-validation-for-unsynthesized-draft-blackboard`,
+  `fix-automatically-pr-conflict-and-a-command-to-bat`,
+  `handle-better-delete-branches-autcommit`,
+  `improve-prompt-for-relay-ticket`,
+  `install/actionable-hint-when-recurring-template-references`,
+  `install/add-migration-errors-for-removed-config-keys`,
+  `install/cut-release-to-realign-pypi-with-main`,
+  `install/decide-whether-gh-stays-required-at-init`,
+  `install/gh-auth-hint-on-managed-skill-rate-limit`,
+  `install/harden-packaging-and-install-before-launch`,
+  `install/improve-reinit-already-exists-message`,
+  `install/init-next-steps-should-mention-agent-cli-requireme`,
+  `install/retest-ssh-https-and-init-reclone-on-fresh-machine`,
+  `install/vendor-cli-from-installed-package-not-git-clone`,
+  `install/warn-loud-when-init-commit-is-skipped`,
+  `log-md-coga-chat-too-so-we-have-a-full-view-of-the`,
+  `make-open-pr-metadata-tolerate-annotated-branch-an`,
+  `make-ticket-script-form-works`,
+  `marketing/rewrite-readme-around-the-wedge`,
+  `metrics-human-minutes-script`,
+  `move-browser-automation-entry-point-out-of-seeded`,
+  `move-open-pr-gate-from-launch-into-bump-make-open`,
+  `move-open-pr-recipe-into-the-code-open-pr-skill-ke`,
+  `move-per-session-usage-records-from-ticket-blackbo`,
+  `on-resize-update-stauts-and-pick`,
+  `recurring-bugs/coga-usage-cannot-locate-claude-transcript-or-sess`,
+  `recurring-bugs/recurring-all-diverges-two-checkouts-of-one-remote`,
+  `recurring-bugs/recurring-all-sweeps-throwaway-coga-scratch-clones`,
+  `recurring-bugs/recurring-dream-launch-mis-points-coga-task-env-at`,
+  `recurring-bugs/recurring-scan-should-skip-and-report-an-unloadabl`,
+  `recurring-bugs/retro-and-delete-branch-switch-the-primary-checkou`,
+  `recurring/autoclose-merged`, `recurring/branch-sweep`,
+  `recurring/digest`, `recurring/skill-update`,
+  `redact-slack-webhook-credentials-from-request-fail`,
+  `remove-autonomy-triage`,
+  `validate-that-a-frozen-workflow-name-still-resolve`,
+  `validate-tickets-at-create-time`, and
+  `why-browser-autoamtion-as-a-ticket`.
+- Remote verification: `origin/main` is
+  `b86ad68eb8d1a7e172363d34d78f10f7e409a8b5`, exactly 54 delete commits
+  beyond the fetched base; all 54 direct-delete paths are absent, while both
+  PR source paths remain on main pending review.
+- Cleanup verified: copied `coga.local.toml`, linked checkout, temporary
+  branch, and evidence snapshot were removed after durability checks.
