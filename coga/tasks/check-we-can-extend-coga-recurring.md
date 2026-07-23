@@ -1,7 +1,7 @@
 ---
 slug: check-we-can-extend-coga-recurring
 title: check we can extend coga recurring
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
