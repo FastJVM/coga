@@ -1,7 +1,7 @@
 ---
 slug: fix-automatically-pr-conflict-and-a-command-to-bat
 title: fix automatically PR conflict and a command to batch fix them
-status: in_progress
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -31,7 +31,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
