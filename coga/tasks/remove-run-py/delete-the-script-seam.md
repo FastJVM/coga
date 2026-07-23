@@ -1,7 +1,7 @@
 ---
 slug: remove-run-py/delete-the-script-seam
 title: Delete the script-seam
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -93,3 +93,26 @@ merged; running it earlier would delete the seam out from under a live consumer
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dependency check (2026-07-23)
+
+- Ticket A, `remove-run-py/add-coga-run-generic-runner-and-migrate-recurring`,
+  is still at `review-design`; ticket B,
+  `remove-run-py/port-hard-consumers-onto-the-generic-runner`, is still
+  `active`.
+- The destructive precondition is not met: 18 live or packaged `run.py` files
+  remain, including recurring jobs, open-pr, and delete-task. There are 19
+  live/package `script:` declarations (including instantiated recurring
+  tickets with `script: null`), rather than only the two vestigial show/finalize
+  twins.
+- `src/coga/delete_task.py` still imports `coga.commands.launch_script`, and
+  recurring launch code still calls `is_script_launch`. Deleting the seam now
+  would break live consumers.
+- Decision: do not create a branch or edit implementation files. Retry C only
+  after A and B are completed and merged.
+
+---
+
+## Blockers
+
+- [ ] [2026-07-23 07:43] [agent:claude] id=20260723T074319 Precondition failed: remove-run-py/add-coga-run-generic-runner-and-migrate-recurring is still at review-design and remove-run-py/port-hard-consumers-onto-the-generic-runner is still active; live recurring, open-pr, and delete-task script consumers remain. Complete and merge A, then B, before retrying C.
