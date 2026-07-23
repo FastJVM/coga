@@ -68,13 +68,15 @@ entrypoint over an existing `coga.*` function (e.g.
 `coga/skills/coga/blockers/remind/run.py` → `coga.blocker_reminders.remind_blocked_tasks`),
 so the recipe logic already exists and does not move.
 
-**Explicitly NOT in this ticket:** `open-pr` (its recipe is *not* in a `coga.*`
-module and it carries real ownership/stdout logic — that's ticket B); deleting
-`launch_script.py`, the `script:` frontmatter field, `is_script_launch`
+**Explicitly NOT in this ticket:** the two seam-integrated *hard* consumers —
+`open-pr` and `delete-task` — whose recipes are not in `coga.*` modules and
+which carry real ownership/stdout/subprocess logic (both are ticket B); and
+deleting `launch_script.py`, the `script:` frontmatter field, `is_script_launch`
 dispatch, or the docs (ticket C). Keep the old seam runnable.
 
-**Dependency order:** A (this) → B (`port-open-pr`) → C (`delete-the-script-seam`).
-B needs this runner; C must run only after A and B leave zero seam consumers.
+**Dependency order:** A (this) → B (`port-hard-consumers`) → C
+(`delete-the-script-seam`). B needs this runner; C must run only after A and B
+leave zero *live* seam consumers.
 
 **Sync:** every `run.py` and skill has a live copy under `coga/skills/` and a
 packaged twin under `src/coga/resources/templates/coga/bootstrap/skills/...`;
