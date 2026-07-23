@@ -37,9 +37,48 @@ step: 1 (design)
 
 ## Description
 
+**Ticket A of 3** in `remove-run-py/` (removing Coga's script-seam). This one
+builds the replacement and migrates the easy consumers; it is deliberately
+non-destructive — the old seam stays alive alongside the new runner. Deleting
+the seam is ticket C.
 
+Add a single generic runner — `coga run <recipe> [args...]` — backed by a
+name→function dispatch table over the recipe functions that already live in
+`coga.*` core modules. Then migrate every deterministic recurring job off its
+`script: run.py` skill so the recurring runner invokes `coga run <recipe>`
+directly instead of launching a script step.
+
+The `design` step produces the reviewable spec: the runner's arg channel (what
+replaces `COGA_ARG_*` / `COGA_ARGC`), how a recipe name resolves to a function,
+where the dispatch table lives, and the exact per-job migration. Owner reviews
+that spec before implementation.
+
+Done: `coga run <recipe>` exists and is tested; the recurring jobs below run via
+it (their `run.py` files can be deleted here since they are pure wrappers, or
+left for ticket C — the design spec decides, but no *other* consumer changes);
+the old `script:` seam still functions for open-pr; suite + `coga validate` pass.
 
 ## Context
+
+**In scope — the genuinely-thin recurring jobs only:** `coga/autoclose/sweep`,
+`coga/digest/flush`, `coga/blockers/remind`, `coga/branch-sweep/sweep`,
+`bootstrap/dream/tasks/validate-drift`, `bootstrap/dream/tasks/cleanup-orphan-markers`,
+`bootstrap/recurring-scan`, `bootstrap/skill-update`. Each `run.py` is a ~20-line
+entrypoint over an existing `coga.*` function (e.g.
+`coga/skills/coga/blockers/remind/run.py` → `coga.blocker_reminders.remind_blocked_tasks`),
+so the recipe logic already exists and does not move.
+
+**Explicitly NOT in this ticket:** `open-pr` (its recipe is *not* in a `coga.*`
+module and it carries real ownership/stdout logic — that's ticket B); deleting
+`launch_script.py`, the `script:` frontmatter field, `is_script_launch`
+dispatch, or the docs (ticket C). Keep the old seam runnable.
+
+**Dependency order:** A (this) → B (`port-open-pr`) → C (`delete-the-script-seam`).
+B needs this runner; C must run only after A and B leave zero seam consumers.
+
+**Sync:** every `run.py` and skill has a live copy under `coga/skills/` and a
+packaged twin under `src/coga/resources/templates/coga/bootstrap/skills/...`;
+keep them in sync. Recurring templates live under `coga/tasks/recurring/`.
 
 <!-- coga:blackboard -->
 
