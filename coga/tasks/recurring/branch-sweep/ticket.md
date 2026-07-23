@@ -1,7 +1,7 @@
 ---
 slug: recurring/branch-sweep
 title: Branch sweep
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
