@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from textwrap import dedent
 
@@ -49,6 +50,25 @@ def repo(tmp_path: Path):
         """,
     )
     return company
+
+
+def _write_skillless_release_workflow(
+    repo: Path, *, instructions: str = "Ship the release."
+) -> Path:
+    workflow_path = repo / "workflows" / "custom" / "release.md"
+    _write(workflow_path, f"""
+        ---
+        name: custom/release
+        description: Release workflow.
+        steps:
+          - name: release
+        ---
+
+        ## release
+
+        {instructions}
+    """)
+    return workflow_path
 
 
 def test_clean_repo_has_no_issues(repo: Path) -> None:
@@ -274,6 +294,149 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     report = run(cfg)
     kinds = [i.kind for i in report.issues]
     assert "unfrozen-workflow" in kinds
+
+
+@pytest.mark.parametrize(
+    "status", ["active", "in_progress", "blocked", "paused"]
+)
+def test_validate_json_flags_deleted_frozen_workflow(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    status: str,
+) -> None:
+    workflow_path = _write_skillless_release_workflow(repo)
+    cfg = load_config(repo)
+    task = create_task(
+        cfg=cfg, title="Release", workflow_name="custom/release",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status=status,
+    )
+    monkeypatch.chdir(repo)
+
+    assert _main(["--json"]) == 0
+    before = json.loads(capsys.readouterr().out)
+    assert not [
+        issue for issue in before["issues"]
+        if issue["kind"] == "broken-workflow"
+    ]
+
+    workflow_path.unlink()
+
+    assert _main(["--json"]) == 1
+    after = json.loads(capsys.readouterr().out)
+    issue = next(
+        issue for issue in after["issues"]
+        if issue["kind"] == "broken-workflow"
+    )
+    assert issue["task"] == task["slug"]
+    assert issue["severity"] == "error"
+    assert "custom/release" in issue["message"]
+
+
+def test_validate_flags_malformed_current_frozen_workflow(repo: Path) -> None:
+    workflow_path = _write_skillless_release_workflow(repo)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Release", workflow_name="custom/release",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    _write(workflow_path, """
+        ---
+        name: custom/release
+        description: Release workflow.
+        steps: []
+        ---
+    """)
+
+    report = run(cfg)
+
+    issue = next(
+        issue for issue in report.issues
+        if issue.kind == "broken-workflow"
+    )
+    assert issue.severity == "error"
+    assert "steps" in issue.message
+
+
+def test_validate_json_flags_empty_instructions_for_skillless_frozen_step(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_skillless_release_workflow(repo)
+    cfg = load_config(repo)
+    task = create_task(
+        cfg=cfg, title="Release", workflow_name="custom/release",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    monkeypatch.chdir(repo)
+
+    assert _main(["--json"]) == 0
+    capsys.readouterr()
+
+    _write_skillless_release_workflow(repo, instructions="")
+
+    assert _main(["--json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    issue = next(
+        issue for issue in payload["issues"]
+        if issue["kind"] == "missing-step-instructions"
+    )
+    assert issue["task"] == task["slug"]
+    assert issue["severity"] == "error"
+    assert "release" in issue["message"]
+
+
+def test_skill_backed_frozen_step_does_not_require_inline_instructions(
+    repo: Path,
+) -> None:
+    _write(repo / "workflows" / "custom" / "release.md", """
+        ---
+        name: custom/release
+        description: Release workflow.
+        steps:
+          - name: release
+            skills:
+              - infra/tests
+        ---
+    """)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Release", workflow_name="custom/release",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    report = run(cfg)
+
+    assert "missing-step-instructions" not in [
+        issue.kind for issue in report.issues
+    ]
+
+
+@pytest.mark.parametrize("status", ["draft", "done", "canceled"])
+def test_non_live_ticket_does_not_require_frozen_workflow_to_resolve(
+    repo: Path,
+    status: str,
+) -> None:
+    workflow_path = _write_skillless_release_workflow(repo)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Release", workflow_name="custom/release",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status=status,
+    )
+    workflow_path.unlink()
+
+    report = run(cfg)
+
+    assert not [
+        issue for issue in report.issues
+        if issue.kind in {"broken-workflow", "missing-step-instructions"}
+    ]
 
 
 def test_invalid_status(repo: Path) -> None:
@@ -520,9 +683,15 @@ def test_authoring_blackboard_error_is_draft_only(repo: Path) -> None:
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active",
+        watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
+    # This fixture's workflow intentionally has no inline instructions. Build
+    # the invalid active state on disk so the new create-time validation gate
+    # does not obscure this test's draft-only blackboard assertion.
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "active"
+    ticket.write(ref.ticket_path)
     replace_blackboard(ref.ticket_path, "\n## Evaluator review\n\nActive work note.\n")
 
     report = run(cfg)
@@ -1192,9 +1361,14 @@ def test_stuck_in_progress_flagged(repo: Path) -> None:
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="in_progress",
+        watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
+    # As above, bypass the create-time workflow-instruction gate because this
+    # test deliberately exercises validator output for invalid on-disk state.
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(ref.ticket_path)
     # Single-file format: idle time derives from the task's most recent line in
     # the repo-global log (tagged by ref), not a per-task log.md mtime. Seed a
     # backdated activity line 100 hours ago.

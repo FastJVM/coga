@@ -244,6 +244,12 @@ def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None
           - name: review
             assignee: human
         ---
+
+        ## implement
+        Write the code.
+
+        ## review
+        Review the code.
         """,
     )
     cfg = load_config(repo)

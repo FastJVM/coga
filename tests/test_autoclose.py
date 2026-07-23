@@ -78,6 +78,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         ## implement
         Write the code.
+
+        ## review
+        Review the code.
         """,
     )
     monkeypatch.chdir(company)

@@ -1008,6 +1008,9 @@ def _create_chain_task(active_task: Path) -> dict[str, object]:
           - name: review
             assignee: human
         ---
+
+        ## review
+        Review the change.
         """,
     )
     _write_skill(active_task, "code/implement", "Implement the change.")
@@ -1690,6 +1693,9 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
           - name: review
             assignee: human
         ---
+
+        ## review
+        Review the change.
         """,
     )
     _write_skill(active_task, "code/implement", "Implement the change.")
@@ -2790,6 +2796,9 @@ def test_launch_interactive_rotates_across_agents(
 
         ## peer
         Peer review by the other agent.
+
+        ## review
+        Review the result.
         """,
     )
     cfg = load_config(active_task)
@@ -2941,6 +2950,9 @@ def test_current_step_is_script_detects_scripted_step(active_task: Path) -> None
           - name: review
             assignee: human
         ---
+
+        ## review
+        Review the result.
         """,
     )
     _write_skill(active_task, "code/plain", "A plain agent skill.")
@@ -2987,6 +2999,9 @@ def test_launch_runs_scripted_step_as_script_not_agent(
           - name: review
             assignee: human
         ---
+
+        ## review
+        Review the result.
         """,
     )
     _write_scripted_skill(active_task, "code/scripted")
@@ -3047,6 +3062,9 @@ def test_launch_chains_agent_into_scripted_step(
 
         ## implement
         Do the work.
+
+        ## review
+        Review the result.
         """,
     )
     _write_scripted_skill(active_task, "code/scripted")
