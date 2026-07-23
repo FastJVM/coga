@@ -563,10 +563,14 @@ the bare sweep covers the configured current user's own tickets; an explicit
 - **Bare `coga megalaunch`** sweeps every launchable `active` or
   `in_progress` task — `active` work starts, `in_progress` work resumes.
 - **`coga megalaunch --pick`** opens an interactive arrow-key picker over
-  every task worth launching — any owner, any non-terminal status: every
-  `draft` (offered even when not-yet-ready — see the prepare phase below),
-  plus `active`, `in_progress`, `paused`, and blocked-with-open-asks that are
-  agent-assigned or a script launch. Nothing starts checked: ↑/↓ (or `j`/`k`)
+  every non-terminal task — any owner, any status except `done`/`canceled`,
+  with **no** launchability pre-filter: every `draft` (offered even when
+  not-yet-ready — see the prepare phase below), plus every `active`,
+  `in_progress`, `paused`, and `blocked` ticket, including human-assigned,
+  stepless, or ask-less ones. Hiding them would let you pick "everything" and
+  silently miss real work; a checked row that can't actually launch is not
+  dropped but reported by the staged run (`skipped-human-gate` /
+  `skipped-unlaunchable`). Nothing starts checked: ↑/↓ (or `j`/`k`)
   move the cursor, Space toggles the row, `a`/`n` check all/none, Enter
   launches the checked set, `q`/Esc quits without launching. The confirmed set
   runs as an explicit selection and is saved for `--relaunch`.

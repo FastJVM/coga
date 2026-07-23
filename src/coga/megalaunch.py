@@ -729,16 +729,16 @@ def launchable_candidates(
 ) -> list[tuple[TaskRef, Ticket]]:
     """The tasks the interactive picker offers, oldest-first.
 
-    Everything an explicit pick could actually launch — any owner, any
-    non-terminal status: `active`/`in_progress` start or resume, `blocked` resumes
-    interactively when it has open asks, and any `draft` is offered
-    unconditionally — the picker runs the guided authoring interview on a
-    picked draft first, so a not-yet-ready draft (no workflow or agent
-    assignee) is exactly what that phase exists to fix. Non-draft tasks must
-    be launchable as they stand: a script launch (script-backed step or a
-    ticket-owned `script:`) regardless of assignee, otherwise agent-assigned
-    with a real current step. Unreadable tickets are skipped here (the picker
-    offers choices; the run reports failures).
+    Every non-terminal task of any owner — `done` and `canceled` are the only
+    exclusions. The picker deliberately does *not* pre-filter for
+    launchability: a human-assigned ticket, a stepless one, or an ask-less
+    `blocked` ticket all show up, because hiding them silently would let the
+    operator pick "everything" and quietly miss real work. Checking a row that
+    can't actually launch is not an error — the staged run reports it
+    (`skipped-human-gate` / `skipped-unlaunchable`) instead of dropping it.
+    Drafts are offered as-is; the prepare phase authors them into shape.
+    Unreadable tickets are the only silent skip (the picker offers choices; the
+    run reports failures).
     """
     candidates: list[tuple[TaskRef, Ticket]] = []
     for ref in filter_tasks_under(_tasks_oldest_first(cfg), directory, cfg):
@@ -747,15 +747,6 @@ def launchable_candidates(
         except TicketError:
             continue
         if ticket.status in TERMINAL_STATUSES:
-            continue
-        if ticket.status == "draft":
-            # Offered as-is: the prepare phase authors it into shape.
-            candidates.append((ref, ticket))
-            continue
-        if not is_script_launch(cfg, ticket):
-            if ticket.assignee not in cfg.agents or ticket.current_step() is None:
-                continue
-        if ticket.status == "blocked" and not open_blockers(ref.ticket_path):
             continue
         candidates.append((ref, ticket))
     return candidates

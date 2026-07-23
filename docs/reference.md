@@ -96,8 +96,9 @@ implementation actually needs one.
 Run the shared megalaunch engine once — a sweep that launches every launchable
 task (optionally scoped to `tasks/<DIR>/`).
 
-- `--pick` — choose interactively from an arrow-key list of every launchable task
-  (any owner, any non-terminal status, drafts included); the confirmed set is
+- `--pick` — choose interactively from an arrow-key list of every non-terminal
+  task (any owner, any status except done/canceled — no launchability
+  pre-filter; unlaunchable picks are reported by the staged run); the confirmed set is
   prepared, activated, launched, and saved for `--relaunch`. Also available as
   the `coga pick` alias.
 - `--relaunch` — re-run the last confirmed picker selection.
