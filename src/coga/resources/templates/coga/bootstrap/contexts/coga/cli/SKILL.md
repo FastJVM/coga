@@ -653,15 +653,19 @@ An optional positional `DIR` scopes the sweep or the picker to tasks under
 directory fails loud instead of sweeping nothing silently. It composes with
 `--agent` and `--pick`.
 
-## coga slack --task \<slug\> --message "..."
+## coga slack --task \<target\> --message "..."
 
 Manual broadcast escape hatch — posts a short FYI to the team Slack
 channel without changing task state. Use for events that don't
 coincide with a state transition (e.g. announcing a hand-edit to a
-ticket, or surfacing a non-blocker mid-step). For FYIs that *do*
+ticket, surfacing a non-blocker mid-step, or reporting from a stateless
+`bootstrap/<name>` command ticket). For FYIs that *do*
 coincide with a `bump`, use `bump --message` instead — one post,
 not two. Notifications are optional on first run (a fresh repo selects no
 channels), so with nothing configured this posts nothing and does not crash.
+For a bootstrap target only, a successful FYI also signals that target's
+supervised agent session complete; ordinary task FYIs never advance or end a
+workflow.
 Once Slack is selected it is fail-loud (see `coga/sync`): commands crash if
 `$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
 `[notification.slack].enabled = false`.

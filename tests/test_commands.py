@@ -14,7 +14,7 @@ from coga.create import create_task
 from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import log_path
-from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV
+from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV, SENTINEL_ENV
 from coga.taskfile import join_task_body, read_blackboard, replace_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
@@ -813,6 +813,45 @@ def test_slack_logs(repo: Path) -> None:
     result = runner.invoke(app, ["slack", "--task", slug, "--message", "opened PR #142"])
     assert result.exit_code == 0
     assert "slack: opened PR #142" in _log_text(repo, slug)
+
+
+def test_slack_on_durable_task_does_not_complete_session(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(repo)
+    sentinel = repo / "task-session.done"
+    monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
+
+    result = CliRunner().invoke(
+        app, ["slack", "--task", slug, "--message", "still working"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert not sentinel.exists()
+
+
+def test_slack_accepts_and_completes_stateless_bootstrap_target(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A command ticket's final roll-up releases its stateless supervisor."""
+    sentinel = repo / "bootstrap-command.done"
+    monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
+    result = CliRunner().invoke(
+        app,
+        [
+            "slack",
+            "--task",
+            "bootstrap/resolve-conflicts",
+            "--message",
+            "2 rebased-pushed; 1 conflict",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "slack: 2 rebased-pushed; 1 conflict" in _log_text(
+        repo, "bootstrap/resolve-conflicts"
+    )
+    assert sentinel.read_text() == "bootstrap/resolve-conflicts\n"
 
 
 def test_slack_important_forwards_to_notification_post(

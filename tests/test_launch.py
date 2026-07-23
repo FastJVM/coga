@@ -2310,6 +2310,43 @@ def test_launch_prompt_report_prints_layers_without_launching(
 # --- bootstrap tickets ---------------------------------------------------------
 
 
+def test_resolve_conflicts_bootstrap_launch_is_stateless_and_receives_pr_arg(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The shipped command ticket stays agent-backed and receives its optional
+    PR selector through the generic launch-argument prompt seam."""
+    _allow_interactive_tty(monkeypatch)
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    cfg = load_config(active_task)
+    before = [(ref.id_slug, Ticket.read(ref.ticket_path).status) for ref in list_tasks(cfg)]
+    result = CliRunner().invoke(
+        app, ["launch", "bootstrap/resolve-conflicts", "631"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    prompt = _prompt_arg(calls[0])
+    assert "## Launch arguments" in prompt
+    assert '["631"]' in prompt
+    assert "gh pr list --state open" in prompt
+    assert "open PRs only" in prompt
+    after = [(ref.id_slug, Ticket.read(ref.ticket_path).status) for ref in list_tasks(cfg)]
+    assert after == before
+
+
 @pytest.fixture
 def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A coga/ with a bootstrap/ticket launch target and a stub skill, no tasks."""

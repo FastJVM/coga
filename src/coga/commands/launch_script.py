@@ -109,12 +109,13 @@ def apply_arg_env(env: dict[str, str], args: Sequence[str] | None) -> None:
     """Write the trailing-launch-argument contract (`COGA_ARG_*`) into `env`.
 
     `coga launch <target> [ARGS...]` forwards trailing args to *script*
-    launches only, as `COGA_ARG_1..N` plus `COGA_ARGC` (agent launches refuse
-    them fail-loud in `coga launch`). `COGA_ARGC` is always set so a script
-    can distinguish "launched with zero args" from a malformed invocation
-    without probing for `COGA_ARG_1`. The `COGA_` namespace is reserved for
-    launch metadata (secrets named `COGA_*` are rejected at config parse), so
-    these variables cannot collide with a declared secret.
+    launches as `COGA_ARG_1..N` plus `COGA_ARGC`; agent launches receive their
+    values in the prompt instead (see `launch._agent_args_prompt_suffix`).
+    `COGA_ARGC` is always set so a script can distinguish "launched with zero
+    args" from a malformed invocation without probing for `COGA_ARG_1`. The
+    `COGA_` namespace is reserved for launch metadata (secrets named `COGA_*`
+    are rejected at config parse), so these variables cannot collide with a
+    declared secret.
 
     The whole `COGA_ARG_*` namespace is rewritten, not merely overlaid: `env`
     starts from the launcher's own environment, so a nested launch with fewer

@@ -17,15 +17,21 @@ import typer
 from coga.config import ConfigError, load_config
 from coga.logfile import append_log
 from coga.notification import post
+from coga.repl_supervisor import emit_done_marker
 from coga.tasks import (
+    BootstrapRef,
     TaskNotFoundError,
     read_ticket,
-    resolve_task,
+    resolve_target,
 )
 
 
 def slack(
-    task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
+    task: str = typer.Option(
+        ...,
+        "--task",
+        help="Task ID, id-slug, or `bootstrap/<name>` command ticket.",
+    ),
     message: str = typer.Option(..., "--message", help="Short FYI message."),
     important: bool = typer.Option(
         False,
@@ -43,7 +49,7 @@ def slack(
         _bail(str(exc))
 
     try:
-        ref = resolve_task(cfg, task)
+        ref = resolve_target(cfg, task)
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
@@ -60,6 +66,13 @@ def slack(
         important=important,
     )
     append_log(cfg, ref.id_slug, actor, f"slack: {message}")
+    # A stateless agent-backed command ticket has no workflow transition it can
+    # use to release `coga launch`'s REPL supervisor. Its final roll-up FYI is
+    # the natural completion boundary: after the post succeeds and its audit
+    # line is durable, signal this bootstrap session done. Ordinary task FYIs
+    # remain non-terminal; their workflow still ends through bump/mark/block.
+    if isinstance(ref, BootstrapRef):
+        emit_done_marker(session_id=ref.id_slug)
     typer.echo("posted")
 
 

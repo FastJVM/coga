@@ -52,7 +52,9 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
 # interactive megalaunch picker. ``open-pr`` fronts the ``bootstrap/open-pr``
 # command ticket — the argv rewrite carries the task ref through to the
 # launch arg channel (``coga open-pr <slug>`` → ``launch bootstrap/open-pr
-# <slug>`` → ``COGA_ARG_1``).
+# <slug>`` → ``COGA_ARG_1``). ``resolve-conflicts`` fronts an agent-backed
+# command ticket; its optional PR selector reaches the appended launch-argument
+# prompt block through the same argv rewrite.
 DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
@@ -61,6 +63,7 @@ DEFAULT_ALIASES: dict[str, str] = {
     "autoclose": "recurring launch autoclose-merged",
     "pick": "megalaunch --pick",
     "open-pr": "launch bootstrap/open-pr",
+    "resolve-conflicts": "launch bootstrap/resolve-conflicts",
 }
 
 

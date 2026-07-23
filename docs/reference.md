@@ -209,6 +209,20 @@ trailing usage record, keeping the PR branch mergeable with control and aligned
 with the local tip. Independent fallback clones keep using the primary control
 checkout for this command.
 
+### `coga resolve-conflicts [PR]`
+
+Rebase stale open-PR branches onto `origin/main`, resolve conflicts with agent
+judgment, verify the resulting diff (`python -m pytest` when `src/` or `tests/`
+changed), and push only with an explicit force-with-lease. Omit `PR` to sweep
+the repository's open PRs; pass one PR number or URL to scope the run. Each PR
+is reported as `rebased-pushed`, `up-to-date`, `conflict`, `skipped-dirty`, or
+`verify-failed`, followed by a one-line Slack roll-up. Unsafe or ambiguous
+resolutions are aborted and never pushed.
+
+This is a default alias for the stateless, agent-backed
+`coga launch bootstrap/resolve-conflicts [PR]` command ticket. It intentionally
+sees open PRs only; stale branches with no PR are outside its scope.
+
 ### `coga retire TASK`
 Wrap up a **done** task: prune its Git branch (local and its merged `origin`
 counterpart, read from `## Dev`), then launch a `retro/done-ticket` pass. The
@@ -266,8 +280,12 @@ Show agent token usage recorded in `coga/log.md`.
 
 ## Notifications
 
-### `coga slack --task TASK --message "<text>"`
-Post an FYI through the configured notification channel(s). Both flags required.
+### `coga slack --task TARGET --message "<text>"`
+Post an FYI through the configured notification channel(s). `TARGET` may be a
+durable task or a stateless `bootstrap/<name>` command ticket. Both flags are
+required. A successful bootstrap-target FYI is also that stateless agent
+command's completion signal to its launch supervisor; durable-task FYIs do not
+advance or end their workflow.
 
 - `--important` — route to the important notification destination (the
   human-action channel) instead of the default.
@@ -324,5 +342,6 @@ Positional args after the alias name forward to the expanded form.
 | `coga autoclose` | `coga recurring launch autoclose-merged` |
 | `coga pick` | `coga megalaunch --pick` |
 | `coga open-pr` | `coga launch bootstrap/open-pr` |
+| `coga resolve-conflicts` | `coga launch bootstrap/resolve-conflicts` |
 
 Aliases are just config — edit or add your own in `coga.toml`.
