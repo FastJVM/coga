@@ -1,7 +1,7 @@
 ---
 slug: dream-cleanup-orphan-markers-w30
 title: Dream cleanup orphan markers W30
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,7 +17,6 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 1 (run)
 ---
 
 ## Description
@@ -29,3 +28,10 @@ step: 1 (run)
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-07-23T22:31:22+00:00
+Task: `dream-cleanup-orphan-markers-w30`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
