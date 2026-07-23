@@ -2858,3 +2858,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-22 22:27 [remove-run-py-everywhere] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-23 07:00 [remove-run-py/add-coga-run-generic-runner-and-migrate-recurring] [human:nicktoper] created (status=draft)
 2026-07-23 07:00 [remove-run-py/port-open-pr-onto-the-generic-runner] [human:nicktoper] created (status=draft)
+2026-07-23 07:00 [remove-run-py/delete-the-script-seam] [human:nicktoper] created (status=draft)
