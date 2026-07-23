@@ -1,7 +1,7 @@
 ---
 slug: recurring/rebase-stale-worktrees
 title: Rebase stale worktrees
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -83,3 +83,9 @@ abandoned or already-merged residue — branch-sweep's problem, not this task's.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+---
+
+## Blockers
+
+- [ ] [2026-07-23 10:30] [agent:claude] id=20260723T103037 Rebase sweep is complete and its full results are written to the parent blackboard (coga/recurring/rebase-stale-worktrees/ticket.md: ## Rebase Run Summary, base e842c8d3). Cannot record completion: 'coga mark done' trips the direct/body strand guard on product commits (docs/reference.md, src/coga/commands/megalaunch.py, src/coga/megalaunch.py, a cli SKILL twin, tests/test_megalaunch.py) that belong to the HOST checkout's branch megalaunch-pick-all-nonterminal, not to this recurring task (which touched only Coga state). The documented escape hatch 'coga mark done recurring/rebase-stale-worktrees --force' is denied by the sandbox permission classifier. ACTION NEEDED: run 'coga mark done recurring/rebase-stale-worktrees --force' yourself (safe — those files stay on their own live branch, nothing strands), or grant Bash permission for that command.
