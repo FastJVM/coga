@@ -363,6 +363,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - `src/coga/commands/launch.py:96-100,322-333` implements trailing script
   arguments as `COGA_ARG_1..N` / `COGA_ARGC`, and `src/coga/aliases.py:52-55`
   shows `open-pr` consuming that channel.
+- Disposition overlap: merged Retro PR #637 owns the extension-model target;
+  merged proposal PR #640 owns only the non-overlapping CLI-audit target. A
+  cross-PR review note was posted on #637.
 
 ### Contract audit — default aliases
 
@@ -373,6 +376,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - `src/coga/aliases.py:14-39,56-64` now owns built-ins and ships seven aliases,
   adding `pick` and `open-pr`; the audit still points to removed `cli.py`
   symbols and counts five. This overlaps the bootstrap-inventory finding.
+- Disposition overlap: merged Retro PR #637 owns the extension-model target;
+  merged proposal PR #640 owns the CLI-audit and bootstrap-inventory targets.
 
 ### Contract audit — bootstrap ticket inventory
 
@@ -513,10 +518,10 @@ The blackboard is a notepad to be written to often as the human and agent works 
   tickets](https://github.com/FastJVM/coga/pull/637) updates
   `coga/contexts/coga/extension-model/SKILL.md` and deletes
   `commands-as-tickets-open-pr-pilot`.
-- Both PRs are open, clean, mergeable, within the Retro batch limits, and have
-  pushed heads. Their source `## Retro` markers are preserved in branch
-  history before the source paths disappear at the PR tips. Both PR Slack FYIs
-  posted.
+- Both PRs opened clean and mergeable, stayed within the Retro batch limits,
+  and had pushed heads. Their source `## Retro` markers are preserved in
+  branch history before the source paths disappear at the PR tips. Both PR
+  Slack FYIs posted. A human merged both during this run.
 - The other 54 no-new-knowledge tasks were direct-deleted on `origin/main`
   as 54 exact `Ticket: <slug> — deleted` commits (58 artifact files):
   `add-a-status-canceled-for-ticket`,
@@ -569,9 +574,85 @@ The blackboard is a notepad to be written to often as the human and agent works 
   `validate-that-a-frozen-workflow-name-still-resolve`,
   `validate-tickets-at-create-time`, and
   `why-browser-autoamtion-as-a-ticket`.
-- Remote verification: `origin/main` is
+- Remote verification at Retro handoff: `origin/main` was
   `b86ad68eb8d1a7e172363d34d78f10f7e409a8b5`, exactly 54 delete commits
-  beyond the fetched base; all 54 direct-delete paths are absent, while both
-  PR source paths remain on main pending review.
+  beyond the fetched base, and all 54 direct-delete paths were absent. The two
+  source paths were subsequently removed when PRs #636 and #637 merged.
 - Cleanup verified: copied `coga.local.toml`, linked checkout, temporary
   branch, and evidence snapshot were removed after durability checks.
+
+### Phase 5 — cleanup-orphan-markers
+
+- Child task: `dream-cleanup-orphan-markers-w30`
+  (`dream/cleanup-orphan-markers`), completed.
+- Result: `no-op`; no cleanup-eligible processed done ticket still has a task
+  directory, so no delete-only cleanup PR or human decision was needed.
+
+### Phase 6 — disposition
+
+- Result: `pr-opened`; all 18 findings have a durable disposition. No `gap`
+  survived deduplication, so no draft ticket was created.
+- Extract — launch-metadata test isolation:
+  [PR #636](https://github.com/FastJVM/coga/pull/636), merged.
+- Extract — stateless command tickets:
+  [PR #637](https://github.com/FastJVM/coga/pull/637), merged.
+- Stale workflow-freeze guarantee and contract-audit findings for the packaged
+  migration inventory, bump gate, and period cleanup timing:
+  [PR #638](https://github.com/FastJVM/coga/pull/638), merged.
+- Read-only Git fallback:
+  [PR #639](https://github.com/FastJVM/coga/pull/639), explicitly closed
+  without merge by the human reviewer. The PR remains the durable review
+  record; Dream did not reopen it.
+- Launch parameters, default aliases, bootstrap-ticket inventory, and the CLI
+  audit's create-notification claim:
+  [PR #640](https://github.com/FastJVM/coga/pull/640), merged. The overlapping
+  extension-model portions were handled by PR #637; a cross-PR review note was
+  posted there.
+- Watchers, bounded compatibility paths, and the current-direction
+  create-notification claim:
+  [PR #641](https://github.com/FastJVM/coga/pull/641), merged.
+- Important-recipient and canceled-digest contracts:
+  [PR #642](https://github.com/FastJVM/coga/pull/642), open and clean.
+- Workflow snapshot timing, status-as-signal coordination, and the shipped
+  trust substrate:
+  [PR #643](https://github.com/FastJVM/coga/pull/643), open and clean.
+- All six proposal branches were pushed. The isolated disposition checkout,
+  temporary branch, and PR-body files were removed after verification.
+- Final scoped validation: `coga validate --json --task recurring/dream`
+  reported 1 task OK and 0 issues; the installed CLI emitted a non-blocking
+  source-version-skew warning.
+
+## Dream Run Summary
+
+Generated: `2026-07-23T23:34:25Z`
+
+| Phase | Result | Count / summary |
+|---|---|---|
+| validate-drift | `reported`; `human-needed` | 27 lifecycle/ownership issues; 0 safe fixes |
+| knowledge scan | `reported` | 3 findings: 2 extract, 1 stale |
+| contract audit | `reported` | 15 drift findings |
+| Retro | `pr-opened`; `direct-fixed` | 2 knowledge PRs; 54 direct deletes |
+| cleanup-orphan-markers | `no-op` | 0 candidates |
+| disposition | `pr-opened` | 6 proposal PRs; 0 gap tickets |
+
+Finding totals:
+
+- `extract`: 2 — both knowledge PRs merged.
+- `stale`: 1 — routed to merged PR #638.
+- `drift`: 15 — routed across PRs #638–#643; three merged, two remain open,
+  and #639 was closed without merge by its human reviewer.
+- `gap`: 0 — no draft ticket created.
+
+PRs opened:
+[PR #636](https://github.com/FastJVM/coga/pull/636),
+[PR #637](https://github.com/FastJVM/coga/pull/637),
+[PR #638](https://github.com/FastJVM/coga/pull/638),
+[PR #639](https://github.com/FastJVM/coga/pull/639),
+[PR #640](https://github.com/FastJVM/coga/pull/640),
+[PR #641](https://github.com/FastJVM/coga/pull/641),
+[PR #642](https://github.com/FastJVM/coga/pull/642), and
+[PR #643](https://github.com/FastJVM/coga/pull/643).
+
+Human gates: triage the 27 validate-drift reports; review PRs #642 and #643.
+PR #639 records the human decision to close the fallback proposal without
+merge.
