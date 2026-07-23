@@ -2864,3 +2864,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-23 07:26 [install/short-notice-instead-of-raw-git-error-when-sync-ha] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-07-23 07:27 [remove-run-py/add-coga-run-generic-runner-and-migrate-recurring] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-07-23 07:27 [remove-run-py/delete-the-script-seam] [megalaunch] activated (draft → active) — explicit megalaunch pick
+2026-07-23 07:27 [remove-run-py/port-hard-consumers-onto-the-generic-runner] [megalaunch] activated (draft → active) — explicit megalaunch pick

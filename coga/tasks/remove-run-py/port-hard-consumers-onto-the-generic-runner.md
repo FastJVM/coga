@@ -1,7 +1,7 @@
 ---
 slug: remove-run-py/port-hard-consumers-onto-the-generic-runner
 title: Port open-pr and delete-task onto the generic runner
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
