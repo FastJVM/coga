@@ -22,13 +22,15 @@ out of notifications entirely:
 
 - **Live (urgent)** — posted the moment they happen. A stuck agent or a
   failure must never wait. This is the `notification.post` path.
-- **Outcome digest** — done tickets and recurring scan errors, collapsed into
-  **one daily digest**. This is the `notification.notify` path: each outcome/error
+- **Outcome digest** — done/canceled tickets and recurring scan errors,
+  collapsed into **one daily digest**. This is the `notification.notify` path:
+  each outcome/error
   appends a structured JSONL record to the dedicated `recurring/digest/spool.md`
   file (its `## Spool (pending)` section), and the digest recurring
   ticket flushes the spool once a day via `coga digest` (read unconsumed → fetch
-  `origin/main` → render Done + Also merged → post one message → drain (advance
-  the watermark + trim the consumed prefix) → record a git high-water mark).
+  `origin/main` → render Done + Canceled + Also merged → post one message →
+  drain (advance the watermark + trim the consumed prefix) → record a git
+  high-water mark).
 
 Live (urgent) surface — still posts immediately:
 
@@ -203,15 +205,16 @@ new string:
   mention rendering, and the webhook POST.
 - `src/coga/notification/__init__.py::notify(cfg, slack_text, *, kind, detail, ticket=None,
   owner=None, watchers=None, task_path=None, image_url=None)` — the
-  **outcome digest** path. It accepts only `done` and `recurring-error`
+  **outcome digest** path. It accepts only `done`, `canceled`, and
+  `recurring-error`
   records. When `digest_spool_path(cfg)` is non-None (the
   `recurring/digest/spool.md` file is installed), it appends a structured record
   to the spool; otherwise it falls back to `post(slack_text, …)`. `kind` is the
   event tag; `detail` is the digest one-liner.
 - `src/coga/notification/__init__.py::render_digest(cfg, records, *, date_label,
-  also_merged=None)` — renders Done owner sections, an optional "Also merged
-  (no ticket)" section, and recurring errors (no `[project]` prefix — `coga
-  digest` hands it to `post`, which adds it).
+  also_merged=None)` — renders Done owner sections, a Canceled section, an
+  optional "Also merged (no ticket)" section, and recurring errors (no
+  `[project]` prefix — `coga digest` hands it to `post`, which adds it).
 - `[notification].channels = ["slack"]` selects the enabled backend list.
   Unknown channel names fail config load until their backend exists.
 - `[notification.slack].webhook` in `coga.toml` (or `coga.local.toml`) — the
@@ -235,9 +238,8 @@ new string:
   unconfigured case is live. Legal only in `[notification.slack]` —
   `[slack].important_webhook` is rejected rather than silently ignored, since
   no legacy resolver reads it.
-- `[notification.slack].important_recipient` — the coga name @'d on every
-  `coga slack --important` post for triage, in place of the ticket-owner mention
-  (whoever filed a ticket is rarely whoever should act on its alert). Resolved by
+- `[notification.slack].important_recipient` — the parsed coga name intended
+  to replace the ticket-owner mention on `coga slack --important`. Resolved by
   `config._resolve_notification_slack_important_recipient` with the same
   local-overrides-shared rule and the same absence of any legacy `[slack]` or
   bare-env fallback as `important_webhook` — the key postdates both. It differs on
@@ -246,9 +248,12 @@ new string:
   from it at post time through `[notification.slack.users]`, exactly as `mention`
   renders an owner); and an unset or empty value is not fatal — it resolves to
   None and the ordinary owner mention stands, so a repo that never names a triage
-  owner keeps today's behavior. Legal only in `[notification.slack]`, for the same
-  reason as `important_webhook`: `[slack].important_recipient` is rejected rather
-  than silently ignored, since no legacy resolver reads it.
+  owner keeps today's behavior. The current Slack backend does not yet consume
+  this resolved field, so important posts still render the ordinary owner
+  mention; do not treat the key as active routing until that wiring lands.
+  Legal only in `[notification.slack]`, for the same reason as
+  `important_webhook`: `[slack].important_recipient` is rejected rather than
+  silently ignored, since no legacy resolver reads it.
 - `cfg.slack_enabled` (`bool`, default `True`), `cfg.slack_webhook`,
   `cfg.slack_important_webhook`, and `cfg.slack_important_recipient`
   (`str | None`) — compatibility fields holding the effective Slack-channel
@@ -310,8 +315,8 @@ mechanism:
   `### Digest State`. Records are de-duped by content before rendering, so the
   same event recorded by two clones posts once. Empty spool is not enough to
   skip posting; new merged commits can still produce a digest. The command posts
-  nothing only when there are no Done records, no recurring errors, and no
-  post-filter new commits.
+  nothing only when there are no Done records, no Canceled records, no
+  recurring errors, and no post-filter new commits.
 - **The primitive.** `src/coga/spool.py::append_record(path, record)` /
   `read_unconsumed(path)` / `drain(path)` / `read_records(path)` operate on the
   spool file's `## Spool (pending)` JSONL section via
@@ -330,9 +335,9 @@ dream logs — are committed **directly to the configured control ref**
 through PRs; those are the code plane.) So any number of coga processes — in
 this repo, in another clone, on another machine — push state straight to that
 same control branch. The digest spool (`recurring/digest/spool.md`'s
-`## Spool (pending)`) is the hottest such file: every done/error event appends
-to it, and the daily `coga digest` drains it. Two writers therefore routinely
-collide on it during a rejected-push → `rebase --autostash` recovery.
+`## Spool (pending)`) is the hottest such file: every done/canceled/error event
+appends to it, and the daily `coga digest` drains it. Two writers therefore
+routinely collide on it during a rejected-push → `rebase --autostash` recovery.
 
 git resolves a 3-way merge cleanly only when the two sides' changed line ranges
 don't touch. The spool is engineered around that one fact, with **two** distinct
