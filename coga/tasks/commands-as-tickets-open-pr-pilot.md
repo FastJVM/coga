@@ -381,6 +381,13 @@ Git: committed and pushed `repair-branch`
 
 Result: no remaining validation drift found.
 
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: stateless commands are local-first command tickets
+
 ## Dream Skill: validate-drift
 
 Generated: 2026-07-21T22:24:49+00:00
