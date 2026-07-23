@@ -2341,7 +2341,9 @@ def test_resolve_conflicts_bootstrap_launch_is_stateless_and_receives_pr_arg(
     prompt = _prompt_arg(calls[0])
     assert "## Launch arguments" in prompt
     assert '["631"]' in prompt
-    assert "gh pr list --state open" in prompt
+    assert "gh pr list --state open --limit 10000" in prompt
+    assert "Continue only\n   when it reports `CONFLICTING`" in prompt
+    assert "git merge-base --is-ancestor origin/main HEAD" not in prompt
     assert "open PRs only" in prompt
     after = [(ref.id_slug, Ticket.read(ref.ticket_path).status) for ref in list_tasks(cfg)]
     assert after == before

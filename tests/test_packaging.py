@@ -141,6 +141,15 @@ def test_package_includes_coga_resources() -> None:
 
 def test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep() -> None:
     repo_root = Path(__file__).resolve().parents[1]
+    bootstrap_root = (
+        repo_root
+        / "src"
+        / "coga"
+        / "resources"
+        / "templates"
+        / "coga"
+        / "bootstrap"
+    )
     recurring_root = (
         repo_root
         / "src"
@@ -150,11 +159,17 @@ def test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep() -> 
         / "coga"
         / "recurring"
     )
+    command = Ticket.read(bootstrap_root / "resolve-conflicts" / "ticket.md")
     wrapper = Ticket.read(recurring_root / "resolve-conflicts" / "ticket.md")
 
+    assert "gh pr list --state open --limit 10000" in command.body
+    assert "mergeable" in command.body
+    assert "git merge-base --is-ancestor origin/main HEAD" not in command.body
     assert wrapper.frontmatter["schedule"] == "0 8 * * 1"
-    assert wrapper.frontmatter["script"] == "inline"
-    assert "exec coga resolve-conflicts --queue-guidance" in wrapper.body
+    assert wrapper.frontmatter.get("script") is None
+    assert "coga resolve-conflicts --agent <current-agent-type>" in wrapper.body
+    assert "coga mark done recurring/resolve-conflicts" in wrapper.body
+    assert "outer agent supervisor" in wrapper.body
     assert "open PRs only" in wrapper.body
     assert not (recurring_root / "rebase-stale-worktrees").exists()
 

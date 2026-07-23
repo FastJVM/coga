@@ -24,7 +24,10 @@ session.
 ### Scope and accepted limitation
 
 The target set is **open PRs only**. With no selector, enumerate it with
-`gh pr list --state open`; with one selector, resolve that PR with
+`gh pr list --state open --limit 10000`; the default 30-result limit is not a
+complete sweep. If that returns exactly 10,000 rows, treat the result as
+truncated and finish enumeration with paginated `gh api` calls before changing
+anything. With one selector, resolve that PR with
 `gh pr view` and require it to be open. Do not enumerate worktrees, ticket
 `branch:` lines, or branches that lack an open PR. The superseded
 `rebase-stale-worktrees` task covered pre-PR branches; that coverage is
@@ -45,11 +48,23 @@ Only update PRs targeting `main`. Report a PR with another base as
 
 1. **Preflight and enumerate.** Start from the repository root. Confirm
    `git` and `gh` can read the repository, then run `git fetch origin main`.
-   Query PR metadata including number, URL, base ref, head ref, head
-   OID, head repository, fork status, and maintainer-writeability. In sweep
-   mode, use `gh pr list --state open`; in single mode, use `gh pr view`.
-   Process PRs sequentially and keep the observed head OID for the push lease.
-2. **Select a safe worktree.** Inspect `git worktree list --porcelain`.
+   Query PR metadata including number, URL, state, base ref, head ref, head
+   OID, head repository, fork status, maintainer-writeability, and `mergeable`.
+   In sweep mode, use the complete/paginated `gh pr list --state open --limit
+   10000` result described above; in single mode, use `gh pr view`. Process PRs
+   sequentially and keep the observed head OID for the push lease.
+2. **Select actual conflicts.** Immediately before touching a selected PR,
+   refresh its state, base, head OID, and `mergeable` value with `gh pr view`.
+   If it closed, changed base, or moved its head, make no change and report
+   `conflict` with the reason. If GitHub reports `MERGEABLE`, report
+   `up-to-date` (no conflict with `main`) and do not rebase. If it reports
+   `UNKNOWN`, retry the read a small, bounded number of times; if mergeability
+   stays unknown, report `conflict` and leave the PR untouched. Continue only
+   when it reports `CONFLICTING`. This is intentionally a conflict test, not a
+   literal `origin/main` ancestry test: Coga's generated `coga/tasks/**` and
+   `coga/log.md` commits advance `main` during the run and must not cause every
+   otherwise-mergeable PR to be rebased and force-pushed.
+3. **Select a safe worktree.** Inspect `git worktree list --porcelain`.
    Never rebase the `main` checkout. If the PR branch already has a worktree,
    use it only when it is clean, has no merge/rebase/cherry-pick in progress,
    and its HEAD exactly matches the observed PR head OID. Otherwise report
@@ -57,11 +72,9 @@ Only update PRs targeting `main`. Report a PR with another base as
    worktree owns the branch, fetch `refs/pull/<number>/head`, confirm the
    fetched OID still matches the observed head OID, and create a temporary
    detached worktree at that OID. Remove only worktrees created by this run.
-3. **Check freshness.** In the selected worktree, run
-   `git merge-base --is-ancestor origin/main HEAD`. If it succeeds, report
-   `up-to-date` and do not push. Otherwise record the original head OID and
-   run `git rebase origin/main`.
-4. **Resolve with judgment.** On conflicts, read the branch commits and diff,
+4. **Rebase the conflicting PR.** Record the original head OID, then run
+   `git rebase origin/main` in the selected worktree.
+5. **Resolve with judgment.** On conflicts, read the branch commits and diff,
    the relevant changes on `main`, and both sides of every conflicted file.
    Preserve and re-apply the PR's intent on top of current `main`; do not
    choose `ours` or `theirs` blindly. Stage resolved files and continue the
@@ -69,18 +82,19 @@ Only update PRs targeting `main`. Report a PR with another base as
    confidence is mandatory: if intent is ambiguous or a safe result cannot be
    established, run `git rebase --abort`, restore the worktree as described
    below, and report `conflict` with the files and reason.
-5. **Verify before push.** Re-read the complete
+6. **Verify before push.** Re-read the complete
    `git diff origin/main...HEAD` and confirm it still implements only the
    PR's intended change. If the changed paths include anything under `src/`
    or `tests/`, run `python -m pytest`. A failed or unavailable required
    test is `verify-failed`: do not push, and restore the original worktree
    state. Diff review and this conditional test are a mandatory gate; never
    force-push first and verify afterward.
-6. **Push with the observed lease.** Resolve the writable remote for the PR's
+7. **Push with the observed lease.** Resolve the writable remote for the PR's
    actual head repository. `origin` is valid only for a same-repository PR;
    never push a fork branch into a same-named base-repository branch. Immediately
-   before pushing, fetch the remote head again and require it to equal the
-   observed head OID. Then push the rebased HEAD to that exact head ref with
+   before pushing, refresh the PR and fetch the remote head again; require the
+   PR to remain open against `main` and both head reads to equal the observed
+   head OID. Then push the rebased HEAD to that exact head ref with
    `git push --force-with-lease=refs/heads/<head-ref>:<observed-head-oid>
    <remote> HEAD:refs/heads/<head-ref>`. If no writable head remote can be
    established, the head moved, or the lease/push fails, do not weaken or

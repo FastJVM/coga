@@ -211,11 +211,13 @@ checkout for this command.
 
 ### `coga resolve-conflicts [PR]`
 
-Rebase stale open-PR branches onto `origin/main`, resolve conflicts with agent
-judgment, verify the resulting diff (`python -m pytest` when `src/` or `tests/`
-changed), and push only with an explicit force-with-lease. Omit `PR` to sweep
-the repository's open PRs; pass one PR number or URL to scope the run. Each PR
-is reported as `rebased-pushed`, `up-to-date`, `conflict`, `skipped-dirty`, or
+Rebase actually conflicting open-PR branches onto `origin/main`, resolve with
+agent judgment, verify the resulting diff (`python -m pytest` when `src/` or
+`tests/` changed), and push only with an explicit force-with-lease. Omit `PR`
+to sweep the repository's complete open-PR set; pass one PR number or URL to
+scope the run. Mergeable PRs are left untouched, so generated Coga task/log
+commits on `main` do not cause needless rebase churn. Each PR is reported as
+`rebased-pushed`, `up-to-date`, `conflict`, `skipped-dirty`, or
 `verify-failed`, followed by a one-line Slack roll-up. Unsafe or ambiguous
 resolutions are aborted and never pushed.
 
