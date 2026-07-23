@@ -2293,8 +2293,8 @@ def test_launchable_candidates_offers_any_owner_any_non_terminal_status(
         status="canceled",
         watchers=[],
     )
-    human = create_task(  # human-assigned — never offered (no agent to spawn)
-        cfg=cfg,
+    human = create_task(  # human-assigned — still offered; the picker no longer
+        cfg=cfg,           # pre-filters launchability, the run reports the gate.
         title="Human work",
         workflow_name="code",
         contexts=[],
@@ -2322,6 +2322,7 @@ def test_launchable_candidates_offers_any_owner_any_non_terminal_status(
 
     offered = {ref.id_slug for ref, _ in launchable_candidates(cfg)}
 
+    # Everything non-terminal is offered — done/canceled are the only exclusions.
     assert offered == {
         active["slug"],
         running["slug"],
@@ -2329,11 +2330,19 @@ def test_launchable_candidates_offers_any_owner_any_non_terminal_status(
         foreign["slug"],
         paused["slug"],
         workflowless["slug"],
+        human["slug"],
     }
+    assert done["slug"] not in offered
+    assert canceled["slug"] not in offered
 
 
 def test_launchable_candidates_blocked_needs_open_asks(repo: Path) -> None:
-    """A blocked ticket is offered only when it has an ask to resolve."""
+    """Both blocked tickets are offered; the run reports the ask-less one.
+
+    The picker no longer pre-filters launchability — a blocked ticket with no
+    open ask shows up too, and the staged run classifies it as
+    `skipped-unlaunchable` rather than hiding it from the operator.
+    """
     from coga.blackboard import append_blocker
     from coga.megalaunch import launchable_candidates
 
@@ -2368,7 +2377,7 @@ def test_launchable_candidates_blocked_needs_open_asks(repo: Path) -> None:
 
     offered = {ref.id_slug for ref, _ in launchable_candidates(cfg)}
 
-    assert offered == {with_ask["slug"]}
+    assert offered == {with_ask["slug"], askless["slug"]}
 
 
 def test_save_and_load_selection_roundtrip(repo: Path) -> None:
