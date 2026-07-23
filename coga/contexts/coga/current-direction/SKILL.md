@@ -213,7 +213,8 @@ Last updated: 2026-07-17.
   alias names can't collide with built-ins; first token of expansion
   must be a known built-in.
 - **`coga create` and `coga ticket` split raw creating from guided
-  authoring.** `coga create` creates a raw draft and posts `✨`.
+  authoring.** `coga create` creates a raw draft and is intentionally
+  Slack-silent.
   `coga ticket` runs the `bootstrap/ticket` interview against a new or
   existing draft/active/paused ticket. Aliases stay positional-pass-through
   only.
@@ -227,9 +228,10 @@ Last updated: 2026-07-17.
 12 audit threads were resolved during the spec-audit review. The
 ones that affect implementation:
 
-- **Watchers removed.** No multi-watcher fanout. `assignee` is the
-  only person field surfaced in Slack messages. Re-introduce when
-  team size warrants it.
+- **Watchers were removed in PR #43 (historical; superseded).** At that point
+  there was no multi-watcher fanout and only `assignee` reached Slack. The
+  later reintroduction above is current: watcher names mapped under
+  `[notification.slack.users]` are cc'd on notifications.
 - **Manual edits stay silent by design.** Editing ticket.md,
   the blackboard region, or contexts directly does NOT post to Slack and
   does NOT log. Slack is for agent-driven state transitions only.

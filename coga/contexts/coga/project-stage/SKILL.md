@@ -23,10 +23,14 @@ non-tester users, this context gets deleted, not edited.
   `coga bump` — and a primitive removal — `task.lock` — without
   ceremony.)
 
-## No backwards-compat hacks
+## Compatibility is migration-only
 
-- No deprecation shims (e.g. an old command name calling into the
-  new one).
+- Do not add open-ended deprecation shims or preserve old behavior as a second
+  supported product surface.
+- The shipped legacy `[slack]` / bare `SLACK_WEBHOOK_URL` fallbacks and the
+  dropped `create = "launch bootstrap/ticket"` alias are narrow upgrade aids
+  for configs Coga itself previously wrote. They warn or migrate toward the
+  current surface; they are not precedent for supporting two designs.
 - No `_legacy` fields kept around "in case."
 - No migration scripts for ticket frontmatter — edit the few
   existing tickets by hand.
@@ -47,16 +51,18 @@ non-tester users, this context gets deleted, not edited.
 
 - When in doubt, remove the feature, the flag, the option, the
   config field, the command.
-- Watchers were removed without ceremony. Same energy applies
-  elsewhere.
+- Watchers were removed once and later reintroduced for mapped Slack cc
+  mentions when a concrete need returned. Apply the same evidence-first
+  standard elsewhere.
 - "Small surface, sharp behavior" beats "big surface, fuzzy
   behavior."
 
 ## What this means for code review
 
-If a PR adds a deprecation, a backwards-compat path, a feature
-flag, or an abstraction "for future use" — push back unless there's
-a concrete user-blocking reason. Default answer is "rip it out."
+If a PR adds a deprecation, a backwards-compat path, a feature flag, or an
+abstraction "for future use" — push back unless it is a bounded migration for
+a surface Coga itself shipped or there is a concrete user-blocking reason.
+Default answer is still "rip it out."
 
 ## Expiry
 
