@@ -56,8 +56,12 @@ no in-memory state.
   package `bootstrap/workflows/` resources.
   Resolution is local-first, exactly like skills and contexts: a local
   `workflows/<ref>.md` overrides a bundled `bootstrap/workflows/<ref>.md`.
-  Frozen into a ticket's frontmatter at
-  creation — in-flight tickets are unaffected by later workflow edits.
+  Frozen into a ticket's frontmatter at creation, or when a bare workflow ref
+  is activated. The snapshot preserves step metadata and routing, but a
+  skill-less step still loads its inline instructions from the current named
+  workflow definition. Deleting or renaming that definition, or removing a
+  step's inline instructions, therefore degrades prompt composition and is a
+  validation error for live tickets.
   Each step may declare an `assignee:` role token (`owner` | `human` |
   `agent` | `other-agent`); on bump, the token resolves against the ticket's
   matching role field and rewrites `assignee:`. `other-agent` resolves to the
@@ -298,8 +302,8 @@ bundled refs may replace that list with specific cleanup instructions.
   `in_progress` ticket resolves the asks without touching status or step.
   If the resumed session exits before recording an answer, launch returns the
   ticket to `blocked` so blocker queues keep reporting it. Script and TTY-less launches keep refusing a blocked ticket until `coga unblock`
-  records the answer. `bump` ignores `status:`
-  entirely (it owns `step:`, not `status:`).
+  records the answer. `bump` owns `step:`, not status transitions, but it
+  enforces `status: in_progress` before moving the step.
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when
   status is `in_progress`. Bare `coga bump` advances one step; a human
