@@ -18,32 +18,30 @@ the `coga/cli` *context*. Read this for the worked classification; read
 
 ## The three extension mechanisms
 
-1. **Pure aliases** — argv rewrites in `_DEFAULT_ALIASES` (shipped to every
-   repo) merged with user `[aliases]` from `coga.toml`, user key winning
-   (`src/coga/cli.py:125`, `:237`). An alias is rewritten in `main()`
-   *before* Typer dispatches (`cli.py:247-254`): `sys.argv` becomes
-   `expansion + rest`. There is **no post-dispatch hook**. `_validate_aliases`
-   (`cli.py:137-169`) rejects any alias whose name collides with a built-in or
-   whose first expansion token isn't a known built-in, and soft-drops the
-   legacy `create = "launch bootstrap/ticket"` line.
+1. **Pure aliases** — argv rewrites in `DEFAULT_ALIASES` (shipped to every
+   repo) merged with user `[aliases]` from `coga.toml`, user key winning.
+   `src/coga/aliases.py` owns the defaults, built-in inventory, validation, and
+   legacy migration; `src/coga/cli.py` registers placeholders and rewrites
+   `sys.argv` to `expansion + rest` before Typer dispatches. There is **no
+   post-dispatch hook**.
 
 2. **Built-in command heads** — `src/coga/commands/*.py`, registered in
    `cli.py:74-93`. These hold the irreducible command-shaped parts: argument
    resolution, guards, and calls into kernel/script-shaped modules when an
    alias has no hook point.
 
-3. **Bootstrap launch tickets / recurring launches** — package-backed tickets
-   at `bootstrap/<name>/ticket.md` (stateless launch targets, including
-   ticket-owned scripts) and templates at `coga/recurring/<name>/` launched via
-   `recurring launch <name>`. These are the only place pure passthroughs
-   actually live.
+3. **Bootstrap command tickets / recurring launches** — package-backed or
+   repo-local tickets at `bootstrap/<name>/ticket.md` are stateless command
+   definitions; templates at `coga/recurring/<name>/` are launched via
+   `recurring launch <name>`. Script command tickets receive trailing
+   arguments as `COGA_ARG_1..N` plus `COGA_ARGC`; agent command tickets receive
+   an explicit `## Launch arguments` JSON array.
 
 ## The rule
 
-> An alias is a pure argv rewrite with **no after-hook**. Anything that
-> **drafts-on-the-fly**, **validates after the agent exits**, **git-syncs
-> changed files**, or **guards a TTY** cannot be an alias — it needs a
-> built-in.
+> An alias is a pure argv rewrite with **no after-hook**. Its target may still
+> carry logic — including a stateless command ticket — but the alias itself
+> cannot draft, validate, sync, or own a lifecycle transition.
 
 `coga ticket` is the standing proof: it was promoted *out of* the old
 `create = "launch bootstrap/ticket"` alias into a built-in command head because
@@ -54,12 +52,11 @@ the `bootstrap/ticket` launch target, and the post-exit validation/sync phase
 now lives in `coga.authoring` plus the script-shaped `coga/ticket/finalize`
 skill; the command remains only because the pre/post hook is irreducible.
 
-The structural consequence: **aliases can only ever capture a `launch X` or
-`recurring launch X` shape, and only when X needs no pre/post logic.** Every
-existing default alias is exactly that — `chat` → `launch bootstrap/orient`,
-`dream` → `recurring launch dream`, `build` → `launch coga-build`. So the
-hunt for new alias candidates is entirely within the bootstrap-ticket /
-recurring-launch space; no top-level verb is a hidden passthrough.
+The structural consequence: aliases may capture any fixed argv rewrite whose
+first token is a real built-in. Current defaults cover bootstrap launches,
+recurring launches, the `build` task, and the `megalaunch --pick` spelling.
+Parameterized command tickets remain fixed alias targets because the caller's
+remaining argv passes through unchanged.
 
 ## Classification table
 
@@ -68,7 +65,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 | Verb | Mechanism | Alias-able? | Why |
 |------|-----------|-------------|-----|
 | `init` | built-in | No | Scaffolds `coga/`, vendors the running CLI into `.coga/.venv`, installs venv deps. Heavy side effects. |
-| `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket + posts `✨`; post-write validate (fails with exit 2 and leaves the draft on disk if the generated ticket is malformed). |
+| `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket and validates it; raw creation is intentionally Slack-silent. |
 | `ticket` | thin built-in head + `coga.authoring` finalize | No | **Canonical proof.** Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. |
 | `project` | built-in | No | Interview → scaffold many drafts → post-validate; TTY guard. |
 | `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |
@@ -98,11 +95,13 @@ implementation, not a fixed rewrite to another command.
 | `ticket` | `coga ticket` command head + `coga/ticket/finalize` | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. The validate/sync substance is script-shaped, not an alias hook. |
 | `project` | `coga project` built-in | No | Interview + multi-draft scaffold + TTY guard; not a passthrough. |
 | `recurring-scan` | `coga recurring` command head + `coga.recurring_runner` | No | The bootstrap script target exists, but the public command parses `--interactive` / `--force` and passes them through an explicit env contract before launch; `--all <path>` dispatches that normal command across discovered repos. |
+| `browser-automation` | unaliased `launch bootstrap/browser-automation` | Not currently | Intentional agent-backed orchestration entry point; it remains available through its full launch spelling. |
+| `open-pr` | `open-pr` default alias → `launch bootstrap/open-pr` | Yes — already aliased | Stateless script command ticket; the target task ref reaches `COGA_ARG_1`. |
+| `resolve-conflicts` | `resolve-conflicts` default alias → `launch bootstrap/resolve-conflicts` | Yes — already aliased | Stateless agent command ticket; its optional PR selector reaches the `## Launch arguments` block. |
 
-Only `orient`, `project`, `ticket`, and `recurring-scan` are bootstrap tickets
-(`resolve_bootstrap`); `orient` is already the `chat` alias, `recurring-scan`
-is already behind the `coga recurring` head, and the other two need built-ins.
-**No un-aliased bootstrap-ticket passthrough remains.**
+The packaged bootstrap-ticket inventory is `orient`, `project`, `ticket`,
+`recurring-scan`, `browser-automation`, `open-pr`, and `resolve-conflicts`.
+Browser automation is the one intentionally unaliased launch target.
 
 ### Recurring launches (`recurring launch <name>`)
 
@@ -118,10 +117,11 @@ is already behind the `coga recurring` head, and the other two need built-ins.
 
 ## The concrete finding (verified, not assumed)
 
-**No un-aliased pure passthrough remains.** Verified against the code:
-`_DEFAULT_ALIASES` covers `chat`, `dream`, `build`, `skill-update`, and
-`autoclose`; the bootstrap tickets are either aliased or backed by a
-logic-bearing built-in, and every CLI verb has pre/post logic.
+**One unaliased bootstrap launch target remains intentionally.**
+`DEFAULT_ALIASES` covers `chat`, `dream`, `build`, `skill-update`,
+`autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
+`bootstrap/browser-automation` remains available only through its explicit
+launch spelling; it is orchestration rather than a stable top-level verb.
 
 ### The third candidate, and why it's disqualified
 
@@ -165,9 +165,9 @@ pure-passthrough set for aliasing is exactly the two named above.
   not a launchable thing. Do not mistake a `bootstrap/skills/...` path for an
   aliasable bootstrap ticket.
 
-- **`_DEFAULT_ALIASES` ships five.** `chat`, `dream`, `build`, `skill-update`,
-  and `autoclose`; the last two are ordinary recurring launches exposed under
-  concise on-demand names.
+- **`DEFAULT_ALIASES` ships eight.** `chat`, `dream`, `build`,
+  `skill-update`, `autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
+  The last two demonstrate script-backed and agent-backed command tickets.
 
 ## Architecture: how far the ticket model reaches
 
@@ -180,10 +180,10 @@ conclusion: the surface collapses to **three homes for logic, plus sugar**.
 1. **Kernel** — small tested Python that can't be anything else.
 2. **Tickets / workflows** — *stateful, reviewable* work as skills / script
    steps on a ticket.
-3. **External scripts / tools** — *stateless, parameterized* invocations. Two kinds:
-   an **external tool** Coga shells out to (`gh`, `op`, `git` — exists, no design),
-   and a **Coga-authored external script / service** that lives outside both kernel
-   and tickets — a *design target* (no mechanism today).
+3. **Stateless command tickets / external tools** — parameterized invocations
+   with no per-run lifecycle. Coga-authored verbs use local-first bootstrap
+   command tickets; existing third-party behavior stays in tools such as
+   `gh`, `op`, and `git`.
 4. **Aliases** are not a home — just argv sugar pointing at one of the three.
 
 **The home falls out of the shape, not taste** — four questions: is it a fixed
@@ -210,13 +210,11 @@ finalize module inline after the single-shot interview to preserve the stateless
 concurrent-safe bootstrap launch target; no generic shim or workflow-step state
 was introduced. `project` and `retire` share that irreducible head.
 
-**Ticket vs. command is decided by statefulness, not parameters.** Both can take
-arguments; the question is whether the operation is a stateful reviewable unit of
-work (`retire` → a retire task) or a stateless one-shot (`skill install`,
-`secret get`, `show` → a command). Parameters are legal on a ticket *only when
-materialized into its files at creation* (`arg → draft`); transient launch-time
-params are forbidden because they break "the prompt is a pure function of the
-files on disk" and are the seed of a config DSL.
+**Ticket vs. command is decided by statefulness, not parameters.** Stateful
+work materializes inputs into task files. Stateless command tickets accept
+trailing launch arguments without creating run state: scripts receive
+`COGA_ARG_1..N` / `COGA_ARGC`, while agent commands receive a JSON argument
+block in the composed prompt.
 
 **Trust boundaries straddle kernel and external** — acquire outside, verify
 inside. `gh skill` and `op`/`env` acquire; compose-verify and launch-inject are
@@ -224,25 +222,26 @@ the kernel hooks. So `skill install`/`secret get` are external/command; only the
 verify/inject hooks are kernel. Secret *values* never flow through the legible
 ticket/prompt/git machinery.
 
-**Guardrails:** (1) *No worse Typer* — no transient launch params, and an
-`arg → draft+workflow → launch` authoring command stays that single fixed shape;
-conditionals or computed args make it an illegible `coga.toml` DSL. (2) *No inversion* —
-relocating logic out of the kernel moves the substance unchanged (tested
-script-step Python), never rewrites a deterministic check as agent judgment.
+**Guardrails:** (1) *No worse Typer* — aliases stay fixed argv rewrites and
+command tickets own argument interpretation; conditionals or computed args in
+`coga.toml` would make an illegible config DSL. (2) *No inversion* — relocating
+logic out of the kernel moves the substance unchanged, never rewriting a
+deterministic check as agent judgment.
 
 The ratified rule lives in the `coga/extension-model` context; this section is
 the audit's path to it.
 
 ## Source references
 
-- Alias mechanism + validation: `src/coga/cli.py:125` (`_DEFAULT_ALIASES`),
-  `:137-169` (`_validate_aliases`), `:247-254` (argv rewrite in `main()`),
-  `:99-105` (`_BUILTIN_COMMANDS`).
-- Command registration: `src/coga/cli.py:74-93`.
+- Alias defaults, built-in inventory, validation, and legacy migration:
+  `src/coga/aliases.py`.
+- Alias registration and argv rewrite: `src/coga/cli.py`.
+- Command registration: `src/coga/cli.py`.
 - `coga ticket` promotion rationale: `src/coga/commands/ticket.py`.
 - digest consumer: `src/coga/commands/digest.py`.
 - autoclose sweep + module: `coga/workflows/autoclose-merged/sweep.md`,
   `coga.autoclose.sweep_merged`.
-- Bootstrap tickets: package `bootstrap/{orient,project,ticket}/ticket.md`.
+- Bootstrap tickets: package
+  `bootstrap/{browser-automation,open-pr,orient,project,recurring-scan,resolve-conflicts,ticket}/ticket.md`.
 - Recurring templates: `coga/recurring/{autoclose-merged,digest,dream,skill-update}/`.
 - Alias test coverage (not `coga validate`): `tests/test_aliases.py`.
