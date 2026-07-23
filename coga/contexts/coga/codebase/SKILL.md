@@ -240,6 +240,13 @@ recurring walls that don't appear on a normal dev machine:
   `_strip_runtime_state`) or freeze the period before comparing; assert
   structure, not a hardcoded date.
 
+- **Subprocess tests must scrub inherited launch metadata.** A pytest run inside
+  `coga launch` inherits the outer session's `COGA_TASK_*` and `COGA_SKILL_*`
+  variables. A fixture worker that receives those values can write its report
+  into the live outer ticket instead of its temporary task. Clear every
+  launch-owned metadata variable in the autouse environment guard, or replace
+  the complete set explicitly for the fixture, before starting subprocesses.
+
 - **`coga.config` and `coga.commands.launch` share one `subprocess` module
   object.** Patching `coga.config.subprocess.run` and
   `coga.commands.launch.subprocess.run` separately collides (they are the same
