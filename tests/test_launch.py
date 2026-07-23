@@ -3140,4 +3140,6 @@ def test_queue_prompt_suffix_carries_block_guidance() -> None:
     assert suffix.startswith("\n\n")
     assert "coga block" in suffix
     assert "coga bump" in suffix
+    assert "stateless `bootstrap/<name>` command ticket" in suffix
+    assert "coga slack --task bootstrap/<name>" in suffix
     assert "does not release the queue" in suffix

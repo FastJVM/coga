@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 import tomllib
 
+from coga.ticket import Ticket
+
 
 EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/managed-skills.toml",
@@ -15,6 +17,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/prompt-queue.md",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",
     "coga/resources/templates/coga/bootstrap/browser-automation/ticket.md",
+    "coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
     "coga/resources/templates/coga/bootstrap/project/ticket.md",
     "coga/resources/templates/coga/bootstrap/recurring-scan/ticket.md",
     "coga/resources/templates/coga/bootstrap/recurring-scan/run.py",
@@ -43,6 +46,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.md",
     "coga/resources/templates/coga/recurring/digest/ticket.md",
     "coga/resources/templates/coga/recurring/digest/spool.md",
+    "coga/resources/templates/coga/recurring/resolve-conflicts/ticket.md",
     "coga/resources/templates/coga/recurring/skill-update/ticket.md",
     "coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
     "coga/resources/templates/coga/workflows/blocker-reminders/run.md",
@@ -103,6 +107,10 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
         "coga/workflows/brief-for-human.md",
         "src/coga/resources/templates/coga/workflows/brief-for-human.md",
     ),
+    (
+        "coga/bootstrap/resolve-conflicts/ticket.md",
+        "src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
+    ),
 )
 
 
@@ -129,6 +137,26 @@ def test_package_includes_coga_resources() -> None:
     for wheel_name in EXPECTED_BOOTSTRAP_RESOURCES:
         source_name = wheel_name.removeprefix("coga/resources/")
         assert (repo_root / "src" / "coga" / "resources" / source_name).is_file()
+
+
+def test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    recurring_root = (
+        repo_root
+        / "src"
+        / "coga"
+        / "resources"
+        / "templates"
+        / "coga"
+        / "recurring"
+    )
+    wrapper = Ticket.read(recurring_root / "resolve-conflicts" / "ticket.md")
+
+    assert wrapper.frontmatter["schedule"] == "0 8 * * 1"
+    assert wrapper.frontmatter["script"] == "inline"
+    assert "exec coga resolve-conflicts --queue-guidance" in wrapper.body
+    assert "open PRs only" in wrapper.body
+    assert not (recurring_root / "rebase-stale-worktrees").exists()
 
 
 def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:

@@ -17,8 +17,13 @@ may be running unattended.
 - If a code step cannot create a linked worktree because the sandbox mounts
   the primary checkout's `.git` read-only, follow the independent `/tmp` clone
   fallback in the `code/implement` skill before treating it as a blocker.
-- Finish the workflow step with `coga bump`, `coga mark done`, or `coga block`.
-  An authorized `coga mark canceled` transition also releases the queue; use it
-  only when intentional abandonment is the task decision.
-  A normal final response or an agent CLI `task_complete` event does not signal
-  Coga and does not release the queue.
+- Finish an ordinary workflow step with `coga bump`, `coga mark done`, or
+  `coga block`. An authorized `coga mark canceled` transition also releases the
+  queue; use it only when intentional abandonment is the task decision.
+- A stateless `bootstrap/<name>` command ticket has no task lifecycle to bump,
+  mark, or block. Follow its declared final completion action instead; a
+  successful `coga slack --task bootstrap/<name> ...` posts its roll-up and
+  releases that stateless session. If the command cannot proceed, include the
+  failure in that final report rather than trying to block a nonexistent task.
+  A normal final response or an agent CLI `task_complete` event still does not
+  signal Coga and does not release the queue.
