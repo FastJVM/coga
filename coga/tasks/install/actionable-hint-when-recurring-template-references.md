@@ -1,7 +1,7 @@
 ---
 slug: install/actionable-hint-when-recurring-template-references
 title: Actionable hint when recurring template references a removed bundled skill
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -30,7 +30,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
