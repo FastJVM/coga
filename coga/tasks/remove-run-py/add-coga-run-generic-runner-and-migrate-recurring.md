@@ -1,7 +1,7 @@
 ---
 slug: remove-run-py/add-coga-run-generic-runner-and-migrate-recurring
 title: Add coga run generic runner and migrate recurring jobs
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
