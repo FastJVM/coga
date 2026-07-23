@@ -1,7 +1,7 @@
 ---
 slug: remove-autonomy-triage
 title: remove autonomy triage
-status: in_progress
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
