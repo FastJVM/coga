@@ -1,7 +1,7 @@
 ---
 slug: bug-if-not-on-megalaunch-don-t-block-ask
 title: 'bug: if not on megalaunch  don''t block ask'
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
