@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-scaffold
-    github-ref: refs/tags/v1.1.0
+    github-ref: refs/tags/v1.2.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 3cd706de1f393c57ad3c2fc2a542919da1111f15
+    github-tree-sha: 5313af4adc48776e58fd249f3a75b3a93d8f8b83
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.1.0
+    version: 1.2.0
 name: google-agents-cli-scaffold
 ---
 # ADK Project Scaffolding Guide

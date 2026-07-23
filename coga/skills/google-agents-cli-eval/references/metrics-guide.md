@@ -129,7 +129,7 @@ Evaluates responses using an LLM judge driven by a prompt template.
 | `name` | yes | Unique identifier for the metric. |
 | `prompt_template` | yes | Prompt template used by the judge model. With agents-cli's file-based `EvaluationDataset` use `{prompt}`, `{response}`, and `{agent_data}` (the full trajectory). `{reference}` and `{context}` resolve only when the eval case has those fields populated. |
 | `rubric_group_name` | no | Name of the rubric group containing rubrics this metric uses. **Must match a key under `rubric_groups` in your dataset's `EvalCase` entries** (see `dataset_schema.md`). When set, the judge prompt is augmented with the rubrics from the matching group; when omitted, the metric runs without per-case rubrics. |
-| `judge_model` | no | Judge model (e.g., `gemini-flash-latest`). |
+| `judge_model` | no | Judge model (e.g., `gemini-3.6-flash`). |
 | `judge_model_sampling_count` | no | Number of judge samples to compute the score (1–32). |
 | `judge_model_system_instruction` | no | System instruction for the judge model. |
 | `judge_model_generation_config` | no | Generation config for the judge LLM (e.g., `temperature`). |

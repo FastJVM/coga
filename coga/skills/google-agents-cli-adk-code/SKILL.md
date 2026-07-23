@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-adk-code
-    github-ref: refs/tags/v1.1.0
+    github-ref: refs/tags/v1.2.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 41c035055186aa6a4723453759f681e4d11cdaca
+    github-tree-sha: 90b103d1f9aa0c8fbb9ae7f96e02bcdd81747246
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.1.0
+    version: 1.2.0
 name: google-agents-cli-adk-code
 ---
 # ADK Code Reference
@@ -41,7 +41,7 @@ def get_weather(city: str) -> dict:
 
 root_agent = Agent(
     name="my_agent",
-    model="gemini-flash-latest",
+    model="gemini-3.6-flash",
     instruction="You are a helpful assistant that ...",
     tools=[get_weather],
 )
@@ -55,7 +55,7 @@ The first two are cheatsheets for common patterns; for broad or deep knowledge, 
 
 | Reference | When to read |
 |------|-------------|
-| `references/adk-python.md` | Core ADK API: `Agent`, tools, callbacks, plugins, state, artifacts, multi-agent systems, `SequentialAgent` / `ParallelAgent` / `LoopAgent`, custom `BaseAgent`, A2A protocol, A2UI. Default for most agents. |
+| `references/adk-python.md` | Core ADK API: `Agent`, tools, callbacks, plugins, state, artifacts, multi-agent systems, `SequentialAgent` / `ParallelAgent` / `LoopAgent`, custom `BaseAgent`, `ManagedAgent` (server-hosted first-party agents), A2A protocol, A2UI. Default for most agents. |
 | `references/adk-workflows.md` | Graph-based Workflow API (ADK 2.0): nodes, edges, fan-out/fan-in, HITL, parallel processing. Use when you need explicit graph topology. |
 | `curl https://adk.dev/llms.txt` | Docs index (every page title + URL). Fetch it, then `WebFetch` the specific page for anything beyond the cheatsheets. |
 | Installed ADK package | Exact signatures and symbols — inspect the source (see "Inspecting ADK Source Code" in `references/adk-python.md`). |

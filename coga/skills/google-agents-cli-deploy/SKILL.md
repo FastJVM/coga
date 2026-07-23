@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-deploy
-    github-ref: refs/tags/v1.1.0
+    github-ref: refs/tags/v1.2.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 64b8e9d7dcb2b68eaf3ca2cfcda0754b11a63acb
+    github-tree-sha: 02c741b336b0f5e9ba9a2b08efe5499754f3ac09
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.1.0
+    version: 1.2.0
 name: google-agents-cli-deploy
 ---
 # ADK Deployment Guide

@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-eval
-    github-ref: refs/tags/v1.1.0
+    github-ref: refs/tags/v1.2.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 7e8a15f10af2867cc16a54ab1598524a9f369f49
+    github-tree-sha: 413ef93487caff45d5dde4dbd0138929d77b06cc
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.1.0
+    version: 1.2.0
 name: google-agents-cli-eval
 ---
 # Agent Evaluation Guide

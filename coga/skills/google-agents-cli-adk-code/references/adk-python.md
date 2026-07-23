@@ -44,7 +44,7 @@ def get_weather(city: str) -> dict:
 
 my_agent = Agent(
     name="weather_agent",
-    model="gemini-flash-latest",
+    model="gemini-3.6-flash",
     instruction="You help users check the weather. Use the get_weather tool.",
     description="Provides weather information.",  # Important for multi-agent delegation
     tools=[get_weather]
@@ -59,7 +59,7 @@ from google.adk.agents import Agent
 
 agent = Agent(
     name="my_agent",
-    model="gemini-flash-latest",
+    model="gemini-3.6-flash",
     instruction="Your instructions here. Use {state_key} for dynamic injection.",
     description="Description for delegation.",
 
@@ -109,7 +109,7 @@ class Evaluation(BaseModel):
 
 evaluator = Agent(
     name="evaluator",
-    model="gemini-flash-latest",
+    model="gemini-3.6-flash",
     instruction="Evaluate the input and provide structured feedback.",
     output_schema=Evaluation,
     output_key="evaluation_result",
@@ -147,14 +147,14 @@ from google.adk.agents import SequentialAgent, Agent
 
 summarizer = Agent(
     name="summarizer",
-    model="gemini-flash-latest",
+    model="gemini-3.6-flash",
     instruction="Summarize the input.",
     output_key="summary"
 )
 
 question_gen = Agent(
     name="question_generator",
-    model="gemini-flash-latest",
+    model="gemini-3.6-flash",
     instruction="Generate questions based on: {summary}"
 )
 
@@ -240,13 +240,13 @@ For a production LoopAgent with EscalationChecker, BuiltInPlanner, and grounding
 
     researcher = Agent(
         name="researcher",
-        model="gemini-flash-latest",
+        model="gemini-3.6-flash",
         mode="task",                        # 'chat' (default) | 'task' | 'single_turn'
         output_schema=ResearchOutput,
         description="Researches a topic.",  # required for delegation
         instruction="Research the topic, then call finish_task.",
     )
-    coordinator = Agent(name="coordinator", model="gemini-flash-latest", sub_agents=[researcher])
+    coordinator = Agent(name="coordinator", model="gemini-3.6-flash", sub_agents=[researcher])
     ```
     Modes: `task` (multi-turn, structured I/O) · `single_turn` (autonomous, no user turn). Sub-agents need a `description`; default I/O schemas (`goal`/`background` in, `result` out) are used if none set. Disabled inside graph `Workflow`s.
 
@@ -304,7 +304,7 @@ class EscalationChecker(BaseAgent):
 # Vertex AI (prod)
 # Set: GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, GOOGLE_GENAI_USE_VERTEXAI=True
 
-agent = Agent(model="gemini-flash-latest", ...)
+agent = Agent(model="gemini-3.6-flash", ...)
 ```
 
 ### Other Models via LiteLLM
@@ -323,7 +323,7 @@ agent = Agent(model=LiteLlm(model="ollama_chat/llama3:instruct"), ...)
 from google.adk.models import Gemini
 
 # Vertex AI hosted Gemini (set GOOGLE_GENAI_USE_VERTEXAI=True)
-agent = Agent(model=Gemini(model="gemini-flash-latest"), ...)
+agent = Agent(model=Gemini(model="gemini-3.6-flash"), ...)
 ```
 
 Provider guides: [Anthropic](https://adk.dev/agents/models/anthropic/index.md), [Ollama](https://adk.dev/agents/models/ollama/index.md), [vLLM](https://adk.dev/agents/models/vllm/index.md), [LiteLLM](https://adk.dev/agents/models/litellm/index.md)
@@ -662,7 +662,7 @@ app = App(
         compaction_interval=20,  # summarize every 20 events
         overlap_size=3,          # include last 3 events in next window for continuity
         # Optional: custom summarizer model
-        summarizer=LlmEventSummarizer(llm=Gemini(model="gemini-flash-latest")),
+        summarizer=LlmEventSummarizer(llm=Gemini(model="gemini-3.6-flash")),
     ),
 )
 ```
@@ -796,7 +796,7 @@ manager = A2uiSchemaManager(...)        # loads catalog(s) + few-shot examples
 instruction = manager.generate_system_prompt(...)
 
 # 2. Use it as the agent instruction
-root_agent = Agent(name="ui_agent", model="gemini-flash-latest", instruction=instruction)
+root_agent = Agent(name="ui_agent", model="gemini-3.6-flash", instruction=instruction)
 
 # 3. Validate the model's JSON output, then wrap as an A2A DataPart
 #    (MIME application/a2ui+json) via a2ui.a2a before streaming to the client.
@@ -843,6 +843,55 @@ Sessions are ephemeral by default (`InMemorySessionService`); use `DatabaseSessi
 Since ambient agents have no interactive user, route outputs via structured logging (JSON stdout → Cloud Logging → Cloud Monitoring alerts), Pub/Sub, or tool-based integrations (email, Jira, Slack).
 
 **Before implementing an ambient agent, clone and study the production sample** — it covers trigger wiring, middleware, structured logging, and Terraform. See the Notable Samples catalog in `/google-agents-cli-workflow` Phase 1. [Full docs](https://adk.dev/runtime/ambient-agents/).
+
+---
+
+## 13. Managed Agents (server-hosted, first-party)
+
+> **Requires ADK ≥ 2.4.0.** `ManagedAgent` connects to Google's first-party, server-hosted agents (e.g. the Antigravity agent) via the Managed Agents API: reasoning, tools, and execution all run in Google's managed environment, so there's no local sandbox to provision. It's a `BaseAgent`, so a standard `Runner` runs it like any other agent.
+
+### When to use it
+
+- **Managed agent** — powerful out-of-the-box capabilities (server-side web search, code execution) without operating the environment yourself. Trade-off: predefined server-side toolset, no client-side tools, runs only in the managed environment.
+- **`LlmAgent` (§2)** — when you need control over the model, instructions, custom/MCP tools, or where execution happens.
+
+### Setup
+
+Two backends — satisfy the prerequisites for whichever you use, then supply an `agent_id`:
+- **Gemini API:** set `GEMINI_API_KEY`. Use an out-of-the-box id (e.g. `antigravity-preview-05-2026`) or create your own (see below).
+- **Agent Platform (GEAP, formerly Vertex):** authenticate with ADC (`gcloud auth application-default login`). The Managed Agents API is served only from the `global` location, and `ManagedAgent` enforces it.
+
+### Create & use
+
+```python
+from google import genai
+from google.adk.agents import ManagedAgent
+from google.adk.tools import google_search
+
+# Create your own agent (google-genai SDK, NOT ADK — ManagedAgent has no create()).
+# Get-or-create keeps it idempotent; or skip entirely and use an out-of-the-box id like "antigravity-preview-05-2026".
+client = genai.Client()
+if "researcher" not in {a.id for a in (client.agents.list().agents or [])}:  # id must be unique, no gemini-/google-/... prefixes
+    client.agents.create(
+        id="researcher", base_agent="antigravity-preview-05-2026",
+        system_instruction="Answer with fresh, grounded info from the web.",
+    )
+
+# Connect + use. A ManagedAgent is a BaseAgent: set it as root_agent, drop it in a
+# workflow, or wrap it as AgentTool. Only server-side tools are allowed.
+managed = ManagedAgent(
+    name="researcher", agent_id="researcher",
+    environment={"type": "remote"},        # tools run in the managed sandbox
+    tools=[google_search],                 # or types.Tool(code_execution=types.ToolCodeExecution())
+)
+```
+
+### Limits
+
+- **Client-side tools raise `NotImplementedError`:** Python functions/callables and client-side MCP (`McpToolset`). Server-side tools work — ADK built-ins, raw `types.Tool` configs, and server-side remote MCP via `RemoteMcpServer`.
+- **Backends differ:** the Gemini API and GEAP behave slightly differently today — test against your target backend.
+
+Docs: [Gemini API agents](https://ai.google.dev/gemini-api/docs/agents) · [Agent Platform managed agents](https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/managed-agents) · [Interactions API](https://ai.google.dev/gemini-api/docs/interactions-overview) · [building custom agents](https://ai.google.dev/gemini-api/docs/custom-agents). Samples: [basic](https://github.com/google/adk-python/tree/main/contributing/samples/managed_agent/basic), [code execution](https://github.com/google/adk-python/tree/main/contributing/samples/managed_agent/code_execution).
 
 ---
 
