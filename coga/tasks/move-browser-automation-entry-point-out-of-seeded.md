@@ -1,7 +1,7 @@
 ---
 slug: move-browser-automation-entry-point-out-of-seeded
 title: Move browser automation entry point out of seeded tasks
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
