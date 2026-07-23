@@ -31,7 +31,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -196,3 +196,53 @@ the PR.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: resolve-conflicts-command
+worktree: /tmp/coga-resolve-conflicts
+
+## PR
+
+Summary:
+- Add the generic agent-launch argument block while preserving the script `COGA_ARG_*` channel.
+- Ship `coga resolve-conflicts [PR]` as a stateless command ticket with complete open-PR discovery, actual-conflict selection, verification-before-push, explicit leases, and stdout/Slack reporting.
+- Replace `rebase-stale-worktrees` with an agent-supervised weekly wrapper on the same schedule, intentionally retaining the documented open-PR-only scope.
+
+Test plan: `python -m pytest` (1483 passed, 1 skipped) and `coga validate --task fix-automatically-pr-conflict-and-a-command-to-bat --json`.
+
+## Implement plan
+
+- Land the generic agent-launch trailing-argument prompt seam and focused tests first.
+- Add the stateless `resolve-conflicts` command ticket and default alias, keeping live/package docs synchronized.
+- Replace `rebase-stale-worktrees` with a weekly thin launcher for the new command, preserving `0 8 * * 1` while intentionally dropping pre-PR branch coverage.
+- Verify the full suite and task validation, rebase onto current `origin/main`, and hand off as three commits.
+
+## Implement progress
+
+- `60823282` — generic agent-launch arg seam: scripts retain `COGA_ARG_*`; agents receive an appended `## Launch arguments` JSON array with argument boundaries preserved. Updated launch/architecture/codebase/CLI/reference docs.
+- Regression-first verification: the new agent-argument test failed against the prior refusal, then passed after the change; `python -m pytest tests/test_launch.py tests/test_launch_script.py -q` → 115 passed.
+- `4fe1db5d` — added byte-identical live + packaged `resolve-conflicts` stateless agent command tickets, the default alias, command/reference docs, and focused launch/alias tests. The ticket preserves the old rebase run order and result vocabulary while explicitly limiting discovery to open PRs.
+- Found and closed two command-ticket seam gaps: `coga slack --task` previously resolved durable tasks only, and a stateless agent command had no lifecycle transition with which to release its supervisor. Bootstrap-target FYIs now use the generic resolver and, after a successful post, signal only that bootstrap session complete; durable-task FYIs remain non-terminal. Focused sentinel tests cover both paths. `python -m pytest tests/test_aliases.py tests/test_commands.py tests/test_launch.py -q` → 199 passed before the sentinel follow-up; focused follow-up tests pass.
+- `78d5929e` — deleted the live + packaged `rebase-stale-worktrees` battery and replaced it with a thin live + packaged `resolve-conflicts` recurring wrapper. It preserves `0 8 * * 1`, delegates via `exec coga resolve-conflicts --queue-guidance`, documents the accepted open-PR-only limitation, and carries the live template's existing `2026-W29` high-water mark (packaged copy intentionally omits runtime state). Queue guidance now documents the bootstrap-command completion path so scheduled runs proceed and terminate without a nonexistent task transition.
+- `python -m pytest tests/test_packaging.py tests/test_recurring.py -q` → 133 passed, 1 skipped. The new packaging regression asserts the wrapper schedule/dispatch and that the obsolete packaged directory is absent.
+
+## Final verification
+
+- Final branch: `resolve-conflicts-command` at `78d5929e`; three commits in the required seam → command → recurring-replacement order. Worktree is clean and `origin/main` (`2e6180ae`) is an ancestor after the final fetch/rebase check.
+- `python -m pytest` on the final tree → 1483 passed, 1 skipped. The skip is the environment-gated wheel test (`hatchling` absent from the starting interpreter).
+- Isolated `python -m pip wheel --no-deps .` then succeeded with build isolation. The wheel contains `bootstrap/resolve-conflicts/ticket.md` and `recurring/resolve-conflicts/ticket.md`; it contains no `rebase-stale-worktrees` resource.
+- `coga validate --task fix-automatically-pr-conflict-and-a-command-to-bat --json` → exit 0 / `ok_count: 1`; only the expected clone-local `missing-user` warning. Repo-wide validation was also inspected and its nonzero result is entirely pre-existing unrelated draft/state drift (for example `op-service-account` and old `v2/*` drafts), with no issue for this task or the new command/recurring resources.
+- CLI smoke: top-level help lists `resolve-conflicts → launch bootstrap/resolve-conflicts`; `launch --help` documents script env args versus the agent prompt block. Live + packaged command tickets are byte-identical, and both obsolete recurring directories are absent.
+- Adjacent harness finding (not fixed here): two full-suite subprocess tests inherited this live launch's `COGA_TASK_BLACKBOARD` and appended fake `Dream Skill: validate-drift` reports to the control ticket. Those test artifacts were removed before handoff; a follow-up should scrub the remaining `COGA_TASK_*` metadata in the autouse environment guard.
+
+## Peer review
+
+- `codex review --base main` completed against `78d5929e`; focused review tests were `228 passed, 1 skipped`, and its full-suite run was `1483 passed, 1 skipped`.
+- Must fix: the literal `origin/main` ancestry test treats Coga's own generated `coga/tasks/**` and `coga/log.md` commits as PR staleness, causing needless force-push churn. Select actual conflicts from refreshed PR mergeability instead.
+- Must fix: the inline-script recurring wrapper is classified as headless script work, so its nested agent bypasses recurring's TTY admission and liveness supervisor. Make the recurring run agent-backed and keep its body a thin delegation to the command ticket.
+- Must fix: `gh pr list` defaults to 30 results. Require paginated/adequately bounded enumeration so sweep mode covers every open PR.
+- Applied: command discovery now uses `--limit 10000` with an explicit truncation/pagination fallback; every PR is refreshed and only `CONFLICTING` heads proceed, while `MERGEABLE` heads are left untouched and `UNKNOWN` fails safe after bounded retries.
+- Applied: the weekly template is agent-backed (no `script:`), so recurring owns TTY admission, selected-agent override, queue posture, idle timeout, and max-session. Its agent delegates through the alias using its current agent type, then marks the period task done only after success.
+- Verification after fixes: focused command/wrapper regressions `2 passed`; affected launch/command/packaging/recurring suite `358 passed, 1 skipped`; full suite `1483 passed, 1 skipped`.
+- Peer-review fix commit rebased as `896e34c2`; branch is clean on fresh `origin/main` `591f7531`, which is an ancestor of HEAD. Post-rebase `python -m pytest` again passed `1483 passed, 1 skipped`.
+- Final task validation after writing the PR handoff: `coga validate --task fix-automatically-pr-conflict-and-a-command-to-bat --json` → exit 0, `ok_count: 1`, no issues.
