@@ -274,3 +274,13 @@ Git history preserves the completed run.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Run State
+
+- Period: `2026-W30` (from `coga/recurring/dream/ticket.md`).
+- Scope: the six ordered phases in this ticket; no extra maintenance phases.
+- Started: 2026-07-23.
+
+## Findings
+
+_Phase 2 knowledge-scan and Phase 3 contract-audit findings will be recorded here._
