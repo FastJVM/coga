@@ -29,10 +29,12 @@ throw at it is not a safety net.
 
 ## Triage
 
-Every `--important` post should @ one recipient: the coga user named by the
-important-recipient coga.toml key once that sibling config work lands. That
-user is the triage owner. Every alert lands on them, whether or not they are
-the one who ends up acting.
+Every `--important` post should @ one triage recipient.
+`[notification.slack].important_recipient` is already a parsed configuration
+key, but the Slack backend does not yet substitute it for the ordinary ticket
+owner mention. Until that routing is wired, the owner passed by `coga slack`
+remains the person pinged; configure alert tasks accordingly rather than
+assuming the parsed recipient changes delivery.
 
 From there they do one of three things:
 
@@ -66,8 +68,8 @@ channel.
 
 - How notifications reach Slack at all, the live/digest tiers, and git sync —
   `coga/sync`.
-- Configuring the channel. The important webhook and important recipient
-  coga.toml keys are owned by sibling implementation tickets; see `coga/sync`
-  once those keys land.
+- Configuring the channel. The important webhook and parsed important-recipient
+  keys are documented in `coga/sync`, including the recipient key's current
+  not-yet-routed limitation.
 - What any given script should treat as action-needed. That judgment belongs to
   the script and its own context.
