@@ -1,6 +1,6 @@
 ---
 name: coga/extension-model
-description: How Coga's command surface is meant to extend — the three homes for logic (kernel, tickets, external tools), aliases as sugar, the launch-rooted kernel (launch plus what it depends on), and the shape test (parameters? state? when does it run?) that decides where a command-shaped thing belongs. Read this before adding a command or an alias, or before arguing a built-in must stay one.
+description: How Coga's command surface extends through the kernel, stateful tickets, stateless command tickets, and external tools; aliases are only argv sugar. Read this before adding a command or alias, or before arguing a built-in must stay one.
 ---
 
 # Coga extension model
@@ -22,27 +22,25 @@ Aliases are not a fourth home — they are argv sugar pointing at one of the thr
 1. **Kernel** — small, tested Python that cannot be anything else (below).
 2. **Tickets / workflows** — *stateful, reviewable* work, expressed as skills and
    script steps running on a ticket.
-3. **External scripts / tools** — *stateless, parameterized* invocations. Two kinds:
-   - **External tool** — an existing third-party CLI Coga shells out to (`gh`, `op`,
-     `git`). Exists already; Coga calls it and verifies its output (principle 3,
-     reuse the OS the operator knows). No mechanism to design.
-   - **External script / service** — a *Coga-authored* stateless capability that
-     lives outside both the kernel and the ticket model. This home has **no
-     implementation yet**: today a stateless Coga operation can only be a
-     built-in command or a script step on a ticket. A first-class surface for
-     it (a `gh`-style extension, a separate package/service, or a
-     `coga/scripts/` target `launch` can call) is still to be designed — the
-     mechanism design now lives in `docs/cli-extension-external-surface.md`.
+3. **Stateless commands / external tools** — parameterized invocations with no
+   per-run lifecycle:
+   - **Command ticket** — a Coga-authored verb defined by a stateless
+     `bootstrap/<name>/ticket.md`, implemented by its script or agent body, and
+     launched in place. The repo-local definition wins over the packaged
+     fallback.
+   - **External tool** — an existing third-party CLI Coga shells out to (`gh`,
+     `op`, `git`) and whose output Coga verifies.
 
 ## The decision rule
 
 Reach for the lowest tier the *shape* allows — shape decides, not taste:
 
-- **Alias** if it is a fixed argv rewrite (`launch X` / `recurring launch X`) with
-  no logic on either side and no ticket to create.
-- **External script / tool** if it is a stateless parameterized invocation —
-  operands and flags in, effect out, nothing to review. Its parameters live at the
-  command (Typer) layer, where arg-parsing is already solved and legible.
+- **Alias** if it is a fixed argv rewrite (`launch X` / `recurring launch X`).
+  It supplies a memorable verb but owns no logic.
+- **Command ticket / external tool** if it is a stateless parameterized
+  invocation — operands in, effect out, no task instance or review lifecycle.
+  Use a command ticket for Coga-authored behavior and an existing external tool
+  when the operating system already provides it.
 - **Ticket / workflow** if it is a stateful, reviewable unit of work — it wants its
   own blackboard, log, and (often) a PR.
 - **Kernel** if `launch` calls or depends on it mid-flight, or it must exist before
@@ -77,39 +75,27 @@ What that closure contains, and why each is there:
 That is the whole kernel. No other user-facing command is in it — everything a
 user or cron calls *to start* a launch is movable.
 
-## The external script / service home
+## The stateless command-ticket home
 
-The third home is the least obvious, because its mechanism is designed but not
-implemented yet (`docs/cli-extension-external-surface.md`). The concept is fixed
-even though the runner is not.
+A command ticket is the shipped Coga-authored stateless extension surface. It
+uses ticket-format files as a legible **definition**, but it is not a durable
+task instance:
 
-An **external script / service** is a *Coga-authored* stateless capability that
-lives outside **both** the kernel and the ticket model. It earns its own home by
-elimination:
+- Put the definition under `coga/bootstrap/<name>/ticket.md`; package-backed
+  defaults live under the matching bootstrap resource. Resolution is
+  local-first, so a repo can mint or deliberately override a verb without a
+  core-Python change.
+- Give it no `status:` or `workflow:`. `coga launch bootstrap/<name>` runs that
+  definition in place each time; it does not create a per-invocation task,
+  blackboard, or lifecycle broadcast.
+- Use `script:` for deterministic behavior or an agent body when the command
+  requires judgment. Keep deterministic checks deterministic when moving them.
+- Add an alias such as `open-pr = "launch bootstrap/open-pr"` when the command
+  deserves a top-level spelling. Trailing argv continues through the alias.
 
-- **Not kernel** — `launch` never calls it mid-flight; it is not regress/bootstrap
-  and not a trust hook.
-- **Not a ticket** — it is stateless and parameterized with nothing to review;
-  wrapping it in a task is pure ceremony (a dir, status lifecycle, log, broadcast).
-- **Not merely an external tool** — Coga authored it. It often *wraps* an external
-  tool (the skill installer wraps `gh skill`), but the wrapper is Coga's.
-
-Two flavors, weighted by Coga's local-first stance (principles 3 and 5):
-
-- **External script** — the common case: a small Coga-authored program that runs
-  locally — shells out, mutates files, prints. The skill installer is the exemplar,
-  and the idiomatic packaging is often a thin wrapper on a CLI the operator already
-  has (e.g. a `gh` extension), not a new Python surface.
-- **External service** — rare and gated: an out-of-process or hosted crossing.
-  Coga stays classical and local-first; v1 ships zero hosted crossings — Coga
-  never phones home (see `coga/principles`). Prefer a local script unless
-  a requirement genuinely needs a hosted endpoint.
-
-Until the mechanism lands, these capabilities live as built-in commands or
-script steps. This context fixes the *home and its boundary*; the
-mechanism design is `docs/cli-extension-external-surface.md` — deliberately a
-docs-level implementation contract, so the launch contract does not pre-build a
-worse Typer.
+`open-pr` proved the script-backed form; `resolve-conflicts` proved the
+agent-backed form. External third-party tools remain separate: Coga calls
+their stable CLI instead of wrapping their implementation in a command ticket.
 
 ## Ticket vs. command: statefulness decides
 
@@ -118,29 +104,29 @@ Both can be parameterized, so the parameter is not the discriminator — **state
 - A stateful, reviewable unit of work → **ticket**. `coga retire <slug>` takes a
   slug and creates a *retire task* (retro + PR + delete) — multi-step work that
   wants a blackboard and review.
-- A stateless one-shot → **command / external tool**. `coga skill install X`,
-  `coga secret get Y`, `coga show <slug>` — operands in, effect out, no state, no
-  review. Wrapping these in a task buys nothing and pays the full ceremony of a
-  dir, status lifecycle, log, and broadcast.
+- A stateless one-shot → **command ticket / external tool**. Operands in,
+  effect out, no per-run state and no review. A command ticket keeps Coga-owned
+  implementation local and editable without paying for a task directory,
+  status lifecycle, blackboard, or broadcast.
 
-## Parameters: only if materialized into files
+## Parameters stay explicit
 
-The ticket model has no parameter channel by design, and that is a property to
-preserve, not a gap to fill. The load-bearing invariant (`coga/architecture`) is
-that **the prompt is a pure function of the files on disk now**.
+Stateful task parameters and stateless command arguments have different
+durability requirements:
 
 - A param **materialized into the ticket's files at creation** becomes state — fine,
   and already how `retire`, recurring instantiation, and the ticket-authoring
   commands work (`arg → draft` writes the arg into the draft). `coga ticket` is
   the example: the command head materializes the title/ref, then the authoring
   interview and finalize phase operate on files.
-- A param passed **at launch, per-invocation, not persisted** is forbidden: it
-  smuggles hidden input that is not in the repo, so re-running the same slug does
-  different things for reasons no file records. That breaks reproducibility and the
-  correction loop, and it is the seed of a config DSL (below).
-
-This is why a parameterized *stateless* operation stays a command: its params
-belong at the Typer layer, and persisting them would buy nothing for a one-shot.
+- A **stateless command ticket** accepts trailing launch arguments without
+  persisting them because there is no run state to reproduce. Script-backed
+  commands receive `COGA_ARG_1..N` plus `COGA_ARGC`; agent-backed commands
+  receive an appended `## Launch arguments` JSON array so ordering and argument
+  boundaries remain explicit. The command definition stays in files while the
+  invocation stays ordinary, visible argv.
+- A stateful workflow must not use that channel as hidden mutable task input.
+  Materialize inputs into its ticket instead.
 
 ## Trust boundaries straddle: acquire outside, verify inside
 
@@ -163,11 +149,11 @@ actively fights the capability boundary.
 
 ## Two guardrails
 
-- **No worse Typer.** Do not add transient launch-time parameters, and do not let an
-  `arg → create-draft-with-workflow → launch` authoring command grow past that single
-  fixed shape. Conditionals, computed args, types, or validation in `coga.toml`
-  rebuild Typer worse and in TOML — an illegible config DSL that violates the
-  legibility non-negotiable (`coga/principles`). Branching logic belongs in a skill.
+- **No worse Typer.** Keep aliases as fixed argv rewrites and keep command
+  argument interpretation in the command ticket. Conditionals, computed args,
+  types, or validation in `coga.toml` rebuild Typer worse and in TOML — an
+  illegible config DSL that violates the legibility non-negotiable
+  (`coga/principles`).
 - **No inversion.** Relocating logic out of the kernel must move the *substance
   unchanged* — script-step Python with its tests intact — never rewrite a
   deterministic check as agent judgment because it now lives "in a skill." Change
@@ -178,43 +164,27 @@ actively fights the capability boundary.
 | Home | Members |
 | --- | --- |
 | **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · *(hooks)* secret-inject, skill-verify-at-compose |
-| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · `ticket` collapsed to irreducible command head + `bootstrap/ticket` interview + `coga/ticket/finalize` script-shaped module · `recurring` scan collapsed to thin command head + `bootstrap/recurring-scan` stateless script target · move targets: `project`, `retire` |
-| **External / command** | reads: `show`/`status` collapsed to thin command heads + `coga.views` render exposed as the `coga/show` script-shaped module (mirrors `ticket`); `recurring list`, `skill status`, `validate` still whole commands · external CLI: `skill install/install-local/install-url/update/remove` · notify/escape: `slack`, `block`, `unblock` · `secret get` |
-| **Alias (sugar)** | `chat`, `dream`, `build` · (proposed) `skill-update`, `autoclose` |
+| **Stateful tickets** | reviewable work with its own lifecycle, including recurring period tasks, `retire`, and code workflows |
+| **Stateless command tickets** | package/repo bootstrap targets such as `open-pr` and `resolve-conflicts`; deterministic or agent-backed, launched in place |
+| **External tools** | existing CLIs such as `git`, `gh`, and `op` |
+| **Alias (sugar)** | fixed rewrites to launch/bootstrap or other real command targets |
 
-## Sequenced externalization, not a redesign
+## Migration rule, not a redesign
 
-Most of this is already at its floor: the kernel is small, the movable
-deterministic logic (`automerge`/`digest`/`delete`) is already a skill or script
-step, and the rest is movable-by-choice. There is no system-wide rewrite waiting —
-there is a *sequenced* externalization, organized into **two passes by direction
-of movement**, justified by hackability (principle 1: more logic lives as editable
-`coga/` files) and dogfooding (Coga's own operations exercise the script-step
-model):
+When a built-in verb is stateless and does not belong to `launch`'s dependency
+closure, move its implementation into one command ticket without changing its
+semantics:
 
-- **Pass 1 — what stays *core*, what goes *external*** (design;
-  `cli-extension-model/design-external-script-service-mechanism`). Fixes the kernel
-  boundary — and closes the not-yet-built verify-at-compose hook — and designs the
-  external script/service surface. One decision, because the trust-straddle ties
-  "stays kernel" to "becomes an external script."
-- **Pass 2 — what goes *into tickets*** (execution;
-  `cli-extension-model/move-command-logic-to-tickets`). Moves the read views'
-  render substance out of the command files and `recurring` scan → a Dream-shaped
-  task (neither needs a new mechanism), and moves ticket-authoring substance out of
-  command files. The shape a parameterized read actually takes is the same as
-  `ticket`: a *transient* operand (`show <slug>`, `status [dir]` + flags) can't be
-  materialized into an arg-less launched ticket without breaking the
-  files-on-disk / no-transient-launch-params invariant, so the arg stays at the
-  **Typer layer** on a thin command head and only the *render* changes home — into
-  a tested package module (`coga.views`) also exposed in script-step shape (the
-  `coga/show` skill). `ticket` was the first collapsed case (irreducible
-  `arg → draft → launch` head + `coga.authoring`/`coga/ticket/finalize`);
-  `show`/`status` followed (thin heads + `coga.views`/`coga/show`). `recurring
-  list`, `skill status`, `project`, and `retire` remain follow-ups; no new
-  launcher mechanism is introduced.
-
-Each pass respects the carve-outs: the secret/state-write kernel does not move, and
-externalized logic stays tested Python (the no-inversion guardrail).
+1. Preserve shared parsers, preflights, and declarative completion gates in the
+   kernel when they have other consumers. `open-pr`, for example, moved its
+   recipe while `bump` retained the `requires: pr` data gate.
+2. Keep tests beside or pointed at the moved implementation and preserve the
+   same failure behavior.
+3. Expose the bootstrap target directly and add an alias only for a stable
+   operator-facing spelling.
+4. Do not create a task per invocation. If the work needs a blackboard,
+   review, or later handoff, it is stateful work and belongs in an ordinary
+   ticket/workflow instead.
 
 ## What this context does NOT cover
 
