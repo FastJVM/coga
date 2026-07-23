@@ -1,7 +1,7 @@
 ---
 slug: recurring/rebase-stale-worktrees
 title: Rebase stale worktrees
-status: blocked
+status: paused
 owner: nicktoper
 human: nicktoper
 agent: claude
