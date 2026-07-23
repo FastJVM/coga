@@ -40,9 +40,9 @@ diagnostics. That is useful for inspection, but it is a false-green when
 `validate` is used as a headless-runner preflight: the real `coga recurring`
 then exits 2 before doing work.
 
-Preserve the diagnostic-friendly default while providing a stable command or
-flag that treats missing execution prerequisites—at minimum the local
-`user`—as fatal.
+Preserve the diagnostic-friendly default and add
+`coga validate --execution-ready`. In that mode the existing `missing-user`
+issue becomes an error and the command exits 1.
 
 ## Context
 
@@ -59,23 +59,43 @@ flag that treats missing execution prerequisites—at minimum the local
   runbook can resolve every secret and pass `validate --check-slack`, yet the
   scheduled sweep still cannot run until `coga.local.toml` contains
   `user = "runner"`.
+- Implementation anchors are `src/coga/commands/validate.py` and
+  `src/coga/validate.py` (`_missing_user_issue`, `run`, `validate_task`, and
+  `_main`), with coverage in `tests/test_cli.py` and
+  `tests/test_validate.py`.
+
+CLI contract:
+
+- Default validation keeps `missing-user` at warning severity and exits 0 when
+  there are no other errors.
+- `--execution-ready` keeps issue kind `missing-user`, promotes severity to
+  `error`, and exits 1. Text and `--json` output must agree.
+- The flag works for whole-repo and `--task` validation. With `--fix`, it
+  remains an error because Coga must not invent the actor.
+- It composes normally with `--check-slack` and `--check-github`; their existing
+  incompatibility with `--task` is unchanged.
+- Both the Typer command and `src/coga/validate.py::_main` expose identical
+  behavior.
 
 Done means:
 
-- a documented execution-readiness validation surface returns nonzero and a
-  clear diagnostic when the local actor is absent;
+- `coga validate --execution-ready` returns 1 and a clear `missing-user` error
+  when the local actor is absent;
 - ordinary `coga validate`, `status`, `show`, and other intended read-only
   fresh-clone diagnostics retain their current behavior;
-- text and JSON output have deterministic severity and exit semantics suitable
-  for shell preflights;
-- tests cover direct recurring runners and the multi-repo `--all` false-green
-  boundary; and
-- CLI documentation and live/packaged contexts describe when to use strict
-  validation.
+- text and JSON output, both CLI entrypoints, `--task`, `--fix`, and the network
+  check combinations follow the contract above;
+- `docs/operations.md`, `docs/reference.md`, and the packaged
+  `contexts/coga/cli` command reference show strict validation as the preflight
+  before invoking recurring work. No external repository documentation is
+  required by this ticket.
 
 Out of scope: automatically choosing or copying an actor identity. Worktree
 local-config propagation belongs to sibling ticket
-`op/propagate-local-coga-config-into-worktrees`.
+`op/propagate-local-coga-config-into-worktrees`. This ticket does not change
+`recurring --all` discovery or its intentional skip-unconfigured behavior;
+each real scheduler target must run strict validation in its own checkout
+before the sweep.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
