@@ -198,6 +198,7 @@ the PR.
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/633
 branch: resolve-conflicts-command
 worktree: /tmp/coga-resolve-conflicts
 
