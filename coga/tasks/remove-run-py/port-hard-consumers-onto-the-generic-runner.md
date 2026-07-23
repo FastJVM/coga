@@ -1,7 +1,7 @@
 ---
 slug: remove-run-py/port-hard-consumers-onto-the-generic-runner
 title: Port open-pr and delete-task onto the generic runner
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -108,3 +108,18 @@ recurring launches to `coga run`); this ticket does not edit it.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dependency check (2026-07-23)
+
+- Freshly fetched `origin/main` is `0d4580d7`, identical to this checkout.
+- Dependency `remove-run-py/add-coga-run-generic-runner-and-migrate-recurring`
+  is still `in_progress` at `step: 2 (review-design)`.
+- `src/coga/runner.py` and the proposed `run_recipe` / `RECIPES` dispatch
+  surface are absent. Implementing this ticket now would duplicate or guess
+  ticket A's unapproved design, so no feature branch/worktree was created.
+
+---
+
+## Blockers
+
+- [ ] [2026-07-23 07:45] [agent:claude] id=20260723T074518 Blocked on remove-run-py/add-coga-run-generic-runner-and-migrate-recurring: its coga run generic runner and dispatch table are absent from origin/main while that task remains at review-design; finish and merge ticket A before retrying this port.
