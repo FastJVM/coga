@@ -723,3 +723,99 @@ def test_user_script_with_stale_control_code_still_refreshes(
 
     assert result.exit_code == coga_git.STALE_CONTROL_EXIT_CODE
     assert len(refreshed) == 1
+
+
+def _git(cwd: Path, *args: str) -> None:
+    import subprocess
+
+    subprocess.run(
+        ["git", *args], cwd=cwd, check=True,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+
+def test_script_launch_commits_log_append_before_running_script(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_git: None
+) -> None:
+    """Regression: the launcher must commit its `launched as a script` log
+    append before running the script.
+
+    A script step is free to switch git branches — `coga skill update --pr`
+    runs `git checkout -B coga/skill-update <base>` — and git aborts *any*
+    checkout while a tracked file like `coga/log.md` is dirty. When the append
+    was left uncommitted the skill-update recurring run failed with a raw
+    "Your local changes to the following files would be overwritten by
+    checkout: coga/log.md" error. This asserts `coga/log.md` is clean by the
+    time the script runs.
+    """
+    root = tmp_path
+    company = root / "coga"
+    _write(
+        company / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(company / "coga.local.toml", 'user = "marc"\n')
+    _write(
+        company / "workflows" / "ops.md",
+        """
+        ---
+        name: ops
+        description: single-step.
+        steps:
+          - name: run
+            skills:
+              - ops/checker
+        ---
+        """,
+    )
+    _write(
+        company / "skills" / "ops" / "checker" / "SKILL.md",
+        """
+        ---
+        name: ops/checker
+        description: runs a health check.
+        script: check.sh
+        ---
+
+        Runs the check.
+        """,
+    )
+    # The script fails loud if the launcher left coga/log.md dirty — the exact
+    # condition that aborts a mid-script `git checkout`.
+    script = company / "skills" / "ops" / "checker" / "check.sh"
+    script.write_text(
+        "#!/bin/sh\n"
+        'if [ -n "$(git status --porcelain -- coga/log.md)" ]; then\n'
+        '  echo "coga/log.md was dirty when the script ran" >&2\n'
+        "  exit 7\n"
+        "fi\n"
+    )
+    script.chmod(0o755)
+
+    # A real git checkout so the launcher's `sync_log` can commit. No remote is
+    # configured, so the launch push preflight self-skips; a feature branch (not
+    # the control branch) keeps `sync_log` to a local commit with no push.
+    _git(root, "init", "-q", "-b", "main")  # control branch must exist for sync_log
+    _git(root, "config", "user.email", "t@example.com")
+    _git(root, "config", "user.name", "Test")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "init")
+    _git(root, "checkout", "-qb", "feature")
+
+    monkeypatch.chdir(company)
+    cfg = load_config(company)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "check"])
+
+    assert result.exit_code == 0, result.output

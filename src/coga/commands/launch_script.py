@@ -17,6 +17,7 @@ from coga.bump import (
     advance_step,
     resolve_step_assignee,
 )
+from coga import git
 from coga.compose import _extract_section
 from coga.config import Config, SecretError, build_launch_env
 from coga.lifecycle import TERMINAL_STATUSES
@@ -215,6 +216,14 @@ def run_script_mode(
 
     if not stateless:
         append_log(cfg, ref.id_slug, "system", f"launched as a script ({log_label})")
+        # Commit that log append before running the script. A script step is
+        # free to switch git branches (e.g. `coga skill update --pr` runs
+        # `git checkout -B coga/skill-update`), and git aborts *any* checkout
+        # while a tracked file like `coga/log.md` is dirty. Left uncommitted,
+        # this append is exactly such a dirty file, so the script fails with a
+        # raw "local changes would be overwritten by checkout" error. Mirror the
+        # agent path's `commit_log` (see launch.py). Non-fatal on git failure.
+        git.sync_log(cfg, message=f"Log: {ref.id_slug}")
 
     try:
         result = subprocess.run(cmd, env=env, cwd=cwd, check=False)
