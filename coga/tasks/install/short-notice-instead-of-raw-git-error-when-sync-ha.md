@@ -4,8 +4,8 @@ title: Short notice instead of raw git error when sync has no origin remote
 status: draft
 owner: nicktoper
 human: nicktoper
-agent: claude
-assignee: nicktoper
+agent: codex
+assignee: codex
 contexts:
   - coga/principles
 skills: []
