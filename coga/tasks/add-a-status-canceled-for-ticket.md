@@ -1,7 +1,7 @@
 ---
 slug: add-a-status-canceled-for-ticket
 title: add a status canceled for ticket
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
