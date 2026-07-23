@@ -379,9 +379,11 @@ def test_script_launch_scrubs_inherited_arg_env(
     assert "arg2=\n" in output
 
 
-def test_agent_launch_with_trailing_args_fails_loud(repo: Path) -> None:
-    """Trailing args are a script channel; an agent launch must refuse them
-    rather than silently drop them — before the TTY gate would fire."""
+def test_agent_launch_composes_trailing_args_into_prompt(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Agent launches receive ordered trailing args in an explicit prompt
+    block; the script-only COGA_ARG_* environment contract stays separate."""
     skill_md = repo / "skills" / "ops" / "checker" / "SKILL.md"
     skill_md.write_text(
         "---\nname: ops/checker\ndescription: runs a health check.\n---\n"
@@ -393,12 +395,32 @@ def test_agent_launch_with_trailing_args_fails_loud(repo: Path) -> None:
         watchers=[], status="active",
     )
 
-    result = CliRunner().invoke(app, ["launch", "check", "alpha"])
+    calls: list[list[str]] = []
 
-    assert result.exit_code == 2
-    combined = result.output + (result.stderr or "")
-    assert "trailing arguments" in combined
-    assert "COGA_ARG_1" in combined
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr(
+        "coga.commands.launch._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(
+        app, ["launch", "check", "631", "label with space"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    prompt = calls[0][-1]
+    assert "## Launch arguments" in prompt
+    assert '["631", "label with space"]' in prompt
 
 
 # --- local-first bootstrap resolution ------------------------------------------

@@ -14,6 +14,7 @@ changes) — launch is the only way to run a skill against one.
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import shutil
@@ -95,9 +96,9 @@ def launch(
     task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` ticket."),
     args: list[str] | None = typer.Argument(
         None,
-        help="Trailing arguments for a script launch, injected into the "
-        "script's environment as COGA_ARG_1..N plus COGA_ARGC. An agent "
-        "launch given trailing args fails loud (nothing consumes them).",
+        help="Trailing positional arguments for the launch target. Script "
+        "launches receive COGA_ARG_1..N plus COGA_ARGC; agent launches "
+        "receive an ordered Launch arguments block in the composed prompt.",
     ),
     agent_override: str | None = typer.Option(
         None,
@@ -154,7 +155,7 @@ def launch(
     # In-process callers (recurring, retire) invoke this Typer command function
     # directly without passing every parameter, so an omitted `args` arrives as
     # Typer's ArgumentInfo sentinel rather than None. Normalize once up front.
-    script_args: list[str] = list(args) if isinstance(args, (list, tuple)) else []
+    launch_args: list[str] = list(args) if isinstance(args, (list, tuple)) else []
 
     try:
         cfg = load_config()
@@ -311,27 +312,13 @@ def launch(
                 _bail("--agent is only supported for agent launches.")
             from coga.commands.launch_script import run_script_mode
             run_script_mode(
-                cfg, ref, ticket, stateless=is_bootstrap, args=script_args
+                cfg, ref, ticket, stateless=is_bootstrap, args=launch_args
             )
             # A failed script sys.exits inside run_script_mode; that path is
             # refreshed by the BaseException handler below, so this fires
             # exactly once per script launch.
             _refresh_launch_checkout(cfg)
             return
-
-        # Trailing args are a script-launch channel (COGA_ARG_1..N). An agent
-        # launch has nothing that consumes them — composing them into the
-        # prompt is deliberately deferred — so dropping them silently would be
-        # a fail-quiet wrong answer. Refuse before any TTY/CLI/auth setup.
-        if script_args:
-            listed = " ".join(script_args)
-            _bail(
-                f"Cannot launch {ref.id_slug} with trailing arguments "
-                f"({listed!r}): launch arguments are only supported for "
-                "script launches, where they are injected as COGA_ARG_1..N. "
-                "An agent launch does not consume them. Remove the arguments, "
-                "or target a script-backed ticket."
-            )
 
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
@@ -538,7 +525,8 @@ def launch(
                     discussion=_is_discussion_bootstrap(ref),
                     kickoff=_bootstrap_kickoff(ref),
                     prompt_suffix=(
-                        _queue_prompt_suffix() if queue_guidance else ""
+                        _agent_args_prompt_suffix(launch_args)
+                        + (_queue_prompt_suffix() if queue_guidance else "")
                     ),
                     idle_timeout=idle_timeout,
                     max_session=max_session,
@@ -785,6 +773,29 @@ def _queue_prompt_suffix() -> str:
             "package: prompt-queue.md"
         ) from exc
     return f"\n\n{prompt.strip()}\n"
+
+
+def _agent_args_prompt_suffix(args: list[str]) -> str:
+    """Render one launch invocation's positional args as prompt input.
+
+    Script launches keep their existing `COGA_ARG_*` environment channel;
+    agent launches need the same ordered values in the medium they consume.
+    JSON preserves argument boundaries (including whitespace and newlines),
+    and an indented code block cannot be closed by an argument containing a
+    Markdown fence. This remains an ephemeral suffix rather than a durable
+    compose layer because launch arguments are invocation state, not ticket
+    state.
+    """
+    if not args:
+        return ""
+    encoded = json.dumps(args, ensure_ascii=False)
+    return (
+        "\n\n## Launch arguments\n\n"
+        "The operator supplied these positional arguments to this launch, in "
+        "order. Treat the JSON array as inputs to the launch target and "
+        "preserve each value's boundary:\n\n"
+        f"    {encoded}\n"
+    )
 
 
 # Linux caps a single execve() argument at MAX_ARG_STRLEN (32 pages =

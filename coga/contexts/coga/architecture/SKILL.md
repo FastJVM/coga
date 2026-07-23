@@ -99,17 +99,20 @@ no in-memory state.
   a ticket that is a verb's durable *definition* (body as docs, `script:` as
   implementation, `secrets:` as capability grant), launched in place each
   time with no per-invocation task instance. Trailing launch args
-  (`coga launch <target> [ARGS...]`) reach a *script* launch as
-  `COGA_ARG_1..N` plus `COGA_ARGC`; an agent launch given trailing args
-  fails loud. The arg namespace is rewritten per launch invocation, not
-  overlaid on the launcher's environment, so a nested launch with fewer args
-  cannot see its parent's leftovers. Stdout belongs to the command: a
+  (`coga launch <target> [ARGS...]`) follow the target's execution medium: a
+  *script* launch receives `COGA_ARG_1..N` plus `COGA_ARGC`, while an *agent*
+  launch receives the ordered values in an appended `## Launch arguments`
+  prompt block. The script arg namespace is rewritten per launch invocation, not
+  overlaid on the launcher's environment, so a nested script launch with fewer
+  args cannot see its parent's leftovers. Stdout belongs to the command: a
   stateless script launch keeps launch's own framing on stderr, so moving a
   verb behind a ticket does not change what the verb prints (`coga open-pr`
   still emits a bare PR URL). `coga open-pr` is the first shipped command ticket
-  (`bootstrap/open-pr`, fronted by a default alias); a repo mints its own
-  `coga <verb>` with a local command ticket plus an `[aliases]` line — zero
-  core Python. `coga launch` does not create new tickets merely because a
+  (`bootstrap/open-pr`, fronted by a default alias); `coga resolve-conflicts`
+  is the agent-backed counterpart and consumes its optional PR selector from
+  the prompt arg block. A repo mints its own `coga <verb>` with a local command
+  ticket plus an `[aliases]` line — zero core Python. `coga launch` does not
+  create new tickets merely because a
   target is under `bootstrap/`; use `coga create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, reusable
   workflows, hooks, and launch targets shipped in the installed package.
@@ -337,7 +340,9 @@ canceled`, and `coga block` signal the launch supervisor via the session-scoped
 `$COGA_DONE_SENTINEL` file, and the supervisor tears the REPL down. (A
 successful script launch signals the same slug-scoped channel after its step
 advance — the advance is that launch's `coga bump` — so an agent driving its
-own script step through a nested `coga launch` releases its session too.) After
+own script step through a nested `coga launch` releases its session too. A
+stateless bootstrap agent has no lifecycle transition; its successful final
+`coga slack --task bootstrap/<name> ...` FYI is the completion signal.) After
 teardown, `coga launch` re-reads the ticket and either spawns a fresh REPL
 for the next agent-owned workflow step (rotating CLIs when the step assignee
 changes) or returns control to the caller at human handoffs, terminal states,
@@ -465,8 +470,8 @@ uses a TTY for live streaming and human interruption, but the TTY is transport,
 not an attending human, so queue execution must not pause for plan approval or
 wait on a question. The agent proceeds on reasonable assumptions, and when
 unavailable input truly prevents progress it runs a terminal `coga block` so
-the owner is notified; only `bump`, `mark done`, `mark canceled`, or `block`
-releases the queue.
+the owner is notified; only `bump`, `mark done`, `mark canceled`, `block`, or a
+stateless bootstrap command's final targeted `coga slack` releases the queue.
 The narrow exception is a blocked task the human explicitly picked for
 resolution: its composed resolve-or-re-block preamble may discuss those
 already-open asks with the picker, then unblock and continue or terminally

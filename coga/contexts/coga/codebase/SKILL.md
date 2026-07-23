@@ -22,7 +22,9 @@ review bars.
 - `src/coga/` (other modules) — testable logic. `compose.py`
   builds the prompt. `notification/` dispatches notifications with Slack as
   the first backend. `config.py` loads config.
-  `commands/launch.py` / `commands/launch_script.py` run agents.
+  `commands/launch.py` runs agents and composes trailing launch args into an
+  ordered prompt block; `commands/launch_script.py` owns the separate
+  `COGA_ARG_1..N` + `COGA_ARGC` environment channel for scripts.
   `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/block.py` and `commands/unblock.py` own blocked-state
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;
