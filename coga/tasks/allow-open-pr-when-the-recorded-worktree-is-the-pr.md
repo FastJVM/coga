@@ -217,3 +217,10 @@ and real-Git coverage describe and exercise both checkout layouts and the superv
 
 Test plan: `python -m pytest` (1,392 passed, 1 skipped); task-scoped
 `coga validate --json` (1 ok, 0 errors).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: isolate subprocess tests from launch metadata
