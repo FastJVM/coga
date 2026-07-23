@@ -1,7 +1,7 @@
 ---
 slug: remove-run-py/delete-the-script-seam
 title: Delete the script-seam
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
