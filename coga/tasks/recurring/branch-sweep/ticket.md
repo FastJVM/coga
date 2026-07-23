@@ -1,12 +1,24 @@
 ---
-schedule: "0 7 * * 1"
-schedule_comment: "Every Monday at 7am - prune stale git branches before the day's other automation starts"
-title: "Branch sweep"
-# A script step runs the sweep directly with no agent: the workflow's one
-# step references the `coga/branch-sweep/sweep` skill, whose `script:` calls
-# `coga.branchsweep.sweep_branches`. It runs directly with no agent buffering,
-# so it is safe for unattended recurring runs.
-workflow: branch-sweep/sweep
+slug: recurring/branch-sweep
+title: Branch sweep
+status: active
+owner: nicktoper
+human: nicktoper
+agent: claude
+assignee: claude
+contexts:
+- coga/period-task
+skills: []
+workflow:
+  name: branch-sweep/sweep
+  steps:
+  - name: sweep
+    skills:
+    - coga/branch-sweep/sweep
+    assignee: agent
+secrets: null
+script: null
+step: 1 (sweep)
 ---
 
 ## Description
@@ -45,12 +57,8 @@ Because the runnable unit is the workflow + script skill
 `coga recurring`, on demand via `coga recurring launch branch-sweep`, or as
 a standalone one-off ticket that sets `workflow: branch-sweep/sweep`.
 
+## Context
+
 <!-- coga:blackboard -->
 
-This blackboard persists across every run of this recurring task. The
-`coga/branch-sweep/sweep` script keeps no durable state here — every run's
-output is the branches it deletes or reports as skipped. `coga recurring`
-keeps the serviced-period high-water mark here as `last_serviced_period`
-(weekly period key `YYYY-Www`) once the first run has fired.
-
-last_serviced_period: 2026-W30
+The blackboard is a notepad to be written to often as the human and agent works through a task.
