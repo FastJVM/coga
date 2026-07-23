@@ -1,7 +1,7 @@
 ---
 slug: dream-cleanup-orphan-markers-w30
 title: Dream cleanup orphan markers W30
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
