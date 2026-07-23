@@ -268,4 +268,4 @@ ends in a PR, a draft ticket, or a recorded marker instead. `coga recurring`
 keeps Dream's serviced-period high-water mark here as `last_serviced_period`;
 `log.md` keeps append-only human history.
 
-last_serviced_period: 2026-W29
+last_serviced_period: 2026-W30

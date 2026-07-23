@@ -1,7 +1,7 @@
 ---
 slug: recurring/dream
 title: Dream
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,6 +18,7 @@ workflow:
     assignee: agent
 secrets: null
 script: null
+step: 1 (execute)
 ---
 
 ## Description
@@ -130,18 +131,48 @@ settle the ticket — its deletion PR has not merged, so it stays eligible. Do
 not infer completion from branch names, stale comments, or old Dream notes —
 only the on-disk directory and open-PR state count.
 
-Run `retro/done-ticket <slug> [<slug> ...]` in one subagent, passing every
-eligible slug. The skill loads the context/skill corpus once, reads each
-ticket, carries one running delta across the whole run, and partitions the
-tickets into coherent PR batches — each PR within its hard limits (≤5 source
-tickets, ≤3 knowledge files, ≤1 new context/skill file, one theme). Every
-processed done ticket is deleted: a ticket that contributed durable knowledge
-is deleted in its theme's knowledge PR, which also records its `## Retro`
-marker; a ticket carrying nothing durable is direct-deleted with
-`coga delete <slug>` (a working-tree `git rm` plus a direct
-`Ticket: <slug> — deleted` commit), with no PR and no marker. Recovery is via
-`git restore`. Retro never leaves a processed done ticket on disk and never
-opens a marker-only PR.
+Before delegation, copy the live Retro inputs into a read-only temporary
+evidence snapshot: every eligible resolved task artifact (the bare task
+Markdown file or the complete task directory, including sibling attachments),
+the repo-global `coga/log.md`, local contexts and skills, and this Dream task's
+current `## Findings`. Use ordinary copies, not symlinks back to Dream's
+mutable checkout. Pass the snapshot path and Dream's absolute repo root to the
+subagent so Phases 2–3 and other uncommitted evidence are not lost when the new
+worktree starts from a commit.
+
+Delegate the entire Retro pass to one subagent in a dedicated **isolated git
+checkout**, running `retro/done-ticket <slug> [<slug> ...]` there and passing
+every eligible slug. Fetch the configured remote control branch first and base
+the checkout's unique temporary branch on that fresh tip. Use native
+`isolation: worktree` when the agent supports it; otherwise create a temporary
+linked checkout with `git worktree add` and tell the subagent its exact cwd. If
+the managed sandbox makes the primary `.git` metadata read-only, use an
+independent `git clone --no-hardlinks` under `/tmp`, repointed to the configured
+real remote, instead. Do not run Retro in Dream's checkout or fall back to an
+unisolated subagent. Before any Coga command, ordinary-copy the caller's
+gitignored `coga.local.toml` to the same repo-relative path in the isolated
+checkout; never symlink, snapshot, stage, or commit it. The skill verifies the
+checkout boundary before reading evidence, loads the snapshot/corpus once,
+carries one running delta, and partitions coherent PR batches within the hard
+limits (≤5 source tickets, ≤3 knowledge files, ≤1 new context/skill file, one
+theme).
+
+Every processed done ticket is deleted: a ticket that contributed durable
+knowledge is deleted in its theme's knowledge PR, which also records its
+`## Retro` marker; a ticket carrying nothing durable is direct-deleted with
+`coga delete <slug> --keep-control-checkout` from a linked worktree or ordinary
+`coga delete <slug>` from an independent clone. Both land the removal on the
+remote control branch without mutating the operator's checkout, with no PR and
+no marker. Recovery is via `git restore`. Retro never leaves a processed done
+ticket on disk and never opens a marker-only PR.
+
+After the subagent returns, verify every PR branch is pushed, every direct
+delete is present on the remote control branch, and the isolated checkout is
+clean. Remove the copied `coga.local.toml`; then explicitly remove the linked
+worktree and its temporary branch, or delete the exact independent-clone
+directory. Delete the evidence snapshot too. Agent-native cleanup is not
+guaranteed after a mutating run. If durability or cleanup cannot be verified,
+preserve the paths and surface a blocker.
 
 A done `recurring/<name>` ticket from this sweep is eligible like any other.
 Period tickets carry nothing durable (their output is the notification post or
@@ -243,207 +274,3 @@ Git history preserves the completed run.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Phase Results
-
-### 1. validate-drift
-
-- Child task: `dream-validate-drift-w29` completed, then was direct-deleted by Phase 4; git history preserves its report.
-- Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.validate --json --fix`.
-- Result: `reported` — 31 remaining issues, all `human-needed`; 0 direct fixes and 0 PR proposals. No files were repaired.
-- The validator surfaced 8 stale `in_progress` tickets, 6 unfrozen draft workflows, 6 unsynthesized draft blackboards, 5 orphan `mode` fields, 4 unknown legacy assignees, and 3 missing workflow steps (some tickets appear in multiple groups). The complete issue list is preserved in the direct-deleted child's git history.
-
-### 2. knowledge scan
-
-- Result: `reported` — 5 findings from 169 tickets, 19 contexts, and 127 skill/workflow files: 2 `extract`, 3 `stale`, 0 `gap`.
-
-## Findings
-
-### Document the no-PR product-code boundary
-
-- Class: `extract`
-- Target: `stop-direct-body-tickets-from-stranding-committed` → `coga/skills/direct/body/SKILL.md`
-- `direct/body` has no PR/push step and must not land committed product changes. The done ticket established that `coga mark done` refuses when product paths exist outside Coga state, points work toward a `code/*` workflow, permits `--force` only as an explicit exception, and has a worktree-local guard limitation. The current skill omits this boundary.
-
-### Preserve the installed-versus-source skew diagnostic
-
-- Class: `extract`
-- Target: `warn-on-launch-when-the-installed-coga-predates-th` → `coga/contexts/coga/codebase/SKILL.md`
-- Launch and validation now perform a warn-only version-skew check comparing the installed package mtime with the latest committed `src/coga` change, while skipping true editable source even from another checkout. The check may emit harmless clock-skew warnings and misses uncommitted edits; the codebase context does not preserve that interpretation.
-
-### Remove the obsolete REPL completion protocol
-
-- Class: `stale`
-- Target: `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`
-- The CLI context tells manual/API sessions to continue after `coga bump` and to emit a literal `<<<COGA_SESSION_DONE_…>>>` line. Current prompt and architecture contracts say manual/API sessions stop after bump, while supervised launches terminate through the session-scoped `$COGA_DONE_SENTINEL` side-channel written by lifecycle commands; PTY output is not the completion channel.
-
-### Refresh the launch roadmap
-
-- Class: `stale`
-- Target: `coga/contexts/coga/roadmap/SKILL.md`
-- The roadmap describes a mid-June board: already-finished autonomy-triage, single-file-task, blocker, and megalaunch work remains framed as future launch gates; several named tickets no longer exist; and removed budget-guard direction remains. Its sequencing conflicts with current task state and `coga/current-direction`.
-
-### Correct the CLI validation guarantee
-
-- Class: `stale`
-- Target: `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`
-- The validation section claims every Coga-owned task mutation, including raw creation, immediately runs task-scoped validation. `coga create` does not perform that check. Draft ticket `validate-tickets-at-create-time` already records the code-versus-context decision as a durable follow-up.
-
-### Anonymous telemetry still appears in architecture
-
-- Class: `drift`
-- Target: `coga/contexts/coga/architecture/SKILL.md:399` and packaged twin `src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md:377`
-- The contracts claim an install identity and hosted telemetry sink, but Coga rejected telemetry and implements no telemetry config or sender. Sources of truth: `src/coga/config.py` and `coga/principles`.
-
-### Packaged architecture documents removed secret-catalog semantics
-
-- Class: `drift`
-- Target: `src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md:117`
-- The packaged copy says absent/null injects all configured secrets and lists name `[secrets]` keys. Code accepts only inline `NAME: env:...|op://...` mappings and absent/null/empty injects nothing. Source of truth: `parse_inline_secrets` and `select_launch_secrets` in `src/coga/config.py`.
-
-### Architecture live/package copies have unmerged contract changes
-
-- Class: `drift`
-- Target: `coga/contexts/coga/architecture/SKILL.md:117` and packaged twin
-- The twins diverge across secret semantics, prompt composition, unknown-config enforcement, and the shared spawn path without documented intentional variance. Sources of truth: `src/coga/config.py`, `src/coga/compose.py`, and `spawn_agent_session`.
-
-### Period-task live/package copies diverge
-
-- Class: `drift`
-- Target: `coga/contexts/coga/period-task/SKILL.md:3` and packaged twin
-- The packaged copy retains older “scaffolder” language and a different task-path explanation. No intentional divergence is documented; `_create_at_slug` in `src/coga/recurring.py` is the source of truth.
-
-### Digest skill describes the retired in-ticket spool
-
-- Class: `drift`
-- Target: `coga/skills/coga/digest/flush/SKILL.md:12`
-- It says records live in the recurring ticket blackboard and that consumption empties the section. Code reads `recurring/digest/spool.md`, retains an anchor, and advances `consumed_through`; the packaged skill twin matches code.
-
-### Digest template retains an obsolete spool record
-
-- Class: `drift`
-- Target: `coga/recurring/digest/ticket.md:48,65`
-- The prose correctly names sibling `spool.md`, but the ticket still contains an ignored `## Spool (pending)` record. Sources of truth: `digest_spool_path` and `coga/recurring/digest/spool.md`.
-
-### Sync contract hard-codes origin/main
-
-- Class: `drift`
-- Target: `coga/contexts/coga/sync/SKILL.md:294,360`
-- The contract says state writes go to `origin/main`; implementation uses `cfg.git_remote` and `cfg.git_control_branch` in `src/coga/git.py`.
-
-### Branch-sweep contracts hard-code remote and control branch
-
-- Class: `drift`
-- Target: `coga/skills/coga/branch-sweep/sweep/SKILL.md:14` and `coga/recurring/branch-sweep/ticket.md:27`
-- They promise enumeration/deletion on `origin` and exclusion of `main`; `src/coga/branchsweep.py` uses the configured remote and control branch.
-
-### Branch-sweep template declares a nonexistent execution field
-
-- Class: `drift`
-- Target: `coga/recurring/branch-sweep/ticket.md:9`
-- `autonomy: auto` is ignored by recurring creation, while architecture says no ticket autonomy field exists. Sources of truth: `_create_at_slug` and `coga/architecture`.
-
-### Dev context says Coga does not parse branch/pr fields
-
-- Class: `drift`
-- Target: `coga/contexts/dev/code/SKILL.md:68`
-- Current autoclose, branch-sweep, and open-PR code parses blackboard `branch:` / `pr:` fields. Sources of truth: `src/coga/autoclose.py`, `src/coga/branchsweep.py`, and packaged `code/open-pr`.
-
-### implement-and-pr claims a workflow it no longer owns
-
-- Class: `drift`
-- Target: `coga/skills/code/implement-and-pr/SKILL.md:3,54`
-- `code/with-review` uses `code/implement`, peer review, and script-backed `code/open-pr`; message-less bumps are silent. Sources of truth: the live workflow and `coga/sync`.
-
-### Recurring starter names missing and obsolete machinery
-
-- Class: `drift`
-- Target: `coga/recurring/_template/ticket.md:9,30`
-- `scripts/cron.sh` does not exist, and assignees now name agent types or humans rather than per-user nicknames. Sources of truth: the artifact tree and `Config.agent_type`.
-
-### Migration guide tells users to delete the generated skill view
-
-- Class: `drift`
-- Target: `docs/migrating-to-coga.md:81`
-- `coga/.agent-skills/` is the current generated local-plus-bundled view wired into Claude and Codex, not a Relay-era leftover. Sources of truth: `_link_skills_for_agents` and `coga/codebase`.
-
-### CLI extension audit lists removed and already-shipped commands
-
-- Class: `drift`
-- Target: `docs/cli-extension-audit.md:81,112,171`
-- There is no `panic` command, while `skill-update` and `autoclose` are already default aliases. Sources of truth: `_BUILTIN_COMMANDS` and `_DEFAULT_ALIASES` in `src/coga/cli.py`.
-
-### Market thesis presents shipped reliability work as missing
-
-- Class: `drift`
-- Target: `docs/market-thesis.md:17,259,280`
-- Slack HTTP checks, recurring, supervisor watchdogs, and atomic writes are implemented but remain described as blockers. Sources of truth: Slack notification, recurring, supervisor, and atomic-I/O modules.
-
-### Vision uses retired task/log/mode/panic terminology
-
-- Class: `drift`
-- Target: `docs/vision.md:118,135,149,165`
-- Tasks no longer each have a log, execution is deduced rather than selected by auto/script mode, `panic` became `block`, and no `Create-suggest` artifact exists. Sources of truth: current log, block, launch, and CLI code.
-
-### Codebase context names a removed update path
-
-- Class: `drift`
-- Target: `coga/contexts/coga/codebase/SKILL.md:63`
-- It says managed skills install during “init/update,” but `init --update` was removed and only fresh init calls `install_venv`. Sources of truth: `src/coga/cli.py` and `src/coga/commands/init.py`.
-
-### Secret-probe skill points at a missing finished task
-
-- Class: `drift`
-- Target: `coga/skills/test/secret-probe/SKILL.md:9`
-- The temporary skill still points to `manually-test-auth-paths-gh-git-detection-secret-r`, but that task no longer exists. Source of truth: the current task artifact tree.
-
-### 3. contract audit
-
-- Result: `reported` — 18 `drift` findings across living contracts; 0 files changed by the audit.
-
-### 4. retro/done-ticket
-
-- Inventory: 52 on-disk `status: done` tasks are eligible. The three open PRs add no `## Retro` marker and delete no resolved task artifact; PR #562 modifies some done-ticket blackboards but does not meet either exclusion gate.
-- Dispatch: one `retro/done-ticket` subagent will receive all 52 exact slugs and maintain one running corpus delta across the full pass.
-- Result: `pr-opened` + `direct-fixed` — all 52 processed; 2 knowledge PRs, 50 direct deletions, 0 human-needed.
-- [PR #563 — Document the direct/body product-code boundary](https://github.com/FastJVM/coga/pull/563): updated live and packaged `direct/body` skills; source `stop-direct-body-tickets-from-stranding-committed` deleted in the PR.
-- [PR #564 — Preserve the installed-versus-source skew diagnostic](https://github.com/FastJVM/coga/pull/564): updated `coga/codebase`; source `warn-on-launch-when-the-installed-coga-predates-th` deleted in the PR.
-- Direct-deleted with no knowledge change: `add-a-docs-oriented-review-workflow-for-docs-only`, `add-a-nothing-to-implement-close-path-so-already-s`, `add-ci-to-generate-package-update-automatically-or`, `add-coga-ticket-existing-slug-scan`, `allow-creation-of-coga-dir-in-subdir`, `audit-chat-and-build-are-core-free`, `auto/launch-should-refresh-local-coga-state-at-end-of-r`, `auto/stream-agent-progress-in-auto-mode-and-recurring-l`, `awaken-recurring-auto-blocked-tasks`, `block-unblock-and-megalaunch`, `branch-cleanup-as-recurring-tasks`, `cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy`, `cli-extension-model/move-command-logic-to-tickets`, `cli-extension-model/move-read-views-to-tickets-as-scripts`, `cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task`, `coga-cli-cutover`, `coga-rename-follow-ups-post-repo-rename`, `document-cross-machine-sandbox-dev-loop-friction-i`, `drain-pending-auto-tickets-with-leftover-session-b`, `dream-validate-drift-w27`, `dream-validate-drift-w29`, `filter-relay-status-by-directory-group`, `fix-open-pr-false-staleness-from-coga-state-commit`, `fix-stale-relay-sync-context-git-failures-swallowe`, `install/document-where-to-run-init-and-adopt-existing-repo`, `install/external-users-cannot-install-managed-skills`, `install/init-does-not-persist-user-then-blocks-on-reinit`, `install/init-venv-python-selection-breaks-on-wrong-host-py`, `install/pip-hash-requirement-breaks-editable-install`, `install/quiet-managed-skill-failures-on-old-gh`, `install/recommend-virtualenv-not-system-python`, `install/relay-help-and-cli-should-not-require-user`, `make-megalaunch-user-specific`, `make-open-pr-a-script-step-so-bump-requires-a-real`, `move-ticket-authoring-out-of-core`, `recurring/autoclose-merged`, `recurring/blocker-reminders`, `recurring/branch-sweep`, `recurring/digest`, `recurring/rebase-stale-worktrees`, `recurring/skill-update`, `relay-ticket-doesn-t-ask-quesion-and-start-doing`, `remove-megalaunch-token-budget-guard-and-usage-pro`, `remove-mode-from-ticket-frontmatter-and-deduce-scr`, `remove-relay-migration-script`, `resolve-blocker-inline-via-chat-on-interactive-lau`, `ticket-must-merge-blackblaord`, `trim-blackboard-eval-once-processed`, `v2/per-agent-git-worktree-isolation-for-launch-to-avo`, `wire-autonomy-triage-into-impl-ready-workflows`.
-- Retro Slack FYIs were attempted but DNS could not resolve `hooks.slack.com`; no task artifact was mutated by those failures.
-
-### 5. cleanup-orphan-markers
-
-- Child task: `dream-cleanup-orphan-markers-w29` (`status: done`).
-- Result: `no-op` — no cleanup-eligible processed done ticket still had an on-disk task artifact; nothing was deleted and no review gate was needed.
-
-### 6. disposition
-
-- Result: `pr-opened` — 9 proposal PRs route all 3 `stale` and 18 `drift` findings; 0 gap tickets were needed.
-- `extract`: handled by [#563](https://github.com/FastJVM/coga/pull/563) and [#564](https://github.com/FastJVM/coga/pull/564).
-- `stale`: [#565](https://github.com/FastJVM/coga/pull/565) fixes CLI lifecycle/validation claims; [#567](https://github.com/FastJVM/coga/pull/567) replaces the stale roadmap snapshot.
-- `drift`: [#566](https://github.com/FastJVM/coga/pull/566) resyncs architecture/period contexts; [#568](https://github.com/FastJVM/coga/pull/568) fixes digest spool contracts; [#569](https://github.com/FastJVM/coga/pull/569) fixes configurable git-ref contracts; [#570](https://github.com/FastJVM/coga/pull/570) updates code-workflow contracts; [#571](https://github.com/FastJVM/coga/pull/571) fixes the recurring starter; [#572](https://github.com/FastJVM/coga/pull/572) refreshes public docs; [#573](https://github.com/FastJVM/coga/pull/573) removes the finished secret-probe fixture.
-- Overlap: the `coga/codebase` “init/update” wording finding touches the same context as knowledge PR [#564](https://github.com/FastJVM/coga/pull/564), so it is deferred to that PR's review rather than placed in a conflicting proposal.
-- Review gate: all 11 PRs require human review and remain unmerged by Dream.
-
-## Dream Run Summary
-
-Generated: 2026-07-16T16:55:34Z
-
-| Phase | Result | Summary |
-| --- | --- | --- |
-| validate-drift | `reported` | 31 issues, all human-needed; 0 safe repairs |
-| knowledge scan | `reported` | 2 extract, 3 stale, 0 gap |
-| contract audit | `reported` | 18 drift findings |
-| retro/done-ticket | `pr-opened` | 2 knowledge PRs; 50 direct-fixed deletions |
-| cleanup-orphan-markers | `no-op` | 0 surviving processed-marker artifacts |
-| disposition | `pr-opened` | 9 proposal PRs; 0 draft gap tickets |
-
-Findings: 23 total — 2 `extract`, 3 `stale`, 18 `drift`, 0 `gap`.
-
-Artifacts: [#563](https://github.com/FastJVM/coga/pull/563), [#564](https://github.com/FastJVM/coga/pull/564), [#565](https://github.com/FastJVM/coga/pull/565), [#566](https://github.com/FastJVM/coga/pull/566), [#567](https://github.com/FastJVM/coga/pull/567), [#568](https://github.com/FastJVM/coga/pull/568), [#569](https://github.com/FastJVM/coga/pull/569), [#570](https://github.com/FastJVM/coga/pull/570), [#571](https://github.com/FastJVM/coga/pull/571), [#572](https://github.com/FastJVM/coga/pull/572), [#573](https://github.com/FastJVM/coga/pull/573). No draft tickets were created.
-
-Human-needed: review the 31 lifecycle/authoring validator issues and the 11 open PRs. Retro Slack FYIs failed on DNS; the parent Dream summary is sent separately before the final task transition.
-
-## Usage
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"codex","input_tokens":null,"model":null,"output_tokens":null,"provider":"openai","schema":1,"session_id":null,"slug":"recurring/dream","step":"execute","title":"Dream","ts":"2026-07-16T17:07:19.320948Z","usage_status":"unknown"}
