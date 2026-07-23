@@ -6,8 +6,7 @@ owner: nicktoper
 human: nicktoper
 agent: codex
 assignee: codex
-contexts:
-  - coga/principles
+contexts: []
 skills: []
 workflow: code/with-review
 secrets: null
@@ -40,25 +39,51 @@ Found during `install/retest-ssh-https-and-init-reclone-on-fresh-machine`
 (finding 6 on its blackboard): fresh-container onboarding, `coga create` right
 after `coga init` in a local-only repo.
 
+**Fail-loud is the governing principle here** (Coga principle #6, quoted
+inline so the whole `coga/principles` context need not be attached): *surface
+every failure; never silent-wrong-answers. The worst failure is confidently
+producing wrong output because something silently failed. If the cost of a
+check is one line and the cost of skipping it is "wrong answer and nobody
+knows," always check.* This fix must therefore calm **only** the one case that
+is cleanly, positively detectable up front (no remote configured) and keep
+every other push failure loud.
+
 **Detect up front, don't pattern-match stderr.** The "no remote named
 `origin` (or the configured `git_remote`)" case is cleanly detectable before
-the push: the file already has `_remote_branch_present` (git.py ~1798) which
-probes `git remote get-url <remote>` and treats a non-zero exit as "remote
-absent." Reuse that primitive next to the existing `_control_branch_present`
-check rather than matching the fatal text.
+the push. `_remote_branch_present` (git.py ~2012) probes
+`git remote get-url <remote>` and treats a non-zero exit as "remote absent."
+
+**Gate on the `get-url` returncode, not the whole `_remote_branch_present`
+predicate.** That function returns `False` for *two* distinct cases: (a) no
+remote configured (`git remote get-url` non-zero, ~git.py:2020) and (b) the
+remote exists but lacks the branch (`ls-remote` exit 2). We want to calm-swallow
+**only case (a)**. Case (b) — a configured remote that simply doesn't have
+`main` yet — is a legitimate first push that *creates* the branch and must not
+be silenced. So gate the new soft-skip specifically on the `get-url` non-zero
+result, next to the existing `_control_branch_present` check, rather than
+reusing the composite function. (Good news for fail-loud: a configured-but-
+unreachable remote already stays loud — `ls-remote` with a returncode other
+than 0/2 raises `GitError` at ~git.py:2042.)
 
 **Touchpoints (line numbers approximate — re-anchor, don't trust literally).**
 The raw fatal prints from *each* sync entry point that runs per command (that's
 the "twice"). Four call sites in `src/coga/git.py` currently soft-skip via
 `_control_branch_present` and are the pattern to emulate — a complete fix
 covers all four:
-- `sync_log` (~273)
-- `sync_paths` (~329)
-- `sync_coga_state` (~421)
-- `refresh_coga_state_from_control` (~500)  ← the one the original note omitted
+- `sync_log` (~304)
+- `sync_paths` (~375)
+- `sync_coga_state` (~484)
+- `refresh_coga_state_from_control` (~567)  ← the one the original note omitted
 
-The raw fatal itself surfaces from the `except GitError` handlers at ~289 /
-~356 / ~448. `src/coga/recurring_runner.py` likely does **not** need the fix:
+(Line numbers refreshed against the current file by the drafting review;
+function names are the reliable anchor — re-anchor by name, not number.)
+
+The raw fatal itself surfaces from the `except GitError` handlers inside those
+functions. **Note: the ticket lists four soft-skip sites but does not pin which
+two fire on `coga create` to produce the observed doubling — confirm the "twice"
+is fully explained by this set before assuming the fix is complete.**
+
+`src/coga/recurring_runner.py` likely does **not** need the fix:
 its git handler is `_sync_control_checkout_ahead`'s `except git.GitError`
 (~582, not the originally-noted ~548) and already degrades to a calm
 `"[git] note: pre-scan catch-up skipped: {exc}"` line. Confirm before touching
