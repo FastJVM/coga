@@ -59,3 +59,16 @@ this recurring template.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Run 2026-W30
+
+Plan: delegate to `coga resolve-conflicts --agent claude --queue-guidance`
+(this launch carries queue guidance), then `coga mark done`.
+
+Open PRs at start: #648 fix/spawn-error-misattribution, #647
+feat/megalaunch-numbered-drain-order, #646 packaged-resource-read-guard
+(mergeable UNKNOWN — GitHub had not finished computing).
+
+Note: `bootstrap/resolve-conflicts` is agent-backed, and `coga launch` refuses
+an agent launch without a TTY on both stdin and stdout. Testing whether the
+delegated launch can run from this session's tool subprocess.
