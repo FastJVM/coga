@@ -1,7 +1,7 @@
 ---
 slug: nightly-auto-drain-run-for-ready-tickets
 title: Nightly auto-drain run for ready tickets
-status: in_progress
+status: canceled
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -31,7 +31,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (review-design)
 ---
 
 ## Description
