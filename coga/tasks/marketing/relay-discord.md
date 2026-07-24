@@ -1,14 +1,14 @@
 ---
 slug: marketing/relay-discord
 title: relay-discord
-status: paused
+status: canceled
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
 contexts:
-  - marketing/plan
-  - marketing/positioning
+- marketing/plan
+- marketing/positioning
 skills: []
 workflow:
   name: brief-for-human
@@ -22,7 +22,6 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
 ---
 
 ## Description
