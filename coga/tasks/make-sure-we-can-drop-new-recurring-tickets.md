@@ -5,7 +5,7 @@ status: in_progress
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/recurring
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -205,6 +205,54 @@ worktree: /home/n/Code/claude/coga-recurring-promote
   `script: <file>` template warns that companion script files are not
   materialized into period tasks.
 
+## Peer review
+
+`codex review --base main` ran after rebasing onto `origin/main` at
+`cf2e4874`. The full suite was green (`1504 passed, 1 skipped`), but
+adversarial probes retained three must-fix findings:
+
+- validate the collapsed workflow before deleting the source ticket;
+- preserve directory-form sibling symlinks instead of dereferencing and
+  potentially committing their external targets;
+- enforce the documented exactly-five-field cron contract before croniter.
+
+The P3 suggestion to normalize the audit actor from `human` to
+`human:<current_user>` is a consistency nit and is intentionally skipped in
+this must-fix-only review step.
+
+Applied in `1e200d11` after rebasing both feature commits onto current
+`origin/main` (`7229e501`):
+
+- the transformed workflow resolves before any destination is written or
+  source ticket deleted;
+- top-level and nested sibling symlinks are copied as symlinks, never
+  dereferenced;
+- `_validate_schedule` rejects aliases and six/seven-field crons before
+  croniter, and the former year-scoped seven-field test now enforces the
+  five-field contract.
+
+Final verification after the last rebase: `python -m pytest` — 1518 passed,
+1 skipped; scoped `coga validate --json --task
+make-sure-we-can-drop-new-recurring-tickets` — task clean (only the worktree's
+expected missing-local-user warning).
+
+## PR
+
+### Summary
+
+- Add `coga recurring promote <task> --schedule "<cron>" [--name <name>]` to
+  safely turn an existing ticket into a recurring template with deliberate
+  frontmatter and blackboard transforms.
+- Add static missing/malformed recurring schedule errors to `coga validate`,
+  enforcing the documented five-field cron contract.
+- Refuse unsafe promotion states and stale workflows, preserve sibling
+  symlinks without dereferencing them, and document the complete authoring
+  flow.
+
+### Test plan
+
+`python -m pytest` — 1518 passed, 1 skipped.
+
 ## Dream Skill: validate-drift
 
 Generated: 2026-07-24T18:24:41+00:00
@@ -250,6 +298,48 @@ Result: no remaining validation drift found.
 ## Dream Skill: validate-drift
 
 Generated: 2026-07-24T18:31:13+00:00
+Command: `coga validate --json --fix`
+Task: `make-sure-we-can-drop-new-recurring-tickets`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T18:46:50+00:00
+Command: `coga validate --json --fix`
+Task: `make-sure-we-can-drop-new-recurring-tickets`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T19:06:26+00:00
+Command: `coga validate --json --fix`
+Task: `make-sure-we-can-drop-new-recurring-tickets`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T19:08:43+00:00
 Command: `coga validate --json --fix`
 Task: `make-sure-we-can-drop-new-recurring-tickets`
 
