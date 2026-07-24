@@ -1,7 +1,7 @@
 ---
 slug: install/short-notice-instead-of-raw-git-error-when-sync-ha
 title: Short notice instead of raw git error when sync has no origin remote
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
