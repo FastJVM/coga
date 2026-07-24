@@ -123,3 +123,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Blockers
 
 - [ ] [2026-07-23 07:45] [agent:claude] id=20260723T074518 Blocked on remove-run-py/add-coga-run-generic-runner-and-migrate-recurring: its coga run generic runner and dispatch table are absent from origin/main while that task remains at review-design; finish and merge ticket A before retrying this port.
+
+---
+
+## Blocker reminders
+
+- 574c8271398a last_reminded: 2026-07-24 14:36
