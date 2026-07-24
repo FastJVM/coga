@@ -5,7 +5,7 @@ status: in_progress
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/recurring
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -162,7 +162,48 @@ worktree: /home/n/Code/claude/coga-recurring-promote
   schedule or an occupied name leaves the source ticket untouched.
 - **Sibling `recurring-schedule-to-create-when-creating.md`:** empty draft,
   redundant — `coga create` + `coga recurring promote` is the create-then-
-  schedule path. Deleting it from the primary checkout as part of this work.
+  schedule path, now documented as such. Closed with `coga delete` from the
+  primary checkout (recoverable with `git restore`).
+
+## What landed (commit 2890bd87 on `recurring-promote`)
+
+- `src/coga/recurring.py` — `promote_task()` + `PromoteOutcome`,
+  `_template_frontmatter()`, `_render_template_text()`. Deliberately not
+  `Ticket.render()`: `schedule` is not a canonical *task* key, so that
+  renderer would push it below the `# --- extensions ---` marker.
+- `src/coga/commands/recurring.py` — `coga recurring promote <task>
+  --schedule "<cron>" [--name <name>]`. One `git.sync_paths` covers the task
+  removal and the new template, so no checkout ever sees the ticket in both
+  places or neither.
+- `src/coga/validate.py` — `invalid-recurring-schedule` (error) in
+  `_check_recurring_templates`, reusing `recurring._validate_schedule` via a
+  function-local import (`coga.recurring` imports `coga.validate`, so a
+  top-level import would be circular).
+- Docs: `coga/contexts/coga/recurring/SKILL.md` gains a "Dropping a new
+  recurring task" section and the schedule-validation note; the packaged CLI
+  context and `docs/reference.md` gain the subcommand. No packaged copy of
+  the `coga/recurring` context exists and none was added.
+- Tests: 7 promote tests in `tests/test_recurring.py` (including an end-to-end
+  promote → `create_named` → real period task) and 3 schedule-validation tests
+  in `tests/test_validate.py`.
+
+## Verification
+
+- `python -m pytest` in the worktree: 1504 passed, 1 skipped (re-run after
+  rebasing onto `origin/main` 9775d5f9).
+- Manual smoke on a copy of `example/coga/`: promoted a real ticket, inspected
+  the resulting template, `coga validate` clean; then broke the cron and
+  `coga validate --json` reported `invalid-recurring-schedule`.
+- `coga validate --json` against this repo's 8 live templates: no new issues.
+
+## Notes for review
+
+- Promote does not notify Slack. It is a repo-authoring move like
+  `coga delete`, not a task state transition, so it logs and syncs only.
+- A directory-form task's siblings travel with it, except
+  `.state-snapshot.json` (a period task's create-time baseline). A
+  `script: <file>` template warns that companion script files are not
+  materialized into period tasks.
 
 ## Dream Skill: validate-drift
 
