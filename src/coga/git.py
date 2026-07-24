@@ -352,9 +352,17 @@ def sync_log(
             return
         log_rel = _relative_to_root(root, log_file)
         branch = _current_branch(root)
+        # A commit is always local and never touches the remote, so it proceeds
+        # even with no remote configured; only the *push* is soft-skipped in
+        # that case (calm notice, no raw fatal). Every other push failure stays
+        # loud via the `except GitError` below.
+        remote_ok = _remote_configured(root, cfg.git_remote)
         if branch == cfg.git_control_branch:
             if _commit_paths(root, [log_rel], message):
-                _push_control_branch(cfg, root)
+                if remote_ok:
+                    _push_control_branch(cfg, root)
+                else:
+                    sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
         elif branch == "HEAD":
             sys.stderr.write(
                 f"[git] detached HEAD — log append not committed locally. ({message})\n"
@@ -362,6 +370,9 @@ def sync_log(
         else:
             _commit_paths(root, [log_rel], message)
             if publish_current_branch:
+                if not remote_ok:
+                    sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
+                    return
                 result = _push_ref(root, cfg.git_remote, branch)
                 if result is not None:
                     raise GitError(
@@ -617,6 +628,9 @@ def refresh_coga_state_from_control(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
             return
+        if not _remote_configured(root, cfg.git_remote):
+            sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
+            return
         branch = _current_branch(root)
         if branch == "HEAD":
             sys.stderr.write(
@@ -858,10 +872,17 @@ def _dispatch_branch_sync(
     """
     control_union_rels = control_union_rels or []
     branch = _current_branch(root)
+    # The local commit never touches the remote, so it proceeds even with no
+    # remote configured; only the control-branch *landing/push* is soft-skipped
+    # in that case (calm notice, no raw fatal). Every other push failure stays
+    # loud via the caller's `except GitError`.
+    remote_ok = _remote_configured(root, cfg.git_remote)
     if branch == cfg.git_control_branch:
         _sync_paths_on_control_branch(
-            cfg, root, local_rels, message=message, guard=guard
+            cfg, root, local_rels, message=message, guard=guard, push=remote_ok
         )
+        if not remote_ok:
+            sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
         return
 
     if branch == "HEAD":
@@ -870,6 +891,9 @@ def _dispatch_branch_sync(
         # checkout via `_try_update_local_ref`; Retro's verified linked-
         # worktree delete can suppress that refresh. Only a fast-forward miss
         # warrants a stderr note, printed there.
+        if not remote_ok:
+            sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
+            return
         overlay = set(overlay_rels)
         union_rels = list(
             dict.fromkeys(
@@ -890,6 +914,11 @@ def _dispatch_branch_sync(
     else:
         before = _run_git(root, "rev-parse", "HEAD").strip() if guard else None
         _commit_paths(root, local_rels, message)
+    if not remote_ok:
+        # The feature-branch commit above already reflects OS state locally; the
+        # control-branch landing is the only remote step, so soft-skip it.
+        sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
+        return
     try:
         _land_paths_on_control_branch(
             cfg,
@@ -1215,16 +1244,26 @@ def _sync_paths_on_control_branch(
     *,
     message: str,
     guard: _StateGuard | None = None,
+    push: bool = True,
 ) -> None:
-    """Stage explicit pathspecs, commit if anything changed, and push."""
+    """Stage explicit pathspecs, commit if anything changed, and push.
+
+    `push=False` is the no-remote path: commit locally but perform no remote
+    step. The guard's regression probe is skipped too — it fetches the remote
+    tip (`_control_base_for_attempt` attempt 1) and, with no remote to advance
+    the branch, there is nothing for a stale checkout to bury. The caller emits
+    the calm no-remote notice.
+    """
     before: str | None = None
-    if guard is not None:
+    if push and guard is not None:
         base = _control_base_for_attempt(
             root, cfg.git_remote, cfg.git_control_branch, 1
         )
         guard(base)
         before = _run_git(root, "rev-parse", "HEAD").strip()
     if not _commit_paths(root, rels, message):
+        return
+    if not push:
         return
     try:
         _push_control_branch(cfg, root, guard=guard)
@@ -2009,15 +2048,29 @@ def _git_ref_present(root: Path, ref: str) -> bool:
     )
 
 
-def _remote_branch_present(root: Path, remote: str, branch: str) -> bool:
-    """True when the configured remote has `refs/heads/<branch>`."""
-    configured = subprocess.run(
+def _remote_configured(root: Path, remote: str) -> bool:
+    """True when `<remote>` has a URL (`git remote get-url` exits 0).
+
+    The one push failure that is cleanly, positively knowable *before* the push:
+    a repo freshly `git init`ed and `coga init`ed has no `origin` yet, so every
+    sync would otherwise push straight into a raw two-paragraph git fatal. The
+    sync helpers soft-skip on this with a short notice instead. Every *other*
+    push failure — a configured remote that is offline, misauthed, protected, or
+    simply lacks the branch — is not detectable here and stays a loud `GitError`,
+    per this module's fail-loud model.
+    """
+    result = subprocess.run(
         ["git", "-C", str(root), "remote", "get-url", remote],
         capture_output=True,
         text=True,
         check=False,
     )
-    if configured.returncode != 0:
+    return result.returncode == 0
+
+
+def _remote_branch_present(root: Path, remote: str, branch: str) -> bool:
+    """True when the configured remote has `refs/heads/<branch>`."""
+    if not _remote_configured(root, remote):
         return False
 
     result = subprocess.run(
@@ -2077,6 +2130,22 @@ def _symbolic_head(root: Path) -> str | None:
     )
     name = result.stdout.strip()
     return name or None
+
+
+def _no_remote_message(cfg: Config) -> str:
+    """Actionable one-liner for a repo with no configured `<remote>`.
+
+    The expected first-run state after `git init` + `coga init` ("push when
+    ready"). Surfaced in place of the raw two-paragraph `git push` fatal the
+    absent remote would otherwise raise — the same short-notice treatment the
+    "git disabled" and "not a git repo" cases already get. The local commit
+    still happens (only the push is skipped), except on a detached HEAD where no
+    durable commit is made; "saved locally" is accurate for both.
+    """
+    return (
+        f"[git] no {cfg.git_remote!r} remote configured — coga state saved "
+        f"locally; add a remote to sync"
+    )
 
 
 def _control_branch_mismatch_message(cfg: Config, root: Path) -> str:
