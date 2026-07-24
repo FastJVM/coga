@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -261,6 +261,19 @@ in place.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+branch: coga-run-recipes
+worktree: /tmp/coga-run-recipes
+
+## Owner ruling (2026-07-24)
+
+- The fixed core recipe registry in this ticket supersedes PR #645's
+  skill-local ownership direction for autoclose, blocker reminders, and branch
+  sweep.
+- Keep the corrected eight-recipe migration in one PR, including the
+  behavior-neutral promotion of the three logic-bearing packaged entrypoints.
+
 ## Design investigation (2026-07-23)
 
 - The current-code inventory does not match the ticket's "each `run.py` is a
@@ -288,19 +301,48 @@ The blackboard is a notepad to be written to often as the human and agent works 
   environment for recipes that append to a blackboard, and lifecycle handling
   equivalent to script success/failure. A dispatch table alone is insufficient.
 
-## Open Questions
+## Resolved design questions (2026-07-24)
 
-1. **Which direction wins for the three recipes also owned by
-   `agree-the-core-vs-skills-move-list-then-execute`?** Recommended ruling:
-   registered `coga run` recipes are real command implementations and therefore
-   remain importable under `src/coga/`; cancel or revise those three approved
-   moves before this ticket's implement step. The alternative is a
-   path/importlib loader for skill-local `recipe.py` files, which contradicts
-   this ticket's core-function premise and adds a plugin-like indirection.
-2. **Is the corrected scope still one PR?** Recommended ruling: yes. The three
-   unexpectedly large entrypoints already have focused tests, and their
-   promotion should be mostly file moves plus import updates; keeping them here
-   leaves the A→B→C dependency honest. If the owner does not want roughly 1,200
-   lines of recipe promotion in A, split those three into an A2 dependency and
-   make both B and C wait for it rather than pretending the functions already
-   exist in core.
+1. Registered `coga run` recipes are real command implementations and remain
+   importable under `src/coga/`; there is no path/importlib loader for
+   skill-local Python. This ticket supersedes the opposite ownership choice for
+   autoclose, blocker reminders, and branch sweep.
+2. The corrected eight-recipe scope remains one PR, including the three larger
+   behavior-neutral promotions.
+
+## Implementation (2026-07-24)
+
+- Added the fixed eight-name `coga run` registry and thin Typer head. Recipes
+  receive ordinary trailing argv and return their process exit code; task
+  metadata moved into shared `task_env.py` without changing the retained
+  launch-script path.
+- Promoted skill-update and the two deterministic Dream workers into
+  importable core modules. The five recurring jobs now declare explicit
+  recipes, and the runner supplies period-task secrets and `COGA_TASK_*`
+  metadata while owning start/success/failure lifecycle bookkeeping.
+- Dream phases 1 and 5 now invoke the registered recipes on the parent Dream
+  task. Removed the eight migrated entrypoints, the recurring-scan bootstrap
+  target, and the two obsolete Dream child workflows.
+- The only remaining `script: run.py` declarers are open-pr, delete-task, and
+  the live/packaged show and ticket/finalize twins. The open-pr and generic
+  local script seams remain covered and operational for tickets B/C.
+- Updated live/package templates, workflows, skills, architecture, recurring,
+  codebase, CLI, and public command-reference documentation.
+- Rebased over main after PR #645 landed. Its relocated recipe bodies were
+  promoted back into core under the owner ruling, the skill-local copies were
+  removed, and the microkernel guidance now distinguishes registered commands
+  from unregistered edge recipes.
+
+## Verification (2026-07-24)
+
+- `python -m pytest`: 1525 passed, 1 skipped.
+- Focused post-conflict regression set: 143 passed, 1 skipped.
+- Example fixture `coga validate --json`: exit 0, 2 OK, no issues.
+- Task-scoped `coga validate --json --task
+  remove-run-py/add-coga-run-generic-runner-and-migrate-recurring`: exit 0,
+  1 OK; only the machine-local missing-user warning.
+- Root `coga validate --json` reaches the full repository and reports only
+  pre-existing unrelated task/config drift (including historical v2 task
+  errors); no migrated recurring template or recipe issue is reported.
+- Final freshness check: rebased onto `origin/main` at `83f0a6ad`; branch is
+  one clean commit ahead, `ec5edc80`.
