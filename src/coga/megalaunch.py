@@ -55,7 +55,6 @@ import re
 import shutil
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from importlib.resources import files
 from pathlib import Path
 from typing import Literal
 
@@ -87,6 +86,7 @@ from coga.mark import (
     mark_blocked,
     mark_in_progress,
 )
+from coga.paths import PackagedResourceMissing, read_packaged_resource
 from coga.workflow import WorkflowError
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.service_order import service_order
@@ -1255,12 +1255,9 @@ def _preflight_agent_launch(
 def _megalaunch_prompt_suffix() -> str:
     """Return package-backed execution guidance unique to the queue runner."""
     try:
-        prompt = files("coga.resources").joinpath("prompt-megalaunch.md").read_text()
-    except OSError as exc:
-        raise ComposeError(
-            "Megalaunch execution prompt is missing from the installed Coga "
-            "package: prompt-megalaunch.md"
-        ) from exc
+        prompt = read_packaged_resource("prompt-megalaunch.md")
+    except PackagedResourceMissing as exc:
+        raise ComposeError(str(exc)) from exc
     return f"\n\n{prompt.strip()}\n"
 
 

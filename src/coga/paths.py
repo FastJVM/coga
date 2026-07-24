@@ -16,6 +16,31 @@ _REMOVED_BUNDLED_SKILL_MESSAGES = {
 }
 
 
+class PackagedResourceMissing(RuntimeError):
+    """A packaged `coga/resources/` file could not be read at runtime.
+
+    Normally impossible — these ship in the wheel — but the read is lazy, so a
+    long-running process (a `coga megalaunch` sweep, a `coga launch`
+    supervisor) reads them long after import. Reinstalling or upgrading the
+    CLI underneath that process swaps the files out from under it, and an
+    editable reinstall removes them from `site-packages` entirely. Raised
+    instead of letting a bare `FileNotFoundError` unwind so the caller can
+    report it against the one task it hit and keep going.
+    """
+
+
+def read_packaged_resource(name: str) -> str:
+    """Read a top-level `coga/resources/` file, failing loud but catchably."""
+    try:
+        return files("coga.resources").joinpath(name).read_text()
+    except OSError as exc:
+        raise PackagedResourceMissing(
+            f"{name} is missing from the installed Coga package "
+            "(reinstall or upgrade `coga`); if a sweep is running, its CLI "
+            "was replaced mid-run — rerun it"
+        ) from exc
+
+
 def packaged_template_path(*parts: str) -> Path:
     """Path to a packaged template resource inside the installed coga package."""
     return Path(files("coga.resources").joinpath("templates", "coga", *parts))

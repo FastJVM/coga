@@ -3143,3 +3143,82 @@ def test_launchable_candidates_includes_script_step_tasks(repo: Path) -> None:
     candidates = launchable_candidates(cfg)
 
     assert [r.id_slug for r, _ in candidates] == ["ship-it"]
+
+
+def test_megalaunch_missing_packaged_prompt_fails_task_not_sweep(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A packaged prompt resource that vanishes mid-run fails that one task.
+
+    The real case: `coga megalaunch` sweeps for an hour while the operator
+    reinstalls the CLI underneath it (an editable reinstall drops the top-level
+    `coga/resources/*.md` out of site-packages entirely). The already-imported
+    process keeps running, but the *lazy* resource read at the next compose
+    hits a deleted file. That must be a per-task `failed` row like any other
+    preflight refusal — not a bare FileNotFoundError unwinding out of
+    `run_megalaunch` and taking the rest of the queue (and the run summary)
+    with it.
+    """
+    import coga.paths
+
+    real_files = coga.paths.files
+    state = {"gone": True}
+
+    class _GoneResource:
+        def read_text(self, *args: object, **kwargs: object) -> str:
+            # Vanish for exactly one read, so the next task still services.
+            state["gone"] = False
+            raise FileNotFoundError(2, "No such file or directory", "prompt.md")
+
+    class _Shim:
+        def __init__(self, real: object) -> None:
+            self._real = real
+
+        def joinpath(self, *parts: str) -> object:
+            if state["gone"] and parts == ("prompt.md",):
+                return _GoneResource()
+            return self._real.joinpath(*parts)  # type: ignore[attr-defined]
+
+    cfg = load_config(repo)
+    for title in ("A gone", "B run me"):
+        create_task(
+            cfg=cfg,
+            title=title,
+            workflow_name="code",
+            contexts=[],
+            owner="marc",
+            assignee="claude",
+            status="active",
+            watchers=[],
+        )
+
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+    monkeypatch.setattr("coga.paths.files", lambda package: _Shim(real_files(package)))
+
+    run = run_megalaunch(cfg)
+
+    assert [(r.slug, r.outcome) for r in run.results] == [
+        ("a-gone", "failed"),
+        ("b-run-me", "completed"),
+    ]
+    detail = run.results[0].detail
+    assert "prompt.md" in detail
+    assert "installed Coga package" in detail
+    # The run still summarizes instead of dying on a traceback.
+    assert run.counts["failed"] == 1
+    assert run.counts["completed"] == 1

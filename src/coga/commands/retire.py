@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from importlib.resources import files
 
 import typer
 
@@ -12,6 +11,7 @@ from coga.branchcleanup import delete_ticket_branch
 from coga.config import Config, ConfigError, load_config
 from coga.create import create_task
 from coga.git import GitError
+from coga.paths import read_packaged_resource
 from coga.slugify import slugify
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import (
@@ -168,7 +168,7 @@ def _default_agent(cfg: Config) -> str:
 
 
 def _retire_body(target_slug: str) -> str:
-    template = files("coga.resources").joinpath("retire.md").read_text()
+    template = read_packaged_resource("retire.md")
     return template.format(slug=target_slug).strip()
 
 
