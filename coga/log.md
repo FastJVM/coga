@@ -2255,3 +2255,4 @@ Aborting
 2026-07-21 20:31 [allow-open-pr-when-the-recorded-worktree-is-the-pr] [agent:nick] slack: Owner scope change: branch-only for now. Remove worktree support/requirements from open-pr; do not preserve the dual-layout path. Treat legacy worktree metadata as inert and revise the current peer-review implementation before publication.
 2026-07-21 20:31 [allow-open-pr-when-the-recorded-worktree-is-the-pr] [git] sync refused: coga/tasks/allow-open-pr-when-the-recorded-worktree-is-the-pr.md: status would move backward from 'in_progress' to 'draft'
 2026-07-21 21:46 [allow-open-pr-when-the-recorded-worktree-is-the-pr] [agent:codex] slack: Authoritative ticket updated: current dual-mode implementation is superseded. Rework open-pr and shipped development rules for branch-only operation before publication; worktree metadata is no longer an input.
+2026-07-24 12:03 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
