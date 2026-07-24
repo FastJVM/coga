@@ -2884,3 +2884,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-23 10:36 [op/fail-validation-when-local-user-is-required-for-ex] [human:zach] created (status=draft)
 2026-07-24 10:37 [make-sure-we-can-drop-new-recurring-tickets] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-07-24 10:37 [install/short-notice-instead-of-raw-git-error-when-sync-ha] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-24 10:37 [install/short-notice-instead-of-raw-git-error-when-sync-ha] [megalaunch] launched via coga megalaunch
+2026-07-24 10:57 [install/short-notice-instead-of-raw-git-error-when-sync-ha] [agent:codex] advanced to step 2 (peer-review) → assigned to claude — Implemented: calm no-remote notice, only the push is skipped (commit stays local); 1500 tests green. Branch no-remote-notice.

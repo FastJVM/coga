@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -125,4 +125,123 @@ regression test — extend the existing `tests/test_git*.py` surface.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: no-remote-notice
+worktree: /home/n/Code/claude/coga-no-remote-notice
+
+## Plan (implement step)
+
+**Goal.** Replace the raw two-paragraph `git push` fatal with a calm one-liner
+when — and only when — the configured remote is not configured at all
+(`git remote get-url <remote>` non-zero). Every other push failure stays loud.
+
+**Design.**
+1. New helper `_remote_configured(root, remote) -> bool` (runs `git remote
+   get-url`, returns `rc == 0`). Refactor `_remote_branch_present` to reuse it
+   (it already inlines the same probe) — single source of truth for the get-url
+   check.
+2. New calm-message helper `_no_remote_message(cfg) -> str`, mirroring
+   `_control_branch_mismatch_message`'s shape (returns the core line; each site
+   appends ` ({message})\n`).
+3. In all four sync entry points, *after* the existing `_control_branch_present`
+   check, add `if not _remote_configured(root, cfg.git_remote): <calm>; return`.
+   Order matters: `_control_branch_present` first keeps the on-`master`/no-`main`
+   case on the branch-mismatch one-liner (the adjacent path); the no-remote
+   soft-skip fires only when the local control branch *does* exist but no remote
+   is configured — exactly the repro nuance in the ticket.
+
+**"Twice" confirmed.** `coga create` fires `sync_task_state`→`sync_paths`
+(create.py:99) AND the post-command sweep `sync_coga_state` (cli.py:156). Both
+are in the four-site set, so the fix covers the doubling. Message wording: since
+the soft-skip early-returns (like the sibling `_control_branch_present` skip, it
+does *not* reach the local commit), the notice says "saved to disk", not
+"committed" — accurate to what actually happens.
+
+**Tradeoff (noted).** Emulating the four `_control_branch_present` early-returns
+means the *local* commit is also skipped in the no-remote case (state stays a
+dirty working-tree file, converged on the next sync once a remote exists — disk
+is source of truth per the module's failure model). This matches the sibling
+pre-check's behavior and the ticket's explicit "gate next to
+`_control_branch_present`" instruction, chosen over a more invasive
+commit-locally-but-skip-only-the-push refactor.
+
+**Tests.** Two existing tests simulate a push failure via `remote remove origin`
+and assert the LOUD path (`test_sync_log_failure_does_not_redirty_the_log`,
+`test_sync_feature_branch_nonfatal_on_push_failure`). After this change "no
+origin" is the calm path, so those must switch to a configured-but-broken remote
+(`remote set-url origin <nonexistent-path>`) to keep exercising loud. New
+regression tests cover the calm notice for each of the four entry points +
+assert a broken-but-configured remote stays loud.
+
+**recurring_runner.py:** confirmed NOT touched — `_sync_control_checkout_ahead`
+already degrades to a calm `[git] note: pre-scan catch-up skipped` line.
+
+## Design correction (found while testing — supersedes the blanket early-return)
+
+The initial plan (early-return next to `_control_branch_present`, per the
+ticket's drafting note) is **too broad**: it also suppresses the *feature-branch
+local commit*, which never contacts the remote and must still happen. Proof:
+`tests/test_launch_script.py::test_script_launch_commits_log_append_before_running_script`
+runs `sync_log` on a **feature branch with no remote** and asserts the log
+append is *committed* before the script runs — the blanket early-return left it
+dirty and the script aborted (exit 7).
+
+**Corrected scope — skip only the remote step, keep the local commit:**
+- `sync_log`: commit always; soft-skip only the control-branch `_push_control_branch`
+  and the `publish_current_branch` push.
+- `sync_paths` / `sync_coga_state` (via `_dispatch_branch_sync`): keep the local
+  commit on control/feature branches; soft-skip only the control-branch
+  landing/push. Added `push` param to `_sync_paths_on_control_branch` — when
+  `False` it commits but skips the push *and* the guard's remote-tip fetch (the
+  guard's regression check is moot with no remote). Detached HEAD (no durable
+  local commit) soft-skips the landing.
+- `refresh_coga_state_from_control`: pure remote pull with no local commit to
+  preserve → early-return before the fetch (kept).
+
+Net effect matches the ticket's own example wording: **state is committed
+locally, only the push is skipped.** Message is "saved locally" (accurate for
+both the committed cases and the rare detached no-commit case). Helper
+`_remote_configured(root, remote)` is the single get-url probe; `_remote_branch_present`
+now reuses it.
+
+## Verification
+
+- `python -m pytest` — 1500 passed, 1 skipped (full suite).
+- Manual repro: fresh `git init` + no remote → sync emits the calm one-liner,
+  no `fatal`, and the ticket **is** committed on local `main` (working tree
+  clean). Configured-but-broken remote → still the loud raw fatal (guardrail
+  holds).
+- Updated three existing tests that simulated a push failure via `remote remove
+  origin` (now the calm path) to use a configured-but-broken remote instead, so
+  they keep exercising the loud path.
+
+## Dev status: implemented, tests green, committed on branch. Ready to bump.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T17:47:07+00:00
+Command: `coga validate --json --fix`
+Task: `install/short-notice-instead-of-raw-git-error-when-sync-ha`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T17:54:01+00:00
+Command: `coga validate --json --fix`
+Task: `install/short-notice-instead-of-raw-git-error-when-sync-ha`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
