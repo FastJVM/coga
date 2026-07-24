@@ -1,17 +1,35 @@
 ---
 slug: make-sure-we-can-drop-new-recurring-tickets
 title: make sure we can drop new recurring tickets
-status: draft
+status: active
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - coga/recurring
+- coga/recurring
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
