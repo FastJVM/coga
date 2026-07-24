@@ -878,10 +878,13 @@ def _dispatch_branch_sync(
     # loud via the caller's `except GitError`.
     remote_ok = _remote_configured(root, cfg.git_remote)
     if branch == cfg.git_control_branch:
-        _sync_paths_on_control_branch(
+        committed = _sync_paths_on_control_branch(
             cfg, root, local_rels, message=message, guard=guard, push=remote_ok
         )
-        if not remote_ok:
+        # Only when something was actually saved: a clean no-op sync pushes
+        # nothing even *with* a remote, so announcing a skipped push there would
+        # claim a save that never happened.
+        if not remote_ok and committed:
             sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
         return
 
@@ -1245,32 +1248,39 @@ def _sync_paths_on_control_branch(
     message: str,
     guard: _StateGuard | None = None,
     push: bool = True,
-) -> None:
+) -> bool:
     """Stage explicit pathspecs, commit if anything changed, and push.
 
+    Returns True when a commit was actually created, so the caller can scope the
+    no-remote notice to a sync that really saved something.
+
     `push=False` is the no-remote path: commit locally but perform no remote
-    step. The guard's regression probe is skipped too — it fetches the remote
-    tip (`_control_base_for_attempt` attempt 1) and, with no remote to advance
-    the branch, there is nothing for a stale checkout to bury. The caller emits
-    the calm no-remote notice.
+    step. The guard still runs — it just resolves its base locally (attempt 0 →
+    `refs/heads/<control>`) instead of fetching the remote tip, which would be
+    the very fatal we are suppressing. Skipping it outright would be wrong: with
+    no remote, a *sibling worktree* can still advance the local control branch
+    through the plumbing landing path, so a stale checkout here has newer state
+    it could bury. A refusal propagates as `StateRegressionError` before any
+    commit is made. The caller emits the calm no-remote notice.
     """
     before: str | None = None
-    if push and guard is not None:
+    if guard is not None:
         base = _control_base_for_attempt(
-            root, cfg.git_remote, cfg.git_control_branch, 1
+            root, cfg.git_remote, cfg.git_control_branch, 1 if push else 0
         )
         guard(base)
         before = _run_git(root, "rev-parse", "HEAD").strip()
     if not _commit_paths(root, rels, message):
-        return
+        return False
     if not push:
-        return
+        return True
     try:
         _push_control_branch(cfg, root, guard=guard)
     except StateRegressionError:
         if before is not None:
             _restore_unpushed_sync_commit(root, before, rels)
         raise
+    return True
 
 
 def _restore_unpushed_sync_commit(root: Path, before: str, rels: list[str]) -> None:

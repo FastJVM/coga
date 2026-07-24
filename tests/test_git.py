@@ -560,6 +560,69 @@ def test_no_remote_notice_defers_to_branch_mismatch(git_repo, capsys):
     assert _NO_REMOTE_NOTICE not in err
 
 
+def test_no_remote_notice_silent_when_nothing_to_commit(git_repo, capsys):
+    """A clean no-op sync says nothing — it saved nothing.
+
+    With a remote, a sync that finds no changes commits and pushes nothing,
+    silently. The no-remote path must stay just as quiet: announcing "state
+    saved locally" when no commit was made claims a save that never happened,
+    and it would fire on every command a no-remote user runs.
+    """
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("remote", "remove", "origin")
+    task = _task_dir(git_repo.coga_os)
+
+    # First sync commits the task; the tree is clean afterwards.
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+    assert _NO_REMOTE_NOTICE in capsys.readouterr().err
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    before = git_repo.git("rev-parse", "HEAD").strip()
+
+    # Second sync has nothing to do.
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    assert _NO_REMOTE_NOTICE not in capsys.readouterr().err
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+
+
+def test_no_remote_still_guards_against_burying_newer_control_state(
+    git_repo, capsys
+):
+    """No remote does not mean no state guard.
+
+    The regression guard resolves its base locally when there is no remote to
+    fetch, so a stale checkout still cannot bury newer state a sibling worktree
+    landed on the shared local control branch. Skipping the guard along with the
+    push would silently overwrite a terminal `done` with `in_progress`.
+    """
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="done", blackboard="finished\n")
+    git_repo.git("remote", "remove", "origin")
+
+    # A stale copy on disk that would walk the ticket back from `done`.
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="stale\n"
+        )
+    )
+    before = git_repo.git("rev-parse", "HEAD").strip()
+
+    git.sync_paths(
+        cfg,
+        ticket.parent,
+        [ticket.parent],
+        message="Ticket: demo — in_progress",
+        guard=lambda base: git.guard_ticket_state(cfg, ticket, base),
+    )
+
+    err = capsys.readouterr().err
+    assert "sync refused" in err
+    assert "fatal" not in err  # refused, not a raw git blow-up
+    # Nothing was committed over the newer control-branch copy.
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert "status: done" in git_repo.git("show", "main:coga/tasks/demo/ticket.md")
+
+
 def test_sync_detached_head_lands_without_local_commit(git_repo, capsys):
     """Detached HEAD: still lands on main, skips the (orphan-ish) local commit."""
     cfg = load_config(git_repo.coga_os)
