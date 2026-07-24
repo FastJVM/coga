@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -19,8 +20,14 @@ from coga.logfile import append_log
 from coga.paths import recurring_dir, resolve_skill_path, resolve_workflow_path
 from coga.period_state import write_snapshot
 from coga.skill import Skill
-from coga.taskfile import read_blackboard, upsert_blackboard
+from coga.taskfile import (
+    join_task_body,
+    read_blackboard,
+    split_body,
+    upsert_blackboard,
+)
 from coga.tasks import TaskRef, list_tasks, read_ticket
+from coga.ticket import Ticket
 from coga.validate import TaskValidationError
 from coga.workflow import Workflow, WorkflowError
 
@@ -574,6 +581,204 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
     return out
 
 
+# --- promote ------------------------------------------------------------------
+
+# A task's per-run fields, which a template must not carry. `status`/`step` are
+# run state the scanner and workflow own; `slug` identifies a *task*, while a
+# template is identified by its directory name; `human`/`agent` are task-launch
+# fields the creator re-derives for every period task. `skills:` is dropped too,
+# but reported separately: it is deliberately never copied into a period task
+# (see the `coga/recurring` context), so leaving it on the template would look
+# load-bearing while doing nothing.
+_TASK_ONLY_FIELDS = ("slug", "status", "step", "human", "agent")
+
+# What a template passes through to each period task, in render order. Mirrors
+# the fields `_create_at_slug` reads back off the template.
+_TEMPLATE_PASSTHROUGH = (
+    "title",
+    "workflow",
+    "owner",
+    "assignee",
+    "watchers",
+    "contexts",
+    "secrets",
+    "script",
+)
+
+# A live run's step/blocker state has nowhere to go in a template, and dropping
+# it silently would abandon an in-flight handoff. Refuse instead and let the
+# human land the run first.
+_PROMOTE_REFUSED_STATUSES = ("in_progress", "blocked")
+
+# One `coga/recurring/` directory component — the same slug-ish shape a task
+# directory has. The template name becomes both the directory and the period
+# task's `recurring/<name>` slug, so it must not need escaping.
+_TEMPLATE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+_PROMOTED_BLACKBOARD = "\nThe cross-run state for this recurring task goes here.\n"
+
+
+@dataclass
+class PromoteOutcome:
+    """Result of promoting one task into a recurring template."""
+
+    name: str
+    path: Path  # the new `coga/recurring/<name>/` directory
+    source_slug: str
+    source_path: Path
+    dropped_skills: list[str]
+    dropped_blackboard: bool
+    script_file: str | None  # a `script:` naming a companion file, not `inline`
+
+
+def promote_task(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    schedule: str,
+    name: str | None = None,
+    now: datetime | None = None,
+) -> PromoteOutcome:
+    """Move a task out of `tasks/` and into `recurring/<name>/` as a template.
+
+    The authoring path for "this ticket should run every period": it does the
+    task→template frontmatter transform, stamps the validated `schedule:`, and
+    resets the blackboard to cross-run state (task scratch is one-run state and
+    must not masquerade as a recurring cursor).
+
+    Order is deliberate — the cron is validated and the destination checked
+    *before* anything moves, and the written template is re-loaded through
+    `Template.load` before the source task is removed. A bad schedule, an
+    occupied name, or a template that fails to load leaves the source ticket
+    untouched.
+    """
+    now = now or datetime.now()
+    _validate_schedule(schedule, now)
+
+    ticket = read_ticket(ref)
+    if ticket.status in _PROMOTE_REFUSED_STATUSES:
+        raise RecurringError(
+            f"{ref.id_slug} is {ticket.status!r} — a template cannot hold a live "
+            f"run's step or blocker. Land the run first (`coga mark done "
+            f"{ref.id_slug}`, or `coga unblock`), then promote."
+        )
+
+    template_name = name or ref.slug
+    if not _TEMPLATE_NAME_RE.match(template_name):
+        raise RecurringError(
+            f"invalid recurring template name {template_name!r} — it is a single "
+            "directory name under `coga/recurring/` (letters, digits, `.`, `_`, "
+            "`-`; no slashes, and `_` is reserved for parked templates). Pass "
+            "`--name`."
+        )
+    dest = recurring_dir(cfg) / template_name
+    if dest.exists():
+        raise RecurringError(
+            f"`coga/recurring/{template_name}/` already exists — refusing to "
+            f"overwrite it. Pass `--name` to pick another template name, or "
+            f"remove the existing template first."
+        )
+
+    frontmatter, dropped_skills = _template_frontmatter(ticket, schedule)
+    above, blackboard = split_body(ticket.body, blackboard_required=False)
+
+    dest.mkdir(parents=True)
+    try:
+        # Directory-form siblings (a `script:` file, attachments) travel with
+        # the ticket — the promote is a move, not a rewrite. The state snapshot
+        # is the one exception: it is a period task's create-time baseline, not
+        # template state.
+        if not ref.file_form:
+            for sibling in sorted(ref.path.iterdir()):
+                if sibling.name in ("ticket.md", ".state-snapshot.json"):
+                    continue
+                if sibling.is_dir():
+                    shutil.copytree(sibling, dest / sibling.name)
+                else:
+                    shutil.copy2(sibling, dest / sibling.name)
+        ticket_path = dest / "ticket.md"
+        ticket_path.write_text(
+            _render_template_text(frontmatter, join_task_body(above, _PROMOTED_BLACKBOARD))
+        )
+        Template.load(dest, now=now)
+    except (RecurringError, OSError):
+        shutil.rmtree(dest, ignore_errors=True)
+        raise
+
+    if ref.file_form:
+        ref.path.unlink()
+    else:
+        shutil.rmtree(ref.path)
+
+    append_log(
+        cfg,
+        ref.id_slug,
+        "human",
+        f"promoted to recurring template `recurring/{template_name}` "
+        f"(schedule {schedule})",
+    )
+
+    script = frontmatter.get("script")
+    return PromoteOutcome(
+        name=template_name,
+        path=dest,
+        source_slug=ref.id_slug,
+        source_path=ref.path,
+        dropped_skills=dropped_skills,
+        dropped_blackboard=bool((blackboard or "").strip()),
+        script_file=script if isinstance(script, str) and script != "inline" else None,
+    )
+
+
+def _template_frontmatter(
+    ticket: Ticket, schedule: str
+) -> tuple[dict[str, Any], list[str]]:
+    """Transform task frontmatter into template frontmatter.
+
+    Returns the new mapping (schedule first, then the documented passthrough
+    fields, then any repo extension fields) and the dropped `skills:` refs.
+    """
+    fm: dict[str, Any] = {"schedule": schedule}
+    for key in _TEMPLATE_PASSTHROUGH:
+        if key not in ticket.frontmatter:
+            continue
+        value = ticket.frontmatter[key]
+        if key == "workflow":
+            # A launched task carries the frozen workflow snapshot; a template
+            # names the workflow and lets the creator freeze it per period. An
+            # absent workflow stays absent — the creator defaults to
+            # `direct/body`.
+            value = value.get("name") if isinstance(value, dict) else value
+        if key == "contexts" and isinstance(value, list):
+            # The creator auto-attaches `coga/period-task` to every period task;
+            # a promoted former period task would otherwise carry it twice over.
+            value = [c for c in value if c != "coga/period-task"]
+        if value in (None, [], {}):
+            continue
+        fm[key] = value
+
+    dropped_skills = [str(s) for s in (ticket.frontmatter.get("skills") or [])]
+    handled = set(_TEMPLATE_PASSTHROUGH) | set(_TASK_ONLY_FIELDS) | {"skills"}
+    for key, value in ticket.frontmatter.items():
+        if key in handled or key in fm:
+            continue
+        fm[key] = value
+    return fm, dropped_skills
+
+
+def _render_template_text(frontmatter: dict[str, Any], body: str) -> str:
+    """Render a template `ticket.md`. Deliberately not `Ticket.render`, which
+    would push `schedule:` — not a canonical *task* key — below the extension
+    marker."""
+    fm_text = yaml.safe_dump(
+        frontmatter,
+        sort_keys=False,
+        allow_unicode=True,
+        default_flow_style=False,
+    ).rstrip()
+    return f"---\n{fm_text}\n---\n\n{body.lstrip(chr(10))}"
+
+
 def _template_runs_as_script(cfg: Config, template: Template) -> bool:
     """Pre-freeze deduction of a template's launch substance.
 
@@ -892,6 +1097,8 @@ __all__ = [
     "scan_due",
     "create_named",
     "create_template",
+    "PromoteOutcome",
+    "promote_task",
     "read_last_serviced_period",
     "write_last_serviced_period",
     "merge_last_serviced_period_text",

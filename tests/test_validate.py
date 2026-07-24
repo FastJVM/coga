@@ -188,6 +188,86 @@ def test_validate_recurring_template_unknown_skill_lists_checked_paths(
     assert "bootstrap/skills/local/missing/SKILL.md" in issue.message
 
 
+def test_validate_reports_recurring_template_without_a_schedule(repo: Path) -> None:
+    """A template with no `schedule:` never fires. Catch it statically instead
+    of letting the next sweep skip it with a stderr warning."""
+    _write(repo / "recurring" / "orphan" / "ticket.md", """
+        ---
+        title: Orphan
+        ---
+
+        ## Description
+
+        Never fires.
+    """)
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue for issue in report.issues
+        if issue.kind == "invalid-recurring-schedule"
+    )
+    assert issue.task == "recurring/orphan"
+    assert issue.severity == "error"
+    assert "no `schedule:`" in issue.message
+    assert "_orphan" in issue.message
+
+
+def test_validate_reports_malformed_recurring_schedule(repo: Path) -> None:
+    _write(repo / "recurring" / "broken" / "ticket.md", """
+        ---
+        schedule: "every monday"
+        title: Broken
+        ---
+
+        ## Description
+
+        Malformed cron.
+    """)
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue for issue in report.issues
+        if issue.kind == "invalid-recurring-schedule"
+    )
+    assert issue.task == "recurring/broken"
+    assert "not a valid cron expression" in issue.message
+
+
+def test_validate_accepts_a_valid_recurring_schedule_and_skips_parked_ones(
+    repo: Path,
+) -> None:
+    """A good cron passes, and a `_`-prefixed parked template is inert — the
+    schedule check must not resurrect it as an error."""
+    _write(repo / "recurring" / "weekly" / "ticket.md", """
+        ---
+        schedule: "0 9 * * 1"
+        title: Weekly
+        ---
+
+        ## Description
+
+        Fires weekly.
+    """)
+    _write(repo / "recurring" / "_parked" / "ticket.md", """
+        ---
+        title: Parked
+        ---
+
+        ## Description
+
+        Parked, no schedule.
+    """)
+
+    report = run(load_config(repo))
+
+    assert not [
+        issue for issue in report.issues
+        if issue.kind == "invalid-recurring-schedule"
+    ]
+
+
 def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
     """A frozen step's `requires:` must name a registered completion gate; a
     bogus token is a hard `bad-shape` error (the activation/bump gate would
