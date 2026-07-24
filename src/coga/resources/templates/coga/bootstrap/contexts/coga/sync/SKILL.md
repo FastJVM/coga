@@ -244,13 +244,12 @@ new string:
   local-overrides-shared rule and the same absence of any legacy `[slack]` or
   bare-env fallback as `important_webhook` — the key postdates both. It differs on
   two points: the value is a coga name, not a bearer token, so it takes no `env:`
-  indirection and its committed value is the plain name (a member ID is rendered
-  from it at post time through `[notification.slack.users]`, exactly as `mention`
-  renders an owner); and an unset or empty value is not fatal — it resolves to
-  None and the ordinary owner mention stands, so a repo that never names a triage
-  owner keeps today's behavior. The current Slack backend does not yet consume
-  this resolved field, so important posts still render the ordinary owner
-  mention; do not treat the key as active routing until that wiring lands.
+  indirection and its committed value is the plain name; and an unset or empty
+  value is not fatal — it resolves to None and the ordinary owner mention stands,
+  so a repo that never names a triage owner keeps today's behavior. The current
+  Slack backend does not yet consume this resolved field, so important posts
+  still render the ordinary owner mention; do not treat the key as active routing
+  until that wiring lands.
   Legal only in `[notification.slack]`, for the same reason as
   `important_webhook`: `[slack].important_recipient` is rejected rather than
   silently ignored, since no legacy resolver reads it.
