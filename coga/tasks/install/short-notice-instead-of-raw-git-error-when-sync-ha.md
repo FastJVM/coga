@@ -127,6 +127,7 @@ regression test — extend the existing `tests/test_git*.py` surface.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/644
 branch: no-remote-notice
 worktree: /home/n/Code/claude/coga-no-remote-notice
 
