@@ -232,6 +232,7 @@ Test plan (one PR, all four legs — all already present on the branch):
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/645
 branch: microkernel-move-recipes
 worktree: /home/n/Code/claude/coga-microkernel-move-recipes
 
