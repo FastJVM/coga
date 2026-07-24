@@ -2883,3 +2883,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-23 10:36 [op/propagate-local-coga-config-into-worktrees] [human:zach] created (status=draft)
 2026-07-23 10:36 [op/fail-validation-when-local-user-is-required-for-ex] [human:zach] created (status=draft)
 2026-07-24 10:37 [make-sure-we-can-drop-new-recurring-tickets] [megalaunch] activated (draft → active) — explicit megalaunch pick
+2026-07-24 10:37 [install/short-notice-instead-of-raw-git-error-when-sync-ha] [megalaunch] started (active → in_progress) via coga megalaunch
