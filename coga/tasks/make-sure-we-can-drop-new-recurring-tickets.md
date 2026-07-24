@@ -125,6 +125,7 @@ Scope / gotchas:
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/649
 branch: recurring-promote
 worktree: /home/n/Code/claude/coga-recurring-promote
 
@@ -354,6 +355,20 @@ Result: no remaining validation drift found.
 ## Dream Skill: validate-drift
 
 Generated: 2026-07-24T21:33:20+00:00
+Command: `coga validate --json --fix`
+Task: `make-sure-we-can-drop-new-recurring-tickets`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T21:35:34+00:00
 Command: `coga validate --json --fix`
 Task: `make-sure-we-can-drop-new-recurring-tickets`
 
