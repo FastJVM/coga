@@ -42,12 +42,12 @@ before executing is deliberate: the knowledge scan and contract audit read the
 corpus while every done ticket still exists (Phase 4 deletes them all), so
 nothing is missed, and their findings steer the Retro pass.
 
-1. **validate-drift** — deterministic repo hygiene (script worker).
+1. **validate-drift** — deterministic repo hygiene (registered recipe).
 2. **knowledge scan** — one full-corpus read; classifies every finding.
 3. **contract audit** — checks the contract surface against code reality.
 4. **retro/done-ticket** — extracts durable knowledge from every eligible done
    ticket in one pass.
-5. **cleanup-orphan-markers** — delete-only orphan cleanup (script worker).
+5. **cleanup-orphan-markers** — delete-only orphan cleanup (registered recipe).
 6. **disposition + run summary** — routes every finding to a durable home.
 
 This body is the dispatch contract. Do not auto-discover skills, scan a plugin
@@ -57,19 +57,19 @@ permit a replacement: record the result and continue only with later phases
 whose inputs do not depend on the blocked one. If a repo wants a different
 maintenance loop, make another task with its own body and ordered phase list.
 
-The two script workers (Phases 1 and 5) each run as a child script
-task whose one workflow step references the worker skill — Dream-owned scripts
-are skills attached to Coga tasks, never standalone execution units. Before
-launching a worker, read its `## Known Skill Contract`, keep its reads and
-writes inside its declared scope, let it write its own `## Dream Skill: <name>`
-section to the child task blackboard, then summarize that child result here.
+The two deterministic phases (1 and 5) run registered recipes directly from
+this Dream task. Before each run, read the matching skill's
+`## Known Skill Contract`, keep reads and writes inside its declared scope,
+then invoke the exact `coga run` command below. The recipe inherits this
+task's `COGA_TASK_*` context and writes its `## Dream Skill: <name>` section
+directly to this task's blackboard. Do not create child script tasks.
 
 ### Phase 1 — validate-drift
 
-Launch a child script task whose current workflow step references
-`bootstrap/dream/tasks/validate-drift`. The skill runs the same deterministic
-surface as `coga validate --json`, classifies every issue, and appends
-`## Dream Skill: validate-drift` to the child task's blackboard.
+Read `bootstrap/dream/tasks/validate-drift`, then run
+`coga run validate-drift`. The recipe runs the same deterministic surface as
+`coga validate --json`, classifies every issue, and appends
+`## Dream Skill: validate-drift` to this task's blackboard.
 
 The skill's default safe-repair pass applies only deterministic repairs
 currently supported by `coga validate --fix`: append a missing blackboard fence
@@ -183,11 +183,11 @@ by Phase 4 in the run and never carries a `## Retro` marker, so it can never be 
 candidate here; the gate still excludes any `result: no-new-durable-knowledge`
 marker left behind by an older run.
 
-Launch a child script task whose current workflow step references
-`bootstrap/dream/tasks/cleanup-orphan-markers`. The skill detects cleanup
-candidates and gates deletion through `bootstrap/delete-task`. That delete
-skill ships, but until its cleanup PR-dispatch wiring is finished the worker
-reports `human-needed` and deletes nothing.
+Read `bootstrap/dream/tasks/cleanup-orphan-markers`, then run
+`coga run cleanup-orphan-markers`. The recipe detects cleanup candidates and
+gates deletion through `bootstrap/delete-task`. That delete skill ships, but
+until its cleanup PR-dispatch wiring is finished the recipe reports
+`human-needed` and deletes nothing.
 
 For each candidate, cleanup must open a PR that deletes only the resolved task
 directory under `coga/tasks/`. The deletion goes in the PR, not the working
@@ -239,8 +239,8 @@ enough for a human to scan.
 
 ### Slack
 
-Child script tasks write their durable result to their own blackboard; the
-parent Dream run sends the broader one-line summary. Call:
+The registered recipes write their durable results to this Dream task's
+blackboard; the Dream run sends the broader one-line summary. Call:
 
 `coga slack --task <this-dream-task> --message "<summary>"`
 

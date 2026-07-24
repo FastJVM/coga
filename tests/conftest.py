@@ -32,47 +32,23 @@ _TEMPLATES_COGA_OS = (
 )
 
 
-def _load_recipe_module(recipe_path: Path, module_name: str):
-    """Load a `recipe.py` sibling module by file path.
+def load_bootstrap_recipe(name: str):
+    """Load a bootstrap command ticket's `recipe.py` sibling module by name.
 
-    Recipes live beside their `run.py` in the ticket or skill dir, not in
-    importable `coga.*` core, so they are not on `sys.path` as a package.
+    A command-ticket recipe (e.g. `bootstrap/open-pr`) lives beside its
+    `run.py` in the packaged ticket dir, not in importable `coga.*` core.
+    Tests load the module the same way the ticket's `run.py` does — by file
+    path off the packaged dir — since it is not on `sys.path` as a package.
+    `name` is the bootstrap ticket name, e.g. `open-pr`.
     """
+    recipe_path = _TEMPLATES_COGA_OS / "bootstrap" / name / "recipe.py"
+    module_name = "bootstrap_recipe_" + name.replace("-", "_")
     spec = importlib.util.spec_from_file_location(module_name, recipe_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
-
-
-def load_bootstrap_recipe(name: str):
-    """Load a bootstrap command ticket's `recipe.py` sibling module by name.
-
-    A command-ticket recipe (e.g. `bootstrap/open-pr`) lives beside its
-    `run.py` in the packaged ticket dir. Tests load the module the same way
-    the ticket's `run.py` does — by file path off the packaged dir. `name` is
-    the bootstrap ticket name, e.g. `open-pr`.
-    """
-    recipe_path = _TEMPLATES_COGA_OS / "bootstrap" / name / "recipe.py"
-    module_name = "bootstrap_recipe_" + name.replace("-", "_")
-    return _load_recipe_module(recipe_path, module_name)
-
-
-def load_skill_recipe(ref: str):
-    """Load a skill's `recipe.py` sibling module by skill ref.
-
-    Single-consumer maintenance recipes (the autoclose sweep, blocker reminders,
-    branch sweep) live beside their `run.py` in the skill dir under the
-    microkernel policy. Tests load the module the same way the launcher's
-    `run.py` does — by file path off the packaged skill dir. `ref` is the skill
-    ref, e.g. `coga/autoclose/sweep`.
-    """
-    recipe_path = (
-        _TEMPLATES_COGA_OS / "bootstrap" / "skills" / Path(*ref.split("/")) / "recipe.py"
-    )
-    module_name = "skill_recipe_" + ref.replace("/", "_").replace("-", "_")
-    return _load_recipe_module(recipe_path, module_name)
 
 
 def seed_direct_body_workflow(coga_os: Path) -> None:

@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Run the validate-drift Dream skill."""
+"""Importable validate-drift recipe for Dream."""
 
 from __future__ import annotations
 
@@ -526,7 +525,8 @@ def script_task_slug_from_env() -> str | None:
     return os.environ.get("COGA_TASK_SLUG")
 
 
-def main(argv: list[str] | None = None) -> int:
+def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
+    del cfg
     parser = argparse.ArgumentParser(description="Run the validate-drift Dream skill.")
     parser.add_argument(
         "--cwd",
@@ -616,7 +616,3 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

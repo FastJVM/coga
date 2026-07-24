@@ -2,10 +2,10 @@
 schedule: "0 8 * * *"
 schedule_comment: "Every day at 8am - close merged final-step tickets before the 9am digest"
 title: "Autoclose merged tickets"
-# A script step runs the sweep directly with no agent: the workflow's one
-# step references the `coga/autoclose/sweep` skill, whose `script:` calls
-# `sweep_merged` in the skill's `recipe.py`. It runs directly with no agent buffering, so
-# it is safe for unattended recurring runs.
+recipe: autoclose
+# The recurring runner executes this registered recipe directly with no agent.
+# The one-step workflow keeps the period task's lifecycle and skill contract
+# legible.
 workflow: autoclose-merged/sweep
 ---
 
@@ -16,7 +16,7 @@ workflow is at its final step.
 
 Tickets can get stuck `in_progress` after the owner merges the PR on GitHub but
 forgets to run `coga mark done`. Once a day this recurring task fires before
-the daily digest. Its script step runs the existing merged-ticket sweep,
+the daily digest. Its recipe runs the existing merged-ticket sweep,
 which:
 
 1. scans active and in-progress tickets,
@@ -37,5 +37,5 @@ no merged final-step tickets exits successfully and changes nothing.
 <!-- coga:blackboard -->
 
 This blackboard persists across every run of this recurring task. The
-`coga/autoclose/sweep` script keeps no durable state here - every run's output
+`autoclose` recipe keeps no durable state here - every run's output
 is the tickets it marks done and the resulting digest spool records.

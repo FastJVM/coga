@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from textwrap import dedent
 
@@ -9,7 +8,6 @@ import pytest
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
-from coga import recurring_runner
 from coga.cli import app
 from coga.create import create_task
 from coga.config import load_config
@@ -31,17 +29,8 @@ def _patch_recurring_command_launch(
     repo: Path,
     child_launch,
 ) -> None:
-    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
-        if task == "bootstrap/recurring-scan":
-            return recurring_runner.run_recurring_scan(
-                load_config(repo),
-                force=os.environ.get("COGA_RECURRING_FORCE") == "1",
-                interactive=os.environ.get("COGA_RECURRING_INTERACTIVE") == "1",
-                agent_override=os.environ.get("COGA_RECURRING_AGENT") or None,
-            )
-        return child_launch(task, **kwargs)
-
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    del repo
+    monkeypatch.setattr("coga.commands.launch.launch", child_launch)
 
 
 @pytest.fixture

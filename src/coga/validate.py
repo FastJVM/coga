@@ -849,10 +849,11 @@ def _check_task_numbering(refs: list[TaskRef]) -> list[Issue]:
 
 
 def _check_recurring_templates(cfg: Config) -> list[Issue]:
-    """Check schedules and workflow-step skills in recurring templates."""
+    """Check schedules, execution declarations, and workflow-step skills."""
     # Imported here, not at module scope: `coga.recurring` imports this module
     # for `TaskValidationError`, so a top-level import would be circular.
-    from coga.recurring import RecurringError, _validate_schedule
+    from coga.recurring import RecurringError, Template, _validate_schedule
+    from coga.skill import Skill
 
     root = recurring_dir(cfg)
     if not root.is_dir():
@@ -866,15 +867,20 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         ticket_path = path / "ticket.md"
         if not ticket_path.is_file():
             continue
+        # Read the raw ticket for the schedule checks below. `Template.load`
+        # *raises* on a missing or malformed cron, so loading first would
+        # collapse the actionable schedule remedy into a generic bad-template
+        # message.
         try:
-            template = Ticket.read(ticket_path)
+            ticket = Ticket.read(ticket_path)
         except TicketError:
             continue
 
         # A template's `schedule:` is what makes it fire at all. Without a
         # static check a missing or malformed cron only surfaces at scan time —
         # until then the template just silently never runs.
-        if "schedule" not in template.frontmatter:
+        schedule_bad = True
+        if "schedule" not in ticket.frontmatter:
             out.append(Issue(
                 kind="invalid-recurring-schedule",
                 task=f"recurring/{path.name}",
@@ -888,7 +894,8 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
             ))
         else:
             try:
-                _validate_schedule(template.frontmatter["schedule"], now)
+                _validate_schedule(ticket.frontmatter["schedule"], now)
+                schedule_bad = False
             except RecurringError as exc:
                 out.append(Issue(
                     kind="invalid-recurring-schedule",
@@ -901,30 +908,68 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
                     severity="error",
                 ))
 
-        workflow_name = template.frontmatter.get("workflow") or "direct/body"
+        # The remaining execution declarations (`recipe:`, `state_keys:`,
+        # frontmatter shape) are enforced by `Template.load`. A template whose
+        # schedule already failed above raises there for that same reason, so
+        # only report the load failure when the schedule was fine — otherwise
+        # one bad cron yields two issues for the same defect. The workflow-step
+        # skill checks below still run either way.
+        template: Template | None = None
+        try:
+            template = Template.load(path)
+        except RecurringError as exc:
+            if not schedule_bad:
+                out.append(Issue(
+                    kind="bad-recurring-template",
+                    task=f"recurring/{path.name}",
+                    message=str(exc),
+                    severity="error",
+                ))
+                continue
+
+        workflow_name = ticket.frontmatter.get("workflow") or "direct/body"
         if not isinstance(workflow_name, str):
             continue
         try:
             workflow = Workflow.load(resolve_workflow_path(cfg, workflow_name))
         except WorkflowError:
             continue
+        recipe_script_conflict = False
         for step in workflow.steps:
             for ref_name in step.skills:
-                if resolve_skill_path(cfg, ref_name) is not None:
-                    continue
-                out.append(Issue(
-                    kind="broken-recurring-template-skill",
-                    task=f"recurring/{path.name}",
-                    message=missing_skill_message(
-                        cfg,
-                        ref_name,
-                        source=(
-                            f"recurring template {path.name!r} workflow "
-                            f"{workflow_name!r} step {step.name!r}"
+                skill_path = resolve_skill_path(cfg, ref_name)
+                if skill_path is None:
+                    out.append(Issue(
+                        kind="broken-recurring-template-skill",
+                        task=f"recurring/{path.name}",
+                        message=missing_skill_message(
+                            cfg,
+                            ref_name,
+                            source=(
+                                f"recurring template {path.name!r} workflow "
+                                f"{workflow_name!r} step {step.name!r}"
+                            ),
                         ),
-                    ),
-                    severity="error",
-                ))
+                        severity="error",
+                    ))
+                    continue
+                if (
+                    template is not None
+                    and template.recipe
+                    and not recipe_script_conflict
+                    and Skill.load(skill_path).script
+                ):
+                    out.append(Issue(
+                        kind="bad-recurring-template",
+                        task=f"recurring/{path.name}",
+                        message=(
+                            f"`recipe: {template.recipe}` conflicts with "
+                            f"script-backed workflow skill {ref_name!r}; "
+                            "declare exactly one execution path"
+                        ),
+                        severity="error",
+                    ))
+                    recipe_script_conflict = True
     return out
 
 

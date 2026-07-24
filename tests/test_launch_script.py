@@ -7,7 +7,6 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-import coga
 from coga.cli import app
 from coga.create import create_task
 from coga.config import load_config
@@ -277,21 +276,14 @@ def test_failed_script_launch_still_refreshes_launch_checkout(
     assert len(refreshed) == 1
 
 
-def test_bootstrap_script_launch_is_stateless(
+def test_packaged_open_pr_script_launch_is_stateless(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # This is the one script test that executes a *real* bootstrap script
-    # (`recurring-scan/run.py`), which imports `coga` in a `sys.executable`
-    # child. `build_launch_env` inherits `os.environ`, but pytest's
-    # `pythonpath = ["src"]` only patches the parent's `sys.path` — so the
-    # child can import coga solely by accident of it being pip-installed in
-    # the running interpreter. Export the path the parent actually imported
-    # from to make the test hermetic under a bare `pytest`.
-    monkeypatch.setenv("PYTHONPATH", str(Path(coga.__file__).resolve().parents[1]))
-
-    result = CliRunner().invoke(app, ["launch", "bootstrap/recurring-scan"])
-    assert result.exit_code == 0, result.output
-    assert "bootstrap/recurring-scan: script ran successfully" in result.output
+    monkeypatch.setenv(
+        "PYTHONPATH", str(Path(__file__).resolve().parents[1] / "src")
+    )
+    result = CliRunner().invoke(app, ["launch", "bootstrap/open-pr"])
+    assert result.exit_code == 2, result.output
 
     cfg = load_config(repo)
     assert list_tasks(cfg) == []
@@ -426,12 +418,11 @@ def test_agent_launch_composes_trailing_args_into_prompt(
 # --- local-first bootstrap resolution ------------------------------------------
 
 
-def test_local_bootstrap_ticket_overrides_packaged(repo: Path) -> None:
-    """A repo-local `coga/bootstrap/<name>/ticket.md` wins over the package
-    resource, mirroring skills/contexts/workflows."""
+def test_local_bootstrap_ticket_resolves_without_packaged_twin(repo: Path) -> None:
+    """A repo-local command ticket can mint its own bootstrap target."""
     from coga.tasks import resolve_bootstrap
 
-    local = repo / "bootstrap" / "recurring-scan"
+    local = repo / "bootstrap" / "custom-check"
     _write(
         local / "ticket.md",
         """
@@ -444,9 +435,9 @@ def test_local_bootstrap_ticket_overrides_packaged(repo: Path) -> None:
         """,
     )
     cfg = load_config(repo)
-    ref = resolve_bootstrap(cfg, "recurring-scan")
+    ref = resolve_bootstrap(cfg, "custom-check")
     assert ref.path == local
-    assert ref.id_slug == "bootstrap/recurring-scan"
+    assert ref.id_slug == "bootstrap/custom-check"
 
 
 def test_unknown_bootstrap_ticket_names_both_checked_paths(repo: Path) -> None:
@@ -690,7 +681,7 @@ def test_bootstrap_script_stale_control_exit_skips_refresh(
 
     monkeypatch.setattr(launch_script, "run_script_mode", refuse_stale)
 
-    result = CliRunner().invoke(app, ["launch", "bootstrap/recurring-scan"])
+    result = CliRunner().invoke(app, ["launch", "bootstrap/open-pr"])
 
     assert result.exit_code == coga_git.STALE_CONTROL_EXIT_CODE
     assert refreshed == []

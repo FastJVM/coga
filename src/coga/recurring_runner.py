@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import os
@@ -18,7 +19,13 @@ from coga import git
 from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.commands.launch import _interactive_stdio_has_tty
 from coga.commands.launch_script import is_script_launch
-from coga.config import Config, ConfigError, load_config
+from coga.config import (
+    Config,
+    ConfigError,
+    SecretError,
+    build_launch_env,
+    load_config,
+)
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, ref_tag_for_path, task_log_lines
 from coga.paths import log_path
@@ -37,8 +44,15 @@ from coga.recurring import (
     write_last_serviced_period,
 )
 from coga.period_state import SNAPSHOT_FILE, parse_keys
-from coga.mark import mark_active, mark_paused
-from coga.notification import notify
+from coga.mark import (
+    StrandedProductCode,
+    mark_active,
+    mark_done,
+    mark_in_progress,
+    mark_paused,
+)
+from coga.notification import notify, post
+from coga.task_env import build_task_env, host_repo_root
 from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
@@ -51,12 +65,6 @@ from coga.validate import TaskValidationError
 # (a human driving by hand) leaves it off; `COGA_REPL_IDLE_TIMEOUT` overrides
 # the window or, at `<= 0` / non-finite, disarms it.
 _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
-
-# Private parent-to-child marker for `coga recurring --all`. A multi-repo
-# sweep must not service a checkout whose view of the shared control branch
-# could be stale; a bare single-repo sweep keeps its established best-effort
-# catch-up behavior.
-_REQUIRE_FRESH_CONTROL_ENV = "COGA_RECURRING_REQUIRE_FRESH_CONTROL"
 
 # A parent-directory sweep discovers real Coga workspaces, not dependency,
 # tool-state, or intentionally inert `_`-prefixed trees. Once one workspace is
@@ -380,8 +388,15 @@ def _run_repo_recurring(
     interactive: bool,
     agent_override: str | None,
 ) -> int:
-    """Dispatch the ordinary recurring CLI once from ``coga_os``'s host."""
-    command = [sys.executable, "-m", "coga.cli", "recurring"]
+    """Dispatch the registered recurring recipe from ``coga_os``'s host."""
+    command = [
+        sys.executable,
+        "-m",
+        "coga.cli",
+        "run",
+        "recurring-scan",
+        "--require-fresh-control",
+    ]
     if force:
         command.append("--force")
     if interactive:
@@ -389,16 +404,12 @@ def _run_repo_recurring(
     if agent_override:
         command.extend(("--agent", agent_override))
 
-    env = os.environ.copy()
-    for name in (
-        "COGA_RECURRING_FORCE",
-        "COGA_RECURRING_INTERACTIVE",
-        "COGA_RECURRING_AGENT",
-        _REQUIRE_FRESH_CONTROL_ENV,
-    ):
-        env.pop(name, None)
-    env[_REQUIRE_FRESH_CONTROL_ENV] = "1"
-    result = subprocess.run(command, cwd=coga_os.parent, env=env, check=False)
+    result = subprocess.run(
+        command,
+        cwd=coga_os.parent,
+        env=os.environ.copy(),
+        check=False,
+    )
     return result.returncode
 
 
@@ -435,7 +446,8 @@ def run_recurring_scan(
     is identical to a normal run.
 
     `agent_override` temporarily selects the configured agent for agent-backed
-    tasks. It never rewrites the ticket, and script tasks still run as scripts.
+    tasks. It never rewrites the ticket, and recipe/script tasks keep their
+    deterministic execution path.
 
     A child dispatched by `coga recurring --all` sets
     `require_fresh_control`: failure to fetch and integrate the configured
@@ -504,6 +516,11 @@ def run_recurring_scan(
                 forced_refusals += 1
                 typer.secho(str(exc), fg=typer.colors.RED, err=True)
                 continue
+        if task.recipe:
+            code = _run_recipe_task(cfg, task)
+            if code:
+                return code
+            continue
         # Sequential by design: each launch blocks until the agent session
         # exits before the next begins. `scan_due` filters out templates that
         # cannot run in the current stdio context (an agent run with no TTY), and
@@ -533,6 +550,147 @@ def run_recurring_scan(
     return 2 if forced_refusals else 0
 
 
+def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
+    """Parse the recurring scanner's ordinary argv recipe contract."""
+    parser = argparse.ArgumentParser(
+        prog="coga run recurring-scan",
+        description="Scan recurring templates and launch due period tasks.",
+    )
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--interactive", action="store_true")
+    parser.add_argument("--agent")
+    parser.add_argument("--require-fresh-control", action="store_true")
+    args = parser.parse_args(argv)
+    return run_recurring_scan(
+        cfg,
+        force=args.force,
+        interactive=args.interactive,
+        agent_override=args.agent,
+        require_fresh_control=args.require_fresh_control,
+    )
+
+
+def _run_recipe_task(cfg: Config, task: DueTask) -> int:
+    """Run one recipe-backed period task with ordinary lifecycle bookkeeping."""
+    if task.ref is None or task.recipe is None:
+        raise RecurringError("recipe-backed recurring task is missing its target")
+
+    ref = task.ref
+    ticket = read_ticket(ref)
+    try:
+        env = build_launch_env(cfg, ticket.secrets)
+    except SecretError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
+    for name in list(env):
+        if name in {"COGA_ARGC", "COGA_SKILL_NAME", "COGA_SKILL_DIR"} or (
+            name.startswith("COGA_ARG_")
+        ):
+            env.pop(name)
+    env.update(build_task_env(cfg, ref))
+
+    if ticket.status == "active":
+        cur = ticket.current_step()
+        step_note = f" (step {ticket.step_index()}: {cur['name']})" if cur else ""
+        try:
+            mark_in_progress(
+                cfg,
+                ref,
+                ticket,
+                actor="system",
+                log_message=(
+                    "started (active → in_progress) via recurring recipe "
+                    f"{task.recipe}"
+                ),
+                slack_text=(
+                    f"▶️ recipe started *{ref.id_slug}* "
+                    f"\"{ticket.title}\"{step_note}"
+                ),
+                echo=f"{ref.id_slug}: in_progress",
+            )
+        except TaskValidationError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            return 2
+
+    append_log(
+        cfg,
+        ref.id_slug,
+        "system",
+        f"launched as recipe ({task.recipe})",
+    )
+    git.sync_log(cfg, message=f"Log: {ref.id_slug}")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "run", task.recipe],
+        env=env,
+        cwd=host_repo_root(cfg),
+        check=False,
+    )
+    code = result.returncode
+    if ref.ticket_path.exists():
+        append_log(
+            cfg,
+            ref.id_slug,
+            "system",
+            f"recipe {task.recipe} exited with code {code}",
+        )
+
+    if code:
+        post(
+            cfg,
+            f"💥 recipe failed on *{ref.id_slug}* "
+            f"\"{ticket.title}\": {task.recipe} exited {code}",
+            task_path=ref.path,
+            owner=ticket.owner or cfg.current_user,
+            watchers=ticket.watchers,
+        )
+        typer.secho(
+            f"{ref.id_slug}: recipe {task.recipe} exited with {code}; "
+            "task left unfinished.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return code
+
+    typer.echo(f"{ref.id_slug}: recipe {task.recipe} ran successfully")
+    if not ref.ticket_path.exists():
+        return 0
+
+    after_recipe = Ticket.read(ref.ticket_path)
+    if after_recipe.status in TERMINAL_STATUSES:
+        return 0
+    try:
+        mark_done(
+            cfg,
+            ref,
+            after_recipe,
+            actor="system",
+            log_message=(
+                f"completed (recipe {task.recipe} exited 0) via coga recurring"
+            ),
+            slack_text=(
+                f"✅ recipe completed *{ref.id_slug}* "
+                f"\"{after_recipe.title}\""
+            ),
+            digest_detail=f"→ done (recipe: {task.recipe})",
+            echo=f"{ref.id_slug}: done",
+        )
+    except StrandedProductCode as exc:
+        listed = "\n".join(f"    {path}" for path in exc.paths)
+        typer.secho(
+            f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow "
+            "has no push/PR step, but this checkout committed tracked product "
+            f"code not on the control branch:\n{listed}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return 2
+    except TaskValidationError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
+    return 0
+
+
 def run_recurring_named(
     cfg: Config,
     name: str,
@@ -556,6 +714,7 @@ def run_recurring_named(
     _sync_control_checkout_ahead(cfg)
     try:
         outcome = create_named(cfg, name)
+        recipe = Template.load(recurring_dir(cfg) / name).recipe
     except RecurringError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return 2
@@ -577,10 +736,13 @@ def run_recurring_named(
     else:
         typer.echo(f"{ref.id_slug} already created for this period")
 
-    _launch_created(
-        cfg, ref, interactive=interactive, agent_override=agent_override
+    return _launch_created(
+        cfg,
+        ref,
+        recipe=recipe,
+        interactive=interactive,
+        agent_override=agent_override,
     )
-    return 0
 
 
 def _sync_control_checkout_ahead(
@@ -642,9 +804,10 @@ def _launch_created(
     cfg: Config,
     ref: TaskRef,
     *,
+    recipe: str | None = None,
     interactive: bool = False,
     agent_override: str | None = None,
-) -> None:
+) -> int:
     """Launch (or resume) a created recurring task.
 
     Recurring tasks create straight to `active` — machine-authored ready
@@ -660,7 +823,7 @@ def _launch_created(
             f"{ref.id_slug} was already handled on the control branch; not launching.",
             fg=typer.colors.BRIGHT_BLACK,
         )
-        return
+        return 0
 
     ticket = read_ticket(ref)
     if ticket.status not in {"active", "in_progress"}:
@@ -668,10 +831,22 @@ def _launch_created(
             f"{ref.id_slug} is {ticket.status}; not launching.",
             fg=typer.colors.YELLOW,
         )
-        return
+        return 0
 
     verb = "Resuming" if ticket.status == "in_progress" else "Launching"
     typer.echo(f"{verb} {ref.id_slug}")
+    if recipe:
+        return _run_recipe_task(
+            cfg,
+            DueTask(
+                template=ref.slug,
+                ref=ref,
+                last_fire=datetime.now(),
+                created=False,
+                status=ticket.status or "",
+                recipe=recipe,
+            ),
+        )
     from coga.commands.launch import launch as launch_cmd
 
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
@@ -688,6 +863,7 @@ def _launch_created(
         # human-stepped runs keep plain launches.
         queue_guidance=not interactive,
     )
+    return 0
 
 
 def _valid_agent_override(cfg: Config, agent_override: str | None) -> bool:

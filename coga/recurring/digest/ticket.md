@@ -2,10 +2,10 @@
 schedule: "0 9 * * *"
 schedule_comment: "Every day at 9am — post one Slack digest of Done/Canceled tickets and merged commits"
 title: "Daily digest"
-# A script step runs the flush directly with no agent: the workflow's one
-# step references the `coga/digest/flush` skill, whose `script:` runs
-# `coga digest`. It runs directly with no agent buffering, so it is safe for
-# unattended recurring runs.
+recipe: digest
+# The recurring runner executes this registered recipe directly with no agent.
+# The one-step workflow keeps the period task's lifecycle and skill contract
+# legible.
 workflow: digest/post
 owner: nicktoper
 assignee: claude
@@ -21,7 +21,7 @@ active/paused`, `retire`, successful recurring creates) does not enter Slack.
 Done/Canceled tickets and recurring scan errors append one JSONL record to the
 dedicated `spool.md` file (its `## Spool (pending)` section) — see
 `coga.notification.notify`. Once a day this ticket fires on its schedule and
-its script step runs `coga digest`, which:
+its recipe runs the digest implementation, which:
 
 1. reads the unconsumed Done/Canceled/error records (a merge-by-construction
    spool, not a lock),

@@ -280,6 +280,118 @@ def test_validate_accepts_a_valid_recurring_schedule_and_skips_parked_ones(
     ]
 
 
+@pytest.mark.parametrize(
+    ("recipe_line", "message"),
+    [
+        ('recipe: ""', "`recipe` must be a non-empty string"),
+        ("recipe: []", "`recipe` must be a non-empty string"),
+        ("recipe: not-registered", "unknown recipe 'not-registered'"),
+    ],
+)
+def test_validate_rejects_invalid_recurring_recipe(
+    repo: Path, recipe_line: str, message: str
+) -> None:
+    _write(
+        repo / "recurring" / "recipe-check" / "ticket.md",
+        f"""
+        ---
+        schedule: "0 9 * * *"
+        title: Recipe check
+        {recipe_line}
+        ---
+        """,
+    )
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "bad-recurring-template"
+    )
+    assert issue.task == "recurring/recipe-check"
+    assert message in issue.message
+
+
+def test_validate_rejects_recurring_recipe_with_direct_script(repo: Path) -> None:
+    _write(
+        repo / "recurring" / "recipe-check" / "ticket.md",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Recipe check
+        recipe: digest
+        script: inline
+        ---
+
+        ## Script
+
+        ```sh
+        exit 0
+        ```
+        """,
+    )
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "bad-recurring-template"
+    )
+    assert "`recipe` and `script` are ambiguous" in issue.message
+
+
+def test_validate_rejects_recipe_with_script_backed_workflow(
+    repo: Path,
+) -> None:
+    _write(
+        repo / "skills" / "deterministic" / "run" / "SKILL.md",
+        """
+        ---
+        name: deterministic/run
+        description: Script-backed deterministic step.
+        script: run.py
+        ---
+        """,
+    )
+    _write(
+        repo / "workflows" / "deterministic.md",
+        """
+        ---
+        name: deterministic
+        description: Script-backed workflow.
+        steps:
+          - name: run
+            skills:
+              - deterministic/run
+        ---
+        """,
+    )
+    _write(
+        repo / "recurring" / "recipe-check" / "ticket.md",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Recipe check
+        recipe: digest
+        workflow: deterministic
+        ---
+        """,
+    )
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "bad-recurring-template"
+    )
+    assert "`recipe: digest` conflicts with script-backed workflow skill" in (
+        issue.message
+    )
+
+
 def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
     """A frozen step's `requires:` must name a registered completion gate; a
     bogus token is a hard `bad-shape` error (the activation/bump gate would

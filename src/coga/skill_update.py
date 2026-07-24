@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Run the skill-update maintenance skill.
+"""Importable skill-update recipe.
 
 Wraps `coga skill update --all --pr`: applies every clean imported-skill
 update into one reviewable PR and reports the skills that could not be updated
@@ -19,6 +18,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from coga.config import Config
 
 # Update statuses `coga skill update` emits, grouped into the three buckets
 # this skill reports. The buckets only drive the headline summary and the
@@ -216,7 +217,8 @@ def script_task_slug_from_env() -> str | None:
     return os.environ.get("COGA_TASK_SLUG")
 
 
-def main(argv: list[str] | None = None) -> int:
+def run_skill_update_recipe(cfg: Config, argv: list[str]) -> int:
+    del cfg
     parser = argparse.ArgumentParser(description="Run the skill-update maintenance skill.")
     parser.add_argument(
         "--cwd",
@@ -267,7 +269,3 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

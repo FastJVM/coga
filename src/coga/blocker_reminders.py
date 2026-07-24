@@ -1,16 +1,10 @@
-"""Reminder scan for first-class blocked tasks.
-
-This is the deterministic recipe for the `coga/blockers/remind` skill (run by
-the `blocker-reminders` recurring sweep). It is a single-consumer maintenance
-recipe, so under the microkernel policy it lives in the skill dir rather than in
-core `src/coga/` — it imports only shared core infra (`git`, `blackboard`,
-`config`, `notification`, `taskfile`, `tasks`, `ticket`).
-"""
+"""Reminder scan for first-class blocked tasks."""
 
 from __future__ import annotations
 
 import hashlib
 import re
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -159,6 +153,22 @@ def remind_blocked_tasks(cfg: Config, *, now: datetime | None = None) -> int:
     return reminded
 
 
+def run_blocker_reminders_recipe(cfg: Config, argv: list[str]) -> int:
+    """Run the recurring blocker-reminder job."""
+    if argv:
+        sys.stderr.write(
+            "blocker-reminders: unexpected arguments: "
+            f"{' '.join(repr(arg) for arg in argv)}\n"
+        )
+        return 2
+    count = remind_blocked_tasks(cfg)
+    if count == 0:
+        sys.stdout.write("[blockers] no unresolved blockers to remind.\n")
+    else:
+        sys.stdout.write(f"[blockers] reminded {count} blocker(s).\n")
+    return 0
+
+
 _SECTION_RE = re.compile(r"^##[ \t]+(?P<heading>.+?)\s*$", re.MULTILINE)
 
 
@@ -184,6 +194,7 @@ __all__ = [
     "BlockerReminder",
     "REMINDERS_HEADING",
     "record_reminder",
+    "run_blocker_reminders_recipe",
     "remind_blocked_tasks",
     "reminder_fingerprints",
     "scan_blocker_reminders",

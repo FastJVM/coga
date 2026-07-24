@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import importlib.util
 import os
-import sys
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
 from typer.testing import CliRunner
 
+from coga import skill_update
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
@@ -26,22 +25,6 @@ SKILL_UPDATE = (
     / "bootstrap"
     / "skill-update"
 )
-
-
-def _load_skill_update_module():
-    spec = importlib.util.spec_from_file_location(
-        "skill_update_skill", SKILL_UPDATE / "run.py"
-    )
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-skill_update = _load_skill_update_module()
-
 SkillUpdate = skill_update.SkillUpdate
 classify_status = skill_update.classify_status
 parse_results = skill_update.parse_results
@@ -196,9 +179,8 @@ def test_skill_update_skill_declares_contract() -> None:
 
 def test_skill_update_ships_as_a_recurring_template() -> None:
     """The skill updater is a standalone recurring task, not a Dream phase.
-    The packaged template wires a weekly ticket to the `skill-update/run`
-    workflow, whose one step runs the script-backed `bootstrap/skill-update` —
-    that step is what makes launch take the deterministic script path."""
+    The packaged template wires a weekly ticket to the fixed `skill-update`
+    recipe and keeps a one-step workflow for ordinary task lifecycle."""
     coga_os = SKILL_UPDATE.parents[3]
     ticket = (coga_os / "recurring" / "skill-update" / "ticket.md").read_text()
     workflow = (coga_os / "workflows" / "skill-update" / "run.md").read_text()
@@ -207,6 +189,7 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
     assert "schedule:" in ticket
     assert 'title: "Skill update"' in ticket
     assert "mode:" not in ticket
+    assert "recipe: skill-update" in ticket
     assert "workflow: skill-update/run" in ticket
     assert "coga skill update --all --pr" in ticket
 
@@ -243,12 +226,12 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return coga_os
 
 
-def test_skill_update_runs_as_script_skill_and_reports_no_op(
+def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # No imported skills under `skills/`: `coga skill update --all --pr` finds
     # nothing clean to update, so it commits nothing and opens no PR (never
-    # touching git), and the package-backed script skill reports a clean no-op
+    # touching git), and the registered recipe reports a clean no-op
     # on the task blackboard.
     src_path = str(Path(__file__).resolve().parents[1] / "src")
     existing_pythonpath = os.environ.get("PYTHONPATH")
@@ -266,7 +249,7 @@ def test_skill_update_runs_as_script_skill_and_reports_no_op(
         """
         ---
         name: skill-update/run
-        description: script worker.
+        description: recipe-backed task lifecycle.
         steps:
           - name: update
             skills:
@@ -286,12 +269,15 @@ def test_skill_update_runs_as_script_skill_and_reports_no_op(
         status="active",
     )
 
-    result = CliRunner().invoke(app, ["launch", "skill-update"])
+    ref = list_tasks(cfg)[0]
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(ref.ticket_path.resolve()))
+    monkeypatch.setenv("COGA_TASK_SLUG", ref.id_slug)
+
+    result = CliRunner().invoke(app, ["run", "skill-update"])
 
     assert result.exit_code == 0, result.output
-    ref = list_tasks(cfg)[0]
-    # Single-file format: a script worker's COGA_TASK_BLACKBOARD is its own
-    # ticket.md, so its report lands in that ticket's blackboard region.
+    # The inherited task context points at the single ticket file, so the
+    # report lands in its blackboard region.
     from coga.taskfile import read_blackboard
 
     blackboard = read_blackboard(ref.ticket_path)
@@ -328,7 +314,7 @@ def test_skill_update_followup_without_pr_exits_nonzero_and_keeps_report(
 
     monkeypatch.setattr(skill_update, "run_update_json", fake_run_update_json)
 
-    assert skill_update.main([]) == 1
+    assert skill_update.run_skill_update_recipe(load_config(repo), []) == 1
     text = blackboard.read_text()
     assert "## Skill Update" in text
     assert "Task: `skill-update`" in text

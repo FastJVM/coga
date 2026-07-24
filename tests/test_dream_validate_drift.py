@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import os
 import subprocess
 import sys
@@ -8,6 +7,8 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+
+from coga import dream_validate_drift as validate_drift
 
 VALIDATE_DRIFT = (
     Path(__file__).resolve().parents[1]
@@ -31,22 +32,6 @@ def _source_pythonpath() -> str:
     if not existing_pythonpath:
         return src_path
     return src_path + os.pathsep + existing_pythonpath
-
-
-def _load_validate_drift_module():
-    spec = importlib.util.spec_from_file_location(
-        "validate_drift_skill", VALIDATE_DRIFT / "run.py"
-    )
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-validate_drift = _load_validate_drift_module()
-
 ACTION_DIRECT_FIX = validate_drift.ACTION_DIRECT_FIX
 ACTION_HUMAN_NEEDED = validate_drift.ACTION_HUMAN_NEEDED
 ACTION_PR_PROPOSAL = validate_drift.ACTION_PR_PROPOSAL
@@ -190,7 +175,10 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
     result = subprocess.run(
         [
             sys.executable,
-            str(VALIDATE_DRIFT / "run.py"),
+            "-m",
+            "coga.cli",
+            "run",
+            "validate-drift",
             "--cwd",
             str(tmp_path),
             "--no-fix",
@@ -199,6 +187,7 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
         env=env,
+        cwd=tmp_path,
     )
 
     assert result.returncode == 0, result.stderr
@@ -235,7 +224,10 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
     result = subprocess.run(
         [
             sys.executable,
-            str(VALIDATE_DRIFT / "run.py"),
+            "-m",
+            "coga.cli",
+            "run",
+            "validate-drift",
             "--cwd",
             str(tmp_path),
         ],
@@ -243,6 +235,7 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
         capture_output=True,
         text=True,
         env=env,
+        cwd=tmp_path,
     )
 
     assert result.returncode == 0, result.stderr
@@ -336,6 +329,8 @@ def test_commit_and_push_uses_configured_remote_without_upstream(
 def test_commit_and_push_main_passes_configured_remote(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.delenv("COGA_TASK_BLACKBOARD", raising=False)
+    monkeypatch.delenv("COGA_TASK_SLUG", raising=False)
     captured: dict[str, object] = {}
 
     class Cfg:
@@ -367,7 +362,10 @@ def test_commit_and_push_main_passes_configured_remote(
         validate_drift, "commit_and_push_fixes", fake_commit_and_push_fixes
     )
 
-    result = validate_drift.main(["--cwd", str(tmp_path), "--commit-and-push"])
+    result = validate_drift.run_validate_drift_recipe(
+        None,  # type: ignore[arg-type]
+        ["--cwd", str(tmp_path), "--commit-and-push"],
+    )
 
     assert result == 0
     assert captured["remote"] == "upstream"

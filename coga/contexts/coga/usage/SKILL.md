@@ -58,7 +58,7 @@ emit exactly one record per agent process.
 
 It is gated tightly:
 
-- **Only real agent sessions.** Script iterations (Dream
+- **Only real agent sessions.** Deterministic recipe/script iterations (Dream
   workers, autoclose, digest, skill-update — no transcript) and the
   `FileNotFoundError` spawn-failure path (no session ran) write **nothing**.
 - **Never raises.** Missing or unparseable transcript data leaves the affected

@@ -23,10 +23,11 @@ from coga.config import Config, SecretError, build_launch_env
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log
 from coga.mark import StrandedProductCode, mark_done, mark_in_progress
-from coga.paths import log_path, resolve_skill_path, skill_resolution_paths
+from coga.paths import resolve_skill_path, skill_resolution_paths
 from coga.skill import Skill
 from coga.notification import post
 from coga.repl_supervisor import emit_done_marker
+from coga.task_env import build_task_env, host_repo_root
 from coga.taskfile import split_body
 from coga.tasks import TargetRef
 from coga.ticket import Ticket
@@ -63,47 +64,6 @@ def current_step_is_script(cfg: Config, ticket: Ticket) -> bool:
     if sp is None:
         return False
     return bool(Skill.load(sp).script)
-
-
-def script_repo_root(cfg: Config) -> Path:
-    """Working directory for a script run.
-
-    The repo root for `coga/` inside a host repo is `repo/coga`;
-    scripts almost always want the host repo (its parent), so prefer that
-    when present.
-    """
-    return cfg.repo_root.parent if cfg.repo_root.name == "coga" else cfg.repo_root
-
-
-def build_task_env(
-    cfg: Config, ref: TargetRef, skill: Skill | None = None
-) -> dict[str, str]:
-    """The launched task/skill metadata environment contract.
-
-    Callers: agent and script paths under `coga launch`, plus `coga delete`,
-    which runs the `bootstrap/delete-task` skill directly against a resolved
-    target task. Keeping it shared means the `COGA_*` variable names cannot
-    drift between dispatch paths. `COGA_SKILL_*` is set only when a skill backs
-    a script; agent and ticket-owned script launches omit those variables.
-    """
-    env = {
-        "COGA_TASK_SLUG": ref.id_slug,
-        "COGA_TASK_DIR": str((ref.task_dir or ref.path.parent).resolve()),
-        "COGA_TASK_TICKET": str((ref.ticket_path).resolve()),
-        # Single-file format: the blackboard is the region below the fence in
-        # ticket.md, so COGA_TASK_BLACKBOARD and COGA_TASK_TICKET point at the
-        # same file. A worker that appends notes to the end still lands them in
-        # the blackboard region (it is the last region). COGA_TASK_LOG is the
-        # repo-global audit log; workers read it but never write it directly.
-        "COGA_TASK_BLACKBOARD": str((ref.ticket_path).resolve()),
-        "COGA_TASK_LOG": str(log_path(cfg).resolve()),
-        "COGA_COGA_OS_ROOT": str(cfg.repo_root.resolve()),
-        "COGA_REPO_ROOT": str(script_repo_root(cfg).resolve()),
-    }
-    if skill is not None:
-        env["COGA_SKILL_NAME"] = skill.name
-        env["COGA_SKILL_DIR"] = str(skill.dir.resolve())
-    return env
 
 
 def apply_arg_env(env: dict[str, str], args: Sequence[str] | None) -> None:
@@ -171,7 +131,7 @@ def run_script_mode(
     FYI is posted.
 
     `stateless=True` is for package-backed bootstrap script targets such as
-    `bootstrap/recurring-scan`: resolve and run the same script shape, but skip
+    `bootstrap/open-pr`: resolve and run the same script shape, but skip
     task lifecycle writes because there is no task.
 
     `args` carries `coga launch`'s trailing arguments into the child env as
@@ -212,7 +172,7 @@ def run_script_mode(
     # receives its scoped secrets here (folded in, not dropped).
     env.update(build_task_env(cfg, ref, skill))
     apply_arg_env(env, args)
-    cwd = script_repo_root(cfg)
+    cwd = host_repo_root(cfg)
 
     if not stateless:
         append_log(cfg, ref.id_slug, "system", f"launched as a script ({log_label})")

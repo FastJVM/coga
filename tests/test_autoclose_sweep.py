@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import importlib.util
 import re
 import shutil
-import sys
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
 
+from coga import autoclose
 from coga.config import load_config
-from coga.recurring import create_named
+from coga.recurring import Template, create_named
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
 
@@ -20,33 +19,14 @@ PACKAGED_COGA_OS = ROOT / "src" / "coga" / "resources" / "templates" / "coga"
 PACKAGED_SKILL = (
     PACKAGED_COGA_OS / "bootstrap" / "skills" / "coga" / "autoclose" / "sweep"
 )
-
-
-def _load_autoclose_module():
-    spec = importlib.util.spec_from_file_location(
-        "autoclose_sweep_skill", PACKAGED_SKILL / "run.py"
-    )
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-autoclose = _load_autoclose_module()
-
-
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
 
 
-def test_autoclose_script_calls_shared_sweep_loudly(monkeypatch, capsys) -> None:
+def test_autoclose_recipe_calls_shared_sweep_loudly(monkeypatch, capsys) -> None:
     cfg = object()
     calls: list[tuple[object, bool]] = []
-
-    monkeypatch.setattr(autoclose, "load_config", lambda: cfg)
 
     def fake_sweep(cfg_arg, *, quiet: bool) -> int:
         calls.append((cfg_arg, quiet))
@@ -54,20 +34,18 @@ def test_autoclose_script_calls_shared_sweep_loudly(monkeypatch, capsys) -> None
 
     monkeypatch.setattr(autoclose, "sweep_merged", fake_sweep)
 
-    assert autoclose.main() == 0
+    assert autoclose.run_autoclose_recipe(cfg, []) == 0
     assert calls == [(cfg, False)]
     assert "[autoclose] no tickets bumped." in capsys.readouterr().out
 
 
-def test_autoclose_script_surfaces_gh_error(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(autoclose, "load_config", lambda: object())
-
+def test_autoclose_recipe_surfaces_gh_error(monkeypatch, capsys) -> None:
     def boom(*args, **kwargs):
         raise autoclose.GhError("gh: not authenticated")
 
     monkeypatch.setattr(autoclose, "sweep_merged", boom)
 
-    assert autoclose.main() == 2
+    assert autoclose.run_autoclose_recipe(object(), []) == 2
     assert "gh: not authenticated" in capsys.readouterr().err
 
 
@@ -117,16 +95,6 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
         (
             LIVE_COGA_OS / "skills" / "coga" / "autoclose" / "sweep" / "SKILL.md",
             PACKAGED_SKILL / "SKILL.md",
-            False,
-        ),
-        (
-            LIVE_COGA_OS / "skills" / "coga" / "autoclose" / "sweep" / "run.py",
-            PACKAGED_SKILL / "run.py",
-            False,
-        ),
-        (
-            LIVE_COGA_OS / "skills" / "coga" / "autoclose" / "sweep" / "recipe.py",
-            PACKAGED_SKILL / "recipe.py",
             False,
         ),
     ]
@@ -206,11 +174,13 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
     assert read_last_serviced_period(template_ticket) == "2026-06-11"
 
     ticket = Ticket.read(refs[0].path / "ticket.md")
-    # The workflow's one step is script-backed, so `is_script_launch` deduces
-    # the created task runs as a script, not an agent.
+    # Execution is declared on the recurring template, not inferred from a
+    # skill-local script.
     from coga.commands.launch_script import is_script_launch
 
-    assert is_script_launch(cfg, ticket) is True
+    template = Template.load(coga_os / "recurring" / "autoclose-merged")
+    assert template.recipe == "autoclose"
+    assert is_script_launch(cfg, ticket) is False
     assert ticket.assignee == "claude"
     assert ticket.workflow["name"] == "autoclose-merged/sweep"
     assert ticket.workflow["steps"][0]["skills"] == ["coga/autoclose/sweep"]

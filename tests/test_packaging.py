@@ -19,8 +19,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/browser-automation/ticket.md",
     "coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
     "coga/resources/templates/coga/bootstrap/project/ticket.md",
-    "coga/resources/templates/coga/bootstrap/recurring-scan/ticket.md",
-    "coga/resources/templates/coga/bootstrap/recurring-scan/run.py",
     "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",
@@ -31,22 +29,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "autoclose/sweep/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
-    "autoclose/sweep/run.py",
-    # The single-consumer sweep recipe ships beside run.py (microkernel policy).
-    "coga/resources/templates/coga/bootstrap/skills/coga/"
-    "autoclose/sweep/recipe.py",
-    "coga/resources/templates/coga/bootstrap/skills/coga/"
     "blockers/remind/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/coga/"
-    "blockers/remind/run.py",
-    "coga/resources/templates/coga/bootstrap/skills/coga/"
-    "blockers/remind/recipe.py",
-    "coga/resources/templates/coga/bootstrap/skills/coga/"
-    "branch-sweep/sweep/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/coga/"
-    "branch-sweep/sweep/run.py",
-    "coga/resources/templates/coga/bootstrap/skills/coga/"
-    "branch-sweep/sweep/recipe.py",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "ticket/finalize/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
@@ -67,7 +50,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/workflows/skill-update/run.md",
     # Bundled reusable workflows ship under bootstrap/workflows/ (local-first
     # fallback) so a fresh repo can run the core code loop, the docs flow, the
-    # Dream child workflows, and the digest battery without hand-copying.
+    # Dream workflow and the digest battery without hand-copying.
     "coga/resources/templates/coga/bootstrap/workflows/code/"
     "with-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/code/"
@@ -78,10 +61,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "create-google-doc.md",
     "coga/resources/templates/coga/bootstrap/workflows/docs/"
     "with-review.md",
-    "coga/resources/templates/coga/bootstrap/workflows/dream/"
-    "validate-drift.md",
-    "coga/resources/templates/coga/bootstrap/workflows/dream/"
-    "cleanup-orphan-markers.md",
     "coga/resources/templates/coga/bootstrap/workflows/digest/post.md",
     # …and the code/* and digest-flush skills those workflows reference.
     "coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md",
@@ -91,8 +70,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/digest/flush/"
     "SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/coga/digest/flush/"
-    "run.py",
     "coga/resources/templates/coga/skills/_template/SKILL.md",
     "coga/resources/templates/coga/skills/direct/body/SKILL.md",
 )
@@ -122,26 +99,6 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
         "coga/bootstrap/resolve-conflicts/ticket.md",
         "src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
     ),
-    # Single-consumer maintenance recipes and their launch wrappers must stay
-    # byte-identical between the dogfood copy under `coga/skills/` and the
-    # packaged template. (The autoclose sweep has its own dedicated sync check
-    # in test_autoclose_sweep.py.)
-    (
-        "coga/skills/coga/blockers/remind/run.py",
-        "src/coga/resources/templates/coga/bootstrap/skills/coga/blockers/remind/run.py",
-    ),
-    (
-        "coga/skills/coga/blockers/remind/recipe.py",
-        "src/coga/resources/templates/coga/bootstrap/skills/coga/blockers/remind/recipe.py",
-    ),
-    (
-        "coga/skills/coga/branch-sweep/sweep/run.py",
-        "src/coga/resources/templates/coga/bootstrap/skills/coga/branch-sweep/sweep/run.py",
-    ),
-    (
-        "coga/skills/coga/branch-sweep/sweep/recipe.py",
-        "src/coga/resources/templates/coga/bootstrap/skills/coga/branch-sweep/sweep/recipe.py",
-    ),
 )
 
 
@@ -168,6 +125,30 @@ def test_package_includes_coga_resources() -> None:
     for wheel_name in EXPECTED_BOOTSTRAP_RESOURCES:
         source_name = wheel_name.removeprefix("coga/resources/")
         assert (repo_root / "src" / "coga" / "resources" / source_name).is_file()
+
+
+def test_only_transitional_script_seam_consumers_remain() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    packaged_root = repo_root / "src" / "coga" / "resources" / "templates" / "coga"
+    packaged = {
+        path.relative_to(packaged_root).as_posix()
+        for path in packaged_root.rglob("run.py")
+    }
+    live = {
+        path.relative_to(repo_root / "coga").as_posix()
+        for path in (repo_root / "coga").rglob("run.py")
+    }
+
+    assert packaged == {
+        "bootstrap/open-pr/run.py",
+        "bootstrap/skills/bootstrap/delete-task/run.py",
+        "bootstrap/skills/coga/show/run.py",
+        "bootstrap/skills/coga/ticket/finalize/run.py",
+    }
+    assert live == {
+        "skills/coga/show/run.py",
+        "skills/coga/ticket/finalize/run.py",
+    }
 
 
 def test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep() -> None:

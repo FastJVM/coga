@@ -1,13 +1,12 @@
 ---
 name: coga/digest/flush
 description: Post the daily Slack digest. Combines Done/Canceled records from the recurring/digest spool with a git scan of merged commits, posts one outcome-focused message, drains the spool, and records the high-water commit.
-script: run.py
 ---
 
 # Daily digest flush
 
-This skill is the script body of the `recurring/digest/` ticket. It
-runs `coga digest`, which:
+This skill documents the `digest` recipe used by the `recurring/digest/`
+ticket. Run it with `coga run digest`; it:
 
 1. reads the unconsumed JSONL Done/Canceled/error records from the dedicated
    `recurring/digest/spool.md` file's `## Spool (pending)` section (de-duping
@@ -27,6 +26,3 @@ run posts nothing only when there are no Done records, no Canceled records, no
 recurring errors, and no post-filter new commits. The flush honors the
 `[notification.slack].enabled = false` opt-out exactly as a live post does
 (suppressed to stderr).
-
-The script imports `coga.commands.digest.run_digest` and calls it directly, so
-it does not depend on `coga` being on `PATH` inside the script environment.
