@@ -1,10 +1,24 @@
 ---
-schedule: "0 8 * * 1"
-schedule_comment: "Every Monday at 8am — after branch-sweep, resolve conflicts on open PRs"
-title: "Resolve PR conflicts"
-# This template stays agent-backed so recurring's TTY admission, selected-agent
-# override, idle timeout, and max-session watchdog govern the whole delegated
-# command. The command ticket remains the one durable operational runbook.
+slug: recurring/resolve-conflicts
+title: Resolve PR conflicts
+status: active
+owner: nicktoper
+human: nicktoper
+agent: claude
+assignee: claude
+contexts:
+- coga/period-task
+skills: []
+workflow:
+  name: direct/body
+  steps:
+  - name: execute
+    skills:
+    - direct/body
+    assignee: agent
+secrets: null
+script: null
+step: 1 (execute)
 ---
 
 ## Description
@@ -40,10 +54,8 @@ ticket `branch:` lines; that extra coverage is deliberately not preserved.
 For an on-demand run, call `coga resolve-conflicts` directly instead of forcing
 this recurring template.
 
+## Context
+
 <!-- coga:blackboard -->
 
-`coga recurring` keeps the serviced-period high-water mark here as
-`last_serviced_period`. Run results remain stateless: stdout plus the command's
-one-line Slack roll-up, never this blackboard.
-
-last_serviced_period: 2026-W30
+The blackboard is a notepad to be written to often as the human and agent works through a task.
