@@ -1,7 +1,7 @@
 ---
 slug: agree-the-core-vs-skills-move-list-then-execute
 title: Agree the core-vs-skills move list then execute
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -36,7 +36,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 5 (review)
 ---
 
 ## Description
