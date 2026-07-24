@@ -114,3 +114,9 @@ Findings worth keeping from the discussion:
 ## Blockers
 
 - [ ] [2026-07-21 14:21] [agent:nicktoper] id=20260721T142144 Parked until cli-extension-model/move-command-logic-to-tickets (pass 2) executes — the note's framing depends on the post-move command surface (ticket collapsed to head + local-first refs); revisit and re-frame the doc then.
+
+---
+
+## Blocker reminders
+
+- ea33d1d6369f last_reminded: 2026-07-24 14:36
