@@ -36,7 +36,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -231,6 +231,75 @@ Test plan (one PR, all four legs — all already present on the branch):
 
 <!-- coga:blackboard -->
 
+## Dev
+branch: microkernel-move-recipes
+worktree: /home/n/Code/claude/coga-microkernel-move-recipes
+
+## Implement step notes (2026-07-24)
+
+Executed the agreed plan: rebased the peer-reviewed `microkernel-move-recipes`
+branch onto current `main`, resolved drift, green suite. Three commits:
+`d79fbb92` (move), `91602911` (peer-review fixes), `f830383f` (post-rebase
+drift carry).
+
+**The design step's "zero drift" claim was stale.** `main` advanced 417 commits
+since merge-base `b6e004be`, with real overlap on branch-touched files. The
+rebase took four conflicts, all resolved as additive keep-both:
+
+- `tests/conftest.py` — main added `load_bootstrap_recipe` (open-pr command
+  ticket); branch added `load_skill_recipe`. Kept both, factored the shared
+  file-path loading into `_load_recipe_module`.
+- `tests/test_packaging.py` — both sides appended to
+  `IDENTICAL_LIVE_PACKAGED_PAIRS`. Kept both blocks.
+- `coga/contexts/coga/sync/SKILL.md` + its packaged twin — main added
+  `mark.mark_canceled` to the outcome-caller list; branch renamed the
+  blocker-reminders reference. Merged both edits, kept the pair byte-identical.
+- `docs/cli-extension-audit.md` — took main's newer bootstrap-ticket list plus
+  the branch's `recipe.py` rename.
+
+**Two gaps the auto-merge could not close** (commit `f830383f`):
+
+1. Main's `TERMINAL_STATUSES` fix to `branchsweep.py` (canceled tickets are
+   terminal, not just `done`) reached the *live* skill copy through the rename
+   auto-merge, but the *packaged* copy was created fresh by the move commit and
+   still had `== "done"`. Synced packaged from live. Without this, branch sweep
+   would have regressed to deleting branches recorded on canceled tickets.
+2. `tests/test_megalaunch.py` (new on main) imported
+   `coga.blocker_reminders.scan_blocker_reminders`. Repointed to the skill
+   recipe via `load_skill_recipe`.
+
+## Deviation from the acceptance criteria — owner call at review
+
+The Move list and AC line 1 say `src/coga/autoclose.py` retains **four**
+parsers, listing `parse_pr_number` among them. The implementation keeps
+**three** (`parse_pr_url`, `parse_branch_name`, `parse_worktree_path`) plus
+`GhError` / `pr_state`, and moves `parse_pr_number` into the
+`coga/autoclose/sweep` recipe.
+
+The implementation is policy-correct and the AC text was a design-step
+inventory error: `parse_pr_number`'s only consumer in the whole repo is
+`sweep_merged` itself (verified by grep — the `bootstrap/open-pr` recipe,
+`step_gate.py`, and `branchcleanup.py` do not use it). Under the ≥2-real-
+consumers rule it is sweep-only logic, not shared infra. Kept the
+peer-reviewed behavior rather than dragging a single-consumer parser back into
+core to satisfy a wording slip. Flagging for the owner to confirm at review.
+
+## Verification
+
+- `PYTHONPATH=$PWD/src python3 -m pytest` → **1494 passed, 1 skipped** in the
+  feature worktree (`python3` is 3.12.12).
+- Live↔packaged byte-identity checked by hand for all six recipe/run pairs and
+  the three SKILL.md pairs — all match.
+- Script-launch smoke: loaded all six `run.py` wrappers (live + packaged), each
+  in its own subprocess, confirming each resolves its sibling `recipe.py` and
+  exposes `main()`. Did **not** run the recipes for real — they have no
+  dry-run flag, so a live run would sweep branches, post Slack, and close
+  tickets against this repo. The wiring itself is covered by
+  `tests/test_autoclose_sweep.py`, which loads the packaged `run.py` and
+  asserts it calls the recipe.
+- `src/coga/blocker_reminders.py` and `src/coga/branchsweep.py` are gone;
+  no stale `coga.blocker_reminders` / `coga.branchsweep` imports remain.
+
 ## Design step notes (2026-07-21)
 
 Re-verified the 2026-07-06 inventory against main by grepping consumers of
@@ -260,3 +329,31 @@ digest/megalaunch/open-pr all stay core. open-pr's re-examination is staged
 as draft `commands-as-tickets-open-pr-pilot` (owner will launch + co-design);
 it does not touch this ticket's diff. Nothing pending — implement step
 executes the agreed plan as written.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T18:10:58+00:00
+Command: `coga validate --json --fix`
+Task: `agree-the-core-vs-skills-move-list-then-execute`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T18:12:34+00:00
+Command: `coga validate --json --fix`
+Task: `agree-the-core-vs-skills-move-list-then-execute`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
