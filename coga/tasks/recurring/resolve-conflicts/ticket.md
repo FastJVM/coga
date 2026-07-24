@@ -69,6 +69,40 @@ Open PRs at start: #648 fix/spawn-error-misattribution, #647
 feat/megalaunch-numbered-drain-order, #646 packaged-resource-read-guard
 (mergeable UNKNOWN — GitHub had not finished computing).
 
-Note: `bootstrap/resolve-conflicts` is agent-backed, and `coga launch` refuses
-an agent launch without a TTY on both stdin and stdout. Testing whether the
-delegated launch can run from this session's tool subprocess.
+### Delegation is structurally blocked (wrapper defect)
+
+`coga resolve-conflicts --agent claude --queue-guidance` bailed:
+
+    Cannot launch 'bootstrap/resolve-conflicts': an agent launch requires a TTY
+    (stdin and stdout must both be terminals).
+
+`bootstrap/resolve-conflicts` is agent-backed (`assignee: claude`), and
+`launch.py:325` refuses an agent launch unless stdin *and* stdout are TTYs. A
+tool subprocess inside an agent session never has one, so this recurring
+wrapper can never delegate as its body describes — the failure is structural,
+not environmental, and will repeat every Monday. The base prompt independently
+forbids `coga launch`-ing another agent session from inside one.
+
+Decision: executed `coga/bootstrap/resolve-conflicts/ticket.md`'s runbook
+inline instead. That is the one durable runbook, so following it is not the
+"second runbook" the body prohibits. Flagged the defect to the human rather
+than patching the template inside this sweep.
+
+### Result
+
+Enumerated open PRs (`gh pr list --state open --limit 10000` → 3 rows, not
+truncated). All three target `main`. Initial `mergeable` reads were UNKNOWN
+(main had just advanced 838b3af8..e8f38c88); re-read until settled:
+
+    PR #646 packaged-resource-read-guard        — up-to-date — MERGEABLE, no conflict with main
+    PR #647 feat/megalaunch-numbered-drain-order — up-to-date — MERGEABLE, no conflict with main
+    PR #648 fix/spawn-error-misattribution       — up-to-date — MERGEABLE, no conflict with main
+
+No rebase, no worktree created or modified, no push. #646's branch is this
+session's dirty primary checkout — it would have been `skipped-dirty` had it
+conflicted, but the conflict test never selected it.
+
+Roll-up folded into `coga mark done --message` rather than posted as a separate
+`coga slack --task bootstrap/resolve-conflicts` FYI: that FYI's second job is
+releasing a stateless launch supervisor, and no such supervisor exists on this
+inline path, so a separate post would only double-notify.
