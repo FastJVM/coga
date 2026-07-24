@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (open-pr)
+step: 5 (review)
 ---
 
 ## Description
@@ -347,3 +347,18 @@ worktree: /tmp/coga-run-recipes
   errors); no migrated recurring template or recipe issue is reported.
 - Final freshness check: rebased onto `origin/main` at `83f0a6ad`; branch is
   one clean commit ahead, `ec5edc80`.
+
+## Open-PR step (2026-07-24)
+
+- `coga open-pr` first refused because the primary control checkout was parked
+  on another task's branch (`packaged-resource-read-guard`, PR #646), not
+  `main`. Stashed that checkout's unrelated uncommitted drift (generated
+  validate-drift report appends in the packaged `bootstrap/orient` ticket) and
+  moved it to `main`; the stash is restored after this step.
+- Second refusal was a real staleness gate: `origin/main` had advanced to
+  `b59e272e` with overlapping edits to `coga/recurring/{autoclose-merged,
+  digest}/ticket.md`. Rebased the clone onto it — clean, no conflicts — and
+  re-ran `python -m pytest`: 1525 passed, 1 skipped. Branch tip is now
+  `f532cca5`, one commit ahead.
+- PR opened: https://github.com/FastJVM/coga/pull/650, recorded as `pr:` under
+  `## Dev`.
