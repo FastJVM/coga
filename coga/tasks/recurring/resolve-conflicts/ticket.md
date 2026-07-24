@@ -1,7 +1,7 @@
 ---
 slug: recurring/resolve-conflicts
 title: Resolve PR conflicts
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -106,3 +105,27 @@ Roll-up folded into `coga mark done --message` rather than posted as a separate
 `coga slack --task bootstrap/resolve-conflicts` FYI: that FYI's second job is
 releasing a stateless launch supervisor, and no such supervisor exists on this
 inline path, so a separate post would only double-notify.
+
+### `mark done` product-code guard fired — verified false positive
+
+First `coga mark done` was refused by the `direct/body` product-code guard,
+naming 9 tracked files (`src/coga/blackboard.py`, `commands/launch.py`,
+`commands/retire.py`, `compose.py`, `megalaunch.py`, `paths.py`,
+`tests/test_compose.py`, `test_megalaunch.py`, `test_packaging.py`) as
+committed product code absent from the control branch.
+
+Verified the premise is false. This sweep was launched from the
+`packaged-resource-read-guard` checkout, which is the head branch of **open PR
+#646**:
+
+    git diff --name-only 28b11016 HEAD | grep -v '^coga/'   -> empty
+
+i.e. every flagged product file is byte-identical to the pushed PR head
+`28b11016`. Local HEAD (`754913f8`) is ahead of the pushed head only by Coga
+state commits (`Sync coga state`, `Ticket:`, `Log:`) touching `coga/**` alone.
+Nothing can strand: the code is durable on a pushed branch under review.
+
+The guard compares against `main` and is worktree-local by design, so it cannot
+see the open PR that already makes these commits durable. Finished with
+`--force` on that verified basis and recorded the evidence here. This sweep
+authored none of the flagged commits.
