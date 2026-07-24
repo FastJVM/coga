@@ -1,7 +1,7 @@
 ---
 slug: ship-a-shared-recurring-reminder-engine-battery
 title: Ship a shared recurring-reminder engine battery
-status: active
+status: in_progress
 owner: zach
 human: zach
 agent: claude
