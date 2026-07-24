@@ -124,7 +124,9 @@ persist between sessions.
 
 **Skills** are process knowledge attached to workflow steps. "How to run code review," "how to publish to LinkedIn," "how to reconcile the bank statement." Distinct from contexts: skills are how to do things, contexts are what's true about the world. A skill can include scripts; a context is pure knowledge.
 
-**Workflows** are sequences of steps with optional skill references per step. Tasks snapshot a workflow at creation — in-flight work isn't disrupted by workflow edits.
+**Workflows** are sequences of steps with optional skill references per step.
+Tasks snapshot a workflow when they are created with one or when a draft is
+activated — in-flight work isn't disrupted by later workflow edits.
 
 **Blackboards** are per-task workspaces where agents write findings, plans, decisions, and blockers. The blackboard is how agents persist state between sessions — an agent that crashes mid-task is recoverable because the blackboard has its last known state. It's the pattern from 1970s AI research (Hearsay-II): independent processes coordinate through a shared mutable surface rather than direct message passing.
 
@@ -233,7 +235,10 @@ That's also why we're publishing at all. Articulating the methodology keeps us a
 
 **Skills-contexts conflation.** The distinction that's conceptually clean but practically leaky. When we notice a skill containing domain facts or a context containing process instructions, we split. If we stop noticing, the methodology degrades.
 
-**Scale ceiling.** One-task-one-worker, local locks, git as sync — these break around 10 people. We're at 2 and planning to stay small. If we ever scale past that, Coga's internals get rebuilt. The methodology survives; the infrastructure would need replacement.
+**Scale ceiling.** One-task-one-worker, status-as-signal coordination, git as
+sync — these break around 10 people. We're at 2 and planning to stay small. If
+we ever scale past that, Coga's internals get rebuilt. The methodology
+survives; the infrastructure would need replacement.
 
 **The market moving underneath us.** Editor vendors (Cursor, Windsurf) ship built-in task persistence and context scoping. Platform vendors (Linear) ship integrated agents. If the 80% of Coga's value gets absorbed into tools we're already using, the methodology remains but the bespoke tooling loses its justification. We monitor this; if it happens, we switch substrates and keep the methodology.
 
