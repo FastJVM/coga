@@ -28,7 +28,8 @@ review bars.
   `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/block.py` and `commands/unblock.py` own blocked-state
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;
-  reusable drain logic lives in `megalaunch.py`. `bump.py` advances
+  reusable drain logic lives in `megalaunch.py` and the drain order (age plus
+  numbered sub-directories) in `service_order.py`. `bump.py` advances
   workflow steps. `validate.py` checks repo consistency.
 - `tests/` — pytest. Run with `python -m pytest`.
 - `example/` — seeded fixture used by tests. **Update this when

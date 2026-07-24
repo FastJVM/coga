@@ -1760,6 +1760,74 @@ def test_megalaunch_services_tasks_oldest_first(
     assert [result.slug for result in run.results] == ["beta", "alpha"]
 
 
+def test_megalaunch_services_numbered_subdir_in_number_order(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `1-`/`2-`/`3-` named sub-tree drains in number order, not age order.
+
+    The numbering is a plain naming convention on the task directory — no
+    flag — and only reorders *within* the sub-directory: the top-level `alpha`
+    still runs first because the `v2` block is anchored at its oldest task.
+    """
+    from coga.paths import log_path
+
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Alpha",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    for slug in ("1-schema", "2-migrate", "3-cutover"):
+        create_task(
+            cfg=cfg,
+            title=slug,
+            slug_override=slug,
+            directory="v2",
+            workflow_name="code",
+            contexts=[],
+            owner="marc",
+            assignee="claude",
+            status="active",
+            watchers=[],
+        )
+    # Created newest-number-first, so age ordering alone would drain 3, 2, 1.
+    log_path(cfg).write_text(
+        "2026-06-01 10:00 [alpha] [human:marc] created\n"
+        "2026-06-02 10:00 [v2/3-cutover] [human:marc] created\n"
+        "2026-06-03 10:00 [v2/2-migrate] [human:marc] created\n"
+        "2026-06-04 10:00 [v2/1-schema] [human:marc] created\n"
+    )
+
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert [result.slug for result in run.results] == [
+        "alpha",
+        "v2/1-schema",
+        "v2/2-migrate",
+        "v2/3-cutover",
+    ]
+
+
 def test_trim_megalaunch_blackboard_replaces_old_summaries() -> None:
     text = """## Blockers
 
