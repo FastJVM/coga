@@ -47,6 +47,14 @@ that a bad token fails loud without leaking the value.
 - Sibling v2 ticket: `op-secret-dependency-init-enforcement`.
 - 1Password service accounts: https://developer.1password.com/docs/service-accounts/
 
+### Blocks
+
+`v2/let-notification-webhooks-resolve-1password-refere` **cannot be done until
+this ticket ships.** That ticket makes `[notification.slack]` webhooks resolve
+`op://` references, but every coga state-transition post would then fire a
+1Password prompt unless a service-account token makes `op read` non-interactive
+first. Sequence: this skip-prompt ticket, then the webhooks `op://` ref.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

@@ -1,5 +1,5 @@
 ---
-slug: op/let-notification-webhooks-resolve-1password-refere
+slug: v2/let-notification-webhooks-resolve-1password-refere
 title: Let notification webhooks resolve 1Password references
 status: draft
 owner: zach
@@ -40,6 +40,12 @@ already do. Today they understand only `env:VAR`.
 The payoff is that a repo running unattended needs no secret plumbing of its
 own. It puts the two references straight in its `coga.toml`, and the runner
 only needs `OP_SERVICE_ACCOUNT_TOKEN` in its environment.
+
+> **Blocked by `v2/op-service-account-auth-to-skip-op-read-prompt`.** Once
+> webhook posts resolve through `op read`, every state-transition post would
+> fire a 1Password prompt unless a service-account token makes `op read`
+> non-interactive first. That skip-prompt ticket must ship before this one;
+> this ticket then just points `coga.toml` at the two `op://` references.
 
 ## Context
 
