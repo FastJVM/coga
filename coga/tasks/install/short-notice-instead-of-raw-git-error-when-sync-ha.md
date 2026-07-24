@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -245,3 +245,99 @@ Applied fixes: 1.
 Git: committed and pushed `repair-branch`
 
 Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T17:59:56+00:00
+Command: `coga validate --json --fix`
+Task: `install/short-notice-instead-of-raw-git-error-when-sync-ha`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T18:04:51+00:00
+Command: `coga validate --json --fix`
+Task: `install/short-notice-instead-of-raw-git-error-when-sync-ha`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Peer review (step 2)
+
+`/code-review` is user-invocation-only in this harness, so the slash command
+could not be triggered programmatically; the review was done directly against
+the branch diff vs `main` (the step's substance — a second agent that did not
+write the change). Two must-fix findings, both applied in `e0d52197`, both
+covered by new regression tests that fail without the fix.
+
+**1. The no-remote path silently dropped the state-regression guard (real bug).**
+`_sync_paths_on_control_branch(push=False)` gated the guard on `push`, with the
+docstring rationale that "with no remote to advance the branch, there is nothing
+for a stale checkout to bury." That rationale is false: a sibling worktree lands
+state on the *shared local* control branch via the plumbing overlay path — no
+remote involved. Verified by test: a stale `in_progress` copy buried a terminal
+`done` ticket, printing only the calm notice. The guard now resolves its base
+locally (`_control_base_for_attempt` attempt 0 → `refs/heads/<control>`) rather
+than fetching the remote tip (which would raise the very fatal being suppressed),
+so it still refuses. A refusal surfaces as the normal loud `sync refused` before
+any commit.
+
+**2. The notice claimed a save that never happened.** It printed unconditionally
+on the control-branch path, so a clean no-op sync announced "coga state saved
+locally" while committing nothing — and would fire on every command a no-remote
+user runs. With a remote, that same no-op is silent. Now scoped to syncs that
+actually committed (`_sync_paths_on_control_branch` returns whether it committed).
+
+**Guardrail re-verified.** The fail-loud boundary the ticket cares about holds:
+missing remote → calm one-liner; configured-but-broken remote → unchanged loud
+`sync failed` + raw fatal + audit-log entry.
+
+Rebase: `git fetch origin main && git rebase FETCH_HEAD` — clean, 2 commits
+ahead of `main`, 0 behind. Full suite: 1502 passed, 1 skipped.
+
+## PR
+
+Replace the raw two-paragraph `git push` fatal with a short, actionable notice
+when — and only when — no remote is configured. This is the state `coga init`
+leaves a new user in (`git init` → `coga init`, "push when ready"), so every
+state-changing command greeted their first ticket with a scary fatal dump,
+printed twice.
+
+Now that case prints one calm line and the state is still committed locally:
+
+```
+[git] no 'origin' remote configured — coga state saved locally; add a remote to sync (Ticket: demo — created)
+```
+
+The doubling is gone as a side effect: the local commit now happens, so the
+post-command sweep finds a clean tree and stays quiet.
+
+Scoped deliberately to the one push failure that is cleanly knowable *up front*
+(`git remote get-url <remote>` exits non-zero). Every other push failure — a
+remote that is offline, misauthed, protected, or simply lacks the branch — is
+not detectable in advance and stays a loud `GitError`, per the module's
+fail-loud model. Only the remote step is skipped; the local commit still
+happens, and the state-regression guard still runs (resolving its base locally
+instead of fetching), so a stale checkout cannot bury newer state landed by a
+sibling worktree.
+
+Touches the four sync entry points that each run per command: `sync_log`,
+`sync_paths`, `sync_coga_state`, `refresh_coga_state_from_control`.
+`recurring_runner.py` needed no change — it already degrades to a calm line.
+
+Test plan: `python -m pytest` (1502 passed, 1 skipped), plus a manual fresh
+`git init` + `coga init` + `coga create` repro confirming one calm notice with
+the ticket committed on local `main`, and a configured-but-broken remote still
+producing the loud failure.
