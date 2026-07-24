@@ -1,7 +1,7 @@
 ---
 slug: make-sure-we-can-drop-new-recurring-tickets
 title: make sure we can drop new recurring tickets
-status: active
+status: in_progress
 owner: nick
 human: nick
 agent: claude
