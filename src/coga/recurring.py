@@ -680,6 +680,7 @@ def promote_task(
         )
 
     frontmatter, dropped_skills = _template_frontmatter(ticket, schedule)
+    _validate_promoted_workflow(cfg, frontmatter)
     above, blackboard = split_body(ticket.body, blackboard_required=False)
 
     dest.mkdir(parents=True)
@@ -692,10 +693,16 @@ def promote_task(
             for sibling in sorted(ref.path.iterdir()):
                 if sibling.name in ("ticket.md", ".state-snapshot.json"):
                     continue
-                if sibling.is_dir():
-                    shutil.copytree(sibling, dest / sibling.name)
+                sibling_dest = dest / sibling.name
+                if sibling.is_symlink():
+                    sibling_dest.symlink_to(
+                        sibling.readlink(),
+                        target_is_directory=sibling.is_dir(),
+                    )
+                elif sibling.is_dir():
+                    shutil.copytree(sibling, sibling_dest, symlinks=True)
                 else:
-                    shutil.copy2(sibling, dest / sibling.name)
+                    shutil.copy2(sibling, sibling_dest)
         ticket_path = dest / "ticket.md"
         ticket_path.write_text(
             _render_template_text(frontmatter, join_task_body(above, _PROMOTED_BLACKBOARD))
@@ -777,6 +784,23 @@ def _render_template_text(frontmatter: dict[str, Any], body: str) -> str:
         default_flow_style=False,
     ).rstrip()
     return f"---\n{fm_text}\n---\n\n{body.lstrip(chr(10))}"
+
+
+def _validate_promoted_workflow(
+    cfg: Config, frontmatter: dict[str, Any]
+) -> None:
+    """Ensure the transformed template can resolve its per-period workflow."""
+    workflow_name = frontmatter.get("workflow") or "direct/body"
+    if not isinstance(workflow_name, str):
+        raise RecurringError(
+            "promoted template `workflow:` must be a workflow name"
+        )
+    try:
+        Workflow.load(resolve_workflow_path(cfg, workflow_name))
+    except WorkflowError as exc:
+        raise RecurringError(
+            f"cannot promote task with workflow {workflow_name!r}: {exc}"
+        ) from exc
 
 
 def _template_runs_as_script(cfg: Config, template: Template) -> bool:
@@ -948,6 +972,12 @@ def _last_firing(cron: str, now: datetime) -> datetime:
 def _validate_schedule(schedule: Any, now: datetime) -> None:
     if not isinstance(schedule, str) or not schedule.strip():
         raise RecurringError("`schedule` must be a non-empty cron expression")
+    field_count = len(schedule.split())
+    if field_count != 5:
+        raise RecurringError(
+            "`schedule` is not a valid cron expression: expected exactly "
+            f"5 fields, got {field_count}"
+        )
     try:
         croniter(schedule, now).get_prev(datetime)
     except CroniterError as exc:

@@ -213,10 +213,20 @@ def test_validate_reports_recurring_template_without_a_schedule(repo: Path) -> N
     assert "_orphan" in issue.message
 
 
-def test_validate_reports_malformed_recurring_schedule(repo: Path) -> None:
-    _write(repo / "recurring" / "broken" / "ticket.md", """
+@pytest.mark.parametrize(
+    "schedule",
+    [
+        pytest.param("every monday", id="malformed"),
+        pytest.param("* * * * * *", id="six-fields"),
+        pytest.param("@daily", id="alias"),
+    ],
+)
+def test_validate_reports_malformed_recurring_schedule(
+    repo: Path, schedule: str
+) -> None:
+    _write(repo / "recurring" / "broken" / "ticket.md", f"""
         ---
-        schedule: "every monday"
+        schedule: "{schedule}"
         title: Broken
         ---
 
@@ -233,6 +243,8 @@ def test_validate_reports_malformed_recurring_schedule(repo: Path) -> None:
     )
     assert issue.task == "recurring/broken"
     assert "not a valid cron expression" in issue.message
+    if schedule in {"* * * * * *", "@daily"}:
+        assert "exactly 5 fields" in issue.message
 
 
 def test_validate_accepts_a_valid_recurring_schedule_and_skips_parked_ones(

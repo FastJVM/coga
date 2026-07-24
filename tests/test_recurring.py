@@ -1467,7 +1467,9 @@ def test_scan_due_skips_malformed_schedule(repo: Path, capsys) -> None:
     assert "skipping bad-cron" in capsys.readouterr().err
 
 
-def test_scan_due_accepts_year_scoped_schedule_for_current_year(repo: Path) -> None:
+def test_scan_due_rejects_non_five_field_year_scoped_schedule(
+    repo: Path, capsys
+) -> None:
     _write_recurring(
         repo,
         "year-scoped",
@@ -1486,8 +1488,15 @@ def test_scan_due_accepts_year_scoped_schedule_for_current_year(repo: Path) -> N
     )
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 6, 1, 10, 0, 0))
-    assert scan.errors == []
-    assert [task.template for task in scan.tasks] == ["weekly-check", "year-scoped"]
+    assert [task.template for task in scan.tasks] == ["weekly-check"]
+    assert scan.errors == [
+        (
+            "year-scoped",
+            "`schedule` is not a valid cron expression: expected exactly "
+            "5 fields, got 7",
+        )
+    ]
+    assert "skipping year-scoped" in capsys.readouterr().err
 
 
 def test_scan_due_skips_template_missing_ticket_md(repo: Path, capsys) -> None:
@@ -5081,6 +5090,102 @@ def test_promote_names_the_template_with_the_name_flag(
     assert "not materialized into period tasks" in result.output
 
 
+def test_promote_preserves_sibling_symlinks_without_reading_their_targets(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Promotion is a move: symlink siblings and nested links remain links
+    rather than turning external target contents into committed attachments."""
+    monkeypatch.chdir(repo)
+    source = repo / "tasks" / "linked-task"
+    _write(
+        source / "ticket.md",
+        """
+        ---
+        slug: linked-task
+        title: Linked task
+        status: draft
+        owner: marc
+        ---
+
+        ## Description
+
+        Keep the links as links.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+    external_file = repo.parent / "outside.txt"
+    external_file.write_text("outside the repository\n")
+    external_dir = repo.parent / "outside-dir"
+    external_dir.mkdir()
+    (external_dir / "payload.txt").write_text("also outside\n")
+    (source / "file-link").symlink_to(external_file)
+    (source / "dir-link").symlink_to(external_dir, target_is_directory=True)
+    attachments = source / "attachments"
+    attachments.mkdir()
+    (attachments / "nested-link").symlink_to(external_file)
+
+    result = CliRunner().invoke(
+        app, ["recurring", "promote", "linked-task", "--schedule", "0 3 * * *"]
+    )
+
+    assert result.exit_code == 0, result.output
+    dest = repo / "recurring" / "linked-task"
+    assert (dest / "file-link").is_symlink()
+    assert (dest / "file-link").readlink() == external_file
+    assert (dest / "dir-link").is_symlink()
+    assert (dest / "dir-link").readlink() == external_dir
+    assert (dest / "attachments" / "nested-link").is_symlink()
+    assert (dest / "attachments" / "nested-link").readlink() == external_file
+
+
+def test_promote_refuses_a_missing_collapsed_workflow_before_deleting_source(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A terminal task can outlive its workflow definition. Promotion must
+    catch that stale snapshot before replacing the recoverable source ticket."""
+    monkeypatch.chdir(repo)
+    _write_task(
+        repo,
+        "stale-workflow",
+        """
+        ---
+        slug: stale-workflow
+        title: Stale workflow
+        status: done
+        owner: marc
+        workflow:
+          name: removed/weekly
+          steps:
+          - name: run
+            skills: []
+        ---
+
+        ## Description
+
+        This must still be launchable after promotion.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "recurring",
+            "promote",
+            "stale-workflow",
+            "--schedule",
+            "0 3 * * *",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "workflow 'removed/weekly'" in result.output
+    assert (repo / "tasks" / "stale-workflow.md").is_file()
+    assert not (repo / "recurring" / "stale-workflow").exists()
+
+
 def test_promote_refuses_an_existing_template_and_leaves_the_task(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5115,7 +5220,16 @@ def test_promote_refuses_an_existing_template_and_leaves_the_task(
     assert (repo / "recurring" / "weekly-check" / "ticket.md").read_text() == before
 
 
+@pytest.mark.parametrize(
+    "schedule",
+    [
+        pytest.param("every monday", id="malformed"),
+        pytest.param("* * * * * *", id="six-fields"),
+        pytest.param("@daily", id="alias"),
+    ],
+)
 def test_promote_validates_the_cron_before_moving_anything(
+    schedule: str,
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A bad schedule fails up front — the source ticket is untouched and no
@@ -5141,11 +5255,13 @@ def test_promote_validates_the_cron_before_moving_anything(
     )
 
     result = CliRunner().invoke(
-        app, ["recurring", "promote", "bad-cron", "--schedule", "every monday"]
+        app, ["recurring", "promote", "bad-cron", "--schedule", schedule]
     )
 
     assert result.exit_code == 2
     assert "not a valid cron expression" in result.output
+    if schedule in {"* * * * * *", "@daily"}:
+        assert "exactly 5 fields" in result.output
     assert (repo / "tasks" / "bad-cron.md").is_file()
     assert not (repo / "recurring" / "bad-cron").exists()
 

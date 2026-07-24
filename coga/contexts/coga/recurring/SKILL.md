@@ -166,6 +166,9 @@ Promote refuses rather than guessing:
   remove it first.
 - The cron is validated before anything moves, so a bad `--schedule` leaves the
   source ticket untouched.
+- The transformed workflow name must still resolve. A terminal ticket can
+  outlive a deleted workflow definition; promote catches that stale snapshot
+  before deleting the source ticket.
 - An `in_progress` or `blocked` task is refused: a template cannot hold a live
   run's step or blocker. Land or unblock the run first.
 
