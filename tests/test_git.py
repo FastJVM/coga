@@ -279,7 +279,9 @@ def test_sync_log_failure_does_not_redirty_the_log(git_repo, capsys):
     """A failed log sync surfaces to stderr but does NOT append to log.md —
     re-dirtying the file it failed to commit would recreate the dangling line."""
     cfg = load_config(git_repo.coga_os)
-    git_repo.git("remote", "remove", "origin")
+    # A configured-but-broken remote (not a *missing* one — that is the calm
+    # no-remote path) so the push genuinely fails and stays loud.
+    git_repo.git("remote", "set-url", "origin", str(git_repo.origin.parent / "gone.git"))
     append_log(cfg, "bootstrap/orient", "human:nick", "launched")
     before = (cfg.repo_root / "log.md").read_text()
 
@@ -415,14 +417,16 @@ def test_sync_feature_branch_noop_when_identical(git_repo):
 
 
 def test_sync_feature_branch_nonfatal_on_push_failure(git_repo, capsys):
-    """No remote on the cross-branch path → loud warning + log, but no crash.
+    """A broken remote on the cross-branch path → loud warning + log, but no crash.
 
     A failed push must not abort a local state transition (it would break the
     supervised launch chain). The miss is surfaced to stderr + log.md.
     """
     cfg = load_config(git_repo.coga_os)
     git_repo.checkout_branch("feature/x")
-    git_repo.git("remote", "remove", "origin")
+    # Configured-but-broken remote (a *missing* remote is the calm no-remote
+    # path); the cross-branch land still fails loudly here.
+    git_repo.git("remote", "set-url", "origin", str(git_repo.origin.parent / "gone.git"))
     task = _task_dir(git_repo.coga_os)
 
     # Must not raise.
@@ -430,6 +434,193 @@ def test_sync_feature_branch_nonfatal_on_push_failure(git_repo, capsys):
 
     assert "sync failed" in capsys.readouterr().err
     assert "sync failed" in _global_log(cfg)
+
+
+# --- no-remote calm notice -----------------------------------------------------
+#
+# A repo freshly `git init`ed + `coga init`ed has no `origin` yet ("push when
+# ready"). That is the one push failure knowable up front, so the sync helpers
+# soft-skip it with a short notice instead of the raw two-paragraph git fatal.
+# A missing remote is calm; a configured-but-broken remote stays loud (above).
+
+_NO_REMOTE_NOTICE = "no 'origin' remote configured"
+
+
+def test_sync_task_state_no_remote_prints_calm_notice(git_repo, capsys):
+    """Control branch, no `origin` → short notice, not a raw `git push` fatal.
+
+    Only the push is skipped: the commit still lands on local `main` (the
+    notice says "saved locally", and it means it).
+    """
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("remote", "remove", "origin")
+    task = _task_dir(git_repo.coga_os)
+
+    # Must not raise.
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    err = capsys.readouterr().err
+    assert _NO_REMOTE_NOTICE in err
+    # The scary fatal dump and the generic "sync failed" line are both gone.
+    assert "fatal" not in err
+    assert "sync failed" not in err
+    # A calm skip is not a failure, so nothing lands in the audit log either.
+    assert "sync failed" not in _global_log(cfg)
+    # The local commit still happened — the task dir is committed, not dirty.
+    assert "Ticket: demo — created" in git_repo.git("log", "--format=%s")
+    assert "tasks/" not in git_repo.git("status", "--porcelain")
+
+
+def test_sync_feature_branch_no_remote_commits_locally(git_repo, capsys):
+    """Feature branch, no `origin` → calm notice, but the local commit stands.
+
+    The unit-level guard for the launch-script invariant: a feature-branch sync
+    commits OS state locally (that step never touches the remote); only the
+    control-branch landing is soft-skipped when no remote is configured.
+    """
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("remote", "remove", "origin")
+    git_repo.checkout_branch("feature/x")
+    task = _task_dir(git_repo.coga_os)
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    err = capsys.readouterr().err
+    assert _NO_REMOTE_NOTICE in err
+    assert "fatal" not in err
+    assert "sync failed" not in err
+    # The feature-branch commit landed locally; nothing is left dirty.
+    assert "Ticket: demo — created" in git_repo.git(
+        "log", "--format=%s", "feature/x"
+    )
+    assert "tasks/" not in git_repo.git("status", "--porcelain")
+
+
+def test_sync_log_no_remote_prints_calm_notice(git_repo, capsys):
+    """`sync_log` on the control branch with no `origin` → calm notice."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("remote", "remove", "origin")
+    append_log(cfg, "bootstrap/orient", "human:nick", "launched")
+
+    git.sync_log(cfg, message="Log: bootstrap/orient")
+
+    err = capsys.readouterr().err
+    assert _NO_REMOTE_NOTICE in err
+    assert "fatal" not in err
+    assert "log sync failed" not in err
+    # The log commit still lands locally; only the push is skipped.
+    assert "Log: bootstrap/orient" in git_repo.git("log", "--format=%s")
+    assert "log.md" not in git_repo.git("status", "--porcelain")
+
+
+def test_sync_coga_state_no_remote_prints_calm_notice(git_repo, capsys):
+    """The catch-all sweep with no `origin` → calm notice, not a fatal."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("remote", "remove", "origin")
+    # A dirty file under `coga/` so the sweep has something to sync.
+    (git_repo.coga_os / "tasks" / "stray.md").write_text("dirty\n")
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    err = capsys.readouterr().err
+    assert _NO_REMOTE_NOTICE in err
+    assert "fatal" not in err
+    assert "sync failed" not in err
+
+
+def test_refresh_coga_state_no_remote_prints_calm_notice(git_repo, capsys):
+    """The pull-back refresh with no `origin` → calm notice, not a fatal."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("remote", "remove", "origin")
+
+    git.refresh_coga_state_from_control(cfg, message="Refresh coga state from control")
+
+    err = capsys.readouterr().err
+    assert _NO_REMOTE_NOTICE in err
+    assert "fatal" not in err
+    assert "refresh failed" not in err
+
+
+def test_no_remote_notice_defers_to_branch_mismatch(git_repo, capsys):
+    """When the control branch is also absent locally, the branch-mismatch
+    guidance wins — the no-remote notice fires only once `main` exists locally
+    but no remote is configured (the ordering the repro nuance depends on)."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("remote", "remove", "origin")
+    # Onto a branch that is NOT the control branch, with no local `main` ref: the
+    # `git init` → still-on-`master` shape the ticket calls the adjacent path.
+    git_repo.git("checkout", "-b", "master")
+    git_repo.git("branch", "-D", "main")
+    task = _task_dir(git_repo.coga_os)
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    err = capsys.readouterr().err
+    assert "does not exist" in err  # the control-branch mismatch one-liner
+    assert _NO_REMOTE_NOTICE not in err
+
+
+def test_no_remote_notice_silent_when_nothing_to_commit(git_repo, capsys):
+    """A clean no-op sync says nothing — it saved nothing.
+
+    With a remote, a sync that finds no changes commits and pushes nothing,
+    silently. The no-remote path must stay just as quiet: announcing "state
+    saved locally" when no commit was made claims a save that never happened,
+    and it would fire on every command a no-remote user runs.
+    """
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("remote", "remove", "origin")
+    task = _task_dir(git_repo.coga_os)
+
+    # First sync commits the task; the tree is clean afterwards.
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+    assert _NO_REMOTE_NOTICE in capsys.readouterr().err
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    before = git_repo.git("rev-parse", "HEAD").strip()
+
+    # Second sync has nothing to do.
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    assert _NO_REMOTE_NOTICE not in capsys.readouterr().err
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+
+
+def test_no_remote_still_guards_against_burying_newer_control_state(
+    git_repo, capsys
+):
+    """No remote does not mean no state guard.
+
+    The regression guard resolves its base locally when there is no remote to
+    fetch, so a stale checkout still cannot bury newer state a sibling worktree
+    landed on the shared local control branch. Skipping the guard along with the
+    push would silently overwrite a terminal `done` with `in_progress`.
+    """
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="done", blackboard="finished\n")
+    git_repo.git("remote", "remove", "origin")
+
+    # A stale copy on disk that would walk the ticket back from `done`.
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="stale\n"
+        )
+    )
+    before = git_repo.git("rev-parse", "HEAD").strip()
+
+    git.sync_paths(
+        cfg,
+        ticket.parent,
+        [ticket.parent],
+        message="Ticket: demo — in_progress",
+        guard=lambda base: git.guard_ticket_state(cfg, ticket, base),
+    )
+
+    err = capsys.readouterr().err
+    assert "sync refused" in err
+    assert "fatal" not in err  # refused, not a raw git blow-up
+    # Nothing was committed over the newer control-branch copy.
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert "status: done" in git_repo.git("show", "main:coga/tasks/demo/ticket.md")
 
 
 def test_sync_detached_head_lands_without_local_commit(git_repo, capsys):
@@ -852,7 +1043,9 @@ def test_sync_control_branch_nonfatal_on_rebase_conflict(git_repo, capsys):
 def test_sync_nonfatal_on_push_failure(git_repo, capsys):
     """A failed push is surfaced (stderr + log) but never crashes the command."""
     cfg = load_config(git_repo.coga_os)
-    git_repo.git("remote", "remove", "origin")
+    # Configured-but-broken remote so the push actually fails and stays loud;
+    # a *missing* remote is the separate calm no-remote path.
+    git_repo.git("remote", "set-url", "origin", str(git_repo.origin.parent / "gone.git"))
     task = _task_dir(git_repo.coga_os)
 
     # Must not raise.
