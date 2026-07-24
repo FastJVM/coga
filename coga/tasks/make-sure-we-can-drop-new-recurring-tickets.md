@@ -123,4 +123,99 @@ Scope / gotchas:
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: recurring-promote
+worktree: /home/n/Code/claude/coga-recurring-promote
+
+## Plan (implement step)
+
+1. `promote_task()` in `src/coga/recurring.py` + thin `coga recurring promote`
+   head in `src/coga/commands/recurring.py`.
+2. Schedule check in `validate.py::_check_recurring_templates`
+   (`invalid-recurring-schedule`), reusing `recurring._validate_schedule`.
+3. Docs in `coga/contexts/coga/recurring/SKILL.md` (live context only — no
+   packaged copy exists; not adding one).
+4. Tests in `tests/test_recurring.py` + `tests/test_validate.py`.
+
+## Decisions (surfaced per ticket)
+
+- **Promotable statuses:** refuse `in_progress` and `blocked` — those carry
+  live step/blocker state that a template cannot hold, and silently discarding
+  it would lose a running handoff. Everything else (`draft`, `active`,
+  `paused`, `done`, `canceled`) promotes. No `--force`; the error tells you to
+  `coga mark` first.
+- **Template dir name:** defaults to the task's *leaf* slug (so `v2/foo` →
+  `foo`), overridable with `--name`. Refuses `_`-prefixed and non-slug names.
+- **Frontmatter transform:** keep `title, owner, assignee, watchers, contexts,
+  secrets, script`; add `schedule` first. Drop `slug`, `status`, `step`
+  (task-only), `human`/`agent` (task-launch fields, not template passthrough),
+  and `skills:` (never copied into period tasks — promote warns and tells you
+  to put them on workflow steps). A frozen `workflow:` dict collapses to its
+  `name:`; absent stays absent (creator defaults to `direct/body`).
+  `coga/period-task` is stripped from `contexts` (the creator re-appends it).
+- **Blackboard:** reset to the template placeholder. Task scratch is one-run
+  state and must not masquerade as cross-run recurring state; the old text
+  stays recoverable in git.
+- **Ordering:** validate cron → refuse if `coga/recurring/<name>/` exists →
+  write + `Template.load()` verify → only then remove the source task. A bad
+  schedule or an occupied name leaves the source ticket untouched.
+- **Sibling `recurring-schedule-to-create-when-creating.md`:** empty draft,
+  redundant — `coga create` + `coga recurring promote` is the create-then-
+  schedule path. Deleting it from the primary checkout as part of this work.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T18:24:41+00:00
+Command: `coga validate --json --fix`
+Task: `make-sure-we-can-drop-new-recurring-tickets`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T18:27:33+00:00
+Command: `coga validate --json --fix`
+Task: `make-sure-we-can-drop-new-recurring-tickets`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T18:29:44+00:00
+Command: `coga validate --json --fix`
+Task: `make-sure-we-can-drop-new-recurring-tickets`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T18:31:13+00:00
+Command: `coga validate --json --fix`
+Task: `make-sure-we-can-drop-new-recurring-tickets`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
