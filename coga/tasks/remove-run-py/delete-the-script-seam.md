@@ -116,3 +116,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Blockers
 
 - [ ] [2026-07-23 07:43] [agent:claude] id=20260723T074319 Precondition failed: remove-run-py/add-coga-run-generic-runner-and-migrate-recurring is still at review-design and remove-run-py/port-hard-consumers-onto-the-generic-runner is still active; live recurring, open-pr, and delete-task script consumers remain. Complete and merge A, then B, before retrying C.
+
+---
+
+## Blocker reminders
+
+- 28e5bc0cbdb5 last_reminded: 2026-07-24 14:36
