@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
 from coga.cli import app
+from coga.commands import launch as launch_module
 from coga.create import create_task
 from coga.commands.launch import (
     _MAX_PROMPT_ARG_BYTES,
@@ -17,6 +18,7 @@ from coga.commands.launch import (
     _configured_secret_values,
     _preflight_push_auth,
     build_agent_command,
+    missing_launch_file_message,
     spawn_agent_session,
 )
 from coga.config import AgentType, load_config
@@ -25,6 +27,7 @@ from coga.repl_supervisor import (
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
     _TIMEOUT_EXIT_CODE,
+    AgentCliNotFound,
     ReplOutcome,
 )
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
@@ -3163,3 +3166,109 @@ def test_queue_prompt_suffix_carries_block_guidance() -> None:
     assert "stateless `bootstrap/<name>` command ticket" in suffix
     assert "coga slack --task bootstrap/<name>" in suffix
     assert "does not release the queue" in suffix
+
+
+# --- pre-spawn file errors are not "the agent CLI is missing" -----------------
+#
+# `spawn_agent_session` composes the prompt, writes it to disk, and appends the
+# log before it spawns anything. A blanket `except FileNotFoundError` around
+# that call therefore reported a vanished skill/context — or any other missing
+# path — as `Failed to spawn agent: 'claude' not found.`, sending the operator
+# to debug a PATH that was already verified two lines earlier by
+# `shutil.which`. Only `AgentCliNotFound` carries the genuine CLI case.
+
+
+def test_launch_names_the_missing_file_instead_of_blaming_the_cli(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The reported incident: the entry preflight composes fine, then the
+    supervisor's per-step compose hits a file that vanished under it (a
+    concurrent checkout / mid-sync tree). That must name the path — the old
+    blanket handler called it `'claude' not found` two lines after
+    `shutil.which` had already located the CLI."""
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+
+    missing = str(active_task / "skills" / "code" / "open-pr" / "SKILL.md")
+    real_compose = launch_module.compose_prompt
+    calls: list[int] = []
+
+    def flaky(cfg, ref, ticket, *args, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(1)
+        if len(calls) == 1:  # entry preflight
+            return real_compose(cfg, ref, ticket, *args, **kwargs)
+        raise FileNotFoundError(2, "No such file or directory", missing)
+
+    monkeypatch.setattr("coga.commands.launch.compose_prompt", flaky)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    slug = list_tasks(load_config(active_task))[0].id_slug
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert len(calls) == 2, calls
+    assert result.exit_code != 0
+    assert missing in result.output
+    assert "No such file or directory" in result.output
+    assert "not the agent CLI" in result.output
+    assert "'claude' not found" not in result.output
+
+
+def test_launch_preflight_names_the_missing_file_too(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The entry preflight catches only `ComposeError`; a raw
+    `FileNotFoundError` used to escape it as a bare traceback."""
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+
+    missing = str(active_task / "context.md")
+
+    def boom(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise FileNotFoundError(2, "No such file or directory", missing)
+
+    monkeypatch.setattr("coga.commands.launch.compose_prompt", boom)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    slug = list_tasks(load_config(active_task))[0].id_slug
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code != 0
+    assert missing in result.output
+    assert "not the agent CLI" in result.output
+    assert "'claude' not found" not in result.output
+
+
+def test_launch_still_reports_a_genuinely_missing_agent_cli(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`AgentCliNotFound` keeps the install-the-CLI remedy."""
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+
+    def boom(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AgentCliNotFound("claude")
+
+    monkeypatch.setattr("coga.commands.launch.run_with_done_marker", boom)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    slug = list_tasks(load_config(active_task))[0].id_slug
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code != 0
+    assert "Failed to spawn agent: 'claude' not found." in result.output
+
+
+def test_missing_launch_file_message_survives_a_filename_less_error() -> None:
+    """Not every FileNotFoundError carries `.filename`; still don't blame the CLI."""
+    message = missing_launch_file_message(FileNotFoundError("prompt dir gone"))
+    assert "a file it needed" in message
+    assert "not the agent CLI" in message

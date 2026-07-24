@@ -16,9 +16,11 @@ from coga.authoring import (
 from coga.commands.create import create_draft
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
+    missing_launch_file_message,
     spawn_agent_session,
 )
 from coga.compose import ComposeError
+from coga.repl_supervisor import AgentCliNotFound
 from coga.config import Config, ConfigError, load_config
 from coga.dependencies import agent_cli_missing_message
 from coga.tasks import (
@@ -248,8 +250,10 @@ def _run_authoring_session(
         )
     except ComposeError as exc:
         _bail(str(exc))
-    except FileNotFoundError:
+    except AgentCliNotFound:
         _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
+    except FileNotFoundError as exc:
+        _bail(missing_launch_file_message(exc))
 
     if session.exit_code != 0:
         typer.secho(

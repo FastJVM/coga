@@ -69,6 +69,7 @@ from coga.mark import (
 from coga.repl_supervisor import (
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
+    AgentCliNotFound,
     run_with_done_marker,
 )
 from coga.step_gate import gate_publishes_current_branch
@@ -358,6 +359,11 @@ def launch(
             compose_prompt(cfg, ref, ticket)
         except ComposeError as exc:
             _bail(str(exc))
+        except FileNotFoundError as exc:
+            # A layer file that exists at resolve time but not at read time
+            # (a concurrent checkout, a mid-sync working tree). Loud either
+            # way, but name the path instead of dumping a traceback.
+            _bail(missing_launch_file_message(exc))
 
         # Preflight and build the child env before mutating ticket state. A missing
         # declared secret is a launch refusal, not a started task.
@@ -536,8 +542,10 @@ def launch(
                 )
             except ComposeError as exc:
                 _bail(str(exc))
-            except FileNotFoundError:
+            except AgentCliNotFound:
                 _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
+            except FileNotFoundError as exc:
+                _bail(missing_launch_file_message(exc))
 
             typer.echo(f"Launch: agent exited with code {session.exit_code}")
             if blocked_resume:
@@ -877,6 +885,25 @@ class AgentSessionResult(NamedTuple):
     exit_code: int
     termination_kind: str
     termination_reason: str | None = None
+
+
+def missing_launch_file_message(exc: FileNotFoundError) -> str:
+    """Report a pre-spawn `FileNotFoundError` as the missing file it is.
+
+    `spawn_agent_session` composes the prompt, writes it to disk, and appends
+    the log *before* it spawns anything, so a `FileNotFoundError` escaping it
+    is far more often a missing prompt layer than a missing agent CLI — and
+    blaming the CLI sends the operator to debug a PATH that is fine. Name the
+    path instead; `AgentCliNotFound` carries the genuine CLI case.
+    """
+    missing = exc.filename or "a file it needed"
+    detail = exc.strerror or str(exc)
+    return (
+        f"Launch failed before the agent started: {missing} ({detail}). "
+        "This is a file the launch had to read or write — a prompt layer "
+        "(skill, context, ticket) or the prompt destination — not the agent "
+        "CLI."
+    )
 
 
 def spawn_agent_session(

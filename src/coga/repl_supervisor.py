@@ -70,6 +70,22 @@ _SENTINEL_POLL_INTERVAL = 0.25
 _TIMEOUT_EXIT_CODE = 124
 
 
+class AgentCliNotFound(FileNotFoundError):
+    """The agent CLI binary itself could not be executed.
+
+    A launch raises `FileNotFoundError` for several unrelated reasons — a
+    context or skill file that vanished mid-compose, an unwritable prompt
+    destination — and only *this* one means "install the CLI / fix your PATH".
+    Callers that print a CLI-not-found remedy must catch this subclass, not
+    bare `FileNotFoundError`, or they send the operator off to debug their
+    PATH over a missing prompt layer.
+    """
+
+    def __init__(self, cli: str) -> None:
+        super().__init__(f"agent CLI {cli!r} not found")
+        self.cli = cli
+
+
 @dataclass(frozen=True)
 class ReplOutcome:
     """How a supervised REPL ended.
@@ -197,9 +213,15 @@ def run_with_done_marker(
     if not sys.stdout.isatty():
         import subprocess
 
-        code = subprocess.run(
-            cmd, env=dict(env), check=False
-        ).returncode
+        try:
+            code = subprocess.run(
+                cmd, env=dict(env), check=False
+            ).returncode
+        except FileNotFoundError as exc:
+            # Name the failure at its source. The PTY path below reports the
+            # same condition as a 127 exit from the child, so this is the one
+            # spawn route that can surface it as an exception at all.
+            raise AgentCliNotFound(cmd[0]) from exc
         return ReplOutcome(code, "natural")
 
     sentinel_dir = tempfile.mkdtemp(prefix="coga-done-")
