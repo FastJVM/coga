@@ -51,6 +51,10 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "ticket/finalize/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "ticket/finalize/run.py",
+    # The shared reminder engine ships a docs-only battery skill (the adoption
+    # note); the engine itself is the importable `coga.reminders` module.
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
+    "reminders/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
