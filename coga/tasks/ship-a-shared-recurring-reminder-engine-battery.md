@@ -202,6 +202,26 @@ Deferred (out of scope, per DoD): the single-reminder `run(window=,satisfied=,su
 sugar and the `--ack` harness flag — shaped later by admin's first ack reminder. Live
 patents/admin migrations are downstream follow-ups.
 
+## Third-sweep validation — admin's Brex missing-receipts (2026-07-24, at Zach's ask)
+
+Proved the engine serves admin's world too, not just patents. Wrote a scratch
+engine-backed version of admin's `coga/skills/brex/api/missing_receipts.py`
+(scratchpad only — NOT committed; it needs a live Brex token + the admin repo, so it
+can't live in coga's suite) that reuses admin's logic verbatim and only swaps the
+harness for `coga.reminders.run`. Shape: monthly window (prior calendar month),
+`satisfied()` = the Brex API query returns zero over-$40 card expenses missing a
+receipt — an EXTERNAL-query satisfied, the opposite of patents' ticket-field checks.
+
+- Read-only run (June 2026): engine drove the window + external `satisfied()` and
+  rendered admin's own table — 5 missing receipts found.
+- `--notify` run: engine posted ONE coga-important summary end-to-end; `coga slack
+  --important` returned `posted` (webhook 200), engine exit 0. Real post landed.
+
+Design note surfaced (not blocking): the harness requires a valid `--tasks-dir` even
+for an external-query reminder that reads no tickets (brex passes a throwaway dir).
+Left as-is for consistency with the deferral discipline — add a `needs_tasks_dir=False`
+option when admin's first reminder actually adopts the engine, rather than speculate now.
+
 ## Dream Skill: validate-drift
 
 Generated: 2026-07-24T23:35:50+00:00
