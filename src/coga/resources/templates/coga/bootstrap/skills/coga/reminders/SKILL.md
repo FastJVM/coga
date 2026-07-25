@@ -55,11 +55,14 @@ Stdlib-only and dependency-free (Python >= 3.11). Implementation lives in
   the task inspectable.
 
 This first battery deliberately stops at the shared primitives and sweep
-harness. The ack shape is now concrete — the monthly Xero reconciliation sweep
-(below) pins it: the period is the *prior* calendar month as `YYYY-MM`, and a
-reminder is satisfied once its blackboard carries `Acked: <period>`. A
-higher-level single-reminder API that folds `window=` / `satisfied=` / a uniform
-`--ack` into `run()` can build on that shape but is not shipped yet.
+harness. The ack is concrete, and its payload follows the obligation: a
+**period** (`Acked: YYYY-MM`) for an obligation that completes each cycle (Xero
+reconcile — each month's books are a separate, one-and-done job), or a **date
+high-water** (`Acked: YYYY-MM-DD`) for a *running pile* you acknowledge up to a
+point (Brex missing-receipts/GL). Both ride the same `read_ack` / `record_ack`
+helpers — the sweep interprets the string. A higher-level single-reminder API
+that folds `window=` / `satisfied=` / a uniform `--ack` into `run()` can build on
+that but is not shipped yet.
 
 ## What each reminder supplies
 
@@ -103,6 +106,14 @@ there is no standalone original to match and it is verified behaviourally:
   `satisfied()` is `read_ack(ticket) == period_for(today)`, with the period the
   prior calendar month (`YYYY-MM`). A missed month goes quiet at rollover; the
   ack round-trip test (record then re-run) is what locks the shape.
+- `admin/brex_missing_receipts_sweep.py` and `admin/brex_missing_gl_sweep.py` —
+  the **live-query** path. `satisfied()` is a Brex query (injected as `fetch` so
+  tests never hit Brex), not a ticket field: no date window, `fire` = the query
+  returns work. Because a missing-receipt/GL backlog is a *running pile* rather
+  than a per-period obligation, the ack is a **date high-water mark**
+  (`Acked: YYYY-MM-DD`) — the sweep flags only expenses incurred after it, so an
+  acknowledged backlog stays quiet while genuinely new gaps still surface, and it
+  self-clears at zero with no ack. Both post to the normal channel.
 
 ## Adopting it in a repo
 

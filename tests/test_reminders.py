@@ -580,3 +580,58 @@ def test_brex_gl_posts_to_normal_channel_end_to_end(tmp_path, monkeypatch):
     rc = brex_gl.main(["--today", "2026-07-15", "--tasks-dir", str(tmp_path), "--notify"])
     assert rc == 0
     assert len(posted) == 1 and posted[0].get("important") is False
+
+
+# --- high-water ack: acknowledge the backlog, alert only on newer gaps --------
+#
+# Missing receipts/GL are a running pile, not a per-period obligation, so the ack
+# is a date high-water mark (Acked: YYYY-MM-DD): the sweep flags only expenses
+# incurred *after* it. Cadence-independent — the monthly run just shows what's
+# new since the last ack. No ack -> the whole pile; addressing everything -> quiet.
+
+
+def _brex_ticket_dir(base: Path, slug: str, ack: str | None = None) -> Path:
+    tasks = base / "tasks"
+    ticket = tasks / slug / "ticket.md"
+    ticket.parent.mkdir(parents=True)
+    body = f"---\nslug: {slug}\n---\n\n## Description\nx\n\n<!-- coga:blackboard -->\n"
+    if ack is not None:
+        body += f"\nAcked: {ack}\n"
+    ticket.write_text(body, encoding="utf-8")
+    return tasks
+
+
+def test_brex_receipts_ack_mutes_old_pile_but_new_fires(tmp_path):
+    tasks = _brex_ticket_dir(tmp_path, "brex-missing-receipts", ack="2026-07-10")
+    old = _receipt(brex_receipts, id="old", incurred="2026-06-15")  # <= ack -> muted
+    new = _receipt(brex_receipts, id="new", incurred="2026-07-20")  # >  ack -> flagged
+    alerts = brex_receipts.build_sweep(fetch=lambda: [old, new])(date(2026, 8, 1), tasks).alerts
+    assert len(alerts) == 1 and "1 Brex expense(s)" in alerts[0]
+
+
+def test_brex_receipts_ack_through_whole_pile_goes_quiet(tmp_path):
+    tasks = _brex_ticket_dir(tmp_path, "brex-missing-receipts", ack="2026-07-31")
+    pile = [_receipt(brex_receipts, id=f"e{i}", incurred=f"2026-07-0{i}") for i in (1, 2, 3)]
+    assert brex_receipts.build_sweep(fetch=lambda: pile)(date(2026, 8, 1), tasks).alerts == []
+
+
+def test_brex_receipts_ack_roundtrip(tmp_path):
+    tasks = _brex_ticket_dir(tmp_path, "brex-missing-receipts", ack=None)
+    ticket = tasks / "brex-missing-receipts" / "ticket.md"
+    pile = [_receipt(brex_receipts, id="a", incurred="2026-07-02")]
+    fires = brex_receipts.build_sweep(fetch=lambda: pile)
+    assert fires(date(2026, 7, 15), tasks).alerts           # backlog fires
+    reminders.record_ack(ticket, "2026-07-15")              # draw the line at today
+    assert fires(date(2026, 7, 16), tasks).alerts == []     # backlog now muted
+    later = pile + [_receipt(brex_receipts, id="b", incurred="2026-07-20")]
+    assert brex_receipts.build_sweep(fetch=lambda: later)(date(2026, 8, 1), tasks).alerts  # new gap fires
+
+
+def test_brex_gl_self_clears_without_ack_but_ack_is_available(tmp_path):
+    # Usually GL just self-clears when the pile empties — no ack needed:
+    clean = _brex_ticket_dir(tmp_path / "clean", "brex-missing-gl", ack=None)
+    assert brex_gl.build_sweep(fetch=lambda: [])(date(2026, 8, 1), clean).alerts == []
+    # ...but the same ack escape hatch is there for a deferred batch:
+    acked = _brex_ticket_dir(tmp_path / "acked", "brex-missing-gl", ack="2026-07-31")
+    pile = [_receipt(brex_gl, id="g1", incurred="2026-07-05")]
+    assert brex_gl.build_sweep(fetch=lambda: pile)(date(2026, 8, 1), acked).alerts == []
