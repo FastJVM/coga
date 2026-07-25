@@ -125,4 +125,107 @@ remlib.run(window="monthly", satisfied=satisfied, summarize=...)
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Orientation (2026-07-24, implement step)
+
+### The golden oracle — the two patents sweeps
+- `maintenance-fee-sweep`: `~/dev/patents/coga/tasks/repo/utility/maintenance-fee-sweep/maintenance_fee_sweep.py`
+  - Auto-detect path. Windows `[grant+3y,+4y)`, `[grant+7y,+8y)`, `[grant+11y,+12y)`.
+    Flag if `opens<=today<closes` UNLESS `patent_maintenance_paid == window_number`.
+  - Currently ALWAYS posts (no `--notify` flag). Recorded sample run (2026-07-13):
+    8 granted, 1 suppressed, 2 flagged.
+- `candidate-sweep`: `~/dev/patents/coga/tasks/repo/candidate/candidate-sweep/candidate_sweep.py`
+  - Time-window path. Single window `[filing+14mo, filing+15mo)`, fires once then ages out.
+  - Has `--notify` gate. Four evaluate buckets: flags / needs_filing / unreadable / granted-anomaly.
+  - Recorded sample run (2026-07-21): 4 candidates, 3 needs-a-filing-date, 0 in-window.
+
+### Genuinely-shared code across both (the engine's ~80%)
+`_read_frontmatter` (byte-identical), `default_tasks_dir` (byte-identical),
+`_parse_date`/`_parse_granted` (identical), `add_years`/`add_months` (date-add+clamp),
+the `opens<=today<closes` kernel, the `coga slack --important` notify plumbing
+(`COGA_TASK_SLUG` fallback + failure count), and the argparse `main()` harness
+(`--today`/`--tasks-dir`/`--notify`, exit codes).
+Unique 20% per sweep: record dataclass + selector, window spec, the satisfied rule,
+the evaluate bucketing, and the report/message format strings.
+
+### Where the engine ships — settled by precedent
+Reusable logic → a `src/coga/` module imported as `coga.<name>`; a thin bundled-skill
+`run.py` imports it. Exact precedent: `coga.branchsweep`/`coga.autoclose` +
+`bootstrap/skills/coga/{branch-sweep,autoclose}/sweep/run.py`. So the engine =
+`src/coga/reminders.py` (import `coga.reminders`), plus a docs-only bootstrap skill
+`bootstrap/skills/coga/reminders/SKILL.md` carrying the migration note. Downstream repos
+have `coga` pip-installed, so `import coga.reminders` works with nothing materialized.
+
+### Byte-for-byte parity — key finding
+The two report formats are entirely different, so the engine CANNOT own report
+formatting. Parity ("same flags, windows, and printed output for the same `--today`")
+= identical STDOUT. Plan: vendor the two original scripts + a fixture task-dir into
+coga's tests; assert `original.main(argv).stdout == retrofit.main(argv).stdout` across a
+matrix of `--today`. Fixtures are hand-crafted fake tickets (not live patents data — see
+codebase gotcha "tests must not pin to live dogfooded state").
+
+## Dev
+
+branch: reminder-engine
+worktree: /Users/zach2179/dev/coga-reminder-engine
+
+Decision: Option A — thin engine (shared primitives + notify + ack helpers + a
+`run()` CLI harness driving a caller-supplied `sweep()`). Defer the single-reminder
+`run(window=,satisfied=,summarize=)` sugar until admin's first ack reminder shapes it.
+Ack helpers ship; the two parity sweeps don't use ack (DoD: ack proven later).
+
+## Implemented (2026-07-24) — committed on `reminder-engine`, ready for self-review
+
+Approach: Option A (thin engine), decided with Zach. What landed:
+
+1. `src/coga/reminders.py` — the engine (`coga.reminders`): `add_years`,
+   `add_months`, `parse_date`, `read_frontmatter`, `default_tasks_dir`,
+   `in_window(today, opens, closes, *, past_deadline_fires=False)`, ack helpers
+   (`read_ack` / `record_ack`), `notify(task, msg, *, important=True)`, and the
+   `run(sweep, *, task_slug, ...)` CLI harness + `SweepResult`. Stdlib-only.
+2. `bootstrap/skills/coga/reminders/SKILL.md` — docs-only battery: the adoption note.
+   Packaged-only (not dogfooded by coga, so no live `coga/skills/` mirror); added to
+   the `test_packaging.py` allowlist so the wheel-build test proves it ships.
+3. `tests/fixtures/reminders/` — `golden/` (the two originals, vendored verbatim,
+   byte-identical to the patents sources), `retrofit/` (engine-backed), and a
+   fake-ticket `tasks/` dir exercising every path.
+4. `tests/test_reminders.py` — 42 tests: engine unit tests (incl. `past_deadline_fires`
+   and ack roundtrip) + stdout parity `golden.main == retrofit.main` across a `--today`
+   matrix + two frozen recorded-sample-run snapshots.
+
+Tests: `tests/test_reminders.py` 42 passed; packaging (wheel build) + validate/skill
+suites green. Full suite: 1543 passed, 1 skipped, **1 pre-existing failure unrelated
+to this change** — `test_launch_script.py::test_script_launch_preserves_cancellation_made_by_script`
+fails on macOS because its fixture uses GNU-only `sed -i` (`sed: invalid command code v`);
+not in any path this change touches. Branch is 1 ahead / 0 behind `origin/main`, tree clean.
+
+Deferred (out of scope, per DoD): the single-reminder `run(window=,satisfied=,summarize=)`
+sugar and the `--ack` harness flag — shaped later by admin's first ack reminder. Live
+patents/admin migrations are downstream follow-ups.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T23:35:50+00:00
+Command: `coga validate --json --fix`
+Task: `ship-a-shared-recurring-reminder-engine-battery`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-24T23:38:29+00:00
+Command: `coga validate --json --fix`
+Task: `ship-a-shared-recurring-reminder-engine-battery`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
