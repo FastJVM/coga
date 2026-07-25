@@ -48,7 +48,7 @@ Stdlib-only and dependency-free (Python >= 3.11). Implementation lives in
   coga-important. Reserve important for a hard-deadline or money obligation — a
   routine reminder does not belong there.
 - **The CLI harness** — `run(sweep, *, task_slug, description="",
-  important=True, argv=None)`. It parses `--today` / `--tasks-dir` / `--notify`,
+  important=False, argv=None)`. It parses `--today` / `--tasks-dir` / `--notify`,
   resolves the date and tasks dir, calls your `sweep`, prints its report, and —
   only under `--notify` — posts each alert (a bare run is print-only). It returns
   0 when handled, non-zero on failure so a script-mode launch posts 💥 and leaves
@@ -99,21 +99,55 @@ standalone originals in `tests/fixtures/reminders/golden/` (see
 - `candidate_sweep.py` — the **time-window** path. One `[filing+14mo,
   filing+15mo)` window that fires once then ages out.
 
-A third example is engine-native — the engine is its first implementation, so
-there is no standalone original to match and it is verified behaviourally:
+Three admin sweeps under `tests/fixtures/reminders/admin/` cover the ack and
+live-query paths:
 
-- `admin/xero_reconcile_sweep.py` — the **ack** path. A monthly reminder whose
+- `admin/xero_reconcile_sweep.py` — the **ack** path. A monthly nudge whose
   `satisfied()` is `read_ack(ticket) == period_for(today)`, with the period the
   prior calendar month (`YYYY-MM`). A missed month goes quiet at rollover; the
-  ack round-trip test (record then re-run) is what locks the shape.
+  ack round-trip test (record then re-run) is what locks the shape. It replaces
+  `admin/coga/skills/xero/reconcile-reminder/remind.py`, but deliberately differs
+  from it — no detection step, and the period runs one month behind — so that
+  script is **not** a parity oracle. See the sweep's docstring for the changeover
+  cost.
 - `admin/brex_missing_receipts_sweep.py` and `admin/brex_missing_gl_sweep.py` —
-  the **live-query** path. `satisfied()` is a Brex query (injected as `fetch` so
-  tests never hit Brex), not a ticket field: no date window, `fire` = the query
-  returns work. Because a missing-receipt/GL backlog is a *running pile* rather
-  than a per-period obligation, the ack is a **date high-water mark**
-  (`Acked: YYYY-MM-DD`) — the sweep flags only expenses incurred after it, so an
-  acknowledged backlog stays quiet while genuinely new gaps still surface, and it
-  self-clears at zero with no ack. Both post to the normal channel.
+  the **live-query** path, retrofits of the admin repo's real Brex scripts.
+  `satisfied()` is a Brex query (injected as `fetch` so tests never hit Brex),
+  not a ticket field: no date window, `fire` = the query returns work. Because a
+  missing-receipt/GL backlog is a *running pile* rather than a per-period
+  obligation, the ack is a **date high-water mark** (`Acked: YYYY-MM-DD`) — the
+  sweep flags only records **posted** after it, so an acknowledged backlog stays
+  quiet while genuinely new gaps still surface, and it self-clears at zero with
+  no ack. Both post to the normal channel.
+
+### The Brex query contract
+
+Worth stating precisely, because an earlier draft of these sweeps guessed it and
+nothing caught the guess — the query was stubbed with `NotImplementedError`, so
+no test ever exercised a real record.
+
+A `/v3/accounting/records?source_type=CARD` record carries **no purchase date**.
+Its only dates are `posted_at` (settlement), `updated_at` and
+`erp_posting_date`. The high-water ack therefore keys on `posted_at`, and a
+charge made in the last days of a month settles into the next one. Also
+load-bearing:
+
+- **Receipts** — a record owes one when `type == "CARD_EXPENSE_POST"` (refunds
+  and adjustments are not purchases), its amount is over the $40 policy
+  threshold, and its `receipts` array is empty.
+- **GL** — the Debit line is the only settable GL on a CARD record, so the probe
+  walks `line_items` → the `DEBIT` line → `accounting_field_values` → the
+  `GL_ACCOUNT` entry and calls it missing when `brex_field_value_id` is unset.
+  A record it cannot read is surfaced, not dropped. Scope is the currently-open
+  fiscal year (Jan 1 `America/Los_Angeles`) — missing GL on a closed year would
+  mean reopening the books.
+- **Paging** — Brex's default `updated_at` window is narrower than any
+  reasonable historical bound and silently returns zero records, so the query
+  passes an explicit wide `updated_at[gt]` and pages on `next_cursor`.
+
+`tests/fixtures/reminders/recorded/brex/` freezes a real record plus both live
+runs (2026-07-25, identifiers aliased) so the next change to this contract is
+checked against what Brex actually sends.
 
 ## Adopting it in a repo
 

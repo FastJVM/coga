@@ -1,24 +1,44 @@
 #!/usr/bin/env python3
-"""Monthly Xero reconciliation reminder — the reference ack-based admin sweep.
+"""Monthly Xero reconciliation nudge — the reference ack-based admin sweep.
 
-The first ack-based reminder to adopt ``coga.reminders``, and the one that pins
-the monthly ack shape the engine deferred:
+A pure nudge: it asks whether last month's books are reconciled and goes quiet
+once told they are. It does no detection of its own.
 
 * **period** — the *prior* calendar month as ``YYYY-MM``. On any day of August
   the books under reconciliation are July's, so the period is ``today``'s month
   minus one.
 * **satisfied()** — the reconcile is done for a period once a human records
   ``Acked: <period>`` in the reconcile ticket's blackboard (``coga.reminders``'
-  sanctioned cross-run state home). No brex/xero-style live query — a human ack
-  is the only signal.
+  sanctioned cross-run state home). No live query — a human ack is the only
+  signal.
 * **quiet at rollover** — the period is recomputed every run, so a missed month
   simply stops nagging when the month turns over (the window closes and the
   period advances). That is intentional: the next month's reconcile surfaces the
   skipped month's backlog anyway, so there is nothing to keep firing about.
 
-Unlike the patents sweeps there is no standalone ``golden`` original to match —
-the engine is this reminder's first implementation, so it is verified
-behaviourally (see ``test_reminders.py``), not by stdout parity.
+Relationship to the deployed script
+-----------------------------------
+``admin/coga/skills/xero/reconcile-reminder/remind.py`` is the reminder this
+replaces. It is **not** a parity oracle, because this sweep deliberately differs
+from it on two points:
+
+* **It drops the detection step.** The deployed script shells out to a
+  Playwright-driven ``xero/reconcile`` run and posts a per-account backlog table.
+  That machinery is being retired; the nudge is the intended replacement, so
+  there is no table to reproduce.
+* **The period runs one month behind it.** The deployed script acks
+  ``current_month()``; this acks the prior month. A deliberate change, not drift
+  — reconciling August's books during August is not a thing you can finish, so
+  the ack now names the month whose books are actually closed.
+
+The second point means recorded ``Acked: YYYY-MM`` state written by the old
+script reads one month ahead of what this expects. On a August 2026 changeover an
+``Acked: 2026-08`` left by the old script will not satisfy this sweep's
+``2026-07`` period, so the first run after the switch fires once. That is the
+intended, visible cost of the change.
+
+Verified behaviourally (see ``test_reminders.py``) plus a recorded live run under
+``tests/fixtures/reminders/recorded/xero/``.
 """
 
 from __future__ import annotations

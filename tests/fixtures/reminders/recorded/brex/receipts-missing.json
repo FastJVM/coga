@@ -1,0 +1,156 @@
+[
+  {
+    "id": "accr_000000000000000000000101",
+    "source_id": "expense_000000000000000000000101",
+    "vendor": "Vendor H",
+    "user": "Cardholder Three",
+    "amount": "USD 200.00",
+    "amount_value": 200.0,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-07-11T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000102",
+    "source_id": "expense_000000000000000000000102",
+    "vendor": "Vendor C",
+    "user": "Cardholder Three",
+    "amount": "USD 200.00",
+    "amount_value": 200.0,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-07-07T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000103",
+    "source_id": "expense_000000000000000000000103",
+    "vendor": "Vendor I",
+    "user": "Cardholder Three",
+    "amount": "USD 663.00",
+    "amount_value": 663.0,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-07-03T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000104",
+    "source_id": "expense_000000000000000000000104",
+    "vendor": "Vendor H",
+    "user": "Cardholder Three",
+    "amount": "USD 171.75",
+    "amount_value": 171.75,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-06-11T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000105",
+    "source_id": "expense_000000000000000000000105",
+    "vendor": "Vendor H",
+    "user": "Cardholder Three",
+    "amount": "USD 200.00",
+    "amount_value": 200.0,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-06-10T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000106",
+    "source_id": "expense_000000000000000000000106",
+    "vendor": "Vendor C",
+    "user": "Cardholder Three",
+    "amount": "USD 200.00",
+    "amount_value": 200.0,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-06-07T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000107",
+    "source_id": "expense_000000000000000000000107",
+    "vendor": "Vendor I",
+    "user": "Cardholder Three",
+    "amount": "USD 638.00",
+    "amount_value": 638.0,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-06-03T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000108",
+    "source_id": "expense_000000000000000000000108",
+    "vendor": "Vendor J",
+    "user": "Cardholder Three",
+    "amount": "USD 40.51",
+    "amount_value": 40.51,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-06-02T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000109",
+    "source_id": "expense_000000000000000000000109",
+    "vendor": "Vendor H",
+    "user": "Cardholder Three",
+    "amount": "USD 45.00",
+    "amount_value": 45.0,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-04-24T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000110",
+    "source_id": "expense_000000000000000000000110",
+    "vendor": "Vendor K",
+    "user": "Cardholder Three",
+    "amount": "USD 53.34",
+    "amount_value": 53.34,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-04-15T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000111",
+    "source_id": "expense_000000000000000000000111",
+    "vendor": "Vendor K",
+    "user": "Cardholder Three",
+    "amount": "USD 54.92",
+    "amount_value": 54.92,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-03-25T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000112",
+    "source_id": "expense_000000000000000000000112",
+    "vendor": "Vendor L",
+    "user": "Cardholder Three",
+    "amount": "USD 55.85",
+    "amount_value": 55.85,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-01-23T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000113",
+    "source_id": "expense_000000000000000000000113",
+    "vendor": "Vendor M",
+    "user": "Cardholder Three",
+    "amount": "USD 59.80",
+    "amount_value": 59.8,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-01-14T12:00:00.000Z"
+  },
+  {
+    "id": "accr_000000000000000000000114",
+    "source_id": "expense_000000000000000000000114",
+    "vendor": "Vendor L",
+    "user": "Cardholder Three",
+    "amount": "USD 55.85",
+    "amount_value": 55.85,
+    "currency": "USD",
+    "review_status": "PREPARE",
+    "posted_at": "2026-01-09T12:00:00.000Z"
+  }
+]

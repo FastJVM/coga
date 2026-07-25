@@ -16,6 +16,8 @@ Two halves:
 from __future__ import annotations
 
 import importlib.util
+import json
+import re
 import subprocess
 import sys
 from datetime import date
@@ -518,76 +520,83 @@ def test_xero_runs_through_the_harness(tmp_path, monkeypatch):
 # ==========================================================================
 #
 # The query path: satisfied() is a live source query, not a ticket field or an
-# ack. Engine-native, so verified behaviourally with an injected fetch (the real
-# Brex query is never touched). No window, no ack; fire = the query returns work.
-# Both post to the *normal* channel.
+# ack. No window, no ack; fire = the query returns work. Both post to the
+# *normal* channel.
+#
+# These sweeps parse raw /v3/accounting/records records, so the tests feed them
+# real ones: `recorded/brex/record-shape.json` is a genuine record captured
+# 2026-07-25, and the recorded runs supply real dates, amounts and counts (names
+# and ids aliased — see that directory's README). The Brex query itself is never
+# touched; `fetch` is injected.
 
 brex_receipts = _load(
     "brex_receipts", FIXTURES / "admin" / "brex_missing_receipts_sweep.py"
 )
 brex_gl = _load("brex_gl", FIXTURES / "admin" / "brex_missing_gl_sweep.py")
 
-
-def _receipt(module, id="e1", incurred="2026-07-02"):
-    return module.Expense(id=id, merchant="Acme", amount="$10.00", incurred=incurred)
+RECORDED_BREX = FIXTURES / "recorded" / "brex"
 
 
-def test_brex_receipts_fires_when_source_reports_missing(tmp_path):
-    sweep = brex_receipts.build_sweep(fetch=lambda: [_receipt(brex_receipts)])
-    result = sweep(date(2026, 7, 15), tmp_path)
-    assert result.alerts and "missing a receipt" in result.alerts[0]
+def _recorded(name: str):
+    return json.loads((RECORDED_BREX / name).read_text(encoding="utf-8"))
 
 
-def test_brex_receipts_quiet_when_source_is_clean(tmp_path):
-    sweep = brex_receipts.build_sweep(fetch=lambda: [])
-    assert sweep(date(2026, 7, 15), tmp_path).alerts == []
+def _record(
+    *,
+    posted_at="2026-07-02T12:00:00.000Z",
+    amount=100.0,
+    currency="USD",
+    vendor="Vendor A",
+    cardholder="Cardholder One",
+    type="CARD_EXPENSE_POST",
+    receipts=(),
+    gl_set=True,
+    line_items=None,
+    source_id="expense_000000000000000000000001",
+):
+    """A Brex accounting record in the real v3 shape.
 
-
-def test_brex_receipts_one_summary_alert_not_per_expense(tmp_path):
-    many = [_receipt(brex_receipts, id=f"e{i}", incurred=f"2026-07-0{i}") for i in (1, 2, 3)]
-    sweep = brex_receipts.build_sweep(fetch=lambda: many)
-    alerts = sweep(date(2026, 7, 15), tmp_path).alerts
-    assert len(alerts) == 1 and "3 Brex expense(s)" in alerts[0]
-
-
-def test_brex_receipts_posts_to_normal_channel_end_to_end(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        brex_receipts, "fetch_missing_receipts", lambda: [_receipt(brex_receipts)]
-    )
-    posted: list[dict] = []
-    monkeypatch.setattr(reminders, "notify", lambda task, msg, **k: posted.append(k) or 0)
-    rc = brex_receipts.main(
-        ["--today", "2026-07-15", "--tasks-dir", str(tmp_path), "--notify"]
-    )
-    assert rc == 0
-    assert len(posted) == 1 and posted[0].get("important") is False
-
-
-def test_brex_gl_fires_when_source_reports_missing(tmp_path):
-    sweep = brex_gl.build_sweep(fetch=lambda: [_receipt(brex_gl)])
-    result = sweep(date(2026, 7, 15), tmp_path)
-    assert result.alerts and "GL code" in result.alerts[0]
-
-
-def test_brex_gl_quiet_when_source_is_clean(tmp_path):
-    assert brex_gl.build_sweep(fetch=lambda: [])(date(2026, 7, 15), tmp_path).alerts == []
-
-
-def test_brex_gl_posts_to_normal_channel_end_to_end(tmp_path, monkeypatch):
-    monkeypatch.setattr(brex_gl, "fetch_missing_gl", lambda: [_receipt(brex_gl)])
-    posted: list[dict] = []
-    monkeypatch.setattr(reminders, "notify", lambda task, msg, **k: posted.append(k) or 0)
-    rc = brex_gl.main(["--today", "2026-07-15", "--tasks-dir", str(tmp_path), "--notify"])
-    assert rc == 0
-    assert len(posted) == 1 and posted[0].get("important") is False
-
-
-# --- high-water ack: acknowledge the backlog, alert only on newer gaps --------
-#
-# Missing receipts/GL are a running pile, not a per-period obligation, so the ack
-# is a date high-water mark (Acked: YYYY-MM-DD): the sweep flags only expenses
-# incurred *after* it. Cadence-independent — the monthly run just shows what's
-# new since the last ack. No ack -> the whole pile; addressing everything -> quiet.
+    Built from the same structure as `record-shape.json` so a test record and a
+    recorded one exercise identical parsing paths.
+    """
+    if line_items is None:
+        gl_value = "efo_0000000000000000000001" if gl_set else None
+        line_items = [
+            {
+                "id": "accrli_000000000000000000000001",
+                "type": "DEBIT",
+                "amount": {"amount": amount, "currency": currency},
+                "accounting_field_values": [
+                    {
+                        "brex_field_id": "extended_field_00000000000000000001",
+                        "remote_field_id": "GL_ACCOUNT",
+                        "field_name": "GL Account",
+                        "brex_field_value_id": gl_value,
+                        "field_value_name": "7500 Other G&A" if gl_set else None,
+                        "type": "IDENTIFIER",
+                    }
+                ],
+            },
+            {
+                "id": "accrli_000000000000000000000002",
+                "type": "CREDIT",
+                "amount": {"amount": amount, "currency": currency},
+                "accounting_field_values": [],
+            },
+        ]
+    return {
+        "id": "accr_000000000000000000000001",
+        "source_id": source_id,
+        "type": type,
+        "posted_at": posted_at,
+        "amount": {"amount": amount, "currency": currency},
+        "receipts": list(receipts),
+        "review_status": "PREPARE",
+        # Trailing whitespace is a real Brex quirk; the sweeps must collapse it.
+        "user": {"first_name": cardholder.split()[0] + " ", "last_name": cardholder.split()[1] + " "},
+        "vendor": {"name": vendor},
+        "line_items": line_items,
+    }
 
 
 def _brex_ticket_dir(base: Path, slug: str, ack: str | None = None) -> Path:
@@ -601,29 +610,273 @@ def _brex_ticket_dir(base: Path, slug: str, ack: str | None = None) -> Path:
     return tasks
 
 
+def _recorded_amount(row: dict) -> float:
+    """The row's amount as a float.
+
+    The two recorded runs render amounts differently — the GL run as
+    `$74.99 USD`, the receipts run as `USD 200.00` — because they come from two
+    scripts with separate formatters. Pull the number out of either.
+    """
+    if "amount_value" in row:
+        return float(row["amount_value"])
+    match = re.search(r"[\d,]+\.\d{2}", row["amount"])
+    assert match, f"no amount in {row['amount']!r}"
+    return float(match.group().replace(",", ""))
+
+
+def _records_from_recorded(rows: list[dict], *, gl_set=True, receipts=()) -> list[dict]:
+    """Recorded rows re-expressed as raw records the sweeps can parse."""
+    return [
+        _record(
+            posted_at=r["posted_at"],
+            amount=_recorded_amount(r),
+            vendor=r["vendor"],
+            cardholder=r["user"],
+            source_id=r["source_id"],
+            gl_set=gl_set,
+            receipts=receipts,
+        )
+        for r in rows
+    ]
+
+
+# --- the recorded contract ---------------------------------------------------
+#
+# The bug these guard against: an earlier draft filtered on an `incurred` field
+# that /v3/accounting/records does not return, and the stubbed query meant no
+# test could catch it.
+
+
+def test_recorded_record_carries_no_purchase_date():
+    """v3 accounting records have no purchase date — only settlement dates.
+
+    If Brex ever adds one, this fails and the high-water ack should be revisited
+    (posted_at lags the purchase, which is why late-month charges roll forward).
+    """
+    record = _recorded("record-shape.json")
+    date_fields = {k for k, v in record.items() if isinstance(v, str) and _looks_iso(v)}
+    # All three are settlement/bookkeeping stamps. None records when the card
+    # was actually swiped, which is why the high-water ack keys on posted_at.
+    assert date_fields == {"posted_at", "updated_at", "erp_posting_date"}, date_fields
+    assert "incurred" not in record
+    assert "purchased_at" not in record
+
+
+def _looks_iso(value: str) -> bool:
+    return len(value) >= 20 and value[4] == "-" and value[7] == "-" and "T" in value
+
+
+def test_recorded_record_has_gl_set_on_the_debit_line():
+    """The recorded record has a GL assigned, so the probe must not flag it."""
+    record = _recorded("record-shape.json")
+    assert brex_gl.is_missing_gl(record) is False
+    debit = next(li for li in record["line_items"] if li["type"] == "DEBIT")
+    gl = next(f for f in debit["accounting_field_values"] if f["remote_field_id"] == "GL_ACCOUNT")
+    assert gl["brex_field_value_id"] is not None
+    # The CREDIT line is the card-liability account and carries no GL fields.
+    credit = next(li for li in record["line_items"] if li["type"] == "CREDIT")
+    assert credit["accounting_field_values"] == []
+
+
+def test_recorded_receipts_run_reproduces_its_pile(tmp_path):
+    """The 14 expenses the live 2026 run found all surface with no ack."""
+    rows = _recorded("receipts-missing.json")
+    assert len(rows) == 14
+    sweep = brex_receipts.build_sweep(fetch=lambda: _records_from_recorded(rows))
+    result = sweep(date(2026, 7, 25), tmp_path)
+    assert "14 expense(s) missing a receipt total." in result.report
+    assert result.alerts and "14 Brex expense(s)" in result.alerts[0]
+    # Oldest in the recorded pile is 2026-01-09.
+    assert "2026-01-09" in result.alerts[0]
+
+
+def test_recorded_receipts_run_high_water_ack_splits_the_real_pile(tmp_path):
+    """Acking through the real pile's midpoint mutes exactly the older half."""
+    rows = _recorded("receipts-missing.json")
+    tasks = _brex_ticket_dir(tmp_path, "brex-missing-receipts", ack="2026-03-31")
+    sweep = brex_receipts.build_sweep(fetch=lambda: _records_from_recorded(rows))
+    result = sweep(date(2026, 7, 25), tasks)
+    expected = sum(1 for r in rows if r["posted_at"][:10] > "2026-03-31")
+    assert 0 < expected < len(rows)  # the recorded pile really does straddle it
+    assert f"{expected} to act on:" in result.report
+    assert f"{len(rows) - expected} acknowledged through 2026-03-31." in result.report
+
+
+def test_recorded_gl_run_reproduces_its_pile(tmp_path):
+    """The 11 charges the live GL run found all surface with no ack."""
+    rows = _recorded("gl-missing.json")
+    assert len(rows) == 11
+    records = _records_from_recorded(rows, gl_set=False)
+    sweep = brex_gl.build_sweep(fetch=lambda: records)
+    result = sweep(date(2026, 7, 25), tmp_path)
+    assert "11 expense(s) missing a GL code total." in result.report
+    assert result.alerts and "11 Brex expense(s)" in result.alerts[0]
+
+
+# --- the query contract: what counts as owing a receipt / a GL code ----------
+
+
+def test_receipts_threshold_excludes_forty_and_under(tmp_path):
+    """Manycore policy: $40 and under needs no receipt. The boundary is exact."""
+    sweep = brex_receipts.build_sweep(
+        fetch=lambda: [_record(amount=40.0), _record(amount=40.01)]
+    )
+    assert "1 expense(s) missing a receipt total." in sweep(date(2026, 7, 25), tmp_path).report
+
+
+def test_receipts_only_posted_purchases_need_one(tmp_path):
+    """Refunds and adjustments are not purchases."""
+    sweep = brex_receipts.build_sweep(
+        fetch=lambda: [_record(type="CARD_EXPENSE_REFUND"), _record(type="CARD_EXPENSE_POST")]
+    )
+    assert "1 expense(s) missing a receipt total." in sweep(date(2026, 7, 25), tmp_path).report
+
+
+def test_receipts_attached_receipt_clears_the_record(tmp_path):
+    sweep = brex_receipts.build_sweep(
+        fetch=lambda: [_record(receipts=[{"download_uris": ["https://example.invalid/r"]}])]
+    )
+    assert sweep(date(2026, 7, 25), tmp_path).alerts == []
+
+
+def test_gl_probe_flags_unset_debit_gl(tmp_path):
+    sweep = brex_gl.build_sweep(fetch=lambda: [_record(gl_set=False), _record(gl_set=True)])
+    assert "1 expense(s) missing a GL code total." in sweep(date(2026, 7, 25), tmp_path).report
+
+
+@pytest.mark.parametrize(
+    "line_items",
+    [
+        pytest.param([], id="no-line-items"),
+        pytest.param([{"type": "CREDIT", "accounting_field_values": []}], id="no-debit-line"),
+        pytest.param([{"type": "DEBIT", "accounting_field_values": []}], id="no-accounting-fields"),
+        pytest.param(
+            [{"type": "DEBIT", "accounting_field_values": [{"remote_field_id": "DEPARTMENT"}]}],
+            id="no-gl-field",
+        ),
+    ],
+)
+def test_gl_probe_fails_safe_on_malformed_records(line_items):
+    """A record the probe cannot read is surfaced, never silently dropped."""
+    assert brex_gl.is_missing_gl(_record(line_items=line_items)) is True
+
+
+def test_gl_horizon_excludes_closed_fiscal_years(tmp_path):
+    """Missing GL on a closed year is not actionable — it would reopen the books."""
+    sweep = brex_gl.build_sweep(
+        fetch=lambda: [
+            _record(posted_at="2025-12-31T23:00:00.000Z", gl_set=False),  # closed year
+            _record(posted_at="2026-06-01T12:00:00.000Z", gl_set=False),  # open year
+        ]
+    )
+    assert "1 expense(s) missing a GL code total." in sweep(date(2026, 7, 25), tmp_path).report
+
+
+def test_gl_horizon_is_company_local_new_year(tmp_path):
+    """The cutoff is Jan 1 in America/Los_Angeles, not UTC.
+
+    A charge settling 2026-01-01T04:00Z is 2025-12-31 20:00 in LA — still the
+    closed year — so it must not surface.
+    """
+    cutoff = brex_gl.fiscal_year_cutoff(date(2026, 7, 25))
+    assert cutoff == "2026-01-01T08:00:00Z"
+    sweep = brex_gl.build_sweep(
+        fetch=lambda: [_record(posted_at="2026-01-01T04:00:00.000Z", gl_set=False)]
+    )
+    assert sweep(date(2026, 7, 25), tmp_path).alerts == []
+
+
+def test_gl_horizon_follows_today_not_import_time(tmp_path):
+    """--today drives the horizon, so a dated run is reproducible."""
+    assert brex_gl.fiscal_year_cutoff(date(2025, 3, 1)) == "2025-01-01T08:00:00Z"
+    assert brex_gl.fiscal_year_cutoff(date(2026, 3, 1)) == "2026-01-01T08:00:00Z"
+
+
+def test_cardholder_name_collapses_brex_trailing_whitespace():
+    record = _recorded("record-shape.json")
+    name = brex_receipts.cardholder_name(record)
+    assert name == name.strip() and "  " not in name
+
+
+def test_brex_receipts_fires_when_source_reports_missing(tmp_path):
+    sweep = brex_receipts.build_sweep(fetch=lambda: [_record()])
+    result = sweep(date(2026, 7, 15), tmp_path)
+    assert result.alerts and "missing a receipt" in result.alerts[0]
+
+
+def test_brex_receipts_quiet_when_source_is_clean(tmp_path):
+    sweep = brex_receipts.build_sweep(fetch=lambda: [])
+    assert sweep(date(2026, 7, 15), tmp_path).alerts == []
+
+
+def test_brex_receipts_one_summary_alert_not_per_expense(tmp_path):
+    many = [_record(posted_at=f"2026-07-0{i}T12:00:00.000Z") for i in (1, 2, 3)]
+    sweep = brex_receipts.build_sweep(fetch=lambda: many)
+    alerts = sweep(date(2026, 7, 15), tmp_path).alerts
+    assert len(alerts) == 1 and "3 Brex expense(s)" in alerts[0]
+
+
+def test_brex_receipts_posts_to_normal_channel_end_to_end(tmp_path, monkeypatch):
+    monkeypatch.setattr(brex_receipts, "fetch_card_records", lambda: [_record()])
+    posted: list[dict] = []
+    monkeypatch.setattr(reminders, "notify", lambda task, msg, **k: posted.append(k) or 0)
+    rc = brex_receipts.main(
+        ["--today", "2026-07-15", "--tasks-dir", str(tmp_path), "--notify"]
+    )
+    assert rc == 0
+    assert len(posted) == 1 and posted[0].get("important") is False
+
+
+def test_brex_gl_fires_when_source_reports_missing(tmp_path):
+    sweep = brex_gl.build_sweep(fetch=lambda: [_record(gl_set=False)])
+    result = sweep(date(2026, 7, 15), tmp_path)
+    assert result.alerts and "GL code" in result.alerts[0]
+
+
+def test_brex_gl_quiet_when_source_is_clean(tmp_path):
+    assert brex_gl.build_sweep(fetch=lambda: [])(date(2026, 7, 15), tmp_path).alerts == []
+
+
+def test_brex_gl_posts_to_normal_channel_end_to_end(tmp_path, monkeypatch):
+    monkeypatch.setattr(brex_gl, "fetch_card_records", lambda: [_record(gl_set=False)])
+    posted: list[dict] = []
+    monkeypatch.setattr(reminders, "notify", lambda task, msg, **k: posted.append(k) or 0)
+    rc = brex_gl.main(["--today", "2026-07-15", "--tasks-dir", str(tmp_path), "--notify"])
+    assert rc == 0
+    assert len(posted) == 1 and posted[0].get("important") is False
+
+
+# --- high-water ack: acknowledge the backlog, alert only on newer gaps --------
+#
+# Missing receipts/GL are a running pile, not a per-period obligation, so the ack
+# is a date high-water mark (Acked: YYYY-MM-DD): the sweep flags only records
+# posted *after* it. Cadence-independent — the monthly run just shows what's new
+# since the last ack. No ack -> the whole pile; addressing everything -> quiet.
+
+
 def test_brex_receipts_ack_mutes_old_pile_but_new_fires(tmp_path):
     tasks = _brex_ticket_dir(tmp_path, "brex-missing-receipts", ack="2026-07-10")
-    old = _receipt(brex_receipts, id="old", incurred="2026-06-15")  # <= ack -> muted
-    new = _receipt(brex_receipts, id="new", incurred="2026-07-20")  # >  ack -> flagged
+    old = _record(posted_at="2026-06-15T12:00:00.000Z")  # <= ack -> muted
+    new = _record(posted_at="2026-07-20T12:00:00.000Z")  # >  ack -> flagged
     alerts = brex_receipts.build_sweep(fetch=lambda: [old, new])(date(2026, 8, 1), tasks).alerts
     assert len(alerts) == 1 and "1 Brex expense(s)" in alerts[0]
 
 
 def test_brex_receipts_ack_through_whole_pile_goes_quiet(tmp_path):
     tasks = _brex_ticket_dir(tmp_path, "brex-missing-receipts", ack="2026-07-31")
-    pile = [_receipt(brex_receipts, id=f"e{i}", incurred=f"2026-07-0{i}") for i in (1, 2, 3)]
+    pile = [_record(posted_at=f"2026-07-0{i}T12:00:00.000Z") for i in (1, 2, 3)]
     assert brex_receipts.build_sweep(fetch=lambda: pile)(date(2026, 8, 1), tasks).alerts == []
 
 
 def test_brex_receipts_ack_roundtrip(tmp_path):
     tasks = _brex_ticket_dir(tmp_path, "brex-missing-receipts", ack=None)
     ticket = tasks / "brex-missing-receipts" / "ticket.md"
-    pile = [_receipt(brex_receipts, id="a", incurred="2026-07-02")]
+    pile = [_record(posted_at="2026-07-02T12:00:00.000Z")]
     fires = brex_receipts.build_sweep(fetch=lambda: pile)
     assert fires(date(2026, 7, 15), tasks).alerts           # backlog fires
     reminders.record_ack(ticket, "2026-07-15")              # draw the line at today
     assert fires(date(2026, 7, 16), tasks).alerts == []     # backlog now muted
-    later = pile + [_receipt(brex_receipts, id="b", incurred="2026-07-20")]
+    later = pile + [_record(posted_at="2026-07-20T12:00:00.000Z")]
     assert brex_receipts.build_sweep(fetch=lambda: later)(date(2026, 8, 1), tasks).alerts  # new gap fires
 
 
@@ -633,5 +886,5 @@ def test_brex_gl_self_clears_without_ack_but_ack_is_available(tmp_path):
     assert brex_gl.build_sweep(fetch=lambda: [])(date(2026, 8, 1), clean).alerts == []
     # ...but the same ack escape hatch is there for a deferred batch:
     acked = _brex_ticket_dir(tmp_path / "acked", "brex-missing-gl", ack="2026-07-31")
-    pile = [_receipt(brex_gl, id="g1", incurred="2026-07-05")]
+    pile = [_record(posted_at="2026-07-05T12:00:00.000Z", gl_set=False)]
     assert brex_gl.build_sweep(fetch=lambda: pile)(date(2026, 8, 1), acked).alerts == []
