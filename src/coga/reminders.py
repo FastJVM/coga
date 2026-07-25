@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
+from coga.taskfile import read_blackboard, replace_blackboard
+
 # --------------------------------------------------------------------------
 # Date arithmetic
 # --------------------------------------------------------------------------
@@ -145,16 +147,17 @@ def default_tasks_dir() -> Path | None:
 _ACK_PREFIX = "Acked:"
 
 
-def read_ack(blackboard: Path) -> str | None:
+def read_ack(ticket: Path) -> str | None:
     """The recorded ``Acked: <period>`` marker in a reminder's blackboard, or ``None``.
 
     The ack is the universal ``satisfied()`` fallback: a reminder is satisfied for
     a period once a human — or a ``coga recurring ack`` wrapper — has recorded that
-    period here. State lives in the reminder's own blackboard, coga's sanctioned
-    cross-run state home, not in a period task that is reaped each run.
+    period in ``ticket`` below its ``<!-- coga:blackboard -->`` fence. State lives
+    in the reminder's own blackboard, coga's sanctioned cross-run state home, not
+    in a period task that is reaped each run.
     """
     try:
-        text = blackboard.read_text(encoding="utf-8")
+        text = read_blackboard(ticket)
     except (OSError, UnicodeDecodeError):
         return None
     for line in text.splitlines():
@@ -164,16 +167,14 @@ def read_ack(blackboard: Path) -> str | None:
     return None
 
 
-def record_ack(blackboard: Path, period: str) -> None:
-    """Record ``Acked: <period>`` in ``blackboard``, replacing any prior marker.
+def record_ack(ticket: Path, period: str) -> None:
+    """Record ``Acked: <period>`` in ``ticket``'s blackboard region.
 
     Rewrites the single ``Acked:`` line in place when present, else appends one.
+    The ticket body and frontmatter remain byte-for-byte unchanged.
     """
     line = f"{_ACK_PREFIX} {period}"
-    try:
-        text = blackboard.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        text = ""
+    text = read_blackboard(ticket)
     lines = text.splitlines()
     for i, existing in enumerate(lines):
         if existing.strip().startswith(_ACK_PREFIX):
@@ -183,7 +184,7 @@ def record_ack(blackboard: Path, period: str) -> None:
         if lines and lines[-1].strip():
             lines.append("")
         lines.append(line)
-    blackboard.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    replace_blackboard(ticket, "\n".join(lines) + "\n")
 
 
 # --------------------------------------------------------------------------

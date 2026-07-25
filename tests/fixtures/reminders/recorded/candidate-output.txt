@@ -1,0 +1,9 @@
+Candidate first-office-action sweep — as of 2026-07-21
+Checked 4 candidate ticket(s).
+
+Needs a filing date (3):
+  ? patent-cip-unknown-2023  (app —)  — patent_filing_date is blank; set it so this candidate can be windowed
+  ? patent-dynamic-dispatch  (app 19/688,069)  — patent_filing_date is blank; set it so this candidate can be windowed
+  ? patent-simafacation-of-program-code  (app 19/215,558)  — patent_filing_date is blank; set it so this candidate can be windowed
+
+Flagged (0): no candidate in its 14-month window this run.

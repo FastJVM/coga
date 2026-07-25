@@ -29,6 +29,7 @@ from coga import reminders
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "reminders"
 MAINTENANCE_TASKS = FIXTURES / "tasks" / "maintenance"
 CANDIDATE_TASKS = FIXTURES / "tasks" / "candidate"
+RECORDED = FIXTURES / "recorded"
 
 
 def _load(name: str, path: Path):
@@ -172,32 +173,59 @@ def test_default_tasks_dir_unset_returns_none(monkeypatch):
 
 
 def test_read_ack_absent(tmp_path):
-    bb = tmp_path / "ticket.md"
-    bb.write_text("some notes\n", encoding="utf-8")
-    assert reminders.read_ack(bb) is None
+    ticket = tmp_path / "ticket.md"
+    ticket.write_text(
+        "---\nslug: example\n---\n\nBody\n\n<!-- coga:blackboard -->\n\nsome notes\n",
+        encoding="utf-8",
+    )
+    assert reminders.read_ack(ticket) is None
 
 
 def test_record_then_read_ack(tmp_path):
-    bb = tmp_path / "ticket.md"
-    bb.write_text("some notes\n", encoding="utf-8")
-    reminders.record_ack(bb, "2026-07")
-    assert reminders.read_ack(bb) == "2026-07"
-    assert "some notes" in bb.read_text()
+    ticket = tmp_path / "ticket.md"
+    ticket.write_text(
+        "---\nslug: example\n---\n\nBody\n\n<!-- coga:blackboard -->\n\nsome notes\n",
+        encoding="utf-8",
+    )
+    reminders.record_ack(ticket, "2026-07")
+    assert reminders.read_ack(ticket) == "2026-07"
+    assert "some notes" in ticket.read_text()
 
 
 def test_record_ack_replaces_prior(tmp_path):
-    bb = tmp_path / "ticket.md"
-    bb.write_text("notes\nAcked: 2026-06\nmore\n", encoding="utf-8")
-    reminders.record_ack(bb, "2026-07")
-    assert reminders.read_ack(bb) == "2026-07"
+    ticket = tmp_path / "ticket.md"
+    ticket.write_text(
+        "---\nslug: example\n---\n\nBody\n\n<!-- coga:blackboard -->"
+        "\n\nnotes\nAcked: 2026-06\nmore\n",
+        encoding="utf-8",
+    )
+    reminders.record_ack(ticket, "2026-07")
+    assert reminders.read_ack(ticket) == "2026-07"
     # Exactly one Acked line survives.
-    assert bb.read_text().count("Acked:") == 1
+    assert ticket.read_text().count("Acked:") == 1
 
 
-def test_record_ack_on_missing_file(tmp_path):
-    bb = tmp_path / "ticket.md"
-    reminders.record_ack(bb, "2026-07")
-    assert reminders.read_ack(bb) == "2026-07"
+def test_ack_ignores_body_examples_and_preserves_body(tmp_path):
+    ticket = tmp_path / "ticket.md"
+    before_fence = (
+        "---\nslug: example\n---\n\n"
+        "Example syntax: `Acked: YYYY-MM`.\n\n"
+        "Acked: not-live-state\n\n"
+        "<!-- coga:blackboard -->"
+    )
+    ticket.write_text(before_fence + "\n\nAcked: 2026-06\n", encoding="utf-8")
+
+    assert reminders.read_ack(ticket) == "2026-06"
+    reminders.record_ack(ticket, "2026-07")
+
+    updated = ticket.read_text(encoding="utf-8")
+    assert (
+        updated.partition("<!-- coga:blackboard -->")[0]
+        + "<!-- coga:blackboard -->"
+        == before_fence
+    )
+    assert reminders.read_ack(ticket) == "2026-07"
+    assert "Acked: not-live-state" in updated
 
 
 # --- notify ----------------------------------------------------------------
@@ -357,38 +385,19 @@ def test_candidate_retrofit_matches_golden(today, capsys, monkeypatch):
 # Recorded sample runs — frozen golden snapshots (format-stability lock)
 # ==========================================================================
 
-MAINTENANCE_SAMPLE = """\
-Maintenance-fee window sweep — as of 2026-07-13
-Checked 4 granted patents (5 with a patent number).
-  ! 1 have a patent number but no grant date (skipped): patent-nograntdate
-  - 1 in a window but already recorded paid (not flagged).
-
-Flagged (2):
-  * patent-w2-flag  #333  — Window 2 (grant+7yr): open 2026-01-01 -> 2027-01-01; fee 2 not recorded (patent_maintenance_paid=1)
-  * patent-w1-unpaid  #111  — Window 1 (grant+3yr): open 2026-01-31 -> 2027-01-31; fee 1 not recorded (patent_maintenance_paid=0)
-"""
-
-CANDIDATE_SAMPLE = """\
-Candidate first-office-action sweep — as of 2027-03-19
-Checked 4 candidate ticket(s).
-  ! 1 carry a patent number (already granted — the sync should have advanced them, not swept here): patent-cand-granted
-
-Needs a filing date (1):
-  ? patent-cand-needsfiling  (app 19/688,069)  — patent_filing_date is blank; set it so this candidate can be windowed
-
-Unreadable filing date (1):
-  ! patent-cand-unreadable  (app 19/000,001)  — patent_filing_date='2026-13-99' does not parse (YYYY-MM-DD expected)
-
-Flagged (1):
-  * patent-cand-inwindow  (app 19/452,611)  — filed 2026-01-19; first-office-action deadline 2027-03-19 (filing+14mo); window closes 2027-04-19 (check where the utility filing stands)
-"""
-
-
 def test_maintenance_recorded_sample_run(capsys, monkeypatch):
-    argv = ["--today", "2026-07-13", "--tasks-dir", str(MAINTENANCE_TASKS)]
-    assert _capture(retrofit_maintenance, argv, capsys, monkeypatch) == MAINTENANCE_SAMPLE
+    tasks = RECORDED / "maintenance"
+    expected = (RECORDED / "maintenance-output.txt").read_text(encoding="utf-8")
+    argv = ["--today", "2026-07-13", "--tasks-dir", str(tasks)]
+    golden = _capture(golden_maintenance, argv, capsys, monkeypatch)
+    actual = _capture(retrofit_maintenance, argv, capsys, monkeypatch)
+    assert actual == golden == expected
 
 
 def test_candidate_recorded_sample_run(capsys, monkeypatch):
-    argv = ["--today", "2027-03-19", "--tasks-dir", str(CANDIDATE_TASKS)]
-    assert _capture(retrofit_candidate, argv, capsys, monkeypatch) == CANDIDATE_SAMPLE
+    tasks = RECORDED / "candidate"
+    expected = (RECORDED / "candidate-output.txt").read_text(encoding="utf-8")
+    argv = ["--today", "2026-07-21", "--tasks-dir", str(tasks)]
+    golden = _capture(golden_candidate, argv, capsys, monkeypatch)
+    actual = _capture(retrofit_candidate, argv, capsys, monkeypatch)
+    assert actual == golden == expected

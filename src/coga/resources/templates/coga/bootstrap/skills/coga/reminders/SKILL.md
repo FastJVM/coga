@@ -53,6 +53,11 @@ Stdlib-only and dependency-free (Python >= 3.11). Implementation lives in
   0 when handled, non-zero on failure so a script-mode launch posts 💥 and leaves
   the task inspectable.
 
+This first battery deliberately stops at the shared primitives and sweep
+harness. A higher-level single-reminder API that accepts `window=`,
+`satisfied=`, and a uniform `--ack` is deferred until the first ack-based admin
+reminder adopts the engine and supplies a concrete period/ack shape.
+
 ## What each reminder supplies
 
 Write one `sweep(today, tasks_dir) -> reminders.SweepResult` that:

@@ -1,0 +1,7 @@
+Maintenance-fee window sweep — as of 2026-07-13
+Checked 8 granted patents (8 with a patent number).
+  - 1 in a window but already recorded paid (not flagged).
+
+Flagged (2):
+  * patent-code-parallelization  #10466988  — Window 2 (grant+7yr): open 2025-12-04 -> 2026-12-04; fee 2 not recorded (patent_maintenance_paid=1)
+  * patent-branch-removal-2  #11567744  — Window 1 (grant+3yr): open 2026-01-31 -> 2027-01-31; fee 1 not recorded (patent_maintenance_paid=0)
