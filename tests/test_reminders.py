@@ -231,7 +231,7 @@ def test_ack_ignores_body_examples_and_preserves_body(tmp_path):
 # --- notify ----------------------------------------------------------------
 
 
-def test_notify_important_by_default(monkeypatch):
+def test_notify_defaults_to_normal_channel(monkeypatch):
     calls = []
     monkeypatch.setattr(
         reminders.subprocess,
@@ -240,19 +240,20 @@ def test_notify_important_by_default(monkeypatch):
     )
     rc = reminders.notify("repo/x", "hello")
     assert rc == 0
-    assert calls == [["coga", "slack", "--task", "repo/x", "--message", "hello", "--important"]]
+    assert calls == [["coga", "slack", "--task", "repo/x", "--message", "hello"]]
+    assert "--important" not in calls[0]
 
 
-def test_notify_can_drop_important(monkeypatch):
+def test_notify_can_opt_into_important(monkeypatch):
     calls = []
     monkeypatch.setattr(
         reminders.subprocess,
         "run",
         lambda cmd, *a, **k: calls.append(cmd) or subprocess.CompletedProcess(cmd, 7),
     )
-    rc = reminders.notify("repo/x", "hi", important=False)
+    rc = reminders.notify("repo/x", "hi", important=True)
     assert rc == 7
-    assert "--important" not in calls[0]
+    assert calls[0][-1] == "--important"
 
 
 # --- run() harness ---------------------------------------------------------
@@ -304,7 +305,20 @@ def test_run_notify_posts_each_alert(tmp_path, monkeypatch, capsys):
     )
     assert rc == 0
     assert [m for _, m, _ in posted] == ["alert-1", "alert-2"]
-    assert all(k.get("important") is True for _, _, k in posted)
+    # Quiet channel by default now — a sweep opts into important when it matters.
+    assert all(k.get("important") is False for _, _, k in posted)
+
+
+def test_run_notify_important_opt_in_propagates(tmp_path, monkeypatch):
+    posted = []
+    monkeypatch.setattr(reminders, "notify", lambda task, msg, **k: posted.append(k) or 0)
+    reminders.run(
+        _ok_sweep("R", ["a"]),
+        task_slug="repo/x",
+        important=True,
+        argv=["--tasks-dir", str(tmp_path), "--notify"],
+    )
+    assert posted and posted[0].get("important") is True
 
 
 def test_run_notify_uses_env_task_slug(tmp_path, monkeypatch):
@@ -483,14 +497,17 @@ def test_xero_quiet_at_rollover_even_if_a_month_was_missed(tmp_path):
 
 
 def test_xero_runs_through_the_harness(tmp_path, monkeypatch):
-    """End-to-end via run(): --notify posts exactly one alert when due."""
+    """End-to-end via run(): --notify posts one alert, to the *normal* channel."""
     tasks = _reconcile_tasks_dir(tmp_path, ack=None)
-    posted: list[str] = []
+    posted: list[tuple[str, dict]] = []
     monkeypatch.setattr(
-        reminders, "notify", lambda task, msg, **k: posted.append(msg) or 0
+        reminders, "notify", lambda task, msg, **k: posted.append((msg, k)) or 0
     )
     rc = xero_reconcile.main(
         ["--today", "2026-08-15", "--tasks-dir", str(tasks), "--notify"]
     )
     assert rc == 0
-    assert len(posted) == 1 and "2026-07" in posted[0]
+    assert len(posted) == 1
+    msg, kwargs = posted[0]
+    assert "2026-07" in msg
+    assert kwargs.get("important") is False  # a routine reconcile stays off coga-important

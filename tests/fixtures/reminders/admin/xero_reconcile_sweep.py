@@ -54,7 +54,7 @@ def satisfied(ticket: Path, today: date) -> bool:
 
 
 def reconcile_message(period: str) -> str:
-    """One-line coga-important alert for an unreconciled month."""
+    """One-line alert for an unreconciled month (posts to the normal coga channel)."""
     return (
         f"⚠️ Xero reconciliation due — reconcile {period}'s books, then record "
         f"`Acked: {period}` on the {RECONCILE_SLUG} ticket."

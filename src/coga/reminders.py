@@ -192,15 +192,16 @@ def record_ack(ticket: Path, period: str) -> None:
 # --------------------------------------------------------------------------
 
 
-def notify(task: str, message: str, *, important: bool = True) -> int:
+def notify(task: str, message: str, *, important: bool = False) -> int:
     """Post ``message`` to coga's Slack, returning the ``coga slack`` exit code.
 
     Shells out to ``coga slack`` (no coga import — a downstream sweep script may
-    run where only the CLI is on PATH). ``important`` routes to the coga-important
-    channel (``coga slack --important``), the default because a firing reminder is
-    unfinished work a human must act on; drop it for an informational fire. coga
-    reads the webhook from the environment and fails loud if it is unset, so a
-    missing webhook surfaces as a non-zero return here.
+    run where only the CLI is on PATH). Posts to the normal coga channel by
+    default; pass ``important=True`` to route to the coga-important channel
+    (``coga slack --important``). Reserve important for the rare hard-deadline or
+    money obligation that must not lapse silently — a routine reminder does not
+    belong there. coga reads the webhook from the environment and fails loud if
+    it is unset, so a missing webhook surfaces as a non-zero return here.
     """
     cmd = ["coga", "slack", "--task", task, "--message", message]
     if important:
@@ -231,7 +232,7 @@ def run(
     *,
     task_slug: str,
     description: str = "",
-    important: bool = True,
+    important: bool = False,
     argv: list[str] | None = None,
 ) -> int:
     """The shared ``--today`` / ``--tasks-dir`` / ``--notify`` CLI harness.
@@ -239,7 +240,10 @@ def run(
     ``sweep`` is ``sweep(today: date, tasks_dir: Path) -> SweepResult`` — it owns
     record loading, the window spec, the ``satisfied()`` rule, and formatting.
     The harness resolves ``today`` / ``tasks_dir``, prints the report, and under
-    ``--notify`` posts each alert (a bare run is print-only). ``task_slug`` is the
+    ``--notify`` posts each alert (a bare run is print-only). Alerts go to the
+    normal coga Slack channel; pass ``important=True`` to route them to
+    coga-important — reserve that for a hard-deadline or money obligation.
+    ``task_slug`` is the
     ``coga slack --task`` fallback when ``$COGA_TASK_SLUG`` is unset (a standalone
     run). Returns 0 when handled, non-zero on failure so a script-mode launch
     posts 💥 and leaves the task inspectable.
@@ -260,7 +264,7 @@ def run(
     parser.add_argument(
         "--notify",
         action="store_true",
-        help="Post a coga-important alert per fired obligation (bare run is print-only).",
+        help="Post an alert per fired obligation to coga Slack (bare run is print-only).",
     )
     args = parser.parse_args(argv)
 
@@ -274,8 +278,9 @@ def run(
     print(result.report)
 
     if args.notify and result.alerts:
+        channel = "coga-important" if important else "coga"
         print(
-            f"\nPosting {len(result.alerts)} alert(s) to the coga-important channel …",
+            f"\nPosting {len(result.alerts)} alert(s) to the {channel} channel …",
             file=sys.stderr,
         )
         task = os.environ.get("COGA_TASK_SLUG") or task_slug

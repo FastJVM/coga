@@ -165,6 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         _sweep,
         task_slug=SWEEP_TASK_SLUG,
         description="Flag utility patents inside an unpaid maintenance-fee window.",
+        important=True,  # a lapsing maintenance fee is a hard-deadline money obligation
         argv=argv,
     )
 

@@ -43,9 +43,10 @@ Stdlib-only and dependency-free (Python >= 3.11). Implementation lives in
   sanctioned cross-run state home. Ack is the universal `satisfied()` fallback,
   not the only path: a caller that can auto-detect satisfaction (query a source
   and return `True` when the obligation is provably met) does not need it.
-- **Notify** — `notify(task, message, *, important=True)` shells to `coga slack`.
-  It defaults to `--important` because a firing reminder is unfinished work a
-  human must act on; pass `important=False` for an informational fire.
+- **Notify** — `notify(task, message, *, important=False)` shells to `coga slack`.
+  It posts to the normal channel by default; pass `important=True` to route to
+  coga-important. Reserve important for a hard-deadline or money obligation — a
+  routine reminder does not belong there.
 - **The CLI harness** — `run(sweep, *, task_slug, description="",
   important=True, argv=None)`. It parses `--today` / `--tasks-dir` / `--notify`,
   resolves the date and tasks dir, calls your `sweep`, prints its report, and —
@@ -78,9 +79,10 @@ def main(argv=None):
                          description="…", argv=argv)
 ```
 
-The engine posts each `alert` only under `--notify`, defaulting to
-`coga slack --important`. To lower the level for an informational reminder, pass
-`important=False` to `run`.
+The engine posts each `alert` only under `--notify`, to the normal `coga slack`
+channel. Pass `important=True` to `run` to route alerts to coga-important —
+reserve it for a hard-deadline or money obligation (e.g. a maintenance fee that
+lapses), so the important channel stays rare.
 
 ## Worked examples
 

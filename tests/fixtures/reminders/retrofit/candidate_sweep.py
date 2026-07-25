@@ -218,6 +218,7 @@ def main(argv: list[str] | None = None) -> int:
         _sweep,
         task_slug=SWEEP_TASK_SLUG,
         description="Flag candidate patents reaching their 14-month first-office-action mark.",
+        important=True,  # a first-office-action deadline is time-critical for patents
         argv=argv,
     )
 
