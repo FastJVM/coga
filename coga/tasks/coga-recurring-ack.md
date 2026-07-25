@@ -30,4 +30,7 @@ hand-edit the blackboard, which is not viable for monthly use.
   date high-water `Acked: YYYY-MM-DD`.
 - The sweep owns what the ack value means, so the CLI records whatever the
   reminder's `period_for(today)` returns.
+- Default: `coga recurring ack <name>` computes the current value from the
+  reminder's `period_for(today)`; `--period <value>` overrides it, for acking a
+  past period or setting a specific high-water date.
 - Depends on the reminder engine landing. See the `coga/reminders` SKILL.
