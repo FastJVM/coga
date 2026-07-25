@@ -511,3 +511,72 @@ def test_xero_runs_through_the_harness(tmp_path, monkeypatch):
     msg, kwargs = posted[0]
     assert "2026-07" in msg
     assert kwargs.get("important") is False  # a routine reconcile stays off coga-important
+
+
+# ==========================================================================
+# Admin query sweeps — the live-source shape (Brex missing receipts / GL)
+# ==========================================================================
+#
+# The query path: satisfied() is a live source query, not a ticket field or an
+# ack. Engine-native, so verified behaviourally with an injected fetch (the real
+# Brex query is never touched). No window, no ack; fire = the query returns work.
+# Both post to the *normal* channel.
+
+brex_receipts = _load(
+    "brex_receipts", FIXTURES / "admin" / "brex_missing_receipts_sweep.py"
+)
+brex_gl = _load("brex_gl", FIXTURES / "admin" / "brex_missing_gl_sweep.py")
+
+
+def _receipt(module, id="e1", incurred="2026-07-02"):
+    return module.Expense(id=id, merchant="Acme", amount="$10.00", incurred=incurred)
+
+
+def test_brex_receipts_fires_when_source_reports_missing(tmp_path):
+    sweep = brex_receipts.build_sweep(fetch=lambda: [_receipt(brex_receipts)])
+    result = sweep(date(2026, 7, 15), tmp_path)
+    assert result.alerts and "missing a receipt" in result.alerts[0]
+
+
+def test_brex_receipts_quiet_when_source_is_clean(tmp_path):
+    sweep = brex_receipts.build_sweep(fetch=lambda: [])
+    assert sweep(date(2026, 7, 15), tmp_path).alerts == []
+
+
+def test_brex_receipts_one_summary_alert_not_per_expense(tmp_path):
+    many = [_receipt(brex_receipts, id=f"e{i}", incurred=f"2026-07-0{i}") for i in (1, 2, 3)]
+    sweep = brex_receipts.build_sweep(fetch=lambda: many)
+    alerts = sweep(date(2026, 7, 15), tmp_path).alerts
+    assert len(alerts) == 1 and "3 Brex expense(s)" in alerts[0]
+
+
+def test_brex_receipts_posts_to_normal_channel_end_to_end(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        brex_receipts, "fetch_missing_receipts", lambda: [_receipt(brex_receipts)]
+    )
+    posted: list[dict] = []
+    monkeypatch.setattr(reminders, "notify", lambda task, msg, **k: posted.append(k) or 0)
+    rc = brex_receipts.main(
+        ["--today", "2026-07-15", "--tasks-dir", str(tmp_path), "--notify"]
+    )
+    assert rc == 0
+    assert len(posted) == 1 and posted[0].get("important") is False
+
+
+def test_brex_gl_fires_when_source_reports_missing(tmp_path):
+    sweep = brex_gl.build_sweep(fetch=lambda: [_receipt(brex_gl)])
+    result = sweep(date(2026, 7, 15), tmp_path)
+    assert result.alerts and "GL code" in result.alerts[0]
+
+
+def test_brex_gl_quiet_when_source_is_clean(tmp_path):
+    assert brex_gl.build_sweep(fetch=lambda: [])(date(2026, 7, 15), tmp_path).alerts == []
+
+
+def test_brex_gl_posts_to_normal_channel_end_to_end(tmp_path, monkeypatch):
+    monkeypatch.setattr(brex_gl, "fetch_missing_gl", lambda: [_receipt(brex_gl)])
+    posted: list[dict] = []
+    monkeypatch.setattr(reminders, "notify", lambda task, msg, **k: posted.append(k) or 0)
+    rc = brex_gl.main(["--today", "2026-07-15", "--tasks-dir", str(tmp_path), "--notify"])
+    assert rc == 0
+    assert len(posted) == 1 and posted[0].get("important") is False
