@@ -54,9 +54,11 @@ Stdlib-only and dependency-free (Python >= 3.11). Implementation lives in
   the task inspectable.
 
 This first battery deliberately stops at the shared primitives and sweep
-harness. A higher-level single-reminder API that accepts `window=`,
-`satisfied=`, and a uniform `--ack` is deferred until the first ack-based admin
-reminder adopts the engine and supplies a concrete period/ack shape.
+harness. The ack shape is now concrete — the monthly Xero reconciliation sweep
+(below) pins it: the period is the *prior* calendar month as `YYYY-MM`, and a
+reminder is satisfied once its blackboard carries `Acked: <period>`. A
+higher-level single-reminder API that folds `window=` / `satisfied=` / a uniform
+`--ack` into `run()` can build on that shape but is not shipped yet.
 
 ## What each reminder supplies
 
@@ -91,6 +93,14 @@ standalone originals in `tests/fixtures/reminders/golden/` (see
   windows; `satisfied()` is `patent_maintenance_paid == window_number`.
 - `candidate_sweep.py` — the **time-window** path. One `[filing+14mo,
   filing+15mo)` window that fires once then ages out.
+
+A third example is engine-native — the engine is its first implementation, so
+there is no standalone original to match and it is verified behaviourally:
+
+- `admin/xero_reconcile_sweep.py` — the **ack** path. A monthly reminder whose
+  `satisfied()` is `read_ack(ticket) == period_for(today)`, with the period the
+  prior calendar month (`YYYY-MM`). A missed month goes quiet at rollover; the
+  ack round-trip test (record then re-run) is what locks the shape.
 
 ## Adopting it in a repo
 

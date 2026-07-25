@@ -401,3 +401,96 @@ def test_candidate_recorded_sample_run(capsys, monkeypatch):
     golden = _capture(golden_candidate, argv, capsys, monkeypatch)
     actual = _capture(retrofit_candidate, argv, capsys, monkeypatch)
     assert actual == golden == expected
+
+
+# ==========================================================================
+# Admin ack sweep — the monthly Xero-reconcile ack shape
+# ==========================================================================
+#
+# The first ack-based admin reminder to adopt the engine. It is engine-native
+# (no golden oracle), so it is verified behaviourally. These tests are what pin
+# the deferred period/ack shape: the period is the *prior* calendar month as
+# ``YYYY-MM``, and the reminder goes quiet once ``Acked: <period>`` is recorded.
+
+xero_reconcile = _load(
+    "xero_reconcile", FIXTURES / "admin" / "xero_reconcile_sweep.py"
+)
+
+
+def _reconcile_tasks_dir(tmp_path, ack: str | None = None) -> Path:
+    """A tmp tasks dir holding the single reconcile ticket, optionally pre-acked."""
+    tasks = tmp_path / "tasks"
+    ticket = tasks / "xero-reconciliation" / "ticket.md"
+    ticket.parent.mkdir(parents=True)
+    body = (
+        "---\nslug: xero-reconciliation\ntitle: Monthly Xero reconciliation\n---\n\n"
+        "## Description\nReconcile last month's Xero books, then record the ack.\n\n"
+        "<!-- coga:blackboard -->\n"
+    )
+    if ack is not None:
+        body += f"\nAcked: {ack}\n"
+    ticket.write_text(body, encoding="utf-8")
+    return tasks
+
+
+def _fires(tasks_dir: Path, today: str) -> bool:
+    return bool(xero_reconcile._sweep(date.fromisoformat(today), tasks_dir).alerts)
+
+
+def test_xero_period_is_prior_month():
+    assert xero_reconcile.period_for(date(2026, 8, 1)) == "2026-07"
+    assert xero_reconcile.period_for(date(2026, 8, 31)) == "2026-07"
+    assert xero_reconcile.period_for(date(2026, 1, 15)) == "2025-12"  # year rollover
+
+
+def test_xero_unacked_month_fires(tmp_path):
+    tasks = _reconcile_tasks_dir(tmp_path, ack=None)
+    assert _fires(tasks, "2026-08-15")  # July not acked -> due
+
+
+def test_xero_ack_of_current_period_suppresses(tmp_path):
+    tasks = _reconcile_tasks_dir(tmp_path, ack="2026-07")
+    assert not _fires(tasks, "2026-08-15")  # July acked -> quiet
+
+
+def test_xero_stale_ack_still_fires(tmp_path):
+    tasks = _reconcile_tasks_dir(tmp_path, ack="2026-06")  # last month's ack
+    assert _fires(tasks, "2026-08-15")  # period is 2026-07, not 2026-06 -> due
+
+
+def test_xero_ack_roundtrip_defines_the_shape(tmp_path):
+    """record_ack(period_for(today)) must silence the very next run.
+
+    The write side (period_for) and the read side (satisfied) producing the same
+    string for the same day *is* the shape being correct.
+    """
+    tasks = _reconcile_tasks_dir(tmp_path, ack=None)
+    ticket = tasks / "xero-reconciliation" / "ticket.md"
+    today = date(2026, 8, 15)
+    assert xero_reconcile._sweep(today, tasks).alerts  # fires first
+    reminders.record_ack(ticket, xero_reconcile.period_for(today))
+    assert not xero_reconcile._sweep(today, tasks).alerts  # now quiet
+    assert reminders.read_ack(ticket) == "2026-07"
+
+
+def test_xero_quiet_at_rollover_even_if_a_month_was_missed(tmp_path):
+    """A skipped month goes quiet at rollover; the new month is what now fires."""
+    tasks = _reconcile_tasks_dir(tmp_path, ack=None)  # July never acked
+    assert xero_reconcile.period_for(date(2026, 9, 10)) == "2026-08"
+    assert _fires(tasks, "2026-09-10")  # asks about August, not the missed July
+    reminders.record_ack(tasks / "xero-reconciliation" / "ticket.md", "2026-08")
+    assert not _fires(tasks, "2026-09-10")  # acking August silences it
+
+
+def test_xero_runs_through_the_harness(tmp_path, monkeypatch):
+    """End-to-end via run(): --notify posts exactly one alert when due."""
+    tasks = _reconcile_tasks_dir(tmp_path, ack=None)
+    posted: list[str] = []
+    monkeypatch.setattr(
+        reminders, "notify", lambda task, msg, **k: posted.append(msg) or 0
+    )
+    rc = xero_reconcile.main(
+        ["--today", "2026-08-15", "--tasks-dir", str(tasks), "--notify"]
+    )
+    assert rc == 0
+    assert len(posted) == 1 and "2026-07" in posted[0]
