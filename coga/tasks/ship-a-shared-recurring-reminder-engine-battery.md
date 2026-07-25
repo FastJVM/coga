@@ -255,9 +255,54 @@ Git: committed and pushed `repair-branch`
 
 Result: no remaining validation drift found.
 
+## Peer review (2026-07-24)
+
+- Feature worktree is clean on `reminder-engine`; the branch is 1 commit ahead
+  and 3 commits behind `origin/main`.
+- `codex review --base main` could not start in the managed launch:
+  `failed to initialize in-process app-server client: Operation not permitted`.
+  Zach authorized a fresh cold-review subagent as the equivalent independent
+  review path.
+- Cold review verification: golden scripts are byte-identical to patents;
+  focused reminder/packaging tests 46 passed; full suite 1543 passed, 1 skipped,
+  with only the known macOS GNU-`sed -i` fixture failure (also on `main`).
+- Finding 1 (must-fix): `read_ack` / `record_ack` search the entire ticket,
+  rather than only the region below `<!-- coga:blackboard -->`; body prose can
+  be mistaken for state or overwritten.
+- Finding 2 (design decision): `run()` accepts an already-evaluated sweep and
+  does not itself compose window + `satisfied()`, the auto-detect→ack fallback,
+  or `--ack`. This conflicts with the task's broad contract but matches Zach's
+  recorded Option A decision to defer single-reminder sugar and `--ack`.
+- Finding 3 (must-fix): the tests label synthetic snapshots as the recorded
+  patents sample runs; the real recorded outputs were not vendored/proven.
+- Asked Zach whether to preserve Option A and fix findings 1/3, or expand the
+  API now to address finding 2.
+- Zach approved preserving Option A: fix ack blackboard safety and recorded-run
+  fixtures; clarify that higher-level `window=` / `satisfied=` / `--ack`
+  orchestration remains deferred until the first ack-based admin adoption.
+- Launch sandbox blocker: `/Users/zach2179/dev/coga-reminder-engine` is readable
+  but not writable, and the primary checkout's `.git` is read-only. Applying
+  the review patch failed, as did creating an in-repo review worktree/branch
+  (`cannot lock ref ... Operation not permitted`). No feature code was changed.
+  Relaunch with the feature worktree and git metadata writable.
+
 ## Dream Skill: validate-drift
 
 Generated: 2026-07-24T23:38:29+00:00
+Command: `coga validate --json --fix`
+Task: `ship-a-shared-recurring-reminder-engine-battery`
+
+Applied fixes: 1.
+
+- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
+
+Git: committed and pushed `repair-branch`
+
+Result: no remaining validation drift found.
+
+## Dream Skill: validate-drift
+
+Generated: 2026-07-25T01:17:29+00:00
 Command: `coga validate --json --fix`
 Task: `ship-a-shared-recurring-reminder-engine-battery`
 
