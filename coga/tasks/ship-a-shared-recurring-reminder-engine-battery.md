@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/period-task
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -221,6 +221,25 @@ Design note surfaced (not blocking): the harness requires a valid `--tasks-dir` 
 for an external-query reminder that reads no tickets (brex passes a throwaway dir).
 Left as-is for consistency with the deferral discipline — add a `needs_tasks_dir=False`
 option when admin's first reminder actually adopts the engine, rather than speculate now.
+
+Second admin sweep — Brex missing-GL (fiscal-year window, external `satisfied()` =
+no current-year CARD charge missing a Debit GL account). Reused admin's `missing_gl.py`
+verbatim. Live read-only: 1104 CARD records, 133 in scope (FY2026), 11 missing a GL
+account. `--notify` posted admin's own Slack message to coga-important; `coga slack
+--important` returned `posted` (webhook 200), engine exit 0.
+
+So the engine is validated across FOUR distinct shapes: patents auto-detect (ticket
+field), patents time-window, admin monthly external-query (receipts), admin fiscal-year
+external-query (missing-GL). Two real coga-important posts landed during testing (both
+authorized by Zach).
+
+Recurring coverage (answer to Zach): `check-receipts-in-brex` is a LIVE monthly template
+(`schedule: "0 9 1 * *"`), so the receipts items are caught by real `coga recurring`.
+`brex-missing-gl` is NOT scheduled (still `draft` in admin's `recurring-buildout/`), so
+those 11 missing-GL charges are not otherwise auto-surfaced — which is why the coga-important
+post for it was worth sending. Both are admin-repo concerns, out of scope for this ticket.
+None of the Brex scratch scripts are committed (live-cred + admin-repo deps; real recurring
+covers receipts).
 
 ## Dream Skill: validate-drift
 
