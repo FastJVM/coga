@@ -2933,3 +2933,7 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-25 14:19 [ship-a-shared-recurring-reminder-engine-battery] [agent:codex] slack: 🏷️ 11 Brex expense(s) missing a GL code (oldest 2026-06-02, Google USD 25.20). Set the Debit GL in Brex, or ack to acknowledge the backlog.
 2026-07-25 14:19 [ship-a-shared-recurring-reminder-engine-battery] [agent:codex] slack: ⚠️ Xero reconciliation due — reconcile 2026-07's books, then record `Acked: 2026-07` on the xero-reconciliation ticket.
 2026-07-26 11:51 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
+2026-07-26 14:05 [bootstrap/orient] [agent:claude] slack: [reminder-engine E2E test] Candidate sweep vs live patents tickets (4 candidates) — 1 flagged:
+  * patent-simafacation-of-program-code (app 19/215,558) — filed 2025-05-22; first-office-action deadline 2026-07-22 (filing+14mo), 4 days past; window closes 2026-08-22
+  ? 2 candidates missing patent_filing_date: patent-cip-unknown-2023, patent-dynamic-dispatch
+Test run of the shared reminder engine against real data — not a production alert.
