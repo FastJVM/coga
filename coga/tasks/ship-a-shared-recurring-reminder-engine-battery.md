@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: zach
 contexts:
 - coga/period-task
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 4 (review)
 ---
 
 ## Description
@@ -166,12 +166,28 @@ codebase gotcha "tests must not pin to live dogfooded state").
 ## Dev
 
 branch: reminder-engine
-worktree: /Users/zach2179/dev/coga-reminder-engine
+worktree: /private/tmp/coga-reminder-peer-review.9N76Li/repo
+pr: https://github.com/FastJVM/coga/pull/651
 
 Decision: Option A — thin engine (shared primitives + notify + ack helpers + a
 `run()` CLI harness driving a caller-supplied `sweep()`). Defer the single-reminder
 `run(window=,satisfied=,summarize=)` sugar until admin's first ack reminder shapes it.
 Ack helpers ship; the two parity sweeps don't use ack (DoD: ack proven later).
+
+### open-pr recovery note (2026-07-24)
+The peer-review evaluator ran sandboxed and made the linked worktree read-only,
+so its fixes landed in an independent temp clone (`worktree:` above) as commit
+`63e84bef` (implement + `peer-review: apply reminder engine findings`, rebased
+onto current `origin/main`, 2 ahead / 0 behind). This repo's *local*
+`reminder-engine` (`8c6f225b`) stayed stale (implement-only, old base) and is
+NOT what shipped. `coga open-pr` couldn't run because the primary checkout is on
+`v2/sequence-op-webhook-tickets`, not `main`. With Zach's approval, recovered
+manually: verified the temp-clone branch clean/fresh/ahead with a sane reminders-only
+diff, pushed it to `origin/reminder-engine`, and opened PR #651 by hand (same
+title + `## PR` body `coga open-pr` would have used). The good work is now durable
+on GitHub. Follow-up hygiene: the durable worktree `/Users/zach2179/dev/coga-reminder-engine`
+still has the stale local `reminder-engine`; reconcile it to `origin/reminder-engine`
+when convenient (a `git reset --hard` was declined by the safety classifier during recovery).
 
 ## Implemented (2026-07-24) — committed on `reminder-engine`, ready for self-review
 
@@ -280,11 +296,18 @@ Result: no remaining validation drift found.
 - Zach approved preserving Option A: fix ack blackboard safety and recorded-run
   fixtures; clarify that higher-level `window=` / `satisfied=` / `--ack`
   orchestration remains deferred until the first ack-based admin adoption.
-- Launch sandbox blocker: `/Users/zach2179/dev/coga-reminder-engine` is readable
-  but not writable, and the primary checkout's `.git` is read-only. Applying
-  the review patch failed, as did creating an in-repo review worktree/branch
-  (`cannot lock ref ... Operation not permitted`). No feature code was changed.
-  Relaunch with the feature worktree and git metadata writable.
+- The recorded linked worktree was read-only in this launch, so review continued
+  in the supported independent-clone fallback now recorded under `## Dev`.
+- Fixed ack helpers to use Coga's fence-aware blackboard reader/writer, with a
+  regression proving ticket body examples are ignored and preserved.
+- Replaced the mislabeled synthetic snapshots with frozen inputs and outputs for
+  the patents production runs: maintenance 2026-07-13 and candidate 2026-07-21.
+- Documented the approved Option A boundary in the bundled adoption guide.
+- Committed as `peer-review: apply reminder engine findings`, fetched
+  `origin/main`, and rebased cleanly. Branch is clean and 2 commits ahead.
+- Post-rebase verification: focused reminder/packaging suite 46 passed; full
+  suite 1543 passed, 1 skipped, with only the known macOS GNU-`sed -i` fixture
+  failure that reproduces on `main`.
 
 ## Dream Skill: validate-drift
 
@@ -299,6 +322,18 @@ Applied fixes: 1.
 Git: committed and pushed `repair-branch`
 
 Result: no remaining validation drift found.
+
+## PR
+
+Ship a stdlib-only `coga.reminders` battery with shared date/window primitives,
+fence-aware ack state, notification plumbing, and a print-first CLI harness.
+Bundle the adoption guide plus two engine-backed patents retrofits, proving
+byte-for-byte parity against the original scripts and their frozen production
+runs. Higher-level `window=` / `satisfied=` / `--ack` orchestration remains
+deliberately deferred until the first ack-based admin adoption supplies its
+concrete period shape.
+
+Tests: `python -m pytest` — 1543 passed, 1 skipped; one pre-existing macOS GNU-`sed -i` fixture failure reproduces on `main`.
 
 ## Dream Skill: validate-drift
 
