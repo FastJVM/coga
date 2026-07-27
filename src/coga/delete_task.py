@@ -1,60 +1,85 @@
-"""Shared execution of the bundled task-deletion skill."""
+"""The single implementation of Coga task deletion.
+
+Two spellings, one body: `coga delete <task>` (which adds the resolution
+flags and the control-branch sync every other state mutation performs) and the
+`delete-task` registered recipe, `coga run delete-task <task>` (the bare
+working-tree removal, which is also what the `bootstrap/delete-task` skill
+contract names). Recovery is via `git restore`; git history is the audit
+trail, so deletion posts no Slack broadcast.
+
+Both task shapes are handled, keyed off the resolved ticket path:
+
+- **Directory form** (`<dir>/ticket.md`) — removes that one task directory and
+  nothing else, after confirming it holds the ticket.
+- **File form** (`tasks/<slug>.md`) — removes that single file only. It never
+  touches the parent (a shared `tasks/` subtree), so a self-contained task can
+  be deleted without risking its neighbours.
+"""
 
 from __future__ import annotations
 
-import os
-import subprocess
+import shutil
+import sys
+from pathlib import Path
 
-from coga.commands.launch_script import build_script_command
 from coga.config import Config
-from coga.paths import resolve_skill_path, skill_resolution_paths
-from coga.skill import Skill
-from coga.task_env import build_task_env, host_repo_root
-from coga.tasks import TaskRef
+from coga.tasks import TaskNotFoundError, TaskRef, resolve_task
 
 
 class DeleteTaskError(RuntimeError):
-    """The bundled task-deletion skill could not remove its target."""
+    """Task deletion refused to remove its target."""
 
 
-def run_delete_task_skill(cfg: Config, ref: TaskRef) -> str:
-    """Run the single task-deletion implementation and return its stdout.
+def run_delete_task(ref: TaskRef) -> str:
+    """Delete one resolved task and return the report line.
 
     Callers own synchronization. `coga delete` lands the removal immediately;
     recurring replacement recreates the task at the same path and syncs that
     replacement as one state transition.
     """
-    skill_file = resolve_skill_path(cfg, "bootstrap/delete-task")
-    if skill_file is None:
-        checked = ", ".join(
-            str(p)
-            for p in skill_resolution_paths(cfg, "bootstrap/delete-task")
-        )
-        raise DeleteTaskError(
-            "Delete skill 'bootstrap/delete-task' not found. "
-            f"Checked: {checked}. Reinstall or update coga so the packaged "
-            "bundled skills are present."
-        )
-    skill = Skill.load(skill_file)
-    if not skill.script:
-        raise DeleteTaskError(
-            f"Delete skill {skill.name!r} has no `script:` in frontmatter."
-        )
-    script_path = skill.dir / skill.script
-    if not script_path.is_file():
-        raise DeleteTaskError(f"Delete skill script not found: {script_path}")
+    ticket = ref.ticket_path
+    if not ticket.is_file():
+        raise DeleteTaskError(f"{ticket} is not a file — refusing to delete")
 
-    env = os.environ.copy()
-    env.update(build_task_env(cfg, ref, skill))
-    result = subprocess.run(
-        build_script_command(script_path),
-        env=env,
-        cwd=host_repo_root(cfg),
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or f"script exited with {result.returncode}"
-        raise DeleteTaskError(detail)
-    return result.stdout
+    if ticket.name == "ticket.md":
+        # Directory form: remove the whole task directory (ticket + siblings).
+        shutil.rmtree(ticket.parent)
+        target: Path = ticket.parent
+    else:
+        # File form: remove just the single-file ticket; leave the parent
+        # (a shared tasks/ subtree) untouched.
+        ticket.unlink()
+        target = ticket
+
+    return f"{ref.id_slug}: deleted {target}\n"
+
+
+def run_delete_task_recipe(cfg: Config, argv: list[str]) -> int:
+    """`coga run delete-task <task>` — remove one task from the working tree.
+
+    The removal only; landing it on the control branch is `coga delete`'s job.
+    """
+    if len(argv) != 1 or not argv[0].strip():
+        sys.stderr.write(
+            "Usage: coga run delete-task <task> — exactly one task ref is "
+            f"required (got {len(argv)}).\n"
+        )
+        return 2
+
+    try:
+        ref = resolve_task(cfg, argv[0].strip())
+    except TaskNotFoundError as exc:
+        sys.stderr.write(f"delete-task: {exc}\n")
+        return 2
+
+    try:
+        report = run_delete_task(ref)
+    except DeleteTaskError as exc:
+        sys.stderr.write(f"delete-task: {exc}\n")
+        return 2
+
+    sys.stdout.write(report)
+    return 0
+
+
+__all__ = ["DeleteTaskError", "run_delete_task", "run_delete_task_recipe"]

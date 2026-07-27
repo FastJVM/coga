@@ -276,14 +276,42 @@ def test_failed_script_launch_still_refreshes_launch_checkout(
     assert len(refreshed) == 1
 
 
-def test_packaged_open_pr_script_launch_is_stateless(
+def _install_bootstrap_script_ticket(repo: Path, *, exit_code: int = 0) -> Path:
+    """Seed a repo-local `bootstrap/probe` command ticket backed by a script.
+
+    A `coga/bootstrap/<name>/` ticket resolves the same way the packaged ones
+    do, so it exercises the stateless bootstrap launch path without depending
+    on which command tickets happen to ship.
+    """
+    ticket_dir = repo / "bootstrap" / "probe"
+    _write(
+        ticket_dir / "ticket.md",
+        """
+        ---
+        title: Probe
+        assignee: system
+        secrets: null
+        script: run.sh
+        ---
+
+        ## Description
+
+        Stateless script command ticket used by the launch tests.
+        """,
+    )
+    script = ticket_dir / "run.sh"
+    script.write_text(f"#!/bin/sh\nexit {exit_code}\n")
+    script.chmod(0o755)
+    return ticket_dir
+
+
+def test_bootstrap_script_launch_is_stateless(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(
-        "PYTHONPATH", str(Path(__file__).resolve().parents[1] / "src")
-    )
-    result = CliRunner().invoke(app, ["launch", "bootstrap/open-pr"])
-    assert result.exit_code == 2, result.output
+    _install_bootstrap_script_ticket(repo)
+
+    result = CliRunner().invoke(app, ["launch", "bootstrap/probe"])
+    assert result.exit_code == 0, result.output
 
     cfg = load_config(repo)
     assert list_tasks(cfg) == []
@@ -680,8 +708,9 @@ def test_bootstrap_script_stale_control_exit_skips_refresh(
         raise SystemExit(coga_git.STALE_CONTROL_EXIT_CODE)
 
     monkeypatch.setattr(launch_script, "run_script_mode", refuse_stale)
+    _install_bootstrap_script_ticket(repo)
 
-    result = CliRunner().invoke(app, ["launch", "bootstrap/open-pr"])
+    result = CliRunner().invoke(app, ["launch", "bootstrap/probe"])
 
     assert result.exit_code == coga_git.STALE_CONTROL_EXIT_CODE
     assert refreshed == []

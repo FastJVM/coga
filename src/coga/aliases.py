@@ -50,12 +50,12 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
 # recurring launch dream``. ``build`` is similarly the first-run alias for
 # ``launch coga-build``. ``skill-update`` and ``autoclose`` launch ordinary
 # recurring tasks on demand, while ``pick`` is the short spelling for the
-# interactive megalaunch picker. ``open-pr`` fronts the ``bootstrap/open-pr``
-# command ticket — the argv rewrite carries the task ref through to the
-# launch arg channel (``coga open-pr <slug>`` → ``launch bootstrap/open-pr
-# <slug>`` → ``COGA_ARG_1``). ``resolve-conflicts`` fronts an agent-backed
-# command ticket; its optional PR selector reaches the appended launch-argument
-# prompt block through the same argv rewrite.
+# interactive megalaunch picker. ``open-pr`` is the short spelling for the
+# registered ``open-pr`` recipe — the argv rewrite hands the task ref to the
+# generic runner as ordinary argv (``coga open-pr <slug>`` → ``run open-pr
+# <slug>``), with no ``COGA_ARG_*`` channel involved. ``resolve-conflicts``
+# fronts an agent-backed command ticket; its optional PR selector reaches the
+# appended launch-argument prompt block through the same argv rewrite.
 DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
@@ -63,7 +63,7 @@ DEFAULT_ALIASES: dict[str, str] = {
     "skill-update": "recurring launch skill-update",
     "autoclose": "recurring launch autoclose-merged",
     "pick": "megalaunch --pick",
-    "open-pr": "launch bootstrap/open-pr",
+    "open-pr": "run open-pr",
     "resolve-conflicts": "launch bootstrap/resolve-conflicts",
 }
 

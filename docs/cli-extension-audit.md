@@ -73,13 +73,13 @@ remaining argv passes through unchanged.
 | `show` | built-in | No | Reads + Rich-renders ticket/blackboard/log. |
 | `bump` | built-in | No | Advances `step:`, appends `log.md`, post-write validate. |
 | `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (`recipe: autoclose` → `coga.autoclose.sweep_merged`). (See gotcha.) |
-| `delete` | built-in | No | Resolves slug → runs `bootstrap/delete-task` skill with injected env. Thin, but resolves + executes a script. |
+| `delete` | built-in | No | Resolves slug → `coga.delete_task` removal + control-branch sync. Thin, but resolves, removes, and lands the removal. |
 | `retire` | built-in | No | Scaffolds a one-shot `retire-<slug>` task straight to `active` + launches it. |
 | `block` / `unblock` | built-in | No | Records/resolves concrete blocker asks, owns blocked-state transitions, syncs state, and notifies. |
 | `slack` | built-in | No | Posts FYI to Slack. |
 | `digest` | built-in | No | Spool read → git fetch → render → post → state update. (See digest disambiguation.) |
 | `validate` | built-in | No | Static repo/config diagnostic, `--fix` creates missing files. |
-| `run` | thin built-in + fixed `coga.runner.RECIPES` table | No | Forwards ordinary trailing argv to one of eight explicit importable core recipes; no env translation, entry-point discovery, or skill plugins. |
+| `run` | thin built-in + fixed `coga.runner.RECIPES` table | No | Forwards ordinary trailing argv to one of ten explicit importable core recipes; no env translation, entry-point discovery, or skill plugins. |
 | `skill` (group) | built-in | No | `gh skill` wrapper: install/update/remove/status, provenance, digests. |
 | `mark` (group) | built-in | No | Status transitions + Slack + workflow gating + post-write validate. |
 | `recurring` (group) | thin built-in scan head + registered `recurring-scan` recipe / `coga.recurring_runner` | No | The public head converts flags to ordinary argv; the runner does schedule scan, get-or-create, recipe-or-launch dispatch, lifecycle bookkeeping, and dedup high-water mark. |
@@ -97,11 +97,11 @@ implementation, not a fixed rewrite to another command.
 | `project` | `coga project` built-in | No | Interview + multi-draft scaffold + TTY guard; not a passthrough. |
 | `recurring-scan` | `coga recurring` command head + fixed `coga run recurring-scan` recipe | No | The bootstrap target is gone. The public command forwards `--interactive` / `--force` / `--agent` as ordinary argv; `--all <path>` dispatches the same recipe in each discovered repo. |
 | `browser-automation` | unaliased `launch bootstrap/browser-automation` | Not currently | Intentional agent-backed orchestration entry point; it remains available through its full launch spelling. |
-| `open-pr` | `open-pr` default alias → `launch bootstrap/open-pr` | Yes — already aliased | Stateless script command ticket; the target task ref reaches `COGA_ARG_1`. |
+| `open-pr` | `open-pr` default alias → `run open-pr` | Yes — already aliased | Registered recipe (`coga.open_pr`); the target task ref is ordinary argv. The command ticket it used to be is retired. |
 | `resolve-conflicts` | `resolve-conflicts` default alias → `launch bootstrap/resolve-conflicts` | Yes — already aliased | Stateless agent command ticket; its optional PR selector reaches the `## Launch arguments` block. |
 
 The packaged bootstrap-ticket inventory is `orient`, `project`, `ticket`,
-`browser-automation`, `open-pr`, and `resolve-conflicts`.
+`browser-automation`, and `resolve-conflicts`.
 Browser automation is the one intentionally unaliased launch target.
 
 ### Recurring launches (`recurring launch <name>`)
@@ -163,15 +163,16 @@ pure-passthrough set for aliasing is exactly the two named above.
 
 - **`bootstrap/import` and `bootstrap/delete-task` are *skills*, not launch
   tickets.** Neither has a `ticket.md`, so neither is a `resolve_bootstrap`
-  target and neither can be an alias. `bootstrap/delete-task` is the single
-  implementation behind `coga delete` (also runnable as a script
-  step); `bootstrap/import` is the judgment layer used during ticket authoring,
+  target and neither can be an alias. `bootstrap/delete-task` is the skill
+  contract for the deletion behind `coga delete` and the `delete-task` recipe;
+  `bootstrap/import` is the judgment layer used during ticket authoring,
   not a launchable thing. Do not mistake a `bootstrap/skills/...` path for an
   aliasable bootstrap ticket.
 
 - **`DEFAULT_ALIASES` ships eight.** `chat`, `dream`, `build`,
   `skill-update`, `autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
-  The last two demonstrate script-backed and agent-backed command tickets.
+  `open-pr` fronts a registered recipe; `resolve-conflicts` demonstrates the
+  agent-backed command ticket.
 
 ## Architecture: how far the ticket model reaches
 
@@ -205,8 +206,8 @@ command: does `launch` call it *while running* (kernel), or does a human/cron ca
 it *to start* a launch (movable)? Nothing else is kernel.
 
 **Most current built-ins are not kernel — they're fused or already external.**
-`automerge`/`digest`/`delete` already run as a sweep skill / post step /
-delete-task skill. `coga ticket` is the worked collapsed case: its authoring
+`automerge`/`digest`/`delete` already run as a registered sweep recipe / post
+step / the shared `coga.delete_task` removal. `coga ticket` is the worked collapsed case: its authoring
 conversation is the `bootstrap/ticket` launch target already, its post-exit
 validate + git-sync lives in `coga.authoring` and is exposed as the
 `coga/ticket/finalize` script skill (same shape as the autoclose sweep), and the
@@ -247,6 +248,6 @@ the audit's path to it.
 - autoclose sweep + module: `coga/workflows/autoclose-merged/sweep.md`,
   `coga.autoclose.sweep_merged`.
 - Bootstrap tickets: package
-  `bootstrap/{browser-automation,open-pr,orient,project,recurring-scan,resolve-conflicts,ticket}/ticket.md`.
+  `bootstrap/{browser-automation,orient,project,resolve-conflicts,ticket}/ticket.md`.
 - Recurring templates: `coga/recurring/{autoclose-merged,digest,dream,skill-update}/`.
 - Alias test coverage (not `coga validate`): `tests/test_aliases.py`.

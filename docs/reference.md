@@ -79,8 +79,8 @@ env vars, while *agent* launches receive the ordered values in an appended
 
 Run one deterministic Coga recipe from the fixed core registry. The known
 names are `autoclose`, `digest`, `blocker-reminders`, `branch-sweep`,
-`validate-drift`, `cleanup-orphan-markers`, `recurring-scan`, and
-`skill-update`; unknown names exit 2 and list that set.
+`validate-drift`, `cleanup-orphan-markers`, `recurring-scan`, `skill-update`,
+`open-pr`, and `delete-task`; unknown names exit 2 and list that set.
 
 Trailing arguments are forwarded as an ordinary `list[str]`, preserving token
 boundaries and option spelling. Unlike the retained script-launch path, this
@@ -91,8 +91,8 @@ command exit code. An invocation from an agent inherits the current task's
 
 Recipes are an explicit Coga surface, not a plugin API: installed skills and
 config cannot add names. The old `coga launch` script seam remains available
-for `bootstrap/open-pr`, `bootstrap/delete-task`, ticket-owned/inline scripts,
-and project-local script steps during the migration.
+for the vestigial show/finalize wrappers, ticket-owned/inline scripts, and
+project-local script steps during the migration.
 
 ### `coga launch bootstrap/browser-automation`
 A stateless setup session that turns a concrete browser task into durable,
@@ -228,13 +228,12 @@ put), preserving the step.
 
 ### `coga open-pr TASK`
 Push the branch recorded under `## Dev` on the blackboard and open (or ready) its
-PR. A default alias for `coga launch bootstrap/open-pr TASK` — a stateless
-script launch of the packaged open-pr command ticket. Run it from the primary
-control checkout when `worktree:` is a separate linked checkout; when it records
-the primary checkout itself, run it there on the feature branch from the task's
-active launch session (the seam matches `COGA_EXPECTED_TASK`, which that outer
-launch pins and no nested launch rewrites, to prove the checkout owns the live
-ticket). The command reads `branch:`/`worktree:`, commits the pending generated
+PR. A default alias for `coga run open-pr TASK`, the registered `open-pr`
+recipe. Run it from the primary control checkout when `worktree:` is a separate
+linked checkout; when it records the primary checkout itself, run it there on
+the feature branch from the task's active launch session (it matches
+`COGA_EXPECTED_TASK`, which that launch pins and nothing downstream reassigns,
+to prove the checkout owns the live ticket). The command reads `branch:`/`worktree:`, commits the pending generated
 launch-log append, confirms the recorded checkout is clean and ahead of `main`,
 accepts only byte-identical generated task/log overlaps, and rejects a
 single-checkout branch whose only commits are generated task/log state. It
@@ -386,7 +385,7 @@ so they work whether or not `coga.toml` names them:
 | `coga skill-update` | `coga recurring launch skill-update` |
 | `coga autoclose` | `coga recurring launch autoclose-merged` |
 | `coga pick` | `coga megalaunch --pick` |
-| `coga open-pr` | `coga launch bootstrap/open-pr` |
+| `coga open-pr` | `coga run open-pr` |
 | `coga resolve-conflicts` | `coga launch bootstrap/resolve-conflicts` |
 
 The packaged `coga.toml` writes out only `chat`, `build`, `pick`, and `dream`;

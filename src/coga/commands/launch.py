@@ -202,11 +202,11 @@ def launch(
     ticket = _read(ref)
 
     # A stateless script launch is a command ticket being invoked as a verb
-    # (`coga open-pr <slug>` = `coga launch bootstrap/open-pr <slug>`). Its
-    # stdout is the command's own — open-pr's is a bare PR URL — so the
-    # launcher's framing goes to stderr, still visible to a human, out of the
-    # way of a caller capturing the output. Every command ticket inherits this;
-    # moving a verb behind a ticket must not change what the verb prints.
+    # (`coga <verb> [args]` = `coga launch bootstrap/<verb> [args]`). Its
+    # stdout is the command's own, so the launcher's framing goes to stderr,
+    # still visible to a human, out of the way of a caller capturing the
+    # output. Every command ticket inherits this; moving a verb behind a ticket
+    # must not change what the verb prints.
     command_ticket = is_bootstrap and is_script_launch(cfg, ticket)
 
     typer.echo(

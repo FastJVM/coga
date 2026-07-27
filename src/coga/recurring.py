@@ -15,7 +15,7 @@ from croniter import CroniterError, croniter
 
 from coga.create import create_task
 from coga.config import Config
-from coga.delete_task import DeleteTaskError, run_delete_task_skill
+from coga.delete_task import DeleteTaskError, run_delete_task
 from coga.logfile import append_log
 from coga.paths import recurring_dir, resolve_skill_path, resolve_workflow_path
 from coga.period_state import write_snapshot
@@ -421,7 +421,7 @@ def create_template(
             and not _period_already_serviced(template, period_key)
         ):
             # A completed task is terminal. If Dream did not reap it, delete
-            # that prior-period artifact through the canonical deletion skill,
+            # that prior-period artifact through the canonical deletion path,
             # then create a genuinely fresh task from the current template.
             if not allow_agent and not _template_runs_headless(cfg, template):
                 raise RecurringError(
@@ -431,7 +431,7 @@ def create_template(
                     "for unattended runs."
                 )
             try:
-                run_delete_task_skill(cfg, existing)
+                run_delete_task(existing)
             except DeleteTaskError as exc:
                 raise RecurringError(
                     f"could not delete stale done task {target_slug}: {exc}"

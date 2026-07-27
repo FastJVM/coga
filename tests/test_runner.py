@@ -20,6 +20,8 @@ EXPECTED_RECIPES = (
     "cleanup-orphan-markers",
     "recurring-scan",
     "skill-update",
+    "open-pr",
+    "delete-task",
 )
 
 
