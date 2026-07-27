@@ -446,3 +446,70 @@ Says "Ticket: `rename-workflow-primitive-to-playbook` (draft, `code/design-then-
 The link `[reference](reference.md#coga-slack---task-task---message-text)` matches no heading. The target heading at `docs/reference.md:327` generates `#coga-slack---task-target---message-text` — the link says `task` where the heading says `TARGET`. Minor, but a dead reference on the main operations page.
 
 **Audit coverage (checked clean, no finding):** all `coga run` recipe names against `runner.RECIPES`; every documented flag on `init`/`create`/`ticket`/`project`/`launch`/`megalaunch`/`mark`/`bump`/`block`/`unblock`/`status`/`show`/`validate`/`usage`/`slack`/`digest`/`delete`/`retire`/`skill`/`secret`/`recurring` against the Typer signatures; `mark` transition tables against `commands/mark.py:44-47`; status values against `lifecycle.VALID_STATUSES`; the `COGA_TASK_*` set against `task_env.py`; symbol references into `spool.py`, `git.py`, `views.py`, `usage.py`, `authoring.py`, `autoclose.py`, `branchsweep.py`; the `validate-drift` flag list against `dream_validate_drift.py:528-563`; the bundled workflow inventory; and the remaining ~20 live/packaged file pairs.
+
+## Phase 4 — retro/done-ticket
+
+All 13 eligible done tickets processed in one delegated run inside an isolated
+linked worktree (`dream-retro-2026-W31`, based on a freshly fetched `origin/main`).
+Corpus loaded once, one running delta across the whole run, partitioned into 5
+coherent PR batches. No "Stop and ask" gate tripped. Per-PR limits respected
+throughout (max 1 source ticket of 5 allowed; max 2 knowledge files of 3; 0 new
+context/skill files of 1; one theme each).
+
+### Knowledge PRs (5) — all `pr-required`, unmerged, MERGEABLE/CLEAN
+
+- **#654** https://github.com/FastJVM/coga/pull/654 — *New context: rebases silently skip a freshly created live/packaged twin*. Theme: traps when editing Coga's own code that report success while leaving the repo wrong. Edits `coga/contexts/coga/codebase/SKILL.md`. Deletes `agree-the-core-vs-skills-move-list-then-execute`. Carries F1 (rename-vs-fresh-copy rebase trap, the `TERMINAL_STATUSES` near-regression, re-diff every pair by hand), F1's second half (a recorded "rebases clean" expires — 417 commits, four conflicts), and F2 (portable fixture shell scripts). F2 was verified against the current tree at `tests/test_launch_script.py:211`; its canceled source ticket `ship-a-shared-recurring-reminder-engine-battery` was correctly left untouched.
+- **#655** https://github.com/FastJVM/coga/pull/655 — *New context: no configured remote is a sync soft-skip that still commits locally*. Theme: where fail-loud may be relaxed in the git sync layer. Edits `coga/contexts/coga/sync/SKILL.md` + packaged twin. Deletes `install/short-notice-instead-of-raw-git-error-when-sync-ha`. Carries all three parts of F3. Also corrects a stale claim in the same file: "no remote" was listed among the *loud* non-fatal sync misses; it is now the calm path, so the entry now reads "a configured-but-unreachable remote".
+- **#656** https://github.com/FastJVM/coga/pull/656 — *New skill: coga open-pr refuses a control checkout parked on another ticket's branch*. Edits `coga/skills/code/open-pr/SKILL.md` + packaged twin. Deletes `remove-run-py/add-coga-run-generic-runner-and-migrate-recurring`. Carries F4 in step 2 of `## Order of operations` plus a one-liner in `## If coga open-pr fails`.
+- **#657** https://github.com/FastJVM/coga/pull/657 — *New context: recurring wrappers that delegate to an agent command need a pty*. Edits `coga/contexts/coga/recurring/SKILL.md`. Deletes `recurring/resolve-conflicts`. Carries F5 in `## Gotchas`. **Also amends `## Dream is the recurring janitor`**, which asserted flatly that period tasks "carry nothing durable" — this ticket is the counterexample and would have been deleted unread on that rule. Text now says *normally* and tells Retro to read the blackboard rather than direct-delete on class alone. **Reviewers: this edits the Dream contract itself.**
+- **#658** https://github.com/FastJVM/coga/pull/658 — *New skill: fall back to a direct branch-diff review when /code-review cannot be invoked*. Edits `coga/skills/code/self-qa/SKILL.md` + packaged twin. **Deletes no source ticket, deliberately** — its source (`install/short-notice-…`) is deleted in #655; bundling an unrelated skill edit there would have broken PR coherence. Not one of the F1–F5 priors; found by Retro's own corpus read. Records that `/code-review` is user-invocation-only in this harness (a launched agent cannot trigger it) and that a green suite is not the review step — two tickets shipped full-green `pytest` and still had must-fix bugs, because the defect was in a rationale no test asserted on.
+
+**Correction to the F1/F2/F5 priors:** `coga/contexts/coga/codebase/SKILL.md` and
+`coga/contexts/coga/recurring/SKILL.md` have **no packaged twin** — the packaged
+`bootstrap/contexts/coga/` set is only architecture, cli, important, patterns,
+period-task, principles, sync. #654 and #657 are single-copy edits by design.
+
+### Direct-deleted — no PR, no `## Retro` marker (9)
+
+Six period tickets carrying nothing durable: `recurring/autoclose-merged`,
+`recurring/blocker-reminders`, `recurring/branch-sweep`, `recurring/digest`,
+`recurring/rebase-stale-worktrees`, `recurring/skill-update`.
+
+Three non-recurring tickets whose knowledge was already covered:
+`dream-cleanup-orphan-markers-w30` (a no-op cleanup report);
+`stop-trimming-blackboard-but-refuse-to-launch-befo` (the first-launch
+blackboard-synthesis guard is already in `coga/contexts/coga/architecture/SKILL.md`);
+`make-sure-we-can-drop-new-recurring-tickets` (`coga/contexts/coga/recurring/SKILL.md`
+already documents the promote flow, frontmatter transform, refusals, and static
+schedule validation — its one residual contribution rode into #658).
+
+### Verification (independent, by this Dream run)
+
+- All 5 PR branches confirmed pushed and present on `origin`.
+- All 9 direct deletes confirmed absent from `origin/main` via `git cat-file -e`.
+- No recurring template `ticket.md` changed between the pre-run tip and `origin/main`;
+  `last_serviced_period: 2026-W31` intact. (The one `coga/recurring/` diff is a
+  `digest/spool.md` append from a concurrent session, not Retro.)
+- Isolated worktree clean; copied `coga.local.toml` removed; worktree removed;
+  temp branch `dream-retro-2026-W31` deleted; evidence snapshot deleted.
+- Primary checkout never mutated by the Retro run.
+
+### Concurrency note
+
+`origin/main` advanced past the `1ea51aa6` base before and during the run (other
+Coga sessions landing state commits). None of those commits touched the 13 slugs
+or the 5 knowledge files, so each PR was branched off the then-current
+`origin/main` rather than the stale base. All five PR bases are current.
+
+Separately: the primary checkout's staged `coga/tasks/` → `coga/tasks/v2/` renames
+that were present at Dream's session start were **committed** by a concurrent
+session (`bce4e209 Reassign remaining v1 tickets to codex`), not lost. The local
+`main` ref is now 9 commits behind `origin/main` — that is the expected result of
+`--keep-control-checkout`; refreshing it is the operator's call.
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-07-27T22:15:59+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
