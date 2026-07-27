@@ -48,7 +48,10 @@ Last updated: 2026-07-17.
 ## Open rename (workflow → playbook)
 
 - **The `workflow` primitive is being renamed to `playbook`.** Ticket:
-  `rename-workflow-primitive-to-playbook` (draft, `code/design-then-implement`).
+  `v2/rename-workflow-primitive-to-playbook` (draft,
+  `code/design-then-implement`) — now parked in `coga/tasks/v2/`, which
+  `coga/roadmap` defines as work that is *not* on the current execution path,
+  so treat the rename as intent rather than live direction.
   Same motive as the earlier `coga step → coga bump` rename below: the name
   mislabels the concept. "Workflow" imports the romantic, absorption-camp
   connotation (*the automation runs itself* — n8n/Zapier/CI), which is the
