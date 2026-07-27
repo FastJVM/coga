@@ -81,3 +81,10 @@ The blackboard is a notepad to be written to often as the human and agent works 
   noise, so the wrapper's stdout is *not* a usable success signal. Confirm the
   delegated run through `coga/log.md` (the `slack:` line for
   `bootstrap/resolve-conflicts`), not through the captured terminal output.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: "New context: recurring wrappers that delegate to an agent command need a pty"
