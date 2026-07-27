@@ -1,7 +1,7 @@
 ---
 slug: recurring/dream
 title: Dream
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
