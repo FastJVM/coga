@@ -2937,3 +2937,25 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-27 11:27 [remove-run-py/add-coga-run-generic-runner-and-migrate-recurring] [human:nicktoper] task done — PR #650 merged 2026-07-27
 2026-07-27 11:27 [remove-run-py/port-hard-consumers-onto-the-generic-runner] [human:nicktoper] unblocked (blocked → active): Resolved: ticket A merged as PR #650 (2026-07-27). coga run and the RECIPES dispatch table are on origin/main at 2a26d9df, so the stated precondition is met. Proceed with the open-pr and delete-task port.
 2026-07-27 11:27 [cleanup-core-commands/launch-decomposition] [human:nicktoper] paused (in_progress → paused) — Parked to v2 — core-command reclassification is off the current execution path
+2026-07-27 14:20 [recurring/autoclose-merged] [system] created (status=active)
+2026-07-27 14:20 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-07-27
+2026-07-27 14:20 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-07-27
+2026-07-27 14:20 [recurring/blocker-reminders] [system] created (status=active)
+2026-07-27 14:20 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-07-27
+2026-07-27 14:20 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-07-27
+2026-07-27 14:20 [recurring/branch-sweep] [system] created (status=active)
+2026-07-27 14:20 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-W31
+2026-07-27 14:20 [recurring/digest] [system] created (status=active)
+2026-07-27 14:20 [recurring/digest] [system] deleted completed prior-period task before 2026-07-27
+2026-07-27 14:20 [recurring/digest] [system] created recurring/digest for 2026-07-27
+2026-07-27 14:20 [recurring/dream] [system] created (status=active)
+2026-07-27 14:20 [recurring/dream] [system] deleted completed prior-period task before 2026-W31
+2026-07-27 14:20 [recurring/dream] [system] created recurring/dream for 2026-W31
+2026-07-27 14:20 [recurring/rebase-stale-worktrees] [system] created (status=active)
+2026-07-27 14:20 [recurring/rebase-stale-worktrees] [system] deleted completed prior-period task before 2026-W31
+2026-07-27 14:20 [recurring/rebase-stale-worktrees] [system] created recurring/rebase-stale-worktrees for 2026-W31
+2026-07-27 14:20 [recurring/resolve-conflicts] [system] created (status=active)
+2026-07-27 14:20 [recurring/resolve-conflicts] [system] deleted completed prior-period task before 2026-W31
+2026-07-27 14:20 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W31
+2026-07-27 14:20 [recurring/skill-update] [system] created (status=active)
+2026-07-27 14:20 [recurring/skill-update] [system] created recurring/skill-update for 2026-W31
