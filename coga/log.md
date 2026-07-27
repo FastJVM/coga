@@ -3015,3 +3015,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-27 15:24 [retire-a-finished-ticket-s-linked-worktree-and-mak] [human:nicktoper] created (status=draft)
 2026-07-27 15:24 [decide-the-fate-of-two-premise-dead-v2-drafts-whos] [human:nicktoper] created (status=draft)
 2026-07-27 15:27 [recurring/dream] [agent:claude] slack: Dream 2026-W31: validate-drift 24 human-needed, 13 done tickets retired (5 knowledge PRs #654-658, 9 direct deletes), 8 stale/drift proposal PRs #659-666, 3 gap tickets. 13 PRs awaiting review.
+2026-07-27 15:27 [recurring/dream] [human:nicktoper] task done — Dream 2026-W31 complete: 25 findings routed, 13 PRs open, 3 gap tickets created, 13 done tickets retired.
