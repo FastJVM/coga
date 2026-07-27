@@ -2936,3 +2936,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-27 11:19 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-07-27 11:27 [remove-run-py/add-coga-run-generic-runner-and-migrate-recurring] [human:nicktoper] task done — PR #650 merged 2026-07-27
 2026-07-27 11:27 [remove-run-py/port-hard-consumers-onto-the-generic-runner] [human:nicktoper] unblocked (blocked → active): Resolved: ticket A merged as PR #650 (2026-07-27). coga run and the RECIPES dispatch table are on origin/main at 2a26d9df, so the stated precondition is met. Proceed with the open-pr and delete-task port.
+2026-07-27 11:27 [cleanup-core-commands/launch-decomposition] [human:nicktoper] paused (in_progress → paused) — Parked to v2 — core-command reclassification is off the current execution path
