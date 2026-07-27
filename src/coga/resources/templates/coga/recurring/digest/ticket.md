@@ -7,8 +7,6 @@ recipe: digest
 # The one-step workflow keeps the period task's lifecycle and skill contract
 # legible.
 workflow: digest/post
-owner: nick
-assignee: claude
 ---
 
 ## Description
