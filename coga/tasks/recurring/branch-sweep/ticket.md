@@ -1,12 +1,24 @@
 ---
-schedule: "0 7 * * 1"
-schedule_comment: "Every Monday at 7am - prune stale git branches before the day's other automation starts"
-title: "Branch sweep"
-recipe: branch-sweep
-# The recurring runner executes this registered recipe directly with no agent.
-# The one-step workflow keeps the period task's lifecycle and skill contract
-# legible.
-workflow: branch-sweep/sweep
+slug: recurring/branch-sweep
+title: Branch sweep
+status: active
+owner: nicktoper
+human: nicktoper
+agent: claude
+assignee: claude
+contexts:
+- coga/period-task
+skills: []
+workflow:
+  name: branch-sweep/sweep
+  steps:
+  - name: sweep
+    skills:
+    - coga/branch-sweep/sweep
+    assignee: agent
+secrets: null
+script: null
+step: 1 (sweep)
 ---
 
 ## Description
@@ -44,12 +56,8 @@ The sweep runs on this schedule via `coga recurring`, on demand via
 `coga recurring launch branch-sweep`, or directly with
 `coga run branch-sweep`.
 
+## Context
+
 <!-- coga:blackboard -->
 
-This blackboard persists across every run of this recurring task. The
-`branch-sweep` recipe keeps no durable state here — every run's
-output is the branches it deletes or reports as skipped. `coga recurring`
-keeps the serviced-period high-water mark here as `last_serviced_period`
-(weekly period key `YYYY-Www`) once the first run has fired.
-
-last_serviced_period: 2026-W31
+The blackboard is a notepad to be written to often as the human and agent works through a task.
