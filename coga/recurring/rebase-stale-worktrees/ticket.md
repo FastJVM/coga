@@ -72,7 +72,7 @@ abandoned or already-merged residue — branch-sweep's problem, not this task's.
 `last_serviced_period`. Each run replaces the `## Rebase Run Summary`
 section below with its results.
 
-last_serviced_period: 2026-W30
+last_serviced_period: 2026-W31
 
 ## Rebase Run Summary
 
