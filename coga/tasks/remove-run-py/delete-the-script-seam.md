@@ -1,7 +1,7 @@
 ---
 slug: remove-run-py/delete-the-script-seam
 title: Delete the script-seam
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -111,11 +111,43 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Decision: do not create a branch or edit implementation files. Retry C only
   after A and B are completed and merged.
 
+## Dependency re-check (2026-07-27)
+
+Re-ran the precondition against a freshly fetched `origin/main` (`3a7eabe3`,
+identical to this checkout). The blocker is **half-resolved**:
+
+- **Ticket A is clear.** `remove-run-py/add-coga-run-generic-runner-and-migrate-recurring`
+  is `status: done` (merged as PR #650). `coga run` and `runner.RECIPES` are on
+  `main`; the recurring jobs no longer own `run.py` files.
+- **Ticket B is not.** `remove-run-py/port-hard-consumers-onto-the-generic-runner`
+  is still `status: active`. Its own blocker was cleared by the human at
+  2026-07-27 11:27 ("proceed with the open-pr and delete-task port"), but the
+  port itself has not been written yet — no commit on `main` touches it.
+- Concrete evidence that B's two hard consumers are still bound to the seam:
+  - `src/coga/delete_task.py:8` still does
+    `from coga.commands.launch_script import build_script_command`, still
+    requires `skill.script` in frontmatter, and still subprocess-runs
+    `skills/bootstrap/delete-task/run.py`.
+  - `src/coga/resources/templates/coga/bootstrap/open-pr/` still ships
+    `run.py` + `ticket.md` with `script: run.py`, reading its target from
+    `COGA_ARG_1` / `COGA_ARGC`.
+- The rest of C's precondition *is* met: the only other live `script:` skills
+  are the two vestigial twins `coga/show` and `coga/ticket/finalize`, exactly
+  as the ticket predicts.
+
+Deleting `launch_script.py` now would break `coga delete` at import time and
+strand the packaged `open-pr` command. Decision: re-block on B alone, naming
+its path-qualified slug so megalaunch retries C automatically once B lands.
+No branch or worktree created; no implementation files touched.
+
 ---
 
 ## Blockers
 
 - [ ] [2026-07-23 07:43] [agent:claude] id=20260723T074319 Precondition failed: remove-run-py/add-coga-run-generic-runner-and-migrate-recurring is still at review-design and remove-run-py/port-hard-consumers-onto-the-generic-runner is still active; live recurring, open-pr, and delete-task script consumers remain. Complete and merge A, then B, before retrying C.
+
+- [ ] [2026-07-27 14:59] [agent:codex] id=20260727T145920 Precondition still unmet: remove-run-py/port-hard-consumers-onto-the-generic-runner (ticket B) is still status:active and its port has not landed on origin/main (3a7eabe3). Ticket A is now done, so half the original blocker is cleared. But src/coga/delete_task.py:8 still imports build_script_command from coga.commands.launch_script and subprocess-runs skills/bootstrap/delete-task/run.py, and src/coga/resources/templates/coga/bootstrap/open-pr/ still ships run.py + ticket.md with 'script: run.py' reading COGA_ARG_1/COGA_ARGC. Deleting launch_script.py now would break 'coga delete' at import time and strand the packaged open-pr command. Everything else C needs is ready: the only other live script: skills are the two vestigial twins coga/show and coga/ticket/finalize. Land ticket B, then retry C.
+
 
 ---
 
