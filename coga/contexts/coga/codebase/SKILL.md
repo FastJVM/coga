@@ -54,9 +54,9 @@ kinds of code**:
    thing calls it, it is not shared infra.
 2. **A real command implementation** that genuinely needs Python logic and
    can't be expressed as an alias — e.g. `coga digest` (`commands/digest.py` →
-   `run_digest`), `coga megalaunch` (`megalaunch.py`), and `coga open-pr`
-   (`commands/open_pr.py` → `open_pr.py`), plus the fixed functions registered
-   behind `coga run`. These carry real logic and stable command contracts, not
+   `run_digest`) and `coga megalaunch` (`megalaunch.py`), plus the fixed
+   functions registered behind `coga run` such as `open_pr.py` and
+   `delete_task.py`. These carry real logic and stable command contracts, not
    just "launch this target."
 
 **Everything else stays at the edge.** An unregistered, single-consumer
@@ -86,10 +86,12 @@ skills are invocation contracts and contain no executable Python.
 
 PR #517 first exposed the line by moving the then-script-backed open-pr recipe
 out of core. PR #585 later turned `open-pr` into a real command implementation,
-so the same test now places it in core under exception 2. The fixed
-`coga run` registry applies that same exception without turning skills into a
-plugin system. This stated rule supersedes the softer "extend at the edges,
-not the core" phrasing.
+so the same test placed it back in core under exception 2, and it now lives
+there as the registered `open-pr` recipe (`open_pr.py`) — the fixed name is the
+contract, so the implementation is importable. `delete-task` followed the same
+path out of its skill's `run.py`. The fixed `coga run` registry applies that
+exception without turning skills into a plugin system. This stated rule
+supersedes the softer "extend at the edges, not the core" phrasing.
 
 ## coga layout
 

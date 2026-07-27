@@ -185,9 +185,9 @@ marker left behind by an older run.
 
 Read `bootstrap/dream/tasks/cleanup-orphan-markers`, then run
 `coga run cleanup-orphan-markers`. The recipe detects cleanup candidates and
-gates deletion through `bootstrap/delete-task`. That delete skill ships, but
-until its cleanup PR-dispatch wiring is finished the recipe reports
-`human-needed` and deletes nothing.
+gates deletion through `bootstrap/delete-task` (`coga run delete-task`). That
+delete surface ships, but until its cleanup PR-dispatch wiring is finished the
+recipe reports `human-needed` and deletes nothing.
 
 For each candidate, cleanup must open a PR that deletes only the resolved task
 directory under `coga/tasks/`. The deletion goes in the PR, not the working

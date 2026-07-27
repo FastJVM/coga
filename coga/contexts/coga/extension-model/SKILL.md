@@ -100,11 +100,15 @@ durable task instance:
   blackboard, or lifecycle broadcast.
 - Use `script:` for deterministic behavior or an agent body when the command
   requires judgment. Keep deterministic checks deterministic when moving them.
-- Add an alias such as `open-pr = "launch bootstrap/open-pr"` when the command
-  deserves a top-level spelling. Trailing argv continues through the alias.
+- Add an alias such as `resolve-conflicts = "launch bootstrap/resolve-conflicts"`
+  when the command deserves a top-level spelling. Trailing argv continues
+  through the alias.
 
-`open-pr` proved the script-backed form; `resolve-conflicts` proved the
-agent-backed form. External third-party tools remain separate: Coga calls
+`resolve-conflicts` is the shipped agent-backed form. `open-pr` proved the
+script-backed form and has since graduated to a registered `coga run` recipe:
+a fixed name in `runner.RECIPES` is a genuine package command, so deterministic
+logic with a stable argv/exit-code contract belongs in importable core rather
+than beside a ticket. External third-party tools remain separate: Coga calls
 their stable CLI instead of wrapping their implementation in a command ticket.
 
 ## Ticket vs. command: statefulness decides
@@ -175,7 +179,7 @@ actively fights the capability boundary.
 | --- | --- |
 | **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · fixed `coga run` recipes · *(hooks)* secret-inject, skill-verify-at-compose |
 | **Stateful tickets** | reviewable work with its own lifecycle, including recurring period tasks, `retire`, and code workflows |
-| **Stateless command tickets** | package/repo bootstrap targets such as `open-pr` and `resolve-conflicts`; deterministic or agent-backed, launched in place |
+| **Stateless command tickets** | package/repo bootstrap targets such as `resolve-conflicts`; agent-backed, launched in place |
 | **External tools** | existing CLIs such as `git`, `gh`, and `op` |
 | **Alias (sugar)** | fixed rewrites to launch/bootstrap or other real command targets |
 
@@ -187,7 +191,8 @@ semantics:
 
 1. Preserve shared parsers, preflights, and declarative completion gates in the
    kernel when they have other consumers. `open-pr`, for example, moved its
-   recipe while `bump` retained the `requires: pr` data gate.
+   recipe out of the command head while `bump` retained the `requires: pr`
+   data gate.
 2. Keep tests beside or pointed at the moved implementation and preserve the
    same failure behavior.
 3. Expose the bootstrap target directly and add an alias only for a stable
