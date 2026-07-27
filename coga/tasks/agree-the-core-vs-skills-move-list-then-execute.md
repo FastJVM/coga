@@ -357,3 +357,10 @@ Applied fixes: 1.
 Git: committed and pushed `repair-branch`
 
 Result: no remaining validation drift found.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: rebases silently skip a freshly created live/packaged twin
