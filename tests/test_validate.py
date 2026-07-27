@@ -188,6 +188,98 @@ def test_validate_recurring_template_unknown_skill_lists_checked_paths(
     assert "bootstrap/skills/local/missing/SKILL.md" in issue.message
 
 
+def test_validate_reports_recurring_template_without_a_schedule(repo: Path) -> None:
+    """A template with no `schedule:` never fires. Catch it statically instead
+    of letting the next sweep skip it with a stderr warning."""
+    _write(repo / "recurring" / "orphan" / "ticket.md", """
+        ---
+        title: Orphan
+        ---
+
+        ## Description
+
+        Never fires.
+    """)
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue for issue in report.issues
+        if issue.kind == "invalid-recurring-schedule"
+    )
+    assert issue.task == "recurring/orphan"
+    assert issue.severity == "error"
+    assert "no `schedule:`" in issue.message
+    assert "_orphan" in issue.message
+
+
+@pytest.mark.parametrize(
+    "schedule",
+    [
+        pytest.param("every monday", id="malformed"),
+        pytest.param("* * * * * *", id="six-fields"),
+        pytest.param("@daily", id="alias"),
+    ],
+)
+def test_validate_reports_malformed_recurring_schedule(
+    repo: Path, schedule: str
+) -> None:
+    _write(repo / "recurring" / "broken" / "ticket.md", f"""
+        ---
+        schedule: "{schedule}"
+        title: Broken
+        ---
+
+        ## Description
+
+        Malformed cron.
+    """)
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue for issue in report.issues
+        if issue.kind == "invalid-recurring-schedule"
+    )
+    assert issue.task == "recurring/broken"
+    assert "not a valid cron expression" in issue.message
+    if schedule in {"* * * * * *", "@daily"}:
+        assert "exactly 5 fields" in issue.message
+
+
+def test_validate_accepts_a_valid_recurring_schedule_and_skips_parked_ones(
+    repo: Path,
+) -> None:
+    """A good cron passes, and a `_`-prefixed parked template is inert — the
+    schedule check must not resurrect it as an error."""
+    _write(repo / "recurring" / "weekly" / "ticket.md", """
+        ---
+        schedule: "0 9 * * 1"
+        title: Weekly
+        ---
+
+        ## Description
+
+        Fires weekly.
+    """)
+    _write(repo / "recurring" / "_parked" / "ticket.md", """
+        ---
+        title: Parked
+        ---
+
+        ## Description
+
+        Parked, no schedule.
+    """)
+
+    report = run(load_config(repo))
+
+    assert not [
+        issue for issue in report.issues
+        if issue.kind == "invalid-recurring-schedule"
+    ]
+
+
 def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
     """A frozen step's `requires:` must name a registered completion gate; a
     bogus token is a hard `bad-shape` error (the activation/bump gate would
@@ -1425,3 +1517,62 @@ def test_same_leaf_name_in_different_directories_validates_clean(repo: Path) -> 
     _write_full_task(repo, "eng/dup-task")
     report = run(cfg)
     assert "duplicate-slug" not in [i.kind for i in report.issues]
+
+
+def test_duplicate_drain_position_in_one_directory_warns(repo: Path) -> None:
+    """Two tasks numbered the same is the one ambiguous ordering case.
+
+    The sort still produces an answer (it falls back to creation time), so
+    without a warning a pipeline runs in an order nobody chose.
+    """
+    cfg = load_config(repo)
+    _write_full_task(repo, "v2/1-schema")
+    _write_full_task(repo, "v2/1-seed")
+    _write_full_task(repo, "v2/2-migrate")
+
+    report = run(cfg)
+
+    dupes = [i for i in report.issues if i.kind == "duplicate-task-number"]
+    assert len(dupes) == 1
+    assert dupes[0].task == "v2"
+    assert dupes[0].severity == "warn"
+    assert "1-schema, 1-seed" in dupes[0].message
+    assert "position 1" in dupes[0].message
+    # A warning, not an error: the tasks themselves are structurally fine.
+    assert [i for i in report.issues if i.severity == "error"] == []
+    assert report.ok_count == 3
+
+
+def test_gaps_and_unnumbered_siblings_are_not_flagged(repo: Path) -> None:
+    """Both are deliberate layouts — a deleted step, and a scratch ticket."""
+    cfg = load_config(repo)
+    _write_full_task(repo, "v2/1-schema")
+    _write_full_task(repo, "v2/2-migrate")
+    _write_full_task(repo, "v2/5-cutover")
+    _write_full_task(repo, "v2/spike-idea")
+
+    report = run(cfg)
+
+    assert [i for i in report.issues if i.kind == "duplicate-task-number"] == []
+
+
+def test_same_number_in_different_directories_is_not_a_collision(repo: Path) -> None:
+    """Numbering is per-directory — two pipelines each get their own `1-`."""
+    cfg = load_config(repo)
+    _write_full_task(repo, "v2/1-schema")
+    _write_full_task(repo, "marketing/1-brief")
+
+    report = run(cfg)
+
+    assert [i for i in report.issues if i.kind == "duplicate-task-number"] == []
+
+
+def test_top_level_numbering_is_not_checked(repo: Path) -> None:
+    """`tasks/` is not a pipeline, so a top-level `1-` is just a name."""
+    cfg = load_config(repo)
+    _write_full_task(repo, "1-alpha")
+    _write_full_task(repo, "1-beta")
+
+    report = run(cfg)
+
+    assert [i for i in report.issues if i.kind == "duplicate-task-number"] == []

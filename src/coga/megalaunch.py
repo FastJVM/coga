@@ -42,7 +42,10 @@ Exit 0 advances the step and the chain continues; a non-zero exit leaves the
 step put and fails that task's result without stopping the rest of the sweep.
 
 Tasks are serviced oldest-first (first `coga/log.md` line per ref — committed
-content, so the order survives clones where file mtimes don't).
+content, so the order survives clones where file mtimes don't), except that a
+sub-directory holding `1-`/`2-`/`3-` prefixed tasks runs as one contiguous
+block in number order, anchored where its oldest task would have run. See
+`coga.service_order` for the key.
 """
 
 from __future__ import annotations
@@ -86,6 +89,7 @@ from coga.mark import (
 )
 from coga.workflow import WorkflowError
 from coga.taskfile import read_blackboard, replace_blackboard
+from coga.service_order import service_order
 from coga.tasks import (
     TaskNotFoundError,
     TaskRef,
@@ -213,7 +217,7 @@ def run_megalaunch(
 
     # Validates the directory up front (fail loud on a typo) and narrows the
     # queue before any ticket is read, so out-of-scope work is never counted.
-    all_tasks = _tasks_oldest_first(cfg)
+    all_tasks = _tasks_in_service_order(cfg)
     queue = filter_tasks_under(all_tasks, directory, cfg)
     explicit = selection is not None
     if explicit:
@@ -370,7 +374,7 @@ def _drain_satisfied_blockers(
 
     while max_tasks is None or attempted < max_tasks:
         launched_in_pass = False
-        current_refs = _tasks_oldest_first(cfg)
+        current_refs = _tasks_in_service_order(cfg)
         for current in current_refs:
             known[current.id_slug] = current
 
@@ -727,7 +731,11 @@ def launchable_candidates(
     *,
     directory: str | None = None,
 ) -> list[tuple[TaskRef, Ticket]]:
-    """The tasks the interactive picker offers, oldest-first.
+    """The tasks the interactive picker offers, in drain order.
+
+    Listed exactly as the sweep would service them (`coga.service_order`:
+    oldest-first, numbered sub-trees in number order), so a numbered pipeline
+    reads `1-`, `2-`, `3-` down the picker and runs in that order once picked.
 
     Every non-terminal task of any owner — `done` and `canceled` are the only
     exclusions. The picker deliberately does *not* pre-filter for
@@ -741,7 +749,7 @@ def launchable_candidates(
     run reports failures).
     """
     candidates: list[tuple[TaskRef, Ticket]] = []
-    for ref in filter_tasks_under(_tasks_oldest_first(cfg), directory, cfg):
+    for ref in filter_tasks_under(_tasks_in_service_order(cfg), directory, cfg):
         try:
             ticket = read_ticket(ref)
         except TicketError:
@@ -791,20 +799,13 @@ def load_selection(cfg: Config) -> list[str]:
     return slugs
 
 
-def _tasks_oldest_first(cfg: Config) -> list[TaskRef]:
-    """All tasks, oldest creation first (first `coga/log.md` line per ref).
+def _tasks_in_service_order(cfg: Config) -> list[TaskRef]:
+    """All tasks in drain order — oldest first, numbered sub-trees in sequence.
 
-    The first log line is the draft/create entry — committed content, so the
-    ordering survives clone/checkout where file mtimes collapse to "all
-    equal". Refs with no parseable log line sort last, stable by slug.
+    The key lives in `coga.service_order` so the sweep, the `--pick` list, and
+    `coga status --order-by created` all read the same order.
     """
-    created = first_activity_map(cfg)
-
-    def key(ref: TaskRef) -> tuple[bool, datetime, str]:
-        ts = created.get(ref.id_slug)
-        return (ts is None, ts or datetime.min, ref.id_slug)
-
-    return sorted(list_tasks(cfg), key=key)
+    return service_order(list_tasks(cfg), first_activity_map(cfg))
 
 
 def _candidate_result(

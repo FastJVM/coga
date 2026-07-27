@@ -587,6 +587,21 @@ drifts — the authoring copies once diverged to a bare `subprocess.run` and los
 the PTY watcher (so interactive REPLs stopped releasing on the done sentinel).
 Add a new command's difference as a parameter on the shared path instead.
 
+Because that one call does compose → prompt-file write → log append *before* it
+spawns anything, a `FileNotFoundError` escaping it is usually a missing **file**
+(a skill or context that vanished under a concurrent checkout, an unwritable
+prompt destination), not a missing agent CLI. Callers therefore catch
+`repl_supervisor.AgentCliNotFound` — raised only where a spawn actually fails to
+exec the binary — for the install-the-CLI remedy, and report every other
+`FileNotFoundError` through `missing_launch_file_message`, which names the
+offending path. A blanket `except FileNotFoundError` around the shared call is
+the bug this replaced: it answered "a prompt layer disappeared" with
+"'claude' not found", two lines after `shutil.which` had already located
+`claude`. Note the asymmetry that made this easy to miss — on the PTY path a
+missing binary is the *child's* failed `execvp`, surfaced as exit 127, so in an
+interactive launch the CLI-not-found branch could essentially only be reached by
+an unrelated error.
+
 ## Command Surface
 
 The command reference lives in `coga/cli`. The important architectural split

@@ -14,6 +14,7 @@ from coga.repl_supervisor import (
     SENTINEL_ENV,
     _TIMEOUT_EXIT_CODE,
     _TTY_SANITIZE,
+    AgentCliNotFound,
     _classify_exit,
     _sentinel_signals_done,
     ReplOutcome,
@@ -87,6 +88,19 @@ def test_no_tty_falls_back_to_subprocess(monkeypatch: pytest.MonkeyPatch) -> Non
 
     outcome = run_with_done_marker(["false"], env={})
     assert outcome.exit_code != 0
+
+
+def test_no_tty_missing_binary_raises_agent_cli_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing binary is typed, so callers don't have to guess which of the
+    many `FileNotFoundError`s a launch can raise actually meant the CLI."""
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+    with pytest.raises(AgentCliNotFound) as excinfo:
+        run_with_done_marker(["coga-no-such-agent-cli"], env={})
+    assert excinfo.value.cli == "coga-no-such-agent-cli"
+    # Subclassing keeps existing `except FileNotFoundError` callers working.
+    assert isinstance(excinfo.value, FileNotFoundError)
 
 
 def _run_through_pty(

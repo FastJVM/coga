@@ -26,6 +26,7 @@ Checks (whole-repo):
 - Draft blackboards do not still carry prelaunch authoring notes.
 - Tasks stuck in `in_progress` with no recent log activity.
 - Assignees referenced in tickets exist in coga.toml.
+- No two tasks in one directory claim the same `<n>-` drain position.
 - (Opt-in) Slack webhook reachability via an empty-text probe.
 - (Opt-in) Git/GitHub auth readiness via `git`/`gh` preflight probes.
 """
@@ -68,6 +69,7 @@ from coga.paths import (
     resolve_skill_path,
     resolve_workflow_path,
 )
+from coga.service_order import leading_number
 from coga.slack_response import classify_slack_response, format_slack_request_error
 from coga.tasks import (
     DuplicateTaskSlugError,
@@ -217,6 +219,7 @@ def run(
             )
         )
 
+    report.issues.extend(_check_task_numbering(refs))
     report.issues.extend(_check_recurring_templates(cfg))
 
     report.ok_count = _ok_count(refs, report.issues)
@@ -803,12 +806,59 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
     return out
 
 
+def _check_task_numbering(refs: list[TaskRef]) -> list[Issue]:
+    """Warn when two tasks in one directory claim the same drain position.
+
+    A `1-schema` / `2-migrate` sub-directory is a pipeline: the numbers *are*
+    the order megalaunch drains in (`coga.service_order`). Two tasks numbered
+    the same is the one case where that written-down order is ambiguous — the
+    sort still produces an answer (it falls back to creation time), which is
+    exactly the confidently-wrong-and-invisible outcome principle 6 says to
+    surface. Gaps (`1-`, `2-`, `5-`) and unnumbered siblings are deliberate
+    layouts, not drift, so neither is flagged.
+    """
+    by_directory: dict[str, dict[int, list[str]]] = {}
+    for ref in refs:
+        if not ref.directory:
+            # Top-level `1-foo` is just a name — `tasks/` is not a pipeline.
+            continue
+        number = leading_number(ref.slug)
+        if number is None:
+            continue
+        by_directory.setdefault(ref.directory, {}).setdefault(number, []).append(
+            ref.slug
+        )
+
+    out: list[Issue] = []
+    for directory, numbered in sorted(by_directory.items()):
+        for number, leaves in sorted(numbered.items()):
+            if len(leaves) < 2:
+                continue
+            listed = ", ".join(sorted(leaves))
+            out.append(Issue(
+                kind="duplicate-task-number",
+                task=directory,
+                message=(
+                    f"{listed} all claim drain position {number} — megalaunch "
+                    "falls back to creation time between them; renumber so "
+                    "the intended order is the one that runs"
+                ),
+                severity="warn",
+            ))
+    return out
+
+
 def _check_recurring_templates(cfg: Config) -> list[Issue]:
-    """Resolve workflow-step skills in materialized recurring templates."""
+    """Check schedules and workflow-step skills in recurring templates."""
+    # Imported here, not at module scope: `coga.recurring` imports this module
+    # for `TaskValidationError`, so a top-level import would be circular.
+    from coga.recurring import RecurringError, _validate_schedule
+
     root = recurring_dir(cfg)
     if not root.is_dir():
         return []
 
+    now = datetime.now()
     out: list[Issue] = []
     for path in sorted(root.iterdir()):
         if path.name.startswith("_") or not path.is_dir():
@@ -820,6 +870,37 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
             template = Ticket.read(ticket_path)
         except TicketError:
             continue
+
+        # A template's `schedule:` is what makes it fire at all. Without a
+        # static check a missing or malformed cron only surfaces at scan time —
+        # until then the template just silently never runs.
+        if "schedule" not in template.frontmatter:
+            out.append(Issue(
+                kind="invalid-recurring-schedule",
+                task=f"recurring/{path.name}",
+                message=(
+                    f"recurring template {path.name!r} has no `schedule:` — add a "
+                    f"5-field cron string (e.g. `schedule: \"0 9 * * 1\"`) to "
+                    f"{ticket_path}, or rename the directory to `_{path.name}` to "
+                    f"park it."
+                ),
+                severity="error",
+            ))
+        else:
+            try:
+                _validate_schedule(template.frontmatter["schedule"], now)
+            except RecurringError as exc:
+                out.append(Issue(
+                    kind="invalid-recurring-schedule",
+                    task=f"recurring/{path.name}",
+                    message=(
+                        f"recurring template {path.name!r} has an invalid "
+                        f"schedule: {str(exc).rstrip('.')}. Fix `schedule:` in "
+                        f"{ticket_path}."
+                    ),
+                    severity="error",
+                ))
+
         workflow_name = template.frontmatter.get("workflow") or "direct/body"
         if not isinstance(workflow_name, str):
             continue

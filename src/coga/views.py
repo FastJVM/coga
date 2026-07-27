@@ -30,6 +30,7 @@ from coga.logfile import (
 )
 from coga.lifecycle import STATUS_DISPLAY_ORDER, TERMINAL_STATUSES
 from coga.recurring import TemplateStatus, firing_stamp, list_templates
+from coga.service_order import service_order
 from coga.taskfile import TaskFileError
 from coga.tasks import (
     BootstrapRef,
@@ -269,13 +270,23 @@ def render_status(
         return
 
     # Default reading is "newest first" for `updated` and alphabetical for
-    # everything else; --reverse flips whichever default applies. `created`
-    # defaults to oldest-first — it exists to show the exact order the
-    # megalaunch drain services tickets in.
+    # everything else; --reverse flips whichever default applies.
     descending = (order_by == "updated") ^ reverse
 
-    if order_by in ("updated", "created"):
-        ts_key = f"{order_by}_ts"
+    if order_by == "created":
+        # Not a plain timestamp sort: `created` exists to show the exact order
+        # the megalaunch drain services tickets in, so it reuses that key
+        # wholesale (oldest-first, numbered sub-trees in number order). Rows
+        # the loop above dropped simply aren't in the position map.
+        position = {
+            ref.id_slug: index
+            for index, ref in enumerate(service_order(refs, created))
+        }
+        rows.sort(key=lambda r: position.get(r["slug"], len(position)))
+        if reverse:
+            rows.reverse()
+    elif order_by == "updated":
+        ts_key = "updated_ts"
         # Two passes so the "missing" bucket always ends up last regardless
         # of direction. Pass 1: sort by the timestamp itself, with None
         # mapped to datetime.min so it doesn't crash compares. Pass 2 is

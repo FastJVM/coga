@@ -641,6 +641,34 @@ skipped-unlaunchable, and failed.
 Megalaunch is on-demand only — there is no shipped recurring template for it;
 you run the sweep when you want the queue drained.
 
+**Drain order.** Tasks are serviced oldest-first — the first `coga/log.md`
+line per ref, which is committed content, so the order survives clones where
+file mtimes don't. On top of that, a **sub-directory whose tasks are named
+`1-schema`, `2-migrate`, `3-cutover` runs in that number order**: numbering is
+a plain naming convention on the task directory (`mkdir` / `mv`, the same
+verbs that organize `tasks/`) — no flag, no frontmatter field, no config. The
+rules that keep it from reshuffling work that didn't ask for it:
+
+- A sub-directory opts in by having **at least one** `<n>-` task. A sub-tree
+  with no numbered task keeps its plain per-task age slots, as does every
+  top-level task (`tasks/` itself is not a pipeline, so a top-level `1-foo`
+  is just a name).
+- An opted-in sub-directory runs as one contiguous block, **anchored at its
+  oldest task** — a numbered sub-tree runs when its first task would have run,
+  never jumping the queue.
+- Inside the block, numbered tasks run by number (`02-` == `2-`, and `10-`
+  sorts after `9-`), then any unnumbered siblings by age. `2fa-login` is not
+  numbered — the digits must be the whole first segment.
+
+The `--pick` list is printed in the same order, so a numbered pipeline reads
+`1-`, `2-`, `3-` down the picker and runs in that order once confirmed.
+`coga status --order-by created` shows the identical order.
+
+`coga validate` warns (`duplicate-task-number`) when two tasks in one
+directory claim the same position — the one case where the order you wrote
+down is ambiguous and the sort silently invents an answer from creation time.
+Gaps and unnumbered siblings are legal and unflagged.
+
 Pass `--agent <type>` to launch the swept tasks (and the picker's confirmed
 set) with that configured agent type regardless of each ticket's `assignee:`
 — an ephemeral per-launch override with the same semantics as
@@ -840,6 +868,29 @@ liveness limits unarmed for debugging one template by hand.
 `--agent <type>` applies the same ephemeral override as the full sweep when the
 named task is agent-backed; script-backed tasks ignore it and still run as
 scripts. This also makes `coga dream --agent <type>` work through the alias.
+
+## coga recurring promote \<task\> --schedule "\<cron\>" [--name \<name\>]
+
+Move an existing task out of `coga/tasks/` and into
+`coga/recurring/<name>/ticket.md` as a recurring template — the authoring path
+for "this ticket should run every period", and the way to make a freshly
+created ticket recurring (`coga create`, write the body, then promote).
+`--schedule` is required and validated before anything moves. `--name`
+overrides the template directory name, which defaults to the task's leaf slug.
+
+The body above the blackboard fence travels verbatim; the blackboard is reset,
+because a template blackboard holds durable cross-run state rather than one
+run's scratch. `status:`, `step:`, `slug:`, `human:`, and `agent:` are dropped
+(the creator re-derives them per period), a frozen `workflow:` snapshot
+collapses back to its name, and ticket-level `skills:` are dropped with a
+warning — they are never copied into a period task, so process skills belong
+on the workflow's steps. Everything else (`title`, `owner`, `assignee`,
+`watchers`, `contexts`, `secrets`, `script`) passes through.
+
+It refuses instead of guessing: an existing `coga/recurring/<name>/` is never
+overwritten, a bad cron leaves the source ticket untouched, and an
+`in_progress` or `blocked` task is refused because a template cannot hold a
+live run's step or blocker.
 
 ## coga recurring list
 
