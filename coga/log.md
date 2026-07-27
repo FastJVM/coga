@@ -2987,3 +2987,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-27 14:34 [recurring/digest] [system] recipe digest exited with code 0
 2026-07-27 14:34 [recurring/digest] [system] completed (recipe digest exited 0) via coga recurring
 2026-07-27 14:34 [recurring/skill-update] [system] started (active → in_progress) via recurring recipe skill-update
+2026-07-27 14:35 [recurring/skill-update] [system] launched as recipe (skill-update)
