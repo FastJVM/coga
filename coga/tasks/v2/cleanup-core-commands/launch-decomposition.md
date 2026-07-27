@@ -1,5 +1,5 @@
 ---
-slug: cleanup-core-commands/launch-decomposition
+slug: v2/cleanup-core-commands/launch-decomposition
 title: Decompose launch into substrate plus ticket orchestration
 status: paused
 owner: nicktoper
@@ -70,7 +70,7 @@ executor API.
 
 ## Context
 
-Directory index: `cleanup-core-commands/README`.
+Directory index: `v2/cleanup-core-commands/README`.
 
 Owner direction from the parent: keep `launch` and the things it truly depends
 on, but challenge every other part of launch-shaped behavior. This ticket should
@@ -114,7 +114,7 @@ verb migration unless it is required to prove the launch split.
       launch service: draft/paused/blocked activation, `active -> in_progress`,
       unresolved-blocker re-block, and successful-script step/done writes.
       The ticket records these as the handoff boundary to
-      `cleanup-core-commands/lifecycle-verbs-to-ticket-operations` rather than
+      `v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations` rather than
       declaring the writes executor substrate.
 - [ ] Launch still fails loud, before unsafe mutation where applicable, for an
       unknown target, missing context/skill/script, missing agent/TTY, unresolved
@@ -160,15 +160,15 @@ verb migration unless it is required to prove the launch split.
   agent-skill-view refresh are start-of-run policy/diagnostics. Keep their
   current behavior during the extraction, but keep them above the executor
   boundary. Their removal or relocation belongs to
-  `cleanup-core-commands/support-commands-boundary` and the point-of-use
+  `v2/cleanup-core-commands/support-commands-boundary` and the point-of-use
   git/open-PR paths, not `agent_session` or `script_session`.
 - Prompt-report rendering is a read-only compose diagnostic. Keep the existing
   flag as a thin early-return in this PR, and hand its eventual surface to
-  `cleanup-core-commands/read-report-commands-as-ticket-workflows`.
+  `v2/cleanup-core-commands/read-report-commands-as-ticket-workflows`.
 - Recurring/megalaunch idle and wall-clock defaults, timeout classification,
   and repeated-task selection are caller policy. The session runner accepts
   concrete limits, but choosing them belongs to
-  `cleanup-core-commands/work-orchestration-commands-to-tickets`.
+  `v2/cleanup-core-commands/work-orchestration-commands-to-tickets`.
 
 **Lifecycle transition boundary**
 
@@ -189,7 +189,7 @@ verb migration unless it is required to prove the launch split.
   runner for `ticket`/`project`; named `bootstrap/orient` and
   `bootstrap/ticket` knowledge must stay in the thin caller/compatibility layer,
   not the executor. Default-alias cleanup belongs to
-  `cleanup-core-commands/residual-command-surfaces`.
+  `v2/cleanup-core-commands/residual-command-surfaces`.
 - Preserve `--prompt-report`, `--idle-timeout`, `--max-session`, and the hidden
   timeout-return behavior during the structural PR so recurring callers do not
   change accidentally. Their classification above prevents the new substrate
@@ -248,7 +248,7 @@ verb migration unless it is required to prove the launch split.
 
 <!-- coga:blackboard -->
 
-Created under `cleanup-core-commands/` as part of the command-surface breakdown.
+Created under `v2/cleanup-core-commands/` as part of the command-surface breakdown.
 
 ## Design findings
 
@@ -269,7 +269,7 @@ Created under `cleanup-core-commands/` as part of the command-surface breakdown.
 - Status activation, `active -> in_progress`, blocked-ticket resume/re-block,
   and script success advancing/finishing are lifecycle behavior. Their eventual
   command-surface migration belongs to
-  `cleanup-core-commands/lifecycle-verbs-to-ticket-operations`, not this
+  `v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations`, not this
   extraction.
 - Git push readiness, installed/source skew warnings, generated agent-skill
   view refresh, prompt-report rendering, and recurring liveness defaults are

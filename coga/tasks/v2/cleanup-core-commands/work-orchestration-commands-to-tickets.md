@@ -1,5 +1,5 @@
 ---
-slug: cleanup-core-commands/work-orchestration-commands-to-tickets
+slug: v2/cleanup-core-commands/work-orchestration-commands-to-tickets
 title: Move work orchestration commands to tickets
 status: draft
 owner: nicktoper
@@ -35,7 +35,7 @@ operation should live in a ticket, workflow, skill, or script target.
 
 ## Context
 
-Directory index: `cleanup-core-commands/README`.
+Directory index: `v2/cleanup-core-commands/README`.
 
 Existing prior art:
 
@@ -67,4 +67,4 @@ Out of scope: `skill *`, `create`, and the launch executor substrate.
 
 <!-- coga:blackboard -->
 
-Created under `cleanup-core-commands/` as part of the command-surface breakdown.
+Created under `v2/cleanup-core-commands/` as part of the command-surface breakdown.

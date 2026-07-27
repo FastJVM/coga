@@ -1,5 +1,5 @@
 ---
-slug: cleanup-core-commands/read-report-commands-as-ticket-workflows
+slug: v2/cleanup-core-commands/read-report-commands-as-ticket-workflows
 title: Classify read and report commands under the small-core rule
 status: draft
 owner: nicktoper
@@ -35,7 +35,7 @@ legible.
 
 ## Context
 
-Directory index: `cleanup-core-commands/README`.
+Directory index: `v2/cleanup-core-commands/README`.
 
 `show` and `status` have already had render substance collapsed toward
 `coga.views` / `coga/show` according to `coga/extension-model`; verify the
@@ -62,4 +62,4 @@ substance outside the command file.
 
 <!-- coga:blackboard -->
 
-Created under `cleanup-core-commands/` as part of the command-surface breakdown.
+Created under `v2/cleanup-core-commands/` as part of the command-surface breakdown.

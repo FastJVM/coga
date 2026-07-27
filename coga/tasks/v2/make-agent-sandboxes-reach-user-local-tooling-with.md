@@ -1,5 +1,5 @@
 ---
-slug: make-agent-sandboxes-reach-user-local-tooling-with
+slug: v2/make-agent-sandboxes-reach-user-local-tooling-with
 title: Make agent sandboxes reach user-local tooling without per-path config
 status: draft
 owner: nicktoper

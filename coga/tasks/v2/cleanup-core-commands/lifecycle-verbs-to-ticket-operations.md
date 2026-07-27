@@ -1,5 +1,5 @@
 ---
-slug: cleanup-core-commands/lifecycle-verbs-to-ticket-operations
+slug: v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations
 title: Move lifecycle verbs to ticket operations
 status: draft
 owner: nicktoper
@@ -35,7 +35,7 @@ the command surface should become as small and ticket-shaped as possible.
 
 ## Context
 
-Directory index: `cleanup-core-commands/README`.
+Directory index: `v2/cleanup-core-commands/README`.
 
 Owner direction from the parent: only `create` is presumed irreducibly core.
 Everything else should be treated as a ticket/workflow/script candidate unless
@@ -55,7 +55,7 @@ Design first. Identify:
 Out of scope: changing `create`, changing skill installation, and decomposing
 the launch executor itself. If launch must grow a new hook to run lifecycle
 operations, record that dependency and coordinate with
-`cleanup-core-commands/launch-decomposition`.
+`v2/cleanup-core-commands/launch-decomposition`.
 
 ## Acceptance Criteria
 
@@ -75,4 +75,4 @@ operations, record that dependency and coordinate with
 
 <!-- coga:blackboard -->
 
-Created under `cleanup-core-commands/` as part of the command-surface breakdown.
+Created under `v2/cleanup-core-commands/` as part of the command-surface breakdown.

@@ -36,11 +36,30 @@ with the principles and the core-vs-skills line.
   before editing.
 - They are composed into every launch, so length is a token cost on every
   agent run — favor tightening over adding.
-- Depends conceptually on the microkernel policy landing first (that ticket
-  writes the rule into `CLAUDE.md` + `coga/codebase`); this ticket makes the
-  base prompt speak the same language. Fine to sequence after it.
+- The microkernel policy has **landed** — the rule is written into `CLAUDE.md`
+  and `coga/codebase` (`agree-the-core-vs-skills-move-list-then-execute`, done).
+  This ticket is unblocked; make the base prompt speak that same language.
 - Out of scope: changing `compose.py` composition order or any CLI behavior;
   rewriting the `coga/` contexts (a separate concern).
+
+**Absorbed: the editorial pass (2026-07-27).** This ticket now also carries the
+human-owned editorial pass formerly tracked as
+`launch-prompt/review-and-edit-the-relay-launch-prompt-editorial`, which was
+deleted rather than parked: it scoped `src/relay/resources/` (gone since the
+coga rebrand) and sequenced behind a sibling trim ticket that no longer exists.
+Running two tickets over the same prose was churn. What travels here:
+
+- The pass is **wording, tone, and clarity**, not just structural trim — the
+  parts that are taste and judgment on the behavioral contract.
+- Working shape: the agent drafts support material (a marked-up read of the
+  prompt — remaining redundancy, awkward phrasings, instructions that could be
+  sharper, anything ambiguous to a launched agent); nick reviews, edits to the
+  bar he wants, and owns the result.
+- Surface is the whole launch-prompt set, not the base prompt alone: the base
+  prompt plus the mode overlays that `compose.py` layers on top of it. Confirm
+  the current filenames under `src/coga/resources/` before editing — the old
+  ticket's `prompt-interactive.md` / `prompt-auto.md` names predate the current
+  agent-mode and queue-guidance split.
 
 <!-- coga:blackboard -->
 

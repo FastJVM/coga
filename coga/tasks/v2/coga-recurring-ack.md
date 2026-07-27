@@ -1,5 +1,5 @@
 ---
-slug: coga-recurring-ack
+slug: v2/coga-recurring-ack
 title: coga recurring ack — CLI to record a reminder's ack
 status: draft
 owner: zach

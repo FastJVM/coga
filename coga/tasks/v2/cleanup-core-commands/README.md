@@ -27,16 +27,16 @@ applicable.
 
 ## Child Tickets
 
-- `cleanup-core-commands/lifecycle-verbs-to-ticket-operations` — `mark`, `bump`,
+- `v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations` — `mark`, `bump`,
   `block`, and `unblock`.
-- `cleanup-core-commands/launch-decomposition` — launch executor substrate versus
+- `v2/cleanup-core-commands/launch-decomposition` — launch executor substrate versus
   movable launch policy/orchestration.
-- `cleanup-core-commands/read-report-commands-as-ticket-workflows` — `show`,
+- `v2/cleanup-core-commands/read-report-commands-as-ticket-workflows` — `show`,
   `status`, `validate`, `usage`, and `recurring list`.
-- `cleanup-core-commands/work-orchestration-commands-to-tickets` — `project`,
+- `v2/cleanup-core-commands/work-orchestration-commands-to-tickets` — `project`,
   `retire`, `megalaunch`, `slack`, and digest/recurring maintenance surfaces.
-- `cleanup-core-commands/support-commands-boundary` — `secret get`, `uninstall`,
+- `v2/cleanup-core-commands/support-commands-boundary` — `secret get`, `uninstall`,
   package upgrade/refresh docs, and bootstrap-adjacent support commands,
   excluding `create`, `launch` substrate, and `skill *`.
-- `cleanup-core-commands/residual-command-surfaces` — `init`, `ticket`, `delete`,
+- `v2/cleanup-core-commands/residual-command-surfaces` — `init`, `ticket`, `delete`,
   `skill *`, bare `recurring`, `recurring launch <name>`, and default aliases.

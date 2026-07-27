@@ -1,5 +1,5 @@
 ---
-slug: cleanup-core-commands/residual-command-surfaces
+slug: v2/cleanup-core-commands/residual-command-surfaces
 title: Classify residual command surfaces
 status: draft
 owner: nicktoper
@@ -35,7 +35,7 @@ so the final command taxonomy is complete and honest.
 
 ## Context
 
-Directory index: `cleanup-core-commands/README`.
+Directory index: `v2/cleanup-core-commands/README`.
 
 This ticket exists because the first child-ticket split covered the obvious
 command groups but missed surfaces that are already partly extracted or hidden
@@ -63,4 +63,4 @@ Design first. Decide for each surface whether it is:
 
 <!-- coga:blackboard -->
 
-Created under `cleanup-core-commands/` as part of the command-surface breakdown.
+Created under `v2/cleanup-core-commands/` as part of the command-surface breakdown.

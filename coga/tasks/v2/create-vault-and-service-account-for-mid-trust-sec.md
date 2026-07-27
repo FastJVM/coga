@@ -1,5 +1,5 @@
 ---
-slug: create-vault-and-service-account-for-mid-trust-sec
+slug: v2/create-vault-and-service-account-for-mid-trust-sec
 title: Create vault and service account for mid-trust secrets
 status: draft
 owner: zach

@@ -1,5 +1,5 @@
 ---
-slug: pick-model-on-workflow-to-save-on-cost
+slug: v2/pick-model-on-workflow-to-save-on-cost
 title: pick model on workflow to save on cost
 status: draft
 owner: nicktoper

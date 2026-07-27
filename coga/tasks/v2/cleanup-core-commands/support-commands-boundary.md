@@ -1,5 +1,5 @@
 ---
-slug: cleanup-core-commands/support-commands-boundary
+slug: v2/cleanup-core-commands/support-commands-boundary
 title: Classify support commands under the small-core rule
 status: draft
 owner: nicktoper
@@ -35,7 +35,7 @@ tooling or installer substrate; the point is to prove that explicitly.
 
 ## Context
 
-Directory index: `cleanup-core-commands/README`.
+Directory index: `v2/cleanup-core-commands/README`.
 
 Owner direction: except for `skill *`, `create`, and the true launch executor
 substrate, commands should be treated as candidates to leave the core command
@@ -68,4 +68,4 @@ Design first. Decide whether each support command is:
 
 <!-- coga:blackboard -->
 
-Created under `cleanup-core-commands/` as part of the command-surface breakdown.
+Created under `v2/cleanup-core-commands/` as part of the command-surface breakdown.

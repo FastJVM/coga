@@ -92,7 +92,7 @@ Done means:
 
 Out of scope: weakening the requirement for an explicit actor. Execution-ready
 validation of a separately provisioned runner belongs to sibling ticket
-`op/fail-validation-when-local-user-is-required-for-ex`. Future internal
+`v2/fail-validation-when-local-user-is-required-for-ex`. Future internal
 worktree automation remains owned by
 `v2/reintroduce-per-launch-worktree-isolation`, which must preserve this
 policy.

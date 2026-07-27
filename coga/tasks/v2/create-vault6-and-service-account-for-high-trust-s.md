@@ -1,5 +1,5 @@
 ---
-slug: create-vault6-and-service-account-for-high-trust-s
+slug: v2/create-vault6-and-service-account-for-high-trust-s
 title: Create vault6 and service account for high-trust secrets
 status: draft
 owner: zach

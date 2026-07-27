@@ -1,5 +1,5 @@
 ---
-slug: op/fail-validation-when-local-user-is-required-for-ex
+slug: v2/fail-validation-when-local-user-is-required-for-ex
 title: Fail validation when local user is required for execution
 status: draft
 owner: zach
