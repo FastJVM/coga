@@ -24,6 +24,14 @@ Keep it on `main` when possible. Do code changes in a feature worktree
 outside the primary checkout, then return to the primary checkout for
 blackboard updates, `coga bump`, `coga slack`, and `coga block`.
 
+When an agent sandbox mounts the primary checkout's `.git` metadata read-only,
+`git worktree add` cannot create its branch lock. In that case an independent
+`git clone --no-hardlinks` under `/tmp`, repointed to the real remote and
+freshened from the control branch, is the accepted feature checkout. Record its
+repo path in `worktree:` exactly like a linked worktree. This keeps source and
+Git metadata writable without broadening the sandbox or moving control-plane
+ticket writes onto the feature branch.
+
 This keeps task-state edits (`ticket.md`, plus the repo-global `coga/log.md`)
 from mixing with source changes on a feature branch. If task-state
 changes need to be committed, commit them separately from the code PR.
