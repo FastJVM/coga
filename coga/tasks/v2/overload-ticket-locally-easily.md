@@ -1,5 +1,5 @@
 ---
-slug: overload-ticket-locally-easily
+slug: v2/overload-ticket-locally-easily
 title: overload ticket locally easily
 status: paused
 owner: nicktoper

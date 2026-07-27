@@ -2978,3 +2978,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-27 14:28 [recurring/resolve-conflicts] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-07-27 14:29 [bootstrap/resolve-conflicts] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-07-27 14:30 [overload-ticket-locally-easily] [human:nicktoper] paused (active → paused) — Parked to v2 — follows its dependency (cleanup-core-commands) into the deferred set
+2026-07-27 14:30 [bootstrap/resolve-conflicts] [agent:claude] slack: resolve-conflicts sweep: 0 open PRs — nothing to rebase; no PRs need attention.
