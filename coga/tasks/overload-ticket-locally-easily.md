@@ -1,7 +1,7 @@
 ---
 slug: overload-ticket-locally-easily
 title: overload ticket locally easily
-status: active
+status: paused
 owner: nicktoper
 human: nicktoper
 agent: claude
