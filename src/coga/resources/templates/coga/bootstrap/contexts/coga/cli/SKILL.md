@@ -869,6 +869,29 @@ liveness limits unarmed for debugging one template by hand.
 named task is agent-backed; script-backed tasks ignore it and still run as
 scripts. This also makes `coga dream --agent <type>` work through the alias.
 
+## coga recurring promote \<task\> --schedule "\<cron\>" [--name \<name\>]
+
+Move an existing task out of `coga/tasks/` and into
+`coga/recurring/<name>/ticket.md` as a recurring template — the authoring path
+for "this ticket should run every period", and the way to make a freshly
+created ticket recurring (`coga create`, write the body, then promote).
+`--schedule` is required and validated before anything moves. `--name`
+overrides the template directory name, which defaults to the task's leaf slug.
+
+The body above the blackboard fence travels verbatim; the blackboard is reset,
+because a template blackboard holds durable cross-run state rather than one
+run's scratch. `status:`, `step:`, `slug:`, `human:`, and `agent:` are dropped
+(the creator re-derives them per period), a frozen `workflow:` snapshot
+collapses back to its name, and ticket-level `skills:` are dropped with a
+warning — they are never copied into a period task, so process skills belong
+on the workflow's steps. Everything else (`title`, `owner`, `assignee`,
+`watchers`, `contexts`, `secrets`, `script`) passes through.
+
+It refuses instead of guessing: an existing `coga/recurring/<name>/` is never
+overwritten, a bad cron leaves the source ticket untouched, and an
+`in_progress` or `blocked` task is refused because a template cannot hold a
+live run's step or blocker.
+
 ## coga recurring list
 
 Read-only view of the recurring system — creates nothing and launches

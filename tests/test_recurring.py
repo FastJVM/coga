@@ -18,6 +18,7 @@ from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import tasks_dir
 from coga.recurring import (
+    Template,
     list_templates,
     read_last_serviced_period,
     create_named,
@@ -1466,7 +1467,9 @@ def test_scan_due_skips_malformed_schedule(repo: Path, capsys) -> None:
     assert "skipping bad-cron" in capsys.readouterr().err
 
 
-def test_scan_due_accepts_year_scoped_schedule_for_current_year(repo: Path) -> None:
+def test_scan_due_rejects_non_five_field_year_scoped_schedule(
+    repo: Path, capsys
+) -> None:
     _write_recurring(
         repo,
         "year-scoped",
@@ -1485,8 +1488,15 @@ def test_scan_due_accepts_year_scoped_schedule_for_current_year(repo: Path) -> N
     )
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 6, 1, 10, 0, 0))
-    assert scan.errors == []
-    assert [task.template for task in scan.tasks] == ["weekly-check", "year-scoped"]
+    assert [task.template for task in scan.tasks] == ["weekly-check"]
+    assert scan.errors == [
+        (
+            "year-scoped",
+            "`schedule` is not a valid cron expression: expected exactly "
+            "5 fields, got 7",
+        )
+    ]
+    assert "skipping year-scoped" in capsys.readouterr().err
 
 
 def test_scan_due_skips_template_missing_ticket_md(repo: Path, capsys) -> None:
@@ -4892,3 +4902,447 @@ def test_named_recurring_launch_carries_queue_guidance(
 
     assert len(seen) == 1
     assert seen[0]["queue_guidance"] is True
+
+
+# --- coga recurring promote: task → template authoring ------------------------
+
+
+def _write_task(company: Path, slug: str, text: str) -> None:
+    """Write a file-form task (`tasks/<slug>.md`), the shape `coga create`
+    produces for a plain ticket."""
+    _write(company / "tasks" / f"{slug}.md", text)
+
+
+def test_promote_moves_task_into_a_valid_recurring_template(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The move a human would otherwise hand-do: the ticket leaves `tasks/`,
+    lands as `recurring/<slug>/ticket.md`, and loads as a template."""
+    monkeypatch.chdir(repo)
+    _write_task(
+        repo,
+        "deliverability-review",
+        """
+        ---
+        slug: deliverability-review
+        title: Deliverability review
+        status: draft
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        watchers:
+        - dana
+        contexts:
+        - coga/period-task
+        skills: []
+        workflow: null
+        secrets: null
+        script: null
+        ---
+
+        ## Description
+
+        Run the deliverability diagnostic suite.
+
+        ## Context
+
+        Uses the shared sending domain.
+
+        <!-- coga:blackboard -->
+
+        Scratch from the one-off run.
+        """,
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "recurring",
+            "promote",
+            "deliverability-review",
+            "--schedule",
+            "0 9 * * 1",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert not (repo / "tasks" / "deliverability-review.md").exists()
+    ticket_path = repo / "recurring" / "deliverability-review" / "ticket.md"
+    template = Template.load(ticket_path.parent)
+    assert template.schedule == "0 9 * * 1"
+    assert template.frontmatter["title"] == "Deliverability review"
+    assert template.frontmatter["owner"] == "marc"
+    assert template.frontmatter["assignee"] == "claude"
+    assert template.frontmatter["watchers"] == ["dana"]
+    # Task-only fields never reach a template; the creator re-derives them.
+    for dropped in ("slug", "status", "step", "human", "agent", "skills"):
+        assert dropped not in template.frontmatter
+    # An empty/`null` passthrough is omitted rather than written as `null`.
+    assert "workflow" not in template.frontmatter
+    assert "script" not in template.frontmatter
+    # `coga/period-task` is auto-attached per period; it is not template state.
+    assert "contexts" not in template.frontmatter
+    assert "Run the deliverability diagnostic suite." in template.body
+    assert "Uses the shared sending domain." in template.body
+    blackboard = read_blackboard(ticket_path, blackboard_required=False)
+    assert "Scratch from the one-off run." not in blackboard
+    assert "cross-run state" in blackboard
+
+
+def test_promote_reports_the_move_and_what_it_dropped(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _write_task(
+        repo,
+        "weekly-audit",
+        """
+        ---
+        slug: weekly-audit
+        title: Weekly audit
+        status: active
+        owner: marc
+        assignee: claude
+        skills:
+        - infra/tests
+        workflow:
+          name: code/with-review
+          steps:
+          - name: implement
+            skills:
+            - code/implement
+        step: 1 (implement)
+        ---
+
+        ## Description
+
+        Audit the thing.
+
+        <!-- coga:blackboard -->
+
+        Notes.
+        """,
+    )
+
+    result = CliRunner().invoke(
+        app, ["recurring", "promote", "weekly-audit", "--schedule", "0 9 * * 1"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Promoted weekly-audit → recurring/weekly-audit" in result.output
+    assert "infra/tests" in result.output
+    assert "blackboard" in result.output
+    template = Template.load(repo / "recurring" / "weekly-audit")
+    # A frozen workflow snapshot collapses back to the name the creator freezes
+    # per period.
+    assert template.frontmatter["workflow"] == "code/with-review"
+    assert "step" not in template.frontmatter
+
+
+def test_promote_names_the_template_with_the_name_flag(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A directory-form task promotes under an explicit name, siblings and all."""
+    monkeypatch.chdir(repo)
+    _write(
+        repo / "tasks" / "old-slug" / "ticket.md",
+        """
+        ---
+        slug: old-slug
+        title: Nightly drain
+        status: draft
+        owner: marc
+        script: run.sh
+        ---
+
+        ## Description
+
+        Drain the queue.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+    (repo / "tasks" / "old-slug" / "run.sh").write_text("#!/bin/sh\nexit 0\n")
+    (repo / "tasks" / "old-slug" / ".state-snapshot.json").write_text("{}\n")
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "recurring",
+            "promote",
+            "old-slug",
+            "--schedule",
+            "0 3 * * *",
+            "--name",
+            "nightly-drain",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert not (repo / "tasks" / "old-slug").exists()
+    dest = repo / "recurring" / "nightly-drain"
+    assert (dest / "run.sh").is_file()
+    # A period task's create-time baseline is not template state.
+    assert not (dest / ".state-snapshot.json").exists()
+    assert Template.load(dest).frontmatter["script"] == "run.sh"
+    # A companion script file never reaches the period task — say so.
+    assert "not materialized into period tasks" in result.output
+
+
+def test_promote_preserves_sibling_symlinks_without_reading_their_targets(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Promotion is a move: symlink siblings and nested links remain links
+    rather than turning external target contents into committed attachments."""
+    monkeypatch.chdir(repo)
+    source = repo / "tasks" / "linked-task"
+    _write(
+        source / "ticket.md",
+        """
+        ---
+        slug: linked-task
+        title: Linked task
+        status: draft
+        owner: marc
+        ---
+
+        ## Description
+
+        Keep the links as links.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+    external_file = repo.parent / "outside.txt"
+    external_file.write_text("outside the repository\n")
+    external_dir = repo.parent / "outside-dir"
+    external_dir.mkdir()
+    (external_dir / "payload.txt").write_text("also outside\n")
+    (source / "file-link").symlink_to(external_file)
+    (source / "dir-link").symlink_to(external_dir, target_is_directory=True)
+    attachments = source / "attachments"
+    attachments.mkdir()
+    (attachments / "nested-link").symlink_to(external_file)
+
+    result = CliRunner().invoke(
+        app, ["recurring", "promote", "linked-task", "--schedule", "0 3 * * *"]
+    )
+
+    assert result.exit_code == 0, result.output
+    dest = repo / "recurring" / "linked-task"
+    assert (dest / "file-link").is_symlink()
+    assert (dest / "file-link").readlink() == external_file
+    assert (dest / "dir-link").is_symlink()
+    assert (dest / "dir-link").readlink() == external_dir
+    assert (dest / "attachments" / "nested-link").is_symlink()
+    assert (dest / "attachments" / "nested-link").readlink() == external_file
+
+
+def test_promote_refuses_a_missing_collapsed_workflow_before_deleting_source(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A terminal task can outlive its workflow definition. Promotion must
+    catch that stale snapshot before replacing the recoverable source ticket."""
+    monkeypatch.chdir(repo)
+    _write_task(
+        repo,
+        "stale-workflow",
+        """
+        ---
+        slug: stale-workflow
+        title: Stale workflow
+        status: done
+        owner: marc
+        workflow:
+          name: removed/weekly
+          steps:
+          - name: run
+            skills: []
+        ---
+
+        ## Description
+
+        This must still be launchable after promotion.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "recurring",
+            "promote",
+            "stale-workflow",
+            "--schedule",
+            "0 3 * * *",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "workflow 'removed/weekly'" in result.output
+    assert (repo / "tasks" / "stale-workflow.md").is_file()
+    assert not (repo / "recurring" / "stale-workflow").exists()
+
+
+def test_promote_refuses_an_existing_template_and_leaves_the_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _write_task(
+        repo,
+        "weekly-check",
+        """
+        ---
+        slug: weekly-check
+        title: Weekly check
+        status: draft
+        owner: marc
+        ---
+
+        ## Description
+
+        Check.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+    before = (repo / "recurring" / "weekly-check" / "ticket.md").read_text()
+
+    result = CliRunner().invoke(
+        app, ["recurring", "promote", "weekly-check", "--schedule", "0 9 * * 1"]
+    )
+
+    assert result.exit_code == 2
+    assert "already exists" in result.output
+    assert (repo / "tasks" / "weekly-check.md").is_file()
+    assert (repo / "recurring" / "weekly-check" / "ticket.md").read_text() == before
+
+
+@pytest.mark.parametrize(
+    "schedule",
+    [
+        pytest.param("every monday", id="malformed"),
+        pytest.param("* * * * * *", id="six-fields"),
+        pytest.param("@daily", id="alias"),
+    ],
+)
+def test_promote_validates_the_cron_before_moving_anything(
+    schedule: str,
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bad schedule fails up front — the source ticket is untouched and no
+    half-built template is left behind."""
+    monkeypatch.chdir(repo)
+    _write_task(
+        repo,
+        "bad-cron",
+        """
+        ---
+        slug: bad-cron
+        title: Bad cron
+        status: draft
+        owner: marc
+        ---
+
+        ## Description
+
+        Nope.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+
+    result = CliRunner().invoke(
+        app, ["recurring", "promote", "bad-cron", "--schedule", schedule]
+    )
+
+    assert result.exit_code == 2
+    assert "not a valid cron expression" in result.output
+    if schedule in {"* * * * * *", "@daily"}:
+        assert "exactly 5 fields" in result.output
+    assert (repo / "tasks" / "bad-cron.md").is_file()
+    assert not (repo / "recurring" / "bad-cron").exists()
+
+
+def test_promote_refuses_a_live_run(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`in_progress`/`blocked` carry step and blocker state a template cannot
+    hold; land the run first rather than silently dropping the handoff."""
+    monkeypatch.chdir(repo)
+    _write_task(
+        repo,
+        "mid-flight",
+        """
+        ---
+        slug: mid-flight
+        title: Mid flight
+        status: in_progress
+        owner: marc
+        ---
+
+        ## Description
+
+        Running.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+
+    result = CliRunner().invoke(
+        app, ["recurring", "promote", "mid-flight", "--schedule", "0 9 * * 1"]
+    )
+
+    assert result.exit_code == 2
+    assert "in_progress" in result.output
+    assert (repo / "tasks" / "mid-flight.md").is_file()
+    assert not (repo / "recurring" / "mid-flight").exists()
+
+
+def test_promoted_template_creates_a_real_period_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end: the promoted template fires like any other, creating
+    `tasks/recurring/<name>/` with the body and roles it carried."""
+    monkeypatch.chdir(repo)
+    _write_task(
+        repo,
+        "monthly-report",
+        """
+        ---
+        slug: monthly-report
+        title: Monthly report
+        status: draft
+        owner: marc
+        assignee: claude
+        ---
+
+        ## Description
+
+        Write the monthly report.
+
+        <!-- coga:blackboard -->
+        """,
+    )
+    result = CliRunner().invoke(
+        app, ["recurring", "promote", "monthly-report", "--schedule", "0 9 1 * *"]
+    )
+    assert result.exit_code == 0, result.output
+
+    cfg = load_config(repo)
+    outcome = create_named(cfg, "monthly-report", now=datetime(2026, 4, 1, 10, 0, 0))
+
+    assert outcome.created is True
+    ticket = Ticket.read(outcome.ref.path / "ticket.md")
+    assert outcome.ref.id_slug == "recurring/monthly-report"
+    assert ticket.frontmatter["title"] == "Monthly report"
+    assert ticket.frontmatter["status"] == "active"
+    assert ticket.frontmatter["assignee"] == "claude"
+    assert "coga/period-task" in ticket.contexts
+    assert "Write the monthly report." in ticket.body
+    assert (
+        read_last_serviced_period(repo / "recurring" / "monthly-report" / "ticket.md")
+        == "2026-04"
+    )

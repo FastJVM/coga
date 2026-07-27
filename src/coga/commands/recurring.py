@@ -13,10 +13,18 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from coga import git
 from coga.config import ConfigError, load_config
-from coga.recurring import TemplateStatus, firing_stamp, list_templates
+from coga.recurring import (
+    RecurringError,
+    TemplateStatus,
+    firing_stamp,
+    list_templates,
+    promote_task,
+)
 from coga.recurring_runner import run_recurring_all_repos, run_recurring_named
-from coga.tasks import TaskRef, list_tasks, read_ticket
+from coga.taskfile import TaskFileError
+from coga.tasks import TaskNotFoundError, TaskRef, list_tasks, read_ticket, resolve_task
 from coga.ticket import TicketError
 
 
@@ -165,6 +173,100 @@ def launch(
     )
     if code:
         sys.exit(code)
+
+
+@app.command("promote")
+def promote(
+    ctx: typer.Context,
+    task: str = typer.Argument(..., help="Task ID or id-slug to promote."),
+    schedule: str = typer.Option(
+        ...,
+        "--schedule",
+        help='5-field cron string the template fires on, e.g. "0 9 * * 1".',
+    ),
+    name: str | None = typer.Option(
+        None,
+        "--name",
+        help="Recurring template directory name. Defaults to the task's slug.",
+    ),
+) -> None:
+    """Move a task into `coga/recurring/<name>/` as a recurring template.
+
+    The authoring path for "this ticket should run every period": the ticket
+    body travels verbatim, task-only frontmatter is dropped, the validated
+    `--schedule` is stamped on, and the blackboard is reset for cross-run
+    state. Refuses rather than overwriting an existing template, and validates
+    the cron before anything moves.
+    """
+    if (ctx.obj or {}).get("agent_override") is not None:
+        typer.secho(
+            "--agent is only supported when recurring launches work.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
+    try:
+        cfg = load_config()
+    except ConfigError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
+
+    try:
+        ref = resolve_task(cfg, task)
+    except TaskNotFoundError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
+
+    source_path = ref.path
+    try:
+        outcome = promote_task(cfg, ref, schedule=schedule, name=name)
+    except (RecurringError, TaskFileError, TicketError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
+
+    # One sync for the whole move: the task removal and the new template land
+    # together, so no checkout ever sees the ticket in both places (or in
+    # neither). The task path is gone now, so anchor on its still-present
+    # parent for git-root resolution, the way `coga delete` does.
+    git.sync_paths(
+        cfg,
+        source_path.parent,
+        [source_path, outcome.path],
+        message=(
+            f"Recurring: promoted {outcome.source_slug} → recurring/{outcome.name}"
+        ),
+    )
+
+    typer.echo(
+        f"Promoted {outcome.source_slug} → recurring/{outcome.name} "
+        f"({outcome.path}) on schedule {schedule!r}."
+    )
+    if outcome.dropped_skills:
+        typer.secho(
+            "Dropped ticket-level skills "
+            f"{', '.join(outcome.dropped_skills)}: `skills:` is never copied "
+            "into a period task. Put them on the template workflow's steps.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+    if outcome.dropped_blackboard:
+        typer.secho(
+            "Dropped the task's blackboard: a template blackboard holds "
+            "cross-run state, not one run's scratch. Recover it with `git show` "
+            "if you need it.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+    if outcome.script_file:
+        typer.secho(
+            f"Kept `script: {outcome.script_file}`, but a companion script file "
+            "is not materialized into period tasks. Move that logic into a "
+            "script-backed workflow skill, or use `script: inline`.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+    typer.echo("Run `coga validate --json` to check the new template.")
 
 
 @app.command("list")

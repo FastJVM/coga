@@ -142,6 +142,12 @@ Subcommands:
     backstops unarmed; ticket files aren't modified.
   - `--agent <type>` — agent to use for an agent-backed launch (script tasks
     still run as scripts; the ticket assignee isn't rewritten).
+- **`coga recurring promote TASK --schedule "<cron>"`** — move an existing task
+  into `coga/recurring/<name>/` as a recurring template: task-only frontmatter
+  is dropped, the blackboard is reset for cross-run state, and the validated
+  cron is stamped on. Refuses an existing template, an invalid cron, or an
+  `in_progress`/`blocked` task.
+  - `--name <name>` — template directory name (defaults to the task's slug).
 - **`coga recurring list`** — list recurring templates with their schedules, plus
   instantiated tasks.
 

@@ -849,11 +849,16 @@ def _check_task_numbering(refs: list[TaskRef]) -> list[Issue]:
 
 
 def _check_recurring_templates(cfg: Config) -> list[Issue]:
-    """Resolve workflow-step skills in materialized recurring templates."""
+    """Check schedules and workflow-step skills in recurring templates."""
+    # Imported here, not at module scope: `coga.recurring` imports this module
+    # for `TaskValidationError`, so a top-level import would be circular.
+    from coga.recurring import RecurringError, _validate_schedule
+
     root = recurring_dir(cfg)
     if not root.is_dir():
         return []
 
+    now = datetime.now()
     out: list[Issue] = []
     for path in sorted(root.iterdir()):
         if path.name.startswith("_") or not path.is_dir():
@@ -865,6 +870,37 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
             template = Ticket.read(ticket_path)
         except TicketError:
             continue
+
+        # A template's `schedule:` is what makes it fire at all. Without a
+        # static check a missing or malformed cron only surfaces at scan time —
+        # until then the template just silently never runs.
+        if "schedule" not in template.frontmatter:
+            out.append(Issue(
+                kind="invalid-recurring-schedule",
+                task=f"recurring/{path.name}",
+                message=(
+                    f"recurring template {path.name!r} has no `schedule:` — add a "
+                    f"5-field cron string (e.g. `schedule: \"0 9 * * 1\"`) to "
+                    f"{ticket_path}, or rename the directory to `_{path.name}` to "
+                    f"park it."
+                ),
+                severity="error",
+            ))
+        else:
+            try:
+                _validate_schedule(template.frontmatter["schedule"], now)
+            except RecurringError as exc:
+                out.append(Issue(
+                    kind="invalid-recurring-schedule",
+                    task=f"recurring/{path.name}",
+                    message=(
+                        f"recurring template {path.name!r} has an invalid "
+                        f"schedule: {str(exc).rstrip('.')}. Fix `schedule:` in "
+                        f"{ticket_path}."
+                    ),
+                    severity="error",
+                ))
+
         workflow_name = template.frontmatter.get("workflow") or "direct/body"
         if not isinstance(workflow_name, str):
             continue

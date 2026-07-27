@@ -99,12 +99,18 @@ the example under "Extend recurring with a task-specific workflow").
   `--interactive` is set, the launched REPL receives the same concrete
   `idle_timeout` / `max_session` limits the scheduled sweep would pass, so the
   in-process launch path never relies on Typer option sentinels.
+- `coga recurring promote <task> --schedule "<cron>"` — turns an existing task
+  into a recurring template. See "Dropping a new recurring task" below.
 
 `ticket.md` frontmatter fields:
 
 - `schedule` — a 5-field cron string. **Required**; a recurring task without
   it (or without `ticket.md`) is skipped with a stderr warning and an entry
-  in the run's Slack summary.
+  in the run's Slack summary. `coga validate` also checks it statically and
+  reports a missing or malformed cron as an `invalid-recurring-schedule`
+  error, so a template that would silently never fire fails validation
+  instead of surprising you at the next sweep. A parked `_`-prefixed
+  directory is exempt — it is inert by design.
 - there is no `mode` field: whether a run is a script or an agent session is
   deduced (the template's `script:`, or a script-backed workflow step 1 →
   script; else agent). Agent templates need a TTY and run under the REPL
@@ -121,6 +127,53 @@ the example under "Extend recurring with a task-specific workflow").
   inline script travels in the copied body; a companion script file beside the
   template is not copied into the period task, so file-backed recurring logic
   belongs in a script-backed workflow skill.
+
+## Dropping a new recurring task
+
+Two paths, both landing on the same thing — a non-underscore directory under
+`coga/recurring/` whose `ticket.md` carries a valid `schedule:`.
+
+- **Author it.** Create `coga/recurring/<name>/ticket.md` by hand (copy an
+  existing template, or the example in the next section), then
+  `coga validate --json`.
+- **Promote an existing ticket.** `coga recurring promote <task> --schedule
+  "0 9 * * 1"` moves `coga/tasks/<slug>` (either on-disk shape) to
+  `coga/recurring/<slug>/ticket.md`. This is also the "make it recurring at
+  creation time" path: `coga create` the ticket, write its body, then promote
+  it. `--name` overrides the template directory name (it defaults to the
+  task's leaf slug); directory-form siblings such as a `script:` file travel
+  with the ticket.
+
+What promote does to the ticket, and why:
+
+- The body above the blackboard fence travels verbatim — the `## Description`
+  is what each period task runs.
+- The blackboard is **reset**. A task blackboard is one run's scratch; a
+  template blackboard is durable cross-run state (`last_serviced_period`,
+  cursors). The old text stays in git history.
+- `status:`, `step:`, `slug:`, `human:`, and `agent:` are dropped — per-run and
+  per-launch fields the creator re-derives for every period task. `title`,
+  `owner`, `assignee`, `watchers`, `contexts`, `secrets`, and `script` pass
+  through. A frozen `workflow:` snapshot collapses back to its name so the
+  creator re-freezes it each period; a ticket with no workflow stays that way
+  and creates with `direct/body`.
+- Ticket-level `skills:` are dropped, with a warning: they are never copied
+  into a period task. Put process skills on the template workflow's steps.
+
+Promote refuses rather than guessing:
+
+- An existing `coga/recurring/<name>/` is never overwritten — pass `--name` or
+  remove it first.
+- The cron is validated before anything moves, so a bad `--schedule` leaves the
+  source ticket untouched.
+- The transformed workflow name must still resolve. A terminal ticket can
+  outlive a deleted workflow definition; promote catches that stale snapshot
+  before deleting the source ticket.
+- An `in_progress` or `blocked` task is refused: a template cannot hold a live
+  run's step or blocker. Land or unblock the run first.
+
+Then `coga validate --json` and, for an explicit first run,
+`coga recurring launch <name>`.
 
 ## Extend recurring with a task-specific workflow
 
