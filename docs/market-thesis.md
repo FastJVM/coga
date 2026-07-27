@@ -280,7 +280,7 @@ The product is ~80% there, and the 80% is real: the classical substrate works
 for attended and unattended local operation. Built and tested today are the
 primitives, prompt composition, task state machine, schema validation,
 supervised interactive REPL with done/block signaling and liveness limits,
-script-backed recurring work, checked notifications, atomic writes,
+recipe-backed and custom-script recurring work, checked notifications, atomic writes,
 git-backed state, cross-vendor chaining, and SKILL.md-format adoption.
 
 The missing 20% is the move from shipped mechanism to trusted habit: proving

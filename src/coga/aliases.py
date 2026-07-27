@@ -35,6 +35,7 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
         "project",
         "validate",
         "secret",
+        "run",
     }
 )
 

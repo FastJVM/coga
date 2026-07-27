@@ -1,7 +1,6 @@
 ---
 name: bootstrap/dream/tasks/validate-drift
 description: Run Coga's deterministic validator and classify validation drift into safe remediation buckets.
-script: run.py
 ---
 
 # Validate Drift
@@ -22,13 +21,12 @@ It then classifies every validator issue into one of three buckets:
 ## Known Skill Contract
 
 - Purpose: deterministic repo-health validation and conservative safe repair
-- Runs: a script-stepped Coga task whose workflow step references
-  `bootstrap/dream/tasks/validate-drift`
+- Runs: `coga run validate-drift` from the active Dream task
 - Inputs: `coga.toml`, `coga.local.toml`, task directories, workflow refs,
   context refs, skill refs, and optional Slack webhook reachability
 - May change: a missing `<!-- coga:blackboard -->` fence + blackboard region
   in a task's `ticket.md`, only when `--fix` is
-  enabled by the script's default safe-repair pass; repaired files may be
+  enabled by the recipe's default safe-repair pass; repaired files may be
   committed and pushed only from a non-main repair branch when
   `--commit-and-push` is passed manually
 - Action: `direct-fix`
@@ -44,22 +42,21 @@ It then classifies every validator issue into one of three buckets:
 From the host repo root:
 
 ```
-coga launch <validate-drift-child-task>
+coga run validate-drift
 ```
 
-The child task's current workflow step must have this skill as its single
-skill — that makes the launch a script run — and must
-reference `bootstrap/dream/tasks/validate-drift`. Coga injects
-`COGA_TASK_SLUG`, `COGA_TASK_DIR`, and `COGA_TASK_BLACKBOARD`; the script
-uses that metadata to append its result to the child task blackboard.
+Run it from the active Dream task after reading this contract. The agent launch
+already carries `COGA_TASK_SLUG`, `COGA_TASK_DIR`, and
+`COGA_TASK_BLACKBOARD`; the recipe inherits that metadata and appends its
+result directly to the Dream task blackboard.
 
 The default safe-repair pass applies the same conservative repair set as
 `coga validate --fix`: append a missing blackboard fence + region to a `ticket.md` only. To
-publish those repairs from a Dream repair branch, run the script manually with
+publish those repairs from a Dream repair branch, run the recipe manually with
 `--commit-and-push`; it commits only repaired files and pushes the current
 branch, refusing `main`/`master` by default.
 
-The skill exits `0` when validation completed, even if the validator found
+The recipe exits `0` when validation completed, even if the validator found
 issues. It exits non-zero only when the validator itself failed or emitted
 invalid JSON.
 
@@ -74,12 +71,11 @@ The skill appends a concise section to the Dream run blackboard:
 The section includes the exact command, issue counts by bucket, and one
 remediation line per issue. When the default `--fix` pass repairs files, it
 also lists the applied fixes. When `--post-slack` is passed, it posts a
-one-line Slack summary against the `COGA_TASK_SLUG` the child task was
-launched with.
+one-line Slack summary against the active Dream task's `COGA_TASK_SLUG`.
 
 ## Flags
 
-The script accepts:
+The recipe accepts:
 
 - `--cwd <path>` — run validation from this repo directory (default: cwd).
 - `--no-fix` — disable the default `coga validate --fix` repair pass.

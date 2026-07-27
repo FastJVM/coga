@@ -79,7 +79,7 @@ def _write_workflow(coga_os: Path, name: str, skill: str) -> None:
         f"""
         ---
         name: {name}
-        description: script worker.
+        description: recipe contract.
         steps:
           - name: run
             skills:
@@ -89,7 +89,25 @@ def _write_workflow(coga_os: Path, name: str, skill: str) -> None:
     )
 
 
-def test_validate_drift_runs_as_script_skill(repo: Path) -> None:
+def _run_recipe_in_task(
+    repo: Path,
+    recipe: str,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    cfg = load_config(repo)
+    ref = next(ref for ref in list_tasks(cfg) if ref.slug == recipe)
+    monkeypatch.setenv("COGA_TASK_SLUG", ref.id_slug)
+    monkeypatch.setenv("COGA_TASK_DIR", str(ref.path.resolve()))
+    monkeypatch.setenv("COGA_TASK_TICKET", str(ref.ticket_path.resolve()))
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(ref.ticket_path.resolve()))
+    monkeypatch.setenv("COGA_COGA_OS_ROOT", str(repo.resolve()))
+    monkeypatch.setenv("COGA_REPO_ROOT", str(repo.parent.resolve()))
+    return CliRunner().invoke(app, ["run", recipe])
+
+
+def test_validate_drift_runs_as_registered_recipe(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _install_dream_skill(repo, "validate-drift")
     _write_workflow(repo, "validate-drift", "bootstrap/dream/tasks/validate-drift")
     cfg = load_config(repo)
@@ -104,18 +122,19 @@ def test_validate_drift_runs_as_script_skill(repo: Path) -> None:
         status="active",
     )
 
-    result = CliRunner().invoke(app, ["launch", "validate-drift"])
+    result = _run_recipe_in_task(repo, "validate-drift", monkeypatch)
 
     assert result.exit_code == 0, result.output
     ref = list_tasks(cfg)[0]
-    # Single-file format: a script worker's COGA_TASK_BLACKBOARD is its own
-    # ticket.md, so its appended notes land in that ticket's blackboard region.
+    # The recipe inherits the parent task's single-file blackboard path.
     blackboard = read_blackboard(ref.ticket_path)
     assert "## Dream Skill: validate-drift" in blackboard
     assert "Task: `validate-drift`" in blackboard
 
 
-def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path) -> None:
+def test_cleanup_orphan_markers_runs_as_recipe_and_gates_delete(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _install_dream_skill(repo, "cleanup-orphan-markers")
     _write_workflow(
         repo,
@@ -166,7 +185,9 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
         status="active",
     )
 
-    result = CliRunner().invoke(app, ["launch", "cleanup-orphan-markers"])
+    result = _run_recipe_in_task(
+        repo, "cleanup-orphan-markers", monkeypatch
+    )
 
     assert result.exit_code == 0, result.output
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
@@ -178,7 +199,9 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
     assert (repo / "tasks" / "processed-ticket").is_dir()
 
 
-def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> None:
+def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _install_dream_skill(repo, "cleanup-orphan-markers")
     _write_workflow(
         repo,
@@ -224,7 +247,9 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
         status="active",
     )
 
-    result = CliRunner().invoke(app, ["launch", "cleanup-orphan-markers"])
+    result = _run_recipe_in_task(
+        repo, "cleanup-orphan-markers", monkeypatch
+    )
 
     assert result.exit_code == 0, result.output
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
@@ -237,7 +262,9 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
     assert (repo / "tasks" / "processed-ticket").is_dir()
 
 
-def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> None:
+def test_cleanup_orphan_markers_ignores_inline_retro_mentions(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A blackboard that only mentions the marker strings in prose — e.g. a
     ticket documenting the marker format — must not be detected as a candidate.
     `## Retro` counts only as a line-start heading."""
@@ -284,7 +311,9 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
         status="active",
     )
 
-    result = CliRunner().invoke(app, ["launch", "cleanup-orphan-markers"])
+    result = _run_recipe_in_task(
+        repo, "cleanup-orphan-markers", monkeypatch
+    )
 
     assert result.exit_code == 0, result.output
     refs = {ref.slug: ref for ref in list_tasks(cfg)}

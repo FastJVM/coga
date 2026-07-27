@@ -52,7 +52,7 @@ no in-memory state.
 - **Workflows** are ordered step definitions. A repo's own workflows live in
   `coga/workflows/`; package-backed reusable workflows (the core `code/*`
   loop, `code/with-self-review`, `docs/create-google-doc`,
-  `docs/with-review`, the Dream child workflows, `digest/post`) live in
+  `docs/with-review`, and `digest/post`) live in
   package `bootstrap/workflows/` resources.
   Resolution is local-first, exactly like skills and contexts: a local
   `workflows/<ref>.md` overrides a bundled `bootstrap/workflows/<ref>.md`.
@@ -69,13 +69,17 @@ no in-memory state.
   flips (e.g. `code/with-review`) and agent-rotation relaunches. Steps without
   one leave the assignee unchanged.
 - **Recurring templates** live in `coga/recurring/`. `coga recurring`
-  launches the stateless package-backed `bootstrap/recurring-scan` script
-  target, which scans templates, creates the current run at the stable
+  invokes the fixed `recurring-scan` recipe, which scans templates, creates
+  the current run at the stable
   path-qualified task ref `tasks/recurring/<name>/` (`recurring/<name>` in
   CLI/status/notifications), records the serviced period as
   `last_serviced_period` in the template blackboard, and launches the due
-  ones. The created tasks then use the same ticket, workflow, launch, bump,
-  and blackboard machinery as any other task.
+  ones. A template may select a known deterministic implementation with
+  `recipe:`; the scanner executes that recipe in an isolated `coga run`
+  subprocess with the period task's scoped secrets and `COGA_TASK_*`
+  metadata. Other templates retain the ordinary agent or script launch path.
+  Every created task uses the same ticket, workflow, lifecycle, and blackboard
+  machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
   repos below the path while pruning dependency/tool-state and `_`-prefixed
   directory trees. Workspaces rejected by Coga's intentional config guards —
@@ -99,8 +103,8 @@ no in-memory state.
   checks a repo-local `coga/bootstrap/<name>/ticket.md` before the package
   `bootstrap/<name>/ticket.md` resource. Used for ticket-less re-entry points
   like `coga launch bootstrap/orient` (the `chat` alias), deterministic
-  bootstrap scripts like `bootstrap/recurring-scan`, and **command tickets** —
-  a ticket that is a verb's durable *definition* (body as docs, `script:` as
+  **command tickets** such as the transitional `bootstrap/open-pr` path — a
+  ticket that is a verb's durable *definition* (body as docs, `script:` as
   implementation, `secrets:` as capability grant), launched in place each
   time with no per-invocation task instance. Trailing launch args
   (`coga launch <target> [ARGS...]`) follow the target's execution medium: a
@@ -263,9 +267,9 @@ to a missing-workflow or no-instructions placeholder. Draft and terminal
 tickets are left alone.
 
 `coga ticket` (guided authoring) fills the workflow in through its
-interview skill. The `bootstrap/recurring-scan` script target, on-demand
-`recurring launch <name>` (including the `coga dream` alias), and `coga
-retire` create their own one-shots straight to `active`
+interview skill. The `recurring-scan` recipe, on-demand `recurring launch
+<name>` (including the `coga dream` alias), and `coga retire` create their
+own one-shots straight to `active`
 by calling `create_task` directly — but they are **not** workflow-less
 exceptions: a template that declares no workflow (and every retire task)
 creates with the one-step `direct/body` workflow, which runs the ticket
@@ -354,12 +358,23 @@ blockers, no-progress exits, and non-zero exits. Blocked tickets can resume
 inline only for an agent launch from a TTY, so the first job in that
 session is to resolve or re-block the open asks.
 
-**Script launches** run deterministic code directly, with no composed agent
-prompt. They inject declared secrets as environment variables, run without a
-TTY, and are the right shape for recurring, cron, wrappers, and CI.
-Package-backed bootstrap tickets may also name a ticket-owned script; those
-run through the same script path with stateless launch semantics, so the
-bootstrap target itself gets no task lifecycle or log writes.
+**Registered recipes** are deterministic core functions behind
+`coga run <recipe> [args...]`. One explicit in-package table contains exactly
+`autoclose`, `digest`, `blocker-reminders`, `branch-sweep`, `validate-drift`,
+`cleanup-orphan-markers`, `recurring-scan`, and `skill-update`; there is no
+file discovery, config import, or plugin surface. The generic command passes
+the trailing tokens as an ordinary `list[str]`, preserving boundaries and
+option spelling, and propagates the function's integer return code and
+stdout/stderr. It does not use `COGA_ARG_*`. An agent invoking a recipe keeps
+its inherited `COGA_TASK_*`; the recurring runner explicitly re-derives that
+metadata for the instantiated period task.
+
+**Script launches** remain a temporary parallel seam for
+`bootstrap/open-pr`, `bootstrap/delete-task`, the vestigial show/finalize
+wrappers, ticket-owned scripts, inline scripts, and generic project-local
+script steps. They run deterministic code directly, with no composed agent
+prompt, inject declared secrets, and need no TTY. Stateless bootstrap scripts
+still receive `COGA_ARG_1..N` plus `COGA_ARGC`; recipes do not.
 
 There is no `autonomy:` field. The old `auto`, `skip_permissions`, and
 `skip_permissions_argv` agent keys are removed; config load rejects them with
@@ -608,29 +623,22 @@ The command reference lives in `coga/cli`. The important architectural split
 is that foreground commands operate on files in the current `coga/`; there
 is no server-side state behind them.
 
-### Commands as tickets — the migration rule
+### Registered recipes and the transitional script seam
 
-The open-pr pilot (2026-07) settled when a core command leaves the kernel for
-a command ticket:
+Deterministic Coga jobs that need a stable command surface live as importable
+core functions in the fixed `runner.RECIPES` table and are invoked through
+`coga run`. Keeping the registry explicit makes the available code legible
+and reviewable; installed skills are process contracts, not executable
+plugins. State-machine commands (`create`, `mark`, `bump`, `block`, `unblock`,
+`launch`, `megalaunch`) remain ordinary core commands, as do shared gates,
+parsers, preflights, and config/secrets machinery.
 
-> A core command migrates to a command ticket when it is a deterministic
-> verb: script-shaped, parameterized by trailing args + env, owning no
-> control/data-plane state transition. Its completion gate, if any, stays a
-> declarative `requires:` data check in `bump`. State-machine commands
-> (`create`, `mark`, `bump`, `block`, `unblock`, `launch`, `megalaunch`) are
-> the kernel. Shared parsers/preflights stay core once ≥2 consumers exist.
-> Read-only surfaces (`status`, `show`, `validate`, `usage`) are explicitly
-> *unruled* — deferred until a driving case (owner, 2026-07-21).
-
-The shape a migrated verb takes is the `bootstrap/open-pr` command ticket:
-`ticket.md` (definition + docs) beside `run.py` (the seam, reading
-`COGA_ARG_*`) and `recipe.py` (the deterministic logic, importing shared core
-infra freely), fronted by a default alias so the operator spelling never
-changes. What deliberately stays core regardless: the `requires:` gate
-registry (`step_gate.py`), shared parsers (`coga.autoclose`), preflights
-(`github_preflight`), and the secrets/config machinery — the kernel trades
-verb implementations for the generic seams (arg channel, local-first
-bootstrap resolution) that let any verb live outside it.
+`bootstrap/open-pr` and `bootstrap/delete-task` temporarily retain the older
+command-ticket/script path while their ownership gates are migrated. The
+open-pr shape is still `ticket.md` beside `run.py` (the seam reading
+`COGA_ARG_*`) and `recipe.py` (deterministic logic), fronted by a default
+alias. That compatibility path does not make skills a dynamic recipe source
+and does not change `coga run`'s ordinary argv contract.
 
 ## Dream's known-skill contract
 
@@ -641,30 +649,25 @@ Dropping a SKILL.md under `bootstrap/dream/tasks/` does not enable it; there is
 no recursive discovery, no registry, and no daemon. Adding another Dream skill
 is a normal Coga code/docs change to that list.
 
-Dream-owned scripts are skills attached to Coga tasks; they are never
-standalone execution units.
-
-A Dream worker is a plain skill. The shipped Coga workers live under
+Dream's deterministic workers are plain skills whose known-skill contracts
+name registered recipes. The shipped contracts live under
 `src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/tasks/<name>/`
-as a `SKILL.md` (standard `name` + `description` frontmatter, plus an
-optional `script: <filename>` entry point) alongside that script. `coga
-init` ships those resources in the package rather than materializing a repo
-copy; a workflow still references the worker by ref
-`bootstrap/dream/tasks/<name>`. Running a worker is just a script-step Coga
-task whose one workflow step names that skill — it gets a normal ticket,
-blackboard, and log. There is no separate "Dream worker" Python shape, no
-`worker.main()` import from `coga.commands`, and no in-process call path; the
-worker runs end-to-end through the same launch machinery as any other script
-step.
+as `SKILL.md` files. Dream phases 1 and 5 read those contracts and invoke
+`coga run validate-drift` and `coga run cleanup-orphan-markers` directly from
+the parent Dream task. The recipes inherit that task's `COGA_TASK_*`, so their
+reports land on the Dream blackboard; no child script task or worker workflow
+is created. Dropping another skill in the directory still enables nothing:
+the template's ordered known-skill list and the fixed core registry are the
+two explicit control points.
 
 Dream's decide-half subagent scans (the knowledge scan and the contract
 audit) are skills too, but **prompt-only**: they live under
 `bootstrap/skills/bootstrap/dream/scan/<name>/` (referenced as
-`bootstrap/dream/scan/<name>`), a sibling segment to the script workers'
+`bootstrap/dream/scan/<name>`), a sibling segment to the deterministic workers'
 `tasks/`. A prompt-only scan skill carries just `name` + `description`
 frontmatter and the classification contract as its body — no `script:` entry
 point and no `## Known Skill Contract` block; that shape belongs to the
-script workers and is the wrong archetype to copy for a subagent scan. The
+deterministic workers and is the wrong archetype to copy for a subagent scan. The
 Dream template body delegates each scan phase to a subagent running the
 skill and keeps only the delegation framing plus the `## Findings` write
 target inline. Known limitation: the contract audit's own corpus globs
@@ -672,16 +675,16 @@ target inline. Known limitation: the contract audit's own corpus globs
 `bootstrap/skills/**`, so the bundled Dream skills — the scan skills included
 — sit outside the surface that audit reads.
 
-Every launched agent or script process receives task metadata as environment
-variables: `COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
+Every launched agent or script process, plus every recurring recipe
+subprocess, receives task metadata as environment variables:
+`COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
 `COGA_TASK_BLACKBOARD`, `COGA_TASK_LOG`, `COGA_COGA_OS_ROOT`, and
 `COGA_REPO_ROOT`. The shared spawn boundary always re-derives these values from
 the launched task, so a nested launch cannot inherit the outer task's paths.
 Agent launches also discard any inherited `COGA_SKILL_*` metadata from an outer
 script.
 Script launches backed by a skill additionally receive `COGA_SKILL_NAME` and
-`COGA_SKILL_DIR`; worker scripts read these variables instead of CLI argument
-plumbing such as a `--blackboard` flag. `COGA_COGA_OS_ROOT` is the `coga/` root;
+`COGA_SKILL_DIR`; recipes receive no skill metadata. `COGA_COGA_OS_ROOT` is the `coga/` root;
 `COGA_REPO_ROOT` is the host repo (its parent when `coga/` is nested in a repo).
 
 Each known skill's `SKILL.md` carries a `## Known Skill Contract` section

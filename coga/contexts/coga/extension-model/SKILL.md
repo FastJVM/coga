@@ -43,18 +43,27 @@ Reach for the lowest tier the *shape* allows — shape decides, not taste:
   when the operating system already provides it.
 - **Ticket / workflow** if it is a stateful, reviewable unit of work — it wants its
   own blackboard, log, and (often) a PR.
-- **Kernel** if `launch` calls or depends on it mid-flight, or it must exist before
-  any launch can run (below).
+- **Kernel** if `launch` calls or depends on it mid-flight, it must exist before
+  any launch can run, or it is one of the deliberately fixed deterministic
+  commands registered behind `coga run` (below).
 
-## The kernel is `launch` and what it depends on
+## The kernel is the launch closure plus fixed recipes
 
-The kernel is not a taxonomy to memorize — it is **one thing and its dependency
-closure**. The kernel is `launch`/compose, plus everything `launch` must call or
-depend on while running, plus the bootstrap that must exist before any launch can
-run at all. The test for any command is a single question:
+Most of the kernel is not a taxonomy to memorize — it is **one thing and its
+dependency closure**. The kernel is `launch`/compose, plus everything `launch`
+must call or depend on while running, plus the bootstrap that must exist before
+any launch can run at all. For ordinary command-surface decisions, ask:
 
 > Does `launch` call it *while running*, or does a human/cron call it *to start* a
 > launch? Mid-flight → kernel. Kick-off → movable (ticket or external tool).
+
+There is one explicit exception: `coga run <recipe>` exposes a closed,
+in-package name-to-function table for deterministic jobs whose argv, output,
+and exit behavior are part of Coga's command contract. Those registered
+functions are real Python command implementations, not aliases or discovered
+skill plugins, so they also live in focused core modules. Adding a name is a
+reviewed kernel change; repository-local tickets and skills cannot extend the
+table.
 
 What that closure contains, and why each is there:
 
@@ -72,14 +81,15 @@ What that closure contains, and why each is there:
   launch needs to exist). A workflow runs *on a ticket*, so neither can be a ticket
   without eating itself.
 
-That is the whole kernel. No other user-facing command is in it — everything a
-user or cron calls *to start* a launch is movable.
+That is the launch dependency closure. Outside the fixed recipe table, a
+user-facing command that merely starts a launch remains movable.
 
 ## The stateless command-ticket home
 
-A command ticket is the shipped Coga-authored stateless extension surface. It
-uses ticket-format files as a legible **definition**, but it is not a durable
-task instance:
+A command ticket is the repo-extensible Coga-authored stateless surface. The
+fixed `coga run` table is intentionally not an extension mechanism. A command
+ticket uses ticket-format files as a legible **definition**, but it is not a
+durable task instance:
 
 - Put the definition under `coga/bootstrap/<name>/ticket.md`; package-backed
   defaults live under the matching bootstrap resource. Resolution is
@@ -163,7 +173,7 @@ actively fights the capability boundary.
 
 | Home | Members |
 | --- | --- |
-| **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · *(hooks)* secret-inject, skill-verify-at-compose |
+| **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · fixed `coga run` recipes · *(hooks)* secret-inject, skill-verify-at-compose |
 | **Stateful tickets** | reviewable work with its own lifecycle, including recurring period tasks, `retire`, and code workflows |
 | **Stateless command tickets** | package/repo bootstrap targets such as `open-pr` and `resolve-conflicts`; deterministic or agent-backed, launched in place |
 | **External tools** | existing CLIs such as `git`, `gh`, and `op` |

@@ -305,6 +305,25 @@ cannot end a session accidentally.
 dependency-light `characters / 4` estimate, so treat them as a prompt-bloat
 guardrail and task-to-task comparison, not exact provider billing.
 
+## coga run \<recipe\> [args...]
+
+Invoke one deterministic core recipe through Coga's fixed registry. The
+registered names are `autoclose`, `digest`, `blocker-reminders`,
+`branch-sweep`, `validate-drift`, `cleanup-orphan-markers`,
+`recurring-scan`, and `skill-update`. Unknown names exit 2 and print that
+known set; recipes are not discovered from skills, config, or entry points.
+
+Every token after the recipe name is forwarded as an ordinary Python
+`list[str]`, so a value containing spaces stays one element and options such
+as `--no-fix` reach the recipe parser unchanged. This command does not use the
+script launcher's `COGA_ARG_1..N` / `COGA_ARGC` channel. It preserves inherited
+`COGA_TASK_*` metadata when an agent invokes it, passes stdout/stderr through,
+and exits with the recipe's integer return code.
+
+The older `coga launch` script path remains available in parallel for
+`bootstrap/open-pr`, `bootstrap/delete-task`, ticket-owned/inline scripts,
+and generic project-local script steps while that seam is migrated.
+
 ## coga status
 
 List the live tasks in the repo — `draft`, `active`, `in_progress`, `blocked`,
@@ -741,8 +760,9 @@ results to that run's blackboard, and finishes with `coga mark done`.
 
 Scan `coga/recurring/`, then create and launch every task that is due.
 The Typer command head parses `--interactive` / `--force` / `--agent` and
-launches the stateless package-backed `bootstrap/recurring-scan` script target,
-passing those values through an explicit environment contract.
+forwards them as ordinary argv to the registered `recurring-scan` recipe.
+There is no package-backed scan ticket or `COGA_RECURRING_*` argument
+channel.
 
 `--all <path>` is the multi-repo scheduler entry point. It may run from outside
 a Coga repo: it recursively finds `coga/` directories containing `coga.toml`
@@ -771,9 +791,9 @@ recurring --all ~/Code` without racing two checkouts of one remote workspace.
 
 Pass `--agent <type>` to run every agent-backed task in the sweep with that
 configured agent type. The override is ephemeral: it does not rewrite ticket
-assignees, human handoffs remain protected, and script-backed recurring tasks
-still run as scripts. The command threads the override through the stateless
-scan target as `COGA_RECURRING_AGENT`.
+assignees, human handoffs remain protected, and deterministic recipe/script
+tasks keep their declared execution path. The command passes the override to
+the scanner as ordinary `--agent` argv.
 
 For each template (skipping `_`-prefixed files) `coga recurring` enforces
 **one live task per template**: if the generated task at `recurring/<name>` is
@@ -802,7 +822,8 @@ Dedup after Dream deletes a completed run comes from
 `coga recurring --interactive` is the human-stepped debug knob for a recurring
 run. It requires an attended TTY and leaves the recurring liveness backstops
 unarmed; each template still launches according to its deduced substance
-(script when its `script:` or workflow step 1 is script-backed, else agent).
+(a declared recipe first; otherwise script when its `script:` or workflow step
+1 is script-backed; else agent).
 
 `coga recurring --force` **forces a real, full run of every template**. It is
 *not* a sandbox: the only difference from a bare `coga recurring` is that it
@@ -821,10 +842,11 @@ slug-based suppression, no orphan reaping, and no fold-back-to-template-log
 step. Use it to force this period's work to re-run without waiting for the
 schedule.
 
-Agent templates (no `script:` and no script-backed workflow step 1) are
+Agent templates (no `recipe:`, no `script:`, and no script-backed workflow
+step 1) are
 skipped when `coga recurring` has no stdin/stdout TTY, because the agent REPL
 cannot be driven. Templates intended for cron or other unattended schedulers
-should carry a script.
+should select a registered recipe or carry a complete one-step script.
 
 **Queue guidance.** Like megalaunch, automatic recurring launches (the bare
 sweep, `--force`, and on-demand `recurring launch <name>` — everything except

@@ -5,14 +5,11 @@ from __future__ import annotations
 import os
 import subprocess
 
-from coga.commands.launch_script import (
-    build_script_command,
-    build_task_env,
-    script_repo_root,
-)
+from coga.commands.launch_script import build_script_command
 from coga.config import Config
 from coga.paths import resolve_skill_path, skill_resolution_paths
 from coga.skill import Skill
+from coga.task_env import build_task_env, host_repo_root
 from coga.tasks import TaskRef
 
 
@@ -52,7 +49,7 @@ def run_delete_task_skill(cfg: Config, ref: TaskRef) -> str:
     result = subprocess.run(
         build_script_command(script_path),
         env=env,
-        cwd=script_repo_root(cfg),
+        cwd=host_repo_root(cfg),
         check=False,
         capture_output=True,
         text=True,

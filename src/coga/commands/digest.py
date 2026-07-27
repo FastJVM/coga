@@ -4,7 +4,7 @@ This is the **consumer** half of the daily-digest pipeline. Done/canceled
 events and recurring scan errors spool structured JSONL records into the dedicated
 `recurring/digest/spool.md` file as they happen (see
 `coga.notification.notify`). Once a day the digest recurring ticket fires, and
-its script step runs this command:
+its registered recipe runs this command:
 
   read the unconsumed records → fetch origin/main → render Done + Also merged →
   post via the webhook → advance the spool watermark → record the new git
@@ -36,7 +36,7 @@ import typer
 
 from coga import spool
 from coga.atomicio import atomic_write_text
-from coga.config import ConfigError, load_config
+from coga.config import Config, ConfigError, load_config
 from coga.notification import (
     DIGEST_EVENT_KINDS,
     dedupe_records,
@@ -77,7 +77,7 @@ def digest(
     run_digest(cfg, quiet_empty=quiet_empty)
 
 
-def run_digest(cfg, *, quiet_empty: bool = True) -> bool:
+def run_digest(cfg: Config, *, quiet_empty: bool = True) -> bool:
     """Render and post the daily digest; return whether anything sent.
 
     Returns False when the digest ticket isn't installed or there is no
@@ -147,6 +147,17 @@ def run_digest(cfg, *, quiet_empty: bool = True) -> bool:
             posted="yes",
         )
     return True
+
+
+def run_digest_recipe(cfg: Config, argv: list[str]) -> int:
+    """Run the recurring digest job through ``coga run``."""
+    if argv:
+        sys.stderr.write(
+            f"digest: unexpected arguments: {' '.join(repr(arg) for arg in argv)}\n"
+        )
+        return 2
+    run_digest(cfg)
+    return 0
 
 
 def _scan_control_branch(

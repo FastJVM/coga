@@ -18,11 +18,11 @@ from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import tasks_dir
 from coga.recurring import (
+    DueTask,
     Template,
-    list_templates,
-    read_last_serviced_period,
     create_named,
     list_templates,
+    read_last_serviced_period,
     scan_due,
 )
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
@@ -289,24 +289,9 @@ def _patch_recurring_command_launch(
     repo: Path,
     child_launch,
 ) -> None:
-    """Run the bootstrap scan target in-process, but delegate child launches.
-
-    The real command now launches `bootstrap/recurring-scan`, whose script
-    would otherwise run in a subprocess and lose test monkeypatches for time,
-    TTY state, Slack, and child launch behavior.
-    """
-
-    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
-        if task == "bootstrap/recurring-scan":
-            return recurring_cmd.run_recurring_scan(
-                load_config(repo),
-                force=os.environ.get("COGA_RECURRING_FORCE") == "1",
-                interactive=os.environ.get("COGA_RECURRING_INTERACTIVE") == "1",
-                agent_override=os.environ.get("COGA_RECURRING_AGENT") or None,
-            )
-        return child_launch(task, **kwargs)
-
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    """Delegate agent-backed child launches while the scan runs in-process."""
+    del repo
+    monkeypatch.setattr("coga.commands.launch.launch", child_launch)
 
 
 def _finish_period_task(coga_os: Path, slug: str) -> None:
@@ -358,24 +343,18 @@ def repo(tmp_path: Path):
 # --- coga recurring list: the read-only schedule view ------------------------
 
 
-def test_bare_recurring_head_launches_bootstrap_scan_with_env(
+def test_bare_recurring_head_runs_registered_scan_recipe_with_argv(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    calls: list[tuple[str, dict, str | None, str | None, str | None]] = []
+    calls: list[tuple[str, list[str]]] = []
 
-    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
-        calls.append(
-            (
-                task,
-                kwargs,
-                os.environ.get("COGA_RECURRING_FORCE"),
-                os.environ.get("COGA_RECURRING_INTERACTIVE"),
-                os.environ.get("COGA_RECURRING_AGENT"),
-            )
-        )
+    def fake_run_recipe(cfg, name: str, argv: list[str]) -> int:  # type: ignore[no-untyped-def]
+        assert cfg.repo_root == repo.resolve()
+        calls.append((name, argv))
+        return 0
 
     monkeypatch.chdir(repo)
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.recurring.run_recipe", fake_run_recipe)
 
     result = CliRunner().invoke(
         app, ["recurring", "--force", "--interactive", "--agent", "claude"]
@@ -384,22 +363,10 @@ def test_bare_recurring_head_launches_bootstrap_scan_with_env(
     assert result.exit_code == 0, result.output
     assert calls == [
         (
-            "bootstrap/recurring-scan",
-            {
-                "agent_override": None,
-                "prompt_report": False,
-                "idle_timeout": None,
-                "max_session": None,
-                "return_timeout": False,
-            },
-            "1",
-            "1",
-            "claude",
+            "recurring-scan",
+            ["--force", "--interactive", "--agent", "claude"],
         )
     ]
-    assert os.environ.get("COGA_RECURRING_FORCE") is None
-    assert os.environ.get("COGA_RECURRING_INTERACTIVE") is None
-    assert os.environ.get("COGA_RECURRING_AGENT") is None
 
 
 def test_recurring_all_runs_each_discovered_repo_once(
@@ -728,12 +695,11 @@ def test_recurring_sweep_flags_are_rejected_for_subcommands(repo: Path) -> None:
     assert "apply to recurring sweeps" in result.output
 
 
-def test_repo_recurring_dispatch_uses_current_python_and_clears_scan_env(
+def test_repo_recurring_dispatch_uses_current_python_and_ordinary_argv(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     coga_os = tmp_path / "project" / "coga"
     _write(coga_os / "coga.toml", "version = 1\n")
-    monkeypatch.setenv("COGA_RECURRING_FORCE", "stale")
     captured: dict[str, object] = {}
 
     def fake_subprocess_run(command, **kwargs):  # type: ignore[no-untyped-def]
@@ -755,7 +721,9 @@ def test_repo_recurring_dispatch_uses_current_python_and_clears_scan_env(
         recurring_cmd.sys.executable,
         "-m",
         "coga.cli",
-        "recurring",
+        "run",
+        "recurring-scan",
+        "--require-fresh-control",
         "--force",
         "--interactive",
         "--agent",
@@ -763,8 +731,6 @@ def test_repo_recurring_dispatch_uses_current_python_and_clears_scan_env(
     ]
     assert captured["cwd"] == coga_os.parent
     assert captured["check"] is False
-    assert "COGA_RECURRING_FORCE" not in captured["env"]
-    assert captured["env"]["COGA_RECURRING_REQUIRE_FRESH_CONTROL"] == "1"
 
 
 def test_recurring_list_is_read_only_and_shows_schedule(
@@ -1396,6 +1362,213 @@ def test_scan_due_skips_bad_template(repo: Path, capsys) -> None:
     assert len(scan.errors) == 1
     assert scan.errors[0][0] == "bad"
     assert "skipping bad" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("recipe_value", "message"),
+    [
+        ('""', "`recipe` must be a non-empty string"),
+        ("[]", "`recipe` must be a non-empty string"),
+        ("not-registered", "unknown recipe 'not-registered'"),
+    ],
+)
+def test_template_rejects_invalid_recipe_declarations(
+    repo: Path, recipe_value: str, message: str
+) -> None:
+    _write_recurring(
+        repo,
+        "recipe-check",
+        f"""
+        ---
+        schedule: "0 9 * * *"
+        title: Recipe check
+        recipe: {recipe_value}
+        ---
+        """,
+    )
+
+    with pytest.raises(recurring_cmd.RecurringError, match=message):
+        Template.load(repo / "recurring" / "recipe-check")
+
+
+def test_template_rejects_direct_recipe_and_script_ambiguity(repo: Path) -> None:
+    _write_recurring(
+        repo,
+        "recipe-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Recipe check
+        recipe: digest
+        script: inline
+        ---
+
+        ## Script
+
+        ```sh
+        exit 0
+        ```
+        """,
+    )
+
+    with pytest.raises(
+        recurring_cmd.RecurringError,
+        match="`recipe` and `script` are ambiguous",
+    ):
+        Template.load(repo / "recurring" / "recipe-check")
+
+
+def test_recipe_template_bypasses_agent_tty_gate(repo: Path) -> None:
+    _write_recurring(
+        repo,
+        "recipe-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Recipe check
+        recipe: digest
+        owner: marc
+        ---
+
+        ## Description
+
+        Run a deterministic recipe.
+        """,
+    )
+
+    scan = scan_due(
+        load_config(repo),
+        now=datetime(2026, 4, 22, 10, 0, 0),
+        allow_interactive=False,
+    )
+
+    task = next(task for task in scan.tasks if task.template == "recipe-check")
+    assert task.recipe == "digest"
+    assert task.status == "active"
+    assert any(name == "weekly-check" for name, _ in scan.errors)
+
+
+@pytest.mark.parametrize(
+    ("starting_status", "recipe_code", "expected_status", "expected_transitions"),
+    [
+        ("active", 0, "done", ["in_progress", "done"]),
+        ("active", 17, "in_progress", ["in_progress"]),
+        ("in_progress", 0, "done", ["done"]),
+    ],
+)
+def test_recipe_task_uses_period_context_secrets_and_lifecycle(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    starting_status: str,
+    recipe_code: int,
+    expected_status: str,
+    expected_transitions: list[str],
+) -> None:
+    _write_recurring(
+        repo,
+        "recipe-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Recipe check
+        recipe: digest
+        owner: marc
+        secrets:
+          - JOB_TOKEN: env:RECIPE_SOURCE_TOKEN
+        ---
+
+        ## Description
+
+        Run a deterministic recipe.
+        """,
+    )
+    monkeypatch.setenv("RECIPE_SOURCE_TOKEN", "source-secret")
+    monkeypatch.setenv("COGA_TASK_SLUG", "inherited-parent")
+    monkeypatch.setenv("COGA_SKILL_NAME", "inherited-skill")
+    monkeypatch.setenv("COGA_SKILL_DIR", "/tmp/inherited-skill")
+    monkeypatch.setenv("COGA_ARGC", "1")
+    monkeypatch.setenv("COGA_ARG_1", "inherited-script-argument")
+    cfg = load_config(repo)
+    outcome = create_named(cfg, "recipe-check", now=datetime(2026, 4, 22, 10, 0, 0))
+    ref = outcome.ref
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = starting_status
+    ticket.write(ref.ticket_path)
+
+    transitions: list[str] = []
+    posts: list[str] = []
+    captured: dict[str, object] = {}
+
+    def fake_mark_in_progress(
+        task_cfg, task_ref, current: Ticket, **kwargs  # type: ignore[no-untyped-def]
+    ) -> None:
+        transitions.append("in_progress")
+        current.frontmatter["status"] = "in_progress"
+        current.write(task_ref.ticket_path)
+
+    def fake_mark_done(
+        task_cfg, task_ref, current: Ticket, **kwargs  # type: ignore[no-untyped-def]
+    ) -> None:
+        transitions.append("done")
+        current.frontmatter["status"] = "done"
+        current.frontmatter.pop("step", None)
+        current.write(task_ref.ticket_path)
+
+    def fake_subprocess_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        captured["command"] = command
+        captured.update(kwargs)
+        return SimpleNamespace(returncode=recipe_code)
+
+    monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
+    monkeypatch.setattr(recurring_cmd, "mark_done", fake_mark_done)
+    monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "post",
+        lambda task_cfg, message, **kwargs: posts.append(message),
+    )
+    monkeypatch.setattr(recurring_cmd.subprocess, "run", fake_subprocess_run)
+
+    code = recurring_cmd._run_recipe_task(
+        cfg,
+        DueTask(
+            template="recipe-check",
+            ref=ref,
+            last_fire=datetime(2026, 4, 22, 9, 0, 0),
+            created=True,
+            status=starting_status,
+            recipe="digest",
+        ),
+    )
+
+    assert code == recipe_code
+    assert transitions == expected_transitions
+    assert Ticket.read(ref.ticket_path).status == expected_status
+    assert captured["command"] == [
+        recurring_cmd.sys.executable,
+        "-m",
+        "coga.cli",
+        "run",
+        "digest",
+    ]
+    assert captured["cwd"] == repo.parent
+    assert captured["check"] is False
+    env = captured["env"]
+    assert env["JOB_TOKEN"] == "source-secret"
+    assert "RECIPE_SOURCE_TOKEN" not in env
+    assert env["COGA_TASK_SLUG"] == "recurring/recipe-check"
+    assert env["COGA_TASK_DIR"] == str(ref.path.resolve())
+    assert env["COGA_TASK_TICKET"] == str(ref.ticket_path.resolve())
+    assert env["COGA_TASK_BLACKBOARD"] == str(ref.ticket_path.resolve())
+    assert env["COGA_TASK_LOG"] == str((repo / "log.md").resolve())
+    assert env["COGA_COGA_OS_ROOT"] == str(repo.resolve())
+    assert env["COGA_REPO_ROOT"] == str(repo.parent.resolve())
+    assert "COGA_SKILL_NAME" not in env
+    assert "COGA_SKILL_DIR" not in env
+    assert "COGA_ARGC" not in env
+    assert "COGA_ARG_1" not in env
+    assert bool(posts) is (recipe_code != 0)
 
 
 def test_scan_due_explains_removed_megalaunch_skill(repo: Path) -> None:
@@ -3265,8 +3438,12 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     cfg = load_config(repo)
-    canceled = SimpleNamespace(ref=SimpleNamespace(id_slug="canceled-period"))
-    later = SimpleNamespace(ref=SimpleNamespace(id_slug="later-period"))
+    canceled = SimpleNamespace(
+        ref=SimpleNamespace(id_slug="canceled-period"), recipe=None
+    )
+    later = SimpleNamespace(
+        ref=SimpleNamespace(id_slug="later-period"), recipe=None
+    )
     scan = SimpleNamespace(forced=[canceled, later], due=[])
     launched: list[str] = []
 
@@ -3303,6 +3480,45 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
     assert result == 2
     assert launched == ["later-period"]
     assert "cannot force-run canceled-period" in capsys.readouterr().err
+
+
+def test_forced_recurring_scan_prepares_then_runs_recipe_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(repo)
+    task = SimpleNamespace(
+        ref=SimpleNamespace(id_slug="recurring/recipe-check"),
+        recipe="digest",
+    )
+    prepared: list[object] = []
+    ran: list[object] = []
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: SimpleNamespace(forced=[task], due=[]),
+    )
+    monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
+    monkeypatch.setattr(recurring_cmd, "_print_table", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_prepare_forced_launch",
+        lambda task_cfg, due_task: prepared.append(due_task),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_recipe_task",
+        lambda task_cfg, due_task: ran.append(due_task) or 0,
+    )
+
+    assert recurring_cmd.run_recurring_scan(cfg, force=True) == 0
+    assert prepared == [task]
+    assert ran == [task]
 
 
 def test_scan_due_force_defers_existing_done_period_until_launch(

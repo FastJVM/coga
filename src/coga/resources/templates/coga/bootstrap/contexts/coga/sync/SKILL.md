@@ -305,10 +305,10 @@ mechanism:
   ever touching the ticket's YAML frontmatter. The git high-water mark
   (`### Digest State`) lives in the ticket, not the spool, because it is
   single-writer consumer state that must not ride union semantics.
-- **Consumer.** The `recurring/digest/` ticket (a script task, daily
-  `schedule:`) fires through the normal `coga recurring` scan. Its one
-  workflow step runs the `coga/digest/flush` skill, whose `script:` calls
-  `coga digest` → `commands/digest.run_digest`: read the **unconsumed** records,
+- **Consumer.** The `recurring/digest/` ticket (a recipe-backed task, daily
+  `schedule:`) fires through the normal `coga recurring` scan. Its
+  `recipe: digest` dispatch calls
+  `commands/digest.run_digest`: read the **unconsumed** records,
   fetch/scan git, render via `render_digest`, `post` one message, **drain**
   (advance the watermark + trim the consumed prefix), and update
   `### Digest State`. Records are de-duped by content before rendering, so the

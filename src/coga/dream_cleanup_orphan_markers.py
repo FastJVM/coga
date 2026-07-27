@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Run the cleanup-orphan-markers Dream skill."""
+"""Importable cleanup-orphan-markers recipe for Dream."""
 
 from __future__ import annotations
 
@@ -15,6 +14,8 @@ from importlib.resources import files
 from pathlib import Path
 
 import yaml
+
+from coga.config import Config
 
 
 # `## Retro` must be matched only as a line-start markdown heading. A ticket
@@ -313,7 +314,14 @@ def append_report(blackboard: Path, report: str) -> None:
     blackboard.write_text(existing + separator + report)
 
 
-def main() -> int:
+def run_cleanup_orphan_markers_recipe(cfg: Config, argv: list[str]) -> int:
+    del cfg
+    if argv:
+        sys.stderr.write(
+            "cleanup-orphan-markers: unexpected arguments: "
+            f"{' '.join(repr(arg) for arg in argv)}\n"
+        )
+        return 2
     try:
         coga_os = coga_os_root()
         candidates = find_candidates(coga_os)
@@ -337,7 +345,3 @@ def main() -> int:
         sys.stderr.write(f"{exc}\n")
         return 2
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

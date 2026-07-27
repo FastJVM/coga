@@ -1,7 +1,6 @@
 ---
 name: bootstrap/dream/tasks/cleanup-orphan-markers
 description: Find processed done tickets whose task directories survived Retro cleanup, then gate deletion through the public delete-task skill.
-script: run.py
 ---
 
 # Cleanup Orphan Markers
@@ -19,8 +18,7 @@ run.
 
 - Purpose: detect already-processed done tickets that are eligible for
   delete-only cleanup.
-- Runs: a script-stepped Coga task whose workflow step references
-  `bootstrap/dream/tasks/cleanup-orphan-markers`.
+- Runs: `coga run cleanup-orphan-markers` from the active Dream task.
 - Inputs: task directories under `coga/tasks/`, the source task's
   `## Retro` marker in its `ticket.md` blackboard region, GitHub open PR
   metadata when available, and the
@@ -35,7 +33,7 @@ run.
 - Stop and ask: `bootstrap/delete-task` is not installed, open PR state cannot
   be checked when deletion would otherwise proceed, or the task slug is not an
   exact directory name.
-- Output: append `## Dream Skill: cleanup-orphan-markers` to the child task
+- Output: append `## Dream Skill: cleanup-orphan-markers` to the Dream task
   blackboard with `no-op` or `human-needed` details.
 
 ## Detection Gate

@@ -74,11 +74,31 @@ class Template:
                 raise RecurringError(
                     "`state_keys` must be a list of non-empty strings"
                 )
+        if "recipe" in fm:
+            recipe = fm["recipe"]
+            if not isinstance(recipe, str) or not recipe.strip():
+                raise RecurringError("`recipe` must be a non-empty string")
+            from coga.runner import RECIPES
+
+            if recipe not in RECIPES:
+                known = ", ".join(sorted(RECIPES))
+                raise RecurringError(
+                    f"unknown recipe {recipe!r}; known recipes: {known}"
+                )
+            if fm.get("script"):
+                raise RecurringError(
+                    "`recipe` and `script` are ambiguous; declare exactly one"
+                )
         return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
 
     @property
     def schedule(self) -> str:
         return self.frontmatter["schedule"]
+
+    @property
+    def recipe(self) -> str | None:
+        value = self.frontmatter.get("recipe")
+        return value if isinstance(value, str) else None
 
     @property
     def ticket_path(self) -> Path:
@@ -139,6 +159,7 @@ class DueTask:
     last_fire: datetime
     created: bool
     status: str
+    recipe: str | None = None
     period_key: str = ""
     replaced_done: bool = False
 
@@ -305,6 +326,7 @@ def scan_due(
                     template=template.name,
                     ref=None,
                     last_fire=last_fire,
+                    recipe=template.recipe,
                     period_key=period_key,
                     created=False,
                     status="done",
@@ -336,6 +358,7 @@ def scan_due(
                 template=template.name,
                 ref=outcome.ref,
                 last_fire=last_fire,
+                recipe=template.recipe,
                 period_key=period_key,
                 created=outcome.created,
                 status=ticket.status,
@@ -400,11 +423,12 @@ def create_template(
             # A completed task is terminal. If Dream did not reap it, delete
             # that prior-period artifact through the canonical deletion skill,
             # then create a genuinely fresh task from the current template.
-            if not allow_agent and not _template_runs_as_script(cfg, template):
+            if not allow_agent and not _template_runs_headless(cfg, template):
                 raise RecurringError(
                     "an agent run requires a TTY (stdin and stdout must both be "
                     "terminals). Run `coga recurring --interactive` from a real "
-                    "shell, or give the template a script for unattended runs."
+                    "shell, or give the template a registered recipe or script "
+                    "for unattended runs."
                 )
             try:
                 run_delete_task_skill(cfg, existing)
@@ -429,12 +453,12 @@ def create_template(
             return outcome
         return CreateOutcome(ref=existing, created=False)
 
-    if not allow_agent and not _template_runs_as_script(cfg, template):
+    if not allow_agent and not _template_runs_headless(cfg, template):
         raise RecurringError(
             "an agent run requires a TTY (stdin and stdout must both be "
             "terminals). Run `coga recurring --interactive` from a real shell, "
-            "or give the template a script (a `script:` entry, or a workflow "
-            "whose step 1 has a single script-backed skill) for unattended runs."
+            "or give the template a registered `recipe:`, a `script:` entry, "
+            "or a workflow whose step 1 has a single script-backed skill."
         )
     outcome = _create_at_slug(
         cfg,
@@ -803,20 +827,21 @@ def _validate_promoted_workflow(
         ) from exc
 
 
-def _template_runs_as_script(cfg: Config, template: Template) -> bool:
-    """Pre-freeze deduction of a template's launch substance.
+def _template_runs_headless(cfg: Config, template: Template) -> bool:
+    """Pre-freeze deduction of whether a template needs no agent TTY.
 
-    The same rule `coga.commands.launch_script.is_script_launch` applies to a
-    live ticket, evaluated before the period task exists: the template carries
-    its own `script:` entry, or step 1 of its named workflow (resolved from
+    A registered recipe is headless. Otherwise the same rule
+    `coga.commands.launch_script.is_script_launch` applies to a live ticket,
+    evaluated before the period task exists: the template carries its own
+    `script:` entry, or step 1 of its named workflow (resolved from
     `coga/workflows/` — nothing is frozen yet; a workflow-less template runs
     `direct/body` like `_create_at_slug` does) has exactly one skill whose
-    SKILL.md declares a `script:`. Neither → an agent run, which the sweep's
-    TTY gate refuses unattended. An unresolvable workflow or skill deduces to
-    agent — create/launch fail loud on it later, with better remedies than the
-    sweep could give here.
+    SKILL.md declares a `script:`. Neither means an agent run, which the
+    sweep's TTY gate refuses unattended. An unresolvable workflow or skill
+    deduces to agent — create/launch fail loud on it later, with better
+    remedies than the sweep could give here.
     """
-    if template.frontmatter.get("script"):
+    if template.recipe or template.frontmatter.get("script"):
         return True
     workflow_name = template.frontmatter.get("workflow") or "direct/body"
     try:

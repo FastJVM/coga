@@ -108,8 +108,8 @@ to sync.
 
 ## Commit and PR conventions
 
-Commit subjects are short and factual (`Add dream/ child-task workflows for
-Dream's script steps`). Use a ticket-slug prefix only when a ticket exists for
+Commit subjects are short and factual (`Add fixed coga run recipe registry`).
+Use a ticket-slug prefix only when a ticket exists for
 the work. PRs should explain the behavior change, mention any fixture or spec
 touchpoints, and list the exact commands you ran to verify.
 

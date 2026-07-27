@@ -75,6 +75,25 @@ env vars, while *agent* launches receive the ordered values in an appended
   wall-clock even while it's still producing output (the runaway-loop case idle
   timeout misses). Off by default.
 
+### `coga run RECIPE [ARGS...]`
+
+Run one deterministic Coga recipe from the fixed core registry. The known
+names are `autoclose`, `digest`, `blocker-reminders`, `branch-sweep`,
+`validate-drift`, `cleanup-orphan-markers`, `recurring-scan`, and
+`skill-update`; unknown names exit 2 and list that set.
+
+Trailing arguments are forwarded as an ordinary `list[str]`, preserving token
+boundaries and option spelling. Unlike the retained script-launch path, this
+command does not translate arguments through `COGA_ARG_1..N` or `COGA_ARGC`.
+Recipe output passes through and the recipe's integer return value becomes the
+command exit code. An invocation from an agent inherits the current task's
+`COGA_TASK_*` metadata.
+
+Recipes are an explicit Coga surface, not a plugin API: installed skills and
+config cannot add names. The old `coga launch` script seam remains available
+for `bootstrap/open-pr`, `bootstrap/delete-task`, ticket-owned/inline scripts,
+and project-local script steps during the migration.
+
 ### `coga launch bootstrap/browser-automation`
 A stateless setup session that turns a concrete browser task into durable,
 reviewable work. Describe the target site, desired outcome, and success check
@@ -119,7 +138,13 @@ separately from successfully `completed` work.
 
 ### `coga recurring [COMMAND]`
 Scan recurring task templates under `coga/recurring/` and launch any that are
-due. With no subcommand it runs the sweep.
+due. With no subcommand it invokes the registered `recurring-scan` recipe.
+Templates may select a fixed deterministic implementation with `recipe:`;
+those period tasks run without an agent or TTY, receive their ticket's scoped
+secrets and `COGA_TASK_*` metadata, and follow the normal
+`active → in_progress → done` success lifecycle. A non-zero recipe exit leaves
+the task unfinished and reports the failure. Templates without a recipe keep
+the ordinary agent or compatibility-script launch path.
 
 - `--interactive` — launch due agent tasks as a human-stepped run, leaving REPL
   liveness backstops unarmed; ticket files aren't modified.
@@ -140,8 +165,9 @@ Subcommands:
   dream`, `coga skill-update`, and `coga autoclose` aliases wrap.
   - `--interactive` — launch as a human-stepped run, leaving REPL liveness
     backstops unarmed; ticket files aren't modified.
-  - `--agent <type>` — agent to use for an agent-backed launch (script tasks
-    still run as scripts; the ticket assignee isn't rewritten).
+  - `--agent <type>` — agent to use for an agent-backed launch
+    (recipe/script tasks keep their declared path; the ticket assignee isn't
+    rewritten).
 - **`coga recurring promote TASK --schedule "<cron>"`** — move an existing task
   into `coga/recurring/<name>/` as a recurring template: task-only frontmatter
   is dropped, the blackboard is reset for cross-run state, and the validated

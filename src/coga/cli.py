@@ -25,6 +25,7 @@ from coga.commands import mark as mark_cmd
 from coga.commands import megalaunch as megalaunch_cmd
 from coga.commands import project as project_cmd
 from coga.commands import recurring as recurring_cmd
+from coga.commands import run as run_cmd
 from coga.commands import retire as retire_cmd
 from coga.commands import secret as secret_cmd
 from coga.commands import show as show_cmd
@@ -104,6 +105,13 @@ app.add_typer(skill_cmd.app, name="skill")
 app.add_typer(mark_cmd.app, name="mark")
 app.add_typer(recurring_cmd.app, name="recurring")
 app.add_typer(secret_cmd.app, name="secret")
+app.command(
+    "run",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    },
+)(run_cmd.run)
 
 
 # Commands that must NOT trigger the end-of-command `coga/` state sweep.
@@ -129,6 +137,7 @@ _SWEEPING_COMMANDS = frozenset(
         "retire",
         "slack",
         "digest",
+        "run",
     }
 )
 _SWEEPING_SKILL_SUBCOMMANDS = frozenset(

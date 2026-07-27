@@ -21,10 +21,16 @@ review bars.
   <command>`. **Keep these thin.** No business logic.
 - `src/coga/` (other modules) — testable logic. `compose.py`
   builds the prompt. `notification/` dispatches notifications with Slack as
-  the first backend. `config.py` loads config.
+  the first backend. `config.py` loads config. `runner.py` owns the fixed
+  name-to-function registry behind `coga run`; recipes are ordinary
+  importable functions in focused core modules, not discovered skill files.
+  `task_env.py` builds the shared `COGA_TASK_*` contract for agents, retained
+  scripts, and recurring recipe subprocesses.
   `commands/launch.py` runs agents and composes trailing launch args into an
   ordered prompt block; `commands/launch_script.py` owns the separate
-  `COGA_ARG_1..N` + `COGA_ARGC` environment channel for scripts.
+  `COGA_ARG_1..N` + `COGA_ARGC` environment channel for the retained script
+  seam. `commands/run.py` forwards ordinary trailing argv to `runner.py`
+  without translating it through that script-only environment channel.
   `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/block.py` and `commands/unblock.py` own blocked-state
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;
@@ -49,38 +55,41 @@ kinds of code**:
 2. **A real command implementation** that genuinely needs Python logic and
    can't be expressed as an alias — e.g. `coga digest` (`commands/digest.py` →
    `run_digest`), `coga megalaunch` (`megalaunch.py`), and `coga open-pr`
-   (`commands/open_pr.py` → `open_pr.py`), which carry real logic, not just
-   "launch this target."
+   (`commands/open_pr.py` → `open_pr.py`), plus the fixed functions registered
+   behind `coga run`. These carry real logic and stable command contracts, not
+   just "launch this target."
 
-**Everything else is a skill recipe.** A single-consumer recipe — a user-facing
-script-backed workflow step *or* a coga-internal recurring-maintenance sweep —
-lives in its skill dir as a sibling module beside `run.py` (by convention
-`recipe.py`), imports **only shared core infra**, and never lives in `src/coga/`.
-The launcher runs the skill as `python <skill-dir>/run.py`; that `run.py` adds
-its own dir to `sys.path` and imports the sibling recipe. Being *internal* is
-not a license to sit in the kernel: a sweep that only coga runs is still a skill
-recipe.
+**Everything else stays at the edge.** An unregistered, single-consumer
+script-backed workflow recipe lives beside `run.py` in its ticket or skill
+directory, imports **only shared core infra**, and never makes core import from
+that directory. The retained script seam runs it as `python <dir>/run.py`.
+This is separate from a registered recipe: a fixed `runner.RECIPES` entry is an
+ordinary Coga command implementation and therefore lives in a focused
+`src/coga/` module even when its first caller is one recurring template.
 
 **"Backs a CLI command" is not by itself a pass into core.** Ask whether the
 command is a real Python implementation or just an alias to a launch target. A
 launch-target command is an argv rewrite in `[aliases]` (`dream = "recurring
 launch dream"`, `chat = "launch bootstrap/orient"`), never a Typer command with
-logic. Only a genuine implementation justifies core.
+logic. A registered `coga run` name is a genuine implementation: its function
+has a public argv, stdout/stderr, and integer-exit contract enforced by the
+package registry. The registry is explicit and closed; it does not discover
+ticket or skill files.
 
 **The consumer test decides the split, and it can keep a symbol in core.** When
-a maintenance recipe moves out, any helper it shares with another core consumer
-stays — moving it would force core to import from a skill dir, which is exactly
-the anti-pattern this rule forbids. Concretely: the merged-ticket sweep moved to
-`coga/skills/coga/autoclose/sweep/recipe.py`, but `GhError` / `pr_state` / the
-`## Dev` parsers stayed in `coga.autoclose` because `branchcleanup` (used by
-`coga retire`), the branch-sweep recipe, and the Dream orphan-marker worker all
-still consume them. The shipped single-consumer recipes are `coga/autoclose/
-sweep`, `coga/blockers/remind`, and `coga/branch-sweep/sweep`.
+a script recipe moves out, any helper it shares with another core consumer
+stays — moving it would force core to import from a ticket or skill directory,
+which is exactly the anti-pattern this rule forbids. The registered
+`autoclose`, `blocker-reminders`, and `branch-sweep` implementations stay in
+core for the different reason above: they are fixed `coga run` commands. Their
+skills are invocation contracts and contain no executable Python.
 
 PR #517 first exposed the line by moving the then-script-backed open-pr recipe
 out of core. PR #585 later turned `open-pr` into a real command implementation,
-so the same test now places it in core under exception 2. This stated rule
-supersedes the softer "extend at the edges, not the core" phrasing.
+so the same test now places it in core under exception 2. The fixed
+`coga run` registry applies that same exception without turning skills into a
+plugin system. This stated rule supersedes the softer "extend at the edges,
+not the core" phrasing.
 
 ## coga layout
 

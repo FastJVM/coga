@@ -32,7 +32,6 @@ from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
 from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
 from coga.commands.launch_script import (
-    build_task_env,
     current_step_is_script,
     is_script_launch,
 )
@@ -72,6 +71,7 @@ from coga.repl_supervisor import (
     AgentCliNotFound,
     run_with_done_marker,
 )
+from coga.task_env import build_task_env
 from coga.step_gate import gate_publishes_current_branch
 from coga.tasks import (
     BootstrapRef,

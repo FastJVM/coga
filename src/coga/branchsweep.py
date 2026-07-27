@@ -1,12 +1,5 @@
 """Sweep stale git branches as a scheduled safety net behind retire-time deletion.
 
-This is the deterministic recipe for the `coga/branch-sweep/sweep` skill (run by
-the `branch-sweep` recurring task). It is a single-consumer maintenance recipe,
-so under the microkernel policy it lives in the skill dir rather than in core
-`src/coga/`. It imports only shared core infra: the `autoclose` gh helpers
-(`GhError`, `parse_branch_name`), the shared branch-delete primitives in
-`branchcleanup`, and `config`/`taskfile`/`tasks`/`ticket`.
-
 `coga retire` deletes a ticket's branch as soon as the ticket finishes (see
 `branchcleanup.py`), but that cleanup is best-effort: `git`/`gh` failures are
 swallowed there, and a branch also leaks when its ticket is deleted without
@@ -37,6 +30,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -48,6 +42,7 @@ from coga.branchcleanup import (
     delete_remote_branch,
 )
 from coga.config import Config
+from coga import git
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import list_tasks, read_ticket
@@ -143,6 +138,29 @@ def branch_merged_without_open_pr(branch: str, current_tip: str) -> bool:
         item.get("headRefOid") == current_tip for item in _gh_prs(branch, "merged")
     )
     return merged and not _gh_prs(branch, "open")
+
+
+def run_branch_sweep_recipe(cfg: Config, argv: list[str]) -> int:
+    """Run the recurring branch-sweep job."""
+    if argv:
+        sys.stderr.write(
+            f"branch-sweep: unexpected arguments: {' '.join(repr(arg) for arg in argv)}\n"
+        )
+        return 2
+    root = git._toplevel(cfg.repo_root)
+    if root is None:
+        sys.stderr.write(f"[branch-sweep] {cfg.repo_root} is not inside a git repo\n")
+        return 2
+    result = sweep_branches(cfg, root, echo=print)
+    if result.remote_unavailable:
+        sys.stderr.write(f"[branch-sweep] {result.remote_unavailable}\n")
+        return 2
+    if result.gh_unavailable:
+        sys.stderr.write(f"[branch-sweep] {result.gh_unavailable}\n")
+        return 2
+    if not result.local_deleted and not result.remote_deleted:
+        sys.stdout.write("[branch-sweep] no branches deleted.\n")
+    return 0
 
 
 def _merged_for_tip(
@@ -275,4 +293,9 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-__all__ = ["BranchSweepResult", "sweep_branches", "branch_merged_without_open_pr"]
+__all__ = [
+    "BranchSweepResult",
+    "branch_merged_without_open_pr",
+    "run_branch_sweep_recipe",
+    "sweep_branches",
+]

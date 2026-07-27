@@ -1,6 +1,6 @@
 ---
 name: digest/post
-description: One-step script workflow that posts Done/Canceled tickets plus other merged commits as one Slack digest.
+description: One-step lifecycle for the digest recurring recipe.
 steps:
   - name: flush
     skills:
@@ -10,7 +10,7 @@ steps:
 
 ## flush
 
-Script step. Runs `coga/digest/flush`, which calls `coga digest`: read the
+Recipe-backed recurring task. `coga recurring` runs `coga run digest`: read the
 unconsumed Done/Canceled/error records from the dedicated
 `recurring/digest/spool.md` file, fetch `origin/main`, render Done tickets,
 Canceled tickets, and an "Also merged (no ticket)" section, post one message to

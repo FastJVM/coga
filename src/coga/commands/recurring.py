@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import os
 import sys
-from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
 
 import typer
 from rich.console import Console
@@ -23,15 +20,10 @@ from coga.recurring import (
     promote_task,
 )
 from coga.recurring_runner import run_recurring_all_repos, run_recurring_named
+from coga.runner import run_recipe
 from coga.taskfile import TaskFileError
 from coga.tasks import TaskNotFoundError, TaskRef, list_tasks, read_ticket, resolve_task
 from coga.ticket import TicketError
-
-
-_SCAN_TARGET = "bootstrap/recurring-scan"
-_FORCE_ENV = "COGA_RECURRING_FORCE"
-_INTERACTIVE_ENV = "COGA_RECURRING_INTERACTIVE"
-_AGENT_ENV = "COGA_RECURRING_AGENT"
 
 
 app = typer.Typer(
@@ -73,16 +65,11 @@ def main(
         None,
         "--agent",
         help="Agent type to use for agent-backed recurring tasks in this "
-        "sweep. Script tasks still run as scripts; ticket assignees are not "
-        "rewritten.",
+        "sweep. Recipe and script tasks remain deterministic; ticket "
+        "assignees are not rewritten.",
     ),
 ) -> None:
-    """Launch the stateless bootstrap recurring scan target.
-
-    The command head owns only Typer parameter parsing and the explicit script
-    env contract. The scan/get-or-create/sync/launch body lives in
-    `coga.recurring_runner`, reached through `bootstrap/recurring-scan`.
-    """
+    """Run the registered recurring scanner recipe."""
     ctx.ensure_object(dict)["agent_override"] = agent
     if ctx.invoked_subcommand is not None:
         if all_root is not None or force:
@@ -107,22 +94,21 @@ def main(
         return
 
     try:
-        load_config()
+        cfg = load_config()
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
-    from coga.commands.launch import launch as launch_cmd
-
-    with _scan_env(force=force, interactive=interactive, agent_override=agent):
-        launch_cmd(
-            _SCAN_TARGET,
-            agent_override=None,
-            prompt_report=False,
-            idle_timeout=None,
-            max_session=None,
-            return_timeout=False,
-        )
+    recipe_argv: list[str] = []
+    if force:
+        recipe_argv.append("--force")
+    if interactive:
+        recipe_argv.append("--interactive")
+    if agent:
+        recipe_argv.extend(("--agent", agent))
+    code = run_recipe(cfg, "recurring-scan", recipe_argv)
+    if code:
+        raise typer.Exit(code)
 
 
 @app.command("launch")
@@ -142,8 +128,8 @@ def launch(
         None,
         "--agent",
         help="Agent type to use for this agent-backed recurring launch. "
-        "Script tasks still run as scripts; the ticket assignee is not "
-        "rewritten.",
+        "Recipe and script tasks remain deterministic; the ticket assignee "
+        "is not rewritten.",
     ),
 ) -> None:
     """Create a named recurring template now and launch it."""
@@ -304,31 +290,6 @@ def list_recurring(ctx: typer.Context) -> None:
     now = datetime.now()
     _print_templates_table(console, statuses, now)
     _print_picked_table(console, picked)
-
-
-@contextmanager
-def _scan_env(
-    *, force: bool, interactive: bool, agent_override: str | None
-) -> Iterator[None]:
-    updates = {
-        _FORCE_ENV: _bool_env(force),
-        _INTERACTIVE_ENV: _bool_env(interactive),
-        _AGENT_ENV: agent_override or "",
-    }
-    previous = {name: os.environ.get(name) for name in updates}
-    os.environ.update(updates)
-    try:
-        yield
-    finally:
-        for name, value in previous.items():
-            if value is None:
-                os.environ.pop(name, None)
-            else:
-                os.environ[name] = value
-
-
-def _bool_env(value: bool) -> str:
-    return "1" if value else "0"
 
 
 def _print_templates_table(

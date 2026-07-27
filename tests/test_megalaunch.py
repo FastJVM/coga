@@ -4,7 +4,6 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
-from conftest import load_skill_recipe
 
 from coga.cli import app
 from coga.config import load_config
@@ -891,12 +890,7 @@ def test_megalaunch_drain_keeps_ask_open_when_activation_refuses(
 ) -> None:
     """A drained ticket that cannot activate keeps its ask and stays reportable."""
     from coga.blackboard import append_blocker, open_blockers
-
-    # `scan_blocker_reminders` lives beside the `coga/blockers/remind` skill's
-    # `run.py` (microkernel policy), not in importable core.
-    scan_blocker_reminders = load_skill_recipe(
-        "coga/blockers/remind"
-    ).scan_blocker_reminders
+    from coga.blocker_reminders import scan_blocker_reminders
 
     cfg = load_config(repo)
     blocked = create_task(
