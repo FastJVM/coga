@@ -5,11 +5,19 @@ description: The Coga launch plan — the "20 minutes a day" demonstration, its 
 
 # Coga marketing plan
 
-The operational plan for Coga's launch. Source tickets:
-`marketing/launch-20-minutes-a-day`, `metrics-human-minutes-script`,
-`marketing/rewrite-readme-around-the-wedge`, `marketing/add-killer-demo`,
-`marketing/relay-discord`. When this drifts from those tickets or from
-`docs/market-thesis.md`, they win — update this file in the same change.
+The operational plan for Coga's launch. When this drifts from its source
+tickets or from `docs/market-thesis.md`, they win — update this file in the
+same change.
+
+**Status (2026-07-27): the whole launch program is parked in v2.** It was moved
+out of the current execution path to close the release, not abandoned. Live
+source tickets are now `v2/launch-20-minutes-a-day` and `v2/add-killer-demo`.
+Three earlier source tickets are gone: `metrics-human-minutes-script` and
+`marketing/rewrite-readme-around-the-wedge` no longer exist on disk, and
+`marketing/relay-discord` is canceled. So this plan currently describes more
+program than there are tickets to execute it — when the launch is pulled
+forward, re-derive the ticket set from this file rather than assuming the old
+refs still resolve.
 
 ## The play: a demonstration disguised as a report
 
@@ -256,12 +264,14 @@ distribution, Anthropic's "Keep thinking"), or a more famous voice
 2. **Pre-registration commit** — one commit, before any data.
 3. **The 2-week run** — megalaunch as default work mode; daily diary is
    derived from the log by the metrics script, never hand-written.
-4. **Landing surface**, ready before the post ships:
-   `marketing/rewrite-readme-around-the-wedge` (README the post points
-   at, "Agents do. Humans think."), `marketing/add-killer-demo` (60-sec
-   morning-ritual demo embedded in README + post), and
-   `marketing/relay-discord` — the **open decision** (Discord vs public
-   Slack) must land first; the post needs a "where to go" link.
+4. **Landing surface**, ready before the post ships: a README rewritten
+   around the wedge ("Agents do. Humans think.") that the post points at,
+   `v2/add-killer-demo` (60-sec morning-ritual demo embedded in README +
+   post), and a community home — the **open decision** (Discord vs public
+   Slack) must land first; the post needs a "where to go" link. Only the
+   demo still has a ticket: `marketing/rewrite-readme-around-the-wedge` is
+   gone and `marketing/relay-discord` is canceled, so both need re-filing
+   when the launch is pulled forward.
 5. **Cold-start test (gate before the post ships).** One outsider — a
    Bookface founder is the obvious pick — installs Coga from the README
    unaided, on their own repo, and reaches the correction-loop moment.

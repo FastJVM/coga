@@ -1,5 +1,5 @@
 ---
-slug: implement-accepted-ticket-interview-improvements
+slug: v2/implement-accepted-ticket-interview-improvements
 title: Implement accepted ticket-interview improvements
 status: paused
 owner: nicktoper

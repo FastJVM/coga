@@ -34,3 +34,7 @@ hand-edit the blackboard, which is not viable for monthly use.
   reminder's `period_for(today)`; `--period <value>` overrides it, for acking a
   past period or setting a specific high-water date.
 - Depends on the reminder engine landing. See the `coga/reminders` SKILL.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

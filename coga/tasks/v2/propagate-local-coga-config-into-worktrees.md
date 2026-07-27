@@ -1,5 +1,5 @@
 ---
-slug: op/propagate-local-coga-config-into-worktrees
+slug: v2/propagate-local-coga-config-into-worktrees
 title: Propagate local Coga config into worktrees
 status: draft
 owner: zach

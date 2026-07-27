@@ -1,5 +1,5 @@
 ---
-slug: marketing/launch-20-minutes-a-day
+slug: v2/launch-20-minutes-a-day
 title: Launch 20 minutes a day
 status: draft
 owner: nicktoper

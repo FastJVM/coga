@@ -1,5 +1,5 @@
 ---
-slug: recurring-bugs/skill-update-aborts-on-uncommitted-log-file
+slug: v2/skill-update-aborts-on-uncommitted-log-file
 title: skill-update aborts on uncommitted log file
 status: draft
 owner: nicktoper

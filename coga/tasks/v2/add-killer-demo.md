@@ -1,5 +1,5 @@
 ---
-slug: marketing/add-killer-demo
+slug: v2/add-killer-demo
 title: add killer demo
 status: draft
 owner: nicktoper

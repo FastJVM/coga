@@ -1,5 +1,5 @@
 ---
-slug: move-some-alerts-to-coga-important-instead-of-coga
+slug: v2/move-some-alerts-to-coga-important-instead-of-coga
 title: move some alerts to coga important instead of coga flow
 status: paused
 owner: nicktoper
