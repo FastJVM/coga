@@ -1,7 +1,7 @@
 ---
 slug: implement-accepted-ticket-interview-improvements
 title: Implement accepted ticket-interview improvements
-status: active
+status: paused
 owner: nicktoper
 human: nicktoper
 agent: claude
