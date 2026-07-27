@@ -1,7 +1,7 @@
 ---
 slug: recurring/skill-update
 title: Skill update
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 1 (update)
 ---
 
 ## Description
