@@ -1,7 +1,7 @@
 ---
 slug: overload-ticket-locally-easily
 title: overload ticket locally easily
-status: blocked
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -113,7 +113,8 @@ Findings worth keeping from the discussion:
 
 ## Blockers
 
-- [ ] [2026-07-21 14:21] [agent:nicktoper] id=20260721T142144 Parked until cli-extension-model/move-command-logic-to-tickets (pass 2) executes — the note's framing depends on the post-move command surface (ticket collapsed to head + local-first refs); revisit and re-frame the doc then.
+- [x] [2026-07-21 14:21] [agent:nicktoper] id=20260721T142144 Parked until cli-extension-model/move-command-logic-to-tickets (pass 2) executes — the note's framing depends on the post-move command surface (ticket collapsed to head + local-first refs); revisit and re-frame the doc then.
+  resolved: [2026-07-27 14:26] [human:nicktoper] Unblocked 2026-07-27 without folding into the docs ticket. The stated blocker was 'parked pending cli-extension-model/move-command-logic-to-tickets (pass 2 execution)', so the note could be re-framed against a settled command surface. That project is now parked at v2/cleanup-core-commands/, which settles the surface by decision rather than by execution: the command shape this note describes is not moving, so document what exists today. Keep the 'this is how you customize coga' framing from the Production notes; drop the 'post-move re-framing' sequencing. Kept standalone rather than merged into write-real-coga-documentation because that ticket is at step 4 (review) and absorbing new unwritten scope into a ticket under review would reopen it.
 
 ---
 
