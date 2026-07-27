@@ -3013,3 +3013,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-27 14:59 [remove-run-py/port-hard-consumers-onto-the-generic-runner] [megalaunch] launched via coga megalaunch
 2026-07-27 15:24 [scrub-coga-task-in-the-pytest-autouse-guard-so-fix] [human:nicktoper] created (status=draft)
 2026-07-27 15:24 [retire-a-finished-ticket-s-linked-worktree-and-mak] [human:nicktoper] created (status=draft)
+2026-07-27 15:24 [decide-the-fate-of-two-premise-dead-v2-drafts-whos] [human:nicktoper] created (status=draft)
