@@ -301,8 +301,8 @@ def launch(
             _bail(f"Task {ref.id_slug} has no assignee")
 
         # A script launch — the ticket's own `script:`, or a current step whose
-        # single skill is script-backed (e.g. code/open-pr) — runs with no agent
-        # and no composed prompt, through the same run_script_mode path.
+        # single skill is script-backed — runs with no agent and no composed
+        # prompt, through the same run_script_mode path.
         # Handling it here — before the agent-only TTY / CLI / git-auth setup —
         # is what lets a relaunch land straight on the script step without a
         # terminal. The supervisor loop below runs the same path for a script

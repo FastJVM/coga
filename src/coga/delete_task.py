@@ -27,7 +27,7 @@ from coga.tasks import TaskNotFoundError, TaskRef, resolve_task
 
 
 class DeleteTaskError(RuntimeError):
-    """Task deletion refused to remove its target."""
+    """Task deletion refused to remove its target, or could not complete it."""
 
 
 def run_delete_task(ref: TaskRef) -> str:
@@ -36,20 +36,30 @@ def run_delete_task(ref: TaskRef) -> str:
     Callers own synchronization. `coga delete` lands the removal immediately;
     recurring replacement recreates the task at the same path and syncs that
     replacement as one state transition.
+
+    `DeleteTaskError` is the *only* failure this raises. Deletion used to run
+    behind a subprocess, where a filesystem error surfaced as a non-zero exit
+    and became one; in-process, `rmtree`/`unlink` raise `OSError` directly, so
+    it is translated here. Every caller — `coga delete`, the recipe, and
+    recurring replacement, which runs unattended — catches that one type, and a
+    read-only file or a held handle must not abort them with a traceback.
     """
     ticket = ref.ticket_path
     if not ticket.is_file():
         raise DeleteTaskError(f"{ticket} is not a file — refusing to delete")
 
-    if ticket.name == "ticket.md":
-        # Directory form: remove the whole task directory (ticket + siblings).
-        shutil.rmtree(ticket.parent)
-        target: Path = ticket.parent
-    else:
-        # File form: remove just the single-file ticket; leave the parent
-        # (a shared tasks/ subtree) untouched.
-        ticket.unlink()
-        target = ticket
+    try:
+        if ticket.name == "ticket.md":
+            # Directory form: remove the whole task directory (ticket + siblings).
+            shutil.rmtree(ticket.parent)
+            target: Path = ticket.parent
+        else:
+            # File form: remove just the single-file ticket; leave the parent
+            # (a shared tasks/ subtree) untouched.
+            ticket.unlink()
+            target = ticket
+    except OSError as exc:
+        raise DeleteTaskError(f"could not delete {ticket}: {exc}") from exc
 
     return f"{ref.id_slug}: deleted {target}\n"
 

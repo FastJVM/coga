@@ -679,6 +679,28 @@ def test_delete_task_recipe_requires_exactly_one_task(repo: Path) -> None:
     assert task_path.is_dir()
 
 
+def test_delete_reports_a_filesystem_failure_as_delete_task_error(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deletion used to run behind a subprocess, so *any* filesystem error came
+    back as a non-zero exit and became a `DeleteTaskError`. In-process, `rmtree`
+    raises `OSError` directly — it must still reach callers as the one type they
+    catch, or an undeletable task aborts `coga delete` (and the unattended
+    recurring replacement) with a traceback instead of a clean refusal."""
+    slug, task_path = _make_task(repo, force_directory=True)
+
+    def _boom(_path: Path) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr("coga.delete_task.shutil.rmtree", _boom)
+
+    result = CliRunner().invoke(app, ["delete", slug])
+
+    assert result.exit_code == 2, result.output
+    assert task_path.is_dir()
+    assert "could not delete" in result.output
+
+
 def _install_noop_script_skill(repo: Path) -> None:
     """A trivial `mode: script` skill: a no-op `run.sh` that exits 0."""
     skill_dir = repo / "skills" / "local" / "noop"
