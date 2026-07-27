@@ -4,7 +4,7 @@ title: important alerts @ the task owner; drop important_recipient
 status: in_progress
 owner: zach
 human: zach
-agent: claude
+agent: codex
 assignee: codex
 contexts: []
 skills: []

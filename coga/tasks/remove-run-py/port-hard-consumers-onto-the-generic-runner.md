@@ -4,8 +4,8 @@ title: Port open-pr and delete-task onto the generic runner
 status: active
 owner: nicktoper
 human: nicktoper
-agent: claude
-assignee: claude
+agent: codex
+assignee: codex
 contexts: []
 skills: []
 workflow:

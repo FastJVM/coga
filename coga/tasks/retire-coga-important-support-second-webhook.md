@@ -4,8 +4,8 @@ title: Retire coga-important/support-second-webhook
 status: in_progress
 owner: zach
 human: zach
-agent: claude
-assignee: claude
+agent: codex
+assignee: codex
 contexts: []
 skills: []
 workflow:

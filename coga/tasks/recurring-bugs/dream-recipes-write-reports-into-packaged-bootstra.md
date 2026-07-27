@@ -4,8 +4,8 @@ title: Dream recipes write reports into packaged bootstrap tickets
 status: draft
 owner: nicktoper
 human: nicktoper
-agent: claude
-assignee: claude
+agent: codex
+assignee: codex
 contexts:
   - coga/architecture
 skills: []

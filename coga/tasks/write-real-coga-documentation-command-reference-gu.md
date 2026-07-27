@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: nicktoper
+assignee: codex
 contexts:
 - coga/principles
 - coga/architecture

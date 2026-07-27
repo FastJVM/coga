@@ -4,8 +4,8 @@ title: Delete the script-seam
 status: blocked
 owner: nicktoper
 human: nicktoper
-agent: claude
-assignee: claude
+agent: codex
+assignee: codex
 contexts: []
 skills: []
 workflow:

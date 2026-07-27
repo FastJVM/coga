@@ -4,8 +4,8 @@ title: Rewrite coga base prompt and agent-mode block
 status: draft
 owner: nicktoper
 human: nicktoper
-agent: claude
-assignee: nicktoper
+agent: codex
+assignee: codex
 contexts:
 - coga/principles
 - coga/codebase
