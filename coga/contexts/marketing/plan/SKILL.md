@@ -260,7 +260,8 @@ distribution, Anthropic's "Keep thinking"), or a more famous voice
    when megalaunch holds up daily — proven empirically, with narrow fix
    tickets filed as failures surface; the former
    `stabilize-megalaunch-for-daily-use` ticket was folded into this) and
-   `metrics-human-minutes-script` (the recompute story).
+   the recompute story (the `metrics-human-minutes-script` ticket that
+   carried it no longer exists — re-file it).
 2. **Pre-registration commit** — one commit, before any data.
 3. **The 2-week run** — megalaunch as default work mode; daily diary is
    derived from the log by the metrics script, never hand-written.
@@ -377,5 +378,7 @@ pins the fork otherwise.
   limits — `marketing/positioning`.
 - The full strategic argument — `docs/market-thesis.md`; the why —
   `docs/vision.md`.
-- The experiment's exact measurement contract — the pre-registration doc
-  and `metrics-human-minutes-script` ticket are authoritative.
+- The experiment's exact measurement contract — the pre-registration doc is
+  authoritative. The `metrics-human-minutes-script` ticket that co-owned it
+  is gone; until it is re-filed, this file and the pre-registration doc are
+  the only record.
