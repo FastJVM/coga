@@ -253,7 +253,7 @@ Other task launches keep passing the composed prompt positionally.
 
 `launch` does not probe `gh` for PR state before composing the prompt —
 auto-bumping a ticket whose final-step PR has merged is the job of
-`coga automerge` / the `autoclose-merged` recurring sweep, never launch. It
+`coga autoclose` / the `autoclose-merged` recurring sweep, never launch. It
 does, though, **pre-flight git push access**: before flipping status or
 spawning the agent, it runs a non-interactive `git push --dry-run` against the
 configured remote (the same push-auth probe `coga validate --check-github`
@@ -428,21 +428,23 @@ broadcast — one post instead of two. Use it for transition-tied notes
 like "PR opened: <link>" or "shipped, watching error rate". For FYIs
 that don't fit a transition, reach for `coga slack` instead.
 
-## coga automerge
+## coga autoclose
 
 Walk active / in-progress tickets; bump any whose blackboard `## Dev`
 section names a PR that has merged on GitHub. Looks each PR up via
 `gh pr view`. Scope: tickets on their final workflow step, or with no
 workflow at all. Mid-workflow merges stay alone — those need a human eye.
 
-`coga automerge` is an explicit-only surface — you run it by hand to
-catch up tickets whose PR merged out of band. It is no longer wired into
-any implicit trigger: `coga status` does **not** trigger automerge (it is
-a strictly read-only view that never hits the network or mutates ticket
-state as a side effect of rendering — principle 6, fail loud, names
-`status`/`show`/`validate` as forbidden mutators), and there is no
-post-merge git hook. The explicit command surfaces `gh` errors (missing,
-unauthed) loudly.
+There is no `coga automerge` command; it was retired. The behavior lives in
+the registered `autoclose` recipe (`runner.RECIPES` →
+`autoclose.sweep_merged`), reached either as the `coga autoclose` alias
+(`recurring launch autoclose-merged`) or directly as `coga run autoclose`.
+
+It is not wired into any implicit trigger: `coga status` does **not** trigger
+it (it is a strictly read-only view that never hits the network or mutates
+ticket state as a side effect of rendering — principle 6, fail loud, names
+`status`/`show`/`validate` as forbidden mutators), and there is no post-merge
+git hook. It surfaces `gh` errors (missing, unauthed) loudly.
 
 Posts a distinct Slack line with the ticket title, previous step, and linked
 PR (`🎉 *<slug>* "<title>": <prev> → done — <pr-url|PR #<N>> merged`), so the
@@ -946,8 +948,18 @@ dream = "recurring launch dream"
 pick = "megalaunch --pick"
 ```
 
-`chat`, `build`, `dream`, and `pick` are also registered as built-in default
-aliases, so they dispatch even in repos whose `coga.toml` predates the line.
+Eight aliases are registered as built-in defaults in `aliases.DEFAULT_ALIASES`,
+so they dispatch even in repos whose `coga.toml` predates the line — the four
+above plus four the packaged `coga.toml` never mentions:
+
+```
+skill-update      = "recurring launch skill-update"
+autoclose         = "recurring launch autoclose-merged"
+open-pr           = "launch bootstrap/open-pr"
+resolve-conflicts = "launch bootstrap/resolve-conflicts"
+```
+
+Reading `coga.toml` alone will therefore not show you every available alias.
 `create` is a
 built-in command, not an alias (it has its own scaffolding behavior beyond
 what a `launch bootstrap/...` expansion would give it).
@@ -992,7 +1004,7 @@ only; they don't accept their own flags.
   last confirmed list → `coga megalaunch --relaunch`.
 - Other bootstrap ticket → `coga launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `coga bump`.
-- Catching up tickets after a teammate merged a PR → `coga automerge`
+- Catching up tickets after a teammate merged a PR → `coga autoclose`
   (explicit-only; run it by hand).
 - Triage view → `coga status`.
 - Blocked-work queue → `coga status --blocked`.
