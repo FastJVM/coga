@@ -1,7 +1,7 @@
 ---
 slug: move-some-alerts-to-coga-important-instead-of-coga
 title: move some alerts to coga important instead of coga flow
-status: in_progress
+status: paused
 owner: nicktoper
 human: nicktoper
 agent: claude
