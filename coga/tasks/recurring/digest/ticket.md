@@ -1,7 +1,7 @@
 ---
 slug: recurring/digest
 title: Daily digest
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,6 +18,7 @@ workflow:
     assignee: agent
 secrets: null
 script: null
+step: 1 (flush)
 ---
 
 ## Description
@@ -30,7 +31,7 @@ active/paused`, `retire`, successful recurring creates) does not enter Slack.
 Done/Canceled tickets and recurring scan errors append one JSONL record to the
 dedicated `spool.md` file (its `## Spool (pending)` section) — see
 `coga.notification.notify`. Once a day this ticket fires on its schedule and
-its script step runs `coga digest`, which:
+its recipe runs the digest implementation, which:
 
 1. reads the unconsumed Done/Canceled/error records (a merge-by-construction
    spool, not a lock),
