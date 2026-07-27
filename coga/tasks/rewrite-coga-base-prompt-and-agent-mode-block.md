@@ -1,7 +1,7 @@
 ---
 slug: rewrite-coga-base-prompt-and-agent-mode-block
 title: Rewrite coga base prompt and agent-mode block
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -10,9 +10,27 @@ contexts:
 - coga/principles
 - coga/codebase
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description

@@ -2999,3 +2999,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-27 14:35 [implement-accepted-ticket-interview-improvements] [human:nicktoper] paused (active → paused) — Parked to v2 for the release — interview-text quality pass, no code written
 2026-07-27 14:35 [recurring/dream] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-07-27 14:47 [recurring-bugs/dream-recipes-write-reports-into-packaged-bootstra] [human:nicktoper] activated (draft → active)
+2026-07-27 14:47 [rewrite-coga-base-prompt-and-agent-mode-block] [human:nicktoper] activated (draft → active)
