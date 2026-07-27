@@ -28,6 +28,24 @@ this step just makes sure the diff they see is already clean.
    you'll address them in step 4. Do not use `/code-review ultra` here —
    that's the cloud-billed deep pass, reserved for high-stakes PRs and
    triggered manually by the human, not by a normal workflow step.
+
+   **If the invocation is unavailable, review the diff yourself — don't skip
+   the pass.** `/code-review` is user-invocation-only in some harnesses: a
+   launched agent cannot trigger a slash command programmatically. That is a
+   tooling limit, not a waiver. Read the branch diff vs `main` directly and
+   review it as a reader who did not write the change — that is the step's
+   actual substance. Record in the `## Self-QA` note which form you used, so
+   the human reviewer knows what they are inheriting. `codex review --base
+   main` is the equivalent native command where available, but it fails inside
+   a restricted sandbox (see `coga/codebase`), so rerun it unsandboxed rather
+   than reporting it as clean.
+
+   A green suite is not this step. Two recent tickets shipped a full-green
+   `python -m pytest` and the review still found must-fix bugs, because the
+   defect was in a *rationale* the tests never asserted on — "with no remote
+   there is nothing for a stale checkout to bury" was false, and a workflow was
+   validated only after its source ticket had already been deleted. Probe the
+   reasons the change gives for itself, not just its assertions.
 3. **Run `/simplify`.** Invoke the `/simplify` slash command against
    the branch. It reviews changed code for reuse, quality, and
    efficiency, then fixes issues it finds. Let it apply its edits.
