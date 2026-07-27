@@ -51,78 +51,59 @@ abandoned or already-merged residue — branch-sweep's problem, not this task's.
    have an upstream; an existing PR updates automatically. Never open a PR
    here — that belongs to each ticket's own `code/open-pr` step, which now
    passes its staleness gate on relaunch.
-6. **Summarize** — replace the `## Rebase Run Summary` section in this
-   blackboard with one line per branch: `rebased-pushed`, `rebased-local`,
-   `up-to-date`, `conflict — human needed`, `skipped-dirty`, or
-   `skipped-verify-failed`, plus the `coga launch <slug>` command for any
-   ticket whose open-pr step is now unblocked. Replace, don't append — the
-   blackboard is composed into every launch and must stay bounded.
+6. **Summarize** — replace the `## Rebase Run Summary
 
-### Safety rules
+Run 2026-W31 (base: origin/main @ 5785f6a5; advanced from 2f9aff94 mid-run by a
+concurrent sync). 17 live branches enumerated: 16 worktree branches + 1
+origin-only branch from a live ticket. All 17 stale. **Nothing pushed.**
 
-- Never delete a branch or worktree — branch-sweep owns deletion.
-- Never touch `main`; never push without `--force-with-lease`.
-- Never stash, commit, or reset a dirty worktree; skip and report it.
-- A worktree already mid-rebase or mid-merge at the start of the run is
-  someone's live session: report it, don't touch it.
+Headline: 16 of 17 are already-merged residue. Every one maps to a MERGED PR (or
+work that landed by another route), squash-merged — which is why `git cherry`
+still reports their commits as unmerged and why replaying them onto main
+conflicts. These are branch-sweep's set, not this task's. Only
+`drop-important-recipient` carries genuinely unlanded work.
 
-<!-- coga:blackboard -->
+Rebased-local, collapsed to empty vs main (branch-sweep candidates):
+- release-0.3.0 — rebased-local (empty; PR #587 merged)
+- workflow-cleanup — rebased-local (empty; PR #619 merged)
 
-`coga recurring` keeps the serviced-period high-water mark here as
-`last_serviced_period`. Each run replaces the `## Rebase Run Summary`
-section below with its results.
+Conflict, rebase aborted, worktree left exactly as found — all merged residue,
+so the conflict is squash-merge noise, not real drift. Retire via branch-sweep
+rather than rebasing:
+- commands-as-tickets-open-pr (#625) — launch.py, launch_script.py
+- microkernel-move-recipes (#645) — 23 files (autoclose/blockers/branch-sweep recipe twins, CLAUDE.md, codebase SKILL, tests)
+- no-remote-notice (#644) — git.py, test_git.py (main has a strictly more evolved version)
+- real-coga-docs (#608) — README + docs/{concepts,development,getting-started,operations,reference}.md
+- recurring-promote (#649) — recurring SKILL, docs/reference, recurring.py, validate.py, tests
+- gh-optional-at-init (#580) — README.md, test_init.py
+- gh-rate-limit-hint (#582) — managed_skills.py, test_init, test_managed_skills
+- init-agent-cli-hint (#589) — README.md, test_init.py
+- init-identity-fail-loud (#584) — init.py, test_init.py
+- reinit-message (#588) — init.py, test_init.py
+- removed-agent-key-migration (#579) — architecture SKILL twins, test_config.py
+- usage-records-to-log (#562) — usage SKILL, launch.py, usage.py, test_launch, test_usage
+- vendor-cli-from-package (#590) — cli-extension-audit.md, init.py, update.py, test_init
+- remove-budget-guard (no PR; work landed anyway — main's config.py already
+  carries the "budget guard was removed" migration error) — megalaunch.py/cmd,
+  config.py, cli SKILL twin, test_config, test_megalaunch
 
-last_serviced_period: 2026-W31
+Conflict — human needed (the one real one):
+- drop-important-recipient (ticket `important-alerts-the-task-owner-drop-important-rec`,
+  in_progress; origin-only, rebased in a disposable detached temp worktree, aborted,
+  origin ref untouched at 4ecf442c). Conflicts in the `coga/important` and
+  `coga/sync` SKILL twins (live + packaged). **This one needs a product decision,
+  not a merge:** main has since documented `important_recipient` as a deliberately
+  parsed-but-not-yet-routed key, which reads as an argument against the branch's
+  premise that it should be deleted. Resolve the premise first, then rebase.
 
-## Rebase Run Summary
+Ticket branches that exist nowhere (nothing to rebase): codex/auto-persist-launch-dirt,
+codex/relay-prompt-scope-report, dev-testing-contract.
 
-Run 2026-W30 (base: origin/main @ e842c8d3). 28 live branches enumerated (25
-worktree branches + 3 origin-only ticket branches); all stale vs the new base.
-No branch rebased to a clean, non-empty state, so **no pushes** this run. Every
-clean rebase collapsed to empty-vs-main (already-merged residue → branch-sweep);
-every non-empty branch conflicts semantically with the advanced main.
+No ticket's open-pr step was unblocked this run. No branch or worktree deleted;
+no worktree stashed, committed, or reset; all 16 worktrees verified clean and at
+their original commits afterwards (except the two empty rebases above, which now
+sit at origin/main).
 
-Skipped (never touched):
-- megalaunch-pick-all-nonterminal — skipped (this sweep's own live checkout; dirty with recurring state files)
-- human-minutes-ledger — skipped-dirty (uncommitted changes, no-upstream)
-- ticket-script-authoring — skipped-dirty (uncommitted changes, no-upstream)
-
-Rebased-local, empty vs main (branch-sweep candidates, not pushed):
-- fix/annotated-dev-metadata — rebased-local (empty; all commits already in main)
-- picker-sigwinch-redraw — rebased-local (empty)
-- validate-frozen-workflow — rebased-local (empty)
-- cleanup/workflow-inventory — rebased-local (empty, no-upstream)
-- codex/fail-unsynthesized-draft-validation — rebased-empty via origin (worktree dir gone; branch-sweep candidate)
-- workflow-cleanup — rebased-empty via origin (origin-only ticket branch; branch-sweep candidate)
-
-Conflict — human needed (rebase aborted, worktree left exactly as found):
-- fix/attended-ask-not-block — architecture SKILL twins, prompt-megalaunch.md, test_compose/test_megalaunch
-- browser-bootstrap — README, browser-automation ticket/SKILL twins, cli SKILL, test_compose/test_init/test_packaging
-- marketing/rewrite-readme-wedge — README.md, docs/velocity-report.md
-- megalaunch-blocker-drain — architecture SKILL twins, megalaunch.py (cmd+lib), test_megalaunch
-- fix/open-pr-primary-checkout — open-pr skill/recipe/workflow twins, architecture SKILL, open_pr.py, docs/reference, tests
-- codex/redact-slack-webhook-errors — src/coga/slack_response.py, test_notification
-- remove-autonomy-triage — brief/draft-for-human workflow twins, bootstrap ticket/browser SKILL, test_browser_automation_bootstrap/test_init
-- resolve-conflicts-command — resolve-conflicts ticket twins, docs/reference, test_launch
-- codex/canceled-ticket-status — via origin; 17 files (megalaunch/mark/recurring_runner/validate + SKILL twins + tests)
-- fix/dream-task-env — via origin; launch.py, launch_script.py, architecture SKILL twins, test_launch
-- harden-install-gate — via origin; scripts/verify-clean-install-container.sh, test_clean_install_gate
-- log-session-activity — via origin; launch.py, ticket.py, test_launch
-- real-coga-docs — via origin; README + docs/{concepts,development,getting-started,operations,reference}.md
-- fix/recurring-remote-dedup — via origin; recurring_runner.py, sync/architecture/current-direction SKILL twins, test_recurring
-- recurring-skip-unconfigured — via origin; recurring_runner.py, architecture/cli SKILL twins, test_recurring
-- fix/removed-skill-hint — via origin; src/coga/validate.py, test_validate
-- fix/retro-worktree-isolation — via origin; retire.md, dream ticket, retro SKILL twin, test_dream/test_retire/test_retro
-- commands-as-tickets-open-pr — via origin (origin-only ticket branch); launch.py, launch_script.py
-- docs/custom-recurring-tickets — via origin (origin-only ticket branch); coga/contexts/coga/recurring/SKILL.md
-
-Ticket-referenced branches that no longer exist locally or on origin (nothing
-to rebase): drop-important-recipient, dev-testing-contract,
-codex/relay-prompt-scope-report, codex/auto-persist-launch-dirt.
-
-No ticket's open-pr step was unblocked this run (the only clean rebases left
-empty branches; nothing pushed). All conflicted rebases were aborted; every
-worktree left clean, exactly as found. GONE-DIR branches (worktree dir cleaned
-from /tmp) were rebased from origin/<branch> in disposable temp worktrees;
-each such local ref equaled origin (no unpushed work), and temp worktrees were
-removed after use — no worktree or branch was deleted.
+Next-run note: this task keeps re-conflicting on residue that branch-sweep should
+have removed. If branch-sweep is not deleting merged branches that still have
+worktrees, fixing that is worth more than another sweep here.

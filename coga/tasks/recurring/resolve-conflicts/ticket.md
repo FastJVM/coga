@@ -59,3 +59,18 @@ this recurring template.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Run notes — 2026-07-27
+
+- Parent blackboard `last_serviced_period: 2026-W31`. This wrapper carries no
+  cross-run state of its own; results are stateless (stdout + the command's
+  Slack roll-up).
+- Preflight: `gh pr list --state open --limit 10000` returns `[]` — no open PRs
+  in this repo, so the sweep target set is empty.
+- Delegating per the ticket body: `coga resolve-conflicts --agent claude
+  --queue-guidance`. This launch carries queue guidance, hence the flag.
+  `coga launch` refuses an agent launch without a TTY on both stdin and stdout,
+  and the Bash tool gives neither, so the delegation runs under `script -qec`
+  to supply a pty. Bounded with `timeout 900`.
+- On a clean delegated run, finish with
+  `coga mark done recurring/resolve-conflicts`. On failure, surface it instead.
