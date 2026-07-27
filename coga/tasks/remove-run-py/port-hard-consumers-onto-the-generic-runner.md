@@ -1,7 +1,7 @@
 ---
 slug: remove-run-py/port-hard-consumers-onto-the-generic-runner
 title: Port open-pr and delete-task onto the generic runner
-status: blocked
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -122,7 +122,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Blockers
 
-- [ ] [2026-07-23 07:45] [agent:claude] id=20260723T074518 Blocked on remove-run-py/add-coga-run-generic-runner-and-migrate-recurring: its coga run generic runner and dispatch table are absent from origin/main while that task remains at review-design; finish and merge ticket A before retrying this port.
+- [x] [2026-07-23 07:45] [agent:claude] id=20260723T074518 Blocked on remove-run-py/add-coga-run-generic-runner-and-migrate-recurring: its coga run generic runner and dispatch table are absent from origin/main while that task remains at review-design; finish and merge ticket A before retrying this port.
+  resolved: [2026-07-27 11:27] [human:nicktoper] Resolved: ticket A merged as PR #650 (2026-07-27). coga run and the RECIPES dispatch table are on origin/main at 2a26d9df, so the stated precondition is met. Proceed with the open-pr and delete-task port.
 
 ---
 
