@@ -18,47 +18,6 @@ context. The git high-water mark lives separately in the digest ticket's
 
 
 
-consumed_through: 5395a45530c4
-{"id":"5395a45530c4","ts":"2026-07-16T10:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
-{"id":"c74322881d74","ts":"2026-07-16T10:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nicktoper"}
-{"id":"8f2a92e28596","ts":"2026-07-16T10:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
-{"id":"a24c6c948452","ts":"2026-07-16T10:30","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"install/retest-ssh-https-and-init-reclone-on-fresh-machine","owner":"nicktoper"}
-consumed_through: 8e32b965dc04
-{"id":"8e32b965dc04","ts":"2026-07-15T20:14","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
-{"id":"b99a93978ecd","ts":"2026-07-15T20:14","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nicktoper"}
-{"id":"bef10e3dc37c","ts":"2026-07-15T20:15","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
-{"id":"803cb28175e9","ts":"2026-07-15T20:36","project":"coga","kind":"done","detail":"→ done (script)","ticket":"dream-validate-drift-w29","owner":"nicktoper"}
-{"id":"88c1b04d9318","ts":"2026-07-15T21:19","project":"coga","kind":"done","detail":"→ done (script)","ticket":"dream-cleanup-orphan-markers-w29","owner":"nicktoper"}
-{"id":"efdb0827ab26","ts":"2026-07-16T11:23","project":"coga","kind":"done","detail":"zach finished: review → done ✅","ticket":"coga-important/support-second-webhook","owner":"zach"}
-{"id":"3aff9b674f90","ts":"2026-07-16T16:54","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"install/gh-auth-hint-on-managed-skill-rate-limit","owner":"nicktoper"}
-{"id":"0d6df972bfa6","ts":"2026-07-16T20:41","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"log-md-coga-chat-too-so-we-have-a-full-view-of-the","owner":"nicktoper"}
-{"id":"2060d9f1c033","ts":"2026-07-17T15:27","project":"coga","kind":"done","detail":"zach finished: review → done ✅","ticket":"coga-important/add-coga-slack-important","owner":"zach"}
-{"id":"6c0d7036b976","ts":"2026-07-17T15:55","project":"coga","kind":"done","detail":"nicktoper finished: implement → done ✅","ticket":"handle-better-delete-branches-autcommit","owner":"nicktoper"}
 
-consumed_through: a20bb1814a33
-{"id":"a20bb1814a33","ts":"2026-07-17T14:40","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
-{"id":"24d9cae304bb","ts":"2026-07-17T14:40","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/digest","owner":"nicktoper"}
-{"id":"d325eedef508","ts":"2026-07-17T14:40","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
-{"id":"e658619631d8","ts":"2026-07-17T16:32","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"recurring-bugs/coga-usage-cannot-locate-claude-transcript-or-sess","owner":"nicktoper"}
-{"id":"892041cbd7a5","ts":"2026-07-17T18:14","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"recurring-bugs/recurring-scan-should-skip-and-report-an-unloadabl","owner":"nicktoper"}
-{"id":"2d42d0c2de91","ts":"2026-07-17T17:00","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"move-open-pr-recipe-into-the-code-open-pr-skill-ke","owner":"nicktoper"}
-{"id":"fda1e9eceb88","ts":"2026-07-20T18:17","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"make-open-pr-metadata-tolerate-annotated-branch-an","owner":"nicktoper"}
-{"id":"df9b9c78cfed","ts":"2026-07-20T18:24","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"make-ticket-script-form-works","owner":"nicktoper"}
-{"id":"fd8cda7923cd","ts":"2026-07-21T17:33","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"fail-validation-for-unsynthesized-draft-blackboard","owner":"nicktoper"}
-{"id":"9b167eb24fd8","ts":"2026-07-21T19:42","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"append-queue-execution-guidance-to-recurring-agent","owner":"nick"}
-{"id":"b108750fddb7","ts":"2026-07-21T19:44","project":"coga","kind":"done","detail":"claude finished: implement → done ✅ — shipped in PR #620 (merged); closing the ticket as the record","ticket":"distill-git-conflict-errors-and-stop-compounding-d","owner":"nick"}
-{"id":"fbd7bcbf33df","ts":"2026-07-21T19:47","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"fail-loud-on-prose-sub-directory-prefixes-in-coga","owner":"nick"}
-{"id":"c2ecc1116bfb","ts":"2026-07-22T16:20","project":"coga","kind":"done","detail":"codex finished: report-to-coga → done ✅","ticket":"improve-prompt-for-relay-ticket","owner":"nicktoper"}
-{"id":"fbed1af5dc87","ts":"2026-07-24T13:59","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/645|PR #645> merged ✅","ticket":"agree-the-core-vs-skills-move-list-then-execute","owner":"nicktoper"}
-{"id":"dc60d5f19096","ts":"2026-07-24T13:59","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/644|PR #644> merged ✅","ticket":"install/short-notice-instead-of-raw-git-error-when-sync-ha","owner":"nicktoper"}
-{"id":"c635aa4027dd","ts":"2026-07-24T13:59","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
-{"id":"4370ac4b0e49","ts":"2026-07-24T14:00","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"stop-trimming-blackboard-but-refuse-to-launch-befo","owner":"nicktoper"}
-{"id":"de4aa3d6254b","ts":"2026-07-24T14:23","project":"coga","kind":"canceled","detail":"nicktoper canceled — Obsolete: every premise removed. (1) The autonomy axis was deleted (#503) — launches are interactive-only, so there are no 'autonomy: auto' tickets to drain. (2) The engine sibling drain-pending-auto-tickets-with-leftover-session-b was rescoped into src/coga/megalaunch.py and shipped (PR #497); no src/coga/drain.py, and megalaunch's token-budget guard (budget_state/token_guard) was removed rather than landed. (3) The hard gate auto/stream-agent-progress resolved the opposite way — headless stream-json rejected, megalaunch spawns interactive launches. (4) Both coga recurring (agent templates) and coga megalaunch require a TTY, so an unattended 2am drain is structurally impossible by current design. (5) Cross-agent reattribution shipped as megalaunch --agent/--pick. Stale at step 2 (review-design) since 2026-06-25; the sibling flagged the duplication on 2026-07-01.","ticket":"nightly-auto-drain-run-for-ready-tickets","owner":"nicktoper"}
-{"id":"4e1b34708d16","ts":"2026-07-24T14:24","project":"coga","kind":"canceled","detail":"nicktoper canceled — not launched yet","ticket":"marketing/relay-discord","owner":"nicktoper"}
-{"id":"b31d39d67f3b","ts":"2026-07-27T10:08","project":"coga","kind":"canceled","detail":"zach canceled — Scrapped 2026-07-27: the engine's boundary reached too far into what individual scripts should own. PR #652 closed unmerged, branch and worktree deleted. The retry at a smaller boundary is v2/ship-a-shared-recurring-reminder-engine-battery, whose blackboard carries this attempt forward.","ticket":"ship-a-shared-recurring-reminder-engine-battery","owner":"zach"}
-{"id":"c3d5528044be","ts":"2026-07-27T11:27","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅ — PR #650 merged 2026-07-27","ticket":"remove-run-py/add-coga-run-generic-runner-and-migrate-recurring","owner":"nicktoper"}
-{"id":"2b1e3176125b","ts":"2026-07-27T14:21","project":"coga","kind":"done","detail":"→ done (recipe: branch-sweep)","ticket":"recurring/branch-sweep","owner":"nicktoper"}
-{"id":"a6a64bf66709","ts":"2026-07-27T14:21","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/649|PR #649> merged ✅","ticket":"make-sure-we-can-drop-new-recurring-tickets","owner":"nick"}
-{"id":"5970d021a59a","ts":"2026-07-27T14:21","project":"coga","kind":"done","detail":"→ done (recipe: autoclose)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
-{"id":"4be5a11d1396","ts":"2026-07-27T14:28","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — Rebase sweep W31: 17 live branches, all stale, nothing pushed. 16 are already-merged squash residue (branch-sweep's set); only drop-important-recipient is real and needs a product decision first.","ticket":"recurring/rebase-stale-worktrees","owner":"nicktoper"}
+consumed_through: f2bbece60922
 {"id":"f2bbece60922","ts":"2026-07-27T14:34","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — W31 sweep: delegated coga resolve-conflicts ran clean — 0 open PRs, nothing to rebase.","ticket":"recurring/resolve-conflicts","owner":"nicktoper"}
