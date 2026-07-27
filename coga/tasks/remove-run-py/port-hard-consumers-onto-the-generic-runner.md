@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -167,6 +167,76 @@ aliases to `launch bootstrap/open-pr`, and the live/packaged `code/open-pr`
 copies are momentarily out of sync. Operationally harmless — the step still
 tells agents to run `coga open-pr <slug>`, which works under either spelling.
 Those five files are therefore *not* in this PR's diff.
+
+## Peer review (2026-07-27)
+
+Reviewed by the second agent against the branch diff vs `main`, rebased first
+onto `origin/main` `db887b05` (clean). `/code-review` is user-triggered only in
+this harness and cannot be model-invoked, so the pass was done directly over the
+diff rather than through the slash command — noted here because the step names
+that tool. Suite green after the fixes: **1564 passed, 1 skipped**.
+
+Contract checks that passed as-is: `run_open_pr_recipe` is a faithful
+transcription of the retired `run.py` (`_checkout_mode` identical, `_git`
+matches the old inline `subprocess.run`, every `_run` call site keeps an
+explicit `cwd`); the bare-URL stdout contract is now asserted positively rather
+than by absence; `COGA_TASK_SLUG` was already `ref.id_slug`, so the delete
+report line is byte-identical. The `cli` context and `bootstrap/` skills have no
+live twin in this repo (packaged-only), so the live/packaged sync rule is not
+violated. Grep confirms the only remaining `script:` declarers are
+`coga/show` + `coga/ticket/finalize` — ticket C's precondition holds.
+
+Two findings applied:
+
+- **Must-fix — filesystem errors escaped `coga delete` and unattended recurring
+  replacement as tracebacks.** Deletion used to run behind a subprocess, so any
+  `OSError` came back as a non-zero exit and was wrapped into `DeleteTaskError`.
+  In-process, `shutil.rmtree`/`unlink` raise `OSError` directly, and all three
+  callers (`coga delete`, `run_delete_task_recipe`, `recurring.create_template`)
+  catch only `DeleteTaskError` — so an undeletable task aborted with a traceback
+  instead of a clean refusal, worst in the unattended recurring path. Now
+  translated in `run_delete_task`, with a regression test verified to fail
+  against the pre-fix source (`PermissionError`, exit 1).
+- **Stale comment** in `commands/launch.py` still cited `code/open-pr` as the
+  example of a script-backed step skill. It is an agent step with no `script:`,
+  and this PR removes the last trace of its script seam; the example is dropped
+  rather than repointed at the two twins ticket C deletes.
+
+## PR
+
+**Port `open-pr` and `delete-task` off the `run.py` seam onto `coga run`.**
+
+Ticket B of 3 in `remove-run-py/`. These are the two seam-integrated consumers:
+unlike the thin recurring wrappers in ticket A, neither had its recipe in a
+`coga.*` module and both had live code bound to `launch_script` internals.
+
+- **open-pr** — the packaged `bootstrap/open-pr` command ticket is retired. Its
+  `recipe.py` moves (via `git mv`, history preserved) to `src/coga/open_pr.py`,
+  and `run.py`'s seam becomes `run_open_pr_recipe(cfg, argv)` + `_checkout_mode`
+  in that same module, registered as the `open-pr` recipe. `coga open-pr <slug>`
+  now aliases to `run open-pr` and takes the task ref as ordinary argv instead of
+  `COGA_ARG_1`. Both gate contracts are preserved: the `COGA_EXPECTED_TASK`
+  ownership proof and the bare PR URL on stdout — the `[open-pr]` diagnostics
+  move to stderr so they can't land on the value channel in-process.
+- **delete-task** — `src/coga/delete_task.py` now *is* the deletion, keyed off
+  the resolved ticket path, instead of importing `build_script_command` /
+  `build_task_env` / `script_repo_root` from `launch_script.py` to subprocess the
+  bundled skill's `run.py`. Exposed as `run_delete_task(ref)` for `coga delete`
+  and recurring replacement, and as the `delete-task` recipe. Filesystem errors
+  are translated to `DeleteTaskError` so the in-process path keeps the single
+  failure type its callers catch. The skill's `run.py` and `script:` line are
+  gone; its SKILL.md is now a contract naming `coga run delete-task <task>`.
+
+`launch_script.py` and the `script:` field are untouched — the deletion is
+ticket C, whose precondition (only the vestigial `coga/show` and
+`coga/ticket/finalize` twins still declare `script: run.py`) now holds.
+
+Note: five `coga/` context/skill files describing the new spelling were already
+pushed to `main` by Coga's own control-branch sync during this work, so they are
+not in this diff.
+
+**Test plan:** `python -m pytest` — 1564 passed, 1 skipped; `coga validate
+--json` on `example/` clean; `coga --help` and `coga run <unknown>` smoke-checked.
 
 ---
 
