@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -109,14 +109,64 @@ recurring launches to `coga run`); this ticket does not edit it.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Dependency check (2026-07-23)
+## Dev
 
-- Freshly fetched `origin/main` is `0d4580d7`, identical to this checkout.
-- Dependency `remove-run-py/add-coga-run-generic-runner-and-migrate-recurring`
-  is still `in_progress` at `step: 2 (review-design)`.
-- `src/coga/runner.py` and the proposed `run_recipe` / `RECIPES` dispatch
-  surface are absent. Implementing this ticket now would duplicate or guess
-  ticket A's unapproved design, so no feature branch/worktree was created.
+branch: port-open-pr-delete-task-to-run
+worktree: /home/n/Code/claude/coga-port-run-recipes
+
+## Implemented (2026-07-27)
+
+Ticket A's `coga run` / `runner.RECIPES` landed, so the port went ahead as one
+commit on top of `origin/main` `3779d340`. Full suite green (1563 passed, 1
+skipped); `coga validate --json` on `example/` is clean.
+
+**open-pr.** `bootstrap/open-pr/recipe.py` moved (git-mv, history preserved) to
+`src/coga/open_pr.py`, and `run.py`'s seam became `run_open_pr_recipe(cfg,
+argv)` + `_checkout_mode` in that same module. Registered as `open-pr`; the
+default alias is now `run open-pr`. The packaged command ticket
+(`ticket.md`/`run.py`/`recipe.py`) is deleted.
+
+**delete-task.** `src/coga/delete_task.py` now *is* the deletion (`rmtree` /
+`unlink` keyed off the resolved ticket path) instead of subprocess-running the
+bundled skill's `run.py` through `launch_script.build_script_command`. Exposed
+as `run_delete_task(ref)` for `coga delete` + recurring replacement, and as the
+`delete-task` recipe. The skill's `run.py` and its `script:` line are gone; its
+SKILL.md is now a contract naming `coga run delete-task <task>`.
+
+### Decisions
+
+- **Removed the old spellings rather than shimming them.** The ticket's
+  "keep the old seam alive" is parenthetically scoped to `launch_script.py`,
+  which is untouched — and ticket C's stated precondition is that only the
+  vestigial `coga/show` + `coga/ticket/finalize` twins still declare
+  `script: run.py`. Leaving shims would have re-tripped C's stop condition (it
+  blocked on exactly that evidence on 2026-07-27). No in-flight hazard: the
+  installed `coga` runs from the primary checkout on `main`, not this branch.
+- **Diagnostics moved to stderr** (`[open-pr]` stale-`pr:` and state-drift
+  notes). In-process they would otherwise land on stdout beside the URL and
+  break the bare-URL contract that this ticket requires preserving.
+- **`COGA_EXPECTED_TASK` is still the ownership witness.** `coga run` rewrites
+  no `COGA_TASK_*`, but the anchor stays the gate because only it names the
+  *session's* task rather than whatever the environment last described.
+- Test-side dead weight removed with the seam: `conftest.load_bootstrap_recipe`
+  and the `_install_delete_skill` copies in `test_commands.py` / `test_git.py`.
+  `test_launch_script.py`'s two bootstrap-script tests now seed a repo-local
+  `bootstrap/probe` ticket instead of borrowing the retired open-pr one.
+
+### Note for the human — unintended sync to main
+
+Running `coga validate` / `coga run` from inside the feature worktree tripped
+Coga's automatic control-branch sync, which committed the `coga/` context edits
+(architecture, codebase, extension-model, `code/open-pr` skill, dream template)
+and pushed them to `origin/main` as `3779d340` before this PR exists. Not
+reverted: it is the repo's own sync mechanism, the content is the intended
+final text, and un-publishing would mean two more pushes to `main` plus a real
+risk of the merge silently dropping those edits. Consequence until this PR
+merges: `main`'s contexts describe `coga run open-pr` while `main`'s code still
+aliases to `launch bootstrap/open-pr`, and the live/packaged `code/open-pr`
+copies are momentarily out of sync. Operationally harmless — the step still
+tells agents to run `coga open-pr <slug>`, which works under either spelling.
+Those five files are therefore *not* in this PR's diff.
 
 ---
 
