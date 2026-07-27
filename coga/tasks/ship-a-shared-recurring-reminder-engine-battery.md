@@ -348,3 +348,69 @@ Applied fixes: 1.
 Git: committed and pushed `repair-branch`
 
 Result: no remaining validation drift found.
+
+## Independent review (2026-07-26)
+
+Three reviewer subagents read the branch on separate lenses: the microkernel
+boundary, the 80/20 design claim, and spec/coverage gaps. The parent session
+crashed before it displayed any of them; the reports were recovered from the
+subagent transcripts on 2026-07-27. Written up here because the measured
+evidence outlives whatever happens to PR #652.
+
+### Defects — fixed in `2c72048d`
+
+- `record_ack` destroyed the blackboard fence on a ticket whose file ended at
+  the fence, leaving zero fences and breaking every blackboard reader in coga.
+- `read_ack` raised `TaskFileError` on a fence-less ticket while its docstring
+  promised `None`, so a hand-authored reminder crashed the sweep.
+- Retrofitting a sweep silently turns off Slack, because the engine gates
+  posting on `--notify` and the old launch command cannot already carry it.
+- The `--notify` gate was kept rather than reverted, since a bare run must not
+  page anyone; the fix is the migration note in the skill plus a test.
+- Stdout parity structurally cannot catch the `--notify` divergence, which is
+  why it survived the 2026-07-24 peer review.
+
+### The 80/20 claim does not hold as written
+
+- The extraction had two source scripts, not several, and both were patents
+  sweeps over ticket frontmatter with a grant-anchored window.
+- Real duplication removed was about 55 code lines, once, against a library
+  costing 110 code lines plus a 159-line skill.
+- Two of the three sweeps written afterward use no date window at all, and the
+  third's `in_window` call is a provable tautology.
+- The third consumer forced an interface change in `0a35f7d2`, which is the
+  signature of an abstraction validated on two samples.
+- About 82 lines are genuinely duplicated between the two Brex sweeps and sit
+  outside the library.
+- No shipped code imports `coga.reminders`; all five consumers are fixtures.
+
+### Per-symbol consumer counts, grep-verified across the five sweeps
+
+| Symbol | Sweeps | Verdict |
+|---|---|---|
+| `run` | 5/5 | earned |
+| `SweepResult` | 5/5 | earned |
+| `parse_date` | 4/5 | earned |
+| `read_ack` | 3/5 | earned, duplicates `period_state.parse_keys` |
+| `in_window` | 3/5 | one caller is a tautology |
+| `read_frontmatter` | 2/5 | second frontmatter parser in a package that has one |
+| `add_months` | 2/5 | earned |
+| `add_years` | 1/5 | redundant with `add_months(d, 12*y)` |
+| `default_tasks_dir` | 0/5 | internal to `run()` |
+| `notify` | 0/5 | internal to `run()`, shells out to `coga slack` |
+| `record_ack` | 0/5 | no production writer exists |
+| `in_window(past_deadline_fires=True)` | 0/5 | unused by the one money obligation it was written for |
+
+### Carry forward if the battery is scrapped
+
+- `run()` plus `SweepResult` is the only cut with five real consumers and is
+  what a second attempt should start from.
+- The high-water ack pattern in the Brex pair is the duplication actually worth
+  sharing, and it was never in the library.
+- Any future blackboard writer must keep the fence on its own line, because the
+  fence is matched as a whole line and an appended byte silently unmakes it.
+- Any future retrofit that introduces a print-only default must update the
+  sweep's launch command in the same change.
+- Unresolved and not acted on: the two Brex sweeps disagree on `record_amount`
+  null-handling, `is_missing_receipt` is not the predicate its docstring
+  describes, and `receipts-missing.json` is labelled a captured run but is not.
