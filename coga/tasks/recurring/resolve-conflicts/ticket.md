@@ -1,7 +1,7 @@
 ---
 slug: recurring/resolve-conflicts
 title: Resolve PR conflicts
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -72,5 +71,13 @@ The blackboard is a notepad to be written to often as the human and agent works 
   `coga launch` refuses an agent launch without a TTY on both stdin and stdout,
   and the Bash tool gives neither, so the delegation runs under `script -qec`
   to supply a pty. Bounded with `timeout 900`.
-- On a clean delegated run, finish with
-  `coga mark done recurring/resolve-conflicts`. On failure, surface it instead.
+- Delegated run succeeded: `coga/log.md` records
+  `14:29 [bootstrap/resolve-conflicts] launched` and
+  `14:30 [bootstrap/resolve-conflicts] [agent:claude] slack: resolve-conflicts
+  sweep: 0 open PRs — nothing to rebase; no PRs need attention.`
+  (session `559002f5`, 55s, `outcome_status: completed`). Supervisor exit 0.
+- Gotcha for the next run: the delegated launch is torn down by the
+  done-sentinel seconds after the roll-up posts, and the pty output is ANSI
+  noise, so the wrapper's stdout is *not* a usable success signal. Confirm the
+  delegated run through `coga/log.md` (the `slack:` line for
+  `bootstrap/resolve-conflicts`), not through the captured terminal output.
