@@ -521,3 +521,44 @@ def test_write_prompt_file(repo: Path, tmp_path: Path) -> None:
     assert out.exists()
     assert out.read_text() == prompt
     assert out.name.startswith("coga-x-")
+
+
+def test_compose_missing_packaged_resource_raises_compose_error(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable packaged prompt layer is a ComposeError, not a bare OSError.
+
+    Packaged resources are read lazily, so a CLI reinstall under a long-running
+    supervisor can delete them mid-process. Treat that like any other missing
+    layer: refuse the compose through the exception `coga launch` and the
+    megalaunch sweep already catch per task.
+    """
+    import coga.paths
+
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Vanished prompt")
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+
+    real_files = coga.paths.files
+
+    class _GoneResource:
+        def read_text(self, *args: object, **kwargs: object) -> str:
+            raise FileNotFoundError(2, "No such file or directory", "prompt.md")
+
+    class _Shim:
+        def __init__(self, real: object) -> None:
+            self._real = real
+
+        def joinpath(self, *parts: str) -> object:
+            if parts == ("prompt.md",):
+                return _GoneResource()
+            return self._real.joinpath(*parts)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr("coga.paths.files", lambda package: _Shim(real_files(package)))
+
+    with pytest.raises(ComposeError) as exc:
+        compose_prompt(cfg, ref, ticket)
+    msg = str(exc.value)
+    assert "prompt.md" in msg
+    assert "installed Coga package" in msg

@@ -12,9 +12,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from importlib.resources import files
 from pathlib import Path
 
+from coga.paths import read_packaged_resource
 from coga.taskfile import (
     TaskFileError,
     fence_count,
@@ -36,7 +36,7 @@ BLOCKER_TS_FORMAT = "%Y-%m-%d %H:%M"
 
 def render_blackboard(task_title: str) -> str:
     """Render the default blackboard template with task metadata filled in."""
-    template = files("coga.resources").joinpath("blackboard.md").read_text()
+    template = read_packaged_resource("blackboard.md")
     return template.replace("{task_title}", task_title)
 
 
@@ -93,7 +93,7 @@ def _section_headings(text: str) -> list[str]:
 
 
 def _is_stock_blackboard(text: str) -> bool:
-    stock = files("coga.resources").joinpath("blackboard.md").read_text()
+    stock = read_packaged_resource("blackboard.md")
     return text.strip() in {"", stock.strip()}
 
 

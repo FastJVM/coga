@@ -13,8 +13,17 @@ from coga.ticket import Ticket
 
 EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/managed-skills.toml",
+    # Every top-level resource, not just the two that had a test. These ride
+    # the `packages` walk rather than the `bootstrap/` force-include, so a
+    # packaging change that drops them would otherwise only surface as a
+    # runtime read failure inside a composed launch.
+    "coga/resources/blackboard.md",
+    "coga/resources/prompt.md",
+    "coga/resources/prompt-agent.md",
+    "coga/resources/prompt-blocker-resolution.md",
     "coga/resources/prompt-megalaunch.md",
     "coga/resources/prompt-queue.md",
+    "coga/resources/retire.md",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",
     "coga/resources/templates/coga/bootstrap/browser-automation/ticket.md",
     "coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",

@@ -6,14 +6,15 @@ import re
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
-from importlib.resources import files
 from pathlib import Path
 
 from coga.blackboard import BLOCKER_TS_FORMAT, Blocker, parse_blockers_text
 from coga.config import Config
 from coga.paths import (
+    PackagedResourceMissing,
     context_resolution_paths,
     missing_skill_message,
+    read_packaged_resource,
     repo_context_path,
     resolve_context_path,
     resolve_skill_path,
@@ -262,7 +263,18 @@ def write_prompt_file(prompt: str, task_ref: TargetRef, dest_dir: Path | None = 
 
 
 def _resource(name: str) -> str:
-    return files("coga.resources").joinpath(name).read_text()
+    """Read a packaged prompt layer, as a ComposeError when it can't be read.
+
+    Same shape as a missing context or skill: the layer the human expected is
+    absent, so refuse rather than compose a prompt without it. Sharing
+    `ComposeError` also keeps it inside the per-task `except` that `coga
+    launch` and the megalaunch sweep already have, so one unreadable resource
+    fails that task instead of unwinding the whole queue.
+    """
+    try:
+        return read_packaged_resource(name)
+    except PackagedResourceMissing as exc:
+        raise ComposeError(str(exc)) from exc
 
 
 def _task_path_for_prompt(cfg: Config, task_ref: TargetRef) -> str:

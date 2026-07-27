@@ -22,7 +22,6 @@ import signal
 import subprocess
 import sys
 from datetime import datetime, timezone
-from importlib.resources import files
 from pathlib import Path
 from typing import NamedTuple
 from uuid import uuid4
@@ -66,6 +65,7 @@ from coga.mark import (
     mark_blocked,
     mark_in_progress,
 )
+from coga.paths import PackagedResourceMissing, read_packaged_resource
 from coga.repl_supervisor import (
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
@@ -774,12 +774,9 @@ def _queue_prompt_suffix() -> str:
     genuinely needs the owner.
     """
     try:
-        prompt = files("coga.resources").joinpath("prompt-queue.md").read_text()
-    except OSError as exc:
-        raise ComposeError(
-            "Queue execution prompt is missing from the installed Coga "
-            "package: prompt-queue.md"
-        ) from exc
+        prompt = read_packaged_resource("prompt-queue.md")
+    except PackagedResourceMissing as exc:
+        raise ComposeError(str(exc)) from exc
     return f"\n\n{prompt.strip()}\n"
 
 
