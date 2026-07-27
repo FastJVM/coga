@@ -59,3 +59,4 @@ consumed_through: a20bb1814a33
 {"id":"c3d5528044be","ts":"2026-07-27T11:27","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅ — PR #650 merged 2026-07-27","ticket":"remove-run-py/add-coga-run-generic-runner-and-migrate-recurring","owner":"nicktoper"}
 {"id":"2b1e3176125b","ts":"2026-07-27T14:21","project":"coga","kind":"done","detail":"→ done (recipe: branch-sweep)","ticket":"recurring/branch-sweep","owner":"nicktoper"}
 {"id":"a6a64bf66709","ts":"2026-07-27T14:21","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/649|PR #649> merged ✅","ticket":"make-sure-we-can-drop-new-recurring-tickets","owner":"nick"}
+{"id":"5970d021a59a","ts":"2026-07-27T14:21","project":"coga","kind":"done","detail":"→ done (recipe: autoclose)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
