@@ -341,3 +341,10 @@ Test plan: `python -m pytest` (1502 passed, 1 skipped), plus a manual fresh
 `git init` + `coga init` + `coga create` repro confirming one calm notice with
 the ticket committed on local `main`, and a configured-but-broken remote still
 producing the loud failure.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: "New context: no configured remote is a sync soft-skip that still commits locally"
