@@ -2969,3 +2969,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-27 14:21 [recurring/autoclose-merged] [system] recipe autoclose exited with code 0
 2026-07-27 14:21 [recurring/autoclose-merged] [system] completed (recipe autoclose exited 0) via coga recurring
 2026-07-27 14:22 [recurring/rebase-stale-worktrees] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-27 14:22 [recurring/rebase-stale-worktrees] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-07-27 14:23 [recurring-bugs/dream-recipes-write-reports-into-packaged-bootstra] [human:nicktoper] created (status=draft)
