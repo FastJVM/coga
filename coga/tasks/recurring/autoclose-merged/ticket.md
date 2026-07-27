@@ -1,7 +1,7 @@
 ---
 slug: recurring/autoclose-merged
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,6 +18,7 @@ workflow:
     assignee: agent
 secrets: null
 script: null
+step: 1 (sweep)
 ---
 
 ## Description
@@ -27,7 +28,7 @@ workflow is at its final step.
 
 Tickets can get stuck `in_progress` after the owner merges the PR on GitHub but
 forgets to run `coga mark done`. Once a day this recurring task fires before
-the daily digest. Its script step runs the existing merged-ticket sweep,
+the daily digest. Its recipe runs the existing merged-ticket sweep,
 which:
 
 1. scans active and in-progress tickets,
