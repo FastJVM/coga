@@ -46,4 +46,4 @@ this recurring template.
 `last_serviced_period`. Run results remain stateless: stdout plus the command's
 one-line Slack roll-up, never this blackboard.
 
-last_serviced_period: 2026-W30
+last_serviced_period: 2026-W31
