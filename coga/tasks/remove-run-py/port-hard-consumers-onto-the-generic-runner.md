@@ -111,6 +111,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/667
 branch: port-open-pr-delete-task-to-run
 worktree: /home/n/Code/claude/coga-port-run-recipes
 
