@@ -513,3 +513,112 @@ Generated: 2026-07-27T22:15:59+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Phase 6 — disposition
+
+Every Phase 2 and Phase 3 finding routed to a durable home. 5 `extract` handled
+by Phase 4; 7 `stale` + 11 `drift` → 8 proposal PRs (2 deferred to a Phase 4 PR
+to avoid a conflicting edit); 2 `gap` + 1 lifecycle decision → 3 tracked draft
+tickets.
+
+| Finding | Class | Disposition |
+|---|---|---|
+| F1, F2 | extract | PR #654 |
+| F3 | extract | PR #655 |
+| F4 | extract | PR #656 |
+| F5 | extract | PR #657 |
+| F9, D5 | stale, drift | PR #659 — resync diverged live/packaged copies |
+| F6, F7, F8 | stale | PR #660 — contexts describing removed primitives |
+| D2 | drift | PR #661 — microkernel rule's `open-pr` example |
+| F10 (template half) | stale | PR #662 — delete `rebase-stale-worktrees` |
+| F11 | stale | PR #663 — packaged digest hardcoded owner |
+| D3, D9 | drift | PR #664 — bundled CLI reference |
+| D4, D6, D7, D8, D11 | drift | PR #665 — `docs/` drift sweep |
+| D10 | drift | PR #666 — `current-direction` stale slug |
+| D1 | drift | **deferred** — overlaps PR #654 |
+| F10 (Gotchas half) | stale | **deferred** — overlaps PR #657 |
+| F13 | gap | draft `scrub-coga-task-in-the-pytest-autouse-guard-so-fix` |
+| F14 | gap | draft `retire-a-finished-ticket-s-linked-worktree-and-mak` |
+| F12 | stale | draft `decide-the-fate-of-two-premise-dead-v2-drafts-whos` |
+
+### Deferred overlaps (per the Dream contract — do not open a conflicting PR)
+
+- **D1** (`coga/contexts/coga/codebase/SKILL.md:57-58` and `:87-90` still name the
+  deleted `commands/open_pr.py` / `open_pr.py` and claim PR #585 made `open-pr` a
+  core command) overlaps **PR #654**, which already edits that file. Flagged in
+  PR #661's body for #654's reviewer.
+- **F10's second half** (a `## Gotchas` bullet in `coga/contexts/coga/recurring/SKILL.md`
+  stating that Coga-shipped recurring templates have a packaged twin to create,
+  edit, and **delete** in lockstep) overlaps **PR #657**, which already edits that
+  file. Flagged in PR #662's body for #657's reviewer.
+
+### Left to a human, not routed to a PR
+
+`important_recipient`'s overstated claim also appears in the comments of
+`coga/coga.toml:62-68` and `src/coga/resources/templates/coga/coga.toml:83-89`.
+Dream is prohibited from touching `coga.toml`, so those two comment blocks are
+untouched and still overstate the key. Noted in PR #665's body.
+
+### F12 routing note
+
+F12 is class `stale` but its target is two draft tickets, not a context or skill,
+and cancelling a draft is a lifecycle change that is human-only. It was routed to
+a tracked draft ticket rather than a proposal PR so the judgment survives this
+task's retirement.
+
+## Dream Run Summary
+
+Generated: 2026-07-27T22:40Z · period `2026-W31` · task `recurring/dream`
+
+| Phase | Result | Detail |
+|---|---|---|
+| 1. validate-drift | `direct-fixed` + `human-needed` | 24 issues; 1 fix applied; 24 human-needed |
+| 2. knowledge scan | `reported` | 14 findings — 5 extract, 7 stale, 2 gap |
+| 3. contract audit | `reported` | 11 findings — all drift |
+| 4. retro/done-ticket | `pr-opened` | 13 tickets processed; 5 knowledge PRs; 9 direct deletes |
+| 5. cleanup-orphan-markers | `no-op` | no orphaned markers |
+| 6. disposition | `pr-opened` | 8 proposal PRs; 3 draft tickets; 2 deferred |
+
+**Findings: 25 total** (14 knowledge scan + 11 contract audit). Every one has a
+durable home; none rests only in this blackboard.
+
+**PRs opened — 13, all MERGEABLE/CLEAN, none auto-merged (all `pr-required`):**
+
+Phase 4 knowledge PRs — [#654](https://github.com/FastJVM/coga/pull/654) live/packaged rebase trap · [#655](https://github.com/FastJVM/coga/pull/655) no-remote sync soft-skip · [#656](https://github.com/FastJVM/coga/pull/656) open-pr parked-checkout refusal · [#657](https://github.com/FastJVM/coga/pull/657) recurring agent delegation needs a pty · [#658](https://github.com/FastJVM/coga/pull/658) self-qa review fallback
+
+Phase 6 proposal PRs — [#659](https://github.com/FastJVM/coga/pull/659) resync diverged copies · [#660](https://github.com/FastJVM/coga/pull/660) contexts describing removed primitives · [#661](https://github.com/FastJVM/coga/pull/661) microkernel `open-pr` example · [#662](https://github.com/FastJVM/coga/pull/662) delete `rebase-stale-worktrees` · [#663](https://github.com/FastJVM/coga/pull/663) packaged digest owner · [#664](https://github.com/FastJVM/coga/pull/664) bundled CLI reference · [#665](https://github.com/FastJVM/coga/pull/665) `docs/` drift · [#666](https://github.com/FastJVM/coga/pull/666) `current-direction` slug
+
+**Draft tickets created — 3:** `scrub-coga-task-in-the-pytest-autouse-guard-so-fix`,
+`retire-a-finished-ticket-s-linked-worktree-and-mak`,
+`decide-the-fate-of-two-premise-dead-v2-drafts-whos`.
+
+**Tickets deleted — 13:** 4 in knowledge PRs (pending merge), 9 direct-deleted and
+already on `origin/main`.
+
+### `human-needed` and review gates
+
+1. **24 validate-drift issues need an owner decision** — 4 `stuck-in-progress`
+   (idle 144–267h), 7 `unfrozen-workflow`, 5 `unknown-assignee` (`nicktoper` is
+   not a known agent type), 3 `missing-step` (errors), 4
+   `unsynthesized-draft-blackboard` (errors). All are lifecycle/ownership calls
+   Dream must not make silently. Full list in `## Dream Skill: validate-drift`.
+2. **PR #657 edits the Dream contract itself** — it amends
+   `coga/contexts/coga/recurring/SKILL.md`'s claim that period tasks "carry
+   nothing durable", because `recurring/resolve-conflicts` was a live
+   counterexample that would have been direct-deleted unread. Worth a careful read.
+3. **Two deferred findings (D1, F10-Gotchas)** need folding into #654 and #657 at
+   review, or a follow-up PR.
+4. **`important_recipient` comments in both `coga.toml` files** still overstate the
+   key; Dream cannot edit those files.
+5. **13 open PRs is a large review queue.** #659 and #663 are near-mechanical and
+   safe to land first.
+
+### Run health notes
+
+- `origin/main` advanced concurrently throughout (other Coga sessions landing
+  state commits). All PR branches were based on the then-current tip; all are CLEAN.
+- The operator's staged `coga/tasks/` → `coga/tasks/v2/` renames present at session
+  start were committed by a concurrent session (`bce4e209`), not lost.
+- Both isolated checkouts (`retro-wt`, `dispo-wt`), their temporary branches, the
+  copied `coga.local.toml` files, and the evidence snapshot were all removed.
+  The primary checkout is in sync with `origin/main`.
