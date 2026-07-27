@@ -1,7 +1,7 @@
 ---
 slug: write-real-coga-documentation-command-reference-gu
 title: Write real Coga product documentation
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -27,7 +27,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
@@ -124,6 +123,34 @@ branch `real-coga-docs`, closes this ticket. The docs tree
 - worktree: /home/n/Code/claude/coga-real-docs (durable sibling checkout, NOT /tmp — the /tmp worktree loss is what sank the first implement pass)
 - base: current `main` at 398c40cc (redo after the original branch was lost; see "Redo history" below).
 - scope check: docs-only. No code behavior changes.
+
+## Review step close-out (2026-07-27, megalaunch queue, claude)
+
+The owner gate is already satisfied: **owner nicktoper merged PR #608 into
+`main` on 2026-07-20 18:47 UTC** (merge commit `0a0677cd`). Merging *is* the
+review decision this step exists to collect, so nothing was left for a human to
+decide here — the step's own contract says that after the human merges,
+`coga mark done` closes the task immediately rather than waiting for the
+`autoclose-merged` sweep. Verified before closing:
+
+- `gh pr view 608` → `state: MERGED`, `mergedAt 2026-07-20T18:47:19Z`,
+  head `real-coga-docs` → base `main`.
+- `git merge-base --is-ancestor 0a0677cd HEAD` → true. The merged docs are on
+  the current `main` this checkout is on.
+- All six deliverables present on `main`: `docs/README.md` (44 lines),
+  `getting-started.md` (218), `concepts.md` (230), `reference.md` (391),
+  `operations.md` (207), `development.md` (131). README (185 lines) keeps the
+  short hook and carries the `Full documentation lives under docs/` block
+  linking every one of them.
+- Internal-link audit across README + all six docs: every relative markdown
+  link target resolves; no broken paths.
+
+No edits, fixes, or pushes were needed or made. Task closed with
+`coga mark done`. Residue for the owner: the merged `real-coga-docs` branch
+(local + `origin`) and the sibling worktree
+`/home/n/Code/claude/coga-real-docs` can be deleted at will — nothing unmerged
+lives there (checked at the 2026-07-20 close-out; `main` is in fact *ahead* of
+that branch on `docs/reference.md`).
 
 ## Open-PR handoff (2026-07-19)
 
