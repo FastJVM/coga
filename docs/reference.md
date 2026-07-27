@@ -106,6 +106,14 @@ task (optionally scoped to `tasks/<DIR>/`).
 - `--agent <type>` — launch swept tasks with this agent regardless of each
   ticket's assignee (human-assigned tickets still skip).
 
+Tasks drain oldest-first (first `coga/log.md` line per ref). A sub-directory
+whose tasks are named `1-schema`, `2-migrate`, `3-cutover` instead runs in
+number order — a naming convention, not a flag. Such a block stays anchored at
+its oldest task, unnumbered siblings follow the numbered ones, and a sub-tree
+with no numbered task (or a top-level `1-foo`) is unaffected. `--pick` lists
+tasks in the same order; so does `coga status --order-by created`. `coga
+validate` warns when two tasks in one directory claim the same position.
+
 If a launched task cancels itself, the run summary reports it as `canceled`,
 separately from successfully `completed` work.
 
@@ -247,7 +255,8 @@ Show tasks in the repo. `DIR` scopes to `tasks/<DIR>/` (nested tasks included).
 
 - `--no-recurse` — list only tasks directly in the directory, not sub-directories.
 - `-o`, `--order-by <col>` — sort by `slug`, `status`, `owner`, `assignee`,
-  `step`, `updated`, or `created` (default `updated`).
+  `step`, `updated`, or `created` (default `updated`). `created` is the exact
+  order `coga megalaunch` drains in, numbered sub-directories included.
 - `-r`, `--reverse` — reverse the sort.
 - `-a`, `--all` — include terminal `done` and `canceled` tasks (hidden by
   default). The totals report the two outcomes separately.

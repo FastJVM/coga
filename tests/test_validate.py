@@ -1425,3 +1425,62 @@ def test_same_leaf_name_in_different_directories_validates_clean(repo: Path) -> 
     _write_full_task(repo, "eng/dup-task")
     report = run(cfg)
     assert "duplicate-slug" not in [i.kind for i in report.issues]
+
+
+def test_duplicate_drain_position_in_one_directory_warns(repo: Path) -> None:
+    """Two tasks numbered the same is the one ambiguous ordering case.
+
+    The sort still produces an answer (it falls back to creation time), so
+    without a warning a pipeline runs in an order nobody chose.
+    """
+    cfg = load_config(repo)
+    _write_full_task(repo, "v2/1-schema")
+    _write_full_task(repo, "v2/1-seed")
+    _write_full_task(repo, "v2/2-migrate")
+
+    report = run(cfg)
+
+    dupes = [i for i in report.issues if i.kind == "duplicate-task-number"]
+    assert len(dupes) == 1
+    assert dupes[0].task == "v2"
+    assert dupes[0].severity == "warn"
+    assert "1-schema, 1-seed" in dupes[0].message
+    assert "position 1" in dupes[0].message
+    # A warning, not an error: the tasks themselves are structurally fine.
+    assert [i for i in report.issues if i.severity == "error"] == []
+    assert report.ok_count == 3
+
+
+def test_gaps_and_unnumbered_siblings_are_not_flagged(repo: Path) -> None:
+    """Both are deliberate layouts — a deleted step, and a scratch ticket."""
+    cfg = load_config(repo)
+    _write_full_task(repo, "v2/1-schema")
+    _write_full_task(repo, "v2/2-migrate")
+    _write_full_task(repo, "v2/5-cutover")
+    _write_full_task(repo, "v2/spike-idea")
+
+    report = run(cfg)
+
+    assert [i for i in report.issues if i.kind == "duplicate-task-number"] == []
+
+
+def test_same_number_in_different_directories_is_not_a_collision(repo: Path) -> None:
+    """Numbering is per-directory — two pipelines each get their own `1-`."""
+    cfg = load_config(repo)
+    _write_full_task(repo, "v2/1-schema")
+    _write_full_task(repo, "marketing/1-brief")
+
+    report = run(cfg)
+
+    assert [i for i in report.issues if i.kind == "duplicate-task-number"] == []
+
+
+def test_top_level_numbering_is_not_checked(repo: Path) -> None:
+    """`tasks/` is not a pipeline, so a top-level `1-` is just a name."""
+    cfg = load_config(repo)
+    _write_full_task(repo, "1-alpha")
+    _write_full_task(repo, "1-beta")
+
+    report = run(cfg)
+
+    assert [i for i in report.issues if i.kind == "duplicate-task-number"] == []
