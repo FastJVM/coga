@@ -24,3 +24,4 @@ consumed_through: f2bbece60922
 {"id":"13d6ee3abb1c","ts":"2026-07-27T14:34","project":"coga","kind":"done","detail":"→ done (recipe: digest)","ticket":"recurring/digest","owner":"nicktoper"}
 {"id":"8763a9d458d0","ts":"2026-07-27T14:35","project":"coga","kind":"done","detail":"→ done (recipe: skill-update)","ticket":"recurring/skill-update","owner":"nicktoper"}
 {"id":"48968848404b","ts":"2026-07-27T14:35","project":"coga","kind":"done","detail":"→ done (recipe: blocker-reminders)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+{"id":"2c53bacc0211","ts":"2026-07-27T14:57","project":"coga","kind":"done","detail":"codex finished: review → done ✅","ticket":"write-real-coga-documentation-command-reference-gu","owner":"nicktoper"}

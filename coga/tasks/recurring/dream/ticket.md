@@ -337,3 +337,112 @@ Result: 24 issue(s): 0 direct fix, 0 PR proposal, 24 human-needed.
   Remediation: Unknown validator issue kind. Ask a human before changing repo state.
 - `write-real-coga-documentation-command-reference-gu`: `stuck-in-progress` (warn) - in_progress but idle for 192.7h
   Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
+
+## Findings
+
+Phase 2 (knowledge scan) and Phase 3 (contract audit) findings. Phase 4 batches
+the `extract` findings into knowledge PRs; Phase 6 routes `stale`, `drift`, and
+`gap`.
+
+### Phase 2 — knowledge scan (14 findings: 5 extract, 7 stale, 2 gap)
+
+#### `extract` — grouped by target area
+
+**Area: `coga/codebase`**
+
+**F1. A design step's "zero drift / rebases clean" claim expires; re-verify at implement time** — class `extract`; target `coga/contexts/coga/codebase/SKILL.md` (+ packaged twin); source ticket `agree-the-core-vs-skills-move-list-then-execute`.
+The design step measured merge-base drift and recorded "rebases onto main with no conflicts expected" as settled fact. By implement time `main` had advanced 417 commits with real overlap; the rebase took four conflicts. The durable lesson is the two gaps auto-merge could not close, both about git renames vs. fresh copies: (a) `main`'s `TERMINAL_STATUSES` fix reached the *live* skill copy through a rename auto-merge, but the *packaged* copy was created fresh in the same move commit and silently kept the old `== "done"` test — a regression that would have deleted branches recorded on canceled tickets; (b) a new-on-main test imported a symbol the branch had moved. Rule: when a branch relocates code, git history follows only the renamed path, so a second copy created fresh in that commit never receives `main`'s later fixes. Re-diff every live↔packaged pair by hand after a rebase, and treat a design-step drift measurement as a snapshot, never a precondition.
+
+**F2. Test fixtures must not depend on GNU-only shell flags** — class `extract`; target `coga/contexts/coga/codebase/SKILL.md` (+ packaged twin); source ticket `ship-a-shared-recurring-reminder-engine-battery` (canceled).
+`tests/test_launch_script.py::test_script_launch_preserves_cancellation_made_by_script` fails on macOS because its fixture script uses GNU-only `sed -i` (`sed: invalid command code v`). Triaged as "pre-existing, unrelated" — the same recurring verification tax the context already names one bullet above, arriving through a different cause. Belongs beside the "Tests must not pin to live dogfooded state" bullet.
+
+**Area: `coga/sync`**
+
+**F3. Calming a known-benign git failure: gate on the up-front-detectable cause, and skip only the remote step** — class `extract`; target `coga/contexts/coga/sync/SKILL.md` (+ packaged twin); source ticket `install/short-notice-instead-of-raw-git-error-when-sync-ha`.
+Three findings about where fail-loud may be relaxed. (a) Calm only the case positively detectable *before* the operation (`git remote get-url` non-zero); a configured-but-unreachable remote is not knowable up front and must stay loud. (b) The obvious implementation — copying the sibling `_control_branch_present` early-return — is too broad: it also suppressed the feature-branch *local* commit, which never contacts the remote; a launch-script test caught it (script aborted, exit 7, dirty tree). Correct scope is "commit always, skip only the push." (c) Peer review found that early-return had also dropped the state-regression guard on the false rationale that "with no remote there is nothing for a stale checkout to bury" — a sibling worktree lands state on the *shared local* control branch with no remote involved, and a stale `in_progress` copy buried a terminal `done` ticket. The guard must resolve its base locally (`refs/heads/<control>`) instead of fetching the remote tip.
+
+**Area: `code/open-pr` skill**
+
+**F4. `coga open-pr` refuses when the primary control checkout is parked on another ticket's branch** — class `extract`; target `coga/skills/code/open-pr/SKILL.md` + packaged twin; source tickets `remove-run-py/add-coga-run-generic-runner-and-migrate-recurring` and `ship-a-shared-recurring-reminder-engine-battery`.
+Hit twice on the same day. First: `coga open-pr` refused because the primary checkout sat on an unrelated ticket's branch carrying uncommitted drift; remedy was stash → move to `main` → open-pr → restore. Second: it could not run at all and the PR was opened by hand. The skill tells the agent to return to the primary control checkout but assumes it is on the control branch — it never says what to do when a *sibling ticket* owns it. Recurs in a multi-worktree dogfooding repo.
+
+**Area: `coga/recurring`**
+
+**F5. An agent-delegating recurring wrapper needs a pty, and its own stdout is not a success signal** — class `extract`; target `coga/contexts/coga/recurring/SKILL.md` `## Gotchas`; source done period task `recurring/resolve-conflicts`.
+Two operational facts from the 2026-07-27 run exist nowhere else: (a) `coga launch` refuses an agent launch without a TTY on *both* stdin and stdout, and an agent's tool shell supplies neither — the delegation must run under `script -qec` bounded with `timeout`; (b) the delegated launch is torn down by the done sentinel seconds after it posts its roll-up and the captured pty output is ANSI noise, so the wrapper's stdout is not a usable success signal — confirm through the `slack:` line for `bootstrap/<verb>` in `coga/log.md`. The agent in that run first mis-read the teardown as a premature kill and had to correct itself.
+
+#### `stale`
+
+**F6. `coga/architecture` still describes Dream as orchestrating child script tasks** — class `stale`; target `coga/contexts/coga/architecture/SKILL.md` and `src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md` (byte-identical; both must change).
+Line ~139: "The parent task orchestrates child script tasks over worker skills." Line ~704: "Each known script skill writes its own `## Dream Skill: <name>` section to its child task blackboard." PR #650 removed child script tasks entirely — Dream phases 1 and 5 invoke `coga run …` directly from the parent and the recipes inherit the parent's `COGA_TASK_*`. Lines ~656–661 of the same file already say this correctly, so the file contradicts itself.
+
+**F7. `coga/patterns` describes the spool consumer as a script step** — class `stale`; target `coga/contexts/coga/patterns/SKILL.md` line ~75 + packaged twin.
+"A script step runs a skill whose `script:` reads unconsumed records, acts on them, drains the spool, and exits." The canonical instance it names — the daily digest — is now a registered recipe: the template declares `recipe: digest`, the runner executes `coga run digest` headlessly, and `coga/skills/coga/digest/flush/SKILL.md` carries no `script:`.
+
+**F8. `coga/principles` receipt #2 names a `mode:` field that no longer exists** — class `stale`; target `coga/contexts/coga/principles/SKILL.md` line ~64 + packaged twin.
+"the two modes — `agent` for agent judgment and `script` for deterministic Python — route work to the right substance." `coga/architecture` states flatly that there is no `mode:` ticket field, and there are now three substances, not two. This is a packaged canonical context shipped to every repo, so the wrong vocabulary propagates.
+
+**F9. The live `code/implement` skill override is 26 lines behind its packaged twin** — class `stale`; target `coga/skills/code/implement/SKILL.md`.
+The packaged copy gained a "Read-only Git fallback" section (independent `git clone --no-hardlinks` under `/tmp` when `git worktree add` fails on a read-only `.git`, repoint origin, record as `worktree:`, escalate with a specific capability) plus an updated Definition-of-Done line. The live copy has neither. Skill resolution is local-first, so this repo's agents load the stale version and never learn the fallback. Every other live/packaged skill pair in the repo is byte-identical; this is the only diverged one.
+
+**F10. The `rebase-stale-worktrees` recurring template outlived its replacement and still fires** — class `stale`; target `coga/recurring/rebase-stale-worktrees/` (delete) + `coga/contexts/coga/recurring/SKILL.md` `## Gotchas`.
+PR #633 shipped `resolve-conflicts` as the deliberate replacement and deleted the packaged template; the live copy was never removed. Both carry `schedule: "0 8 * * 1"` — the same slot — and the replacement's body reads "The **removed** `rebase-stale-worktrees` task…". Not dormant: `coga/log.md` shows it created and launched at 2026-07-27 14:22, running a full six-minute agent session immediately before `resolve-conflicts` ran the same slot. Also the first real instance of the gap parked as v2 draft `document-recurring-template-live-vs-packaged-sync`.
+
+**F11. The packaged `digest` recurring template ships a hardcoded personal owner** — class `stale`; target `src/coga/resources/templates/coga/recurring/digest/ticket.md`.
+Ships `owner: nick` / `assignee: claude` in the wheel — the only recurring template with either field set. Every repo that installs Coga and enables the digest gets a period task owned by a person who is not its operator, driving Slack owner mentions and megalaunch's operator filter. The documented contract is that `assignee` defaults to the repo's configured default agent and the owner comes from repo config when the template omits it, so drop both lines rather than parameterize.
+
+**F12. Two v2 drafts are premise-dead and would generate wrong work** — class `stale`; target `coga/tasks/v2/document-parent-orchestrates-child-script-tasks-pa.md`, `coga/tasks/v2/document-interactive-recurring-sweep-hazard-in-rel.md`.
+Both are prior Dream gap findings whose subject no longer exists. The first asks to document child `mode: script` tasks as the canonical housekeeping pattern — the exact shape PR #650 deleted. The second is entirely about the `mode:` frontmatter field; the field is gone and `coga/recurring` now documents the surviving true constraint. Anyone picking either up would write prose describing a removed design.
+
+#### `gap`
+
+**F13. The pytest autouse guard does not scrub `COGA_TASK_*`, so fixture reports were written into four live ticket blackboards** — class `gap`; target `tests/conftest.py` (`_clear_supervised_session_env`); needs a tracked ticket.
+Twenty-plus `## Dream Skill: validate-drift` sections are appended across four live tickets (`make-sure-we-can-drop-new-recurring-tickets` ×9, `install/short-notice-…` ×4, `agree-the-core-vs-skills-move-list-then-execute` ×2, `ship-a-shared-recurring-reminder-engine-battery` ×3), each reporting `` `x`: `missing-file` - created log.md `` and ``committed and pushed `repair-branch` ``. There is no task `x`, Coga has no per-task `log.md` (`validate.py:361`), and `--fix` classifies `missing-file` as `human-needed` and creates nothing. That text is verbatim test-fixture data from `tests/test_dream_validate_drift.py:341–352` and `:322`: a pytest run inside a `coga launch` session inherited `COGA_TASK_BLACKBOARD` and the recipe under test appended its fixture report to the live outer ticket. `coga/codebase` already prescribes the remedy — "Clear every launch-owned metadata variable in the autouse environment guard" — but the guard clears only `COGA_DONE_SENTINEL`, `COGA_SUPERVISED`, `COGA_EXPECTED_TASK`, `COGA_EXPECTED_STEP`. `COGA_TASK_*` is absent and only 2 of 10 tests in that module opt out per-test. Needs: the full `COGA_TASK_*` / `COGA_SKILL_*` / `COGA_REPO_ROOT` / `COGA_COGA_OS_ROOT` set added to the autouse guard with a regression test; a defence-in-depth check that a report writer refuses a blackboard path outside `coga/tasks/`; and removal of the polluted sections from surviving non-done tickets. Related: `recurring-bugs/dream-recipes-write-reports-into-packaged-bootstra` flags this as its loose end #2 and asks for it to be split out.
+
+**F14. Nothing retires a finished ticket's linked worktree, so branch-sweep can never delete those branches** — class `gap`; target needs a tracked ticket; knowledge home `coga/contexts/dev/code/SKILL.md` `## Checkout boundary`.
+`dev/code` tells every code ticket to create a feature worktree and record it under `## Dev`, but nothing removes it — Coga never runs `git worktree remove`. `branchsweep.sweep_branches` skips only `_current_branch(root)`, so a branch held by a *linked* worktree is not recognized as live and falls through to `delete_local_branch`, where `git branch -d/-D` refuses ("checked out at …"); the failure is noted and the sweep still exits 0. This repo carries 17 worktrees and 25 non-main branches, and the 2026-07-27 `rebase-stale-worktrees` run reported "17 live branches, all stale, 16 already-merged squash residue" one hour after `branch-sweep` ran clean and exited 0.
+
+### Phase 3 — contract audit (11 findings, all `drift`)
+
+Spot-verified against source before recording: `src/coga/commands/open_pr.py` and
+`src/coga/open_pr.py` are both absent; `DEFAULT_ALIASES` ships eight entries
+including `open-pr` and `resolve-conflicts`; `important_recipient` appears only in
+`config.py` (no notification consumer); no `automerge` command is registered;
+`coga/contexts/dev/code/SKILL.md` is missing the packaged copy's 8-line read-only-Git
+paragraph; `coga/bootstrap/resolve-conflicts/ticket.md` exists; the live
+`coga/recurring/rebase-stale-worktrees/` has no packaged twin.
+
+**D1. `coga/codebase` points `open-pr` at two source files that do not exist** — target `coga/contexts/coga/codebase/SKILL.md:57-58` (with `:87-90`).
+The microkernel rule cites `coga open-pr` as an in-core command implementation ("`commands/open_pr.py` → `open_pr.py`") and line 88 asserts "PR #585 later turned `open-pr` into a real command implementation, so the same test now places it in core under exception 2." Neither file exists. PR #625 deleted both and moved the implementation to the packaged command ticket `src/coga/resources/templates/coga/bootstrap/open-pr/{ticket.md,run.py,recipe.py}`, fronted by `src/coga/aliases.py:66`. Source of truth: `src/coga/aliases.py:59-68` plus the absent files. Also contradicted inside the repo by `coga/contexts/coga/extension-model/SKILL.md` and `docs/reference.md:229-232`.
+
+**D2. `CLAUDE.md` / `AGENTS.md` microkernel rule names `coga open-pr` as core Python** — target `CLAUDE.md:19` and `AGENTS.md:19` (byte-identical).
+Both list "commands such as `coga digest`, `coga megalaunch`, and `coga open-pr`" as the second admissible kind of code in `src/coga/`. Two lines later the same section states the actual rule — "a launch-target command is an argv rewrite in `[aliases]`… not a Typer command with logic" — which is exactly what `open-pr` now is. `digest` and `megalaunch` remain correct examples. The example makes the instruction file argue against its own rule.
+
+**D3. The bundled `coga/cli` command reference still documents the retired `coga automerge`** — target `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md:431-449` and `:995-996`.
+Carries a full `## coga automerge` section and recommends it under "Catching up tickets after a teammate merged a PR". No such command exists — `BUILTIN_COMMANDS`, `DEFAULT_ALIASES`, and `cli.py:86-114` register none; the behavior lives only in the `autoclose` recipe, and `docs/cli-extension-audit.md:155` records the retirement. `coga/architecture/SKILL.md:622` names this file as "the command reference", so agents are handed a command that exits 2. The same section is also missing entries for `coga digest`, `coga usage`, `coga open-pr`, `coga resolve-conflicts`. Scope note: no live twin — sits in the package-backed blind spot `architecture/SKILL.md:673-676` already flags.
+
+**D4. `important_recipient` is documented as active triage routing but nothing consumes it** — target `docs/operations.md:58-59` (same claim in `coga/coga.toml:62-68` and `src/coga/resources/templates/coga/coga.toml:83-89`).
+The key is parsed (`config.py:95,816,919-940` → `Config.slack_important_recipient`) and never read again; `notification/slack.py` never substitutes it, so an `--important` post still mentions the ticket owner. The repo already knows this — `coga/contexts/coga/sync/SKILL.md:249-252` and `coga/contexts/coga/important/SKILL.md:31-37` both say not to treat the key as active routing until the wiring lands. The docs and config comments are the half that never got updated.
+
+**D5. Live/packaged copy pair diverged: `dev/code` is missing the read-only-Git fallback** — target `coga/contexts/dev/code/SKILL.md:26`.
+PR #597 added the read-only-`.git` sandbox fallback to the packaged copy only; the live copy is missing that 8-line paragraph. Context resolution is local-first, so this repo's agents load the stale text while fresh installs get the current one — the exact failure `CLAUDE.md:23` and `docs/development.md:84-88` warn about. Every other live/packaged context pair is byte-identical. Source of truth: the packaged copy and commit `6e848921`. **Shares a root commit with F9 (`coga/skills/code/implement/SKILL.md`) — repair both in one PR.**
+
+**D6. `docs/development.md` claims the repo carries no `coga/bootstrap/` dogfood copy** — target `docs/development.md:93-94`.
+States "`coga init` deliberately skips `bootstrap/`, and this repo carries no `coga/bootstrap/` dogfood copy." True after PR #526, but PR #633 re-added `coga/bootstrap/resolve-conflicts/ticket.md`, currently byte-identical to its packaged counterpart and shadowing it through the local-first `resolve_bootstrap` path (`tasks.py:302-312`). So a second copy does exist and must be kept in sync — and it is precisely the un-annotated mirror `coga/contexts/coga/codebase/SKILL.md:135-145` says not to create. Source of truth: the file on disk plus commit `c11b162c`.
+
+**D7. `docs/cli-extension-audit.md` calls `digest/post` and `autoclose-merged/sweep` script steps** — target `docs/cli-extension-audit.md:143` and `:180`.
+Neither is a script step any more. Both recurring templates declare `recipe:`, the recurring runner dispatches them through `coga run` (`runner.RECIPES`: `digest` → `run_digest_recipe`, `autoclose` → `run_autoclose_recipe`), and both workflow bodies open with "Recipe-backed recurring task." Their skills carry no `script:` frontmatter, so `current_step_is_script` cannot select them. The doc's central argument still holds; the mechanism it cites as evidence has changed.
+
+**D8. `docs/reference.md` alias table lists two aliases no install ships** — target `docs/reference.md:375-390`.
+The table includes `coga claude` and `coga codex`. Neither is available in a fresh repo: `DEFAULT_ALIASES` ships exactly eight (`chat`, `dream`, `build`, `skill-update`, `autoclose`, `pick`, `open-pr`, `resolve-conflicts`) and the packaged `coga.toml` ships `claude`/`codex` commented out. They exist only in this repo's dogfood `coga/coga.toml`. The framing is also inverted: the packaged `coga.toml` defines only `chat`, `build`, `pick`, `dream`; the other four come from Python defaults, so a reader opening `coga.toml` will not find most of the listed aliases.
+
+**D9. The bundled `coga/cli` alias section lists 4 of the 8 shipped default aliases** — target `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md:935-955`.
+States "`chat`, `build`, `dream`, and `pick` are also registered as built-in default aliases". `DEFAULT_ALIASES` now registers eight; the four omitted (`skill-update`, `autoclose`, `open-pr`, `resolve-conflicts`) are exactly the ones a reader could not discover from `coga.toml`. `docs/cli-extension-audit.md:172` already records "**`DEFAULT_ALIASES` ships eight**", so the two contract surfaces disagree. Same package-backed scope caveat as D3.
+
+**D10. `current-direction` names the playbook-rename ticket by a slug that no longer resolves** — target `coga/contexts/coga/current-direction/SKILL.md:50-51`.
+Says "Ticket: `rename-workflow-primitive-to-playbook` (draft, `code/design-then-implement`)". The ticket moved to `coga/tasks/v2/` and its frontmatter records `slug: v2/rename-workflow-primitive-to-playbook`. `tasks.py:272-299` resolves against the path-qualified `id_slug` ("A nested task's bare leaf does not resolve"), so `coga show rename-workflow-primitive-to-playbook` fails. The move also changes the implied status — `coga/contexts/coga/roadmap/SKILL.md` defines `coga/tasks/v2/` as "the durable parking area for work not on the current execution path", while current-direction presents the rename as live direction.
+
+**D11. Broken cross-reference anchor in `docs/operations.md`** — target `docs/operations.md:27`.
+The link `[reference](reference.md#coga-slack---task-task---message-text)` matches no heading. The target heading at `docs/reference.md:327` generates `#coga-slack---task-target---message-text` — the link says `task` where the heading says `TARGET`. Minor, but a dead reference on the main operations page.
+
+**Audit coverage (checked clean, no finding):** all `coga run` recipe names against `runner.RECIPES`; every documented flag on `init`/`create`/`ticket`/`project`/`launch`/`megalaunch`/`mark`/`bump`/`block`/`unblock`/`status`/`show`/`validate`/`usage`/`slack`/`digest`/`delete`/`retire`/`skill`/`secret`/`recurring` against the Typer signatures; `mark` transition tables against `commands/mark.py:44-47`; status values against `lifecycle.VALID_STATUSES`; the `COGA_TASK_*` set against `task_env.py`; symbol references into `spool.py`, `git.py`, `views.py`, `usage.py`, `authoring.py`, `autoclose.py`, `branchsweep.py`; the `validate-drift` flag list against `dream_validate_drift.py:528-563`; the bundled workflow inventory; and the remaining ~20 live/packaged file pairs.
