@@ -361,3 +361,10 @@ worktree: /tmp/coga-run-recipes
   `f532cca5`, one commit ahead.
 - PR opened: https://github.com/FastJVM/coga/pull/650, recorded as `pr:` under
   `## Dev`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: "New skill: coga open-pr refuses a control checkout parked on another ticket's branch"
