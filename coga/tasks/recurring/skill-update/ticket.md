@@ -1,12 +1,24 @@
 ---
-schedule: "0 9 * * 1"
-schedule_comment: "Every Monday at 9am — update clean imported skills into one reviewable PR"
-title: "Skill update"
-recipe: skill-update
-# The recurring runner executes this registered recipe directly with no agent.
-# The one-step workflow keeps the period task's lifecycle and skill contract
-# legible.
-workflow: skill-update/run
+slug: recurring/skill-update
+title: Skill update
+status: active
+owner: nicktoper
+human: nicktoper
+agent: claude
+assignee: claude
+contexts:
+- coga/period-task
+skills: []
+workflow:
+  name: skill-update/run
+  steps:
+  - name: update
+    skills:
+    - bootstrap/skill-update
+    assignee: agent
+secrets: null
+script: null
+step: 1 (update)
 ---
 
 ## Description
@@ -35,11 +47,8 @@ PR is opened. A week with only follow-up statuses is intentionally loud: after
 writing the `## Skill Update` report, the recipe exits non-zero so this period
 task remains visible until a human resolves or parks it.
 
+## Context
+
 <!-- coga:blackboard -->
 
-This blackboard persists across every run of this recurring task. Each period
-task gets its own blackboard; the `skill-update` recipe appends its
-`## Skill Update` report there, not here. This template keeps no durable state
-— every run's output is the skill-update PR and the period task's report.
-
-last_serviced_period: 2026-W31
+The blackboard is a notepad to be written to often as the human and agent works through a task.
