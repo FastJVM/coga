@@ -1,7 +1,7 @@
 ---
 slug: recurring/blocker-reminders
 title: Blocker reminders
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,6 +18,7 @@ workflow:
     assignee: agent
 secrets: null
 script: null
+step: 1 (remind)
 ---
 
 ## Description
@@ -29,7 +30,7 @@ Agents stop through `coga block`, which appends an unresolved ask under
 handshake stays command-owned: run `coga unblock <slug> --answer "..."`, then
 launch or megalaunch can resume the task from the files.
 
-Once a day this recurring script scans ordinary tasks, including recurring
+Once a day this recurring recipe scans ordinary tasks, including recurring
 period tasks, whose frontmatter says `status: blocked`. For each unresolved
 blocker that has not already been reminded, it:
 
