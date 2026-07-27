@@ -2997,3 +2997,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-27 14:35 [move-some-alerts-to-coga-important-instead-of-coga] [human:nicktoper] paused (in_progress → paused) — Parked to v2 for the release — design not yet approved, no code written
 2026-07-27 14:35 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-27 14:35 [implement-accepted-ticket-interview-improvements] [human:nicktoper] paused (active → paused) — Parked to v2 for the release — interview-text quality pass, no code written
+2026-07-27 14:35 [recurring/dream] [human:nicktoper] launched (assignee=claude, agent=claude)
