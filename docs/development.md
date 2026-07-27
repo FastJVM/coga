@@ -90,11 +90,17 @@ exactly this. It's the most common docs-only miss.
 The nuance: the rule applies only to resources that have both copies. The
 bundled **bootstrap batteries** (`resources/templates/coga/bootstrap/` — the
 core skills, contexts, workflows, and interview targets) are **package-backed**:
-`coga init` deliberately skips `bootstrap/`, and this repo carries no
-`coga/bootstrap/` dogfood copy. Runtime resolvers read those package resources
-directly (after checking for a local `coga/…` override). So a change to a
-bootstrap battery lives in the single packaged location — there's no second copy
-to sync.
+`coga init` deliberately skips `bootstrap/`, so a change to a bootstrap
+battery normally lives in the single packaged location. Runtime resolvers read
+those package resources directly, **after checking for a local `coga/…`
+override** — which is the catch: this repo now carries one such override,
+`coga/bootstrap/resolve-conflicts/ticket.md` (re-added by PR #633). It shadows
+its packaged counterpart through the local-first `resolve_bootstrap` path
+(`src/coga/tasks.py:302-312`), so that one pair **must** be kept in sync like
+any other. Note that `coga/contexts/coga/codebase/SKILL.md` warns against
+exactly this shape of un-annotated mirror ("a repo-local mirror hides the
+packaging bug and will drift"); the override is currently byte-identical to the
+packaged file and carries no note recording it as intentional.
 
 ## Coding style
 

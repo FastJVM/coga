@@ -24,7 +24,7 @@ reaches it. Events fall into three tiers:
   creates, and relaunching an already-`in_progress` ticket.
 
 Agents and humans add one-line FYIs on top with `coga slack` (see the
-[reference](reference.md#coga-slack---task-task---message-text)).
+[reference](reference.md#coga-slack---task-target---message-text)).
 
 A fresh `coga init` selects **no** channels, so a brand-new repo is silent until
 you turn a channel on. Once Slack is configured and enabled, any live-channel
@@ -55,8 +55,11 @@ A few things worth knowing:
 - **Pings need a mapping.** `[notification.slack.users]` maps a Coga name (the
   token in a ticket's `owner`/`watchers`) to a Slack member ID, so that person
   gets a real `<@…>` ping. Without a mapping they're still named, just in plain
-  text. `important_recipient` names a single triage owner to @ on every
-  `--important` post instead of the ticket owner.
+  text. `important_recipient` is **parsed but not yet consumed** — it is
+  intended to name a single triage owner to @ on every `--important` post
+  instead of the ticket owner, but the Slack backend does not substitute it
+  yet, so `--important` still mentions the ticket owner. Do not treat the key
+  as active routing until that wiring lands.
 - **Opting out.** For solo, dev, or CI use, set `[notification.slack].enabled =
   false` in `coga.local.toml`.
 - **GIFs, optionally.** `[notification.slack.gifs]` can attach a randomly chosen

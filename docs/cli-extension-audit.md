@@ -140,7 +140,8 @@ that built-in is a *different operation*:
   **consumer** half of the daily-digest pipeline: read the spool → fetch
   `origin/main` → render Done + Also-merged → post via webhook → empty the
   spool → record the git high-water mark. It is what the digest recurring
-  task's `digest/post` **script step runs**.
+  task runs as a **registered recipe** (`recipe: digest` in the template →
+  `coga run digest`), not a script step.
 - **`recurring launch digest`** would *scaffold and launch the recurring
   digest task* — a launch wrapper, not the post logic.
 
@@ -176,8 +177,9 @@ pure-passthrough set for aliasing is exactly the two named above.
 
 The flat "alias-able? yes/no" framing above is too coarse — it hides that
 "needs logic" does **not** imply "needs a hand-written built-in." Logic can live
-as skills in a workflow (`autoclose-merged/sweep` and `digest/post` already
-prove command-grade logic runs fine as script steps). The refined
+outside a hand-written built-in (`autoclose-merged/sweep` and `digest/post`
+already prove command-grade logic runs fine as registered `coga run` recipes
+dispatched from a recurring template's `recipe:` field). The refined
 conclusion: the surface collapses to **three homes for logic, plus sugar**.
 
 1. **Kernel** — small tested Python that can't be anything else.
