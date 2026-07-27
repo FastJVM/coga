@@ -157,3 +157,14 @@ A live per-repo migration (patents, admin) rewrites the repo's sweep to import
 engine now owns. `coga` is pip-installed in the repo, so `from coga import
 reminders` resolves with nothing copied. Assert parity against the sweep's prior
 output before landing the change.
+
+**Add `--notify` to the sweep's launch command in the same change.** The engine
+is print-only unless `--notify` is passed. A standalone sweep that posted
+whenever something fired — the shape both patents goldens had — goes *silent*
+the moment it is retrofitted, because its existing launch command cannot already
+carry a flag its old argparse would have rejected. This is the one migration
+failure stdout parity cannot see: the report is byte-identical while the Slack
+post disappears, and the sweeps most worth retrofitting are the hard-deadline
+money obligations where silence is the expensive failure. Grep the repo's
+recurring templates and launch commands for the sweep, add the flag, and confirm
+a `--notify` run posts what the original did.

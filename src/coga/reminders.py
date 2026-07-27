@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from coga.taskfile import read_blackboard, replace_blackboard
+from coga.taskfile import read_blackboard, upsert_blackboard
 
 # --------------------------------------------------------------------------
 # Date arithmetic
@@ -155,9 +155,14 @@ def read_ack(ticket: Path) -> str | None:
     period in ``ticket`` below its ``<!-- coga:blackboard -->`` fence. State lives
     in the reminder's own blackboard, coga's sanctioned cross-run state home, not
     in a period task that is reaped each run.
+
+    A missing ticket, and one that has no blackboard fence yet (a hand-authored
+    reminder predating the single-file format), both read as no ack — the
+    reminder fires. A ticket carrying *more* than one fence is real corruption
+    and still raises.
     """
     try:
-        text = read_blackboard(ticket)
+        text = read_blackboard(ticket, blackboard_required=False)
     except (OSError, UnicodeDecodeError):
         return None
     for line in text.splitlines():
@@ -171,10 +176,14 @@ def record_ack(ticket: Path, period: str) -> None:
     """Record ``Acked: <period>`` in ``ticket``'s blackboard region.
 
     Rewrites the single ``Acked:`` line in place when present, else appends one.
-    The ticket body and frontmatter remain byte-for-byte unchanged.
+    The ticket body and frontmatter remain byte-for-byte unchanged. A ticket with
+    no fence yet gets one, mirroring `read_ack`'s tolerance; a *missing* ticket
+    fails loud rather than being conjured from a mistyped path.
     """
+    if not ticket.is_file():
+        raise FileNotFoundError(ticket)
     line = f"{_ACK_PREFIX} {period}"
-    text = read_blackboard(ticket)
+    text = read_blackboard(ticket, blackboard_required=False)
     lines = text.splitlines()
     for i, existing in enumerate(lines):
         if existing.strip().startswith(_ACK_PREFIX):
@@ -184,7 +193,14 @@ def record_ack(ticket: Path, period: str) -> None:
         if lines and lines[-1].strip():
             lines.append("")
         lines.append(line)
-    replace_blackboard(ticket, "\n".join(lines) + "\n")
+    region = "\n".join(lines) + "\n"
+    # The fence has to keep its own line. A ticket whose file *ends* at the fence
+    # reads back an empty region, and splicing the ack straight on would produce
+    # `<!-- coga:blackboard -->Acked: ...` — no longer a fence to the whole-line
+    # match in taskfile, silently breaking every blackboard reader in coga.
+    if not region.startswith("\n"):
+        region = "\n" + region
+    upsert_blackboard(ticket, region)
 
 
 # --------------------------------------------------------------------------

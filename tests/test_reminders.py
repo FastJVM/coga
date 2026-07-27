@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from coga import reminders
+from coga import reminders, taskfile
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "reminders"
@@ -230,6 +230,68 @@ def test_ack_ignores_body_examples_and_preserves_body(tmp_path):
     assert "Acked: not-live-state" in updated
 
 
+def test_record_ack_keeps_the_fence_on_its_own_line(tmp_path):
+    """A file ending *at* the fence must not get the ack spliced onto it.
+
+    The blackboard region of such a ticket reads back as ``""``, so a naive
+    append writes ``<!-- coga:blackboard -->Acked: ...``. taskfile matches the
+    fence only as a whole line, so that ticket then has *zero* fences and every
+    blackboard reader in coga — compose, launch, digest — raises on it.
+    """
+    ticket = tmp_path / "ticket.md"
+    ticket.write_text(
+        "---\nslug: example\n---\n\nBody\n\n<!-- coga:blackboard -->",
+        encoding="utf-8",
+    )
+
+    reminders.record_ack(ticket, "2026-07")
+
+    assert "<!-- coga:blackboard -->\n" in ticket.read_text(encoding="utf-8")
+    assert taskfile.read_blackboard(ticket).strip() == "Acked: 2026-07"
+    assert reminders.read_ack(ticket) == "2026-07"
+    # The ack round-trips: a second record must still find its own fence.
+    reminders.record_ack(ticket, "2026-08")
+    assert reminders.read_ack(ticket) == "2026-08"
+    assert ticket.read_text(encoding="utf-8").count("Acked:") == 1
+
+
+def test_ack_tolerates_a_fenceless_ticket(tmp_path):
+    """Hand-authored reminders predating the single-file format have no fence.
+
+    Reading one is "no ack recorded" (the reminder fires), not a crash — the
+    ack is the universal `satisfied()` fallback and the two Brex sweeps call it
+    on a path they never validate. Writing one adds the fence.
+    """
+    ticket = tmp_path / "ticket.md"
+    ticket.write_text("---\nslug: example\n---\n\nBody only.\n", encoding="utf-8")
+
+    assert reminders.read_ack(ticket) is None
+
+    reminders.record_ack(ticket, "2026-07")
+    assert reminders.read_ack(ticket) == "2026-07"
+    assert ticket.read_text(encoding="utf-8").startswith("---\nslug: example\n---")
+
+
+def test_ack_still_fails_loud_on_a_multi_fence_ticket(tmp_path):
+    """Two fences is corruption, not a legacy shape — surface it (principle 6)."""
+    ticket = tmp_path / "ticket.md"
+    ticket.write_text(
+        "---\nslug: example\n---\n\n<!-- coga:blackboard -->\n\n"
+        "notes\n\n<!-- coga:blackboard -->\n\nmore\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(taskfile.TaskFileError):
+        reminders.read_ack(ticket)
+    with pytest.raises(taskfile.TaskFileError):
+        reminders.record_ack(ticket, "2026-07")
+
+
+def test_record_ack_refuses_a_missing_ticket(tmp_path):
+    """A mistyped path (e.g. `blackboard.md`) must not conjure a ticket."""
+    with pytest.raises(FileNotFoundError):
+        reminders.record_ack(tmp_path / "nope.md", "2026-07")
+
+
 # --- notify ----------------------------------------------------------------
 
 
@@ -387,6 +449,46 @@ def test_maintenance_retrofit_matches_golden(today, capsys, monkeypatch):
     golden = _capture(golden_maintenance, argv, capsys, monkeypatch)
     actual = _capture(retrofit_maintenance, argv, capsys, monkeypatch)
     assert actual == golden
+
+
+def _capture_posts(module, argv, capsys, monkeypatch):
+    """Run a sweep's main(), returning the `coga slack` argv it would have run."""
+    posted = []
+
+    def fake_run(cmd, *a, **k):
+        posted.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    capsys.readouterr()  # clear
+    module.main(argv)
+    capsys.readouterr()  # discard the report; posting is the surface here
+    return posted
+
+
+def test_maintenance_retrofit_goes_silent_without_notify(capsys, monkeypatch):
+    """The one migration divergence stdout parity structurally cannot see.
+
+    The golden has no `--notify` flag and posts whenever anything is flagged;
+    the engine gates posting on `--notify`. So a retrofit that keeps the old
+    launch command produces a byte-identical report and posts *nothing* — on a
+    lapsing maintenance fee, the hard-deadline money obligation this sweep
+    exists for. Asserted here so the divergence is a checked fact rather than a
+    remark in `_capture`'s docstring; the migration note in the `coga/reminders`
+    SKILL.md is the other half.
+    """
+    argv = ["--today", "2026-07-13", "--tasks-dir", str(MAINTENANCE_TASKS)]
+
+    golden = _capture_posts(golden_maintenance, argv, capsys, monkeypatch)
+    bare = _capture_posts(retrofit_maintenance, argv, capsys, monkeypatch)
+    notified = _capture_posts(
+        retrofit_maintenance, argv + ["--notify"], capsys, monkeypatch
+    )
+
+    assert golden, "the golden posts on a bare run — that is the hazard"
+    assert bare == [], "the engine is print-only without --notify"
+    assert len(notified) == len(golden)
+    assert all("--important" in cmd for cmd in notified)
 
 
 @pytest.mark.parametrize("today", CANDIDATE_DATES)
