@@ -372,8 +372,12 @@ tickets created, or human gates.
 A finished current-period task normally sits on disk as an ordinary
 `status: done` ticket at `tasks/recurring/<name>/` until Dream runs at the end
 of the same sweep. Dream's Phase 4 retro pass processes each eligible done
-ticket; recurring period tasks carry nothing durable, so Retro direct-deletes
-them via `coga delete recurring/<name>` with no PR or marker.
+ticket; recurring period tasks normally carry nothing durable — their output was
+the notification post or PR they already produced — so Retro direct-deletes them
+via `coga delete recurring/<name>` with no PR or marker. *Normally*, not always:
+a wrapper run that discovered a reusable gotcha writes it to its own blackboard
+(see `## Gotchas`), and that is worth extracting before the delete. Read the
+period task's blackboard rather than direct-deleting on class alone.
 
 The scheduler is the liveness fallback. If any completed recurring task
 survives into a later period, it deletes that stale artifact before creating
@@ -391,6 +395,23 @@ is the audit trail; the template's `last_serviced_period` remains persistent.
   `coga/tasks/recurring/<name>/` — it is fresh for one run and deleted on
   cleanup. Use the recurring task's own blackboard region in
   `coga/recurring/<name>/ticket.md`.
+
+- **A wrapper that delegates to an agent-backed command needs a pty *and* a
+  log-based success check.** Some recurring templates own only the schedule and
+  hand the real work to an ordinary Coga command (`recurring/resolve-conflicts`
+  → `coga resolve-conflicts --agent <type>`). Two things bite there:
+  - **`coga launch` refuses an agent launch without a TTY on *both* stdin and
+    stdout**, and an agent's own tool shell supplies neither — so running the
+    delegation straight from a tool call is *refused*, not merely degraded. Run
+    it under a pty and bound it, e.g.
+    `timeout 900 script -qec 'coga resolve-conflicts --agent claude' /dev/null`.
+  - **Do not read success from the captured output.** The delegated session is
+    torn down by the done sentinel seconds after its roll-up posts, and the pty
+    stream is ANSI noise, so the wrapper's stdout is not a usable signal.
+    Confirm through the repo-global `coga/log.md` — the `slack:` line tagged
+    `bootstrap/<verb>` for the delegated command — before finishing the period
+    task, and surface a delegated failure instead of marking the period task
+    done as if the sweep succeeded.
 
 ## What this context does NOT cover
 
