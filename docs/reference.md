@@ -372,14 +372,15 @@ Resolve one `op://…` or `env:VAR` reference and print its value to stdout. Und
 
 ## Aliases
 
-Thin sugar over common commands, defined in `coga.toml` under `[aliases]`.
-Positional args after the alias name forward to the expanded form.
+Thin sugar over common commands. Positional args after the alias name forward
+to the expanded form.
+
+These eight ship with every install, registered in `aliases.DEFAULT_ALIASES`,
+so they work whether or not `coga.toml` names them:
 
 | Alias | Expands to |
 | --- | --- |
 | `coga chat` | `coga launch bootstrap/orient` |
-| `coga claude` | `coga launch bootstrap/orient --agent claude` |
-| `coga codex` | `coga launch bootstrap/orient --agent codex` |
 | `coga build` | `coga launch coga-build` |
 | `coga dream` | `coga recurring launch dream` |
 | `coga skill-update` | `coga recurring launch skill-update` |
@@ -388,4 +389,11 @@ Positional args after the alias name forward to the expanded form.
 | `coga open-pr` | `coga launch bootstrap/open-pr` |
 | `coga resolve-conflicts` | `coga launch bootstrap/resolve-conflicts` |
 
-Aliases are just config — edit or add your own in `coga.toml`.
+The packaged `coga.toml` writes out only `chat`, `build`, `pick`, and `dream`;
+the other four come from the Python defaults, so opening `coga.toml` will not
+show you the full set.
+
+Per-agent shortcuts like `coga claude` / `coga codex`
+(`coga launch bootstrap/orient --agent <type>`) are **not** shipped — they are
+commented out in the packaged `coga.toml`. Uncomment them, or add your own, in
+`[aliases]`.
