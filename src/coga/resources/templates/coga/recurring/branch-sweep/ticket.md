@@ -23,13 +23,17 @@ past it.
 
 Once a week this recurring task's recipe runs the branch sweep, which:
 
-1. enumerates every local branch and every branch on the configured git remote,
-2. skips the configured control branch, the checked-out branch, and any branch recorded under a
+1. prunes registrations for worktrees whose directories are gone, then
+   enumerates the branches held by the remaining live worktrees,
+2. enumerates every local branch and every branch on the configured git remote,
+3. skips the configured control branch, the checked-out branch, and any branch recorded under a
    non-terminal ticket's `## Dev` `branch:` line,
-3. for the rest, checks GitHub by head branch name and current tip SHA —
+4. for the rest, checks GitHub by head branch name and current tip SHA —
    deletes only when a merged PR exists for that exact tip and no PR is
    currently open for the head branch, and
-4. deletes the remote ref and/or local branch per the same policy
+5. preserves both refs for a merged branch still held by a live worktree and
+   reports the distinct, non-fatal `skipped-worktree-pinned` outcome, and
+6. deletes the remote ref and/or local branch per the same policy
    `coga retire` uses (prefer `git branch -d`; log the tip SHA and force
    with `-D` for the squash-merge case; skip and report anything unmerged
    with no merged PR).
@@ -38,7 +42,8 @@ The sweep is defined in `coga.branchsweep.sweep_branches`. Its first run
 also prunes the merged part of the branch backlog that accumulated before
 retire-time deletion shipped — abandoned no-PR branches are skipped and
 reported by design, so expect a residual manual pass rather than a fully
-clean slate.
+clean slate. A failure to prune or list worktree state fails the recipe before
+any branch deletion.
 
 The sweep runs on this schedule via `coga recurring`, on demand via
 `coga recurring launch branch-sweep`, or directly with

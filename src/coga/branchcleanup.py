@@ -172,7 +172,7 @@ def delete_local_branch(
     # whose PR is still open would be deleted on the strength of being pushed.
     # Confirming the tip is reachable from HEAD (retire runs on the control
     # branch) means a real merge-commit or fast-forward landing — safe to `-d`.
-    if _is_ancestor(root, branch, "HEAD"):
+    if local_branch_landed(root, branch):
         safe = _git(root, "branch", "-d", branch)
         if safe.returncode == 0:
             result.local_deleted = True
@@ -225,6 +225,11 @@ def _local_branch_exists(root: Path, branch: str) -> bool:
     )
 
 
+def local_branch_landed(root: Path, branch: str) -> bool:
+    """True iff the local branch tip is reachable from the checked-out HEAD."""
+    return _is_ancestor(root, branch, "HEAD")
+
+
 def _is_ancestor(root: Path, ref: str, maybe_descendant: str) -> bool:
     """True iff `ref` is an ancestor of `maybe_descendant` (i.e. it has landed)."""
     return (
@@ -261,4 +266,5 @@ __all__ = [
     "delete_ticket_branch",
     "delete_remote_branch",
     "delete_local_branch",
+    "local_branch_landed",
 ]
