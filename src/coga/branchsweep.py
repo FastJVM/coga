@@ -127,10 +127,14 @@ def sweep_branches(
             _note(result, echo, f"Branch sweep: gh unavailable ({exc}) — no gated deletes this run.")
             continue
 
+        local_landed = (
+            local_tip is not None
+            and local_branch_landed(root, branch, cfg.git_control_branch)
+        )
         if branch in worktree_branches and (
             remote_merged
             or local_merged
-            or local_branch_landed(root, branch)
+            or local_landed
         ):
             result.worktree_pinned.append(branch)
             _note(
@@ -142,10 +146,35 @@ def sweep_branches(
             continue
 
         cleanup = BranchCleanupResult(branch=branch)
-        if branch in remote:
-            delete_remote_branch(cfg, root, branch, remote_merged, echo, cleanup)
         if branch in local:
-            delete_local_branch(root, branch, local_merged, echo, cleanup)
+            delete_local_branch(
+                root,
+                branch,
+                local_merged,
+                echo,
+                cleanup,
+                landed_ref=cfg.git_control_branch,
+            )
+
+        # During rebase/bisect Git can report a worktree as detached while
+        # still reserving its original branch. Let Git's own deletion gate
+        # catch that hidden state before touching the remote ref.
+        if cleanup.local_worktree_path is not None:
+            result.worktree_pinned.append(branch)
+            _note(
+                result,
+                echo,
+                f"Branch sweep: {branch!r} has a landed ref but is held by "
+                f"worktree {cleanup.local_worktree_path!r} — both refs left in place.",
+            )
+            continue
+
+        # Do not delete the remote half of a branch whose local half could not
+        # be removed. Besides making partial cleanup conservative, this is the
+        # fallback safety gate for worktree operation states Git does not expose
+        # as a branch in porcelain output.
+        if branch in remote and (branch not in local or cleanup.local_deleted):
+            delete_remote_branch(cfg, root, branch, remote_merged, echo, cleanup)
 
         if cleanup.local_deleted:
             result.local_deleted.append(branch)
