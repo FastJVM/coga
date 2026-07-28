@@ -51,7 +51,30 @@ abandoned or already-merged residue — branch-sweep's problem, not this task's.
    have an upstream; an existing PR updates automatically. Never open a PR
    here — that belongs to each ticket's own `code/open-pr` step, which now
    passes its staleness gate on relaunch.
-6. **Summarize** — replace the `## Rebase Run Summary
+6. **Summarize** — replace the `## Rebase Run Summary` section in this
+   blackboard with one line per branch: `rebased-pushed`, `rebased-local`,
+   `up-to-date`, `conflict — human needed`, `skipped-dirty`, or
+   `skipped-verify-failed`, plus the `coga launch <slug>` command for any
+   ticket whose open-pr step is now unblocked. Replace, don't append — the
+   blackboard is composed into every launch and must stay bounded.
+
+### Safety rules
+
+- Never delete a branch or worktree — branch-sweep owns deletion.
+- Never touch `main`; never push without `--force-with-lease`.
+- Never stash, commit, or reset a dirty worktree; skip and report it.
+- A worktree already mid-rebase or mid-merge at the start of the run is
+  someone's live session: report it, don't touch it.
+
+<!-- coga:blackboard -->
+
+`coga recurring` keeps the serviced-period high-water mark here as
+`last_serviced_period`. Each run replaces the `## Rebase Run Summary`
+section below with its results.
+
+last_serviced_period: 2026-W31
+
+## Rebase Run Summary
 
 Run 2026-W31 (base: origin/main @ 5785f6a5; advanced from 2f9aff94 mid-run by a
 concurrent sync). 17 live branches enumerated: 16 worktree branches + 1
