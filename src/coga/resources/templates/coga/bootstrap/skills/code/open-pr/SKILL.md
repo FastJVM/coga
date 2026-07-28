@@ -40,6 +40,19 @@ gate, not your say-so.
    ownership against `COGA_EXPECTED_TASK`, the anchor your outer `coga launch`
    session pins to this task and that nothing downstream reassigns. This keeps
    an independent fallback clone behind the control-checkout gate.
+
+   **If the primary control checkout is parked on *another* ticket's branch,
+   `coga open-pr` refuses.** Nothing is wrong with your branch — a concurrent
+   session simply left the shared checkout somewhere else. Borrow it and give it
+   back: stash that checkout's drift (`git stash --include-untracked`),
+   `git switch <control-branch>`, run `coga open-pr`, then restore the stash and
+   return the checkout to the branch you found it on. Two things you must not
+   do. **Never commit another ticket's drift** to move it aside — that lands
+   unreviewed work under someone else's slug. And **never hand-open the PR with
+   `gh pr create` to route around the refusal** without explicit human approval:
+   the recorded `pr:` line is what the `requires: pr` gate reads, and a
+   hand-opened PR leaves the ticket ungated and the checkout unexplained.
+
    It resolves the ticket first, identifies the layout, and:
    - reads `branch:` / `worktree:` from `## Dev`,
    - commits the launcher's pending generated `coga/log.md` append in a
@@ -103,6 +116,9 @@ Fix the cause and re-run it — it is idempotent:
   control checkout for a separate-worktree layout, or from the recorded primary
   checkout for a single-checkout layout. If an earlier attempt already pushed,
   the retry republishes the rewritten branch with an explicit force-with-lease.
+- Primary control checkout parked on another ticket's branch → stash its drift,
+  `git switch <control-branch>`, re-run, then restore the stash and the branch.
+  See step 2 — do not commit the drift, and do not hand-open the PR.
 - `git` / `gh` auth failure → follow the setup hint the command prints (fix the
   remote, load your SSH key / credential helper, `gh auth login`), then re-run.
 - Dirty checkout naming only `coga/.agent-skills/` in a single-checkout layout
