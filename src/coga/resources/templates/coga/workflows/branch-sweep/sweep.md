@@ -11,8 +11,10 @@ steps:
 ## sweep
 
 Recipe-backed recurring task. `coga recurring` runs `coga run branch-sweep`,
-which calls `coga.branchsweep.sweep_branches`: enumerate local and `origin` branches,
-skip `main`, the checked-out branch, and any branch recorded on a
-non-terminal ticket, then delete the rest when GitHub confirms (by branch
-name and current tip SHA) a merged PR with no open PR. The command exits
-successfully when there is nothing to delete.
+which calls `coga.branchsweep.sweep_branches`: prune missing-worktree
+registrations, enumerate local/remote branches and live worktrees, skip the
+configured control branch, the checked-out branch, and any branch recorded on
+a non-terminal ticket, then delete branches that landed on the control branch
+or whose exact tip GitHub confirms merged with no open PR. A landed branch
+held by a live worktree preserves both refs and reports
+`skipped-worktree-pinned`; incomplete worktree state fails the recipe.

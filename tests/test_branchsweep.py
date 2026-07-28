@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -223,6 +224,151 @@ def test_checked_out_branch_left_in_place(repo: Path, monkeypatch) -> None:
 
     assert result.local_deleted == []
     assert _branch_exists_local(repo, "feat")
+
+
+def test_prunable_worktree_no_longer_pins_merged_branch(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    shutil.rmtree(linked)
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == ["feat"]
+    assert not _branch_exists_local(repo, "feat")
+    assert not _branch_exists_remote(repo, "feat")
+
+
+def test_pruned_stacked_branch_is_not_landed_by_feature_head(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "stack-base")
+    _git(repo, "checkout", "stack-base")
+    _git(repo, "checkout", "-b", "stack-tip")
+    _commit(repo, "stack-tip.txt", "tip", "stack tip")
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "stack-base")
+    shutil.rmtree(linked)
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: False)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert result.skipped == ["stack-base"]
+    assert _branch_exists_local(repo, "stack-base")
+    assert _branch_exists_remote(repo, "stack-base")
+
+
+def test_live_worktree_pinned_merged_branch_has_distinct_outcome(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    # Squash-merge shape: the branch tip is not reachable from main, so only
+    # the exact-tip GitHub signal authorizes branch cleanup.
+    _push_branch(repo, "feat")
+    _commit(repo, "feat.txt", "feat", "squashed feat")
+    _git(repo, "push", "origin", "main")
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_pinned == ["feat"]
+    assert result.skipped == []
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert linked.is_dir()
+
+
+def test_live_worktree_pinned_git_merged_branch_has_distinct_outcome(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: False)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_pinned == ["feat"]
+    assert result.skipped == []
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def test_rebasing_worktree_preserves_both_refs_with_distinct_outcome(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    _commit(repo, "feat.txt", "main version", "conflicting main change")
+    rebase = _git(linked, "rebase", "main", check=False)
+    assert rebase.returncode != 0
+    listing = _git(repo, "worktree", "list", "--porcelain").stdout
+    assert f"worktree {linked}\n" in listing
+    assert "detached" in listing
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_pinned == ["feat"]
+    assert result.skipped == []
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert linked.is_dir()
+
+
+def test_worktree_prune_failure_stops_sweep(repo: Path, monkeypatch) -> None:
+    def fail_prune(
+        root: Path, *args: str
+    ) -> subprocess.CompletedProcess[str]:
+        assert root == repo
+        assert args == ("worktree", "prune")
+        return subprocess.CompletedProcess(
+            ["git", "worktree", "prune"],
+            1,
+            stdout="",
+            stderr="permission denied",
+        )
+
+    monkeypatch.setattr(bs, "_git", fail_prune)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_unavailable == "permission denied"
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+
+
+def test_recipe_reports_worktree_pinned_outcome(
+    repo: Path, monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    monkeypatch.setattr(
+        bs,
+        "sweep_branches",
+        lambda _cfg, _root, *, echo: bs.BranchSweepResult(
+            worktree_pinned=["feat"]
+        ),
+    )
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
+
+    captured = capsys.readouterr()
+    assert "[branch-sweep] skipped-worktree-pinned: feat" in captured.out
+    assert captured.err == ""
 
 
 def test_gh_unavailable_no_deletes(repo: Path, monkeypatch) -> None:

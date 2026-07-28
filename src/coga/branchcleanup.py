@@ -31,6 +31,7 @@ with `check=False`, no third-party git binding.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -47,6 +48,7 @@ class BranchCleanupResult:
     branch: str | None = None
     local_deleted: bool = False
     remote_deleted: bool = False
+    local_worktree_path: str | None = None
     notes: list[str] = field(default_factory=list)
 
 
@@ -157,10 +159,15 @@ def delete_local_branch(
     pr_merged: bool,
     echo: Callable[[str], None],
     result: BranchCleanupResult,
+    *,
+    landed_ref: str = "HEAD",
 ) -> None:
     """Delete the local `branch` iff safe.
 
     Shared with the branch-sweep recipe; see `delete_remote_branch`.
+    `landed_ref` is the ref whose history authorizes a normal `-d` deletion.
+    Retire runs on the control checkout and uses the default `HEAD`; branch
+    sweep passes the configured control branch explicitly.
     """
     if not _local_branch_exists(root, branch):
         _note(result, echo, f"Branch cleanup: local {branch!r} not present.")
@@ -170,15 +177,16 @@ def delete_local_branch(
     # land" signal. `git branch -d` alone is too loose: it also accepts a branch
     # merged only into its *upstream* (`origin/<branch>`), so a pushed branch
     # whose PR is still open would be deleted on the strength of being pushed.
-    # Confirming the tip is reachable from HEAD (retire runs on the control
-    # branch) means a real merge-commit or fast-forward landing — safe to `-d`.
-    if _is_ancestor(root, branch, "HEAD"):
+    # Confirming the tip is reachable from `landed_ref` means a real
+    # merge-commit or fast-forward landing — safe to `-d`.
+    if local_branch_landed(root, branch, landed_ref):
         safe = _git(root, "branch", "-d", branch)
         if safe.returncode == 0:
             result.local_deleted = True
             _note(result, echo, f"Branch cleanup: deleted local {branch!r}.")
             return
         stderr = (safe.stderr + safe.stdout).strip()
+        result.local_worktree_path = _worktree_path_from_delete_error(stderr)
         _note(result, echo, f"Branch cleanup: could not delete local {branch!r}: {stderr}")
         return
 
@@ -208,6 +216,7 @@ def delete_local_branch(
         )
         return
     stderr = (forced.stderr + forced.stdout).strip()
+    result.local_worktree_path = _worktree_path_from_delete_error(stderr)
     _note(result, echo, f"Branch cleanup: could not delete local {branch!r}: {stderr}")
 
 
@@ -223,6 +232,37 @@ def _local_branch_exists(root: Path, branch: str) -> bool:
         _git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode
         == 0
     )
+
+
+def local_branch_landed(
+    root: Path, branch: str, landed_ref: str = "HEAD"
+) -> bool:
+    """True iff the local branch tip is reachable from `landed_ref`."""
+    return _is_ancestor(root, branch, landed_ref)
+
+
+def _worktree_path_from_delete_error(output: str) -> str | None:
+    """Extract Git's worktree path when branch deletion is refused.
+
+    A worktree paused in rebase/bisect can appear detached in `git worktree
+    list --porcelain` while Git still reserves its original branch. Git's
+    deletion gate is authoritative for that hidden state, so callers can use
+    this marker to preserve the remote ref too.
+    """
+    marker = next(
+        (
+            candidate
+            for candidate in ("used by worktree at ", "checked out at ")
+            if candidate in output
+        ),
+        None,
+    )
+    if marker is None:
+        return None
+    path = output.split(marker, 1)[1].splitlines()[0].strip()
+    if len(path) >= 2 and path[0] == path[-1] and path[0] in {"'", '"'}:
+        path = path[1:-1]
+    return path or "(unknown worktree)"
 
 
 def _is_ancestor(root: Path, ref: str, maybe_descendant: str) -> bool:
@@ -253,6 +293,7 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         check=False,
+        env={**os.environ, "LC_ALL": "C"},
     )
 
 
@@ -261,4 +302,5 @@ __all__ = [
     "delete_ticket_branch",
     "delete_remote_branch",
     "delete_local_branch",
+    "local_branch_landed",
 ]

@@ -11,11 +11,9 @@ run it, confirm it recorded the PR, then bump. The *judgment* (what the PR says,
 whether the branch is mergeable) belongs to the earlier implement / peer-review
 steps; this step just turns the recorded branch into a PR.
 
-(Mechanism note: `coga open-pr <slug>` is a default alias for `coga launch
-bootstrap/open-pr <slug>` — a stateless script launch of the packaged open-pr
-command ticket. Same spelling, same behavior; as a stateless nested script
-launch it is sanctioned inside your supervised session and never touches your
-session's done sentinel.)
+(Mechanism note: `coga open-pr <slug>` is a default alias for `coga run
+open-pr <slug>` — the registered `open-pr` recipe. It is an ordinary command,
+not a nested launch, so it never touches your session's done sentinel.)
 
 The step declares `requires: pr`, so `coga bump` refuses to advance until a
 `pr:` line is recorded under `## Dev`. That is a **data check**: skipping
@@ -40,9 +38,8 @@ gate, not your say-so.
    stay in that checkout on the recorded feature branch; its ticket is the live
    copy because there is no second checkout to diverge. The command proves that
    ownership against `COGA_EXPECTED_TASK`, the anchor your outer `coga launch`
-   session pins to this task. (`coga open-pr` is itself a launch, so the
-   `COGA_TASK_*` variables name the open-pr command ticket, not your task.)
-   This keeps an independent fallback clone behind the control-checkout gate.
+   session pins to this task and that nothing downstream reassigns. This keeps
+   an independent fallback clone behind the control-checkout gate.
    It resolves the ticket first, identifies the layout, and:
    - reads `branch:` / `worktree:` from `## Dev`,
    - commits the launcher's pending generated `coga/log.md` append in a

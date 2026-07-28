@@ -19,6 +19,11 @@ Live tickets are consulted defensively before any gh lookup: a non-terminal
 ticket's `## Dev` `branch:` line is skipped outright, so a ticket still
 mid-workflow never loses its branch even if its PR already merged.
 
+Before enumerating branches, the sweep prunes registrations for worktrees whose
+directories are gone. A merged branch that remains checked out in a live
+worktree is preserved deliberately and reported as worktree-pinned instead of
+falling through to a failed `git branch -d`/`-D`.
+
 Reuses `branchcleanup.py`'s `delete_remote_branch` / `delete_local_branch`
 for the actual git plumbing (ancestry check, `-d` then logged `-D` fallback,
 never force without a merged PR) — only the merge-signal lookup differs, so
@@ -40,6 +45,7 @@ from coga.branchcleanup import (
     BranchCleanupResult,
     delete_local_branch,
     delete_remote_branch,
+    local_branch_landed,
 )
 from coga.config import Config
 from coga import git
@@ -56,9 +62,11 @@ class BranchSweepResult:
     local_deleted: list[str] = field(default_factory=list)
     remote_deleted: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    worktree_pinned: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     gh_unavailable: str | None = None
     remote_unavailable: str | None = None
+    worktree_unavailable: str | None = None
 
 
 def sweep_branches(
@@ -66,12 +74,18 @@ def sweep_branches(
 ) -> BranchSweepResult:
     """Delete local/`origin` branches whose PR has merged, skipping live ones.
 
-    `root` is the git working-tree root. Never touches `cfg.git_control_branch`,
-    the currently checked-out branch, or a branch recorded on a non-terminal
-    ticket. If `gh` is unavailable, the rest of the sweep is skipped and
-    reported rather than force-deleting anything.
+    `root` is the git working-tree root. Prunes registrations for missing
+    worktrees first. Never touches `cfg.git_control_branch`, the currently
+    checked-out branch, a branch recorded on a non-terminal ticket, or a merged
+    branch still checked out in a live worktree. If worktree state or `gh` is
+    unavailable, the rest of the sweep is skipped and reported rather than
+    deleting with incomplete safety information.
     """
     result = BranchSweepResult()
+    worktree_branches = _worktree_branches(root, result, echo)
+    if result.worktree_unavailable is not None:
+        return result
+
     current = _current_branch(root)
     live_branches = _live_ticket_branches(cfg)
     local = _local_branches(root)
@@ -113,11 +127,54 @@ def sweep_branches(
             _note(result, echo, f"Branch sweep: gh unavailable ({exc}) — no gated deletes this run.")
             continue
 
+        local_landed = (
+            local_tip is not None
+            and local_branch_landed(root, branch, cfg.git_control_branch)
+        )
+        if branch in worktree_branches and (
+            remote_merged
+            or local_merged
+            or local_landed
+        ):
+            result.worktree_pinned.append(branch)
+            _note(
+                result,
+                echo,
+                f"Branch sweep: {branch!r} has a landed ref but is checked out "
+                f"in worktree {worktree_branches[branch]!r} — left in place.",
+            )
+            continue
+
         cleanup = BranchCleanupResult(branch=branch)
-        if branch in remote:
-            delete_remote_branch(cfg, root, branch, remote_merged, echo, cleanup)
         if branch in local:
-            delete_local_branch(root, branch, local_merged, echo, cleanup)
+            delete_local_branch(
+                root,
+                branch,
+                local_merged,
+                echo,
+                cleanup,
+                landed_ref=cfg.git_control_branch,
+            )
+
+        # During rebase/bisect Git can report a worktree as detached while
+        # still reserving its original branch. Let Git's own deletion gate
+        # catch that hidden state before touching the remote ref.
+        if cleanup.local_worktree_path is not None:
+            result.worktree_pinned.append(branch)
+            _note(
+                result,
+                echo,
+                f"Branch sweep: {branch!r} has a landed ref but is held by "
+                f"worktree {cleanup.local_worktree_path!r} — both refs left in place.",
+            )
+            continue
+
+        # Do not delete the remote half of a branch whose local half could not
+        # be removed. Besides making partial cleanup conservative, this is the
+        # fallback safety gate for worktree operation states Git does not expose
+        # as a branch in porcelain output.
+        if branch in remote and (branch not in local or cleanup.local_deleted):
+            delete_remote_branch(cfg, root, branch, remote_merged, echo, cleanup)
 
         if cleanup.local_deleted:
             result.local_deleted.append(branch)
@@ -155,9 +212,17 @@ def run_branch_sweep_recipe(cfg: Config, argv: list[str]) -> int:
     if result.remote_unavailable:
         sys.stderr.write(f"[branch-sweep] {result.remote_unavailable}\n")
         return 2
+    if result.worktree_unavailable:
+        sys.stderr.write(f"[branch-sweep] {result.worktree_unavailable}\n")
+        return 2
     if result.gh_unavailable:
         sys.stderr.write(f"[branch-sweep] {result.gh_unavailable}\n")
         return 2
+    if result.worktree_pinned:
+        sys.stdout.write(
+            "[branch-sweep] skipped-worktree-pinned: "
+            f"{', '.join(result.worktree_pinned)}\n"
+        )
     if not result.local_deleted and not result.remote_deleted:
         sys.stdout.write("[branch-sweep] no branches deleted.\n")
     return 0
@@ -229,6 +294,48 @@ def _live_ticket_branches(cfg: Config) -> set[str]:
 def _note(result: BranchSweepResult, echo: Callable[[str], None], message: str) -> None:
     result.notes.append(message)
     echo(message)
+
+
+def _worktree_branches(
+    root: Path,
+    result: BranchSweepResult,
+    echo: Callable[[str], None],
+) -> dict[str, str]:
+    """Prune missing worktrees and return live local branch-to-path mappings."""
+    pruned = _git(root, "worktree", "prune")
+    if pruned.returncode != 0:
+        detail = (pruned.stderr + pruned.stdout).strip() or "git worktree prune failed"
+        result.worktree_unavailable = detail
+        _note(
+            result,
+            echo,
+            f"Branch sweep: could not prune stale worktrees — sweep skipped: {detail}",
+        )
+        return {}
+
+    listed = _git(root, "worktree", "list", "--porcelain")
+    if listed.returncode != 0:
+        detail = (
+            (listed.stderr + listed.stdout).strip()
+            or "git worktree list --porcelain failed"
+        )
+        result.worktree_unavailable = detail
+        _note(
+            result,
+            echo,
+            f"Branch sweep: could not list live worktrees — sweep skipped: {detail}",
+        )
+        return {}
+
+    worktrees: dict[str, str] = {}
+    path = ""
+    branch_prefix = "branch refs/heads/"
+    for line in listed.stdout.splitlines():
+        if line.startswith("worktree "):
+            path = line.removeprefix("worktree ")
+        elif path and line.startswith(branch_prefix):
+            worktrees[line.removeprefix(branch_prefix)] = path
+    return worktrees
 
 
 def _local_branches(root: Path) -> dict[str, str]:
