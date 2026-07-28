@@ -297,6 +297,16 @@ recurring walls that don't appear on a normal dev machine:
   `_strip_runtime_state`) or freeze the period before comparing; assert
   structure, not a hardcoded date.
 
+- **Fixture shell scripts must be portable.** A test that writes a shell script
+  for a launched subprocess runs on whatever `sh` the developer has.
+  `tests/test_launch_script.py` uses GNU-only `sed -i 's/…/…/'`; BSD/macOS `sed`
+  reads the next token as the mandatory backup suffix and dies with
+  `sed: invalid command code`. The failure surfaces far from its cause and reads
+  like an unrelated pre-existing breakage. Prefer Python or a portable
+  `sed … > tmp && mv tmp file` in fixture scripts, and treat any GNU-only flag
+  (`sed -i`, `readlink -f`, `date -d`) as a platform bug waiting for the first
+  non-Linux contributor.
+
 - **Subprocess tests must scrub inherited launch metadata.** A pytest run inside
   `coga launch` inherits the outer session's `COGA_TASK_*` and `COGA_SKILL_*`
   variables. A fixture worker that receives those values can write its report
@@ -308,6 +318,28 @@ recurring walls that don't appear on a normal dev machine:
   object.** Patching `coga.config.subprocess.run` and
   `coga.commands.launch.subprocess.run` separately collides (they are the same
   object). Use a single argv-dispatching mock on `coga.config.subprocess.run`.
+
+- **A rebase carries a fix through a rename — never into a twin created fresh
+  in the same commit.** The live↔packaged pattern (a file under `coga/` and its
+  copy under `src/coga/resources/templates/coga/bootstrap/`) is exactly this
+  shape. When a branch *moves* one copy, git's rename detection replays later
+  `main` fixes onto it; when the same commit *creates* the other copy from
+  scratch, that copy has no rename to follow and silently keeps the pre-fix
+  bytes. This really happened: `main`'s `TERMINAL_STATUSES` fix (canceled
+  tickets are terminal, not just `done`) reached the live branch-sweep copy and
+  missed the packaged one — a regression that would have deleted branches
+  recorded on canceled tickets. A clean rebase and a green suite both reported
+  success. **After any rebase that touched a live/packaged pair, re-diff every
+  pair by hand** and sync packaged from live; `IDENTICAL_LIVE_PACKAGED_PAIRS` in
+  `tests/test_packaging.py` only covers pairs someone remembered to register.
+
+- **A recorded "rebases clean" has an expiry.** A design step that measured
+  drift (`git diff --stat <merge-base>..main` over the branch-touched files, and
+  found it empty) is describing one instant. The
+  `agree-the-core-vs-skills-move-list-then-execute` design recorded exactly that
+  and, by implement time, `main` had advanced **417 commits** and the rebase
+  took four conflicts. Re-measure at implement time; never let an inherited
+  "rebases clean, no conflicts expected" note stand in for running the rebase.
 
 ## Secrets
 
