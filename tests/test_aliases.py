@@ -197,18 +197,18 @@ def test_recurring_launch_aliases_are_defaults() -> None:
     assert "autoclose" not in _BUILTIN_COMMANDS
 
 
-def test_open_pr_is_default_alias_for_its_command_ticket() -> None:
-    """`open-pr` fronts the `bootstrap/open-pr` command ticket — a default
-    alias, no longer a registered Typer command."""
-    assert _DEFAULT_ALIASES["open-pr"] == "launch bootstrap/open-pr"
+def test_open_pr_is_default_alias_for_its_recipe() -> None:
+    """`open-pr` is the short spelling for the registered `open-pr` recipe — a
+    default alias, not a registered Typer command."""
+    assert _DEFAULT_ALIASES["open-pr"] == "run open-pr"
     assert "open-pr" not in _BUILTIN_COMMANDS
 
 
 def test_default_open_pr_alias_carries_trailing_task_ref(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`coga open-pr <slug>` rewrites to `coga launch bootstrap/open-pr <slug>`
-    — the trailing task ref rides the argv rewrite into the launch arg channel."""
+    """`coga open-pr <slug>` rewrites to `coga run open-pr <slug>` — the
+    trailing task ref rides the argv rewrite into ordinary recipe argv."""
     monkeypatch.chdir(repo)
     monkeypatch.setattr("sys.argv", ["coga", "open-pr", "ship-it"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
@@ -221,7 +221,7 @@ def test_default_open_pr_alias_carries_trailing_task_ref(
 
     monkeypatch.setattr("coga.cli.app", fake_app)
     main()
-    assert captured["argv"] == ["coga", "launch", "bootstrap/open-pr", "ship-it"]
+    assert captured["argv"] == ["coga", "run", "open-pr", "ship-it"]
 
 
 def test_resolve_conflicts_is_default_alias_for_agent_command_ticket() -> None:

@@ -1,8 +1,8 @@
 """Tests for the deterministic push→PR→record recipe behind `coga open-pr`.
 
-The recipe lives beside the `bootstrap/open-pr` command ticket
-(`bootstrap/open-pr/recipe.py`), not in importable `coga.*` core, so it is
-loaded by file path via `conftest.load_bootstrap_recipe`.
+The recipe is the registered `open-pr` recipe in `coga.open_pr`; the seam that
+resolves the task and gates the checkout is covered by
+`test_open_pr_command.py`.
 
 Uses the real-git harness (`init_git_repo`) so branch/commit/push behaviour is
 exercised for real against a bare `origin`, and a fake `gh` on PATH so the PR
@@ -21,7 +21,7 @@ from textwrap import dedent
 
 import pytest
 
-from conftest import init_git_repo, load_bootstrap_recipe
+from conftest import init_git_repo
 from coga.autoclose import parse_pr_url, parse_worktree_path
 from coga.config import load_config
 from coga.github_preflight import CheckResult
@@ -30,10 +30,7 @@ from coga.logfile import append_log
 from coga.taskfile import read_blackboard
 from coga.ticket import Ticket
 
-_RECIPE = load_bootstrap_recipe("open-pr")
-OpenPrError = _RECIPE.OpenPrError
-open_pr = _RECIPE.open_pr
-set_dev_pr = _RECIPE.set_dev_pr
+from coga.open_pr import OpenPrError, open_pr, set_dev_pr
 
 
 # --- fixtures / helpers -------------------------------------------------------
@@ -741,8 +738,7 @@ def test_open_pr_fails_with_setup_hint_before_push_when_gh_missing(
         repo.coga_os, "missing-gh", branch="missing-gh", worktree=wt
     )
     monkeypatch.setattr(
-        _RECIPE,
-        "check_gh_auth",
+        "coga.open_pr.check_gh_auth",
         lambda _host: CheckResult(
             "gh-auth",
             False,
@@ -838,9 +834,11 @@ def test_open_pr_accepts_non_overlapping_coga_state_drift(
     url = open_pr(cfg, slug="state-only", blackboard_path=ticket)
 
     assert url == "https://github.com/acme/repo/pull/7"
+    # The note is a diagnostic, so it stays off stdout — that channel carries
+    # the PR URL alone.
     assert (
         "advanced only through non-overlapping Coga task/log state"
-        in capsys.readouterr().out
+        in capsys.readouterr().err
     )
     assert "pr create" in log.read_text()
     assert parse_pr_url(read_blackboard(ticket)) == url

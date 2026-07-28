@@ -1327,24 +1327,9 @@ def test_cli_ticket_authoring_records_failed_session(git_repo, monkeypatch):
 
 # --- delete (the sync gap this fixes) -----------------------------------------
 #
-# `coga delete` removes the task dir through the `bootstrap/delete-task` skill
-# but historically never synced — the lone state mutation that left an
-# uncommitted working-tree deletion. It now lands the removal on the control
-# branch like every other command.
-
-_DELETE_SKILL_SRC = (
-    Path(__file__).resolve().parents[1]
-    / "src" / "coga" / "resources" / "templates" / "coga"
-    / "bootstrap" / "skills" / "bootstrap" / "delete-task"
-)
-
-
-def _install_delete_skill(coga_os: Path) -> None:
-    import shutil
-
-    shutil.copytree(
-        _DELETE_SKILL_SRC, coga_os / "skills" / "bootstrap" / "delete-task"
-    )
+# `coga delete` removes the task dir but historically never synced — the lone
+# state mutation that left an uncommitted working-tree deletion. It now lands
+# the removal on the control branch like every other command.
 
 
 def test_cli_delete_syncs_removal_to_origin(git_repo):
@@ -1353,7 +1338,6 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
     The created ticket is committed first; deleting it must produce a real
     deletion commit, not an orphaned working-tree change.
     """
-    _install_delete_skill(git_repo.coga_os)
     created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = created.output.split(":", 1)[0].strip()
     assert git_repo.origin_tracks(f"coga/tasks/{slug}.md")
@@ -1379,11 +1363,6 @@ def test_cli_delete_from_linked_worktree_keeps_primary_checkout(
     `--keep-control-checkout` deliberately suppresses only that final local
     refresh, leaving the operator's ref, index, and files exactly as they were.
     """
-    _install_delete_skill(git_repo.coga_os)
-    git_repo.git("add", "--", "coga/skills/bootstrap/delete-task")
-    git_repo.git("commit", "-m", "install delete skill")
-    git_repo.git("push", "origin", "main")
-
     created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = created.output.split(":", 1)[0].strip()
     rel = f"coga/tasks/{slug}.md"
@@ -1429,11 +1408,6 @@ def test_cli_delete_from_independent_clone_keeps_primary_checkout(
     git_repo, monkeypatch, tmp_path
 ):
     """Retro's sandbox fallback uses ordinary delete from separate Git metadata."""
-    _install_delete_skill(git_repo.coga_os)
-    git_repo.git("add", "--", "coga/skills/bootstrap/delete-task")
-    git_repo.git("commit", "-m", "install delete skill")
-    git_repo.git("push", "origin", "main")
-
     created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = created.output.split(":", 1)[0].strip()
     rel = f"coga/tasks/{slug}.md"

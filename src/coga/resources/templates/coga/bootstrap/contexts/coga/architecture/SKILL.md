@@ -103,25 +103,26 @@ no in-memory state.
   checks a repo-local `coga/bootstrap/<name>/ticket.md` before the package
   `bootstrap/<name>/ticket.md` resource. Used for ticket-less re-entry points
   like `coga launch bootstrap/orient` (the `chat` alias), deterministic
-  **command tickets** such as the transitional `bootstrap/open-pr` path — a
-  ticket that is a verb's durable *definition* (body as docs, `script:` as
-  implementation, `secrets:` as capability grant), launched in place each
-  time with no per-invocation task instance. Trailing launch args
-  (`coga launch <target> [ARGS...]`) follow the target's execution medium: a
-  *script* launch receives `COGA_ARG_1..N` plus `COGA_ARGC`, while an *agent*
-  launch receives the ordered values in an appended `## Launch arguments`
-  prompt block. The script arg namespace is rewritten per launch invocation, not
-  overlaid on the launcher's environment, so a nested script launch with fewer
-  args cannot see its parent's leftovers. Stdout belongs to the command: a
-  stateless script launch keeps launch's own framing on stderr, so moving a
-  verb behind a ticket does not change what the verb prints (`coga open-pr`
-  still emits a bare PR URL). `coga open-pr` is the first shipped command ticket
-  (`bootstrap/open-pr`, fronted by a default alias); `coga resolve-conflicts`
-  is the agent-backed counterpart and consumes its optional PR selector from
-  the prompt arg block. A repo mints its own `coga <verb>` with a local command
+  **command tickets** — a ticket that is a verb's durable *definition* (body
+  as docs, `script:` as implementation, `secrets:` as capability grant),
+  launched in place each time with no per-invocation task instance. Trailing
+  launch args (`coga launch <target> [ARGS...]`) follow the target's execution
+  medium: a *script* launch receives `COGA_ARG_1..N` plus `COGA_ARGC`, while an
+  *agent* launch receives the ordered values in an appended `## Launch
+  arguments` prompt block. The script arg namespace is rewritten per launch
+  invocation, not overlaid on the launcher's environment, so a nested script
+  launch with fewer args cannot see its parent's leftovers. Stdout belongs to
+  the command: a stateless script launch keeps launch's own framing on stderr,
+  so moving a verb behind a ticket does not change what the verb prints. Which
+  medium a verb uses is a separate question from which spelling fronts it:
+  `coga open-pr` is a default alias for the registered `open-pr` *recipe*,
+  because a fixed name in `runner.RECIPES` is a genuine package command whose
+  implementation belongs in importable core; `coga resolve-conflicts` is the
+  agent-backed command ticket and consumes its optional PR selector from the
+  prompt arg block. A repo mints its own `coga <verb>` with a local command
   ticket plus an `[aliases]` line — zero core Python. `coga launch` does not
-  create new tickets merely because a
-  target is under `bootstrap/`; use `coga create` for that.
+  create new tickets merely because a target is under `bootstrap/`; use
+  `coga create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, reusable
   workflows, hooks, and launch targets shipped in the installed package.
   `pip install coga` puts them in the wheel; `coga init` does not
@@ -362,20 +363,20 @@ session is to resolve or re-block the open asks.
 **Registered recipes** are deterministic core functions behind
 `coga run <recipe> [args...]`. One explicit in-package table contains exactly
 `autoclose`, `digest`, `blocker-reminders`, `branch-sweep`, `validate-drift`,
-`cleanup-orphan-markers`, `recurring-scan`, and `skill-update`; there is no
-file discovery, config import, or plugin surface. The generic command passes
-the trailing tokens as an ordinary `list[str]`, preserving boundaries and
-option spelling, and propagates the function's integer return code and
-stdout/stderr. It does not use `COGA_ARG_*`. An agent invoking a recipe keeps
-its inherited `COGA_TASK_*`; the recurring runner explicitly re-derives that
-metadata for the instantiated period task.
+`cleanup-orphan-markers`, `recurring-scan`, `skill-update`, `open-pr`, and
+`delete-task`; there is no file discovery, config import, or plugin surface.
+The generic command passes the trailing tokens as an ordinary `list[str]`,
+preserving boundaries and option spelling, and propagates the function's
+integer return code and stdout/stderr. It does not use `COGA_ARG_*`. An agent
+invoking a recipe keeps its inherited `COGA_TASK_*`; the recurring runner
+explicitly re-derives that metadata for the instantiated period task.
 
-**Script launches** remain a temporary parallel seam for
-`bootstrap/open-pr`, `bootstrap/delete-task`, the vestigial show/finalize
-wrappers, ticket-owned scripts, inline scripts, and generic project-local
-script steps. They run deterministic code directly, with no composed agent
-prompt, inject declared secrets, and need no TTY. Stateless bootstrap scripts
-still receive `COGA_ARG_1..N` plus `COGA_ARGC`; recipes do not.
+**Script launches** remain a temporary parallel seam for the vestigial
+show/finalize wrappers, ticket-owned scripts, inline scripts, and generic
+project-local script steps. They run deterministic code directly, with no
+composed agent prompt, inject declared secrets, and need no TTY. Stateless
+bootstrap scripts still receive `COGA_ARG_1..N` plus `COGA_ARGC`; recipes do
+not.
 
 There is no `autonomy:` field. The old `auto`, `skip_permissions`, and
 `skip_permissions_argv` agent keys are removed; config load rejects them with
@@ -433,15 +434,15 @@ artifact. This is a data check, independent of whether the step is agent- or
 script-owned; human rewinds (`--to` / `--backward`) are never gated.
 
 `code/open-pr` is an ordinary agent step with `requires: pr`. The agent runs
-`coga open-pr <slug>` — a default alias for `coga launch bootstrap/open-pr
-<slug>`, a stateless script launch of the open-pr command ticket — from the
-checkout that owns the live ticket: the primary control checkout when
+`coga open-pr <slug>` — a default alias for `coga run open-pr <slug>` — from
+the checkout that owns the live ticket: the primary control checkout when
 `worktree:` is a separate linked checkout, or the primary checkout's recorded
-feature branch when both are the same checkout. Because the command is itself a
-launch, `build_task_env` rewrites `COGA_TASK_*` to name the command ticket; the
-seam therefore proves live-ticket ownership with `COGA_EXPECTED_TASK`, which the
-outer agent launch pins to its own task and no nested launch rewrites. That is
-what separates a real session from an independent fallback clone. The recipe
+feature branch when both are the same checkout. It proves live-ticket
+ownership with `COGA_EXPECTED_TASK`, which the agent's own `coga launch` pins
+to that session's task: unlike the `COGA_TASK_*` metadata, nothing downstream
+reassigns it, so it names the *session's* task rather than whatever the
+environment last described. That is what separates a real session from an
+independent fallback clone. The recipe
 pushes the recorded feature branch by name, opens or readies the PR, and writes
 `pr:` under `## Dev`; in the single-checkout layout it syncs that generated
 ticket write to the feature branch *and* the control branch, so the branch stays
@@ -634,12 +635,13 @@ plugins. State-machine commands (`create`, `mark`, `bump`, `block`, `unblock`,
 `launch`, `megalaunch`) remain ordinary core commands, as do shared gates,
 parsers, preflights, and config/secrets machinery.
 
-`bootstrap/open-pr` and `bootstrap/delete-task` temporarily retain the older
-command-ticket/script path while their ownership gates are migrated. The
-open-pr shape is still `ticket.md` beside `run.py` (the seam reading
-`COGA_ARG_*`) and `recipe.py` (deterministic logic), fronted by a default
-alias. That compatibility path does not make skills a dynamic recipe source
-and does not change `coga run`'s ordinary argv contract.
+`open-pr` and `delete-task` are registered recipes like the rest: their
+implementations live in `coga.open_pr` and `coga.delete_task`, they take the
+target task as ordinary argv, and `coga open-pr` / `coga delete` are the
+spellings on top. Neither reads `COGA_ARG_*`. The open-pr command ticket that
+once carried `ticket.md` beside `run.py` and `recipe.py` is gone; what remains
+of the script seam is the vestigial show/finalize pair and generic
+project-local scripts.
 
 ## Dream's known-skill contract
 

@@ -310,8 +310,15 @@ guardrail and task-to-task comparison, not exact provider billing.
 Invoke one deterministic core recipe through Coga's fixed registry. The
 registered names are `autoclose`, `digest`, `blocker-reminders`,
 `branch-sweep`, `validate-drift`, `cleanup-orphan-markers`,
-`recurring-scan`, and `skill-update`. Unknown names exit 2 and print that
-known set; recipes are not discovered from skills, config, or entry points.
+`recurring-scan`, `skill-update`, `open-pr`, and `delete-task`. Unknown names
+exit 2 and print that known set; recipes are not discovered from skills,
+config, or entry points.
+
+Two of them take a task ref as their single argument. `coga run open-pr
+<task>` publishes a code ticket's recorded branch and prints the bare PR URL
+(`coga open-pr <task>` is the default alias for it). `coga run delete-task
+<task>` removes one task from the working tree without syncing the removal —
+`coga delete` is the spelling that also lands it on the control branch.
 
 Every token after the recipe name is forwarded as an ordinary Python
 `list[str]`, so a value containing spaces stays one element and options such
@@ -320,9 +327,9 @@ script launcher's `COGA_ARG_1..N` / `COGA_ARGC` channel. It preserves inherited
 `COGA_TASK_*` metadata when an agent invokes it, passes stdout/stderr through,
 and exits with the recipe's integer return code.
 
-The older `coga launch` script path remains available in parallel for
-`bootstrap/open-pr`, `bootstrap/delete-task`, ticket-owned/inline scripts,
-and generic project-local script steps while that seam is migrated.
+The older `coga launch` script path remains available in parallel for the
+vestigial show/finalize wrappers, ticket-owned/inline scripts, and generic
+project-local script steps while that seam is migrated.
 
 ## coga status
 
@@ -454,9 +461,9 @@ team can tell auto-bumps apart from manual ones.
 
 Remove a task directory from the working tree — ticket, blackboard,
 log, and the directory itself. Recovery is via `git restore`; the
-git history is the audit trail, no Slack broadcast. The removal itself
-runs through the `bootstrap/delete-task` skill, so the command is a thin
-resolver and the same deletion is reachable as a script step.
+git history is the audit trail, no Slack broadcast. The removal itself lives
+in `coga.delete_task`, so the command is a thin resolver plus the sync, and
+the same deletion is reachable as `coga run delete-task <slug>`.
 
 Bootstrap tickets aren't user-deletable — they're package-backed batteries
 managed by the installed Coga package.
@@ -1041,7 +1048,7 @@ branch, and verifies before PR handoff that `HEAD` contains every material
 control-branch change. Divergence confined to non-overlapping generated
 `coga/tasks/**` and `coga/log.md` state is reported but accepted; Coga writes
 that state between workflow steps, so requiring literal ancestry would make the
-next script-backed `open-pr` step stale by construction. Source, docs, config,
+next `open-pr` step stale by construction. Source, docs, config,
 mixed, or overlapping state drift remains an error. The preflight also verifies
 `gh --version` and `gh auth status --hostname <host>` for the remote's host.
 Every probe is fully

@@ -1,6 +1,6 @@
 ---
 name: bootstrap/dream/tasks/cleanup-orphan-markers
-description: Find processed done tickets whose task directories survived Retro cleanup, then gate deletion through the public delete-task skill.
+description: Find processed done tickets whose task directories survived Retro cleanup, then gate deletion through the public delete-task surface.
 ---
 
 # Cleanup Orphan Markers
@@ -21,16 +21,16 @@ run.
 - Runs: `coga run cleanup-orphan-markers` from the active Dream task.
 - Inputs: task directories under `coga/tasks/`, the source task's
   `## Retro` marker in its `ticket.md` blackboard region, GitHub open PR
-  metadata when available, and the
-  public `bootstrap/delete-task` skill.
+  metadata when available, and the public delete surface
+  `bootstrap/delete-task` (`coga run delete-task`).
 - May change: none directly. Cleanup deletion must go through the public
-  `bootstrap/delete-task` skill inside a reviewable cleanup PR worktree.
+  `bootstrap/delete-task` surface inside a reviewable cleanup PR worktree.
 - Action: `pr-required`
 - Idempotency: a source task is skipped when its directory is already gone, the
   marker is absent, the marker has `result: no-new-durable-knowledge`, the task
   is not exactly `status: done`, or an open PR is already touching
   `coga/tasks/<slug>/`.
-- Stop and ask: `bootstrap/delete-task` is not installed, open PR state cannot
+- Stop and ask: `coga run delete-task` is unavailable, open PR state cannot
   be checked when deletion would otherwise proceed, or the task slug is not an
   exact directory name.
 - Output: append `## Dream Skill: cleanup-orphan-markers` to the Dream task
@@ -49,5 +49,5 @@ A task is a cleanup candidate only when all of these are true:
 - the public delete surface `bootstrap/delete-task` is available.
 
 `bootstrap/delete-task` now ships, but until cleanup's PR-dispatch wiring
-follows that skill's launch contract, this skill
-reports eligible candidates as `human-needed` and does not delete anything.
+follows that contract, this skill reports eligible candidates as
+`human-needed` and does not delete anything.

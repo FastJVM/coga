@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 from textwrap import dedent
 
@@ -30,30 +29,9 @@ def _log_text(repo: Path, ref: str) -> str:
     return "\n".join(task_log_lines(load_config(repo), ref))
 
 
-# Source of the bundled `bootstrap/delete-task` skill — `coga delete` and a
-# `mode: script` step both dispatch into it. Test repos are hand-built and do
-# not run `coga init`, so tests materialize it explicitly.
-DELETE_SKILL_SRC = (
-    Path(__file__).resolve().parents[1]
-    / "src"
-    / "coga"
-    / "resources"
-    / "templates"
-    / "coga"
-    / "bootstrap"
-    / "skills"
-    / "bootstrap"
-    / "delete-task"
-)
-
-
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
-
-
-def _install_delete_skill(repo: Path) -> None:
-    shutil.copytree(DELETE_SKILL_SRC, repo / "skills" / "bootstrap" / "delete-task")
 
 
 @pytest.fixture
@@ -636,9 +614,8 @@ def test_unblock_all_rejects_task_argument(repo: Path) -> None:
 
 
 def test_delete_removes_task_directory(repo: Path) -> None:
-    _install_delete_skill(repo)
-    # The delete skill removes a task *directory*, so exercise it against a
-    # directory-form task (its single implementation is `rmtree` of the dir).
+    # Directory form removes the task *directory* (`rmtree` of the dir), so
+    # exercise it against one.
     slug, task_path = _make_task(repo, force_directory=True)
     assert task_path.is_dir()
     runner = CliRunner()
@@ -649,7 +626,6 @@ def test_delete_removes_task_directory(repo: Path) -> None:
 
 
 def test_delete_resolves_prefix(repo: Path) -> None:
-    _install_delete_skill(repo)
     slug, task_path = _make_task(repo, force_directory=True)
     runner = CliRunner()
     result = runner.invoke(app, ["delete", slug[:6]])
@@ -658,7 +634,6 @@ def test_delete_resolves_prefix(repo: Path) -> None:
 
 
 def test_delete_keep_control_checkout_refuses_primary(repo: Path) -> None:
-    _install_delete_skill(repo)
     slug, task_path = _make_task(repo, force_directory=True)
 
     result = CliRunner().invoke(
@@ -671,55 +646,59 @@ def test_delete_keep_control_checkout_refuses_primary(repo: Path) -> None:
 
 
 def test_delete_unknown_task_exits_nonzero(repo: Path) -> None:
-    # Unknown slug fails at resolution, before the skill is even consulted.
+    # Unknown slug fails at resolution, before anything is removed.
     runner = CliRunner()
     result = runner.invoke(app, ["delete", "no-such-task-xyz"])
     assert result.exit_code == 2
 
 
-def test_delete_missing_skill_exits_nonzero(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # The skill is the implementation; without it `coga delete` fails loud
-    # rather than silently falling back to a private rmtree.
+def test_delete_task_recipe_removes_the_task(repo: Path) -> None:
+    # The same removal is reachable as a registered recipe — the spelling the
+    # `bootstrap/delete-task` skill contract names, and the one a session uses
+    # when it owns the sync itself.
     slug, task_path = _make_task(repo, force_directory=True)
-    monkeypatch.setattr("coga.delete_task.resolve_skill_path", lambda cfg, ref: None)
-    result = CliRunner().invoke(app, ["delete", slug])
-    assert result.exit_code == 2
-    assert task_path.is_dir()
-    assert "bootstrap/delete-task" in result.output
 
+    result = CliRunner().invoke(app, ["run", "delete-task", slug])
 
-def test_delete_skill_runs_as_script_step(repo: Path) -> None:
-    # The same skill `coga delete` dispatches into is independently
-    # launchable: a `mode: script` task whose one step references it deletes
-    # its own directory on `coga launch`.
-    _install_delete_skill(repo)
-    _write(
-        repo / "workflows" / "delete-self.md",
-        """
-        ---
-        name: delete-self
-        description: script worker.
-        steps:
-          - name: run
-            skills:
-              - bootstrap/delete-task
-        ---
-        """,
-    )
-    cfg = load_config(repo)
-    ref = create_task(
-        cfg=cfg, title="Throwaway", workflow_name="delete-self",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active", force_directory=True,
-    )
-    task_path = ref["path"]
-    assert task_path.is_dir()
-
-    result = CliRunner().invoke(app, ["launch", ref["slug"]])
     assert result.exit_code == 0, result.output
     assert not task_path.exists()
+    assert result.stdout == f"{slug}: deleted {task_path}\n"
+
+
+def test_delete_task_recipe_unknown_task_exits_nonzero(repo: Path) -> None:
+    result = CliRunner().invoke(app, ["run", "delete-task", "no-such-task-xyz"])
+    assert result.exit_code == 2
+
+
+def test_delete_task_recipe_requires_exactly_one_task(repo: Path) -> None:
+    slug, task_path = _make_task(repo, force_directory=True)
+
+    result = CliRunner().invoke(app, ["run", "delete-task", slug, "extra"])
+
+    assert result.exit_code == 2
+    assert task_path.is_dir()
+
+
+def test_delete_reports_a_filesystem_failure_as_delete_task_error(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deletion used to run behind a subprocess, so *any* filesystem error came
+    back as a non-zero exit and became a `DeleteTaskError`. In-process, `rmtree`
+    raises `OSError` directly — it must still reach callers as the one type they
+    catch, or an undeletable task aborts `coga delete` (and the unattended
+    recurring replacement) with a traceback instead of a clean refusal."""
+    slug, task_path = _make_task(repo, force_directory=True)
+
+    def _boom(_path: Path) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr("coga.delete_task.shutil.rmtree", _boom)
+
+    result = CliRunner().invoke(app, ["delete", slug])
+
+    assert result.exit_code == 2, result.output
+    assert task_path.is_dir()
+    assert "could not delete" in result.output
 
 
 def _install_noop_script_skill(repo: Path) -> None:

@@ -45,12 +45,12 @@ SENTINEL_ENV = "COGA_DONE_SENTINEL"
 #
 #   - `coga bump` uses both as a compare-and-swap guard: it may only bump the
 #     ticket/step that composed the session it is finishing.
-#   - `bootstrap/open-pr`'s `run.py` reads `EXPECTED_TASK_ENV` to prove a
+#   - the `open-pr` recipe reads `EXPECTED_TASK_ENV` to prove a
 #     single-checkout feature branch owns the live ticket. It cannot use the
-#     `COGA_TASK_*` contract for that: `coga open-pr` is itself a launch, so
-#     `build_task_env` has already rewritten those to name the command ticket.
-#     This pair survives because no nested launch rewrites it — which is
-#     precisely why it must keep naming the *outer* task.
+#     `COGA_TASK_*` contract for that: those name whatever the environment last
+#     described, and a nested launch rewrites them. This pair survives because
+#     nothing downstream reassigns it — which is precisely why it must keep
+#     naming the session's own task.
 EXPECTED_TASK_ENV = "COGA_EXPECTED_TASK"
 EXPECTED_STEP_ENV = "COGA_EXPECTED_STEP"
 

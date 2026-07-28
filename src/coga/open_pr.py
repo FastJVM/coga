@@ -1,22 +1,33 @@
 """Push a code ticket's branch and open (or ready) its PR.
 
-The deterministic recipe behind the `bootstrap/open-pr` command ticket:
-`coga open-pr <slug>` (a default alias for `coga launch bootstrap/open-pr
-<slug>`) runs the sibling `run.py`, which resolves the target task and calls
-`open_pr()` here. The ordinary agent-owned open-pr step runs that spelling.
-Every operational refusal raises `OpenPrError`, which the seam renders as a
-concise non-zero exit. The workflow's `requires: pr` completion gate is
+The `open-pr` registered recipe: `coga run open-pr <task>` — which the
+`open-pr` default alias spells `coga open-pr <task>` — resolves the target
+task, applies the checkout gate, and calls `open_pr()`. The ordinary
+agent-owned open-pr step runs that spelling. Every operational refusal raises
+`OpenPrError`, which `run_open_pr_recipe` renders as a concise non-zero exit
+with nothing on stdout. The workflow's `requires: pr` completion gate is
 separate: `coga bump` advances only after this recipe records the PR URL
-under `## Dev`. Like any command-ticket recipe, it imports shared core infra
-(`coga.autoclose` parsers, `coga.github_preflight`, `coga.taskfile`, and
-`coga.git`'s sync primitives) freely.
+under `## Dev`.
+
+Two contracts callers depend on: the **bare PR URL on stdout** (so
+`$(coga open-pr <slug>)` captures exactly the URL), and the
+`COGA_EXPECTED_TASK` ownership proof in `_checkout_mode`. That witness is what
+separates a real launched session from an independent fallback clone that
+would otherwise update its stale ticket copy: the agent's own `coga launch`
+pins it to that session's task path, and nothing downstream reassigns it.
+Running as a recipe rather than a nested script launch is what makes the rest
+of the launch metadata trustworthy too — `coga run` rewrites no `COGA_TASK_*`
+— but the anchor stays the gate's witness because only it names the *session's*
+task rather than whatever the environment last described.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
@@ -36,14 +47,16 @@ from coga.git import (
     ticket_state_guard,
 )
 from coga.lifecycle import TERMINAL_STATUSES
+from coga.repl_supervisor import EXPECTED_TASK_ENV
 from coga.taskfile import read_blackboard, replace_blackboard, split_body
+from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 from coga.ticket import Ticket
 
 
 class OpenPrError(Exception):
     """A fail-loud condition in the open-pr recipe (missing state, nothing to
-    PR, or a git/gh failure). The wrapper maps it to a non-zero exit so the
-    workflow step does not advance."""
+    PR, or a git/gh failure). `run_open_pr_recipe` maps it to a non-zero exit
+    so the workflow step does not advance."""
 
 
 def _run(args: list[str], *, cwd: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -438,7 +451,9 @@ def open_pr(
             f"Reconcile it and relaunch, or `coga block --task {slug}`."
         )
     if freshness.value == "state-only-drift":
-        print(f"[open-pr] {freshness.detail}")
+        # Diagnostics go to stderr: stdout is the value channel and must carry
+        # the PR URL alone, so `$(coga open-pr <slug>)` stays parsable.
+        sys.stderr.write(f"[open-pr] {freshness.detail}\n")
 
     # `gh` is optional at init, so the PR step owns the point-of-need check.
     # Run it before pushing: a missing or logged-out CLI should produce the
@@ -512,8 +527,8 @@ def open_pr(
             raise OpenPrError("`gh pr create` succeeded but returned no PR URL to record.")
 
     # --- record pr: back under ## Dev ---------------------------------------
-    # RE-READ the live blackboard region: the launcher advances the step right
-    # after we return by rendering the ticket, so only a byte-spliced blackboard
+    # RE-READ the live blackboard region: the step's `coga bump` renders the
+    # whole ticket right after we return, so only a byte-spliced blackboard
     # write (replace_blackboard) is safe — it leaves frontmatter + body untouched.
     current_blackboard = read_blackboard(blackboard_path)
     if parse_pr_url(current_blackboard) != url:
@@ -527,6 +542,131 @@ def open_pr(
             )
 
     if already and already != url:
-        # Not an error — record it so a stale link replacement is visible in logs.
-        print(f"[open-pr] note: replaced a stale pr: line ({already}) with {url}")
+        # Not an error — record it so a stale link replacement is visible in
+        # logs, off the value channel (see the stderr note above).
+        sys.stderr.write(
+            f"[open-pr] note: replaced a stale pr: line ({already}) with {url}\n"
+        )
     return url
+
+
+def run_open_pr_recipe(cfg: Config, argv: list[str]) -> int:
+    """`coga run open-pr <task>` — resolve the target, gate, publish, print URL.
+
+    Resolves the task from the ordinary recipe argv (never `COGA_ARG_*`), then
+    applies the checkout gate before touching git or `gh`. In the legacy
+    two-checkout layout the command runs from the primary control checkout,
+    which holds the authoritative ticket, and pushes the `## Dev` branch by name
+    from the separately recorded worktree — the separation that retires the
+    cross-worktree divergence trap. When `worktree:` records the primary
+    checkout itself, that checkout's feature branch holds the *live* ticket, so
+    requiring the control branch would make the recorded-branch check impossible
+    to satisfy; the recipe runs there instead and commits its `pr:` write to
+    that branch.
+
+    Stdout carries the bare PR URL and nothing else; every refusal goes to
+    stderr and returns 2, so nothing advances and the open-pr step's
+    `requires: pr` bump gate stays unmet.
+    """
+    if len(argv) != 1 or not argv[0].strip():
+        sys.stderr.write(
+            "Usage: coga run open-pr <task> (= coga open-pr <task>) — exactly "
+            f"one task ref is required (got {len(argv)}).\n"
+        )
+        return 2
+    task = argv[0].strip()
+
+    try:
+        ref = resolve_task(cfg, task)
+    except TaskNotFoundError as exc:
+        return _fail(str(exc))
+
+    # read_ticket validates the ticket resolves before we touch git/gh.
+    ticket = read_ticket(ref)
+    _, blackboard = split_body(ticket.body)
+
+    single_checkout, reason = _checkout_mode(
+        cfg,
+        recorded_worktree=parse_worktree_path(blackboard or ""),
+        task_path=ref.path,
+    )
+    if reason is not None:
+        return _fail(reason)
+
+    try:
+        url = open_pr(
+            cfg,
+            slug=ref.id_slug,
+            blackboard_path=ref.ticket_path,
+            single_checkout=single_checkout,
+        )
+    except OpenPrError as exc:
+        return _fail(str(exc))
+
+    sys.stdout.write(f"{url}\n")
+    return 0
+
+
+def _checkout_mode(
+    cfg: Config,
+    *,
+    recorded_worktree: str | None,
+    task_path: Path,
+) -> tuple[bool, str | None]:
+    """Resolve the checkout gate: `(single_checkout, refusal)`.
+
+    Keeps task resolution and blackboard writes on the control checkout, except
+    for the one layout where that is impossible: with a single checkout the
+    feature-branch ticket *is* the live task-state copy, so demanding the
+    control branch would refuse every publish. `owns_live_ticket` is what keeps
+    that exception honest — see this module's docstring for why the witness is
+    `COGA_EXPECTED_TASK`.
+
+    Distinct or unproven checkouts retain the gate that prevents writes to a
+    stale ticket copy.
+    """
+    same_checkout = bool(
+        recorded_worktree
+        and same_git_checkout(cfg.repo_root, recorded_worktree)
+        and not is_linked_worktree(cfg.repo_root)
+    )
+    launched_task = os.environ.get(EXPECTED_TASK_ENV)
+    owns_live_ticket = bool(
+        launched_task and Path(launched_task).resolve() == task_path.resolve()
+    )
+    if same_checkout and owns_live_ticket:
+        return True, None
+
+    result = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=str(cfg.repo_root))
+    branch = result.stdout.strip() if result.returncode == 0 else ""
+    if branch == cfg.git_control_branch:
+        return False, None
+    actual = branch or "<unknown>"
+    if same_checkout:
+        return False, (
+            "`coga open-pr` cannot prove that this feature checkout owns the "
+            "live ticket. Run it from the task's active `coga launch` session "
+            "in the primary checkout, or return to the primary control "
+            f"checkout on {cfg.git_control_branch!r}. This guard keeps an "
+            "independent fallback clone from updating its stale ticket copy."
+        )
+    return False, (
+        "`coga open-pr` must run from the primary control checkout on "
+        f"{cfg.git_control_branch!r}, not branch {actual!r}. Return to the "
+        "control checkout and rerun it; the command will still push the "
+        "recorded feature branch by name."
+    )
+
+
+def _fail(msg: str) -> int:
+    sys.stderr.write(f"{msg}\n")
+    return 2
+
+
+__all__ = [
+    "OpenPrError",
+    "open_pr",
+    "run_open_pr_recipe",
+    "same_git_checkout",
+    "set_dev_pr",
+]

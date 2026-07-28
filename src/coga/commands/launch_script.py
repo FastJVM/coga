@@ -130,9 +130,9 @@ def run_script_mode(
     lives at the top level. Non-zero exit: task stays at current step; a Slack
     FYI is posted.
 
-    `stateless=True` is for package-backed bootstrap script targets such as
-    `bootstrap/open-pr`: resolve and run the same script shape, but skip
-    task lifecycle writes because there is no task.
+    `stateless=True` is for package-backed bootstrap script targets: resolve
+    and run the same script shape, but skip task lifecycle writes because there
+    is no task.
 
     `args` carries `coga launch`'s trailing arguments into the child env as
     `COGA_ARG_1..N` + `COGA_ARGC` (see `apply_arg_env`). Mid-chain script
@@ -221,12 +221,11 @@ def run_script_mode(
         sys.exit(exit_code)
 
     # A stateless script launch is a *command ticket* invocation — `coga
-    # open-pr <slug>` is `coga launch bootstrap/open-pr <slug>` — so stdout
-    # belongs to the command (open-pr prints its PR URL there), not to the
-    # launcher. Keep launch's own completion note on stderr so `$(coga
-    # open-pr <slug>)` still captures exactly what the pre-ticket command
-    # printed. Stateful script steps keep it on stdout: their output is launch
-    # progress, not a command's return value.
+    # <verb> [args]` is `coga launch bootstrap/<verb> [args]` — so stdout
+    # belongs to the command, not to the launcher. Keep launch's own completion
+    # note on stderr so `$(coga <verb>)` still captures exactly what the
+    # command printed. Stateful script steps keep it on stdout: their output is
+    # launch progress, not a command's return value.
     typer.echo(f"{ref.id_slug}: script ran successfully", err=stateless)
     if stateless:
         return

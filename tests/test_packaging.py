@@ -149,8 +149,6 @@ def test_only_transitional_script_seam_consumers_remain() -> None:
     }
 
     assert packaged == {
-        "bootstrap/open-pr/run.py",
-        "bootstrap/skills/bootstrap/delete-task/run.py",
         "bootstrap/skills/coga/show/run.py",
         "bootstrap/skills/coga/ticket/finalize/run.py",
     }

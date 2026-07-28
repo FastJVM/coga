@@ -1,9 +1,9 @@
 """`coga delete` — remove a task directory from the working tree.
 
-Thin entrypoint: resolve the task argument, then dispatch into the
-`bootstrap/delete-task` skill, which performs the actual filesystem removal.
-That skill is the single implementation of task deletion — it is equally
-runnable as a script workflow step. Recovery is via `git restore`.
+Thin entrypoint: resolve the task argument, then call `coga.delete_task`, the
+single implementation of task deletion — equally reachable as the registered
+`delete-task` recipe. What this command adds on top is the control-branch
+sync. Recovery is via `git restore`.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import typer
 
 from coga import git
 from coga.config import ConfigError, load_config
-from coga.delete_task import DeleteTaskError, run_delete_task_skill
+from coga.delete_task import DeleteTaskError, run_delete_task
 from coga.tasks import TaskNotFoundError, resolve_task
 
 
@@ -47,7 +47,7 @@ def delete(
         )
 
     try:
-        output = run_delete_task_skill(cfg, ref)
+        output = run_delete_task(ref)
     except DeleteTaskError as exc:
         _bail(str(exc))
     if output:

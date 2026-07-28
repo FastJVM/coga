@@ -371,16 +371,16 @@ def test_spawn_agent_session_rederives_nested_recurring_task_env(
         / "templates"
         / "coga"
         / "bootstrap"
-        / "open-pr"
+        / "resolve-conflicts"
         / "ticket.md"
     )
     inherited_env = {
-        "COGA_TASK_SLUG": "bootstrap/open-pr",
+        "COGA_TASK_SLUG": "bootstrap/resolve-conflicts",
         "COGA_TASK_DIR": str(parent_ticket.parent),
         "COGA_TASK_TICKET": str(parent_ticket),
         "COGA_TASK_BLACKBOARD": str(parent_ticket),
         "COGA_TASK_LOG": str(tmp_path / "parent-log.md"),
-        "COGA_SKILL_NAME": "bootstrap/open-pr",
+        "COGA_SKILL_NAME": "bootstrap/resolve-conflicts",
         "COGA_SKILL_DIR": str(parent_ticket.parent),
         "KEEP_ME": "yes",
     }

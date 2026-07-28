@@ -202,11 +202,11 @@ def launch(
     ticket = _read(ref)
 
     # A stateless script launch is a command ticket being invoked as a verb
-    # (`coga open-pr <slug>` = `coga launch bootstrap/open-pr <slug>`). Its
-    # stdout is the command's own — open-pr's is a bare PR URL — so the
-    # launcher's framing goes to stderr, still visible to a human, out of the
-    # way of a caller capturing the output. Every command ticket inherits this;
-    # moving a verb behind a ticket must not change what the verb prints.
+    # (`coga <verb> [args]` = `coga launch bootstrap/<verb> [args]`). Its
+    # stdout is the command's own, so the launcher's framing goes to stderr,
+    # still visible to a human, out of the way of a caller capturing the
+    # output. Every command ticket inherits this; moving a verb behind a ticket
+    # must not change what the verb prints.
     command_ticket = is_bootstrap and is_script_launch(cfg, ticket)
 
     typer.echo(
@@ -301,8 +301,8 @@ def launch(
             _bail(f"Task {ref.id_slug} has no assignee")
 
         # A script launch — the ticket's own `script:`, or a current step whose
-        # single skill is script-backed (e.g. code/open-pr) — runs with no agent
-        # and no composed prompt, through the same run_script_mode path.
+        # single skill is script-backed — runs with no agent and no composed
+        # prompt, through the same run_script_mode path.
         # Handling it here — before the agent-only TTY / CLI / git-auth setup —
         # is what lets a relaunch land straight on the script step without a
         # terminal. The supervisor loop below runs the same path for a script
