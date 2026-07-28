@@ -137,9 +137,10 @@ no in-memory state.
   template (`coga/recurring/dream/`) plus a `dream` alias — not a
   built-in command. `coga recurring` creates and launches it when its
   weekly schedule is due; the `coga dream` alias (`recurring launch dream`)
-  creates and launches it on demand. The parent task orchestrates child script
-  tasks over worker skills; its body scans the ticket set, runs fixed Coga
-  housekeeping skills, proposes cleanup, and writes reviewable results to its
+  creates and launches it on demand. The parent task runs six ordered phases:
+  two registered recipes invoked directly, two subagent scans, a delegated Retro
+  pass, and a disposition phase. Its body scans the ticket set, runs fixed Coga
+  housekeeping, proposes cleanup, and writes reviewable results to its
   blackboard.
 - **REM** is repo/user-specific recurring maintenance. A REM run is an
   ordinary recurring task whose body defines that repo's operational checks,
@@ -702,8 +703,8 @@ with these fields:
 - `Stop and ask` — conditions that require human review before continuing.
 - `Output` — blackboard section, PR link, created ticket, or no-op.
 
-Each known script skill writes its own `## Dream Skill: <name>` section to its
-child task blackboard. The orchestrator appends one `## Dream Run Summary`
+Each registered recipe writes its own `## Dream Skill: <name>` section to the
+Dream task's blackboard. The orchestrator appends one `## Dream Run Summary`
 that lists each skill's result using a small fixed vocabulary:
 `no-op`, `reported`, `proposed`, `direct-fixed`, `pr-opened`,
 `human-needed`.

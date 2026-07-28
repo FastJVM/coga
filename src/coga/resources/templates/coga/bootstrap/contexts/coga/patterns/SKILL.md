@@ -72,10 +72,12 @@ Wire the consumer as a `recurring/<job>/` ticket (see `coga/recurring`):
 - The spool lives next to the recurring template as
   `coga/recurring/<job>/spool.md`, so it carries across runs — not in the
   fresh per-period task, which is gone next period.
-- A script step runs a skill whose `script:` reads unconsumed records, acts on
-  them, drains the spool, and exits. The daily Slack digest is the canonical
-  instance: see `coga/sync` → "The daily digest — a blackboard
-  producer/consumer", with `coga digest` as the consumer.
+- The consumer is a registered recipe named by the template's `recipe:` field;
+  the recurring runner executes it as `coga run <recipe>` in an isolated
+  subprocess. The daily Slack digest is the canonical instance
+  (`recipe: digest` → `commands/digest.run_digest`): see `coga/sync` → "The
+  daily digest — a blackboard producer/consumer", with `coga digest` as the
+  consumer.
 
 ## Durability and concurrency
 
