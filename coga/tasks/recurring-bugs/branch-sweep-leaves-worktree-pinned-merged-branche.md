@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/architecture
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -114,3 +114,42 @@ only that day's manual sweep ran them out of order.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fix-branch-sweep-worktrees
+worktree: /home/n/Code/codex/coga-branch-sweep-worktrees
+
+## Implementation notes
+
+- Agreed behavior: prune stale worktree registrations before sweeping; preserve
+  live worktrees and both refs, but report confirmed merged branches in a
+  distinct, prominent, non-fatal worktree-pinned outcome.
+- A prune/list failure will fail the recipe rather than silently continue with
+  incomplete worktree state.
+- At the human's request, scope expanded to fix the unrelated suite failure:
+  the packaged `code/open-pr` skill still described the removed command-ticket
+  launch, so it was synced to the live skill's current registered-recipe
+  contract.
+
+## Verification
+
+- `python -m pytest tests/test_branchcleanup.py tests/test_branchsweep.py -q`
+  — 26 passed.
+- The first full-suite run had 1,566 passes, 1 skip, and 1 unrelated failure:
+  `tests/test_open_pr.py::test_open_pr_live_and_packaged_copies_stay_in_sync`.
+  The untouched `main` checkout fails the same test because its existing live
+  and packaged `code/open-pr` skill copies differ. Fixed at the human's request.
+- `python -m pytest -p no:cacheprovider` — 1,567 passed, 1 skipped.
+
+## Handoff
+
+- `05fe88ab` implements stale-registration pruning, live-worktree detection,
+  the distinct `skipped-worktree-pinned` result, fail-loud worktree-state
+  errors, mirrored contracts, and real Git regression fixtures.
+- `7f026479` separately syncs the stale packaged `code/open-pr` contract to
+  fix the pre-existing suite failure requested by the human.
+- Feature worktree is clean and rebased on current `origin/main`
+  (`ad6d1ec4`); no new upstream commits were pending.
+- Live worktree directories remain deliberately untouched. Automatic lifecycle
+  retirement remains the scope of the existing draft follow-up ticket.
