@@ -13,6 +13,20 @@ from coga.logfile import append_log, ref_tag_for_path
 from coga.slack_response import classify_slack_response, format_slack_request_error
 
 
+class NotificationDeliveryError(RuntimeError):
+    """A post reached the network and could not be delivered.
+
+    Deliberately distinct from this module's *configuration* failures (no
+    webhook resolved, `--important` with no important webhook), which stay
+    `typer.Exit(1)`: those are setup errors that every rerun reproduces
+    identically, so crashing is what gets them fixed. A delivery miss is a
+    transient/remote condition — and by the time this is raised it has already
+    been written to stderr and appended to `log.md`, so a caller whose state
+    change is *already committed to disk* may swallow it (see
+    `notification.post(fatal=False)`) without hiding anything.
+    """
+
+
 def mention(cfg: Config, name: str) -> str:
     """Render `name` as a Slack ping when its member ID is mapped."""
     user_id = cfg.slack_users.get(name)
@@ -115,7 +129,9 @@ class SlackChannel:
             )
             if task_path is not None:
                 append_log(self.cfg, ref_tag_for_path(self.cfg, task_path), "slack", f"post failed: {log_detail}")
-            raise typer.Exit(1)
+            # Report first, then raise: `notification.post` decides whether an
+            # undeliverable message crashes the command or is only reported.
+            raise NotificationDeliveryError(message)
 
         try:
             resp = requests.post(

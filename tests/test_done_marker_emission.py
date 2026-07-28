@@ -288,6 +288,68 @@ def test_block_error_empty_reason_does_not_signal(
     assert not sentinel.exists()
 
 
+# --- a dead Slack must not strand the session ---------------------------------
+
+
+@pytest.fixture
+def failing_slack(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Slack configured, delivery impossible — what a sandboxed agent hits.
+
+    Codex and Claude Code run tool commands with network access restricted, so
+    a `coga bump` from inside an agent session can complete its ticket write
+    and still fail to post.
+    """
+    import requests
+
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/test")
+
+    def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise requests.ConnectionError("no network")
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+
+
+def test_bump_signals_even_when_the_slack_post_fails(
+    repo: Path, sentinel: Path, failing_slack: None
+) -> None:
+    """A failed FYI broadcast must not swallow the session-done signal.
+
+    The step advance is already on disk when the post is attempted, so
+    crashing there only removes `emit_done_marker` from the rest of the
+    command: the supervisor then waits on a sentinel nobody will ever write and
+    kills a *finished* session on its idle timeout (observed: a completed
+    open-pr step reported as `timed_out` 15 minutes after its own PR landed).
+    """
+    slug, _ = _make_task(repo)
+    result = CliRunner().invoke(
+        app, ["bump", slug, "--message", "PR opened: https://example.test/pr/1"]
+    )
+    assert result.exit_code == 0, result.output
+    assert sentinel.read_text().strip() == slug
+    # The miss is still loud — reported, not swallowed.
+    assert "post failed" in result.output
+
+
+def test_mark_done_signals_even_when_the_slack_post_fails(
+    repo: Path, sentinel: Path, failing_slack: None
+) -> None:
+    slug, _ = _make_task(repo, status="active")
+    result = CliRunner().invoke(app, ["mark", "done", slug])
+    assert result.exit_code == 0, result.output
+    assert sentinel.read_text().strip() == slug
+
+
+def test_block_signals_even_when_the_slack_post_fails(
+    repo: Path, sentinel: Path, failing_slack: None
+) -> None:
+    slug, _ = _make_task(repo)
+    result = CliRunner().invoke(
+        app, ["block", "--task", slug, "--reason", "needs the owner's call on X"]
+    )
+    assert result.exit_code == 0, result.output
+    assert sentinel.read_text().strip() == slug
+
+
 # --- checkout-independence (the regression this fix closes) -------------------
 
 
