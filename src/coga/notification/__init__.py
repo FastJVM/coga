@@ -28,10 +28,16 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import typer
+
 from coga import spool
 from coga.atomicio import atomic_write_text
 from coga.config import Config
-from coga.notification.slack import SlackChannel, mention as _mention
+from coga.notification.slack import (
+    NotificationDeliveryError,
+    SlackChannel,
+    mention as _mention,
+)
 from coga.paths import recurring_dir
 
 
@@ -52,26 +58,50 @@ def post(
     watchers: list[str] | None = None,
     image_url: str | None = None,
     important: bool = False,
+    fatal: bool = True,
 ) -> None:
     """Post a live notification through every configured channel.
 
     `important` routes the message to the channel's alert destination — for
     Slack, the coga-important webhook — instead of the default one. Reserve it
     for posts that need a human to go do something.
+
+    `fatal` (the default) keeps the crash-loud contract: a message that could
+    not be delivered exits 1. Pass `fatal=False` for a broadcast that
+    *announces a state change already written to disk* — a bump, mark, or block
+    transition. Three reasons, the same ones git sync already answers to
+    (`coga.git.sync_paths`): the markdown on disk is the source of truth, so
+    the transition happened either way; the miss is already loud on stderr and
+    in `log.md`; and crashing aborts the command *after* the write but before
+    its remaining work — for the session-ending commands that means skipping
+    `emit_done_marker`, which leaves a supervised REPL wedged until its idle
+    backstop kills it (a real 15-minute stall: a network-restricted agent
+    sandbox turned a successful `coga bump` into a `timed_out` task). A
+    delivery miss must not decide whether a session ends.
+
+    Configuration failures (no webhook resolved) still crash on both paths —
+    a rerun reproduces them identically, so the crash is the fix.
     """
     channels = _channels(cfg)
     if not channels:
         sys.stderr.write(f"[notification] no channels configured: {message}\n")
         return
     for channel in channels:
-        channel.send(
-            message,
-            task_path=task_path,
-            owner=owner,
-            watchers=watchers,
-            image_url=image_url,
-            important=important,
-        )
+        try:
+            channel.send(
+                message,
+                task_path=task_path,
+                owner=owner,
+                watchers=watchers,
+                image_url=image_url,
+                important=important,
+            )
+        except NotificationDeliveryError:
+            # Already reported to stderr + `log.md` by the channel itself, so
+            # a non-fatal caller swallows nothing; a fatal one keeps exiting 1.
+            # Remaining channels are still attempted when non-fatal.
+            if fatal:
+                raise typer.Exit(1) from None
 
 
 # --- digest (outcome) path ----------------------------------------------------
@@ -197,6 +227,7 @@ def notify(
     watchers: list[str] | None = None,
     task_path: Path | None = None,
     image_url: str | None = None,
+    fatal: bool = True,
 ) -> None:
     """Route an outcome/error event: spool it, or post live.
 
@@ -211,6 +242,12 @@ def notify(
     `kind` is the event tag; `detail` is the human one-liner shown in the
     digest. `ticket`/`owner` drive the Done grouping; a record with no `ticket`
     (for example a recurring-scan error summary) renders in its own section.
+
+    `fatal` is forwarded to that live-post fallback with the same meaning it
+    has on `post`: the outcome callers here (`mark done` / `mark canceled`)
+    announce a transition already written to disk, so they pass `fatal=False`.
+    The spool path writes a local file and never had a delivery failure to
+    begin with.
     """
     if kind not in DIGEST_EVENT_KINDS:
         allowed = ", ".join(sorted(DIGEST_EVENT_KINDS))
@@ -227,6 +264,7 @@ def notify(
             owner=owner,
             watchers=watchers,
             image_url=image_url,
+            fatal=fatal,
         )
         return
 
@@ -381,5 +419,6 @@ __all__ = [
     "digest_state_path",
     "DIGEST_RECURRING_NAME",
     "DIGEST_EVENT_KINDS",
+    "NotificationDeliveryError",
     "SlackChannel",
 ]

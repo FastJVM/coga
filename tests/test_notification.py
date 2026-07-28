@@ -821,6 +821,47 @@ def test_post_failure_crashes(
     assert f"[{cfg_with_webhook.project_name}] lost message" in err
 
 
+def test_post_failure_non_fatal_reports_and_returns(
+    cfg_with_webhook, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """`fatal=False` reports the miss but lets the caller finish.
+
+    The lifecycle transitions use this: their state change is already on disk,
+    so an undeliverable broadcast must not abort the command (which, for a
+    session-ending command, would skip `emit_done_marker` and strand the REPL).
+    Nothing is hidden — the failure still lands on stderr and in `log.md`.
+    """
+    task_path = tmp_path / "tasks" / "001-x"
+    task_path.mkdir(parents=True)
+
+    def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise requests.ConnectionError("no network")
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    post(cfg_with_webhook, "lost message", task_path=task_path, fatal=False)
+
+    err = capsys.readouterr().err
+    assert "post failed" in err
+    assert "[001-x]" in (cfg_with_webhook.repo_root / "log.md").read_text()
+
+
+def test_post_missing_webhook_still_crashes_when_non_fatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """`fatal=False` covers *delivery*, not misconfiguration.
+
+    An unresolved webhook is a setup error every rerun reproduces, so it keeps
+    crashing loud even on the transition path.
+    """
+    _create_min(tmp_path)
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    cfg = load_config(tmp_path)
+    with pytest.raises(typer.Exit) as exc:
+        post(cfg, "should still crash", fatal=False)
+    assert exc.value.exit_code == 1
+    assert "[notification.slack].webhook" in capsys.readouterr().err
+
+
 def test_post_failure_with_task_path_appends_to_log_then_crashes(
     cfg_with_webhook, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

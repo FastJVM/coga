@@ -213,6 +213,9 @@ def run_script_mode(
             task_path=ref.path,
             owner=ticket.owner or cfg.current_user,
             watchers=ticket.watchers,
+            # The script already failed and its code is logged; an
+            # undeliverable broadcast must not replace it with a Slack exit 1.
+            fatal=False,
         )
         typer.secho(f"Script exited with {exit_code}.", fg=typer.colors.YELLOW, err=True)
         sys.exit(exit_code)

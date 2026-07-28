@@ -1,6 +1,6 @@
 ---
 name: coga/sync
-description: Notifications and git as coga's sync layers — why notifications are optional on first run but configured Slack fails loud, how task-state git sync works, why notification failures crash but git sync misses don't, and how to design new features that respect sync.
+description: Notifications and git as coga's sync layers — why notifications are optional on first run but configured Slack fails loud, how task-state git sync works, why a standalone notification failure crashes while one that follows a committed transition only reports, like a git sync miss, and how to design new features that respect sync.
 ---
 
 # Sync layers — notifications and git
@@ -111,6 +111,24 @@ Slack-channel failure:
   `typer.Exit(1)` with the error and (when `task_path` is given) a line
   appended (tagged with that task's ref) to the repo-global `coga/log.md`.
 
+**One carve-out: a broadcast that announces an already-committed state
+change.** The lifecycle transitions — `bump`, `mark done` / `canceled` /
+`in_progress` / `paused`, `block`, and a script step's failure post — call
+`post(..., fatal=False)` (`notify(..., fatal=False)` on the digest path). The
+delivery miss is reported *identically* — same stderr line, same `coga/log.md`
+entry — it just no longer aborts the command, because the ticket write already
+happened and the command has work left that must not be skipped. Concretely:
+`coga bump` writes the step, *then* posts, *then* calls `emit_done_marker`.
+Crashing in between left the supervising `coga launch` waiting on a sentinel
+nobody would ever write, so a session that had finished its step (PR opened,
+ticket advanced) was killed by the idle backstop 15 minutes later and reported
+as `timed_out` — an agent sandbox with restricted network is enough to trigger
+it. This is the bargain git sync already makes for the same reason: the
+markdown on disk is the source of truth, so a failed *announcement* of it must
+not decide whether a session ends, and "fail loud" means surface the miss, not
+crash. Misconfiguration (an unresolved webhook) still crashes on both paths —
+a rerun reproduces it identically, so the crash is the fix.
+
 Why crash instead of degrading to stderr-only? Because a silent FYI
 becomes a stale mental model on the human side, and that's worse than a
 noisy retry. Loud failures force resolution; quiet ones rot. That bargain
@@ -196,16 +214,20 @@ new string:
 ## Notification implementation pointers
 
 - `src/coga/notification/__init__.py::post(cfg, message, *, task_path=None, owner=None,
-  watchers=None, image_url=None)` — the **live** path. Three branches: not
+  watchers=None, image_url=None, fatal=True)` — the **live** path. Three branches: not
   configured channel(s). Slack has three branches: not enabled → stderr;
-  enabled + no webhook → crash; enabled + webhook → POST then crash on
-  failure.
+  enabled + no webhook → crash; enabled + webhook → POST, then on failure
+  report (stderr + `log.md`) and either crash (`fatal=True`, the default) or
+  return (`fatal=False`, for a post that follows a committed transition). The
+  channel raises `NotificationDeliveryError` for a delivery miss; `post` is
+  where that becomes `typer.Exit(1)` or a return. Configuration failures skip
+  that boundary and crash from the channel itself.
 - `src/coga/notification/slack.py::SlackChannel` — the Slack backend. It owns
   Slack text rendering (project/owner prefix, watcher cc, image attachment),
   mention rendering, and the webhook POST.
 - `src/coga/notification/__init__.py::notify(cfg, slack_text, *, kind, detail, ticket=None,
-  owner=None, watchers=None, task_path=None, image_url=None)` — the
-  **outcome digest** path. It accepts only `done`, `canceled`, and
+  owner=None, watchers=None, task_path=None, image_url=None, fatal=True)` — the
+  **outcome digest** path. `fatal` is forwarded to the live-post fallback. It accepts only `done`, `canceled`, and
   `recurring-error`
   records. When `digest_spool_path(cfg)` is non-None (the
   `recurring/digest/spool.md` file is installed), it appends a structured record

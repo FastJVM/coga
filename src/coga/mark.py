@@ -148,6 +148,10 @@ def mark_done(
         watchers=ticket.watchers,
         task_path=ref.path,
         image_url=image_url,
+        # The ticket is already `done` on disk; an undeliverable broadcast is
+        # reported (stderr + log.md) but never aborts the transition — see
+        # `notification.post`.
+        fatal=False,
     )
     snapshot = read_snapshot(ref.path)
     _sync_done_state(cfg, ref, snapshot)
@@ -217,6 +221,7 @@ def mark_canceled(
         watchers=ticket.watchers,
         task_path=ref.path,
         image_url=image_url,
+        fatal=False,
     )
     paths = [ref.path]
     spool_path = digest_spool_path(cfg)
@@ -471,7 +476,14 @@ def mark_in_progress(
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:
-        post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
+        post(
+            cfg,
+            slack_text,
+            task_path=ref.path,
+            owner=owner,
+            watchers=ticket.watchers,
+            fatal=False,
+        )
     git.sync_task_state(
         cfg,
         ref.path,
@@ -506,6 +518,9 @@ def mark_blocked(
         owner=owner,
         watchers=ticket.watchers,
         image_url=image_url,
+        # `coga block` ends the session: a Slack outage must not keep the
+        # blocked ticket's agent REPL alive to its idle timeout.
+        fatal=False,
     )
     git.sync_task_state(
         cfg,
@@ -553,6 +568,7 @@ def mark_paused(
             owner=owner,
             watchers=ticket.watchers,
             task_path=ref.path,
+            fatal=False,
         )
     git.sync_task_state(
         cfg,

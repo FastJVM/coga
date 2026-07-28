@@ -116,7 +116,17 @@ def advance_step(
     if echo is not None:
         typer.echo(echo)
     if notify_slack:
-        post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
+        # `fatal=False`: the step advance is already on disk above. An
+        # undeliverable FYI must not abort `coga bump` before it reaches
+        # `emit_done_marker`, or the supervised REPL hangs to its idle timeout.
+        post(
+            cfg,
+            slack_text,
+            task_path=ref.path,
+            owner=owner,
+            watchers=ticket.watchers,
+            fatal=False,
+        )
     git.sync_task_state(
         cfg,
         ref.path,
