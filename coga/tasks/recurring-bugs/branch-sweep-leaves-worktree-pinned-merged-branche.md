@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/architecture
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -117,6 +117,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/669
 branch: fix-branch-sweep-worktrees
 worktree: /home/n/Code/codex/coga-branch-sweep-worktrees
 
@@ -144,12 +145,47 @@ worktree: /home/n/Code/codex/coga-branch-sweep-worktrees
 
 ## Handoff
 
-- `05fe88ab` implements stale-registration pruning, live-worktree detection,
+- `4b7750b5` implements stale-registration pruning, live-worktree detection,
   the distinct `skipped-worktree-pinned` result, fail-loud worktree-state
   errors, mirrored contracts, and real Git regression fixtures.
-- `7f026479` separately syncs the stale packaged `code/open-pr` contract to
+- `8d0010d9` separately syncs the stale packaged `code/open-pr` contract to
   fix the pre-existing suite failure requested by the human.
 - Feature worktree is clean and rebased on current `origin/main`
-  (`ad6d1ec4`); no new upstream commits were pending.
+  (`1389e837`).
 - Live worktree directories remain deliberately untouched. Automatic lifecycle
   retirement remains the scope of the existing draft follow-up ticket.
+
+## Peer review
+
+- `codex review --base main` reported two P2 safety findings:
+  1. sweep ancestry inherited retire's `HEAD`-is-control assumption, so a
+     pruned stacked branch could be deleted from a feature checkout without
+     landing on the configured control branch;
+  2. a worktree paused in rebase appears detached in porcelain output even
+     though Git still reserves its branch, allowing the remote ref to be
+     deleted before local deletion failed.
+- Fixed both by checking ancestry against the configured control ref, attempting
+  local cleanup before remote cleanup, recognizing Git's authoritative
+  worktree refusal, and requiring a successful/local-safe deletion before
+  deleting the remote half.
+- Added real-repository regressions for a pruned stacked branch and a conflicted
+  rebase worktree. Updated the live and packaged branch-sweep workflow
+  contracts.
+- Peer-review fixes are committed as `9f0755ed`.
+- Targeted verification after the fixes:
+  `python -m pytest -q tests/test_branchcleanup.py tests/test_branchsweep.py`
+  — 28 passed.
+- Final verification after the unconditional fetch/rebase:
+  `python -m pytest -p no:cacheprovider` — 1,569 passed, 1 skipped.
+
+## PR
+
+Fix branch-sweep worktree handling so stale registrations are pruned before
+branch enumeration, while branches still held by live or in-progress-operation
+worktrees preserve both local and remote refs and surface as
+`skipped-worktree-pinned`. Fail loud on incomplete worktree state, check landed
+ancestry against the configured control branch, mirror the updated
+branch-sweep contracts, and sync the packaged `code/open-pr` skill to its live
+registered-recipe wording.
+
+Test plan: `python -m pytest -p no:cacheprovider` (1,569 passed, 1 skipped).
