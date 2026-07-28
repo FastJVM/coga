@@ -517,7 +517,11 @@ terminal control status (`done`, `canceled`) is never replaced by a different
 one, and neither step index nor status progress may decrease. Because it runs
 per attempt, it re-checks the tip refetched after a non-fast-forward rejection
 — the one base that reveals a concurrent close, and the only place the race is
-visible at all.
+visible at all. The guard is never skipped for lack of a remote: when none is
+configured it resolves that base locally from `refs/heads/<control>` instead of
+a fetched tip, because a sibling worktree in the same clone can bury newer state
+on the shared local control branch without any remote (see the no-remote
+soft-skip under the failure model below).
 
 Two kinds of caller supply it. The catch-all sweep guards whatever it found
 dirty (`_guard_coga_state_regressions`); every publisher of a *specific*
@@ -626,8 +630,44 @@ Failure model:
   soft-skip, alongside disabled and non-git; without it the missing-branch
   failure was swallowed yet still exited 0, so a first-time user saw a confusing
   error with no actual failure.
+- **No configured remote is the fourth soft-skip, and it skips only the push.**
+  `coga init` leaves a new user with `git init` and no remote ("push when
+  ready"), so every state-changing command used to greet their first ticket with
+  a raw two-paragraph `git push` fatal — printed twice, once per sync entry
+  point. When `git remote get-url <remote>` exits non-zero, sync prints one calm
+  line instead (`[git] no 'origin' remote configured — coga state saved
+  locally; add a remote to sync`). Three boundaries make that safe:
+  - **Only the up-front-detectable case is calmed.** `get-url` answers before
+    any network call. A remote that *is* configured but is offline, misauthed,
+    protected, or simply lacks the branch is not knowable in advance and stays a
+    loud `GitError` — that is the whole fail-loud bargain. Gate on the `get-url`
+    returncode specifically (`_remote_configured`), never on the composite
+    `_remote_branch_present`, which also returns `False` for the legitimate
+    first push that *creates* the branch.
+  - **Commit always; skip only the remote step.** Copying the sibling
+    `_control_branch_present` early-return is too broad — it also suppresses the
+    *feature-branch local commit*, which never contacts the remote.
+    `tests/test_launch_script.py::test_script_launch_commits_log_append_before_running_script`
+    is the proof: `sync_log` on a feature branch with no remote must still
+    commit the log append before the script runs, and the blanket early-return
+    left it dirty and aborted the script with exit 7. `sync_log`, `sync_paths`,
+    and `sync_coga_state` commit and soft-skip only the control-branch
+    landing/push; only `refresh_coga_state_from_control` returns early, because
+    it is a pure remote pull with no local commit to preserve.
+  - **The state-regression guard still runs.** "With no remote there is nothing
+    for a stale checkout to bury" is false: a sibling worktree lands state on the
+    *shared local* control branch through the temp-index overlay with no remote
+    involved, and a stale `in_progress` copy did bury a terminal `done` ticket
+    while printing only the calm notice. With no remote the guard resolves its
+    base locally (`refs/heads/<control>`) rather than fetching the remote tip —
+    which would raise the very fatal being suppressed — and still refuses.
+
+  Word the notice "saved locally", and print it only when the sync actually
+  committed. A clean no-op announcing a save is noise on every command a
+  no-remote user runs, and with a remote that same no-op is silent.
 - Git operation failures (missing git, invalid repo state, commit failure,
-  fetch/push failure, no remote, or contention exhausting the retry loop) are
+  fetch/push failure, a configured-but-unreachable remote, or contention
+  exhausting the retry loop) are
   **non-fatal sync misses**: stderr plus a repo-global `coga/log.md` line, then
   the command continues and exits 0. `GitError` is swallowed at each sync
   entry point (`sync_paths` for `bump`/`mark`, `sync_coga_state` for the
