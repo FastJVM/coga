@@ -36,6 +36,25 @@ This keeps task-state edits (`ticket.md`, plus the repo-global `coga/log.md`)
 from mixing with source changes on a feature branch. If task-state
 changes need to be committed, commit them separately from the code PR.
 
+### Who retires the checkout
+
+You do not remove your own feature checkout. `coga retire` does, at the
+lifecycle event where the ticket still exists and its `## Dev` lines are still
+readable. Retire removes the recorded worktree *first* — a branch still checked
+out in a linked worktree cannot be deleted at all — and then prunes the branch.
+Leave `worktree:` recorded and accurate; that line is what retire acts on.
+
+Retire only removes a checkout Git identifies as a **linked worktree of the same
+repository**, and it never passes `--force`. These survive and are reported for
+manual disposal:
+
+- an independent fallback clone (the `/tmp` sandbox path above) — it is a
+  separate repository, not a linked worktree;
+- a worktree with uncommitted changes, or a locked one;
+- a recorded path that is already gone. Retire reports the stale registration
+  rather than pruning it; `coga run branch-sweep` prunes repo-wide and reports
+  any branch still pinned by a live worktree as `skipped-worktree-pinned`.
+
 ## The `## Dev` blackboard section
 
 Every code-style ticket gets a `## Dev` section near the top of its

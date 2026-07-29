@@ -1,4 +1,4 @@
-"""Delete a finished ticket's git branch as part of `coga retire`.
+"""Retire a finished ticket's feature checkout and git branch.
 
 Local and remote feature branches accumulate because nothing prunes them once
 a ticket finishes. `coga retire` is the lifecycle event that disposes of the
@@ -6,7 +6,25 @@ branch alongside the task directory: at retire time the ticket still exists, so
 its recorded `branch:` (and `pr:`) under `## Dev` are still readable — no cron,
 no orphan-matching guesswork.
 
-Safety model:
+The recorded `worktree:` checkout accumulated for the same reason, and it made
+the branch half worse: a branch still checked out in a linked worktree cannot be
+deleted at all, so every stale worktree pinned a branch that no sweep could
+prune. Retire therefore removes the recorded linked worktree *first*
+(`remove_ticket_worktree`), which unpins the branch for the cleanup below.
+
+Worktree safety model:
+
+  - Only a checkout Git itself identifies as a **linked worktree of this same
+    repository** is removed. An independent fallback clone (the sandbox
+    `/tmp` path in the `dev/code` context), an unrelated repo, and the primary
+    checkout are preserved and reported.
+  - `git worktree remove` runs **without** `--force`, so a dirty or locked
+    worktree survives with its failure reported. Uncommitted work is never
+    discarded on the strength of a lifecycle transition.
+  - A recorded path that is already gone is reported, not pruned: clearing the
+    stale registration is a repo-wide operation that belongs to branch sweep.
+
+Branch safety model:
 
   - **Never** delete the control branch (`main`) or the currently checked-out
     branch.
@@ -37,7 +55,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from coga.autoclose import GhError, parse_branch_name, parse_pr_url, pr_state
+from coga.autoclose import (
+    GhError,
+    parse_branch_name,
+    parse_pr_url,
+    parse_worktree_path,
+    pr_state,
+)
 from coga.config import Config
 
 
@@ -50,6 +74,110 @@ class BranchCleanupResult:
     remote_deleted: bool = False
     local_worktree_path: str | None = None
     notes: list[str] = field(default_factory=list)
+
+
+@dataclass
+class WorktreeCleanupResult:
+    """What `remove_ticket_worktree` did, for reporting and tests."""
+
+    worktree: str | None = None
+    removed: bool = False
+    notes: list[str] = field(default_factory=list)
+
+
+def remove_ticket_worktree(
+    root: Path,
+    blackboard_text: str,
+    *,
+    echo: Callable[[str], None] = print,
+) -> WorktreeCleanupResult:
+    """Remove the linked worktree recorded under `## Dev` for one retiring ticket.
+
+    `root` is the git working-tree root retire runs from (the control checkout).
+    `blackboard_text` is the ticket's blackboard region, read while the
+    `worktree:` line still exists. Returns a `WorktreeCleanupResult`; every
+    decision is echoed for the human watching the retire run.
+
+    Preserves anything it cannot prove is disposable — see the module docstring's
+    worktree safety model.
+    """
+    result = WorktreeCleanupResult()
+
+    recorded = parse_worktree_path(blackboard_text)
+    result.worktree = recorded
+    if not recorded:
+        # No `## Dev` worktree line — nothing to remove (e.g. a doc-only ticket).
+        return result
+
+    path = Path(recorded).expanduser()
+    if not path.is_dir():
+        _wnote(
+            result,
+            echo,
+            f"Worktree cleanup: recorded worktree {recorded!r} is already gone.",
+        )
+        return result
+
+    if not _is_linked_worktree_of(root, path):
+        _wnote(
+            result,
+            echo,
+            f"Worktree cleanup: {recorded!r} is not a linked worktree of this "
+            "repository (independent clone, unrelated repo, or the primary "
+            "checkout) — left in place.",
+        )
+        return result
+
+    proc = _git(root, "worktree", "remove", str(path))
+    if proc.returncode == 0:
+        result.removed = True
+        _wnote(result, echo, f"Worktree cleanup: removed linked worktree {recorded!r}.")
+        return result
+
+    stderr = (proc.stderr + proc.stdout).strip() or "git worktree remove failed"
+    _wnote(
+        result,
+        echo,
+        f"Worktree cleanup: could not remove {recorded!r} ({stderr}) — left in "
+        "place for manual inspection.",
+    )
+    return result
+
+
+def _is_linked_worktree_of(root: Path, path: Path) -> bool:
+    """True iff `path` is a linked worktree sharing `root`'s common git dir.
+
+    A linked worktree has its own administrative git dir while sharing the
+    repository's common dir; the primary checkout and an independent clone
+    report the same path for both. Comparing the common dir against `root`'s
+    also rejects a linked worktree belonging to some *other* repository.
+    """
+    git_dir = _git_path(path, "--git-dir")
+    common_dir = _git_path(path, "--git-common-dir")
+    root_common_dir = _git_path(root, "--git-common-dir")
+    if git_dir is None or common_dir is None or root_common_dir is None:
+        return False
+    return git_dir != common_dir and common_dir == root_common_dir
+
+
+def _git_path(cwd: Path, flag: str) -> Path | None:
+    proc = _git(cwd, "rev-parse", "--path-format=absolute", flag)
+    if proc.returncode != 0:
+        return None
+    out = proc.stdout.strip()
+    if not out:
+        return None
+    try:
+        return Path(out).resolve()
+    except OSError:
+        return None
+
+
+def _wnote(
+    result: WorktreeCleanupResult, echo: Callable[[str], None], message: str
+) -> None:
+    result.notes.append(message)
+    echo(message)
 
 
 def delete_ticket_branch(
@@ -299,6 +427,8 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 __all__ = [
     "BranchCleanupResult",
+    "WorktreeCleanupResult",
+    "remove_ticket_worktree",
     "delete_ticket_branch",
     "delete_remote_branch",
     "delete_local_branch",

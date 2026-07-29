@@ -7,7 +7,7 @@ import sys
 import typer
 
 from coga import git
-from coga.branchcleanup import delete_ticket_branch
+from coga.branchcleanup import delete_ticket_branch, remove_ticket_worktree
 from coga.config import Config, ConfigError, load_config
 from coga.create import create_task
 from coga.git import GitError
@@ -46,13 +46,17 @@ def retire(
     Retro direct-deletes the task via `coga delete` (no PR, no marker; recover
     with `git restore`).
 
-    Before launching that retro pass, retire prunes the ticket's git branch —
-    the local branch and its `origin` counterpart — read from the `## Dev`
-    blackboard section while the ticket (and thus the `branch:` line) still
-    exists. This is the lifecycle event that disposes of the branch: the remote
-    delete is gated on the linked PR being merged, never `main`, never an
-    unrelated branch. (This deliberately overrides the former punt that branch
-    hygiene was a Dream concern — that punt is why branches piled up.)
+    Before launching that retro pass, retire disposes of the ticket's feature
+    checkout and git branch, both read from the `## Dev` blackboard section
+    while the ticket (and thus the `worktree:` / `branch:` lines) still exists.
+    The recorded linked worktree is removed first — which also unpins the branch
+    Git would otherwise refuse to delete — then the local branch and its
+    `origin` counterpart. This is the lifecycle event that disposes of both: the
+    worktree removal is unforced and limited to a linked worktree of this same
+    repository, and the remote branch delete is gated on the linked PR being
+    merged, never `main`, never an unrelated branch. (This deliberately
+    overrides the former punt that branch hygiene was a Dream concern — that
+    punt is why branches and worktrees piled up.)
     """
     try:
         cfg = load_config()
@@ -72,10 +76,11 @@ def retire(
             f"{source.status!r}. Bump it to done first."
         )
 
-    # Prune the ticket's branch while the task (and its `## Dev` `branch:`/`pr:`
-    # lines) still exists — the retro pass below deletes the directory. Best
-    # effort: a branch-cleanup failure must never abort the retire run.
-    _cleanup_branch(cfg, ref)
+    # Prune the ticket's worktree and branch while the task (and its `## Dev`
+    # `worktree:`/`branch:`/`pr:` lines) still exists — the retro pass below
+    # deletes the directory. Best effort: a cleanup failure must never abort the
+    # retire run.
+    _cleanup_checkout(cfg, ref)
 
     try:
         assignee = agent or _default_agent(cfg)
@@ -133,13 +138,16 @@ def retire(
     )
 
 
-def _cleanup_branch(cfg: Config, ref: TaskRef) -> None:
-    """Delete the retiring ticket's git branch, best-effort.
+def _cleanup_checkout(cfg: Config, ref: TaskRef) -> None:
+    """Remove the retiring ticket's linked worktree and branch, best-effort.
 
     Reads the `## Dev` blackboard section (still present pre-retro) and hands it
-    to `branchcleanup.delete_ticket_branch`. Any failure — `git`/`gh` missing, a
-    read error, git not enabled — is reported and swallowed: branch hygiene is a
-    courtesy on top of retire, not a precondition for it.
+    to `branchcleanup.remove_ticket_worktree`, then
+    `branchcleanup.delete_ticket_branch`. The worktree goes first so a branch it
+    holds is no longer checked out when branch cleanup runs. Any failure —
+    `git`/`gh` missing, a read error, git not enabled — is reported and
+    swallowed: checkout hygiene is a courtesy on top of retire, not a
+    precondition for it.
     """
     if not cfg.git_enabled:
         return
@@ -149,8 +157,12 @@ def _cleanup_branch(cfg: Config, ref: TaskRef) -> None:
             return
         blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
     except (GitError, OSError, TaskFileError) as exc:
-        typer.echo(f"Retire: branch cleanup skipped ({exc}).")
+        typer.echo(f"Retire: checkout cleanup skipped ({exc}).")
         return
+    try:
+        remove_ticket_worktree(root, blackboard, echo=typer.echo)
+    except Exception as exc:  # noqa: BLE001 — never let cleanup abort retire
+        typer.echo(f"Retire: worktree cleanup failed ({exc}).")
     try:
         delete_ticket_branch(cfg, root, blackboard, echo=typer.echo)
     except Exception as exc:  # noqa: BLE001 — never let cleanup abort retire

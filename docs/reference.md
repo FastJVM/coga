@@ -259,9 +259,12 @@ This is a default alias for the stateless, agent-backed
 sees open PRs only; stale branches with no PR are outside its scope.
 
 ### `coga retire TASK`
-Wrap up a **done** task: prune its Git branch (local and its merged `origin`
-counterpart, read from `## Dev`), then launch a `retro/done-ticket` pass. The
-retro opens a PR when it extracts durable knowledge (recording a `## Retro`
+Wrap up a **done** task: remove its recorded linked worktree and prune its Git
+branch (local and its merged `origin` counterpart, both read from `## Dev`),
+then launch a `retro/done-ticket` pass. The worktree removal runs first — a
+branch held by a linked worktree is undeletable — and is unforced: a dirty,
+locked, missing, or independent-clone checkout is left in place and reported.
+The retro opens a PR when it extracts durable knowledge (recording a `## Retro`
 marker, editing the knowledge base, and deleting the source task in the same PR);
 otherwise it direct-deletes the task (recover with `git restore`).
 

@@ -345,6 +345,120 @@ def test_retire_prunes_merged_branch_before_launch(
     )
 
 
+def test_retire_removes_linked_worktree_then_prunes_its_branch(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The worktree goes first, which is what lets the pinned branch be deleted.
+
+    A branch still checked out in a linked worktree is undeletable, so before
+    this retire step the branch survived every sweep.
+    """
+    monkeypatch.chdir(repo)
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    feature = tmp_path / "feature"
+    _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
+    (feature / "work.txt").write_text("work")
+    _git(feature, "add", "work.txt")
+    _git(feature, "commit", "-m", "work")
+    _git(repo, "merge", "--ff-only", "fix-retry-branch")
+
+    slug = "fix-retry-logic"
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        f"""
+        ---
+        slug: {slug}
+        title: Fix retry logic
+        status: done
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: fix-retry-branch
+        worktree: {feature}
+        pr: https://github.com/owner/repo/pull/9
+        """,
+    )
+    (task_dir / "log.md").write_text("")
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert f"Worktree cleanup: removed linked worktree '{feature}'." in result.output
+    assert "Branch cleanup: deleted local 'fix-retry-branch'." in result.output
+    assert not feature.exists()
+    assert (
+        subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--verify", "--quiet",
+             "refs/heads/fix-retry-branch"],
+            capture_output=True,
+        ).returncode
+        != 0
+    )
+
+
+def test_retire_leaves_dirty_worktree_in_place(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    feature = tmp_path / "feature"
+    _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
+    (feature / "uncommitted.txt").write_text("work in progress")
+
+    slug = "fix-retry-logic"
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        f"""
+        ---
+        slug: {slug}
+        title: Fix retry logic
+        status: done
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: fix-retry-branch
+        worktree: {feature}
+        """,
+    )
+    (task_dir / "log.md").write_text("")
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert "Worktree cleanup: could not remove" in result.output
+    assert (feature / "uncommitted.txt").is_file()
+
+
 def test_retire_resolves_unique_prefix(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

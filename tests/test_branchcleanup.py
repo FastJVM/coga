@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from coga.branchcleanup import delete_ticket_branch
+from coga.branchcleanup import delete_ticket_branch, remove_ticket_worktree
 from coga.config import load_config
 
 
@@ -64,10 +64,16 @@ def _cfg(repo: Path):
     return load_config(repo / "coga")
 
 
-def _dev_blackboard(branch: str | None = None, pr: str | None = None) -> str:
+def _dev_blackboard(
+    branch: str | None = None,
+    pr: str | None = None,
+    worktree: str | None = None,
+) -> str:
     lines = ["", "## Dev"]
     if branch is not None:
         lines.append(f"branch: {branch}")
+    if worktree is not None:
+        lines.append(f"worktree: {worktree}")
     if pr is not None:
         lines.append(f"pr: {pr}")
     lines.append("")
@@ -206,6 +212,131 @@ def test_no_branch_line_is_noop(repo: Path) -> None:
     assert result.branch is None
     assert result.local_deleted is False
     assert result.remote_deleted is False
+
+
+def _add_worktree(repo: Path, path: Path, branch: str) -> None:
+    _git(repo, "worktree", "add", str(path), "-b", branch)
+
+
+def test_removes_recorded_linked_worktree(repo: Path, tmp_path: Path) -> None:
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+
+    result = remove_ticket_worktree(
+        repo, _dev_blackboard("feat", worktree=str(feature)), echo=lambda _m: None
+    )
+
+    assert result.worktree == str(feature)
+    assert result.removed is True
+    assert not feature.exists()
+    assert "feat" not in _git(repo, "worktree", "list").stdout
+
+
+def test_removing_worktree_unpins_branch_for_cleanup(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    """The compounding bug: a worktree-held branch cannot be deleted at all."""
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    _commit(feature, "feat.txt", "feat", "feat work")
+    _git(repo, "merge", "--ff-only", "feat")
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda url: "MERGED")
+
+    # Without the worktree removal, git refuses: "used by worktree at ...".
+    pinned = delete_ticket_branch(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=lambda _m: None,
+    )
+    assert pinned.local_deleted is False
+    assert _branch_exists_local(repo, "feat")
+
+    remove_ticket_worktree(
+        repo, _dev_blackboard("feat", worktree=str(feature)), echo=lambda _m: None
+    )
+    freed = delete_ticket_branch(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=lambda _m: None,
+    )
+
+    assert freed.local_deleted is True
+    assert not _branch_exists_local(repo, "feat")
+
+
+def test_dirty_worktree_left_in_place(repo: Path, tmp_path: Path) -> None:
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    (feature / "uncommitted.txt").write_text("work in progress")
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        repo, _dev_blackboard("feat", worktree=str(feature)), echo=notes.append
+    )
+
+    assert result.removed is False
+    assert feature.is_dir()
+    assert (feature / "uncommitted.txt").is_file()
+    assert any("could not remove" in note for note in notes)
+
+
+def test_independent_clone_left_in_place(repo: Path, tmp_path: Path) -> None:
+    """The sandbox fallback checkout is a clone, not a linked worktree."""
+    clone = tmp_path / "clone"
+    subprocess.run(
+        ["git", "clone", "--no-hardlinks", str(repo), str(clone)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        repo, _dev_blackboard("feat", worktree=str(clone)), echo=notes.append
+    )
+
+    assert result.removed is False
+    assert clone.is_dir()
+    assert any("not a linked worktree" in note for note in notes)
+
+
+def test_primary_checkout_left_in_place(repo: Path) -> None:
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        repo, _dev_blackboard("feat", worktree=str(repo)), echo=notes.append
+    )
+
+    assert result.removed is False
+    assert repo.is_dir()
+    assert any("not a linked worktree" in note for note in notes)
+
+
+def test_missing_worktree_path_is_reported_not_pruned(
+    repo: Path, tmp_path: Path
+) -> None:
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    subprocess.run(["rm", "-rf", str(feature)], check=True)
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        repo, _dev_blackboard("feat", worktree=str(feature)), echo=notes.append
+    )
+
+    assert result.removed is False
+    assert any("already gone" in note for note in notes)
+    # The stale registration is branch sweep's repo-wide job, not retire's.
+    assert str(feature) in _git(repo, "worktree", "list").stdout
+
+
+def test_no_worktree_line_is_noop(repo: Path) -> None:
+    result = remove_ticket_worktree(
+        repo, _dev_blackboard("feat"), echo=lambda _m: None
+    )
+    assert result.worktree is None
+    assert result.removed is False
 
 
 def test_checked_out_branch_left_in_place(repo: Path, monkeypatch) -> None:
