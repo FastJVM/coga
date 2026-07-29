@@ -418,6 +418,68 @@ def test_spawn_agent_session_rederives_nested_recurring_task_env(
     assert captured_env["KEEP_ME"] == "yes"
 
 
+def test_spawn_agent_session_gives_bootstrap_target_no_blackboard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stateless bootstrap ticket exports no `COGA_TASK_BLACKBOARD`.
+
+    Its `ticket.md` is normally a packaged resource, so a Dream recipe run from
+    the session used to append its `## Dream Skill: <name>` report into a file
+    that ships in the wheel. An inherited value must not paper over the gap
+    either — the whole task namespace is cleared before it is rewritten.
+    """
+    company = tmp_path / "coga"
+    packaged = (
+        tmp_path
+        / "src"
+        / "coga"
+        / "resources"
+        / "templates"
+        / "coga"
+        / "bootstrap"
+        / "orient"
+    )
+    _write(packaged / "ticket.md", "---\ntitle: Orient\n---\n")
+    ref = BootstrapRef(name="orient", path=packaged)
+    inherited_env = {
+        "COGA_TASK_SLUG": "some-task",
+        "COGA_TASK_BLACKBOARD": str(company / "tasks" / "some-task" / "ticket.md"),
+        "KEEP_ME": "yes",
+    }
+    captured_env: dict[str, str] = {}
+
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
+    )
+
+    def fake_run_with_done_marker(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        captured_env.update(env)
+        return ReplOutcome(exit_code=0, kind="natural")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_run_with_done_marker
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session", lambda **kwargs: None
+    )
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=company),
+        ref,
+        _ticket(),
+        AgentType(name="codex", cli="codex", file="AGENTS.md", mode="local"),
+        env=inherited_env,
+        actor="system",
+        log_message="launched bootstrap/orient",
+    )
+
+    assert captured_env["COGA_TASK_SLUG"] == "bootstrap/orient"
+    assert captured_env["COGA_TASK_TICKET"] == str(ref.ticket_path.resolve())
+    assert "COGA_TASK_BLACKBOARD" not in captured_env
+    assert captured_env["KEEP_ME"] == "yes"
+
+
 def test_spawn_agent_session_oversized_prompt_rides_argv_as_pointer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

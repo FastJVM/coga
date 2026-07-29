@@ -15,6 +15,7 @@ from typing import Any
 
 from coga.config import Config, ConfigError, find_repo_root, load_config
 from coga.slack import post
+from coga.task_env import blackboard_from_env
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 
 
@@ -516,11 +517,6 @@ def _run_git(args: list[str], *, cwd: Path) -> str:
     return result.stdout
 
 
-def script_blackboard_from_env() -> Path | None:
-    value = os.environ.get("COGA_TASK_BLACKBOARD")
-    return Path(value) if value else None
-
-
 def script_task_slug_from_env() -> str | None:
     return os.environ.get("COGA_TASK_SLUG")
 
@@ -562,7 +558,7 @@ def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
     parser.add_argument("--max-blackboard-kb", type=float)
     args = parser.parse_args(argv)
 
-    blackboard = script_blackboard_from_env()
+    blackboard = blackboard_from_env()
     task_slug = script_task_slug_from_env()
     fix = not args.no_fix
 

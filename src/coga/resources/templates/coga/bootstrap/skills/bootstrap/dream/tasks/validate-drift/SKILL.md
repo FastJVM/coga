@@ -48,7 +48,9 @@ coga run validate-drift
 Run it from the active Dream task after reading this contract. The agent launch
 already carries `COGA_TASK_SLUG`, `COGA_TASK_DIR`, and
 `COGA_TASK_BLACKBOARD`; the recipe inherits that metadata and appends its
-result directly to the Dream task blackboard.
+result directly to the Dream task blackboard. Run from a stateless bootstrap
+session there is no blackboard to append to — the recipe writes its report to
+stdout instead of into a packaged `bootstrap/<name>/ticket.md`.
 
 The default safe-repair pass applies the same conservative repair set as
 `coga validate --fix`: append a missing blackboard fence + region to a `ticket.md` only. To

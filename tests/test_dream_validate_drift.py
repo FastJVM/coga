@@ -199,6 +199,66 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
     assert "Command: `" in text
 
 
+def test_worker_refuses_blackboard_outside_tasks_tree(tmp_path: Path) -> None:
+    """An inherited blackboard path outside `tasks/` falls back to stdout.
+
+    A recipe run from a stateless bootstrap session used to inherit that
+    session's ticket path — a *packaged* resource under
+    `src/coga/resources/templates/` — and append its run report to it, dirtying
+    a file that ships in the wheel. `build_task_env` no longer hands a bootstrap
+    target a blackboard at all; this is the reading half of the same boundary,
+    for a value inherited from a process that predates it.
+    """
+    coga_os = _seed_repo(tmp_path)
+    packaged = (
+        tmp_path
+        / "src"
+        / "coga"
+        / "resources"
+        / "templates"
+        / "coga"
+        / "bootstrap"
+        / "orient"
+        / "ticket.md"
+    )
+    _write(packaged, "---\ntitle: Orient\n---\n\nbody\n")
+    before = packaged.read_text()
+    env = os.environ.copy()
+    env.update(
+        {
+            "COGA_TASK_SLUG": "bootstrap/orient",
+            "COGA_TASK_DIR": str(packaged.parent.resolve()),
+            "COGA_TASK_BLACKBOARD": str(packaged.resolve()),
+            "COGA_COGA_OS_ROOT": str(coga_os.resolve()),
+            "COGA_REPO_ROOT": str(tmp_path.resolve()),
+            "PYTHONPATH": _source_pythonpath(),
+        }
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "coga.cli",
+            "run",
+            "validate-drift",
+            "--cwd",
+            str(tmp_path),
+            "--no-fix",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert packaged.read_text() == before
+    assert "## Dream Skill: validate-drift" in result.stdout
+    assert "COGA_TASK_BLACKBOARD" in result.stderr
+
+
 def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> None:
     from coga.taskfile import fence_count
 

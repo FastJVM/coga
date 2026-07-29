@@ -624,9 +624,20 @@ metadata as environment variables:
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
 `COGA_TASK_BLACKBOARD`, `COGA_TASK_LOG`, `COGA_COGA_OS_ROOT`, and
 `COGA_REPO_ROOT`. The shared agent-spawn boundary and recurring recipe runner
-re-derive these values from the launched task, so nested work cannot inherit
-the outer task's paths. `COGA_COGA_OS_ROOT` is the `coga/` root;
-`COGA_REPO_ROOT` is the host repo (its parent when `coga/` is nested in a repo).
+**clear the whole namespace and re-derive it** from the launched task, so
+nested work cannot inherit the outer task's paths — and a variable the target
+does not export cannot survive by inheritance either. `COGA_COGA_OS_ROOT` is
+the `coga/` root; `COGA_REPO_ROOT` is the host repo (its parent when `coga/` is
+nested in a repo).
+
+`COGA_TASK_BLACKBOARD` is the one member that is **not** unconditional: a
+stateless bootstrap target has no blackboard, so it is omitted there. Its
+`ticket.md` is normally a packaged resource, and a report writer handed that
+path appends into a file that ships in the wheel (a repo-local
+`coga/bootstrap/<name>/ticket.md` override is corrupted the same way). Recipes
+already treat an absent blackboard as "write the report to stdout", and they
+refuse a path outside a `tasks/` tree for the same reason — defence in depth
+on the reading side, for a value inherited from an older process.
 
 Each known skill's `SKILL.md` carries a `## Known Skill Contract` section
 with these fields:

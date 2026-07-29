@@ -67,7 +67,7 @@ from coga.repl_supervisor import (
     AgentCliNotFound,
     run_with_done_marker,
 )
-from coga.task_env import build_task_env
+from coga.task_env import apply_task_env
 from coga.step_gate import gate_publishes_current_branch
 from coga.tasks import (
     BootstrapRef,
@@ -872,10 +872,13 @@ def spawn_agent_session(
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the
-    # task it is actually running. Copy first so caller-owned environments
-    # remain unchanged; unrelated parent values still pass through.
-    env = dict(env)
-    env.update(build_task_env(cfg, ref))
+    # task it is actually running. `apply_task_env` copies first, so
+    # caller-owned environments remain unchanged and unrelated parent values
+    # still pass through — but it clears the whole task namespace before
+    # rewriting it, so a variable this target does not export (a stateless
+    # bootstrap ticket's absent `COGA_TASK_BLACKBOARD`) cannot survive by
+    # inheritance.
+    env = apply_task_env(env, cfg, ref)
 
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
