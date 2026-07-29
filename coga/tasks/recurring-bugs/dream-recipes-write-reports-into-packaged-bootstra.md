@@ -1,7 +1,7 @@
 ---
 slug: recurring-bugs/dream-recipes-write-reports-into-packaged-bootstra
 title: Dream recipes write reports into packaged bootstrap tickets
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -234,6 +234,29 @@ Deliberately not changed:
 Post-review verification: rebased onto `origin/main` (`9e500327`) — clean,
 no conflicts — full suite `1577 passed, 1 skipped`.
 
+## Open-PR conflict discovered 2026-07-29
+
+This task was relaunched from the stale primary branch
+`slack-post-nonfatal-after-transition`, whose Coga-state sync had repeatedly
+refused to move the authoritative ticket backward. That stale copy produced a
+second, peer-reviewed implementation on `bootstrap-no-blackboard` at
+`a1fb7b9e`, based on current `main` (`a0632645`).
+
+The authoritative `main` ticket is already at review with PR #671
+(`fix/stateless-bootstrap-blackboard`). GitHub reports that PR as
+`CONFLICTING`: it still changes `src/coga/commands/launch_script.py`, which the
+subsequent script-seam deletion removed. The replacement branch accounts for
+that deletion and moves the shared env reset into `apply_task_env`, but
+publishing it requires an explicit choice:
+
+1. force-update PR #671's existing head with the replacement commit; or
+2. close #671 and publish `bootstrap-no-blackboard` as a new PR.
+
+No second PR was opened and no existing PR ref was rewritten. The stale
+checkout's four generated-file edits were preserved recoverably in
+`stash@{0}` on `slack-post-nonfatal-after-transition` before returning the
+primary checkout to `main`.
+
 ## PR
 
 Fixes a Dream worker recipe writing its `## Dream Skill: <name>` run report
@@ -266,3 +289,9 @@ tests, both confirmed failing on pre-fix code: one runs the registered
 the report lands on stdout while a package-shaped `bootstrap/orient/ticket.md`
 stays byte-identical; one asserts a stateless bootstrap script sees
 `COGA_TASK_BLACKBOARD` unset even when the launching environment sets it.
+
+---
+
+## Blockers
+
+- [ ] [2026-07-29 11:39] [agent:nicktoper] id=20260729T113952 PR #671 is now conflicting after the script-seam deletion, while the current-main replacement is peer-reviewed at bootstrap-no-blackboard a1fb7b9e. Decide whether to force-update #671's head with that replacement or close #671 and publish a new PR.
