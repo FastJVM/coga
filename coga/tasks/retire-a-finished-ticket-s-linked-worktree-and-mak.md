@@ -2,7 +2,7 @@
 slug: retire-a-finished-ticket-s-linked-worktree-and-mak
 title: Retire a finished ticket's linked worktree, and make branch-sweep report worktree-held
   branches
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
