@@ -3084,3 +3084,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-29 10:55 [recurring/digest] [system] created (status=active)
 2026-07-29 10:55 [recurring/digest] [system] created recurring/digest for 2026-07-29
 2026-07-29 10:55 [recurring/autoclose-merged] [system] started (active → in_progress) via recurring recipe autoclose
+2026-07-29 10:55 [recurring/autoclose-merged] [system] launched as recipe (autoclose)
