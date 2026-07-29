@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -93,6 +93,101 @@ merged; running it earlier would delete the seam out from under a live consumer
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: delete-script-seam
+worktree: /tmp/coga-delete-script-seam
+
+## PR
+
+Delete the launch-integrated script seam. With the generic `coga run` recipe
+registry (ticket A) and the open-pr / delete-task ports (ticket B) both landed,
+nothing live still dispatches through `script:`, so this removes the mechanism
+itself: `commands/launch_script.py`, the `script` field across the ticket, skill,
+create, and validation models, the `is_script_launch` / `run_script_mode`
+branching in launch, megalaunch, and recurring, and the `COGA_ARG_*` / `COGA_ARGC`
+environment plumbing. The two vestigial `run.py` twins (`coga/show`,
+`coga/ticket/finalize`) and their seam-only entrypoints (`render_show_from_env`,
+`finalize_authored_from_env`) go with it; the real `render_show` and
+`finalize_authored` stay and remain wired to their commands. No `run.py` and no
+`script:` declaration remains under either the live `coga/` tree or the packaged
+templates.
+
+Existing repositories migrate on read: `Ticket.parse` treats a leftover
+`script: null` as an absent key, and a non-null leftover survives as an inert
+orphan-extension warning rather than a validation error. Architecture, sync, CLI,
+and recurring contexts (live and packaged twins), the skill template, product
+docs, and the seeded example are updated to describe recipes instead of script
+mode.
+
+Test plan: `python -m pytest` (1532 passed, 1 skipped), seeded `example/`
+`coga validate --json` clean (ok_count 2, no issues), plus `coga status` /
+`coga show` / `--help` smoke checks.
+
+## Peer review (2026-07-29)
+
+Reviewed the branch diff vs `main` with two independent reviewers — one on
+production-code correctness, one on live/packaged doc-twin sync and test
+coverage. Fixes landed as `3f4cac7e` (`peer-review: apply review findings`):
+
+- **Real defect:** `views.py` lost `from typing import Mapping` along with the
+  deleted `render_show_from_env`, but `_terminal_hint(hidden: Mapping[str, int])`
+  still referenced it. `from __future__ import annotations` hid it at runtime, so
+  it only surfaced under annotation evaluation (`typing.get_type_hints`, autodoc)
+  and as a pyflakes/ruff F821. Re-imported from `collections.abc`; verified
+  `get_type_hints` now resolves.
+- **Dead import / formatting:** dropped the now-unused `load_config` in
+  `authoring.py` and restored the blank lines the deletion collapsed.
+- **Doc sweep the implementation commit missed** (all stale prose describing the
+  deleted mechanism): the skill template's bundled-scripts guidance (live +
+  packaged), the packaged CLI context's `recurring promote` passthrough list
+  (still advertised `script`, which `_TEMPLATE_PASSTHROUGH` no longer carries),
+  the `requires:` gate's "agent- or script-owned" wording (both architecture
+  twins), and the README, `docs/vision.md`, `docs/market-thesis.md`,
+  `docs/README.md`, and both `docs/cli-extension-*.md` files.
+- **Coverage gap:** added `test_validate_tolerates_legacy_non_null_script_key`
+  for the `script: run.py` leftover case the ticket's migration requirement names
+  but nothing exercised — only the `script: null` path was tested.
+
+Confirmed not defects: no reachable reader of the deleted symbols remains
+anywhere in `src/` (grep over `launch_script`, `is_script_launch`,
+`run_script_mode`, `current_step_is_script`, `COGA_ARG*`); every live/packaged
+twin I touched diffs identical; the unused `os` / `subprocess` imports in
+`commands/launch.py` are pre-existing on `main`, not introduced here, so they are
+left alone. Deferred as nits: the `coga/scripts/` candidate shape in
+`docs/cli-extension-external-surface.md` still proposes launch-called script
+targets, and `recurring.py` silently ignores a legacy `script:` key on a template
+without a diagnostic.
+
+Rebased onto `origin/main` at `666525a0`; branch is clean, two commits ahead,
+unpushed.
+
+## Implementation (2026-07-28)
+
+- Commit `0b82f606` (`Delete the launch script seam`) removes
+  `commands/launch_script.py`, all launch/megalaunch/recurring script
+  dispatch and argument-environment plumbing, and the `script` field from the
+  ticket/skill/create/validation models. `Ticket.parse` strips a legacy
+  explicit `script: null`, so existing repositories migrate on read without a
+  validation error.
+- Deleted the live and packaged `coga/show` and `coga/ticket/finalize`
+  executable twins and their seam-only Python entrypoints. No launch-entrypoint
+  `run.py` remains under either live `coga/` or packaged Coga templates.
+- Updated the live and packaged architecture/sync contracts, CLI and authoring
+  templates, recurring/Dream guidance, product docs, seeded example, and
+  affected tests. Agent command tickets remain agent-backed; stable headless
+  behavior is now exclusively a registered `coga run` recipe.
+- Verification on the committed branch:
+  - `python -m pytest -q`: `1531 passed, 1 skipped`.
+  - Seeded example `coga validate --json`: `ok_count: 2`, no issues.
+  - CLI help smoke check, `git diff --check`, legacy-symbol grep, and live /
+    packaged `run.py` scan all pass.
+  - Repository-wide validation reports the same unrelated pre-existing
+    `v2/*` missing-step / unsynthesized-draft errors on both this branch and
+    `main`; the behavior-changing example fixture validates cleanly.
+- Final fetch found `origin/main` at `c163b7c5`; the required rebase was a
+  no-op. The feature checkout is clean and unpushed, with no PR opened.
 
 ## Dependency check (2026-07-23)
 
