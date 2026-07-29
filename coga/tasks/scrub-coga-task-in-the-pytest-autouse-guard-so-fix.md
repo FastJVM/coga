@@ -2,7 +2,7 @@
 slug: scrub-coga-task-in-the-pytest-autouse-guard-so-fix
 title: Scrub COGA_TASK_* in the pytest autouse guard so fixture reports cannot reach
   live tickets
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude

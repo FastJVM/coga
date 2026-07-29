@@ -3048,3 +3048,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-28 11:26 [remove-coga-build-and-project] [human:zach] created (status=draft)
 2026-07-28 15:31 [update-contewt-bloxk-for-ordering-megalunach-uncle] [human:nick] created (status=draft)
 2026-07-28 17:15 [retire-a-finished-ticket-s-linked-worktree-and-mak] [megalaunch] activated (draft → active) — explicit megalaunch pick
+2026-07-28 17:15 [scrub-coga-task-in-the-pytest-autouse-guard-so-fix] [megalaunch] activated (draft → active) — explicit megalaunch pick
