@@ -26,6 +26,7 @@ from coga.tasks import (
 )
 from coga.ticket import TicketError
 from coga.validate import TaskValidationError
+from coga.workspace_discovery import discover_coga_repos
 
 
 def retire(
@@ -59,10 +60,12 @@ def retire(
     `origin` counterpart. This is the lifecycle event that disposes of both: the
     worktree removal requires an exact, unshared, locally pristine linked
     checkout of this same repository, and the remote branch delete is gated on
-    the linked PR being merged at the current exact head. It never removes the
-    invoking checkout, `main`, or an unrelated branch. (This deliberately
-    overrides the former punt that branch hygiene was a Dream concern — that
-    punt is why branches and worktrees piled up.)
+    the linked PR being merged at the current exact head with no other open PR
+    for that branch. Claims from sibling Coga workspaces in the same Git checkout
+    count as shared. It never removes the invoking checkout, `main`, or an
+    unrelated branch. (This deliberately overrides the former punt that branch
+    hygiene was a Dream concern — that punt is why branches and worktrees piled
+    up.)
     """
     try:
         cfg = load_config()
@@ -200,42 +203,76 @@ def _live_checkout_claim(
     root: Path,
     source_blackboard: str,
 ) -> str | None:
-    """Describe another non-terminal ticket claiming this checkout, if any."""
+    """Describe another non-terminal ticket claiming this checkout, if any.
+
+    Branches and linked worktrees belong to the whole Git repository, so the
+    claim scan covers every supported Coga workspace in a monorepo rather than
+    only the workspace that owns the retiring ticket.
+    """
     source_branch = parse_branch_name(source_blackboard)
     source_worktree = _normalized_worktree(root, source_blackboard)
     if source_branch is None and source_worktree is None:
         return None
 
-    for other_ref in list_tasks(cfg):
-        if other_ref.id_slug == source_ref.id_slug:
-            continue
+    workspaces = discover_coga_repos(root, strict=True)
+    current_workspace = cfg.repo_root.resolve()
+    if current_workspace not in {workspace.resolve() for workspace in workspaces}:
+        raise RuntimeError(
+            f"current Coga workspace {current_workspace} was not found under "
+            f"Git root {root}"
+        )
+
+    source_ticket = source_ref.ticket_path.resolve()
+    for workspace in workspaces:
+        workspace_path = workspace.resolve()
         try:
-            other_ticket = read_ticket(other_ref)
-        except (OSError, TicketError) as exc:
-            raise RuntimeError(f"cannot read {other_ref.id_slug}: {exc}") from exc
-        if other_ticket.status in TERMINAL_STATUSES:
-            continue
-        try:
-            other_blackboard = read_blackboard(
-                other_ref.ticket_path, blackboard_required=False
+            workspace_cfg = (
+                cfg
+                if workspace_path == current_workspace
+                else load_config(workspace_path, require_user=False)
             )
-        except (OSError, TaskFileError) as exc:
+        except ConfigError as exc:
             raise RuntimeError(
-                f"cannot read {other_ref.id_slug}'s blackboard: {exc}"
+                f"cannot inspect Coga workspace {workspace_path}: {exc}"
             ) from exc
 
-        other_branch = parse_branch_name(other_blackboard)
-        if source_branch is not None and other_branch == source_branch:
-            return (
-                f"live ticket {other_ref.id_slug!r} also records branch "
-                f"{source_branch!r}"
+        for other_ref in list_tasks(workspace_cfg):
+            if other_ref.ticket_path.resolve() == source_ticket:
+                continue
+            try:
+                other_ticket = read_ticket(other_ref)
+            except (OSError, TicketError) as exc:
+                raise RuntimeError(
+                    f"cannot read {other_ref.ticket_path}: {exc}"
+                ) from exc
+            if other_ticket.status in TERMINAL_STATUSES:
+                continue
+            try:
+                other_blackboard = read_blackboard(
+                    other_ref.ticket_path, blackboard_required=False
+                )
+            except (OSError, TaskFileError) as exc:
+                raise RuntimeError(
+                    f"cannot read {other_ref.ticket_path}'s blackboard: {exc}"
+                ) from exc
+
+            ticket_label = (
+                other_ref.id_slug
+                if workspace_path == current_workspace
+                else f"{workspace_path}:{other_ref.id_slug}"
             )
-        other_worktree = _normalized_worktree(root, other_blackboard)
-        if source_worktree is not None and other_worktree == source_worktree:
-            return (
-                f"live ticket {other_ref.id_slug!r} also records worktree "
-                f"{str(source_worktree)!r}"
-            )
+            other_branch = parse_branch_name(other_blackboard)
+            if source_branch is not None and other_branch == source_branch:
+                return (
+                    f"live ticket {ticket_label!r} also records branch "
+                    f"{source_branch!r}"
+                )
+            other_worktree = _normalized_worktree(root, other_blackboard)
+            if source_worktree is not None and other_worktree == source_worktree:
+                return (
+                    f"live ticket {ticket_label!r} also records worktree "
+                    f"{str(source_worktree)!r}"
+                )
     return None
 
 

@@ -21,6 +21,8 @@ Worktree safety model:
   - The target must still hold the ticket's recorded branch, and that branch
     must either have landed on the control branch or still match the exact head
     of its merged PR. A stale path or reused branch is preserved.
+  - Any open PR with the recorded head branch preserves the checkout even when
+    another PR from that head already landed.
   - Before `git worktree remove`, an explicit status check includes ignored
     files. Git's own unforced removal silently deletes ignored files, so any
     tracked, untracked, or ignored local state preserves the checkout. A locked
@@ -33,6 +35,7 @@ Branch safety model:
 
   - **Never** delete the control branch (`main`) or the currently checked-out
     branch.
+  - **Never** delete either ref while any PR for that head branch remains open.
   - **Remote** delete is gated on the linked PR actually being `MERGED` and the
     live remote ref still equaling that PR's exact head. The delete carries a
     force-with-lease for the same tip, closing the check/delete race. Ancestry
@@ -65,6 +68,7 @@ from coga.autoclose import (
     parse_worktree_path,
     pr_head,
     pr_state,
+    prs_for_head,
 )
 from coga.config import Config
 
@@ -204,6 +208,13 @@ def remove_ticket_worktree(
             f"Worktree cleanup: {recorded!r} contains tracked, untracked, or "
             f"ignored local state ({sample}) — left in place.",
         )
+        return result
+
+    if not _branch_has_no_open_pr(
+        branch,
+        note=lambda message: _wnote(result, echo, message),
+        prefix="Worktree cleanup",
+    ):
         return result
 
     if not local_branch_landed(root, branch, cfg.git_control_branch):
@@ -347,6 +358,13 @@ def delete_ticket_branch(
         )
         return result
 
+    if not _branch_has_no_open_pr(
+        branch,
+        note=lambda message: _note(result, echo, message),
+        prefix="Branch cleanup",
+    ):
+        return result
+
     authorization = _pr_cleanup_authorization(
         cfg,
         root,
@@ -389,6 +407,37 @@ def delete_ticket_branch(
         expected_tip=authorization.remote_expected_tip,
     )
     return result
+
+
+def _branch_has_no_open_pr(
+    branch: str,
+    *,
+    note: Callable[[str], None],
+    prefix: str,
+) -> bool:
+    """Prove no GitHub PR currently uses ``branch`` as its head."""
+    try:
+        open_prs = prs_for_head(branch, "open")
+    except GhError as exc:
+        note(
+            f"{prefix}: could not check for open PRs on {branch!r} ({exc}) — "
+            "preserving it."
+        )
+        return False
+    if not open_prs:
+        return True
+
+    numbers = [
+        f"#{number}"
+        for item in open_prs
+        if (number := item.get("number")) is not None
+    ]
+    detail = f" ({', '.join(numbers)})" if numbers else ""
+    note(
+        f"{prefix}: {branch!r} still has {len(open_prs)} open "
+        f"PR{'s' if len(open_prs) != 1 else ''}{detail} — left in place."
+    )
+    return False
 
 
 def _pr_cleanup_authorization(
@@ -577,7 +626,7 @@ def delete_local_branch(
         )
         return
 
-    tip = _rev_parse(root, branch)
+    tip = _rev_parse(root, f"refs/heads/{branch}")
     forced = _git(root, "branch", "-D", branch)
     if forced.returncode == 0:
         result.local_deleted = True
@@ -612,7 +661,13 @@ def local_branch_landed(
     root: Path, branch: str, landed_ref: str = "HEAD"
 ) -> bool:
     """True iff the local branch tip is reachable from `landed_ref`."""
-    return _is_ancestor(root, branch, landed_ref)
+    branch_ref = f"refs/heads/{branch}"
+    target_ref = (
+        landed_ref
+        if landed_ref == "HEAD" or landed_ref.startswith("refs/")
+        else f"refs/heads/{landed_ref}"
+    )
+    return _is_ancestor(root, branch_ref, target_ref)
 
 
 def _worktree_path_from_delete_error(output: str) -> str | None:
@@ -647,7 +702,9 @@ def _is_ancestor(root: Path, ref: str, maybe_descendant: str) -> bool:
 
 
 def _current_branch(root: Path) -> str:
-    proc = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    # `rev-parse --abbrev-ref HEAD` returns `heads/<name>` when a tag shadows
+    # the branch. `branch --show-current` is unambiguous and empty when detached.
+    proc = _git(root, "branch", "--show-current")
     return proc.stdout.strip() if proc.returncode == 0 else ""
 
 

@@ -156,6 +156,45 @@ def pr_head(url: str) -> tuple[str, str]:
     return branch, oid
 
 
+def prs_for_head(branch: str, state: str) -> list[dict[str, object]]:
+    """Return GitHub PRs for one head branch and state.
+
+    Branch retirement and the repository-wide branch sweep share this lookup:
+    neither may dispose of a branch while another PR still has that head.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "list",
+                "--head",
+                branch,
+                "--state",
+                state,
+                "--json",
+                "number,headRefOid",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise GhError("`gh` not found on PATH") from exc
+    if result.returncode != 0:
+        raise GhError(
+            f"`gh pr list --head {branch} --state {state}` failed "
+            f"(exit {result.returncode}): {result.stderr.strip()}"
+        )
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise GhError(f"`gh pr list --head {branch}` returned non-JSON: {exc}") from exc
+    if not isinstance(data, list):
+        raise GhError(f"`gh pr list --head {branch}` returned unexpected JSON")
+    return [item for item in data if isinstance(item, dict)]
+
+
 def _pr_view(url: str, fields: str) -> dict[str, object]:
     """Query selected JSON fields for one PR, normalizing CLI failures."""
     try:
@@ -312,5 +351,8 @@ __all__ = [
     "parse_pr_number",
     "parse_pr_url",
     "parse_branch_name",
+    "parse_worktree_path",
+    "pr_head",
     "pr_state",
+    "prs_for_head",
 ]

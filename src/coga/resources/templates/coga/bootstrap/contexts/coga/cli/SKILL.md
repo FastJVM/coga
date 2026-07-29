@@ -469,13 +469,14 @@ checkout.
 Wrap up a `done` ticket. First it disposes of the ticket's feature checkout and
 branch, read from `## Dev` while the ticket still exists: the recorded linked
 worktree is removed only after proving it is a same-repository linked worktree
-still holding the recorded branch, no live ticket shares it, and the branch is
-landed or still equals the recorded merged PR head. Tracked, untracked, and
-ignored local files all preserve it, as do locked, missing, independent-clone,
-and currently-running checkouts. That removal unpins the branch; local cleanup
-then runs before a merged remote deletion whose exact head is protected by
-force-with-lease. Finally, retire scaffolds a one-shot `retire-<slug>` task whose
-body invokes the `retro/done-ticket` skill against the named ticket. The retro
+still holding the recorded branch, no live ticket in any sibling Coga workspace
+shares it, no PR for that head remains open, and the branch is landed or still
+equals the recorded merged PR head. Tracked, untracked, and ignored local files
+all preserve it, as do locked, missing, independent-clone, and currently-running
+checkouts. That removal unpins the branch; local cleanup then runs before a
+merged remote deletion whose exact head is protected by force-with-lease.
+Finally, retire scaffolds a one-shot `retire-<slug>` task whose body invokes the
+`retro/done-ticket` skill against the named ticket. The retro
 skill opens the PR that records the `## Retro` marker, edits the knowledge base
 if warranted, and deletes the source task directory in the same PR. The retire
 task is scaffolded straight to `active`; `coga retire` launches it unless

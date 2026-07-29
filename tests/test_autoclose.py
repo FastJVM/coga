@@ -261,6 +261,33 @@ def test_pr_head_reads_exact_branch_and_oid(monkeypatch) -> None:
     assert am.pr_head("https://github.com/o/r/pull/7") == ("feat", "abc123")
 
 
+def test_prs_for_head_lists_requested_state(monkeypatch) -> None:
+    def fake_run(argv, **kwargs):  # type: ignore[no-untyped-def]
+        assert argv == [
+            "gh",
+            "pr",
+            "list",
+            "--head",
+            "feat",
+            "--state",
+            "open",
+            "--json",
+            "number,headRefOid",
+        ]
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout='[{"number":12,"headRefOid":"abc123"}]',
+            stderr="",
+        )
+
+    monkeypatch.setattr(am.subprocess, "run", fake_run)
+
+    assert am.prs_for_head("feat", "open") == [
+        {"number": 12, "headRefOid": "abc123"}
+    ]
+
+
 # --- scanner ------------------------------------------------------------------
 
 

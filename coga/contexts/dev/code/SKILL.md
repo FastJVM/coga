@@ -46,10 +46,11 @@ Leave `worktree:` recorded and accurate; that line is what retire acts on.
 
 Retire only removes a checkout Git identifies as a **linked worktree of the same
 repository** that still holds the recorded branch. It also refuses cleanup when
-another non-terminal ticket records the same branch/worktree, or when the
-branch has neither landed on the control branch nor retained the exact head of
-its recorded merged PR. Remote deletion verifies that exact head again and uses
-a force-with-lease, so a reused branch is never deleted on stale PR state.
+another non-terminal ticket in any Coga workspace in the same Git checkout
+records the branch/worktree, while any PR for that head remains open, or when
+the branch has neither landed on the control branch nor retained the exact head
+of its recorded merged PR. Remote deletion verifies that exact head again and
+uses a force-with-lease, so a reused branch is never deleted on stale PR state.
 
 Before removal, retire checks tracked, untracked, **and ignored** files. This is
 stricter than Git's ordinary unforced removal, which silently deletes ignored
@@ -58,7 +59,8 @@ files. These survive and are reported for manual disposal:
 - an independent fallback clone (the `/tmp` sandbox path above) — it is a
   separate repository, not a linked worktree;
 - the checkout currently running `coga retire`, a stale path now holding
-  another branch, or a checkout shared with another live ticket;
+  another branch, a checkout shared with another live ticket (including one in
+  a sibling Coga workspace), or a branch still used by an open PR;
 - a worktree with tracked, untracked, or ignored local state (including caches
   and machine-local config), or a locked one;
 - a recorded path that is already gone. Retire reports the stale registration

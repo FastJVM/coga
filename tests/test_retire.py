@@ -280,6 +280,9 @@ def test_retire_prunes_merged_branch_before_launch(
     self-skips without a merged-PR signal.
     """
     monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head", lambda _branch, _state: []
+    )
     _git(repo, "init", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "Tester")
@@ -354,6 +357,9 @@ def test_retire_removes_linked_worktree_then_prunes_its_branch(
     this retire step the branch survived every sweep.
     """
     monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head", lambda _branch, _state: []
+    )
     _git(repo, "init", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "Tester")
@@ -536,6 +542,105 @@ def test_retire_preserves_checkout_claimed_by_another_live_ticket(
                 "git",
                 "-C",
                 str(repo),
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                "refs/heads/shared-branch",
+            ],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
+def test_retire_preserves_checkout_claimed_by_sibling_coga_workspace(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from coga.commands import retire as retire_cmd
+    from coga.config import load_config
+    from coga.tasks import resolve_task
+
+    root = tmp_path / "monorepo"
+    root.mkdir()
+    _git(root, "init", "-b", "main", ".")
+    _git(root, "config", "user.email", "t@example.com")
+    _git(root, "config", "user.name", "Tester")
+
+    current = root / "alpha" / "coga"
+    sibling = root / "beta" / "coga"
+    for workspace in (current, sibling):
+        _write(
+            workspace / "coga.toml",
+            'version = 1\ndefault_status = "draft"\n',
+        )
+        _write(
+            workspace / "coga.local.toml",
+            'user = "marc"\n[slack]\nenabled = false\n',
+        )
+
+    feature = tmp_path / "shared-feature"
+    _write(
+        current / "tasks" / "finished" / "ticket.md",
+        f"""
+        ---
+        slug: finished
+        title: Finished
+        status: done
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: shared-branch
+        worktree: {feature}
+        """,
+    )
+    _write(
+        sibling / "tasks" / "still-active" / "ticket.md",
+        f"""
+        ---
+        slug: still-active
+        title: Still active
+        status: in_progress
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Still using the repository-global checkout.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: shared-branch
+        worktree: {feature}
+        """,
+    )
+    (root / "seed.txt").write_text("seed")
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "seed monorepo workspaces")
+    _git(root, "worktree", "add", str(feature), "-b", "shared-branch")
+
+    cfg = load_config(current)
+    retire_cmd._cleanup_checkout(cfg, resolve_task(cfg, "finished"))
+
+    output = capsys.readouterr().out
+    assert "still-active" in output
+    assert "also records branch 'shared-branch'" in output
+    assert feature.is_dir()
+    assert (
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
                 "rev-parse",
                 "--verify",
                 "--quiet",

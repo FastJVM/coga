@@ -55,6 +55,7 @@ from coga.task_env import apply_task_env, host_repo_root
 from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
+from coga.workspace_discovery import discover_coga_repos
 
 # Default idle-timeout backstop (seconds) the sweep arms on the interactive
 # REPLs it spawns: one that stalls or crashes before signalling done would
@@ -64,43 +65,6 @@ from coga.validate import TaskValidationError
 # (a human driving by hand) leaves it off; `COGA_REPL_IDLE_TIMEOUT` overrides
 # the window or, at `<= 0` / non-finite, disarms it.
 _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
-
-# A parent-directory sweep discovers real Coga workspaces, not dependency,
-# tool-state, or intentionally inert `_`-prefixed trees. Once one workspace is
-# found its subtree is a unit: Coga refuses nested workspaces, and descending
-# would only find fixtures or packaged templates inside the repo.
-_REPO_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
-    {".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"}
-)
-
-
-def discover_coga_repos(root: Path) -> list[Path]:
-    """Return every ``coga/`` workspace at or below ``root``.
-
-    A workspace is identified by a directory named ``coga`` containing
-    ``coga.toml``. A host repo may itself be named ``coga``, so a same-named
-    directory without that file is still traversed. Directory segments whose
-    names start with ``_`` are explicit exclusions below the scan root.
-    """
-    if root.name == "coga" and (root / "coga.toml").is_file():
-        return [root]
-
-    found: list[Path] = []
-    for dirpath, dirnames, _ in os.walk(root):
-        dirnames[:] = [
-            name
-            for name in dirnames
-            if name not in _REPO_SCAN_SKIP_DIRS and not name.startswith("_")
-        ]
-        if "coga" not in dirnames:
-            continue
-        coga_os = Path(dirpath) / "coga"
-        if not (coga_os / "coga.toml").is_file():
-            continue
-        found.append(coga_os)
-        dirnames[:] = []
-    return sorted(found)
-
 
 def run_recurring_all_repos(
     scan_root: Path,

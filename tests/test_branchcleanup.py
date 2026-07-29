@@ -60,6 +60,15 @@ def repo(tmp_path: Path) -> Path:
     return root
 
 
+@pytest.fixture(autouse=True)
+def no_open_head_prs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Most cleanup cases model a branch with no remaining open PR."""
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head",
+        lambda _branch, _state: [],
+    )
+
+
 def _cfg(repo: Path):
     return load_config(repo / "coga")
 
@@ -82,7 +91,14 @@ def _dev_blackboard(
 
 def _branch_exists_local(repo: Path, branch: str) -> bool:
     return (
-        _git(repo, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}", check=False).returncode
+        _git(
+            repo,
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            f"refs/heads/{branch}",
+            check=False,
+        ).returncode
         == 0
     )
 
@@ -275,6 +291,39 @@ def test_unmerged_pr_open_skips_both(repo: Path, monkeypatch) -> None:
     assert _branch_exists_remote(repo, "feat")
 
 
+def test_other_open_head_pr_preserves_landed_local_and_remote_branches(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _git(repo, "checkout", "-b", "feat")
+    _commit(repo, "feat.txt", "feat", "feat work")
+    _git(repo, "push", "-u", "origin", "feat")
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--ff-only", "feat")
+
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head",
+        lambda branch, state: (
+            [{"number": 12, "headRefOid": "unused"}]
+            if branch == "feat" and state == "open"
+            else []
+        ),
+    )
+    notes: list[str] = []
+
+    result = delete_ticket_branch(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", "https://github.com/o/r/pull/7"),
+        echo=notes.append,
+    )
+
+    assert result.local_deleted is False
+    assert result.remote_deleted is False
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert any("still has 1 open PR (#12)" in note for note in notes)
+
+
 def test_never_deletes_control_branch(repo: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         "coga.branchcleanup.pr_state",
@@ -316,6 +365,58 @@ def test_removes_recorded_linked_worktree(repo: Path, tmp_path: Path) -> None:
     assert result.removed is True
     assert not feature.exists()
     assert "feat" not in _git(repo, "worktree", "list").stdout
+
+
+def test_open_head_pr_preserves_landed_worktree(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    _commit(feature, "feat.txt", "feat", "feat work")
+    _git(repo, "merge", "--ff-only", "feat")
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head",
+        lambda branch, state: (
+            [{"number": 12, "headRefOid": "unused"}]
+            if branch == "feat" and state == "open"
+            else []
+        ),
+    )
+    notes: list[str] = []
+
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
+    )
+
+    assert result.removed is False
+    assert feature.is_dir()
+    assert any("still has 1 open PR (#12)" in note for note in notes)
+
+
+def test_control_tag_cannot_make_unmerged_worktree_look_landed(
+    repo: Path, tmp_path: Path
+) -> None:
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    _commit(feature, "feat.txt", "feat", "unmerged feat")
+    # A loose ref named like the configured control branch used to make
+    # `merge-base ... feat main` resolve the tag and authorize removal.
+    _git(repo, "tag", "main", "refs/heads/feat")
+    notes: list[str] = []
+
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
+    )
+
+    assert result.removed is False
+    assert feature.is_dir()
+    assert any("has not landed on 'main'" in note for note in notes)
 
 
 def test_removing_worktree_unpins_branch_for_cleanup(
