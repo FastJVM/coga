@@ -125,6 +125,7 @@ in the new surface or a live hole in the seam that
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/671
 branch: fix/stateless-bootstrap-blackboard
 worktree: /tmp/coga-stateless-bootstrap-blackboard
 
