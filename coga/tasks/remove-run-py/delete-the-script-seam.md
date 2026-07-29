@@ -1,7 +1,7 @@
 ---
 slug: remove-run-py/delete-the-script-seam
 title: Delete the script-seam
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
@@ -99,6 +98,41 @@ The blackboard is a notepad to be written to often as the human and agent works 
 pr: https://github.com/FastJVM/coga/pull/670
 branch: delete-script-seam
 worktree: /tmp/coga-delete-script-seam
+
+## Already satisfied (2026-07-29 11:12)
+
+Megalaunch re-picked this ticket **eight minutes after PR #670 merged**, from
+the primary checkout `/home/n/Code/claude/coga`, which sits on branch
+`slack-post-nonfatal-after-transition` — 75 commits behind `origin/main`. The
+composed prompt was therefore built from a stale ticket copy (`step: 1
+(implement)`, both asks still open) and from stale source that still contained
+the seam. Nothing was re-implemented; the ticket file here was refreshed from
+`origin/main` before closing.
+
+Verified against `origin/main` (`216db444`; seam deleted in `755e60de`,
+squash-merge of PR #670):
+
+- `src/coga/commands/launch_script.py` — gone from the tree.
+- `git grep -E 'launch_script|is_script_launch|run_script_mode|current_step_is_script|COGA_ARG|render_show_from_env|finalize_authored_from_env'`
+  over `src/`, `tests/`, `docs/` — **zero** hits. The only survivors repo-wide
+  are `coga/log.md` history and old ticket prose, which the ticket's Context
+  explicitly puts out of scope.
+- No `run.py` anywhere except `src/coga/commands/run.py` (the generic runner
+  from ticket A). Both vestigial twins (`coga/show`, `coga/ticket/finalize`,
+  live and packaged) are deleted.
+- No `script: run.py` declaration remains in any `SKILL.md` or `ticket.md`.
+- `tests/test_launch_script.py` is deleted; the remaining `*_script*` tests
+  (`test_dream_skill_scripts.py`, `test_human_minutes_script.py`) are unrelated.
+
+Workflow record: implement (`0b82f606`) → peer-review (`3f4cac7e`) → open-pr
+(#670) → owner merged. Closing with `coga mark done`.
+
+### Follow-up for the human — not fixed here
+
+The primary checkout being 75 commits behind `main` affects the **whole**
+megalaunch run, not just this ticket: `coga/log.md` in this checkout is also
+stale, so any control-branch sync from here risks writing an old log over
+`main`'s. Only this ticket's file was reconciled.
 
 ## PR
 
