@@ -100,6 +100,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/673
 branch: scrub-launch-env
 worktree: /home/n/Code/claude/coga-scrub-launch-env
 
