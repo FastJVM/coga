@@ -92,6 +92,15 @@ def _branch_exists_remote(repo: Path, branch: str) -> bool:
     return bool(out)
 
 
+def _stub_merged_pr(monkeypatch, repo: Path, branch: str) -> str:
+    tip = _git(repo, "rev-parse", branch).stdout.strip()
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda _url: "MERGED")
+    monkeypatch.setattr(
+        "coga.branchcleanup.pr_head", lambda _url: (branch, tip)
+    )
+    return tip
+
+
 def test_clean_merge_deletes_local_and_remote(repo: Path, monkeypatch) -> None:
     # feat is merged into main (fast-forward), so `git branch -d` accepts it.
     _git(repo, "checkout", "-b", "feat")
@@ -101,7 +110,7 @@ def test_clean_merge_deletes_local_and_remote(repo: Path, monkeypatch) -> None:
     _git(repo, "merge", "--ff-only", "feat")
     _git(repo, "push", "origin", "main")
 
-    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda url: "MERGED")
+    _stub_merged_pr(monkeypatch, repo, "feat")
 
     result = delete_ticket_branch(
         _cfg(repo),
@@ -128,7 +137,7 @@ def test_squash_merge_force_deletes_local_and_logs_tip(repo: Path, monkeypatch) 
     _commit(repo, "feat.txt", "feat", "squashed feat")  # equivalent, different SHA
     _git(repo, "push", "origin", "main")
 
-    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda url: "MERGED")
+    _stub_merged_pr(monkeypatch, repo, "feat")
     notes: list[str] = []
     result = delete_ticket_branch(
         _cfg(repo),
@@ -143,6 +152,80 @@ def test_squash_merge_force_deletes_local_and_logs_tip(repo: Path, monkeypatch) 
     assert not _branch_exists_remote(repo, "feat")
     # The tip SHA is logged so the force-deleted local branch is recoverable.
     assert any(tip[:12] in note for note in notes), notes
+
+
+def test_merged_pr_does_not_delete_branch_that_advanced_after_merge(
+    repo: Path, monkeypatch
+) -> None:
+    _git(repo, "checkout", "-b", "feat")
+    _commit(repo, "feat.txt", "merged", "merged work")
+    merged_head = _git(repo, "rev-parse", "feat").stdout.strip()
+    _git(repo, "push", "-u", "origin", "feat")
+    _commit(repo, "later.txt", "later", "reuse branch")
+    _git(repo, "push", "origin", "feat")
+    _git(repo, "checkout", "main")
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda _url: "MERGED")
+    monkeypatch.setattr(
+        "coga.branchcleanup.pr_head",
+        lambda _url: ("feat", merged_head),
+    )
+
+    notes: list[str] = []
+    result = delete_ticket_branch(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", "https://github.com/o/r/pull/7"),
+        echo=notes.append,
+    )
+
+    assert result.local_deleted is False
+    assert result.remote_deleted is False
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert any("advanced past the merged PR head" in note for note in notes)
+
+
+def test_landed_local_cleanup_preserves_remote_that_advanced_after_merge(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _git(repo, "checkout", "-b", "feat")
+    _commit(repo, "feat.txt", "merged", "merged work")
+    merged_head = _git(repo, "rev-parse", "feat").stdout.strip()
+    _git(repo, "push", "-u", "origin", "feat")
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--ff-only", "feat")
+    _git(repo, "push", "origin", "main")
+
+    other = tmp_path / "other"
+    subprocess.run(
+        ["git", "clone", str(repo.parent / "origin.git"), str(other)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    _git(other, "config", "user.email", "t@example.com")
+    _git(other, "config", "user.name", "Tester")
+    _git(other, "checkout", "feat")
+    _commit(other, "later.txt", "later", "reuse branch remotely")
+    _git(other, "push", "origin", "feat")
+
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda _url: "MERGED")
+    monkeypatch.setattr(
+        "coga.branchcleanup.pr_head",
+        lambda _url: ("feat", merged_head),
+    )
+
+    result = delete_ticket_branch(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", "https://github.com/o/r/pull/7"),
+        echo=lambda _m: None,
+    )
+
+    assert result.local_deleted is True
+    assert result.remote_deleted is False
+    assert not _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
 
 
 def test_unmerged_no_pr_is_skipped(repo: Path, monkeypatch) -> None:
@@ -223,7 +306,10 @@ def test_removes_recorded_linked_worktree(repo: Path, tmp_path: Path) -> None:
     _add_worktree(repo, feature, "feat")
 
     result = remove_ticket_worktree(
-        repo, _dev_blackboard("feat", worktree=str(feature)), echo=lambda _m: None
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=lambda _m: None,
     )
 
     assert result.worktree == str(feature)
@@ -240,8 +326,6 @@ def test_removing_worktree_unpins_branch_for_cleanup(
     _add_worktree(repo, feature, "feat")
     _commit(feature, "feat.txt", "feat", "feat work")
     _git(repo, "merge", "--ff-only", "feat")
-    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda url: "MERGED")
-
     # Without the worktree removal, git refuses: "used by worktree at ...".
     pinned = delete_ticket_branch(
         _cfg(repo),
@@ -253,7 +337,10 @@ def test_removing_worktree_unpins_branch_for_cleanup(
     assert _branch_exists_local(repo, "feat")
 
     remove_ticket_worktree(
-        repo, _dev_blackboard("feat", worktree=str(feature)), echo=lambda _m: None
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=lambda _m: None,
     )
     freed = delete_ticket_branch(
         _cfg(repo),
@@ -273,13 +360,90 @@ def test_dirty_worktree_left_in_place(repo: Path, tmp_path: Path) -> None:
 
     notes: list[str] = []
     result = remove_ticket_worktree(
-        repo, _dev_blackboard("feat", worktree=str(feature)), echo=notes.append
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
     )
 
     assert result.removed is False
     assert feature.is_dir()
     assert (feature / "uncommitted.txt").is_file()
-    assert any("could not remove" in note for note in notes)
+    assert any("contains tracked, untracked, or ignored" in note for note in notes)
+
+
+def test_ignored_local_file_left_in_place(repo: Path, tmp_path: Path) -> None:
+    (repo / ".gitignore").write_text("*.secret\n")
+    _git(repo, "add", ".gitignore")
+    _git(repo, "commit", "-m", "ignore local secrets")
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    (feature / "credentials.secret").write_text("do not delete")
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
+    )
+
+    assert result.removed is False
+    assert (feature / "credentials.secret").read_text() == "do not delete"
+    assert any("ignored local state" in note for note in notes)
+
+
+def test_worktree_holding_another_branch_left_in_place(
+    repo: Path, tmp_path: Path
+) -> None:
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "other-ticket")
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("retiring-ticket", worktree=str(feature)),
+        echo=notes.append,
+    )
+
+    assert result.removed is False
+    assert feature.is_dir()
+    assert any(
+        "holds 'other-ticket', not the recorded branch 'retiring-ticket'" in note
+        for note in notes
+    )
+
+
+def test_worktree_advanced_past_recorded_merged_pr_is_left_in_place(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    merged_head = _git(repo, "rev-parse", "main").stdout.strip()
+    _commit(feature, "new.txt", "new work", "reuse branch")
+    _git(feature, "push", "-u", "origin", "feat")
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda _url: "MERGED")
+    monkeypatch.setattr(
+        "coga.branchcleanup.pr_head",
+        lambda _url: ("feat", merged_head),
+    )
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard(
+            "feat",
+            "https://github.com/o/r/pull/7",
+            worktree=str(feature),
+        ),
+        echo=notes.append,
+    )
+
+    assert result.removed is False
+    assert feature.is_dir()
+    assert any("advanced past the merged PR head" in note for note in notes)
 
 
 def test_independent_clone_left_in_place(repo: Path, tmp_path: Path) -> None:
@@ -294,7 +458,10 @@ def test_independent_clone_left_in_place(repo: Path, tmp_path: Path) -> None:
 
     notes: list[str] = []
     result = remove_ticket_worktree(
-        repo, _dev_blackboard("feat", worktree=str(clone)), echo=notes.append
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(clone)),
+        echo=notes.append,
     )
 
     assert result.removed is False
@@ -305,12 +472,34 @@ def test_independent_clone_left_in_place(repo: Path, tmp_path: Path) -> None:
 def test_primary_checkout_left_in_place(repo: Path) -> None:
     notes: list[str] = []
     result = remove_ticket_worktree(
-        repo, _dev_blackboard("feat", worktree=str(repo)), echo=notes.append
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(repo)),
+        echo=notes.append,
     )
 
     assert result.removed is False
     assert repo.is_dir()
-    assert any("not a linked worktree" in note for note in notes)
+    assert any("checkout running retire" in note for note in notes)
+
+
+def test_retire_checkout_cannot_remove_itself(
+    repo: Path, tmp_path: Path
+) -> None:
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        feature,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
+    )
+
+    assert result.removed is False
+    assert feature.is_dir()
+    assert any("checkout running retire" in note for note in notes)
 
 
 def test_missing_worktree_path_is_reported_not_pruned(
@@ -322,7 +511,10 @@ def test_missing_worktree_path_is_reported_not_pruned(
 
     notes: list[str] = []
     result = remove_ticket_worktree(
-        repo, _dev_blackboard("feat", worktree=str(feature)), echo=notes.append
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
     )
 
     assert result.removed is False
@@ -333,7 +525,7 @@ def test_missing_worktree_path_is_reported_not_pruned(
 
 def test_no_worktree_line_is_noop(repo: Path) -> None:
     result = remove_ticket_worktree(
-        repo, _dev_blackboard("feat"), echo=lambda _m: None
+        _cfg(repo), repo, _dev_blackboard("feat"), echo=lambda _m: None
     )
     assert result.worktree is None
     assert result.removed is False

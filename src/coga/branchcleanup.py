@@ -18,9 +18,14 @@ Worktree safety model:
     repository** is removed. An independent fallback clone (the sandbox
     `/tmp` path in the `dev/code` context), an unrelated repo, and the primary
     checkout are preserved and reported.
-  - `git worktree remove` runs **without** `--force`, so a dirty or locked
-    worktree survives with its failure reported. Uncommitted work is never
-    discarded on the strength of a lifecycle transition.
+  - The target must still hold the ticket's recorded branch, and that branch
+    must either have landed on the control branch or still match the exact head
+    of its merged PR. A stale path or reused branch is preserved.
+  - Before `git worktree remove`, an explicit status check includes ignored
+    files. Git's own unforced removal silently deletes ignored files, so any
+    tracked, untracked, or ignored local state preserves the checkout. A locked
+    worktree likewise survives with its failure reported.
+  - Retire never removes the checkout it is running from.
   - A recorded path that is already gone is reported, not pruned: clearing the
     stale registration is a repo-wide operation that belongs to branch sweep.
 
@@ -28,17 +33,15 @@ Branch safety model:
 
   - **Never** delete the control branch (`main`) or the currently checked-out
     branch.
-  - **Remote** delete is gated on the linked PR actually being `MERGED`
-    (reusing `autoclose.pr_state`'s `gh pr view` check). Ancestry is *not* used:
-    a squash-merged PR (GitHub's common default) leaves the branch tip not an
-    ancestor of `main` even though the work landed, which a `git merge-base`
-    gate would wrongly skip. Deleting `origin/<branch>` is not protected by the
-    local reflog, so the merged-PR gate is the only authorization.
+  - **Remote** delete is gated on the linked PR actually being `MERGED` and the
+    live remote ref still equaling that PR's exact head. The delete carries a
+    force-with-lease for the same tip, closing the check/delete race. Ancestry
+    is *not* used: a squash-merged PR (GitHub's common default) leaves the branch
+    tip not an ancestor of `main` even though the work landed.
   - **Local** delete prefers `git branch -d`, which refuses an unmerged branch.
-    If that refuses but the PR did merge (the squash-merge case), we log the tip
-    SHA and force-delete `-D` so the work stays recoverable from the reflog. If
-    the branch is unmerged and has no merged PR, we skip it and report rather
-    than force-deleting silently.
+    If that refuses but the current tip is the exact head of the merged PR (the
+    squash-merge case), we log the tip SHA and force-delete `-D` so the work
+    stays recoverable from the reflog. An advanced/reused branch is preserved.
 
 `gh` missing/unauthed means the merge state can't be confirmed: the gated
 deletes are skipped and reported, never forced.
@@ -60,6 +63,7 @@ from coga.autoclose import (
     parse_branch_name,
     parse_pr_url,
     parse_worktree_path,
+    pr_head,
     pr_state,
 )
 from coga.config import Config
@@ -85,7 +89,19 @@ class WorktreeCleanupResult:
     notes: list[str] = field(default_factory=list)
 
 
+@dataclass
+class _PrCleanupAuthorization:
+    """Which current refs still match the recorded merged PR head."""
+
+    local_merged: bool = False
+    remote_merged: bool = False
+    remote_known: bool = False
+    remote_present: bool = False
+    remote_expected_tip: str | None = None
+
+
 def remove_ticket_worktree(
+    cfg: Config,
     root: Path,
     blackboard_text: str,
     *,
@@ -109,12 +125,42 @@ def remove_ticket_worktree(
         # No `## Dev` worktree line — nothing to remove (e.g. a doc-only ticket).
         return result
 
+    branch = parse_branch_name(blackboard_text)
+    if not branch:
+        _wnote(
+            result,
+            echo,
+            "Worktree cleanup: no `branch:` line recorded — cannot prove which "
+            "checkout the worktree belongs to; left in place.",
+        )
+        return result
+
     path = Path(recorded).expanduser()
+    if not path.is_absolute():
+        path = root / path
     if not path.is_dir():
         _wnote(
             result,
             echo,
             f"Worktree cleanup: recorded worktree {recorded!r} is already gone.",
+        )
+        return result
+
+    if path.is_symlink():
+        _wnote(
+            result,
+            echo,
+            f"Worktree cleanup: recorded path {recorded!r} is a symlink — left "
+            "in place rather than removing its target.",
+        )
+        return result
+
+    if _same_path(root, path):
+        _wnote(
+            result,
+            echo,
+            f"Worktree cleanup: {recorded!r} is the checkout running retire — "
+            "left in place.",
         )
         return result
 
@@ -127,6 +173,64 @@ def remove_ticket_worktree(
             "checkout) — left in place.",
         )
         return result
+
+    checked_out = _current_branch(path)
+    if checked_out != branch:
+        actual = checked_out or "detached HEAD"
+        _wnote(
+            result,
+            echo,
+            f"Worktree cleanup: {recorded!r} holds {actual!r}, not the recorded "
+            f"branch {branch!r} — left in place.",
+        )
+        return result
+
+    local_state, status_error = _worktree_local_state(path)
+    if status_error is not None:
+        _wnote(
+            result,
+            echo,
+            f"Worktree cleanup: could not inspect local state in {recorded!r} "
+            f"({status_error}) — left in place.",
+        )
+        return result
+    if local_state:
+        sample = ", ".join(repr(entry) for entry in local_state[:3])
+        if len(local_state) > 3:
+            sample += f", and {len(local_state) - 3} more"
+        _wnote(
+            result,
+            echo,
+            f"Worktree cleanup: {recorded!r} contains tracked, untracked, or "
+            f"ignored local state ({sample}) — left in place.",
+        )
+        return result
+
+    if not local_branch_landed(root, branch, cfg.git_control_branch):
+        authorization = _pr_cleanup_authorization(
+            cfg,
+            root,
+            blackboard_text,
+            branch,
+            note=lambda message: _wnote(result, echo, message),
+            prefix="Worktree cleanup",
+        )
+        remote_safe = (
+            authorization.remote_known
+            and (
+                not authorization.remote_present
+                or authorization.remote_merged
+            )
+        )
+        if not authorization.local_merged or not remote_safe:
+            _wnote(
+                result,
+                echo,
+                f"Worktree cleanup: branch {branch!r} has not landed on "
+                f"{cfg.git_control_branch!r} and its current refs do not exactly "
+                "match the recorded merged PR — left in place.",
+            )
+            return result
 
     proc = _git(root, "worktree", "remove", str(path))
     if proc.returncode == 0:
@@ -173,6 +277,34 @@ def _git_path(cwd: Path, flag: str) -> Path | None:
         return None
 
 
+def _same_path(left: Path, right: Path) -> bool:
+    """Best-effort identity check for destructive checkout operations."""
+    try:
+        return left.resolve() == right.resolve()
+    except OSError:
+        return False
+
+
+def _worktree_local_state(path: Path) -> tuple[list[str], str | None]:
+    """Return all tracked, untracked, and ignored state in ``path``.
+
+    ``git worktree remove`` without ``--force`` protects ordinary dirt but
+    deliberately deletes ignored files. Retire's stronger no-data-loss
+    contract therefore has to ask status for ignored entries explicitly.
+    """
+    proc = _git(
+        path,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--ignored",
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr + proc.stdout).strip() or "git status failed"
+        return [], detail
+    return [line for line in proc.stdout.splitlines() if line], None
+
+
 def _wnote(
     result: WorktreeCleanupResult, echo: Callable[[str], None], message: str
 ) -> None:
@@ -215,36 +347,141 @@ def delete_ticket_branch(
         )
         return result
 
-    pr_merged = _pr_merged(blackboard_text, echo, result)
+    authorization = _pr_cleanup_authorization(
+        cfg,
+        root,
+        blackboard_text,
+        branch,
+        note=lambda message: _note(result, echo, message),
+        prefix="Branch cleanup",
+    )
 
-    delete_remote_branch(cfg, root, branch, pr_merged, echo, result)
-    delete_local_branch(root, branch, pr_merged, echo, result)
+    local_present = _local_branch_exists(root, branch)
+    delete_local_branch(
+        root,
+        branch,
+        authorization.local_merged,
+        echo,
+        result,
+    )
+    if local_present and not result.local_deleted:
+        _note(
+            result,
+            echo,
+            f"Branch cleanup: skipping remote {cfg.git_remote}/{branch} because "
+            "the local branch remains.",
+        )
+        return result
+    if authorization.remote_known and not authorization.remote_present:
+        _note(
+            result,
+            echo,
+            f"Branch cleanup: remote {cfg.git_remote}/{branch} already gone.",
+        )
+        return result
+    delete_remote_branch(
+        cfg,
+        root,
+        branch,
+        authorization.remote_merged,
+        echo,
+        result,
+        expected_tip=authorization.remote_expected_tip,
+    )
     return result
 
 
-def _pr_merged(
+def _pr_cleanup_authorization(
+    cfg: Config,
+    root: Path,
     blackboard_text: str,
-    echo: Callable[[str], None],
-    result: BranchCleanupResult,
-) -> bool:
-    """Return True iff the `## Dev` `pr:` link is MERGED on GitHub.
+    branch: str,
+    *,
+    note: Callable[[str], None],
+    prefix: str,
+) -> _PrCleanupAuthorization:
+    """Authorize only refs equal to the recorded merged PR's exact head.
 
-    A missing `pr:` line, or any `gh` failure, returns False (the gated deletes
-    then skip). `gh` trouble is reported but never fatal — retire still runs.
+    The PR state alone is insufficient: a branch may be reused after merge, or
+    another checkout may push a newer remote tip. Local and remote refs are
+    checked independently so landed local cleanup can proceed without deleting
+    a newer remote branch.
     """
+    authorization = _PrCleanupAuthorization()
     url = parse_pr_url(blackboard_text)
     if not url:
-        _note(result, echo, "Branch cleanup: no `pr:` link recorded — cannot confirm merge.")
-        return False
+        note(f"{prefix}: no `pr:` link recorded — cannot confirm merge.")
+        return authorization
     try:
         state = pr_state(url)
     except GhError as exc:
-        _note(result, echo, f"Branch cleanup: could not check PR state ({exc}).")
-        return False
+        note(f"{prefix}: could not check PR state ({exc}).")
+        return authorization
     if state != "MERGED":
-        _note(result, echo, f"Branch cleanup: PR is {state} (not MERGED).")
-        return False
-    return True
+        note(f"{prefix}: PR is {state} (not MERGED).")
+        return authorization
+
+    try:
+        head_branch, head_oid = pr_head(url)
+    except GhError as exc:
+        note(f"{prefix}: could not check the merged PR head ({exc}).")
+        return authorization
+    if head_branch != branch:
+        note(
+            f"{prefix}: merged PR head is {head_branch!r}, not the recorded "
+            f"branch {branch!r}."
+        )
+        return authorization
+
+    local_tip = _rev_parse(root, f"refs/heads/{branch}")
+    authorization.local_merged = bool(local_tip and local_tip == head_oid)
+    if local_tip and not authorization.local_merged:
+        note(
+            f"{prefix}: local {branch!r} advanced past the merged PR head "
+            f"{head_oid[:12]} — preserving it."
+        )
+
+    remote_known, remote_tip, remote_error = _remote_branch_tip(
+        cfg, root, branch
+    )
+    authorization.remote_known = remote_known
+    authorization.remote_present = remote_tip is not None
+    if not remote_known:
+        note(
+            f"{prefix}: could not read current {cfg.git_remote}/{branch} "
+            f"({remote_error}) — preserving it."
+        )
+        return authorization
+    authorization.remote_merged = bool(remote_tip and remote_tip == head_oid)
+    if authorization.remote_merged:
+        authorization.remote_expected_tip = head_oid
+    if remote_tip and not authorization.remote_merged:
+        note(
+            f"{prefix}: {cfg.git_remote}/{branch} advanced past the merged PR "
+            f"head {head_oid[:12]} — preserving it."
+        )
+    return authorization
+
+
+def _remote_branch_tip(
+    cfg: Config, root: Path, branch: str
+) -> tuple[bool, str | None, str | None]:
+    """Return ``(known, tip, error)`` for the live configured remote ref."""
+    ref = f"refs/heads/{branch}"
+    proc = _git(root, "ls-remote", "--heads", cfg.git_remote, ref)
+    if proc.returncode != 0:
+        detail = (proc.stderr + proc.stdout).strip() or "git ls-remote failed"
+        return False, None, detail
+    lines = [line for line in proc.stdout.splitlines() if line.strip()]
+    if not lines:
+        return True, None, None
+    try:
+        tip, returned_ref = lines[0].split(None, 1)
+    except ValueError:
+        return False, None, f"unexpected ls-remote output: {lines[0]!r}"
+    if returned_ref != ref:
+        return False, None, f"unexpected ls-remote ref: {returned_ref!r}"
+    return True, tip, None
 
 
 def delete_remote_branch(
@@ -254,12 +491,16 @@ def delete_remote_branch(
     pr_merged: bool,
     echo: Callable[[str], None],
     result: BranchCleanupResult,
+    *,
+    expected_tip: str | None = None,
 ) -> None:
     """Delete `origin/<branch>` iff `pr_merged`.
 
     Shared with the branch-sweep recipe, whose merge signal is looked up by
     branch name instead of a ticket's `pr:` URL — the caller decides
-    `pr_merged`; this function only does the git plumbing.
+    `pr_merged`; this function only does the git plumbing. Retire also passes
+    the verified current tip as ``expected_tip`` so the delete is atomic with
+    respect to a concurrent branch update.
     """
     remote = cfg.git_remote
     if not pr_merged:
@@ -269,7 +510,12 @@ def delete_remote_branch(
             f"Branch cleanup: skipping remote {remote}/{branch} (no merged PR).",
         )
         return
-    proc = _git(root, "push", remote, "--delete", branch)
+    lease = (
+        [f"--force-with-lease=refs/heads/{branch}:{expected_tip}"]
+        if expected_tip
+        else []
+    )
+    proc = _git(root, "push", *lease, remote, "--delete", branch)
     if proc.returncode == 0:
         result.remote_deleted = True
         _note(result, echo, f"Branch cleanup: deleted remote {remote}/{branch}.")

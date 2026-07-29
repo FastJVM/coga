@@ -455,8 +455,96 @@ def test_retire_leaves_dirty_worktree_in_place(
     result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
 
     assert result.exit_code == 0, result.output
-    assert "Worktree cleanup: could not remove" in result.output
+    assert "contains tracked, untracked, or ignored local state" in result.output
     assert (feature / "uncommitted.txt").is_file()
+
+
+def test_retire_preserves_checkout_claimed_by_another_live_ticket(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    feature = tmp_path / "feature"
+    _git(repo, "worktree", "add", str(feature), "-b", "shared-branch")
+
+    source_slug = "finished-half"
+    source_dir = repo / "tasks" / source_slug
+    source_dir.mkdir(parents=True)
+    _write(
+        source_dir / "ticket.md",
+        f"""
+        ---
+        slug: {source_slug}
+        title: Finished half
+        status: done
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: shared-branch
+        worktree: {feature}
+        """,
+    )
+    live_dir = repo / "tasks" / "still-active"
+    live_dir.mkdir(parents=True)
+    _write(
+        live_dir / "ticket.md",
+        f"""
+        ---
+        slug: still-active
+        title: Still active
+        status: in_progress
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Still using the shared checkout.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: shared-branch
+        worktree: {feature}
+        """,
+    )
+
+    result = CliRunner().invoke(app, ["retire", source_slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert (
+        "live ticket 'still-active' also records branch 'shared-branch'"
+        in result.output
+    )
+    assert feature.is_dir()
+    assert (
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                "refs/heads/shared-branch",
+            ],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
 
 
 def test_retire_resolves_unique_prefix(

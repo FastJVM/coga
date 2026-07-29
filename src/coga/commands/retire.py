@@ -3,23 +3,28 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import typer
 
 from coga import git
+from coga.autoclose import parse_branch_name, parse_worktree_path
 from coga.branchcleanup import delete_ticket_branch, remove_ticket_worktree
 from coga.config import Config, ConfigError, load_config
 from coga.create import create_task
 from coga.git import GitError
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.paths import read_packaged_resource
 from coga.slugify import slugify
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import (
     TaskRef,
     TaskNotFoundError,
+    list_tasks,
     read_ticket,
     resolve_task,
 )
+from coga.ticket import TicketError
 from coga.validate import TaskValidationError
 
 
@@ -52,9 +57,10 @@ def retire(
     The recorded linked worktree is removed first — which also unpins the branch
     Git would otherwise refuse to delete — then the local branch and its
     `origin` counterpart. This is the lifecycle event that disposes of both: the
-    worktree removal is unforced and limited to a linked worktree of this same
-    repository, and the remote branch delete is gated on the linked PR being
-    merged, never `main`, never an unrelated branch. (This deliberately
+    worktree removal requires an exact, unshared, locally pristine linked
+    checkout of this same repository, and the remote branch delete is gated on
+    the linked PR being merged at the current exact head. It never removes the
+    invoking checkout, `main`, or an unrelated branch. (This deliberately
     overrides the former punt that branch hygiene was a Dream concern — that
     punt is why branches and worktrees piled up.)
     """
@@ -155,18 +161,95 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> None:
         root = git._toplevel(ref.ticket_path)
         if root is None:
             return
+        current_branch = git._current_branch(root)
+        if current_branch != cfg.git_control_branch:
+            typer.echo(
+                "Retire: checkout cleanup skipped "
+                f"(run from {cfg.git_control_branch!r}; current checkout is "
+                f"{current_branch!r})."
+            )
+            return
         blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
     except (GitError, OSError, TaskFileError) as exc:
         typer.echo(f"Retire: checkout cleanup skipped ({exc}).")
         return
     try:
-        remove_ticket_worktree(root, blackboard, echo=typer.echo)
+        claim = _live_checkout_claim(cfg, ref, root, blackboard)
+    except Exception as exc:  # noqa: BLE001 — incomplete proof preserves checkout
+        typer.echo(
+            "Retire: checkout cleanup skipped "
+            f"(could not verify other live ticket claims: {exc})."
+        )
+        return
+    if claim is not None:
+        typer.echo(f"Retire: checkout cleanup skipped ({claim}).")
+        return
+    try:
+        remove_ticket_worktree(cfg, root, blackboard, echo=typer.echo)
     except Exception as exc:  # noqa: BLE001 — never let cleanup abort retire
         typer.echo(f"Retire: worktree cleanup failed ({exc}).")
     try:
         delete_ticket_branch(cfg, root, blackboard, echo=typer.echo)
     except Exception as exc:  # noqa: BLE001 — never let cleanup abort retire
         typer.echo(f"Retire: branch cleanup failed ({exc}).")
+
+
+def _live_checkout_claim(
+    cfg: Config,
+    source_ref: TaskRef,
+    root: Path,
+    source_blackboard: str,
+) -> str | None:
+    """Describe another non-terminal ticket claiming this checkout, if any."""
+    source_branch = parse_branch_name(source_blackboard)
+    source_worktree = _normalized_worktree(root, source_blackboard)
+    if source_branch is None and source_worktree is None:
+        return None
+
+    for other_ref in list_tasks(cfg):
+        if other_ref.id_slug == source_ref.id_slug:
+            continue
+        try:
+            other_ticket = read_ticket(other_ref)
+        except (OSError, TicketError) as exc:
+            raise RuntimeError(f"cannot read {other_ref.id_slug}: {exc}") from exc
+        if other_ticket.status in TERMINAL_STATUSES:
+            continue
+        try:
+            other_blackboard = read_blackboard(
+                other_ref.ticket_path, blackboard_required=False
+            )
+        except (OSError, TaskFileError) as exc:
+            raise RuntimeError(
+                f"cannot read {other_ref.id_slug}'s blackboard: {exc}"
+            ) from exc
+
+        other_branch = parse_branch_name(other_blackboard)
+        if source_branch is not None and other_branch == source_branch:
+            return (
+                f"live ticket {other_ref.id_slug!r} also records branch "
+                f"{source_branch!r}"
+            )
+        other_worktree = _normalized_worktree(root, other_blackboard)
+        if source_worktree is not None and other_worktree == source_worktree:
+            return (
+                f"live ticket {other_ref.id_slug!r} also records worktree "
+                f"{str(source_worktree)!r}"
+            )
+    return None
+
+
+def _normalized_worktree(root: Path, blackboard: str) -> Path | None:
+    recorded = parse_worktree_path(blackboard)
+    if recorded is None:
+        return None
+    path = Path(recorded).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    try:
+        return path.resolve()
+    except OSError:
+        return path.absolute()
 
 
 def _default_agent(cfg: Config) -> str:

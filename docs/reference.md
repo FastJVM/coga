@@ -262,8 +262,12 @@ sees open PRs only; stale branches with no PR are outside its scope.
 Wrap up a **done** task: remove its recorded linked worktree and prune its Git
 branch (local and its merged `origin` counterpart, both read from `## Dev`),
 then launch a `retro/done-ticket` pass. The worktree removal runs first — a
-branch held by a linked worktree is undeletable — and is unforced: a dirty,
-locked, missing, or independent-clone checkout is left in place and reported.
+branch held by a linked worktree is undeletable — but only after proving the
+checkout still holds the recorded branch, no live ticket shares it, and its
+branch is landed or still equals the recorded merged PR head. Tracked,
+untracked, and ignored local files all preserve the checkout; so do locked,
+missing, independent-clone, and currently-running checkouts. Remote deletion
+rechecks the exact merged head and uses a force-with-lease.
 The retro opens a PR when it extracts durable knowledge (recording a `## Retro`
 marker, editing the knowledge base, and deleting the source task in the same PR);
 otherwise it direct-deletes the task (recover with `git restore`).
