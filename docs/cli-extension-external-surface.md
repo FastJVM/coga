@@ -51,11 +51,10 @@ grow because a command is important, convenient, or shipped by Coga today.
 
 The open kernel item is skill verification at the moment of use. Today the skill
 manager can record and compare skill tree digests during install/update/status,
-but `compose_prompt` and `run_script_mode` resolve and read skills without
-checking that a managed skill still matches its recorded provenance.
+but `compose_prompt` resolves and reads skills without checking that a managed
+skill still matches its recorded provenance.
 
-The follow-up hook should be shared by agent-mode prompt composition and
-script-mode skill loading:
+The follow-up hook belongs in prompt composition:
 
 1. Resolve the skill path exactly as Coga does today, preserving local-over-
    bundled precedence.
@@ -66,8 +65,7 @@ script-mode skill loading:
    `hash_skill_tree`: include every file in the skill directory except the
    provenance sidecar itself, with paths and bytes hashed deterministically.
 5. If the current digest differs from `installed_tree_digest`, refuse the
-   launch before status mutation, prompt composition, secret injection, or
-   script execution.
+   launch before status mutation, prompt composition, or secret injection.
 6. The error must name the skill ref, resolved path, expected digest, current
    digest, and remediation: reinstall/update the skill, run the external
    acquirer status command, or deliberately re-home the directory as a
@@ -237,10 +235,10 @@ without weakening the moment-of-use check.
 
 ## Move plan
 
-1. **Implement verify-at-compose first.** Add a shared verification helper used
-   by `compose_prompt` and `run_script_mode`. Add tests for matching provenance,
-   digest mismatch, invalid provenance, unmanaged repo-authored skills, and
-   script-mode refusal before status mutation.
+1. **Implement verify-at-compose first.** Add a verification helper used by
+   `compose_prompt`. Add tests for matching provenance, digest mismatch,
+   invalid provenance, unmanaged repo-authored skills, and refusal before
+   status mutation.
 2. **Normalize provenance for all externally acquired skills.** Keep the
    `coga.skill-source.v1` shape or introduce a v2 deliberately. The acquirer
    must record the installed digest needed by compose. If `gh skill` gains a

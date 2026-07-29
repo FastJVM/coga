@@ -12,9 +12,9 @@ drowns in lifecycle chatter, so Coga is deliberately selective about what
 reaches it. Events fall into three tiers:
 
 - **Live** — posted the moment they happen: a session starting (`active →
-  in_progress`), a `coga block`, blocker reminders, a script-step failure, and
-  explicit FYIs (`coga slack`, `coga bump --message`). Anything urgent or
-  human-directed never waits.
+  in_progress`), a `coga block`, blocker reminders, and explicit FYIs
+  (`coga slack`, `coga bump --message`). Anything urgent or human-directed
+  never waits.
 - **Outcome digest** — done and canceled tickets, `autoclose-merged`
   completions, and recurring-scan parse errors are spooled and posted together
   on a schedule by `coga digest`. Cancellation entries retain their required

@@ -58,10 +58,8 @@ Compose context and start work on a task. Accepts a task slug, id-slug, or a
 `bootstrap/<name>` ticket (resolved local-first: a repo-local
 `coga/bootstrap/<name>/ticket.md` overrides the packaged one). Activates a
 `draft`/`paused` ticket inline, flips `active → in_progress`, composes the
-prompt, and spawns the assignee's agent (or runs a script step directly). A
-`done` ticket is refused and left untouched. Trailing `ARGS` follow the target's
-execution medium: *script* launches receive `COGA_ARG_1..N` plus `COGA_ARGC`
-env vars, while *agent* launches receive the ordered values in an appended
+prompt, and spawns the assignee's agent. A `done` ticket is refused and left
+untouched. Trailing `ARGS` arrive as ordered values in an appended
 `## Launch arguments` prompt block.
 
 - `--agent <nickname>` — use this agent for the launch instead of the ticket
@@ -83,16 +81,12 @@ names are `autoclose`, `digest`, `blocker-reminders`, `branch-sweep`,
 `open-pr`, and `delete-task`; unknown names exit 2 and list that set.
 
 Trailing arguments are forwarded as an ordinary `list[str]`, preserving token
-boundaries and option spelling. Unlike the retained script-launch path, this
-command does not translate arguments through `COGA_ARG_1..N` or `COGA_ARGC`.
-Recipe output passes through and the recipe's integer return value becomes the
-command exit code. An invocation from an agent inherits the current task's
-`COGA_TASK_*` metadata.
+boundaries and option spelling. Recipe output passes through and the recipe's
+integer return value becomes the command exit code. An invocation from an
+agent inherits the current task's `COGA_TASK_*` metadata.
 
 Recipes are an explicit Coga surface, not a plugin API: installed skills and
-config cannot add names. The old `coga launch` script seam remains available
-for the vestigial show/finalize wrappers, ticket-owned/inline scripts, and
-project-local script steps during the migration.
+config cannot add names.
 
 ### `coga launch bootstrap/browser-automation`
 A stateless setup session that turns a concrete browser task into durable,
@@ -143,8 +137,8 @@ Templates may select a fixed deterministic implementation with `recipe:`;
 those period tasks run without an agent or TTY, receive their ticket's scoped
 secrets and `COGA_TASK_*` metadata, and follow the normal
 `active → in_progress → done` success lifecycle. A non-zero recipe exit leaves
-the task unfinished and reports the failure. Templates without a recipe keep
-the ordinary agent or compatibility-script launch path.
+the task unfinished and reports the failure. Templates without a recipe launch
+an agent and require a TTY.
 
 - `--interactive` — launch due agent tasks as a human-stepped run, leaving REPL
   liveness backstops unarmed; ticket files aren't modified.
@@ -165,9 +159,8 @@ Subcommands:
   dream`, `coga skill-update`, and `coga autoclose` aliases wrap.
   - `--interactive` — launch as a human-stepped run, leaving REPL liveness
     backstops unarmed; ticket files aren't modified.
-  - `--agent <type>` — agent to use for an agent-backed launch
-    (recipe/script tasks keep their declared path; the ticket assignee isn't
-    rewritten).
+  - `--agent <type>` — agent to use for an agent-backed launch (recipe tasks
+    keep their declared path; the ticket assignee isn't rewritten).
 - **`coga recurring promote TASK --schedule "<cron>"`** — move an existing task
   into `coga/recurring/<name>/` as a recurring template: task-only frontmatter
   is dropped, the blackboard is reset for cross-run state, and the validated

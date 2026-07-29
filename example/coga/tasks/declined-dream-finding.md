@@ -25,7 +25,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-script: null
 ---
 
 ## Description

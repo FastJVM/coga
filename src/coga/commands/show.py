@@ -1,8 +1,7 @@
 """`coga show` — print a task's ticket (with its blackboard) and log history.
 
 Thin Typer head: the `<task>` operand and error→exit translation live here; the
-render itself is `coga.views.render_show` (also exposed as the `coga/show`
-script skill).
+render itself is `coga.views.render_show`.
 """
 
 from __future__ import annotations

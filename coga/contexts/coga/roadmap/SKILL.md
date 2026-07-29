@@ -15,14 +15,14 @@ Do not infer present work from ticket names recorded in an older roadmap.
 
 1. **Keep the core loop sharp.** Fix failures in create → author → launch →
    bump/mark → review before adding new orchestration. Installation, package
-   resources, git sync, notifications, and script-step completion are part of
+   resources, git sync, notifications, and workflow completion are part of
    that loop.
 2. **Keep the explanation synchronized with code.** Coga is dogfooded and
    changes quickly. When a command, task shape, or execution contract changes,
    update the matching live and packaged context/template in the same PR.
 3. **Treat recurring work as ordinary ticket work.** Recurring creates stable
-   `recurring/<name>` period tasks; registered recipes and complete
-   script-backed steps are the unattended paths, and Dream owns generic
+   `recurring/<name>` period tasks; registered recipes are the deterministic
+   unattended path, and Dream owns generic
    done-ticket cleanup. Operator scheduling remains outside Coga until a
    concrete scheduling design is approved.
 4. **Design primitive changes before mechanical renames.** The open

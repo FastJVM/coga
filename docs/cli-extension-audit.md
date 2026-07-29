@@ -27,15 +27,15 @@ the `coga/cli` *context*. Read this for the worked classification; read
 
 2. **Built-in command heads** — `src/coga/commands/*.py`, registered in
    `cli.py:74-93`. These hold the irreducible command-shaped parts: argument
-   resolution, guards, and calls into kernel/script-shaped modules when an
+   resolution, guards, and calls into focused core modules when an
    alias has no hook point.
 
 3. **Bootstrap command tickets / recurring launches** — package-backed or
    repo-local tickets at `bootstrap/<name>/ticket.md` are stateless command
    definitions; templates at `coga/recurring/<name>/` are launched via
-   `recurring launch <name>`. Script command tickets receive trailing
-   arguments as `COGA_ARG_1..N` plus `COGA_ARGC`; agent command tickets receive
-   an explicit `## Launch arguments` JSON array.
+   `recurring launch <name>`. Command tickets launch agents and receive
+   trailing arguments in an explicit `## Launch arguments` JSON array.
+   Deterministic Coga commands use the fixed `coga run` recipe registry.
 
 ## The rule
 
@@ -141,7 +141,7 @@ that built-in is a *different operation*:
   `origin/main` → render Done + Also-merged → post via webhook → empty the
   spool → record the git high-water mark. It is what the digest recurring
   task runs as a **registered recipe** (`recipe: digest` in the template →
-  `coga run digest`), not a script step.
+  `coga run digest`), not a workflow step.
 - **`recurring launch digest`** would *scaffold and launch the recurring
   digest task* — a launch wrapper, not the post logic.
 
@@ -209,18 +209,16 @@ it *to start* a launch (movable)? Nothing else is kernel.
 `automerge`/`digest`/`delete` already run as a registered sweep recipe / post
 step / the shared `coga.delete_task` removal. `coga ticket` is the worked collapsed case: its authoring
 conversation is the `bootstrap/ticket` launch target already, its post-exit
-validate + git-sync lives in `coga.authoring` and is exposed as the
-`coga/ticket/finalize` script skill (same shape as the autoclose sweep), and the
-`arg → draft` head in `commands/ticket.py` is irreducible. The command calls the
+validate + git-sync lives in `coga.authoring`, and the `arg → draft` head in
+`commands/ticket.py` is irreducible. The command calls the
 finalize module inline after the single-shot interview to preserve the stateless,
 concurrent-safe bootstrap launch target; no generic shim or workflow-step state
 was introduced. `project` and `retire` share that irreducible head.
 
 **Ticket vs. command is decided by statefulness, not parameters.** Stateful
 work materializes inputs into task files. Stateless command tickets accept
-trailing launch arguments without creating run state: scripts receive
-`COGA_ARG_1..N` / `COGA_ARGC`, while agent commands receive a JSON argument
-block in the composed prompt.
+trailing launch arguments without creating run state; the agent receives a
+JSON argument block in the composed prompt.
 
 **Trust boundaries straddle kernel and external** — acquire outside, verify
 inside. `gh skill` and `op`/`env` acquire; compose-verify and launch-inject are

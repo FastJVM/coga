@@ -145,8 +145,8 @@ def compose_prompt_report(
         ref="prompt.md",
     ))
 
-    # 2. agent-mode prompt. Only agent launches compose (script launches never
-    # reach here; enforced by launch.py), so the layer is unconditional.
+    # 2. agent-mode prompt. Every launch composes an agent prompt, so the layer
+    # is unconditional.
     layers.append(PromptLayer(
         "mode_prompt",
         "Agent mode",

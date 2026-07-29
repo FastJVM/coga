@@ -35,10 +35,6 @@ class Skill:
         return self.frontmatter.get("name", self.path.parent.name)
 
     @property
-    def script(self) -> str | None:
-        return self.frontmatter.get("script")
-
-    @property
     def dir(self) -> Path:
         return self.path.parent
 

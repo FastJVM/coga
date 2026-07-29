@@ -65,7 +65,7 @@ def main(
         None,
         "--agent",
         help="Agent type to use for agent-backed recurring tasks in this "
-        "sweep. Recipe and script tasks remain deterministic; ticket "
+        "sweep. Registered recipe tasks remain deterministic; ticket "
         "assignees are not rewritten.",
     ),
 ) -> None:
@@ -128,7 +128,7 @@ def launch(
         None,
         "--agent",
         help="Agent type to use for this agent-backed recurring launch. "
-        "Recipe and script tasks remain deterministic; the ticket assignee "
+        "Registered recipe tasks remain deterministic; the ticket assignee "
         "is not rewritten.",
     ),
 ) -> None:
@@ -241,14 +241,6 @@ def promote(
             "Dropped the task's blackboard: a template blackboard holds "
             "cross-run state, not one run's scratch. Recover it with `git show` "
             "if you need it.",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-    if outcome.script_file:
-        typer.secho(
-            f"Kept `script: {outcome.script_file}`, but a companion script file "
-            "is not materialized into period tasks. Move that logic into a "
-            "script-backed workflow skill, or use `script: inline`.",
             fg=typer.colors.YELLOW,
             err=True,
         )

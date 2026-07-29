@@ -380,8 +380,6 @@ def test_spawn_agent_session_rederives_nested_recurring_task_env(
         "COGA_TASK_TICKET": str(parent_ticket),
         "COGA_TASK_BLACKBOARD": str(parent_ticket),
         "COGA_TASK_LOG": str(tmp_path / "parent-log.md"),
-        "COGA_SKILL_NAME": "bootstrap/resolve-conflicts",
-        "COGA_SKILL_DIR": str(parent_ticket.parent),
         "KEEP_ME": "yes",
     }
     captured_env: dict[str, str] = {}
@@ -417,8 +415,6 @@ def test_spawn_agent_session_rederives_nested_recurring_task_env(
     assert captured_env["COGA_TASK_TICKET"] == str(ref.ticket_path.resolve())
     assert captured_env["COGA_TASK_BLACKBOARD"] == str(ref.ticket_path.resolve())
     assert captured_env["COGA_TASK_LOG"] == str((company / "log.md").resolve())
-    assert "COGA_SKILL_NAME" not in captured_env
-    assert "COGA_SKILL_DIR" not in captured_env
     assert captured_env["KEEP_ME"] == "yes"
 
 
@@ -2408,6 +2404,106 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
+def test_local_bootstrap_ticket_resolves_without_packaged_twin(
+    bootstrap_repo: Path,
+) -> None:
+    """A repo-local agent command ticket can mint its own bootstrap target."""
+    from coga.tasks import resolve_bootstrap
+
+    local = bootstrap_repo / "bootstrap" / "custom-check"
+    _write(
+        local / "ticket.md",
+        """
+        ---
+        title: Local check
+        assignee: claude
+        secrets: null
+        ---
+
+        ## Description
+
+        Run the repo-local check.
+        """,
+    )
+
+    cfg = load_config(bootstrap_repo)
+    ref = resolve_bootstrap(cfg, "custom-check")
+
+    assert ref.path == local
+    assert ref.id_slug == "bootstrap/custom-check"
+
+
+def test_unknown_bootstrap_ticket_names_both_checked_paths(
+    bootstrap_repo: Path,
+) -> None:
+    from coga.tasks import TaskNotFoundError, resolve_bootstrap
+
+    cfg = load_config(bootstrap_repo)
+    with pytest.raises(TaskNotFoundError) as exc:
+        resolve_bootstrap(cfg, "no-such-verb")
+
+    message = str(exc.value)
+    assert str(
+        bootstrap_repo / "bootstrap" / "no-such-verb" / "ticket.md"
+    ) in message
+    assert "bootstrap/no-such-verb" in message
+
+
+def test_local_agent_command_ticket_plus_alias_mints_new_verb(
+    bootstrap_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A local command ticket plus an alias adds a judgment-bearing verb."""
+    from coga.cli import main
+
+    _write(
+        bootstrap_repo / "bootstrap" / "hello" / "ticket.md",
+        """
+        ---
+        title: Hello
+        assignee: claude
+        secrets: null
+        ---
+
+        ## Description
+
+        Greet the launch argument.
+        """,
+    )
+    (bootstrap_repo / "coga.toml").write_text(
+        (bootstrap_repo / "coga.toml").read_text()
+        + '\n[aliases]\nhello = "launch bootstrap/hello"\n'
+    )
+
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("sys.argv", ["coga", "hello", "world"])
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+
+    assert exc.value.code in (0, None)
+    assert len(calls) == 1
+    prompt = _prompt_arg(calls[0])
+    assert "Greet the launch argument." in prompt
+    assert "## Launch arguments" in prompt
+    assert '["world"]' in prompt
+    assert list_tasks(load_config(bootstrap_repo)) == []
+
+
 def test_launch_bare_bootstrap_does_not_post_to_slack(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2947,216 +3043,8 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     assert ticket.assignee == "codex"
 
 
-# --- per-step script dispatch inside a mixed workflow -------------------------
-#
-# A script-backed skill can be interleaved between agent steps. The launch
-# supervisor must run it via `run_script_mode` (not spawn an agent) when the
-# current step's single skill declares a `script:`. See `current_step_is_script`
-# and the supervisor loop in `commands/launch.py`.
-
-
-def _write_scripted_skill(repo: Path, ref: str) -> None:
-    _write(
-        repo / "skills" / ref / "SKILL.md",
-        f"""
-        ---
-        name: {ref}
-        script: run.py
-        description: scripted test skill.
-        ---
-
-        Runs as a script step.
-        """,
-    )
-    (repo / "skills" / ref / "run.py").write_text("import sys\nsys.exit(0)\n")
-
-
-def test_current_step_is_script_detects_scripted_step(active_task: Path) -> None:
-    from coga.commands.launch_script import current_step_is_script
-
-    _write(
-        active_task / "workflows" / "mixed.md",
-        """
-        ---
-        name: mixed
-        description: agent then script then human.
-        steps:
-          - name: build
-            assignee: agent
-            skills:
-              - code/plain
-          - name: ship
-            assignee: agent
-            skills:
-              - code/scripted
-          - name: review
-            assignee: human
-        ---
-
-        ## review
-        Review the result.
-        """,
-    )
-    _write_skill(active_task, "code/plain", "A plain agent skill.")
-    _write_scripted_skill(active_task, "code/scripted")
-
-    cfg = load_config(active_task)
-    created = create_task(
-        cfg=cfg, title="Mixed", workflow_name="mixed", contexts=[],
-        owner="marc", human="marc", agent="claude", assignee="claude",
-        watchers=[], status="active",
-    )
-    ref = [r for r in list_tasks(cfg) if r.id_slug == created["slug"]][0]
-    ticket = Ticket.read(ref.ticket_path)
-
-    # Step 1 (build) → agent skill has no script → False.
-    ticket.frontmatter["step"] = "1 (build)"
-    assert current_step_is_script(cfg, ticket) is False
-
-    # Step 2 (ship) → the scripted step → True.
-    ticket.frontmatter["step"] = "2 (ship)"
-    assert current_step_is_script(cfg, ticket) is True
-
-    # Step 3 (review) → no skills → False.
-    ticket.frontmatter["step"] = "3 (review)"
-    assert current_step_is_script(cfg, ticket) is False
-
-
-def test_launch_runs_scripted_step_as_script_not_agent(
-    active_task: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A ticket sitting on a script step runs without agent setup."""
-    _deny_interactive_tty(monkeypatch)
-    _write(
-        active_task / "workflows" / "shipflow.md",
-        """
-        ---
-        name: shipflow
-        description: script step then human review.
-        steps:
-          - name: ship
-            assignee: agent
-            skills:
-              - code/scripted
-          - name: review
-            assignee: human
-        ---
-
-        ## review
-        Review the result.
-        """,
-    )
-    _write_scripted_skill(active_task, "code/scripted")
-
-    cfg = load_config(active_task)
-    created = create_task(
-        cfg=cfg, title="Ship", workflow_name="shipflow", contexts=[],
-        owner="marc", human="marc", agent="claude", assignee="claude",
-        watchers=[], status="active",
-    )
-    slug = created["slug"]
-
-    def _no_agent_setup(*a, **k):  # type: ignore[no-untyped-def]
-        raise AssertionError("a script step must not require agent setup")
-
-    monkeypatch.setattr("coga.commands.launch._preflight_push_auth", _no_agent_setup)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", _no_agent_setup)
-
-    def _no_agent(*a, **k):  # type: ignore[no-untyped-def]
-        raise AssertionError("a script step must not spawn an agent")
-
-    monkeypatch.setattr("coga.commands.launch.spawn_agent_session", _no_agent)
-
-    script_calls: list[str] = []
-
-    def _fake_script(cfg, ref, ticket, **kwargs):  # type: ignore[no-untyped-def]
-        script_calls.append(ref.id_slug)
-
-    monkeypatch.setattr("coga.commands.launch_script.run_script_mode", _fake_script)
-
-    result = CliRunner().invoke(app, ["launch", slug])
-    assert result.exit_code == 0, result.output
-    assert script_calls == [slug]
-
-
-def test_launch_chains_agent_into_scripted_step(
-    active_task: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Mid-chain: an agent step that bumps into a script step (implement →
-    ship(script) → review) has the launcher run the script itself — no agent
-    for ship — and advances to the human review step."""
-    _write(
-        active_task / "workflows" / "shipmix.md",
-        """
-        ---
-        name: shipmix
-        description: agent then script then human.
-        steps:
-          - name: implement
-            assignee: agent
-          - name: ship
-            assignee: agent
-            skills:
-              - code/scripted
-          - name: review
-            assignee: human
-        ---
-
-        ## implement
-        Do the work.
-
-        ## review
-        Review the result.
-        """,
-    )
-    _write_scripted_skill(active_task, "code/scripted")
-
-    cfg = load_config(active_task)
-    created = create_task(
-        cfg=cfg, title="Shipmix", workflow_name="shipmix", contexts=[],
-        owner="marc", human="marc", agent="claude", assignee="claude",
-        watchers=[], status="active",
-    )
-    slug = created["slug"]
-    _allow_slack(monkeypatch)
-    _allow_interactive_tty(monkeypatch)
-
-    agent_calls: list[str] = []
-
-    class _Session:
-        exit_code = 0
-        termination_kind = None
-
-    def fake_spawn(cfg, ref, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
-        # Standing in for the implement agent: bump implement → ship. Patching
-        # the spawn (not subprocess) leaves run_script_mode's real subprocess
-        # free to execute the ship step's run.py.
-        agent_calls.append(agent.name)
-        result = CliRunner().invoke(app, ["bump", slug])
-        assert result.exit_code == 0, result.output
-        return _Session()
-
-    monkeypatch.setattr("coga.commands.launch.spawn_agent_session", fake_spawn)
-    monkeypatch.setattr(
-        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
-    )
-
-    result = CliRunner().invoke(app, ["launch", slug])
-    assert result.exit_code == 0, result.output
-
-    # Exactly one agent spawn (implement). ship ran as a real script (its run.py
-    # exits 0), so the launcher advanced the workflow to the human review step.
-    assert len(agent_calls) == 1, agent_calls
-    assert agent_calls[0] == "claude"
-
-    ticket = Ticket.read(Path(created["path"]))
-    assert ticket.step == "3 (review)"
-    assert ticket.assignee == "marc"
-
-
 def test_queue_prompt_suffix_carries_block_guidance() -> None:
-    """The package-backed queue guidance rides as a prompt suffix and names the
-    non-negotiables: block for owner decisions, finish via bump/done/block."""
+    """Queue guidance requires durable terminal transitions."""
     from coga.commands.launch import _queue_prompt_suffix
 
     suffix = _queue_prompt_suffix()

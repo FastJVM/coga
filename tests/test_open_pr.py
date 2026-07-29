@@ -966,11 +966,9 @@ def test_open_pr_live_and_packaged_copies_stay_in_sync() -> None:
     ).read_text()
 
 
-def test_open_pr_skill_is_agent_step_not_script() -> None:
-    from coga.skill import Skill
-
-    skill = Skill.load(_LIVE_SKILL / "SKILL.md")
-    assert skill.script is None
+def test_open_pr_skill_has_no_executable_entrypoint() -> None:
+    skill = (_LIVE_SKILL / "SKILL.md").read_text()
+    assert "name: code/open-pr" in skill
     assert not (_LIVE_SKILL / "run.py").exists()
     assert not (_LIVE_SKILL / "recipe.py").exists()
     assert not (_PACKAGED_SKILL / "run.py").exists()

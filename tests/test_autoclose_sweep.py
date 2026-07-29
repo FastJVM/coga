@@ -174,13 +174,9 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
     assert read_last_serviced_period(template_ticket) == "2026-06-11"
 
     ticket = Ticket.read(refs[0].path / "ticket.md")
-    # Execution is declared on the recurring template, not inferred from a
-    # skill-local script.
-    from coga.commands.launch_script import is_script_launch
-
     template = Template.load(coga_os / "recurring" / "autoclose-merged")
     assert template.recipe == "autoclose"
-    assert is_script_launch(cfg, ticket) is False
+    assert "\nscript:" not in (refs[0].path / "ticket.md").read_text()
     assert ticket.assignee == "claude"
     assert ticket.workflow["name"] == "autoclose-merged/sweep"
     assert ticket.workflow["steps"][0]["skills"] == ["coga/autoclose/sweep"]

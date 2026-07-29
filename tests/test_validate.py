@@ -313,83 +313,27 @@ def test_validate_rejects_invalid_recurring_recipe(
     assert message in issue.message
 
 
-def test_validate_rejects_recurring_recipe_with_direct_script(repo: Path) -> None:
-    _write(
-        repo / "recurring" / "recipe-check" / "ticket.md",
-        """
-        ---
-        schedule: "0 9 * * *"
-        title: Recipe check
-        recipe: digest
-        script: inline
-        ---
-
-        ## Script
-
-        ```sh
-        exit 0
-        ```
-        """,
+def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Legacy null",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
     )
+    path = Path(created["path"])
+    text = path.read_text()
+    path.write_text(text.replace("secrets: null\n", "secrets: null\nscript: null\n"))
 
-    report = run(load_config(repo))
+    ticket = Ticket.read(path)
+    report = run(cfg)
 
-    issue = next(
-        issue
-        for issue in report.issues
-        if issue.kind == "bad-recurring-template"
-    )
-    assert "`recipe` and `script` are ambiguous" in issue.message
-
-
-def test_validate_rejects_recipe_with_script_backed_workflow(
-    repo: Path,
-) -> None:
-    _write(
-        repo / "skills" / "deterministic" / "run" / "SKILL.md",
-        """
-        ---
-        name: deterministic/run
-        description: Script-backed deterministic step.
-        script: run.py
-        ---
-        """,
-    )
-    _write(
-        repo / "workflows" / "deterministic.md",
-        """
-        ---
-        name: deterministic
-        description: Script-backed workflow.
-        steps:
-          - name: run
-            skills:
-              - deterministic/run
-        ---
-        """,
-    )
-    _write(
-        repo / "recurring" / "recipe-check" / "ticket.md",
-        """
-        ---
-        schedule: "0 9 * * *"
-        title: Recipe check
-        recipe: digest
-        workflow: deterministic
-        ---
-        """,
-    )
-
-    report = run(load_config(repo))
-
-    issue = next(
-        issue
-        for issue in report.issues
-        if issue.kind == "bad-recurring-template"
-    )
-    assert "`recipe: digest` conflicts with script-backed workflow skill" in (
-        issue.message
-    )
+    assert "script" not in ticket.frontmatter
+    assert not [issue for issue in report.issues if issue.task == created["slug"]]
 
 
 def test_step_requires_unknown_gate_is_error(repo: Path) -> None:

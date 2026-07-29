@@ -15,10 +15,9 @@ Two contracts callers depend on: the **bare PR URL on stdout** (so
 separates a real launched session from an independent fallback clone that
 would otherwise update its stale ticket copy: the agent's own `coga launch`
 pins it to that session's task path, and nothing downstream reassigns it.
-Running as a recipe rather than a nested script launch is what makes the rest
-of the launch metadata trustworthy too — `coga run` rewrites no `COGA_TASK_*`
-— but the anchor stays the gate's witness because only it names the *session's*
-task rather than whatever the environment last described.
+Running as a recipe preserves the inherited `COGA_TASK_*` metadata, but the
+anchor stays the gate's witness because only it names the *session's* task
+rather than whatever the environment last described.
 """
 
 from __future__ import annotations
@@ -553,8 +552,8 @@ def open_pr(
 def run_open_pr_recipe(cfg: Config, argv: list[str]) -> int:
     """`coga run open-pr <task>` — resolve the target, gate, publish, print URL.
 
-    Resolves the task from the ordinary recipe argv (never `COGA_ARG_*`), then
-    applies the checkout gate before touching git or `gh`. In the legacy
+    Resolves the task from ordinary recipe argv, then applies the checkout gate
+    before touching git or `gh`. In the legacy
     two-checkout layout the command runs from the primary control checkout,
     which holds the authoritative ticket, and pushes the `## Dev` branch by name
     from the separately recorded worktree — the separation that retires the

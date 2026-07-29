@@ -45,7 +45,7 @@ class TaskRef:
 
     - **File form** (`file_form=True`): a single `tasks/<slug>.md` file; `path`
       is that file. Self-contained — no companion directory, so no sibling
-      files (a snapshot, a `script:` file) are possible.
+      files (a snapshot or attachment) are possible.
     - **Directory form** (`file_form=False`): a `tasks/<slug>/` directory
       holding `ticket.md` plus any siblings; `path` is the directory.
 

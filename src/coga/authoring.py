@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from hashlib import sha256
@@ -17,17 +15,12 @@ from coga.tasks import (
     TaskRef,
     list_tasks,
     read_ticket,
-    resolve_bootstrap,
     resolve_task,
 )
 from coga.validate import assert_task_valid
 
 
 AUTHORING_SYNC_DIRS = ("tasks", "contexts", "skills")
-AUTHORING_REF_ENV = "COGA_AUTHORING_REF"
-AUTHORING_SNAPSHOT_ENV = "COGA_AUTHORING_SNAPSHOT"
-
-
 class AuthoringError(Exception):
     """Raised when post-authoring validation or sync setup fails."""
 
@@ -149,7 +142,7 @@ def finalize_authored(
     task_sync_paths: list[Path]
     if isinstance(ref, TaskRef):
         # The interview may promote a flat task to directory form so it can
-        # carry a sibling script. Re-resolve by the shape-independent id_slug:
+        # carry attachments. Re-resolve by the shape-independent id_slug:
         # the TaskRef captured before the session still points at the removed
         # `<slug>.md` and would otherwise look like an intentional deletion.
         try:
@@ -187,81 +180,3 @@ def finalize_authored(
             sync_paths,
             message=authoring_sync_message(authored_refs),
         )
-
-
-def write_authoring_snapshot(snapshot: AuthoringSnapshot, path: Path) -> None:
-    """Write a snapshot file consumable by the script-skill entry point."""
-    payload = {
-        "tasks": sorted(snapshot.tasks),
-        "files": {str(path): digest for path, digest in snapshot.files.items()},
-    }
-    path.write_text(json.dumps(payload, sort_keys=True) + "\n")
-
-
-def load_authoring_snapshot(path: Path) -> AuthoringSnapshot:
-    """Read a snapshot file written by `write_authoring_snapshot`."""
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        raise AuthoringError(f"failed to read authoring snapshot {path}: {exc}") from exc
-    if not isinstance(data, dict):
-        raise AuthoringError("authoring snapshot must be a JSON object")
-    raw_tasks = data.get("tasks", [])
-    raw_files = data.get("files", {})
-    if not isinstance(raw_tasks, list) or not all(
-        isinstance(item, str) for item in raw_tasks
-    ):
-        raise AuthoringError("authoring snapshot `tasks` must be a list of strings")
-    if not isinstance(raw_files, dict) or not all(
-        isinstance(key, str) and isinstance(value, str)
-        for key, value in raw_files.items()
-    ):
-        raise AuthoringError("authoring snapshot `files` must map paths to digests")
-    return AuthoringSnapshot(
-        tasks=frozenset(raw_tasks),
-        files={Path(path): digest for path, digest in raw_files.items()},
-    )
-
-
-def resolve_authoring_ref(cfg: Config, value: str) -> TaskRef | BootstrapRef:
-    """Resolve a task/bootstrap ref string for the script-skill entry point."""
-    if value.startswith("bootstrap/"):
-        try:
-            return resolve_bootstrap(cfg, value.removeprefix("bootstrap/"))
-        except TaskNotFoundError as exc:
-            raise AuthoringError(str(exc)) from exc
-    try:
-        return resolve_task(cfg, value)
-    except TaskNotFoundError as exc:
-        if str(exc).startswith("Ambiguous task ref"):
-            raise AuthoringError(str(exc)) from exc
-        try:
-            return resolve_bootstrap(cfg, value)
-        except TaskNotFoundError as bootstrap_exc:
-            raise AuthoringError(str(bootstrap_exc)) from exc
-
-
-def finalize_authored_from_env(
-    cfg: Config | None = None,
-    environ: Mapping[str, str] | None = None,
-) -> None:
-    """Finalize authoring using the script-skill environment contract."""
-    env = environ if environ is not None else os.environ
-    ref_value = env.get(AUTHORING_REF_ENV)
-    snapshot_value = env.get(AUTHORING_SNAPSHOT_ENV)
-    missing = [
-        name
-        for name, value in (
-            (AUTHORING_REF_ENV, ref_value),
-            (AUTHORING_SNAPSHOT_ENV, snapshot_value),
-        )
-        if not value
-    ]
-    if missing:
-        joined = ", ".join(missing)
-        raise AuthoringError(f"missing required authoring env var(s): {joined}")
-
-    loaded_cfg = cfg if cfg is not None else load_config()
-    snapshot = load_authoring_snapshot(Path(snapshot_value or ""))
-    ref = resolve_authoring_ref(loaded_cfg, ref_value or "")
-    finalize_authored(loaded_cfg, before_snapshot=snapshot, ref=ref)

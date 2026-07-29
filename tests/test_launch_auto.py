@@ -15,7 +15,7 @@ def _write(path: Path, text: str) -> None:
     path.write_text(dedent(text).lstrip())
 
 
-def _write_script_task(repo: Path, *, slug: str, title: str) -> None:
+def _write_legacy_null_task(repo: Path, *, slug: str, title: str) -> None:
     task_dir = repo / "tasks" / slug
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
@@ -30,16 +30,10 @@ def _write_script_task(repo: Path, *, slug: str, title: str) -> None:
         contexts: []
         skills: []
         workflow: null
-        script: inline
+        script: null
         ---
 
         ## Description
-
-        ## Script
-
-        ```bash
-        echo hi
-        ```
 
         ## Context
 
@@ -71,50 +65,20 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def test_launch_rejects_removed_autonomy_option(repo: Path) -> None:
-    _write_script_task(repo, slug="script-run", title="Script run")
+    _write_legacy_null_task(repo, slug="agent-run", title="Agent run")
 
     result = CliRunner().invoke(
-        app, ["launch", "script-run", "--autonomy", "interactive"]
+        app, ["launch", "agent-run", "--autonomy", "interactive"]
     )
 
     assert result.exit_code != 0
     assert "--autonomy" in result.output
 
 
-def test_prompt_report_rejects_script_mode(repo: Path) -> None:
-    _write_script_task(repo, slug="script-run", title="Script run")
+def test_prompt_report_tolerates_legacy_null_script_key(repo: Path) -> None:
+    _write_legacy_null_task(repo, slug="agent-run", title="Agent run")
 
-    result = CliRunner().invoke(app, ["launch", "script-run", "--prompt-report"])
-
-    assert result.exit_code == 2
-    assert "script tasks do not compose an agent prompt" in result.output
-
-
-def test_launch_script_mode_runs_script_not_agent(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _write_script_task(repo, slug="script-run", title="Script run")
-    calls: list[str] = []
-
-    def fake_script_mode(cfg, ref, ticket, **kwargs):  # type: ignore[no-untyped-def]
-        calls.append(ref.id_slug)
-
-    def fail_agent_lookup(name):  # type: ignore[no-untyped-def]
-        raise AssertionError("script mode must not look up an agent CLI")
-
-    monkeypatch.setattr("coga.commands.launch_script.run_script_mode", fake_script_mode)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", fail_agent_lookup)
-
-    result = CliRunner().invoke(app, ["launch", "script-run"])
+    result = CliRunner().invoke(app, ["launch", "agent-run", "--prompt-report"])
 
     assert result.exit_code == 0, result.output
-    assert calls == ["script-run"]
-
-
-def test_agent_override_rejects_script_mode(repo: Path) -> None:
-    _write_script_task(repo, slug="script-run", title="Script run")
-
-    result = CliRunner().invoke(app, ["launch", "script-run", "--agent", "claude"])
-
-    assert result.exit_code == 2
-    assert "--agent is only supported for agent launches" in result.output
+    assert "Prompt report for agent-run" in result.output

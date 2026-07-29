@@ -16,10 +16,8 @@ from rich.console import Console
 from coga.config import load_config
 from coga.tasks import TaskNotFoundError, UnknownDirectoryError
 from coga.views import (
-    VIEW_TARGET_ENV,
     ViewError,
     render_show,
-    render_show_from_env,
     render_status,
 )
 
@@ -95,29 +93,6 @@ def test_render_show_unknown_task_raises(repo: Path) -> None:
 
     with pytest.raises(TaskNotFoundError):
         render_show(load_config(repo), "does-not-exist", console=_recording_console())
-
-
-# --- render_show_from_env --------------------------------------------------
-
-
-def test_render_show_from_env_reads_target(repo: Path, capsys) -> None:
-    _task(repo, "fix-retry-logic")
-
-    # The target comes from the env contract, mirroring finalize_authored_from_env;
-    # render_show_from_env constructs its own console, so capture via capsys.
-    render_show_from_env(
-        load_config(repo),
-        environ={VIEW_TARGET_ENV: "fix-retry-logic"},
-    )
-
-    assert "fix-retry-logic/ticket.md" in capsys.readouterr().out
-
-
-def test_render_show_from_env_missing_target_raises(repo: Path) -> None:
-    with pytest.raises(ViewError) as exc:
-        render_show_from_env(load_config(repo), environ={})
-
-    assert VIEW_TARGET_ENV in str(exc.value)
 
 
 # --- render_status ---------------------------------------------------------

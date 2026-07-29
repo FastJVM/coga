@@ -113,16 +113,7 @@ def _seed_fake_templates(templates: Path) -> None:
         / "autoclose"
         / "sweep"
         / "SKILL.md"
-    ).write_text("---\nname: coga/autoclose/sweep\nscript: run.py\n---\nsweep\n")
-    (
-        templates
-        / "bootstrap"
-        / "skills"
-        / "coga"
-        / "autoclose"
-        / "sweep"
-        / "run.py"
-    ).write_text("#!/usr/bin/env python3\n")
+    ).write_text("---\nname: coga/autoclose/sweep\n---\nsweep\n")
     for ctx in ("architecture", "principles", "cli"):
         (templates / "bootstrap" / "contexts" / "coga" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "coga" / ctx / "SKILL.md").write_text(

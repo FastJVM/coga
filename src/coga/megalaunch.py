@@ -35,12 +35,6 @@ The TTY is transport, not an approval gate: a package-backed megalaunch prompt
 directive tells the agent to announce its plan and continue, or to use
 `coga block` when a real human decision or capability is unavailable.
 
-Script launches run too: a ticket whose current step is script-backed or that
-carries its own `script:` runs through the same `run_script_mode` path the
-`coga launch` supervisor uses — no agent, no REPL.
-Exit 0 advances the step and the chain continues; a non-zero exit leaves the
-step put and fails that task's result without stopping the rest of the sweep.
-
 Tasks are serviced oldest-first (first `coga/log.md` line per ref — committed
 content, so the order survives clones where file mtimes don't), except that a
 sub-directory holding `1-`/`2-`/`3-` prefixed tasks runs as one contiguous
@@ -62,11 +56,6 @@ from coga.blackboard import Blocker, open_blockers, resolve_open_blockers
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
     spawn_agent_session,
-)
-from coga.commands.launch_script import (
-    current_step_is_script,
-    is_script_launch,
-    run_script_mode,
 )
 from coga.recurring_runner import (
     _recurring_idle_timeout,
@@ -174,9 +163,9 @@ def run_megalaunch(
     instead of each ticket's `assignee:` — ephemeral, with the same semantics
     as `coga launch --agent`: the ticket is never rewritten, a human-assigned
     ticket is not converted into an agent step (still a human gate), and on a
-    chained task the override applies only to the first launched *agent* step
-    (script steps run as scripts and never consume it), so `other-agent`
-    rotation on later steps still lands on the ticket's resolved assignee.
+    chained task the override applies only to the first launched step, so
+    `other-agent` rotation on later steps still lands on the ticket's resolved
+    assignee.
 
     `selection` (exact `id_slug`s) switches to explicit mode: only the named
     tasks run, any owner's, and the run is staged so every human-in-the-loop
@@ -638,9 +627,9 @@ def _run_selection(
             if failure is not None:
                 results.append(failure)
                 continue
-            # Activation froze the workflow and seeded step 1; a non-script
-            # ticket with no resulting step can't be agent-launched.
-            if not is_script_launch(cfg, ticket) and ticket.current_step() is None:
+            # Activation froze the workflow and seeded step 1. A ticket with
+            # no resulting step cannot be launched.
+            if ticket.current_step() is None:
                 results.append(
                     _result(
                         ref,
@@ -844,13 +833,6 @@ def _candidate_result(
         detail = "; ".join(blocker.reason for blocker in blockers)
         return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
 
-    # A script launch — a script-backed current step or a
-    # ticket-owned `script:` — is launchable regardless of assignee: the sweep
-    # runs the script itself, exactly like the `coga launch` supervisor. This
-    # mirrors the script exemption in launch's `_refuse_human_handoff_launch`.
-    if is_script_launch(cfg, ticket):
-        return None
-
     if ticket.assignee not in cfg.agents:
         return _result(
             ref,
@@ -860,7 +842,7 @@ def _candidate_result(
         )
 
     # A draft has no current step yet — activation freezes the workflow and
-    # seeds step 1, so its step/script gates run post-activation in
+    # seeds step 1, so its step gate runs post-activation in
     # `_launch_until_stop`. Everything else is gated here.
     if ticket.status == "draft":
         return None
@@ -887,7 +869,7 @@ def _launch_until_stop(
     # resolve-or-re-block preamble off the blackboard's still-open asks, and an
     # exit that leaves an ask open returns it to `blocked` below.
     launched = False
-    first_agent_step = True
+    first_step = True
     step_count = 0
 
     while True:
@@ -901,35 +883,6 @@ def _launch_until_stop(
                 launched=launched,
             )
 
-        # A script launch — the current step's single skill declares a
-        # `script:`, or the ticket carries its own
-        # `script:` — runs in-process through the same `run_script_mode` path
-        # the `coga launch` supervisor uses: exit 0 advances the step (or
-        # finishes the task), non-zero leaves the step put. No agent, no REPL,
-        # and no assignee gate — scripts run regardless of who is assigned,
-        # exactly like `coga launch`.
-        if is_script_launch(cfg, ticket):
-            launched = True
-            failure = _run_script_step(cfg, ref, ticket)
-            if failure is not None:
-                return _result(ref, "failed", failure, ticket.assignee, launched=True)
-            if not ref.ticket_path.exists():
-                # A script may legitimately delete its own task (e.g. the
-                # bootstrap/delete-task skill) — a clean terminal state.
-                return _result(
-                    ref,
-                    "completed",
-                    "task removed by script step",
-                    ticket.assignee,
-                    launched=True,
-                )
-            after = read_ticket(ref)
-            stop = _chain_stop_result(cfg, ref, after)
-            if stop is not None:
-                return stop
-            ticket = after
-            continue
-
         if ticket.assignee not in cfg.agents:
             return _result(
                 ref,
@@ -938,14 +891,13 @@ def _launch_until_stop(
                 ticket.assignee,
                 launched=launched,
             )
-        # The override applies only to the task's first launched *agent* step
-        # — the same rule as `coga launch --agent`, where a script step never
-        # consumes it — so `other-agent` rotation on later steps still lands
-        # on the ticket's resolved assignee.
+        # The override applies only to the task's first launched step, so
+        # `other-agent` rotation on later steps still lands on the ticket's
+        # resolved assignee.
         launch_assignee = (
-            (agent_override or ticket.assignee) if first_agent_step else ticket.assignee
+            (agent_override or ticket.assignee) if first_step else ticket.assignee
         )
-        first_agent_step = False
+        first_step = False
 
         preflight = _preflight_agent_launch(cfg, ref, ticket, launch_assignee)
         if preflight is not None:
@@ -1158,37 +1110,10 @@ def _reblock_unresolved(
     return _result(ref, "blocked", detail, after.assignee, launched=True)
 
 
-def _run_script_step(cfg: Config, ref: TaskRef, ticket: Ticket) -> str | None:
-    """Run the task's script in-process; returns the failure detail, or None.
-
-    The same `run_script_mode` path the `coga launch` supervisor uses: it
-    marks an `active` ticket in_progress, runs the script, and on exit 0
-    advances the step (or finishes the task after the final one). All its
-    failure paths `sys.exit` — catch that here so one failed script fails this
-    task's result instead of killing the rest of the sweep.
-    """
-    step = ticket.current_step()
-    where = (
-        f"script step {ticket.step_index()} ({step['name']})"
-        if step is not None and current_step_is_script(cfg, ticket)
-        else "ticket script"
-    )
-    try:
-        run_script_mode(cfg, ref, ticket)
-    except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 1
-        return f"{where} exited with code {code}"
-    return None
-
-
 def _chain_stop_result(
     cfg: Config, ref: TaskRef, after: Ticket
 ) -> MegalaunchResult | None:
-    """Terminal chain state after a step ran, or None to keep chaining.
-
-    Shared by the agent and script branches of `_launch_until_stop`; every
-    result it returns is launched work.
-    """
+    """Terminal chain state after an agent step, or None to keep chaining."""
     if after.status == "blocked":
         blockers = open_blockers(ref.ticket_path)
         detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"

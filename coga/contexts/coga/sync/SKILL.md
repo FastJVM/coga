@@ -37,22 +37,20 @@ Live (urgent) surface — still posts immediately:
 - `coga block` — blocker, owner named.
 - `recurring/blocker-reminders` — unresolved blocked-task reminders, owner
   named, with the `coga unblock <slug> --answer "..."` command shape. The
-  script records a `## Blocker reminders` watermark on the blocked task only
+  recipe records a `## Blocker reminders` watermark on the blocked task only
   after attempting the live post, so the same blocker is not reminded on every
   scan.
 - `coga slack` — explicit FYI (manual broadcast escape hatch); an
   intentional human broadcast, so batching it would surprise the sender.
 - `coga bump --message "<FYI>"` — explicit FYI attached to step movement.
   Message-less bumps are silent.
-- `coga launch` script-step failure — non-zero exit on a script step
-  step.
 - `coga launch` — an approved `active` ticket starts and becomes
   `in_progress`. The session-start signal stays live (one per task).
 
 Outcome digest surface — spooled into the daily digest (live fallback below):
 
-- `coga mark done` — done tickets, including manual/script-mode completions
-  that have no PR number.
+- `coga mark done` — done tickets, including manual completions that have no
+  PR number.
 - `coga mark canceled` — intentionally abandoned tickets, with the required
   cancellation reason kept in the outcome record and audit log.
 - the `autoclose-merged` recurring sweep (never `coga status`, which is
@@ -113,7 +111,7 @@ Slack-channel failure:
 
 **One carve-out: a broadcast that announces an already-committed state
 change.** The lifecycle transitions — `bump`, `mark done` / `canceled` /
-`in_progress` / `paused`, `block`, and a script step's failure post — call
+`in_progress` / `paused`, and `block` — call
 `post(..., fatal=False)` (`notify(..., fatal=False)` on the digest path). The
 delivery miss is reported *identically* — same stderr line, same `coga/log.md`
 entry — it just no longer aborts the command, because the ticket write already
@@ -286,13 +284,12 @@ new string:
   parsed from `[notification.slack.users]` in `coga.toml`; legacy
   `[slack.users]` remains a deprecated compatibility input.
 - Live callers (`post`): `commands/block.py`, `commands/slack.py`,
-  `commands/launch_script.py` (failure path only),
   `commands/bump.py` when `--message` is present, and
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
   session start), plus the `coga/blockers/remind` skill recipe
   (`remind_blocked_tasks`) for unresolved blocker reminders. Outcome callers
-  (`notify`): `mark.mark_done` (including the autoclose sweep and script-mode
-  completion), `mark.mark_canceled`, and `coga/recurring_runner.py`'s error
+  (`notify`): `mark.mark_done` (including the autoclose sweep),
+  `mark.mark_canceled`, and `coga/recurring_runner.py`'s error
   summary. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
   in the repo-global `coga/log.md`, tagged with the task ref.
@@ -555,8 +552,7 @@ cancellation:
 - **`mark`** — `done`, `canceled`, `paused`, `active`, `blocked`, and launch's
   `in_progress` flip.
 - **`bump`** — `advance_step` publishes `step:`, so a stale checkout can rewind
-  the workflow for everyone. This covers `launch_script`'s script-step advance
-  too, which shares the same finalizer.
+  the workflow for everyone.
 - **`unblock`** — the `in_progress` resolve-only branch, which writes the
   blackboard without a status flip. Its `blocked → active` branch delegates to
   `mark_active` and is guarded there.
@@ -668,11 +664,10 @@ Failure model:
     first push that *creates* the branch.
   - **Commit always; skip only the remote step.** Copying the sibling
     `_control_branch_present` early-return is too broad — it also suppresses the
-    *feature-branch local commit*, which never contacts the remote.
-    `tests/test_launch_script.py::test_script_launch_commits_log_append_before_running_script`
-    is the proof: `sync_log` on a feature branch with no remote must still
-    commit the log append before the script runs, and the blanket early-return
-    left it dirty and aborted the script with exit 7. `sync_log`, `sync_paths`,
+    *feature-branch local commit*, which never contacts the remote. Regression
+    coverage proves that `sync_log` on a feature branch with no remote must
+    still commit its append; the blanket early-return left it dirty.
+    `sync_log`, `sync_paths`,
     and `sync_coga_state` commit and soft-skip only the control-branch
     landing/push; only `refresh_coga_state_from_control` returns early, because
     it is a pure remote pull with no local commit to preserve.
@@ -720,14 +715,10 @@ Failure model:
   The refusal is reported exactly once, distilled to the `error:`/`CONFLICT`
   lines plus the resolve command (`summarize_git_failure` strips rebase
   progress and hint noise), and the child exits with
-  `git.STALE_CONTROL_EXIT_CODE` (75, EX_TEMPFAIL — far from common user-script
-  codes). That code tells the wrapping layers the checkout is already known
-  diverged and nothing was mutated, so launch's post-exit control refresh
-  (bootstrap scripts only — the exit-code contract is coga-owned) and the CLI
-  end-of-command state sweep both stand down instead of re-failing against the
-  same divergence: without this, each failed sweep re-dumped the conflict
-  twice more and stacked one more local `Sync coga state` commit onto the
-  divergence a human must eventually rebase away.
+  `git.STALE_CONTROL_EXIT_CODE` (75, EX_TEMPFAIL). That code tells wrapping
+  layers the checkout is already known diverged and nothing was mutated, so
+  the CLI end-of-command state sweep stands down instead of re-failing against
+  the same divergence.
   Mid-workflow syncs (`coga bump`, `mark`, the catch-all state sweep, and
   recurring task-state writes after entry) remain non-fatal.
 

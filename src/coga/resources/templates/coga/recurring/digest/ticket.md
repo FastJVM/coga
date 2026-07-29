@@ -32,9 +32,10 @@ its recipe runs the digest implementation, which:
    newest record as an anchor (so a concurrent producer append never conflicts), and
 7. updates `### Digest State` with the new high-water mark.
 
-Genuinely urgent events (`coga block`, script-step failures, the
-manual `coga slack` FYI) bypass the spool and still post live, so a stuck
-agent or a failure never waits a day to be seen.
+Genuinely urgent events (`coga block`, blocker reminders, session starts, and
+explicit `coga slack` / `coga bump --message` FYIs) bypass the spool and still
+post live, so a stuck agent or direct human message never waits a day to be
+seen.
 
 An empty spool is not automatically a no-op: merged commits can still produce
 the "Also merged (no ticket)" section. The run posts nothing only when there

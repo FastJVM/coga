@@ -474,9 +474,9 @@ def test_sync_task_state_no_remote_prints_calm_notice(git_repo, capsys):
 def test_sync_feature_branch_no_remote_commits_locally(git_repo, capsys):
     """Feature branch, no `origin` → calm notice, but the local commit stands.
 
-    The unit-level guard for the launch-script invariant: a feature-branch sync
-    commits OS state locally (that step never touches the remote); only the
-    control-branch landing is soft-skipped when no remote is configured.
+    The unit-level guard for feature-branch state sync: it commits OS state
+    locally (that step never touches the remote); only the control-branch
+    landing is soft-skipped when no remote is configured.
     """
     cfg = load_config(git_repo.coga_os)
     git_repo.git("remote", "remove", "origin")

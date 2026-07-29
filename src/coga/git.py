@@ -107,15 +107,11 @@ _MAX_SYNC_ATTEMPTS = 5
 # Process exit code meaning "refused because the control checkout could not
 # integrate the latest control tip; nothing was mutated". The recurring-scan
 # freshness gate exits with it, and the layers wrapping a launch key off it to
-# skip their post-run git catch-up (launch's control refresh — bootstrap-script
-# launches only, since bootstrap scripts are coga-owned — and the CLI
-# end-of-command state sweep): on a checkout already known to be diverged those
-# attempts are guaranteed to fail — re-dumping the same conflict — and the
+# skip their post-run git catch-up. On a checkout already known to be diverged
+# those attempts are guaranteed to fail—re-dumping the same conflict—and the
 # end-of-command sweep would stack a new local commit per failed run, deepening
 # the divergence a human must eventually resolve. 75 is BSD's EX_TEMPFAIL
-# ("temporary failure, retry later"), deliberately far from the small codes
-# user ticket scripts commonly exit with, so an ordinary script failure is
-# never mistaken for this refusal.
+# ("temporary failure, retry later").
 STALE_CONTROL_EXIT_CODE = 75
 
 _ROOT_LAYOUT_COGA_PATHS = (

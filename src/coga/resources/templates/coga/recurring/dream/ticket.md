@@ -62,7 +62,7 @@ this Dream task. Before each run, read the matching skill's
 `## Known Skill Contract`, keep reads and writes inside its declared scope,
 then invoke the exact `coga run` command below. The recipe inherits this
 task's `COGA_TASK_*` context and writes its `## Dream Skill: <name>` section
-directly to this task's blackboard. Do not create child script tasks.
+directly to this task's blackboard. Do not create child worker tasks.
 
 ### Phase 1 — validate-drift
 

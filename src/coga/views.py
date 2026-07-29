@@ -3,17 +3,14 @@
 The command heads in `commands/show.py` / `commands/status.py` stay thin — they
 parse Typer args, `load_config()`, and translate errors to `sys.exit(2)`. All of
 the actual rendering lives here as reusable, unit-testable, `typer`-free Python,
-so it can also run in script-step shape (the `coga/show` skill's `run.py`),
-mirroring how `coga.authoring` / `coga.autoclose` keep their substance out of the
-command files and raise typed errors instead of exiting.
+mirroring how `coga.authoring` / `coga.autoclose` keep their substance out of
+the command files and raise typed errors instead of exiting.
 """
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import Mapping
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -21,7 +18,7 @@ from rich.rule import Rule
 from rich.table import Table
 
 from coga.blackboard import Blocker, open_blockers
-from coga.config import Config, load_config
+from coga.config import Config
 from coga.git import last_commit_times, stale_coga_task_rels
 from coga.logfile import (
     first_activity_map,
@@ -43,10 +40,6 @@ from coga.tasks import (
     resolve_target,
 )
 from coga.ticket import TicketError
-
-# Env var carrying the single target slug for the `coga/show` script skill —
-# the script-step channel for the operand the Typer command takes as `<task>`.
-VIEW_TARGET_ENV = "COGA_VIEW_TARGET"
 
 # Below this terminal width Rich's column balancer can fold long values
 # one-char-per-line, which makes the output unreadable in tmux split panes
@@ -110,24 +103,6 @@ def render_show(cfg: Config, task: str, console: Console | None = None) -> None:
             console.print(line)
 
 
-def render_show_from_env(
-    cfg: Config | None = None,
-    environ: Mapping[str, str] | None = None,
-) -> None:
-    """Render `show` using the script-skill environment contract.
-
-    The single operand `coga show` takes as `<task>` arrives via
-    `COGA_VIEW_TARGET`, mirroring how `finalize_authored_from_env` reads its
-    ref from the environment for the `coga/ticket/finalize` skill.
-    """
-    env = environ if environ is not None else os.environ
-    target = env.get(VIEW_TARGET_ENV)
-    if not target:
-        raise ViewError(f"missing required env var: {VIEW_TARGET_ENV}")
-    loaded_cfg = cfg if cfg is not None else load_config()
-    render_show(loaded_cfg, target)
-
-
 # --- status ----------------------------------------------------------------
 
 
@@ -155,7 +130,7 @@ def _git_updated_by_slug(
     """Fold `tasks/`-relative commit times onto the task that owns each path.
 
     A commit under a directory-form task touches `<slug>/ticket.md` (or a
-    sibling `script:` file / attachment), never the task directory itself, so
+    sibling attachment), never the task directory itself, so
     each path is walked up to the nearest enclosing task. A file-form task is
     its own path. Paths belonging to no live task — a deleted or renamed-away
     ticket — simply have no owner and drop out.

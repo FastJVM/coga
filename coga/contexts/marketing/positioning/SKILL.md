@@ -82,9 +82,9 @@ claim Linear-style pixel polish. The felt moments to dramatize instead:
 Comms must stay credible. State plainly where Coga is outclassed:
 
 - **Fully-managed unattended autonomy is not Coga's default shape**. Coga keeps
-  the local, file-backed loop and uses blockers, megalaunch, script tasks, and
-  liveness watchdogs for unattended drain; Devin / Symphony / Claude Code win
-  on fire-and-forget today.
+  the local, file-backed loop and uses blockers, megalaunch, registered
+  recipes, and liveness watchdogs for unattended drain; Devin / Symphony /
+  Claude Code win on fire-and-forget today.
 - Workflow is a **linear state machine** — heavy parallel/dynamic
   orchestration → frameworks (LangGraph et al.).
 - **Self-hosted, self-supported** — no managed reliability / SLA.

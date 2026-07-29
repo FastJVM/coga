@@ -24,13 +24,11 @@ review bars.
   the first backend. `config.py` loads config. `runner.py` owns the fixed
   name-to-function registry behind `coga run`; recipes are ordinary
   importable functions in focused core modules, not discovered skill files.
-  `task_env.py` builds the shared `COGA_TASK_*` contract for agents, retained
-  scripts, and recurring recipe subprocesses.
+  `task_env.py` builds the shared `COGA_TASK_*` contract for agents and
+  recurring recipe subprocesses.
   `commands/launch.py` runs agents and composes trailing launch args into an
-  ordered prompt block; `commands/launch_script.py` owns the separate
-  `COGA_ARG_1..N` + `COGA_ARGC` environment channel for the retained script
-  seam. `commands/run.py` forwards ordinary trailing argv to `runner.py`
-  without translating it through that script-only environment channel.
+  ordered prompt block. `commands/run.py` forwards ordinary trailing argv to
+  `runner.py`.
   `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/block.py` and `commands/unblock.py` own blocked-state
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;
@@ -59,13 +57,12 @@ kinds of code**:
    `delete_task.py`. These carry real logic and stable command contracts, not
    just "launch this target."
 
-**Everything else stays at the edge.** An unregistered, single-consumer
-script-backed workflow recipe lives beside `run.py` in its ticket or skill
-directory, imports **only shared core infra**, and never makes core import from
-that directory. The retained script seam runs it as `python <dir>/run.py`.
-This is separate from a registered recipe: a fixed `runner.RECIPES` entry is an
-ordinary Coga command implementation and therefore lives in a focused
-`src/coga/` module even when its first caller is one recurring template.
+**Everything else stays at the edge.** A single-consumer helper may live beside
+the ticket or skill that uses it, import **only shared core infra**, and be
+invoked explicitly by the agent instructions. Core never imports from a ticket
+or skill directory. Deterministic behavior that needs a stable headless command
+contract must instead become a fixed `runner.RECIPES` entry in a focused
+`src/coga/` module; skills are never executable launch plugins.
 
 **"Backs a CLI command" is not by itself a pass into core.** Ask whether the
 command is a real Python implementation or just an alias to a launch target. A
@@ -77,19 +74,19 @@ package registry. The registry is explicit and closed; it does not discover
 ticket or skill files.
 
 **The consumer test decides the split, and it can keep a symbol in core.** When
-a script recipe moves out, any helper it shares with another core consumer
-stays — moving it would force core to import from a ticket or skill directory,
-which is exactly the anti-pattern this rule forbids. The registered
+an edge implementation moves out, any helper it shares with another core
+consumer stays — moving it would force core to import from a ticket or skill
+directory, which is exactly the anti-pattern this rule forbids. The registered
 `autoclose`, `blocker-reminders`, and `branch-sweep` implementations stay in
 core for the different reason above: they are fixed `coga run` commands. Their
 skills are invocation contracts and contain no executable Python.
 
-PR #517 first exposed the line by moving the then-script-backed open-pr recipe
+PR #517 first exposed the line by moving open-pr's former edge implementation
 out of core. PR #585 later turned `open-pr` into a real command implementation,
 so the same test placed it back in core under exception 2, and it now lives
 there as the registered `open-pr` recipe (`open_pr.py`) — the fixed name is the
 contract, so the implementation is importable. `delete-task` followed the same
-path out of its skill's `run.py`. The fixed `coga run` registry applies that
+path out of its former edge helper. The fixed `coga run` registry applies that
 exception without turning skills into a plugin system. This stated rule
 supersedes the softer "extend at the edges, not the core" phrasing.
 
@@ -222,8 +219,8 @@ PYTHONPATH=$PWD/src <repo>/.coga/.venv/bin/python -m pytest
 
 Two non-obvious requirements:
 
-- **`PYTHONPATH` must be absolute.** The script-launch subprocess tests run
-  from a different cwd, so a relative `src` breaks them.
+- **`PYTHONPATH` must be absolute.** Some subprocess tests run from a different
+  cwd, so a relative `src` breaks them.
 - **Use an explicit 3.11+ interpreter — don't trust the default `python3`.**
   coga needs `tomllib`, stdlib only on 3.11+, but the ambient `python3` on
   these machines is often 3.9. Name a new-enough interpreter directly, e.g.
@@ -298,18 +295,16 @@ recurring walls that don't appear on a normal dev machine:
   structure, not a hardcoded date.
 
 - **Fixture shell scripts must be portable.** A test that writes a shell script
-  for a launched subprocess runs on whatever `sh` the developer has.
-  `tests/test_launch_script.py` uses GNU-only `sed -i 's/…/…/'`; BSD/macOS `sed`
-  reads the next token as the mandatory backup suffix and dies with
-  `sed: invalid command code`. The failure surfaces far from its cause and reads
-  like an unrelated pre-existing breakage. Prefer Python or a portable
+  for a subprocess runs on whatever `sh` the developer has. GNU-only
+  `sed -i 's/…/…/'` fails on BSD/macOS, where `sed` reads the next token as the
+  mandatory backup suffix. Prefer Python or a portable
   `sed … > tmp && mv tmp file` in fixture scripts, and treat any GNU-only flag
   (`sed -i`, `readlink -f`, `date -d`) as a platform bug waiting for the first
   non-Linux contributor.
 
 - **Subprocess tests must scrub inherited launch metadata.** A pytest run inside
-  `coga launch` inherits the outer session's `COGA_TASK_*` and `COGA_SKILL_*`
-  variables. A fixture worker that receives those values can write its report
+  `coga launch` inherits the outer session's `COGA_TASK_*` variables. A
+  fixture worker that receives those values can write its report
   into the live outer ticket instead of its temporary task. Clear every
   launch-owned metadata variable in the autouse environment guard, or replace
   the complete set explicitly for the fixture, before starting subprocesses.
