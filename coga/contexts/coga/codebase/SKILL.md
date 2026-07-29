@@ -315,7 +315,9 @@ recurring walls that don't appear on a normal dev machine:
   `pytest` with the whole namespace poisoned. On the reading side,
   `blackboard_from_env(coga_os_root)` refuses a blackboard outside the
   `tasks/` tree of the root the recipe is operating on — a report belongs to the
-  repo under test, so pass the discovered root at every recipe call site.
+  repo under test, so pass the discovered root at every recipe call site. If
+  the target root cannot be discovered, the writer fails closed to stdout
+  rather than trusting an inherited path.
 
 - **`coga.config` and `coga.commands.launch` share one `subprocess` module
   object.** Patching `coga.config.subprocess.run` and

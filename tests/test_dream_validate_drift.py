@@ -310,6 +310,46 @@ def test_worker_refuses_blackboard_from_another_checkout(tmp_path: Path) -> None
     assert str((coga_os / "tasks").resolve()) in result.stderr
 
 
+def test_worker_refuses_blackboard_when_target_root_is_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The reading-side guard fails closed for the original direct-test shape.
+
+    The leaking test drove the recipe in-process against a bare temp directory,
+    with the validator itself mocked. There is no `coga.toml` from which to
+    discover the target checkout, so an inherited outer blackboard must be
+    refused rather than escaping the containment check.
+    """
+    fixture_cwd = tmp_path / "fixture"
+    fixture_cwd.mkdir()
+    outer = tmp_path / "outer-repo" / "coga" / "tasks" / "live-ticket.md"
+    _write(outer, "---\ntitle: Live\n---\n\n<!-- coga:blackboard -->\n")
+    before = outer.read_text()
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(outer.resolve()))
+    monkeypatch.setenv("COGA_TASK_SLUG", "live-ticket")
+    monkeypatch.setattr(
+        validate_drift,
+        "run_validate_json",
+        lambda **kwargs: (
+            {"fixes": [], "issues": []},
+            ["coga", "validate", "--json"],
+        ),
+    )
+
+    result = validate_drift.run_validate_drift_recipe(
+        None,  # type: ignore[arg-type]
+        ["--cwd", str(fixture_cwd), "--no-fix"],
+    )
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert outer.read_text() == before
+    assert "## Dream Skill: validate-drift" in captured.out
+    assert "target Coga root could not be discovered" in captured.err
+
+
 def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> None:
     from coga.taskfile import fence_count
 

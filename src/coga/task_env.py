@@ -73,8 +73,8 @@ def discover_coga_os_root(cwd: Path | None) -> Path | None:
 
     `None` means "cannot tell" — there is no `coga.toml` to discover, as in a
     unit test driving a recipe against a bare tmp dir. Callers hand the result
-    to `blackboard_from_env`, which then skips the containment check rather
-    than refusing a blackboard it has no root to judge against.
+    to `blackboard_from_env`, which fails closed rather than guessing that an
+    inherited blackboard belongs to the target.
     """
     try:
         return find_repo_root(cwd)
@@ -82,7 +82,7 @@ def discover_coga_os_root(cwd: Path | None) -> Path | None:
         return None
 
 
-def blackboard_from_env(coga_os_root: Path | None = None) -> Path | None:
+def blackboard_from_env(coga_os_root: Path | None) -> Path | None:
     """The blackboard a recipe should append its report to, or `None`.
 
     `None` means "write the report to stdout" — the caller's existing
@@ -92,12 +92,14 @@ def blackboard_from_env(coga_os_root: Path | None = None) -> Path | None:
 
     - A path outside a `tasks/` tree: there the inherited ticket path is a
       packaged resource rather than a task blackboard.
-    - With `coga_os_root` given, a path outside that root's `tasks/` tree: the
-      report belongs to the repo the recipe is *operating on*, and a blackboard
-      in another checkout is by definition not this run's. That is the shape a
-      `pytest` run inside `coga launch` produces — the recipe validates a
-      fixture repo under `/tmp` while the inherited blackboard points at the
-      live outer ticket, which satisfies the `tasks/` check on its own.
+    - A path outside the discovered root's `tasks/` tree: the report belongs to
+      the repo the recipe is *operating on*, and a blackboard in another
+      checkout is by definition not this run's. That is the shape a `pytest`
+      run inside `coga launch` produces — the recipe validates a fixture repo
+      under `/tmp` while the inherited blackboard points at the live outer
+      ticket, which satisfies the `tasks/` check on its own.
+    - A path whose target root cannot be discovered: without a root there is no
+      safe containment judgment, so the report falls back to stdout.
 
     Defence in depth for the same class as `build_task_env`'s bootstrap
     carve-out, on the reading side. The autouse env guard in
@@ -111,11 +113,15 @@ def blackboard_from_env(coga_os_root: Path | None = None) -> Path | None:
     if "tasks" not in resolved.parts[:-1]:
         _refuse_blackboard(path, "outside a tasks/ tree")
         return None
-    if coga_os_root is not None:
-        tasks_root = (coga_os_root / "tasks").resolve()
-        if not resolved.is_relative_to(tasks_root):
-            _refuse_blackboard(path, f"outside {tasks_root}")
-            return None
+    if coga_os_root is None:
+        _refuse_blackboard(
+            path, "because the target Coga root could not be discovered"
+        )
+        return None
+    tasks_root = (coga_os_root / "tasks").resolve()
+    if not resolved.is_relative_to(tasks_root):
+        _refuse_blackboard(path, f"outside {tasks_root}")
+        return None
     return path
 
 

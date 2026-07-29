@@ -19,11 +19,22 @@ import subprocess
 import sys
 from pathlib import Path
 
-from conftest import LAUNCH_OWNED_ENV
-
+from coga.repl_supervisor import (
+    EXPECTED_STEP_ENV,
+    EXPECTED_TASK_ENV,
+    SENTINEL_ENV,
+)
 from coga.task_env import TASK_ENV_KEYS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+
+_EXPECTED_LAUNCH_OWNED_ENV = (
+    SENTINEL_ENV,
+    "COGA_SUPERVISED",
+    EXPECTED_TASK_ENV,
+    EXPECTED_STEP_ENV,
+    *TASK_ENV_KEYS,
+)
 
 _CLEAN_ENV_TEST = (
     "tests/test_env_isolation.py::test_no_launch_owned_variable_reaches_a_test"
@@ -41,18 +52,10 @@ def _source_pythonpath() -> str:
 def test_no_launch_owned_variable_reaches_a_test() -> None:
     """The assertion the guard exists for — and the one the child run below
     re-runs with the whole namespace poisoned."""
-    leaked = sorted(key for key in LAUNCH_OWNED_ENV if key in os.environ)
+    leaked = sorted(
+        key for key in _EXPECTED_LAUNCH_OWNED_ENV if key in os.environ
+    )
     assert leaked == []
-
-
-def test_guard_covers_the_whole_task_metadata_namespace() -> None:
-    """`TASK_ENV_KEYS` is the contract; the guard must not lag behind it.
-
-    Hand-listing the variables is how the leak survived in the first place: the
-    guard cleared the four supervisor variables and none of the task metadata,
-    and the module that leaked opted out per-test instead.
-    """
-    assert [key for key in TASK_ENV_KEYS if key not in LAUNCH_OWNED_ENV] == []
 
 
 def test_guard_scrubs_metadata_inherited_from_a_supervised_parent(
@@ -71,7 +74,7 @@ def test_guard_scrubs_metadata_inherited_from_a_supervised_parent(
     before = outer_ticket.read_text()
 
     env = os.environ.copy()
-    env.update({key: str(outer_ticket) for key in LAUNCH_OWNED_ENV})
+    env.update({key: str(outer_ticket) for key in _EXPECTED_LAUNCH_OWNED_ENV})
     env["PYTHONPATH"] = _source_pythonpath()
 
     result = subprocess.run(
