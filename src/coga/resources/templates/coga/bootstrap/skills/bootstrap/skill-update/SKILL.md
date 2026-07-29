@@ -52,7 +52,9 @@ coga run skill-update
 
 Coga injects `COGA_TASK_SLUG` and `COGA_TASK_BLACKBOARD`; the recipe appends
 its result to that blackboard. The recurring runner supplies those variables
-from the instantiated period task.
+from the instantiated period task. A stateless bootstrap target has no
+blackboard, so run from one the recipe writes its report to stdout rather than
+into a packaged `bootstrap/<name>/ticket.md`.
 
 The skill runs `coga skill update --all --pr --json`, then groups the results
 by their raw update status so each status (e.g. `updated`,

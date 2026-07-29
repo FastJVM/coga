@@ -51,7 +51,7 @@ from coga.mark import (
     mark_paused,
 )
 from coga.notification import notify, post
-from coga.task_env import build_task_env, host_repo_root
+from coga.task_env import apply_task_env, host_repo_root
 from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
@@ -577,7 +577,7 @@ def _run_recipe_task(cfg: Config, task: DueTask) -> int:
     except SecretError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return 2
-    env.update(build_task_env(cfg, ref))
+    env = apply_task_env(env, cfg, ref)
 
     if ticket.status == "active":
         cur = ticket.current_step()

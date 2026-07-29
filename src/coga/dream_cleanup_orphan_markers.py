@@ -16,6 +16,7 @@ from pathlib import Path
 import yaml
 
 from coga.config import Config
+from coga.task_env import blackboard_from_env
 
 
 # `## Retro` must be matched only as a line-start markdown heading. A ticket
@@ -61,11 +62,6 @@ def repo_root(coga_os: Path) -> Path:
     if env_root:
         return Path(env_root)
     return coga_os.parent if coga_os.name == "coga" else coga_os
-
-
-def script_blackboard() -> Path | None:
-    value = os.environ.get("COGA_TASK_BLACKBOARD")
-    return Path(value) if value else None
 
 
 def script_task_slug() -> str | None:
@@ -336,7 +332,7 @@ def run_cleanup_orphan_markers_recipe(cfg: Config, argv: list[str]) -> int:
             delete_skill=delete_skill,
             pr_state=pr_state,
         )
-        blackboard = script_blackboard()
+        blackboard = blackboard_from_env()
         if blackboard:
             append_report(blackboard, report)
         else:
