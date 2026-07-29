@@ -7,7 +7,10 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
-contexts: []
+contexts:
+  - coga/architecture
+  - coga/codebase
+  - dev/code
 skills: []
 workflow:
   name: code/with-review
@@ -79,3 +82,32 @@ whether this needs a new command surface.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Findings
+
+- The branch-sweep half already landed independently in PR #669
+  (`8237453e`). Current `main` prunes stale worktree registrations, enumerates
+  live worktree-held branches, preserves both refs, and reports the distinct
+  non-fatal `skipped-worktree-pinned` outcome. No duplicate implementation is
+  needed here.
+
+## Dev
+
+branch: retire-linked-worktree
+worktree: /home/n/Code/codex/coga-retire-linked-worktree
+
+## Decision
+
+- Retire linked worktrees automatically in `coga retire`, before its existing
+  branch cleanup and Retro task creation. Retire is the point where the done
+  ticket still exposes `branch:` / `worktree:` / `pr:` and already owns branch
+  disposal; `mark done` remains a lifecycle transition rather than a
+  filesystem cleanup side effect.
+- Remove only a recorded checkout that Git identifies as a linked worktree of
+  the same repository. Use ordinary `git worktree remove` without `--force`;
+  dirty, locked, missing, unrelated, and independent fallback-clone paths are
+  preserved and reported. Branch cleanup then retains its existing merged-PR
+  safety gates.
+- Update both the live and packaged `dev/code` contexts so the operator and
+  future agents can see who retires the checkout and what survives for manual
+  inspection.
