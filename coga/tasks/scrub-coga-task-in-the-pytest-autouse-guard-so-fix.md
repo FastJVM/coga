@@ -6,7 +6,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -139,23 +139,21 @@ worktree: /home/n/Code/claude/coga-scrub-launch-env
   so surviving and not done) still carries 3 sections. The
   `## Dream Skill: validate-drift` section in `recurring/dream/ticket.md` is a
   *real* report (real task, real fence fix) — leave it.
-## Implemented (commit `ad9a7788`)
+## Implemented (rebased commit `1c74c27c`; original `ad9a7788`)
 
 1. `tests/conftest.py`: `LAUNCH_OWNED_ENV = (sentinel, COGA_SUPERVISED, expected
    task/step, *TASK_ENV_KEYS)`; `_clear_supervised_session_env` loops over it.
-2. `tests/test_env_isolation.py`: (a) the in-suite assertion that no
-   launch-owned var is set during a test, (b) a structural check that the guard
-   covers all of `TASK_ENV_KEYS`, (c) a child `pytest` run of (a) with every
-   launch-owned var pointed at a stand-in outer ticket. **Verified the proof
-   bites**: weakening the guard to its old four vars and re-running with
-   `COGA_TASK_BLACKBOARD` set fails (a) and (c).
-3. `blackboard_from_env(coga_os_root=None)` + `discover_coga_os_root(cwd)` in
+2. `tests/test_env_isolation.py`: (a) an in-suite assertion against an
+   independently assembled expected namespace, and (b) a child `pytest` run of
+   that assertion with every launch-owned var pointed at a stand-in outer
+   ticket. **Verified the proof bites**: weakening the guard to its old four
+   vars and re-running with `COGA_TASK_BLACKBOARD` set fails both checks.
+3. `blackboard_from_env(coga_os_root)` + `discover_coga_os_root(cwd)` in
    `task_env.py`; refuses a blackboard outside `<root>/tasks/`. `validate-drift`
    and `skill-update` pass `discover_coga_os_root(args.cwd)`,
-   `cleanup-orphan-markers` passes the `coga_os` it scanned. `None` root (a unit
-   test against a bare tmp dir) skips the containment check rather than refusing
-   what it cannot judge. New subprocess regression
-   `test_worker_refuses_blackboard_from_another_checkout`.
+   `cleanup-orphan-markers` passes the `coga_os` it scanned. A `None` root
+   fails closed to stdout rather than trusting an inherited path. Regressions
+   cover both another checkout and the original direct-test/bare-temp shape.
 4. Stripped the 3 sections from `ship-a-shared-recurring-reminder-engine-battery.md`.
 5. Amended the `coga/codebase` hazard bullet: the remedy is now enforced, names
    `TASK_ENV_KEYS` as the single list to extend, and warns off re-adding per-test
@@ -178,3 +176,38 @@ issues (stuck-in-progress, unknown-assignee, missing-user) — all present on
   which calls `run_validate_drift_recipe` directly; its two per-test
   `monkeypatch.delenv` lines are the "remember to do it" pattern the context
   warns about and become redundant once the guard covers the namespace.
+
+## Peer review (2026-07-29)
+
+- `codex review --base main` completed with no reported findings. Its focused
+  checks passed (271 tests), and the full suite passed both normally and with
+  the complete launch namespace poisoned: 1538 passed, 1 skipped.
+- Manual follow-through found one must-fix hole in the defence-in-depth half:
+  `discover_coga_os_root()` returns `None` for a direct recipe test against a
+  bare temp directory, and `blackboard_from_env(None)` skipped the
+  checkout-containment check. That is the exact shape of the original
+  in-process leak, so the secondary guard was not independent of the autouse
+  fix. Fixed by failing closed and adding a direct regression.
+- The new isolation test imports `conftest` as a normal module. Pytest's
+  `--import-mode=importlib` cannot collect it (`ModuleNotFoundError:
+  conftest`). Replaced that import with an independent expected-namespace
+  oracle; the nested polluted run still proves the autouse guard end to end.
+- Review fixes landed as rebased commit `ec43aa92`. Fetched `origin/main`
+  unconditionally and rebased cleanly onto `5ca46ed8`; the branch is clean and
+  2 commits ahead / 0 behind.
+- Post-rebase verification: `python -m pytest` — 1538 passed, 1 skipped.
+  Focused `--import-mode=importlib` verification — 2 passed.
+- `coga validate --json --task scrub-coga-task-in-the-pytest-autouse-guard-so-fix`
+  — 1 valid task, no fixes or issues.
+
+## PR
+
+Scrub every launch-owned task and supervisor variable from pytest through an
+autouse guard derived from `TASK_ENV_KEYS`, and prove the boundary with a nested
+pytest launched under poisoned metadata. Harden all report-writer recipes to
+accept only blackboards inside the Coga root they actually operate on, failing
+closed to stdout when that root is unknown; remove the three leaked fixture
+reports from the surviving ticket; and document the enforced invariant in
+`coga/codebase`.
+
+Tests: `python -m pytest` — 1538 passed, 1 skipped; `python -m pytest -q --import-mode=importlib tests/test_env_isolation.py` — 2 passed.
