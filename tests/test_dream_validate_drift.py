@@ -259,6 +259,57 @@ def test_worker_refuses_blackboard_outside_tasks_tree(tmp_path: Path) -> None:
     assert "COGA_TASK_BLACKBOARD" in result.stderr
 
 
+def test_worker_refuses_blackboard_from_another_checkout(tmp_path: Path) -> None:
+    """A blackboard in a *different* repo's `tasks/` tree falls back to stdout.
+
+    This is the shape a `pytest` run inside `coga launch` produces: the recipe
+    validates a fixture repo under `/tmp` while the inherited
+    `COGA_TASK_BLACKBOARD` still points at the live outer ticket. That path sits
+    inside a `tasks/` tree, so the tasks-tree check alone waves it through —
+    which is how twenty-plus fixture reports reached live tickets. The report
+    belongs to the repo the recipe is operating on.
+    """
+    coga_os = _seed_repo(tmp_path)
+    outer = tmp_path / "outer-repo" / "coga" / "tasks" / "live-ticket.md"
+    _write(outer, "---\ntitle: Live\n---\n\n<!-- coga:blackboard -->\n")
+    before = outer.read_text()
+    env = os.environ.copy()
+    env.update(
+        {
+            "COGA_TASK_SLUG": "live-ticket",
+            "COGA_TASK_DIR": str(outer.parent.resolve()),
+            "COGA_TASK_BLACKBOARD": str(outer.resolve()),
+            "COGA_COGA_OS_ROOT": str((tmp_path / "outer-repo" / "coga").resolve()),
+            "COGA_REPO_ROOT": str((tmp_path / "outer-repo").resolve()),
+            "PYTHONPATH": _source_pythonpath(),
+        }
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "coga.cli",
+            "run",
+            "validate-drift",
+            "--cwd",
+            str(tmp_path),
+            "--no-fix",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert outer.read_text() == before
+    assert "## Dream Skill: validate-drift" in result.stdout
+    assert "COGA_TASK_BLACKBOARD" in result.stderr
+    assert str((coga_os / "tasks").resolve()) in result.stderr
+
+
 def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> None:
     from coga.taskfile import fence_count
 
@@ -389,8 +440,10 @@ def test_commit_and_push_uses_configured_remote_without_upstream(
 def test_commit_and_push_main_passes_configured_remote(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("COGA_TASK_BLACKBOARD", raising=False)
-    monkeypatch.delenv("COGA_TASK_SLUG", raising=False)
+    # No per-test `delenv` for the task metadata namespace: this test drives the
+    # recipe in-process, and the autouse guard in conftest.py now scrubs the
+    # whole namespace for every test. Opting out here was the pattern that let
+    # the leak survive elsewhere in this module.
     captured: dict[str, object] = {}
 
     class Cfg:

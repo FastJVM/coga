@@ -305,9 +305,17 @@ recurring walls that don't appear on a normal dev machine:
 - **Subprocess tests must scrub inherited launch metadata.** A pytest run inside
   `coga launch` inherits the outer session's `COGA_TASK_*` variables. A
   fixture worker that receives those values can write its report
-  into the live outer ticket instead of its temporary task. Clear every
-  launch-owned metadata variable in the autouse environment guard, or replace
-  the complete set explicitly for the fixture, before starting subprocesses.
+  into the live outer ticket instead of its temporary task. This is now
+  enforced, not remembered: `conftest.py::_clear_supervised_session_env` clears
+  `LAUNCH_OWNED_ENV`, which is derived from `coga.task_env.TASK_ENV_KEYS`, so a
+  new launch-owned variable is covered without a second edit — add it to
+  `TASK_ENV_KEYS` and both sides follow. Do not re-introduce per-test
+  `monkeypatch.delenv` opt-outs for that namespace; `test_env_isolation.py`
+  proves the guard end to end by re-running one of its own tests in a child
+  `pytest` with the whole namespace poisoned. On the reading side,
+  `blackboard_from_env(coga_os_root)` refuses a blackboard outside the
+  `tasks/` tree of the root the recipe is operating on — a report belongs to the
+  repo under test, so pass the discovered root at every recipe call site.
 
 - **`coga.config` and `coga.commands.launch` share one `subprocess` module
   object.** Patching `coga.config.subprocess.run` and

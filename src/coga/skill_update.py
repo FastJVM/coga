@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from coga.config import Config
-from coga.task_env import blackboard_from_env
+from coga.task_env import blackboard_from_env, discover_coga_os_root
 
 # Update statuses `coga skill update` emits, grouped into the three buckets
 # this skill reports. The buckets only drive the headline summary and the
@@ -233,7 +233,7 @@ def run_skill_update_recipe(cfg: Config, argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    blackboard = blackboard_from_env()
+    blackboard = blackboard_from_env(discover_coga_os_root(args.cwd))
     task_slug = script_task_slug_from_env()
     pr = not args.no_pr
 

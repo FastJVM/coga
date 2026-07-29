@@ -332,7 +332,9 @@ def run_cleanup_orphan_markers_recipe(cfg: Config, argv: list[str]) -> int:
             delete_skill=delete_skill,
             pr_state=pr_state,
         )
-        blackboard = blackboard_from_env()
+        # Scoped to the root this run actually scanned, so an inherited
+        # blackboard from another checkout falls back to stdout.
+        blackboard = blackboard_from_env(coga_os)
         if blackboard:
             append_report(blackboard, report)
         else:
