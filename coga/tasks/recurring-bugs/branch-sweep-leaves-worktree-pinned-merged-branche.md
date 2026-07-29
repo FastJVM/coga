@@ -1,7 +1,7 @@
 ---
 slug: recurring-bugs/branch-sweep-leaves-worktree-pinned-merged-branche
 title: Branch-sweep leaves worktree-pinned merged branches behind
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
