@@ -3086,3 +3086,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-29 10:55 [recurring/autoclose-merged] [system] started (active → in_progress) via recurring recipe autoclose
 2026-07-29 10:55 [recurring/autoclose-merged] [system] launched as recipe (autoclose)
 2026-07-29 10:55 [recurring-bugs/branch-sweep-leaves-worktree-pinned-merged-branche] [human:nicktoper] auto-bumped on merge of PR #669 → done
+2026-07-29 10:55 [remove-run-py/port-hard-consumers-onto-the-generic-runner] [human:nicktoper] auto-bumped on merge of PR #667 → done
