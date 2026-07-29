@@ -61,6 +61,6 @@ last_serviced_period: 2026-07-29
 
 ### Digest State
 
-last_commit: 287a7759d91bfaef5068c6ad19d519b24d1c6165
-range: 9a15319..287a775 (76 commit(s), 20 reported)
+last_commit: 459b986c25763b9278e2eaa253c408d200ade23d
+range: 287a775..459b986 (120 commit(s), 42 reported)
 posted: yes
