@@ -6,7 +6,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/architecture
 - coga/codebase
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -93,6 +93,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/672
 branch: retire-linked-worktree
 worktree: /home/n/Code/claude/coga-retire-linked-worktree
 
@@ -118,7 +119,7 @@ recreated the branch and worktree from current `origin/main`.)
 
 ## Implemented (2026-07-29)
 
-Commit `74e7801e` on `retire-linked-worktree`, rebased onto current
+Commit `54e4d37a` on `retire-linked-worktree`, rebased onto current
 `origin/main`, tree clean, not pushed.
 
 - `src/coga/branchcleanup.py` — new `remove_ticket_worktree(root,
@@ -154,3 +155,67 @@ Not caused by this change, but it means the wheel-build test did not run.
 Note on the relaunch: the previously recorded `codex` worktree and the
 `retire-linked-worktree` branch were both gone and nothing had been committed,
 so this session recreated both from `origin/main`. No prior work was lost.
+
+## Peer review (2026-07-29)
+
+`codex review --base main` completed with two P1 findings and one P2, all
+accepted as must-fix:
+
+- unforced `git worktree remove` still deletes ignored local files (including
+  possible credentials/config), so cleanup needs an explicit local-state
+  preflight;
+- a stale/shared `worktree:` + merged `pr:` can unpin and then delete a branch
+  now owned by another live ticket or advanced past that PR, so checkout
+  ownership and the exact PR head need revalidation;
+- retire invoked from the recorded linked checkout can delete its own current
+  working directory, so self-removal needs an explicit guard.
+
+### Review fixes applied
+
+Commits `7603198a` and `8ab5b60c` apply every must-fix finding from two
+completed `codex review --base main` passes:
+
+- Worktree removal now preflights tracked, untracked, and ignored state; checks
+  the recorded branch, current checkout, exact merged-PR head, current local
+  and remote tips, and refuses self-removal.
+- Retire scans every supported Coga workspace in the same Git checkout before
+  cleanup. Any non-terminal ticket sharing the branch or worktree preserves
+  both; an unreadable workspace/task makes the best-effort cleanup skip
+  conservatively.
+- Any open PR using the branch as its head preserves the worktree and both
+  refs, even when another PR from the same head has merged. The GitHub head-PR
+  query is now shared infrastructure used by retire and branch sweep.
+- Remote deletion re-reads the live remote ref and uses an exact
+  `--force-with-lease`; local deletion happens first, so a pinned or otherwise
+  preserved local branch keeps its remote counterpart.
+- Destructive ancestry checks use fully qualified `refs/heads/...` names, so a
+  tag shadowing the control or feature branch cannot authorize cleanup.
+- Shared workspace discovery moved from the recurring runner into
+  `src/coga/workspace_discovery.py`, its second real consumer being retire's
+  repository-wide claim scan.
+
+Final branch: `retire-linked-worktree`, commits `54e4d37a`, `7603198a`, and
+`8ab5b60c`; clean and up to date with `origin/main` at `a13fba61`.
+
+Verification after the final fetch/rebase:
+
+- focused cleanup/autoclose/branch-sweep/retire/recurring suites: 232 passed;
+- full suite: 1556 passed, 1 skipped, run twice (before the final review-fix
+  commit and after the required rebase);
+- `git diff --check` clean;
+- live and packaged `dev/code` contexts byte-identical.
+
+The one skip remains environmental:
+`tests/test_packaging.py:191` imports `hatchling`, which is unavailable to this
+`python3.12` interpreter.
+
+## PR
+
+Retire a done ticket's recorded linked worktree before branch cleanup, with
+conservative local-state, exact-PR-head, open-PR, live-ticket, sibling-workspace,
+and force-with-lease guards. Preserve independent clones and anything whose
+ownership or disposability cannot be proven. The branch-sweep half already
+landed independently in PR #669, so this change keeps that behavior and
+documents the complete checkout lifecycle instead of duplicating it.
+
+Test plan: `PYTHONPYCACHEPREFIX=/tmp/coga-retire-pycache PYTHONPATH=$PWD/src python3.12 -m pytest -q -p no:cacheprovider` (1556 passed, 1 skipped).
