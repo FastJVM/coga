@@ -49,7 +49,7 @@ it drafts a ticket on the fly, validates the authored ticket after the agent
 exits, git-syncs changed `tasks/`/`contexts/`/`skills/`, and enforces a TTY —
 none of which an argv rewrite can express. The authoring interview itself is
 the `bootstrap/ticket` launch target, and the post-exit validation/sync phase
-now lives in `coga.authoring` plus the script-shaped `coga/ticket/finalize`
+now lives in `coga.authoring` plus the documentation-only `coga/ticket/finalize`
 skill; the command remains only because the pre/post hook is irreducible.
 
 The structural consequence: aliases may capture any fixed argv rewrite whose
@@ -93,7 +93,7 @@ implementation, not a fixed rewrite to another command.
 | Bootstrap ticket | Mechanism today | Alias-able? | Why |
 |------|-----------------|-------------|-----|
 | `orient` | `chat` default alias → `launch bootstrap/orient` | Yes — already aliased | Pure `launch bootstrap/orient`; no pre/post logic. |
-| `ticket` | `coga ticket` command head + `coga/ticket/finalize` | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. The validate/sync substance is script-shaped, not an alias hook. |
+| `ticket` | `coga ticket` command head + `coga/ticket/finalize` | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. The validate/sync substance is Python-backed, not an alias hook. |
 | `project` | `coga project` built-in | No | Interview + multi-draft scaffold + TTY guard; not a passthrough. |
 | `recurring-scan` | `coga recurring` command head + fixed `coga run recurring-scan` recipe | No | The bootstrap target is gone. The public command forwards `--interactive` / `--force` / `--agent` as ordinary argv; `--all <path>` dispatches the same recipe in each discovered repo. |
 | `browser-automation` | unaliased `launch bootstrap/browser-automation` | Not currently | Intentional agent-backed orchestration entry point; it remains available through its full launch spelling. |

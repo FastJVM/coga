@@ -336,6 +336,34 @@ def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:
     assert not [issue for issue in report.issues if issue.task == created["slug"]]
 
 
+def test_validate_tolerates_legacy_non_null_script_key(repo: Path) -> None:
+    """A leftover `script: run.py` from the retired launch seam survives parse
+    as an inert orphan extension: it is never executed, and it degrades to a
+    warning rather than failing validation for the whole repo."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Legacy run.py",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
+    )
+    path = Path(created["path"])
+    text = path.read_text()
+    path.write_text(text.replace("secrets: null\n", "secrets: null\nscript: run.py\n"))
+
+    ticket = Ticket.read(path)
+    report = run(cfg)
+
+    assert ticket.frontmatter["script"] == "run.py"
+    issues = [issue for issue in report.issues if issue.task == created["slug"]]
+    assert issues, "a leftover script key should still be reported as an orphan"
+    assert all(issue.severity == "warn" for issue in issues)
+
+
 def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
     """A frozen step's `requires:` must name a registered completion gate; a
     bogus token is a hard `bad-shape` error (the activation/bump gate would

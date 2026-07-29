@@ -9,6 +9,7 @@ the command files and raise typed errors instead of exiting.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 

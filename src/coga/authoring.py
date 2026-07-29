@@ -8,7 +8,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from coga import git
-from coga.config import Config, load_config
+from coga.config import Config
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -21,6 +21,8 @@ from coga.validate import assert_task_valid
 
 
 AUTHORING_SYNC_DIRS = ("tasks", "contexts", "skills")
+
+
 class AuthoringError(Exception):
     """Raised when post-authoring validation or sync setup fails."""
 

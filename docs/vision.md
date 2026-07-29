@@ -228,7 +228,7 @@ That's also why we're publishing at all. Articulating the methodology keeps us a
 
 ## Failure modes we watch for
 
-**Silent wrong answers.** Script or megalaunch tasks that fail confidently, returning output that looks correct but isn't. The framework's third question — can we evaluate the result? — is meant to prevent this. When evaluation capacity is thin, the task moves from script or all-agent to a human approval workflow, even if it's recurring.
+**Silent wrong answers.** Recipe or megalaunch tasks that fail confidently, returning output that looks correct but isn't. The framework's third question — can we evaluate the result? — is meant to prevent this. When evaluation capacity is thin, the task moves from all-agent to a human approval workflow, even if it's recurring.
 
 **Context drift.** The world changes, contexts don't. Dream catches some of this, but not all. We schedule quarterly reviews of context accuracy against recent blackboards and recent company changes.
 

@@ -54,7 +54,7 @@ more useful number—human-minutes per shipped task—after it has been measured
 |---|---|
 | Notion or Linear as the work ledger | Markdown tickets in your git history |
 | Zapier for recurring glue | Scheduled, inspectable recipes and skills |
-| An ops coordinator moving work between people | Script tasks and `megalaunch` |
+| An ops coordinator moving work between people | Registered recipes and `megalaunch` |
 | A wiki agents may or may not find | Contexts composed into the task prompt |
 | Slack as fragile company memory | Per-task blackboards plus an append-only log |
 

@@ -10,8 +10,8 @@ If you're new, read these in order:
 1. **[Getting started](getting-started.md)** — install Coga, adopt it into a
    repo, and take a first task from draft to a merged PR. Start here.
 2. **[Concepts](concepts.md)** — the mental model: tickets, the blackboard,
-   contexts vs. skills, workflows and steps, the two state machines, agents vs.
-   scripts. Read this once and the rest of the system stops surprising you.
+   contexts vs. skills, workflows and steps, the two state machines, agents and
+   recipes. Read this once and the rest of the system stops surprising you.
 3. **[Command reference](reference.md)** — every public `coga` command, its
    arguments and flags, generated from the CLI's own help.
 

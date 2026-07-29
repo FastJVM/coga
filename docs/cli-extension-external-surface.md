@@ -13,7 +13,7 @@ in `docs/`, while the ratified behavioral contract stays in the context.
 
 Coga's kernel remains `launch` and its dependency closure:
 
-- `launch` / prompt composition / script dispatch.
+- `launch` / prompt composition / agent-session dispatch.
 - The state writes `launch` performs or depends on mid-flight: `mark` and
   `bump`.
 - Secret injection at launch time.

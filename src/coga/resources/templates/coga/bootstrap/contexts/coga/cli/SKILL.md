@@ -893,7 +893,7 @@ run's scratch. `status:`, `step:`, `slug:`, `human:`, and `agent:` are dropped
 collapses back to its name, and ticket-level `skills:` are dropped with a
 warning — they are never copied into a period task, so process skills belong
 on the workflow's steps. Everything else (`title`, `owner`, `assignee`,
-`watchers`, `contexts`, `secrets`, `script`) passes through.
+`watchers`, `contexts`, `secrets`) passes through.
 
 It refuses instead of guessing: an existing `coga/recurring/<name>/` is never
 overwritten, a bad cron leaves the source ticket untouched, and an

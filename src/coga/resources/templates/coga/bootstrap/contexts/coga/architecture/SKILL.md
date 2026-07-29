@@ -373,8 +373,8 @@ drain, because completing a selection must not expand into unpicked work.
 A frozen workflow step may declare `requires: <token>`. Before `coga bump`
 advances **off** that step, it runs the token's predicate against the task
 blackboard. A falsy result fails loud with the command that produces the
-artifact. This is a data check, independent of whether the step is agent- or
-script-owned; human rewinds (`--to` / `--backward`) are never gated.
+artifact. This is a data check, independent of which agent owns the step;
+human rewinds (`--to` / `--backward`) are never gated.
 
 `code/open-pr` is an ordinary agent step with `requires: pr`. The agent runs
 `coga open-pr <slug>` — a default alias for `coga run open-pr <slug>` — from
