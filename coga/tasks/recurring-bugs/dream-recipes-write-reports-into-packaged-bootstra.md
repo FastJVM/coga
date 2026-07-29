@@ -139,6 +139,19 @@ worktree: /tmp/coga-stateless-bootstrap-blackboard
   commit (`e75ca28a`) was not created until 17:20 UTC and merged at 17:22 UTC,
   so the new `coga run` path was live in its feature worktree during testing
   even though it was not yet on `main`.
+- **Correction (2026-07-29, recovered from the stale checkout's parallel
+  blackboard before dropping its stash).** The invocation path was *not*
+  `coga run` at all. The parallel diagnosis reproduced the pollution live in
+  the primary checkout: a report stamped `2026-07-28T03:53:16+00:00` with
+  ``Task: `bootstrap/orient` `` and the same fixture payload, written by
+  **pytest running the recipe in-process** inside a `bootstrap/orient` session
+  and inheriting that session's `COGA_TASK_BLACKBOARD`. That is why the stamps
+  predate `coga run` merging at 17:22 — neither a gap in the new `coga run`
+  surface nor a hole in the since-deleted `script: run.py` seam. It does not
+  narrow this ticket (the env boundary is still the durable fix: a bootstrap
+  target that exports no blackboard stops recipe, test, and future writers at
+  once), and the test-harness half is owned by
+  `scrub-coga-task-in-the-pytest-autouse-guard-so-fix` (PR #673).
 - The duplicate reports represent two executions. `append_report` is
   intentionally append-only; the known-skill Idempotency clause promises that
   safe repairs converge, not that distinct run reports are deduplicated.
