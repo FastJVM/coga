@@ -31,8 +31,8 @@ Everything below is reference for the steps in that loop.
 ## Your task file
 
 Tasks live under `coga/tasks/`, as either a bare `tasks/<slug>.md` file or
-a `tasks/<slug>/` directory holding `ticket.md` plus any siblings (a `script:`
-file, attachments). The composed prompt header gives the exact path for this
+a `tasks/<slug>/` directory holding `ticket.md` plus any attachments. The
+composed prompt header gives the exact path for this
 launch; use it, don't reconstruct it from the slug. Either way the ticket is
 one file with two regions after the YAML frontmatter, separated by one fence
 line `<!-- coga:blackboard -->`:

@@ -45,7 +45,6 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
     "contexts",
     "skills",
     "secrets",
-    "script",
 })
 
 EXTENSION_MARKER = "# --- extensions ---"
@@ -70,6 +69,13 @@ class Ticket:
             raise TicketError(f"Invalid YAML frontmatter: {exc}") from exc
         if not isinstance(fm, dict):
             raise TicketError("Frontmatter must be a YAML mapping")
+        # Bounded model migration: older Coga versions wrote `script: null`
+        # into every ticket. The launch-integrated script field no longer
+        # exists, so treat that inert legacy value exactly like an absent key.
+        # A non-null value remains visible as an orphan extension and is never
+        # executed.
+        if fm.get("script") is None:
+            fm.pop("script", None)
         return cls(frontmatter=fm, body=body)
 
     def render(self) -> str:
@@ -133,18 +139,6 @@ class Ticket:
     @property
     def status(self) -> str:
         return self.frontmatter.get("status", "")
-
-    @property
-    def script(self) -> str | None:
-        """The task's own script entry, or None. `inline` → the fenced code
-        block in the body's `## Script` section; a filename (`run.sh`) → a
-        sibling file (directory form). Absent → no ticket-owned script (a pure
-        agent task, or a task whose script comes from a workflow step's skill).
-
-        Whether a launch runs a script or spawns an agent is deduced per
-        launch — see `coga.commands.launch_script.is_script_launch` — never
-        declared on the ticket."""
-        return self.frontmatter.get("script")
 
     @property
     def owner(self) -> str | None:

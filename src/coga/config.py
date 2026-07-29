@@ -24,7 +24,7 @@ class SecretError(Exception):
     in a git-committed ticket), whose `env:VAR` indirection points at an unset
     env var, or whose `op://` reference cannot be resolved (the `op` CLI is
     missing or `op read` returns non-zero). `coga launch` turns this into a
-    non-zero exit before any agent or script is spawned — the fail-loud
+    non-zero exit before any agent or recipe process is spawned — the fail-loud
     guarantee. Messages name the Coga secret name and reference, never the
     resolved secret value.
     """
@@ -1299,7 +1299,7 @@ def build_launch_env(
 ) -> dict[str, str]:
     """Build a child process env with Coga secrets scoped and source vars scrubbed.
 
-    The spawned agent/script receives only the ticket's scoped secret names (for
+    The spawned agent or recipe receives only the ticket's scoped secret names (for
     example `STRIPE_KEY=<value>`), never the raw source env vars an `env:VAR`
     reference points at. Scrub each referenced source variable from the inherited
     environment first, then add back only the resolved, scoped aliases.

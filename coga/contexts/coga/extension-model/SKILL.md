@@ -20,14 +20,13 @@ Every command-shaped capability has exactly one of three homes for its logic.
 Aliases are not a fourth home — they are argv sugar pointing at one of the three.
 
 1. **Kernel** — small, tested Python that cannot be anything else (below).
-2. **Tickets / workflows** — *stateful, reviewable* work, expressed as skills and
-   script steps running on a ticket.
+2. **Tickets / workflows** — *stateful, reviewable* work, expressed as agent
+   steps and skills running on a ticket.
 3. **Stateless commands / external tools** — parameterized invocations with no
    per-run lifecycle:
-   - **Command ticket** — a Coga-authored verb defined by a stateless
-     `bootstrap/<name>/ticket.md`, implemented by its script or agent body, and
-     launched in place. The repo-local definition wins over the packaged
-     fallback.
+   - **Command ticket** — a judgment-bearing Coga verb defined by a stateless
+     `bootstrap/<name>/ticket.md` and launched as an agent in place. The
+     repo-local definition wins over the packaged fallback.
    - **External tool** — an existing third-party CLI Coga shells out to (`gh`,
      `op`, `git`) and whose output Coga verifies.
 
@@ -37,10 +36,11 @@ Reach for the lowest tier the *shape* allows — shape decides, not taste:
 
 - **Alias** if it is a fixed argv rewrite (`launch X` / `recurring launch X`).
   It supplies a memorable verb but owns no logic.
-- **Command ticket / external tool** if it is a stateless parameterized
-  invocation — operands in, effect out, no task instance or review lifecycle.
-  Use a command ticket for Coga-authored behavior and an existing external tool
-  when the operating system already provides it.
+- **Registered recipe, command ticket, or external tool** if it is a stateless
+  parameterized invocation—operands in, effect out, no task instance or review
+  lifecycle. Use a registered recipe for fixed deterministic Coga behavior, a
+  command ticket when an agent must exercise judgment, and an existing
+  external tool when the operating system already provides it.
 - **Ticket / workflow** if it is a stateful, reviewable unit of work — it wants its
   own blackboard, log, and (often) a PR.
 - **Kernel** if `launch` calls or depends on it mid-flight, it must exist before
@@ -98,18 +98,18 @@ durable task instance:
 - Give it no `status:` or `workflow:`. `coga launch bootstrap/<name>` runs that
   definition in place each time; it does not create a per-invocation task,
   blackboard, or lifecycle broadcast.
-- Use `script:` for deterministic behavior or an agent body when the command
-  requires judgment. Keep deterministic checks deterministic when moving them.
+- Command tickets always compose a prompt and launch an agent. Deterministic
+  behavior with a stable Coga command contract belongs in `runner.RECIPES`.
 - Add an alias such as `resolve-conflicts = "launch bootstrap/resolve-conflicts"`
   when the command deserves a top-level spelling. Trailing argv continues
   through the alias.
 
-`resolve-conflicts` is the shipped agent-backed form. `open-pr` proved the
-script-backed form and has since graduated to a registered `coga run` recipe:
-a fixed name in `runner.RECIPES` is a genuine package command, so deterministic
-logic with a stable argv/exit-code contract belongs in importable core rather
-than beside a ticket. External third-party tools remain separate: Coga calls
-their stable CLI instead of wrapping their implementation in a command ticket.
+`resolve-conflicts` is the shipped agent-backed form. `open-pr` is a registered
+`coga run` recipe: a fixed name in `runner.RECIPES` is a genuine package
+command, so deterministic logic with a stable argv/exit-code contract belongs
+in importable core rather than beside a ticket. External third-party tools
+remain separate: Coga calls their stable CLI instead of wrapping their
+implementation in a command ticket.
 
 ## Ticket vs. command: statefulness decides
 
@@ -134,11 +134,10 @@ durability requirements:
   the example: the command head materializes the title/ref, then the authoring
   interview and finalize phase operate on files.
 - A **stateless command ticket** accepts trailing launch arguments without
-  persisting them because there is no run state to reproduce. Script-backed
-  commands receive `COGA_ARG_1..N` plus `COGA_ARGC`; agent-backed commands
-  receive an appended `## Launch arguments` JSON array so ordering and argument
-  boundaries remain explicit. The command definition stays in files while the
-  invocation stays ordinary, visible argv.
+  persisting them because there is no run state to reproduce. The agent
+  receives an appended `## Launch arguments` JSON array so ordering and
+  argument boundaries remain explicit. The command definition stays in files
+  while the invocation stays ordinary, visible argv.
 - A stateful workflow must not use that channel as hidden mutable task input.
   Materialize inputs into its ticket instead.
 
@@ -169,9 +168,10 @@ actively fights the capability boundary.
   illegible config DSL that violates the legibility non-negotiable
   (`coga/principles`).
 - **No inversion.** Relocating logic out of the kernel must move the *substance
-  unchanged* — script-step Python with its tests intact — never rewrite a
-  deterministic check as agent judgment because it now lives "in a skill." Change
-  *where it lives and who can edit it*, not *what executes it*.
+  unchanged*: deterministic Python and its tests become a registered recipe;
+  never rewrite a deterministic check as agent judgment merely because its
+  invocation is documented by a skill. Change *where it lives and who can edit
+  it*, not *what executes it*.
 
 ## The command surface, classified
 

@@ -130,12 +130,12 @@ activated — in-flight work isn't disrupted by later workflow edits.
 
 **Blackboards** are per-task workspaces where agents write findings, plans, decisions, and blockers. The blackboard is how agents persist state between sessions — an agent that crashes mid-task is recoverable because the blackboard has its last known state. It's the pattern from 1970s AI research (Hearsay-II): independent processes coordinate through a shared mutable surface rather than direct message passing.
 
-**Execution substance** is deduced per launch, not declared. A task whose
-current workflow step is script-backed, or which carries its own `script:`,
-runs deterministic code with task metadata and secrets injected; anything
-else launches the configured agent in an attended REPL. There is no ticket
-mode or autonomy flag. Unattended drain comes from script tasks, blockers, megalaunch, and the
-liveness watchdog around supervised agent sessions.
+**Execution substance** has an explicit boundary. `coga launch` always starts
+the configured agent in an attended REPL. Deterministic core work runs through
+the fixed `coga run` recipe registry; recurring templates select that path with
+`recipe:`. There is no ticket mode or autonomy flag. Unattended drain comes
+from registered recipes, blockers, megalaunch, and the liveness watchdog around
+supervised agent sessions.
 
 **The base prompt** is a system prompt injected into every agent session. It teaches the agent how to operate within Coga — when to advance workflow steps, when to block, how to use the blackboard, how to handle frontmatter. The base prompt lives as version-controlled markdown. Agents don't learn Coga through their own memory or config; they learn it fresh every session from a file we own.
 
@@ -151,8 +151,9 @@ Not every task should be automated. The three-question framework:
 
 **Can we evaluate the result without raising the bar?** If we would review a contractor's output for this task with a certain rigor, we review the agent's with the same rigor. Not more, not less. If the evaluation requires expertise we don't have — if we can't tell whether the output is right — the task either needs redesign or shouldn't be automated.
 
-If all three answer yes, the task goes into Coga with an agent-owned or
-script-backed workflow. If one answers no, we either redesign it (split into
+If all three answer yes, the task goes into Coga with an agent-owned workflow
+or, for fixed deterministic core behavior, a registered recipe. If one
+answers no, we either redesign it (split into
 sub-tasks that each pass) or keep doing it ourselves. The worst outcome is
 confident automation of a task where we can't evaluate the result — that's how
 silent errors ship.
@@ -227,7 +228,7 @@ That's also why we're publishing at all. Articulating the methodology keeps us a
 
 ## Failure modes we watch for
 
-**Silent wrong answers.** Script or megalaunch tasks that fail confidently, returning output that looks correct but isn't. The framework's third question — can we evaluate the result? — is meant to prevent this. When evaluation capacity is thin, the task moves from script or all-agent to a human approval workflow, even if it's recurring.
+**Silent wrong answers.** Recipe or megalaunch tasks that fail confidently, returning output that looks correct but isn't. The framework's third question — can we evaluate the result? — is meant to prevent this. When evaluation capacity is thin, the task moves from all-agent to a human approval workflow, even if it's recurring.
 
 **Context drift.** The world changes, contexts don't. Dream catches some of this, but not all. We schedule quarterly reviews of context accuracy against recent blackboards and recent company changes.
 

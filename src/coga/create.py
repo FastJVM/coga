@@ -49,7 +49,6 @@ def create_task(
     description: str | None = None,
     body: str | None = None,
     secrets: Any = None,
-    script: Any = None,
     force_directory: bool = False,
     created_by: str = "human",
 ) -> dict[str, Any]:
@@ -58,7 +57,7 @@ def create_task(
     Pass `description` for the common case — the body is built as the canonical
     `## Description` / `## Context` skeleton. Pass `body` instead to write a
     full ticket body verbatim (recurring creating does this so template
-    sections like `## Script config` survive); a `## Context` section is
+    sections beyond `## Description` survive); a `## Context` section is
     appended when the verbatim body lacks one. `body` takes precedence over
     `description`.
 
@@ -150,13 +149,9 @@ def create_task(
 
     base_dir = tasks_dir(cfg) if directory is None else tasks_dir(cfg) / directory
 
-    # A task is a single `tasks/<slug>.md` file unless it needs a companion
-    # directory: a deferred `script: <file>` sibling, or a caller that keeps
-    # siblings (recurring period tasks carry a `.state-snapshot.json`). An
-    # inline script lives in the body, so it stays file-form.
-    needs_dir = force_directory or (
-        isinstance(script, str) and bool(script) and script != "inline"
-    )
+    # A task is a single `tasks/<slug>.md` file unless a caller explicitly
+    # needs siblings (recurring period tasks carry a `.state-snapshot.json`).
+    needs_dir = force_directory
     file_form = not needs_dir
     if needs_dir:
         task_dir = base_dir / slug
@@ -193,7 +188,6 @@ def create_task(
         "skills": list(skills),
         "workflow": wf.freeze() if wf else None,
         "secrets": secrets,
-        "script": script,
     }
     if wf and status not in TERMINAL_STATUSES:
         first_step = wf.steps[0].name
@@ -210,13 +204,12 @@ def create_task(
 
     if body is not None:
         # Recurring creating passes the template body verbatim so sections
-        # beyond `## Description` survive into the period task — notably
-        # `## Script config`, which configures a script step's run. Ensure
-        # the canonical `## Context` section exists so the body shape stays
-        # uniform and compose can read inline task context. A template body may
-        # itself carry a blackboard fence + region; strip it so the period task
-        # starts from a fresh blackboard (the template's working state stays on
-        # the template, not copied into each run).
+        # beyond `## Description` survive into the period task. Ensure the
+        # canonical `## Context` section exists so the body shape stays uniform
+        # and compose can read inline task context. A template body may itself
+        # carry a blackboard fence + region; strip it so the period task starts
+        # from a fresh blackboard (the template's working state stays on the
+        # template, not copied into each run).
         above, _ = split_body(body, blackboard_required=False)
         ticket_body = above.rstrip() + "\n"
         if not re.search(r"(?m)^##\s+Context\s*$", ticket_body):

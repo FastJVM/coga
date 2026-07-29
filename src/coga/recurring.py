@@ -17,9 +17,8 @@ from coga.create import create_task
 from coga.config import Config
 from coga.delete_task import DeleteTaskError, run_delete_task
 from coga.logfile import append_log
-from coga.paths import recurring_dir, resolve_skill_path, resolve_workflow_path
+from coga.paths import recurring_dir, resolve_workflow_path
 from coga.period_state import write_snapshot
-from coga.skill import Skill
 from coga.taskfile import (
     join_task_body,
     read_blackboard,
@@ -84,10 +83,6 @@ class Template:
                 known = ", ".join(sorted(RECIPES))
                 raise RecurringError(
                     f"unknown recipe {recipe!r}; known recipes: {known}"
-                )
-            if fm.get("script"):
-                raise RecurringError(
-                    "`recipe` and `script` are ambiguous; declare exactly one"
                 )
         return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
 
@@ -423,12 +418,12 @@ def create_template(
             # A completed task is terminal. If Dream did not reap it, delete
             # that prior-period artifact through the canonical deletion path,
             # then create a genuinely fresh task from the current template.
-            if not allow_agent and not _template_runs_headless(cfg, template):
+            if not allow_agent and not template.recipe:
                 raise RecurringError(
                     "an agent run requires a TTY (stdin and stdout must both be "
                     "terminals). Run `coga recurring --interactive` from a real "
-                    "shell, or give the template a registered recipe or script "
-                    "for unattended runs."
+                    "shell, or give the template a registered recipe for "
+                    "unattended runs."
                 )
             try:
                 run_delete_task(existing)
@@ -453,12 +448,11 @@ def create_template(
             return outcome
         return CreateOutcome(ref=existing, created=False)
 
-    if not allow_agent and not _template_runs_headless(cfg, template):
+    if not allow_agent and not template.recipe:
         raise RecurringError(
             "an agent run requires a TTY (stdin and stdout must both be "
             "terminals). Run `coga recurring --interactive` from a real shell, "
-            "or give the template a registered `recipe:`, a `script:` entry, "
-            "or a workflow whose step 1 has a single script-backed skill."
+            "or give the template a registered `recipe:`."
         )
     outcome = _create_at_slug(
         cfg,
@@ -626,7 +620,6 @@ _TEMPLATE_PASSTHROUGH = (
     "watchers",
     "contexts",
     "secrets",
-    "script",
 )
 
 # A live run's step/blocker state has nowhere to go in a template, and dropping
@@ -652,7 +645,6 @@ class PromoteOutcome:
     source_path: Path
     dropped_skills: list[str]
     dropped_blackboard: bool
-    script_file: str | None  # a `script:` naming a companion file, not `inline`
 
 
 def promote_task(
@@ -709,10 +701,9 @@ def promote_task(
 
     dest.mkdir(parents=True)
     try:
-        # Directory-form siblings (a `script:` file, attachments) travel with
-        # the ticket — the promote is a move, not a rewrite. The state snapshot
-        # is the one exception: it is a period task's create-time baseline, not
-        # template state.
+        # Directory-form attachments travel with the ticket — the promote is a
+        # move, not a rewrite. The state snapshot is the one exception: it is a
+        # period task's create-time baseline, not template state.
         if not ref.file_form:
             for sibling in sorted(ref.path.iterdir()):
                 if sibling.name in ("ticket.md", ".state-snapshot.json"):
@@ -749,7 +740,6 @@ def promote_task(
         f"(schedule {schedule})",
     )
 
-    script = frontmatter.get("script")
     return PromoteOutcome(
         name=template_name,
         path=dest,
@@ -757,7 +747,6 @@ def promote_task(
         source_path=ref.path,
         dropped_skills=dropped_skills,
         dropped_blackboard=bool((blackboard or "").strip()),
-        script_file=script if isinstance(script, str) and script != "inline" else None,
     )
 
 
@@ -827,41 +816,6 @@ def _validate_promoted_workflow(
         ) from exc
 
 
-def _template_runs_headless(cfg: Config, template: Template) -> bool:
-    """Pre-freeze deduction of whether a template needs no agent TTY.
-
-    A registered recipe is headless. Otherwise the same rule
-    `coga.commands.launch_script.is_script_launch` applies to a live ticket,
-    evaluated before the period task exists: the template carries its own
-    `script:` entry, or step 1 of its named workflow (resolved from
-    `coga/workflows/` — nothing is frozen yet; a workflow-less template runs
-    `direct/body` like `_create_at_slug` does) has exactly one skill whose
-    SKILL.md declares a `script:`. Neither means an agent run, which the
-    sweep's TTY gate refuses unattended. An unresolvable workflow or skill
-    deduces to agent — create/launch fail loud on it later, with better
-    remedies than the sweep could give here.
-    """
-    if template.recipe or template.frontmatter.get("script"):
-        return True
-    workflow_name = template.frontmatter.get("workflow") or "direct/body"
-    try:
-        wf = Workflow.load(resolve_workflow_path(cfg, workflow_name))
-    except WorkflowError:
-        return False
-    step_skills = wf.steps[0].skills
-    if len(step_skills) != 1:
-        return False
-    sp = resolve_skill_path(cfg, step_skills[0])
-    if sp is None:
-        return False
-    try:
-        return bool(Skill.load(sp).script)
-    except (OSError, ValueError, yaml.YAMLError) as exc:
-        raise RecurringError(
-            f"step 1 skill {step_skills[0]!r} could not be loaded: {exc}"
-        ) from exc
-
-
 def _create_at_slug(
     cfg: Config,
     template: Template,
@@ -908,11 +862,7 @@ def _create_at_slug(
             status="active",
             slug_override=target_slug,
             secrets=template.frontmatter.get("secrets"),
-            # A template's own `script:` (inline or a sibling file) carries through to
-            # the period task; whether it runs as a script is then deduced at launch.
-            script=template.frontmatter.get("script"),
             # Carry the template body verbatim so sections beyond `## Description`
-            # (notably `## Script config`, which configures a script step's run)
             # reach the period task instead of being dropped at create time.
             body=template.body,
             # Recurring period tasks stay directory-form: they may carry a

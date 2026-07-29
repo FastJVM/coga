@@ -112,7 +112,7 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "with no PR and no marker" in " ".join(text.split())
     assert "delete-only prune PR" not in text
     assert "## Pruned" not in text
-    assert "Do not create child script tasks" in text
+    assert "Do not create child worker tasks" in text
     assert "--blackboard" not in text
     assert "Dream Run Summary" in text
     assert "coga slack --task <this-dream-task>" in text

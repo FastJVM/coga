@@ -80,9 +80,7 @@ the example under "Extend recurring with a task-specific workflow").
   subprocess from the host repo with its period ticket's scoped secrets and
   freshly derived `COGA_TASK_*` metadata. The runner marks `active →
   in_progress` before starting, marks a successful one-step task `done`, and
-  leaves a non-zero result unfinished after reporting it. If a custom
-  script-launched task returns still unfinished, the sweep
-  stops before the next due task.
+  leaves a non-zero result unfinished after reporting it.
 - `coga recurring --force` — ignores schedule and status filters and attempts
   the real period task for every template, reactivating `done` and `paused`
   runs. A `canceled` task remains terminal: the runner reports a controlled
@@ -118,14 +116,11 @@ the example under "Extend recurring with a task-specific workflow").
   instead of surprising you at the next sweep. A parked `_`-prefixed
   directory is exempt — it is inert by design.
 - there is no `mode` field. A known `recipe:` selects deterministic recipe
-  execution directly. Without one, the template's `script:` or a
-  script-backed workflow step 1 selects the retained script path; otherwise
-  the task is agent-backed. Agent templates need a TTY and run under the REPL
-  supervisor; recipes and scripts run headlessly.
+  execution directly; without one, the task is agent-backed. Agent templates
+  need a TTY and run under the REPL supervisor; recipes run headlessly.
 - `recipe` — optional fixed Coga recipe name. It must be a non-empty name in
   the explicit core registry; installed skills are not recipe plugins.
-  `coga validate` rejects unknown names and any template that also declares a
-  direct script or uses a script-backed workflow.
+  `coga validate` rejects unknown names.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered
@@ -133,11 +128,6 @@ the example under "Extend recurring with a task-specific workflow").
   still workflow-carrying and bumpable — `direct/body` is the workflow.)
 - `owner`, `assignee`, `watchers`, `contexts`, `secrets` — passed through to
   the created period task.
-- `script` — optional ticket-owned script setting for the compatibility path,
-  also passed through. An
-  inline script travels in the copied body; a companion script file beside the
-  template is not copied into the period task, so file-backed recurring logic
-  belongs in a script-backed workflow skill.
 
 ## Dropping a new recurring task
 
@@ -152,8 +142,7 @@ Two paths, both landing on the same thing — a non-underscore directory under
   `coga/recurring/<slug>/ticket.md`. This is also the "make it recurring at
   creation time" path: `coga create` the ticket, write its body, then promote
   it. `--name` overrides the template directory name (it defaults to the
-  task's leaf slug); directory-form siblings such as a `script:` file travel
-  with the ticket.
+  task's leaf slug); directory-form attachments travel with the ticket.
 
 What promote does to the ticket, and why:
 
@@ -164,7 +153,7 @@ What promote does to the ticket, and why:
   cursors). The old text stays in git history.
 - `status:`, `step:`, `slug:`, `human:`, and `agent:` are dropped — per-run and
   per-launch fields the creator re-derives for every period task. `title`,
-  `owner`, `assignee`, `watchers`, `contexts`, `secrets`, and `script` pass
+  `owner`, `assignee`, `watchers`, `contexts`, and `secrets` pass
   through. A frozen `workflow:` snapshot collapses back to its name so the
   creator re-freezes it each period; a ticket with no workflow stays that way
   and creates with `direct/body`.
@@ -201,7 +190,7 @@ its step-skill and `contexts:` references, copies the template body into the
 period task, and appends `coga/period-task` to its contexts. The resulting
 `coga/tasks/recurring/<name>/` ticket uses the normal lifecycle, per-step
 assignee, blocker, and completion machinery. The sweep selects an explicit
-recipe before falling back to ordinary script or agent launch, and adds
+recipe before falling back to an ordinary agent launch, and adds
 post-launch handling for unfinished runs as described below.
 
 To schedule a task-specific workflow:
@@ -241,7 +230,7 @@ Run the weekly deliverability review; this scheduled workflow must reach
 The cross-run state for this recurring task goes here.
 ```
 
-This extension seam has seven important constraints:
+This extension seam has five important constraints:
 
 - **One instantiated task per template.** Every firing uses the stable ref
   `recurring/<name>` at `coga/tasks/recurring/<name>/`. A still-live prior run
@@ -254,24 +243,9 @@ This extension seam has seven important constraints:
 - **Recipe resolution is fixed, not extensible from the template.** A
   `recipe:` value must name one of Coga's registered core recipes. The runner
   passes no template-defined arguments; recipe-specific argv belongs on an
-  explicit `coga run` invocation. Do not combine `recipe:` with either form of
-  script execution. A recipe owns the whole deterministic run: success marks
-  its one-step period task done, while non-zero leaves it `in_progress`.
-- **Script resolution is step-first.** If the current workflow step has exactly
-  one script-backed skill, that skill's script runs; otherwise a ticket-level
-  `script:` runs. A ticket script therefore makes every remaining non-scripted
-  step dispatch as a script, but it does not override a scripted step skill.
-  Avoid declaring both forms unless that precedence is intentional. The
-  self-contained ticket form is `script: inline`; template companion files are
-  not materialized into the period task.
-- **A headless script run must finish in one step.** This limit applies whether
-  the script belongs to the ticket or the first step's skill: after an entry
-  script succeeds, `coga launch` advances once and returns. If another step
-  remains, the bare recurring sweep sees an unfinished script task, stops
-  before later templates, and leaves the run `in_progress`. Use an exactly
-  one-step workflow with no `requires:` gate for an unattended recurring job.
-  An attended workflow may instead start with an agent and mix later
-  script-backed skill steps into the supervised agent chain.
+  explicit `coga run` invocation. A recipe owns the whole deterministic run:
+  success marks its one-step period task done, while non-zero leaves it
+  `in_progress`.
 - **A scheduled agent run must reach `done` in one launch.** When a bare
   `coga recurring` sweep gets control back from an unfinished agent launch, it
   pauses the period task before continuing. That includes an intermediate
@@ -281,12 +255,10 @@ This extension seam has seven important constraints:
   agent workflow. Use the on-demand `coga recurring launch <name>` path (then
   drive the ordinary ticket handoff) or an ordinary task when a run needs
   those intermediate states.
-- **Agent work needs a TTY; recipes and complete scripts can be headless.**
-  An agent-backed
+- **Agent work needs a TTY; recipes can be headless.** An agent-backed
   template needs stdin and stdout TTYs and runs under the REPL supervisor; a
-  TTY-less sweep skips it with a warning. A registered recipe or one-step
-  script-backed template runs directly without a TTY and is the appropriate
-  shape for an unattended scheduler.
+  TTY-less sweep skips it with a warning. A registered recipe runs directly
+  without a TTY and is the appropriate shape for an unattended scheduler.
 
 The creator performs a deliberate template-to-ticket transform, not an
 arbitrary frontmatter clone. Use the recurring fields documented above. In
@@ -344,8 +316,8 @@ task, which carries that rule.
   report the local and bundled paths checked; the removed bundled
   `coga/megalaunch/run` ref instead gives its migration directly: megalaunch
   is on-demand only, so delete the leftover recurring template and workflow.
-  Validation also checks `recipe:` against the fixed registry and rejects
-  recipe-plus-script ambiguity before a period task exists.
+  Validation also checks `recipe:` against the fixed registry before a period
+  task exists.
 - The period task's `## Description` is taken from the `ticket.md` body's
   `## Description` section: everything from that heading to the next
   top-level `## ` heading. **Convention:** keep every other heading in the

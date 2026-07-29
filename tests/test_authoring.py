@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 from textwrap import dedent
 
@@ -9,20 +7,16 @@ import pytest
 
 from conftest import seed_direct_body_workflow
 from coga.authoring import (
-    AUTHORING_REF_ENV,
-    AUTHORING_SNAPSHOT_ENV,
     AuthoringError,
     finalize_authored,
-    finalize_authored_from_env,
     snapshot_authoring_state,
     validate_authored_task,
-    write_authoring_snapshot,
 )
 from coga.config import load_config
 from coga.create import create_task
 from coga.tasks import TaskRef, resolve_bootstrap, resolve_task
 from coga.ticket import Ticket
-from coga.validate import Issue, TaskValidationError
+from coga.validate import TaskValidationError
 
 
 FINALIZE_SKILL = (
@@ -208,12 +202,12 @@ def test_finalize_authored_skips_deleted_ticket(
     assert calls == []
 
 
-def test_finalize_authored_re_resolves_promoted_file_task(
+def test_finalize_authored_re_resolves_file_task_promoted_for_attachment(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cfg = load_config(repo)
-    original_ref = _create_task(repo, "Promote for sibling script")
+    original_ref = _create_task(repo, "Promote for attachment")
     assert original_ref.file_form is True
     before = snapshot_authoring_state(cfg)
 
@@ -221,10 +215,7 @@ def test_finalize_authored_re_resolves_promoted_file_task(
     promoted_dir.mkdir()
     promoted_ticket = promoted_dir / "ticket.md"
     original_ref.path.replace(promoted_ticket)
-    ticket = Ticket.read(promoted_ticket)
-    ticket.frontmatter["script"] = "run.sh"
-    ticket.write(promoted_ticket)
-    (promoted_dir / "run.sh").write_text("echo ok\n")
+    (promoted_dir / "notes.txt").write_text("supporting material\n")
 
     promoted_ref = resolve_task(cfg, original_ref.id_slug)
     assert promoted_ref.file_form is False
@@ -243,7 +234,7 @@ def test_finalize_authored_re_resolves_promoted_file_task(
         (
             promoted_ref.path,
             [original_ref.path, promoted_ref.path],
-            "Ticket: promote-for-sibling-script — authored",
+            "Ticket: promote-for-attachment — authored",
         )
     ]
 
@@ -351,90 +342,8 @@ def test_finalize_authored_syncs_deleted_support_only_with_live_anchor(
     ]
 
 
-def test_finalize_authored_from_env_reads_snapshot(
-    repo: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    cfg = load_config(repo)
-    ref = _create_task(repo, "Env finalize")
-    before = snapshot_authoring_state(cfg)
-    snapshot_path = tmp_path / "authoring-snapshot.json"
-    write_authoring_snapshot(before, snapshot_path)
-
-    ticket = Ticket.read(ref.ticket_path)
-    ticket.body += "\n\nAuthored through env finalize.\n"
-    ticket.write(ref.ticket_path)
-
-    calls: list[str] = []
-    monkeypatch.setattr(
-        "coga.authoring.git.sync_paths",
-        lambda cfg, anchor, paths, *, message: calls.append(message),
-    )
-
-    finalize_authored_from_env(
-        cfg,
-        {
-            AUTHORING_REF_ENV: ref.id_slug,
-            AUTHORING_SNAPSHOT_ENV: str(snapshot_path),
-        },
-    )
-
-    assert calls == ["Ticket: env-finalize — authored"]
-
-
-def _load_finalize_script():
-    spec = importlib.util.spec_from_file_location(
-        "ticket_finalize_skill", FINALIZE_SKILL / "run.py"
-    )
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_ticket_finalize_skill_declares_script_contract(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_ticket_finalize_skill_is_documentation_only() -> None:
     skill = (FINALIZE_SKILL / "SKILL.md").read_text()
     assert "name: coga/ticket/finalize" in skill
-    assert "script: run.py" in skill
-
-    module = _load_finalize_script()
-    called = False
-
-    def fake_finalize() -> None:
-        nonlocal called
-        called = True
-
-    monkeypatch.setattr(module, "finalize_authored_from_env", fake_finalize)
-
-    assert module.main() == 0
-    assert called is True
-
-
-def test_ticket_finalize_skill_reports_task_validation_error(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    module = _load_finalize_script()
-
-    def fail_validation() -> None:
-        raise TaskValidationError(
-            [
-                Issue(
-                    kind="broken-ref",
-                    task="broken-ticket",
-                    message="missing context",
-                    severity="error",
-                )
-            ],
-            action="ticket authoring",
-        )
-
-    monkeypatch.setattr(module, "finalize_authored_from_env", fail_validation)
-
-    assert module.main() == 2
-    assert "task validation failed after ticket authoring" in capsys.readouterr().err
+    assert "coga.authoring.finalize_authored" in skill
+    assert not (FINALIZE_SKILL / "run.py").exists()

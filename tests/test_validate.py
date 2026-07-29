@@ -313,83 +313,55 @@ def test_validate_rejects_invalid_recurring_recipe(
     assert message in issue.message
 
 
-def test_validate_rejects_recurring_recipe_with_direct_script(repo: Path) -> None:
-    _write(
-        repo / "recurring" / "recipe-check" / "ticket.md",
-        """
-        ---
-        schedule: "0 9 * * *"
-        title: Recipe check
-        recipe: digest
-        script: inline
-        ---
-
-        ## Script
-
-        ```sh
-        exit 0
-        ```
-        """,
+def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Legacy null",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
     )
+    path = Path(created["path"])
+    text = path.read_text()
+    path.write_text(text.replace("secrets: null\n", "secrets: null\nscript: null\n"))
 
-    report = run(load_config(repo))
+    ticket = Ticket.read(path)
+    report = run(cfg)
 
-    issue = next(
-        issue
-        for issue in report.issues
-        if issue.kind == "bad-recurring-template"
-    )
-    assert "`recipe` and `script` are ambiguous" in issue.message
+    assert "script" not in ticket.frontmatter
+    assert not [issue for issue in report.issues if issue.task == created["slug"]]
 
 
-def test_validate_rejects_recipe_with_script_backed_workflow(
-    repo: Path,
-) -> None:
-    _write(
-        repo / "skills" / "deterministic" / "run" / "SKILL.md",
-        """
-        ---
-        name: deterministic/run
-        description: Script-backed deterministic step.
-        script: run.py
-        ---
-        """,
+def test_validate_tolerates_legacy_non_null_script_key(repo: Path) -> None:
+    """A leftover `script: run.py` from the retired launch seam survives parse
+    as an inert orphan extension: it is never executed, and it degrades to a
+    warning rather than failing validation for the whole repo."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Legacy run.py",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
     )
-    _write(
-        repo / "workflows" / "deterministic.md",
-        """
-        ---
-        name: deterministic
-        description: Script-backed workflow.
-        steps:
-          - name: run
-            skills:
-              - deterministic/run
-        ---
-        """,
-    )
-    _write(
-        repo / "recurring" / "recipe-check" / "ticket.md",
-        """
-        ---
-        schedule: "0 9 * * *"
-        title: Recipe check
-        recipe: digest
-        workflow: deterministic
-        ---
-        """,
-    )
+    path = Path(created["path"])
+    text = path.read_text()
+    path.write_text(text.replace("secrets: null\n", "secrets: null\nscript: run.py\n"))
 
-    report = run(load_config(repo))
+    ticket = Ticket.read(path)
+    report = run(cfg)
 
-    issue = next(
-        issue
-        for issue in report.issues
-        if issue.kind == "bad-recurring-template"
-    )
-    assert "`recipe: digest` conflicts with script-backed workflow skill" in (
-        issue.message
-    )
+    assert ticket.frontmatter["script"] == "run.py"
+    issues = [issue for issue in report.issues if issue.task == created["slug"]]
+    assert issues, "a leftover script key should still be reported as an orphan"
+    assert all(issue.severity == "warn" for issue in issues)
 
 
 def test_step_requires_unknown_gate_is_error(repo: Path) -> None:

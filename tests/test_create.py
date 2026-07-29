@@ -108,7 +108,9 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket_path.is_file()
     assert ticket_path.name == "fix-retry-logic.md"
     assert not (repo / "tasks" / "fix-retry-logic").exists()
-    assert fence_count(ticket_path.read_text()) == 1
+    ticket_text = ticket_path.read_text()
+    assert fence_count(ticket_text) == 1
+    assert "\nscript:" not in ticket_text
     ticket = Ticket.read(ticket_path)
     assert ticket.title == "Fix retry logic"
     assert ticket.status == "draft"
@@ -795,15 +797,15 @@ def test_cli_create_does_not_spawn_agent(
 def test_cli_create_rejects_removed_mode_option(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--mode` is gone: script-vs-agent is deduced per launch, not declared."""
+    """`--mode` is gone: task launches are agent-backed, not mode-declared."""
     monkeypatch.chdir(repo)
     runner = CliRunner()
     result = runner.invoke(
         app,
-        ["create", "Script job", "--mode", "script", "--workflow", "code/with-review"],
+        ["create", "Agent job", "--mode", "auto", "--workflow", "code/with-review"],
     )
     assert result.exit_code == 2
-    assert not (repo / "tasks" / "script-job.md").exists()
+    assert not (repo / "tasks" / "agent-job.md").exists()
 
 
 def test_cli_create_rejects_empty_title(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:

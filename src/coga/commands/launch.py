@@ -31,10 +31,6 @@ import typer
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
 from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
-from coga.commands.launch_script import (
-    current_step_is_script,
-    is_script_launch,
-)
 from coga.compose import (
     ComposeError,
     PromptComposition,
@@ -97,9 +93,8 @@ def launch(
     task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` ticket."),
     args: list[str] | None = typer.Argument(
         None,
-        help="Trailing positional arguments for the launch target. Script "
-        "launches receive COGA_ARG_1..N plus COGA_ARGC; agent launches "
-        "receive an ordered Launch arguments block in the composed prompt.",
+        help="Trailing positional arguments for the launch target. They appear "
+        "as an ordered Launch arguments block in the composed agent prompt.",
     ),
     agent_override: str | None = typer.Option(
         None,
@@ -185,8 +180,6 @@ def launch(
 
     if prompt_report:
         ticket = _read(ref)
-        if is_script_launch(cfg, ticket):
-            _bail("script tasks do not compose an agent prompt.")
         try:
             composition = compose_prompt_report(
                 cfg, ref, ticket
@@ -201,19 +194,10 @@ def launch(
 
     ticket = _read(ref)
 
-    # A stateless script launch is a command ticket being invoked as a verb
-    # (`coga <verb> [args]` = `coga launch bootstrap/<verb> [args]`). Its
-    # stdout is the command's own, so the launcher's framing goes to stderr,
-    # still visible to a human, out of the way of a caller capturing the
-    # output. Every command ticket inherits this; moving a verb behind a ticket
-    # must not change what the verb prints.
-    command_ticket = is_bootstrap and is_script_launch(cfg, ticket)
-
     typer.echo(
         f"Launch: task {ref.id_slug} "
         f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
         f"assignee={ticket.assignee or 'unassigned'})",
-        err=command_ticket,
     )
 
     # A terminal ticket is closed: launching it must not restart its frozen
@@ -238,14 +222,14 @@ def launch(
     # act: the session's first job becomes resolving the open asks with the
     # human (the composed prompt gains a resolve-or-re-block preamble keyed
     # off the blackboard's open blockers), and the ticket reactivates inline
-    # after preflights pass. Batch surfaces are unchanged — a
-    # script step or TTY-less run has no human to discuss with, so those keep
-    # the hard refusal (checked here, before any status mutation). `coga
+    # after preflights pass. Batch surfaces are unchanged — a TTY-less run has
+    # no human to discuss with, so it keeps the hard refusal (checked here,
+    # before any status mutation). `coga
     # megalaunch` never gets this far: its sweep classifies blocked tickets as
     # skipped-unresolved-blocker, and an explicit pick runs the same
     # activate-and-resume through the engine's own launch loop.
     if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "blocked":
-        if not is_script_launch(cfg, ticket) and _interactive_stdio_has_tty():
+        if _interactive_stdio_has_tty():
             if not open_blockers(ref.ticket_path):
                 _bail(
                     f"Cannot launch {ref.id_slug}: it is blocked but has no "
@@ -272,54 +256,22 @@ def launch(
     if not is_bootstrap and ticket.status not in {"draft", "paused"}:
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
-    # A script launch — the current step has one script-backed skill or the
-    # ticket carries its own `script:` — runs with no agent through
-    # run_script_mode.
-    run_current_as_script = is_script_launch(cfg, ticket)
-
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
         # is brought to `active` inline rather than refused with a "run
         # `coga mark active` first" hint. The flip to `in_progress` still happens
         # later (after the compose pre-flight), so this only does the `mark active`
-        # half. Done before the script-vs-agent dispatch so both agent and
-        # script launches start from an activated, stepped ticket.
+        # half.
         if (
             not is_bootstrap
             and isinstance(ref, TaskRef)
             and ticket.status in {"draft", "paused"}
         ):
             _auto_activate(cfg, ref, ticket)
-            # Activation freezes a bare-string workflow and seeds step 1. A
-            # hand-authored draft can therefore become script-backed here even
-            # though the pre-activation deduction above could not see a current
-            # step. Recompute before choosing the script or agent path.
-            run_current_as_script = is_script_launch(cfg, ticket)
 
         assignee = ticket.assignee
         if not assignee:
             _bail(f"Task {ref.id_slug} has no assignee")
-
-        # A script launch — the ticket's own `script:`, or a current step whose
-        # single skill is script-backed — runs with no agent and no composed
-        # prompt, through the same run_script_mode path.
-        # Handling it here — before the agent-only TTY / CLI / git-auth setup —
-        # is what lets a relaunch land straight on the script step without a
-        # terminal. The supervisor loop below runs the same path for a script
-        # step reached mid-chain; on exit 0 the step advances, on non-zero it
-        # does not.
-        if run_current_as_script:
-            if agent_override is not None:
-                _bail("--agent is only supported for agent launches.")
-            from coga.commands.launch_script import run_script_mode
-            run_script_mode(
-                cfg, ref, ticket, stateless=is_bootstrap, args=launch_args
-            )
-            # A failed script sys.exits inside run_script_mode; that path is
-            # refreshed by the BaseException handler below, so this fires
-            # exactly once per script launch.
-            _refresh_launch_checkout(cfg)
-            return
 
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
@@ -327,8 +279,8 @@ def launch(
             _bail(
                 f"Cannot launch {ref.id_slug!r}: an agent launch requires a TTY "
                 "(stdin and stdout must both be terminals). Run from a real "
-                "shell, or give the task a script (a `script:` entry or a "
-                "script-backed workflow step) for deterministic unattended work."
+                "shell. Use a registered `coga run` recipe for deterministic "
+                "unattended work."
             )
 
         launch_assignee = agent_override or assignee
@@ -428,49 +380,17 @@ def launch(
 
         signal.signal(signal.SIGINT, _on_signal)
         signal.signal(signal.SIGTERM, _on_signal)
-    except BaseException as exc:
+    except BaseException:
         # Setup can exit after state was already published (the auto-activate
-        # or in_progress flip, a failed script step) — pull that state back
-        # into the launch checkout before surfacing the exit. The one
-        # exception: a *bootstrap* script (coga-owned, so the exit-code
-        # contract is ours) that refused because the control checkout is
-        # stale/diverged (`git.STALE_CONTROL_EXIT_CODE`) published nothing,
-        # and the refresh's ff-merge is guaranteed to fail against the same
-        # divergence — it would only re-dump the conflict the script already
-        # reported. A user ticket script exiting with the same number keeps
-        # the unconditional refresh.
-        if not (
-            is_bootstrap
-            and isinstance(exc, SystemExit)
-            and exc.code == git.STALE_CONTROL_EXIT_CODE
-        ):
-            _refresh_launch_checkout(cfg)
+        # or in_progress flip), so pull that state back into the launch
+        # checkout before surfacing the exit.
+        _refresh_launch_checkout(cfg)
         raise
 
     try:
         first_step = True
         while True:
             ticket = _read(ref)
-
-            # A workflow step whose single skill declares a `script:` runs as a
-            # deterministic script even mid-way through an agent workflow — the
-            # same run_script_mode path used above, dispatched per step. The launcher,
-            # not an agent, executes it and advances only on exit 0, so
-            # `code/open-pr` reached mid-chain (peer-review → open-pr) cannot
-            # complete without producing a real PR.
-            if not is_bootstrap and current_step_is_script(cfg, ticket):
-                from coga.commands.launch_script import run_script_mode
-
-                _echo_launch_iteration(ref, ticket)
-                before = ticket
-                # Advances the step on success; on failure posts and sys.exit.
-                run_script_mode(cfg, ref, ticket)
-                ticket = read_ticket(ref)
-                stop_reason = _harness_stop_reason(ref, before, ticket, cfg)
-                if stop_reason is not None:
-                    typer.echo(stop_reason)
-                    break
-                continue
 
             # Resolve the agent for THIS step from the ticket's current
             # assignee, so the supervisor can rotate claude <-> codex across
@@ -783,8 +703,6 @@ def _queue_prompt_suffix() -> str:
 def _agent_args_prompt_suffix(args: list[str]) -> str:
     """Render one launch invocation's positional args as prompt input.
 
-    Script launches keep their existing `COGA_ARG_*` environment channel;
-    agent launches need the same ordered values in the medium they consume.
     JSON preserves argument boundaries (including whitespace and newlines),
     and an indented code block cannot be closed by an argument containing a
     Markdown fence. This remains an ephemeral suffix rather than a durable
@@ -953,13 +871,10 @@ def spawn_agent_session(
     secret value.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
-    # task metadata at this last shared boundary so an agent started by a
-    # bootstrap script identifies the task it is actually running, not the
-    # outer bootstrap ticket. Copy first so caller-owned environments remain
-    # unchanged; unrelated parent values still pass through.
+    # task metadata at this last shared boundary so an agent identifies the
+    # task it is actually running. Copy first so caller-owned environments
+    # remain unchanged; unrelated parent values still pass through.
     env = dict(env)
-    env.pop("COGA_SKILL_NAME", None)
-    env.pop("COGA_SKILL_DIR", None)
     env.update(build_task_env(cfg, ref))
 
     if warn_blackboard:
@@ -1320,7 +1235,6 @@ def _refuse_human_handoff_launch(
     assignee = ticket.assignee
     if (
         isinstance(ref, BootstrapRef)
-        or is_script_launch(cfg, ticket)
         or not assignee
         or assignee in cfg.agents
     ):

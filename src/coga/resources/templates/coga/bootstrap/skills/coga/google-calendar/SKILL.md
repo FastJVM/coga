@@ -32,7 +32,7 @@ Exit codes are the contract:
 | 1 | config / auth / API error (message on stderr) |
 | 3 | event not found (caller can distinguish "gone" from "broken") |
 
-Locate the script via `COGA_COGA_OS_ROOT` (set during skill/script launches)
+Locate the helper via `COGA_COGA_OS_ROOT` (set during launched work)
 so it resolves regardless of the consuming repo.
 
 ## Auth — service account

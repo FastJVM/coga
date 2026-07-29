@@ -41,8 +41,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "blockers/remind/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "ticket/finalize/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/coga/"
-    "ticket/finalize/run.py",
     "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
@@ -136,7 +134,7 @@ def test_package_includes_coga_resources() -> None:
         assert (repo_root / "src" / "coga" / "resources" / source_name).is_file()
 
 
-def test_only_transitional_script_seam_consumers_remain() -> None:
+def test_no_launch_entrypoint_run_py_files_remain() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     packaged_root = repo_root / "src" / "coga" / "resources" / "templates" / "coga"
     packaged = {
@@ -148,14 +146,8 @@ def test_only_transitional_script_seam_consumers_remain() -> None:
         for path in (repo_root / "coga").rglob("run.py")
     }
 
-    assert packaged == {
-        "bootstrap/skills/coga/show/run.py",
-        "bootstrap/skills/coga/ticket/finalize/run.py",
-    }
-    assert live == {
-        "skills/coga/show/run.py",
-        "skills/coga/ticket/finalize/run.py",
-    }
+    assert packaged == set()
+    assert live == set()
 
 
 def test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep() -> None:
@@ -185,7 +177,9 @@ def test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep() -> 
     assert "mergeable" in command.body
     assert "git merge-base --is-ancestor origin/main HEAD" not in command.body
     assert wrapper.frontmatter["schedule"] == "0 8 * * 1"
-    assert wrapper.frontmatter.get("script") is None
+    assert "\nscript:" not in (
+        recurring_root / "resolve-conflicts" / "ticket.md"
+    ).read_text()
     assert "coga resolve-conflicts --agent <current-agent-type>" in wrapper.body
     assert "coga mark done recurring/resolve-conflicts" in wrapper.body
     assert "outer agent supervisor" in wrapper.body

@@ -97,7 +97,7 @@ REQUIRED_TASK_KEYS: tuple[str, ...] = (
 )
 # Optional keys that may appear in addition to the required set.
 OPTIONAL_TASK_KEYS: frozenset[str] = frozenset(
-    {"step", "watchers", "secrets", "script"}
+    {"step", "watchers", "secrets"}
 )
 _NON_EMPTY_STRING_KEYS: tuple[str, ...] = (
     "title",
@@ -849,11 +849,10 @@ def _check_task_numbering(refs: list[TaskRef]) -> list[Issue]:
 
 
 def _check_recurring_templates(cfg: Config) -> list[Issue]:
-    """Check schedules, execution declarations, and workflow-step skills."""
+    """Check schedules, recipe declarations, and workflow-step skills."""
     # Imported here, not at module scope: `coga.recurring` imports this module
     # for `TaskValidationError`, so a top-level import would be circular.
     from coga.recurring import RecurringError, Template, _validate_schedule
-    from coga.skill import Skill
 
     root = recurring_dir(cfg)
     if not root.is_dir():
@@ -914,9 +913,8 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         # only report the load failure when the schedule was fine — otherwise
         # one bad cron yields two issues for the same defect. The workflow-step
         # skill checks below still run either way.
-        template: Template | None = None
         try:
-            template = Template.load(path)
+            Template.load(path)
         except RecurringError as exc:
             if not schedule_bad:
                 out.append(Issue(
@@ -934,7 +932,6 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
             workflow = Workflow.load(resolve_workflow_path(cfg, workflow_name))
         except WorkflowError:
             continue
-        recipe_script_conflict = False
         for step in workflow.steps:
             for ref_name in step.skills:
                 skill_path = resolve_skill_path(cfg, ref_name)
@@ -953,23 +950,6 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
                         severity="error",
                     ))
                     continue
-                if (
-                    template is not None
-                    and template.recipe
-                    and not recipe_script_conflict
-                    and Skill.load(skill_path).script
-                ):
-                    out.append(Issue(
-                        kind="bad-recurring-template",
-                        task=f"recurring/{path.name}",
-                        message=(
-                            f"`recipe: {template.recipe}` conflicts with "
-                            f"script-backed workflow skill {ref_name!r}; "
-                            "declare exactly one execution path"
-                        ),
-                        severity="error",
-                    ))
-                    recipe_script_conflict = True
     return out
 
 

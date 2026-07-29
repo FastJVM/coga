@@ -205,8 +205,8 @@ session's first job — the agent records the resolution with
 `coga unblock <slug> --answer "..."` (which leaves an `in_progress` ticket's
 status and step untouched) or re-blocks with a refined reason. If the resumed
 session exits before recording an answer, launch returns the ticket to
-`blocked` so blocker queues keep reporting it. Script, auto, and
-Script and TTY-less launches of a blocked ticket are still refused until
+`blocked` so blocker queues keep reporting it. TTY-less launches of a blocked
+ticket are still refused until
 `coga unblock` records the answer (the `coga megalaunch` *sweep* likewise
 still skips it as `skipped-unresolved-blocker`; an explicit `--pick` of a
 blocked ticket is the human act and resumes it the same interactive way); a
@@ -215,16 +215,11 @@ that can't be activated — no workflow, or an empty `required` extension field
 — still fails loud with the same remedy `mark active` gives. Launching an
 `active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
-already-`in_progress` ticket resumes it without another status flip. Whether
-a launch runs a script or spawns an agent is deduced per launch: a
-script-backed current step or a ticket-level `script:` runs as a script;
-anything else spawns the assignee's agent, which requires stdin and stdout to
-both be terminals. Script launches run deterministic code directly without
-composing an agent prompt and inject task metadata env vars including
-`COGA_TASK_SLUG`, `COGA_TASK_DIR`, and `COGA_TASK_BLACKBOARD`.
-Trailing positional arguments follow the same split: scripts receive
-`COGA_ARG_1..N` plus `COGA_ARGC`, while agents receive an ordered
-`## Launch arguments` block appended to the prompt.
+already-`in_progress` ticket resumes it without another status flip. Launch
+always spawns the assignee's agent and requires stdin and stdout to both be
+terminals. Trailing positional arguments arrive in an ordered
+`## Launch arguments` block appended to the prompt. Deterministic headless
+commands belong behind the registered `coga run` recipe surface.
 
 - `coga launch <slug>` — accepts any unique prefix (git-short-SHA-style).
   A top-level task is its bare leaf slug; a nested task is referenced by its
@@ -235,8 +230,7 @@ Trailing positional arguments follow the same split: scripts receive
   ticket's `assignee:` and does not bypass a human handoff.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
-  spawning an agent. Rejected for script launches, which compose no
-  agent prompt.
+  spawning an agent.
 - `coga launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
 - `coga launch bootstrap/browser-automation` — stateless browser-automation
@@ -294,12 +288,8 @@ supervisor re-reads the ticket and starts a fresh step session.
 Interactive agent REPLs terminate through a session-scoped side channel:
 `coga bump`, `coga mark done`, `coga mark canceled`, and `coga block` write the
 launched task to `$COGA_DONE_SENTINEL`, and the PTY supervisor tears the REPL
-down. A
-successful script launch writes the same slug-scoped sentinel after its step
-advance (the advance is that launch's `coga bump`), so an agent that drives
-its own script step with a nested `coga launch` releases its session too. PTY
-output is never a completion channel, so reading or printing prompt text
-cannot end a session accidentally.
+down. PTY output is never a completion channel, so reading or printing prompt
+text cannot end a session accidentally.
 
 `--prompt-report` is for prompt-scope inspection. Its token counts use a
 dependency-light `characters / 4` estimate, so treat them as a prompt-bloat
@@ -322,14 +312,9 @@ Two of them take a task ref as their single argument. `coga run open-pr
 
 Every token after the recipe name is forwarded as an ordinary Python
 `list[str]`, so a value containing spaces stays one element and options such
-as `--no-fix` reach the recipe parser unchanged. This command does not use the
-script launcher's `COGA_ARG_1..N` / `COGA_ARGC` channel. It preserves inherited
+as `--no-fix` reach the recipe parser unchanged. It preserves inherited
 `COGA_TASK_*` metadata when an agent invokes it, passes stdout/stderr through,
 and exits with the recipe's integer return code.
-
-The older `coga launch` script path remains available in parallel for the
-vestigial show/finalize wrappers, ticket-owned/inline scripts, and generic
-project-local script steps while that seam is migrated.
 
 ## coga status
 
@@ -405,7 +390,7 @@ leftover asks on a non-blocked ticket are `coga validate`'s drift to catch, not
 this view's. It is still read-only: it never resolves blockers, relaunches
 work, or probes the network.
 
-The script-backed `recurring/blocker-reminders` task uses the same blocked-task
+The recipe-backed `recurring/blocker-reminders` task uses the same blocked-task
 contract to re-notify owners about unresolved blockers and records a
 `## Blocker reminders` watermark on the blocked task after a live reminder
 attempt.
@@ -650,12 +635,7 @@ output until the run ends. The TTY is transport, not an approval gate:
 megalaunch appends package-backed queue guidance telling the agent to announce
 its plan and continue, while a decision or capability that genuinely requires
 the owner must end in `coga block`, not a conversational "shall I proceed?" or
-"blocked" reply. A normal final response does not release the queue. A
-**script launch** — a script-backed current step
-or a ticket-owned `script:` — runs the script directly,
-exactly like the `coga launch` supervisor: no agent, no REPL, no assignee
-gate; exit 0 advances the step and the chain continues, a non-zero exit
-leaves the step put and fails that one task without stopping the sweep. The
+"blocked" reply. A normal final response does not release the queue. The
 recurring-style idle-timeout / max-session
 backstops are armed so a wedged REPL can't starve the queue; because the REPLs
 (and the `--pick` prompt) are interactive, megalaunch requires a TTY and fails
@@ -703,8 +683,7 @@ set) with that configured agent type regardless of each ticket's `assignee:`
 `coga launch --agent`: the ticket's `assignee:` is never rewritten, a
 human-assigned ticket is not converted into an agent step (it still skips as
 a human gate), and on a task that chains multiple steps the override applies
-only to the first launched *agent* step (script steps run as scripts and
-never consume it) — later steps follow the ticket's resolved
+only to the first launched step—later steps follow the ticket's resolved
 assignee, so `other-agent` rotation keeps its meaning.
 
 An optional positional `DIR` scopes the sweep or the picker to tasks under
@@ -830,9 +809,8 @@ Dedup after Dream deletes a completed run comes from
 
 `coga recurring --interactive` is the human-stepped debug knob for a recurring
 run. It requires an attended TTY and leaves the recurring liveness backstops
-unarmed; each template still launches according to its deduced substance
-(a declared recipe first; otherwise script when its `script:` or workflow step
-1 is script-backed; else agent).
+unarmed; a declared recipe runs directly and every other template launches an
+agent.
 
 `coga recurring --force` **forces a real, full run of every template**. It is
 *not* a sandbox: the only difference from a bare `coga recurring` is that it
@@ -851,11 +829,10 @@ slug-based suppression, no orphan reaping, and no fold-back-to-template-log
 step. Use it to force this period's work to re-run without waiting for the
 schedule.
 
-Agent templates (no `recipe:`, no `script:`, and no script-backed workflow
-step 1) are
-skipped when `coga recurring` has no stdin/stdout TTY, because the agent REPL
+Agent templates (no `recipe:`) are skipped when `coga recurring` has no
+stdin/stdout TTY, because the agent REPL
 cannot be driven. Templates intended for cron or other unattended schedulers
-should select a registered recipe or carry a complete one-step script.
+should select a registered recipe.
 
 **Queue guidance.** Like megalaunch, automatic recurring launches (the bare
 sweep, `--force`, and on-demand `recurring launch <name>` — everything except
@@ -897,8 +874,8 @@ Unless `--interactive` is set, it passes the same concrete idle-timeout and
 max-session limits as the scheduled sweep. `--interactive` leaves those
 liveness limits unarmed for debugging one template by hand.
 `--agent <type>` applies the same ephemeral override as the full sweep when the
-named task is agent-backed; script-backed tasks ignore it and still run as
-scripts. This also makes `coga dream --agent <type>` work through the alias.
+named task is agent-backed. This also makes `coga dream --agent <type>` work
+through the alias.
 
 ## coga recurring promote \<task\> --schedule "\<cron\>" [--name \<name\>]
 
@@ -916,7 +893,7 @@ run's scratch. `status:`, `step:`, `slug:`, `human:`, and `agent:` are dropped
 collapses back to its name, and ticket-level `skills:` are dropped with a
 warning — they are never copied into a period task, so process skills belong
 on the workflow's steps. Everything else (`title`, `owner`, `assignee`,
-`watchers`, `contexts`, `secrets`, `script`) passes through.
+`watchers`, `contexts`, `secrets`) passes through.
 
 It refuses instead of guessing: an existing `coga/recurring/<name>/` is never
 overwritten, a bad cron leaves the source ticket untouched, and an

@@ -150,20 +150,15 @@ working on a task. If two people launch the same ticket, the divergence is
 visible and recoverable in Git — which Coga prefers to the stale-lock, `--force`,
 orphan-cleanup tax of a real mutex.
 
-## Agents and scripts
+## Agents and recipes
 
-Whether a launch runs a **script** or spawns an **agent** is deduced per launch,
-not set by a field:
+`coga launch` always composes a prompt and spawns the assignee's agent CLI in a
+live REPL. Skills attached to workflow steps are prompt contracts; workflow
+steps do not become executable plugins.
 
-- If the current step's single skill declares a `script:`, or the ticket itself
-  owns a `script:`, the launch runs that code directly — no prompt, no agent, no
-  TTY. This is the right shape for deterministic, recurring, or CI work.
-- Otherwise, the launch composes a prompt and spawns the assignee's agent CLI in
-  a live REPL.
-
-One workflow can freely mix the two: an `implement` step spawns an agent, a
-later `publish` step runs a script. A script step advances only when its script
-exits zero — completion is gated by an exit code, not an agent's say-so.
+Deterministic Coga commands live behind the fixed `coga run` recipe registry.
+Recurring templates select one with `recipe:` when they need a headless path;
+templates without a recipe launch an agent and require a TTY.
 
 The two agent CLIs — **Claude Code** and **Codex** — are interchangeable.
 They're configured in `coga.toml` under `[agents.*]`, and the `other-agent`

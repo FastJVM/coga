@@ -65,7 +65,7 @@ def _bail(message: str, code: int = EXIT_ERROR) -> None:
 def _coga_os_root() -> Path:
     """Locate the coga dir holding coga.local.toml.
 
-    Prefers COGA_COGA_OS_ROOT (set for skill/script launches), else walks up
+    Prefers COGA_COGA_OS_ROOT (set for launched work), else walks up
     from cwd looking for coga.local.toml or coga.toml.
     """
     env_root = os.environ.get("COGA_COGA_OS_ROOT")

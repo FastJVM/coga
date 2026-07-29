@@ -348,7 +348,7 @@ def test_git_updated_by_slug_folds_paths_onto_owning_tasks() -> None:
     old, new = datetime(2026, 6, 1), datetime(2026, 6, 9)
     fold = _git_updated_by_slug(refs, {
         "dir/ticket.md": old,
-        "dir/run.py": new,        # a sibling script counts as touching the task
+        "dir/notes.txt": new,     # a sibling attachment touches the task
         "solo.md": new,
         "gone/ticket.md": new,    # belongs to no live task — dropped
     })

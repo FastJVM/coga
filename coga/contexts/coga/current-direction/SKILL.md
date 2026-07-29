@@ -116,8 +116,7 @@ Last updated: 2026-07-17.
   tokens: on `improve-prompt-for-relay-ticket` it showed the blackboard at
   4,314 of 7,185 total tokens (60%). `bootstrap/ticket` Step 6 now tells the
   evaluator to run `coga launch <slug> --prompt-report` and flag any layer
-  over ~40% of the total, with a documented skip for script tasks (where the
-  command refuses by design). This closes a question Step 6 was already
+  over ~40% of the total. This closes a question Step 6 was already
   asking but structurally could not answer — it read the ticket file, which
   lists context *refs* without their composed sizes. No subagent, no skill,
   no second copy of the rubric.

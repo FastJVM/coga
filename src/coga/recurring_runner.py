@@ -1,4 +1,4 @@
-"""Recurring scan and launch orchestration shared by command heads and scripts."""
+"""Recurring scan and launch orchestration shared by command heads and recipes."""
 
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ import typer
 from coga import git
 from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.commands.launch import _interactive_stdio_has_tty
-from coga.commands.launch_script import is_script_launch
 from coga.config import (
     Config,
     ConfigError,
@@ -446,8 +445,8 @@ def run_recurring_scan(
     is identical to a normal run.
 
     `agent_override` temporarily selects the configured agent for agent-backed
-    tasks. It never rewrites the ticket, and recipe/script tasks keep their
-    deterministic execution path.
+    tasks. It never rewrites the ticket, and registered recipe tasks keep
+    their deterministic execution path.
 
     A child dispatched by `coga recurring --all` sets
     `require_fresh_control`: failure to fetch and integrate the configured
@@ -529,11 +528,7 @@ def run_recurring_scan(
         # below instead of pausing it as a human would.
         kind = launch_cmd(
             task.ref.id_slug,
-            agent_override=(
-                None
-                if is_script_launch(cfg, read_ticket(task.ref))
-                else agent_override
-            ),
+            agent_override=agent_override,
             prompt_report=False,
             idle_timeout=idle_timeout,
             max_session=max_session,
@@ -545,7 +540,7 @@ def run_recurring_scan(
             queue_guidance=not interactive,
         )
         _stop_if_unfinished_after_launch(
-            cfg, task.ref, interactive=interactive, timed_out=(kind == "timeout")
+            cfg, task.ref, timed_out=(kind == "timeout")
         )
     return 2 if forced_refusals else 0
 
@@ -582,11 +577,6 @@ def _run_recipe_task(cfg: Config, task: DueTask) -> int:
     except SecretError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return 2
-    for name in list(env):
-        if name in {"COGA_ARGC", "COGA_SKILL_NAME", "COGA_SKILL_DIR"} or (
-            name.startswith("COGA_ARG_")
-        ):
-            env.pop(name)
     env.update(build_task_env(cfg, ref))
 
     if ticket.status == "active":
@@ -853,7 +843,7 @@ def _launch_created(
     max_session = None if interactive else _recurring_max_session(cfg)
     launch_cmd(
         ref.id_slug,
-        agent_override=None if is_script_launch(cfg, ticket) else agent_override,
+        agent_override=agent_override,
         prompt_report=False,
         idle_timeout=idle_timeout,
         max_session=max_session,
@@ -1688,20 +1678,18 @@ def _git_toplevel(start: Path) -> Path | None:
 
 
 def _stop_if_unfinished_after_launch(
-    cfg: Config, ref: TaskRef, *, interactive: bool, timed_out: bool = False
+    cfg: Config, ref: TaskRef, *, timed_out: bool = False
 ) -> None:
-    """Stop a bare recurring sweep if one launched task is still in flight.
+    """Pause a recurring task when its agent launch returns unfinished.
 
-    `interactive` is set when the sweep is `--interactive`. In that case the
-    human is driving — exiting the agent without marking done is a valid "park
-    this run and move on" signal, not a stuck task. Make that durable by pausing the
-    task, then continue instead of bailing the sweep; otherwise the next scan
-    would treat the leftover `in_progress` state as a dead supervisor's orphan
-    and relaunch it.
+    Exiting an agent without a terminal transition parks that run. Make it
+    durable by pausing the task, then continue; otherwise the next scan would
+    treat the leftover `in_progress` state as a dead supervisor's orphan and
+    relaunch it.
 
     `timed_out` is set when `launch` reported a liveness teardown (idle /
     max-session) — the agent wedged and never signalled done. That must NOT be
-    recorded as the human-pause above: it isn't a deliberate park, it's a stuck
+    recorded as an ordinary pause: it isn't a deliberate park, it's a stuck
     run. We pause it (so the next scan doesn't relaunch the orphan) but log and
     broadcast it as a watchdog *timeout*, with a system actor, then continue the
     sweep so one wedge can't starve the tasks behind it.
@@ -1738,35 +1726,24 @@ def _stop_if_unfinished_after_launch(
         )
         return
 
-    if interactive or not is_script_launch(cfg, ticket):
-        suffix = "Agent recurring launch exited unfinished"
-        try:
-            mark_paused(
-                cfg,
-                ref,
-                ticket,
-                actor=f"human:{cfg.current_user}",
-                log_message=f"paused ({ticket.status} → paused) — {suffix}",
-                echo=None,
-            )
-        except TaskValidationError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-            sys.exit(2)
-        typer.secho(
-            f"{ref.id_slug}: ended with status={ticket.status!r}; "
-            "paused and continuing to next due task (interactive).",
-            fg=typer.colors.YELLOW,
+    suffix = "Agent recurring launch exited unfinished"
+    try:
+        mark_paused(
+            cfg,
+            ref,
+            ticket,
+            actor=f"human:{cfg.current_user}",
+            log_message=f"paused ({ticket.status} → paused) — {suffix}",
+            echo=None,
         )
-        return
-
+    except TaskValidationError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
     typer.secho(
-        f"{ref.id_slug}: recurring launch returned with status={ticket.status!r}; "
-        "stopping before the next due task. Finish or delete this run, then "
-        "rerun `coga recurring`.",
-        fg=typer.colors.RED,
-        err=True,
+        f"{ref.id_slug}: ended with status={ticket.status!r}; "
+        "paused and continuing to next due task.",
+        fg=typer.colors.YELLOW,
     )
-    sys.exit(1)
 
 
 # --- scan reporting -----------------------------------------------------------
