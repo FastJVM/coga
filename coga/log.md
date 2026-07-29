@@ -3119,3 +3119,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-29 14:53 [scrub-coga-task-in-the-pytest-autouse-guard-so-fix] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-29 14:55 [review-slack-channels] [human:nick] created (status=draft)
 2026-07-29 14:55 [review-messaging-hierarchy] [human:nick] created (status=draft)
+2026-07-29 14:53 [scrub-coga-task-in-the-pytest-autouse-guard-so-fix] [megalaunch] launched via coga megalaunch
+2026-07-29 15:04 [scrub-coga-task-in-the-pytest-autouse-guard-so-fix] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
