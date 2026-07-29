@@ -1,7 +1,7 @@
 ---
 slug: recurring-bugs/dream-recipes-write-reports-into-packaged-bootstra
 title: Dream recipes write reports into packaged bootstrap tickets
-status: blocked
+status: active
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -28,7 +28,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-script: null
 step: 4 (review)
 ---
 
@@ -294,4 +293,5 @@ stays byte-identical; one asserts a stateless bootstrap script sees
 
 ## Blockers
 
-- [ ] [2026-07-29 11:39] [agent:nicktoper] id=20260729T113952 PR #671 is now conflicting after the script-seam deletion, while the current-main replacement is peer-reviewed at bootstrap-no-blackboard a1fb7b9e. Decide whether to force-update #671's head with that replacement or close #671 and publish a new PR.
+- [x] [2026-07-29 11:39] [agent:nicktoper] id=20260729T113952 PR #671 is now conflicting after the script-seam deletion, while the current-main replacement is peer-reviewed at bootstrap-no-blackboard a1fb7b9e. Decide whether to force-update #671's head with that replacement or close #671 and publish a new PR.
+  resolved: [2026-07-29 16:16] [human:nicktoper] Resolved by taking option 1: PR #671's head was force-updated with the current-main replacement and merged as a13fba61 on 2026-07-29 19:20 UTC. Verified the merged diff carries the replacement content (no launch_script.py; writer-side guards in dream_validate_drift.py, dream_cleanup_orphan_markers.py, skill_update.py) and that git diff origin/main bootstrap-no-blackboard -- src/ tests/ is empty, so nothing from the replacement branch is unmerged.
