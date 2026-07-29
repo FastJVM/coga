@@ -1,7 +1,7 @@
 ---
 slug: recurring-bugs/dream-recipes-write-reports-into-packaged-bootstra
 title: Dream recipes write reports into packaged bootstrap tickets
-status: active
+status: done
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -28,7 +28,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
