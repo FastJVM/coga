@@ -6,11 +6,11 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
-  - coga/architecture
-  - coga/codebase
-  - dev/code
+- coga/architecture
+- coga/codebase
+- dev/code
 skills: []
 workflow:
   name: code/with-review
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -94,7 +94,11 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: retire-linked-worktree
-worktree: /home/n/Code/codex/coga-retire-linked-worktree
+worktree: /home/n/Code/claude/coga-retire-linked-worktree
+
+(The previously recorded `/home/n/Code/codex/coga-retire-linked-worktree` and its
+branch were both gone at relaunch — nothing had been committed — so this session
+recreated the branch and worktree from current `origin/main`.)
 
 ## Decision
 
@@ -111,3 +115,42 @@ worktree: /home/n/Code/codex/coga-retire-linked-worktree
 - Update both the live and packaged `dev/code` contexts so the operator and
   future agents can see who retires the checkout and what survives for manual
   inspection.
+
+## Implemented (2026-07-29)
+
+Commit `74e7801e` on `retire-linked-worktree`, rebased onto current
+`origin/main`, tree clean, not pushed.
+
+- `src/coga/branchcleanup.py` — new `remove_ticket_worktree(root,
+  blackboard_text, echo=...)` returning `WorktreeCleanupResult(worktree,
+  removed, notes)`. It parses `worktree:` with the existing
+  `autoclose.parse_worktree_path`, and removes the checkout only when
+  `_is_linked_worktree_of` confirms Git reports a distinct `--git-dir` whose
+  `--git-common-dir` equals the retire root's. `git worktree remove` runs
+  without `--force`. Missing paths, independent clones, the primary checkout,
+  and dirty/locked worktrees are all reported and preserved. Module docstring
+  now covers the worktree safety model alongside the branch one.
+- `src/coga/commands/retire.py` — `_cleanup_branch` became
+  `_cleanup_checkout`; it calls `remove_ticket_worktree` before
+  `delete_ticket_branch`, each wrapped in its own best-effort guard so neither
+  can abort the retire run.
+- Docs: `coga/contexts/dev/code/SKILL.md` gains a `### Who retires the checkout`
+  subsection (packaged copy under `bootstrap/contexts/` synced byte-identical);
+  the packaged `coga/cli` context's stale "branch hygiene belongs in a Dream
+  worker" paragraph was corrected; `docs/reference.md` `coga retire` updated.
+
+Tests (`python3.12 -m pytest`, `PYTHONPATH=$PWD/src`): 1541 passed, 1 skipped.
+Nine new cases — six in `tests/test_branchcleanup.py` (removal, the
+unpins-the-branch regression, dirty, independent clone, primary checkout,
+missing path, no-line no-op) and two end-to-end in `tests/test_retire.py`.
+`test_removing_worktree_unpins_branch_for_cleanup` is the regression test: it
+asserts `delete_ticket_branch` fails while the worktree is live and succeeds
+after removal.
+
+The one skip is pre-existing and environmental: `tests/test_packaging.py:191`
+`importorskip("hatchling")` — the `python3.12` used here has no `hatchling`.
+Not caused by this change, but it means the wheel-build test did not run.
+
+Note on the relaunch: the previously recorded `codex` worktree and the
+`retire-linked-worktree` branch were both gone and nothing had been committed,
+so this session recreated both from `origin/main`. No prior work was lost.
