@@ -3160,3 +3160,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-30 10:06 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-07-30 10:19 [update-contewt-bloxk-for-ordering-megalunach-uncle] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-30 10:29 [recurring-can-only-be-launched-by-owner] [human:nicktoper] created (status=draft)
+2026-07-30 10:34 [document-megalaunch-drain-order] [human:nicktoper] created (status=draft)
