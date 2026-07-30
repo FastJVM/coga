@@ -99,9 +99,9 @@ class _FakeAgent:
 
     Each `spawn_agent_session` the supervisor makes is one agent session. The
     fake records the step it ran on, then does what a real agent does as its
-    last action — `coga bump` for every step but the last, `coga mark done` on
-    the last — from the launch checkout. Running the *real* CLI keeps
-    ticket-state advance and git sync in the loop.
+    last action: `coga bump` from the launch checkout. Tests may explicitly
+    select `mark_done` to preserve coverage of that alternate status command.
+    Running the *real* CLI keeps ticket-state advance and git sync in the loop.
     """
 
     def __init__(self, primary_coga_os: Path, actions: list[str], hook=None) -> None:
@@ -123,7 +123,7 @@ class _FakeAgent:
         # A real agent runs `coga` from its checkout's `coga/` dir; `cwd` is
         # None and the process cwd already is the primary coga OS dir.
         run_from = Path(cwd) / "coga" if cwd is not None else self.primary_coga_os
-        action = self.actions.popleft() if self.actions else "mark_done"
+        action = self.actions.popleft() if self.actions else "bump"
         argv = (
             ["bump", ref.id_slug]
             if action == "bump"
@@ -185,6 +185,8 @@ def test_supervisor_respawns_next_step_after_bump(
     respawn after the in-session bump rather than exit after one step.
     """
     slug = _create_agent_task(plain_repo, ["implement", "finish"])
+    # Keep one launch-chain case on the explicit status command; final-step
+    # `bump` is exercised by the three-step and functional cases below.
     fake = _FakeAgent(plain_repo, actions=["bump", "mark_done"])
     _patch_launch_env(monkeypatch, fake)
 
@@ -211,7 +213,7 @@ def test_supervisor_auto_restarts_through_three_steps(
     behavior and that the ticket is actually bumped 1 -> 2 -> 3 -> done.
     """
     slug = _create_agent_task(plain_repo, ["implement", "review", "finalize"])
-    fake = _FakeAgent(plain_repo, actions=["bump", "bump", "mark_done"])
+    fake = _FakeAgent(plain_repo, actions=["bump", "bump", "bump"])
     _patch_launch_env(monkeypatch, fake)
 
     result = CliRunner().invoke(app, ["launch", slug])
@@ -241,8 +243,8 @@ def test_supervisor_auto_restarts_through_three_steps(
 # `claude` CLI at a real executable fake-agent script and lets the supervisor
 # actually spawn it (compose prompt -> build argv -> run_with_done_marker, which
 # falls back to `subprocess.run` with no TTY -> real child process). The fake
-# agent shells out to `coga bump` / `coga mark done` exactly like a real agent's
-# last action, then exits. So the whole spawn -> agent-exits -> re-read ->
+# agent shells out to `coga bump` exactly like a real agent's last action, then
+# exits. So the whole spawn -> agent-exits -> re-read ->
 # respawn loop runs end-to-end across three steps with nothing mocked but the
 # TTY entry-gate.
 
@@ -262,10 +264,8 @@ def coga(*args):
         [sys.executable, "-m", "coga.cli", *args], cwd=coga_os
     ).returncode
 
-# A real agent's final action: bump on completion; on the last step bump fails
-# (nothing to advance to) so finish the task instead.
-if coga("bump", slug) != 0:
-    coga("mark", "done", slug)
+# A real agent's final action on every workflow step, including the last.
+sys.exit(coga("bump", slug))
 """
 
 
@@ -356,7 +356,7 @@ def test_supervisor_respawns_next_step_after_bump_with_real_git(
     git_chain_repo.git("add", "-A")
     git_chain_repo.git("commit", "-m", "seed chain task")
 
-    fake = _FakeAgent(git_chain_repo.coga_os, actions=["bump", "mark_done"])
+    fake = _FakeAgent(git_chain_repo.coga_os, actions=["bump", "bump"])
     _patch_launch_env(monkeypatch, fake)
 
     result = CliRunner().invoke(app, ["launch", slug])
@@ -400,7 +400,7 @@ def test_session_survives_concurrent_control_branch_advance(
             )
 
     fake = _FakeAgent(
-        git_chain_repo.coga_os, actions=["bump", "mark_done"], hook=advance_main_once
+        git_chain_repo.coga_os, actions=["bump", "bump"], hook=advance_main_once
     )
     _patch_launch_env(monkeypatch, fake)
 

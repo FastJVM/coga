@@ -193,11 +193,14 @@ outcomes; neither appears in the default status view, and canceled tickets
 cannot be reactivated.
 
 ### `coga bump TASK`
-Advance one workflow step. Bumping past the last step is an error — use `coga
-mark done` to finish. Tickets without a workflow can't be bumped.
+Finish one workflow step. A bump advances to the next step, or marks the ticket
+`done` when the current step is final. Tickets without a workflow still can't
+be bumped; use `coga mark done` for those.
 
 - `--message <text>` — FYI to piggy-back on the transition broadcast (e.g. a PR
   link when bumping into a review step).
+- `--force` — when finishing the final step, allow committed `direct/body`
+  product code to remain stranded off the control branch.
 - `--to <n>` — **human-only**: rewind to an earlier 1-based step number.
 - `--backward` — **human-only**: rewind one step.
 

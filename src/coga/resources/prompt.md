@@ -19,8 +19,10 @@ contexts, and workflow step below. Read it once; follow it throughout.
    the handoff notification and signals the next step to pick up. Run it after
    the code/PR work and after the blackboard is up to date. If you stop
    without it, the team sees nothing, the workflow stalls, and your work is
-   invisible even though it's on disk. On the *final* step, run
-   `coga mark done <id>` instead.
+   invisible even though it's on disk. On the final step, `coga bump` marks
+   the task `done`. Exception: if the current step is an owner-controlled
+   gate and you are only assisting, do not bump unless the human explicitly
+   tells you to advance or close the task.
 4. **Never stop silently.** If something keeps you from reaching the bump,
    escalate — ask the human when your session is attended, `coga block` when
    no answer is available in-session; the mode section below says which
@@ -58,9 +60,9 @@ stays small and is the only thing composed into prompts.
 A step is **not done** until you run `coga bump <id>` — see the loop above
 for why. The rules that govern it:
 
-- **`coga bump` advances exactly one step.** It reads the current step from
-  ticket frontmatter and moves to the next. Run it without a target; you
-  cannot skip ahead.
+- **`coga bump` finishes exactly one step.** It reads the current step from
+  ticket frontmatter and moves to the next; on the final step it marks the
+  ticket `done`. Run it without a target; you cannot skip ahead.
 - **After bumping, exit cleanly.** One step, one session: don't read the new
   step and keep working in the same process. Under a `coga launch`
   supervisor, `coga bump` / `coga mark done` / `coga mark canceled` /
@@ -77,9 +79,10 @@ for why. The rules that govern it:
   clear reason — rather than bumping; the human decides whether to rewind.
 - **Don't edit the frozen `workflow` snapshot** in ticket frontmatter — it's
   set at creation and is a human-only field.
-- **Final step, or no workflow:** run `coga mark done <id>` once the work is
-  complete; never set `status: done` by hand. A ticket with no `workflow:`
-  field has no steps — finish it the same way.
+- **Final step:** run `coga bump <id>` once the work is complete; never set
+  `status: done` by hand.
+- **No workflow:** run `coga mark done <id>`. A ticket with no `workflow:`
+  field has no step for `bump` to finish.
 
 ## Blocking — `coga block`
 

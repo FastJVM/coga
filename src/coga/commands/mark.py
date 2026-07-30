@@ -5,8 +5,9 @@ canceled`. Each verb is
 the literal `status` value it sets, so the command shape mirrors the
 frontmatter field.
 
-`coga launch` owns the `active` → `in_progress` start transition. `coga
-bump` no longer marks final-step tickets done.
+`coga launch` owns the `active` → `in_progress` start transition. On a
+workflow's final step, `coga bump` delegates to the same shared `mark_done`
+finalizer used here.
 """
 
 from __future__ import annotations

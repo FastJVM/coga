@@ -223,7 +223,8 @@ def _pr_view(url: str, fields: str) -> dict[str, object]:
 def _on_final_step(ticket: Ticket) -> bool:
     wf = ticket.workflow
     if not isinstance(wf, dict) or not wf.get("steps"):
-        # No workflow → bump = done. Treat as "final step".
+        # Autoclose can finish a workflow-less linked-PR ticket even though the
+        # manual `coga bump` command deliberately refuses tickets with no steps.
         return True
     steps = wf["steps"]
     idx = ticket.step_index()

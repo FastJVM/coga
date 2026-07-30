@@ -116,7 +116,8 @@ change.** The lifecycle transitions — `bump`, `mark done` / `canceled` /
 delivery miss is reported *identically* — same stderr line, same `coga/log.md`
 entry — it just no longer aborts the command, because the ticket write already
 happened and the command has work left that must not be skipped. Concretely:
-`coga bump` writes the step, *then* posts, *then* calls `emit_done_marker`.
+`coga bump` writes the next step or terminal `done` state, *then* posts when
+that transition calls for a broadcast, *then* calls `emit_done_marker`.
 Crashing in between left the supervising `coga launch` waiting on a sentinel
 nobody would ever write, so a session that had finished its step (PR opened,
 ticket advanced) was killed by the idle backstop 15 minutes later and reported

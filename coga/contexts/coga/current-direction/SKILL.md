@@ -244,8 +244,9 @@ ones that affect implementation:
   current `step:` frontmatter and normally advances by one. Humans may
   rewind in-progress workflow tasks to an earlier step with `--to` or
   `--backward`; agents still block instead of going backward. `bump` does
-  not finish tickets — bumping past the last step (or on a no-workflow
-  ticket) errors and points at `coga mark done`.
+  finish tickets from their final workflow step by delegating to the same
+  `mark_done` finalizer as `coga mark done`. A no-workflow ticket still errors
+  and points at `coga mark done` because it has no step for `bump` to finish.
 - **`coga recurring` is the canonical entry point** for the recurring
   creator. It scans templates, creates the current period's task for
   each, and launches the due ones sequentially — current period only, no
