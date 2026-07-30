@@ -3153,3 +3153,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-30 10:05 [recurring/digest] [system] launched as recipe (digest)
 2026-07-30 10:05 [recurring/digest] [system] recipe digest exited with code 0
 2026-07-30 10:05 [recurring/digest] [system] completed (recipe digest exited 0) via coga recurring
+2026-07-30 10:05 [recurring/blocker-reminders] [system] started (active → in_progress) via recurring recipe blocker-reminders
