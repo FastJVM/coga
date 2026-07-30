@@ -1,7 +1,7 @@
 ---
 slug: bump-can-mark-done-too
 title: bump can mark done too
-status: active
+status: in_progress
 owner: nick
 human: nick
 agent: claude
