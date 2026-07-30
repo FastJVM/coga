@@ -22,6 +22,20 @@ from coga.repl_supervisor import (
     EXPECTED_TASK_ENV,
     SENTINEL_ENV,
 )
+from coga.task_env import TASK_ENV_KEYS
+
+
+# Every variable a `coga launch` supervisor owns and exports into the agent's
+# env — and therefore into anything the agent spawns, including this suite.
+# `_clear_supervised_session_env` scrubs the whole set for every test; the
+# regression proof lives in `test_env_isolation.py`.
+LAUNCH_OWNED_ENV = (
+    SENTINEL_ENV,
+    "COGA_SUPERVISED",
+    EXPECTED_TASK_ENV,
+    EXPECTED_STEP_ENV,
+    *TASK_ENV_KEYS,
+)
 
 
 _TEMPLATES_COGA_OS = (
@@ -125,11 +139,17 @@ def _clear_supervised_session_env(monkeypatch):
     the whole process group, killing the test run mid-flight. Clearing both
     here makes the suite hermetic regardless of how it was launched. Tests
     that exercise the supervisor set `COGA_DONE_SENTINEL` themselves
-    (autouse runs first, so their `monkeypatch.setenv` wins)."""
-    monkeypatch.delenv(SENTINEL_ENV, raising=False)
-    monkeypatch.delenv("COGA_SUPERVISED", raising=False)
-    monkeypatch.delenv(EXPECTED_TASK_ENV, raising=False)
-    monkeypatch.delenv(EXPECTED_STEP_ENV, raising=False)
+    (autouse runs first, so their `monkeypatch.setenv` wins).
+
+    The task metadata namespace (`TASK_ENV_KEYS`) leaks the same way and does
+    the same kind of damage in the other direction: a recipe under test reads
+    the inherited `COGA_TASK_BLACKBOARD` and appends its *fixture* report to
+    the live outer ticket. That really happened — twenty-plus bogus
+    `## Dream Skill: validate-drift` sections across four tickets. The set is
+    derived from `coga.task_env` rather than spelled out here, so a new
+    launch-owned variable is scrubbed without a second edit."""
+    for key in LAUNCH_OWNED_ENV:
+        monkeypatch.delenv(key, raising=False)
 
 
 @pytest.fixture(autouse=True)

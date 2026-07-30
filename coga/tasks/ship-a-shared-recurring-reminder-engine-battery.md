@@ -256,20 +256,6 @@ post for it was worth sending. Both are admin-repo concerns, out of scope for th
 None of the Brex scratch scripts are committed (live-cred + admin-repo deps; real recurring
 covers receipts).
 
-## Dream Skill: validate-drift
-
-Generated: 2026-07-24T23:35:50+00:00
-Command: `coga validate --json --fix`
-Task: `ship-a-shared-recurring-reminder-engine-battery`
-
-Applied fixes: 1.
-
-- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
-
-Git: committed and pushed `repair-branch`
-
-Result: no remaining validation drift found.
-
 ## Peer review (2026-07-24)
 
 - Feature worktree is clean on `reminder-engine`; the branch is 1 commit ahead
@@ -308,20 +294,6 @@ Result: no remaining validation drift found.
   suite 1543 passed, 1 skipped, with only the known macOS GNU-`sed -i` fixture
   failure that reproduces on `main`.
 
-## Dream Skill: validate-drift
-
-Generated: 2026-07-24T23:38:29+00:00
-Command: `coga validate --json --fix`
-Task: `ship-a-shared-recurring-reminder-engine-battery`
-
-Applied fixes: 1.
-
-- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
-
-Git: committed and pushed `repair-branch`
-
-Result: no remaining validation drift found.
-
 ## PR
 
 Ship a stdlib-only `coga.reminders` battery with shared date/window primitives,
@@ -333,17 +305,3 @@ deliberately deferred until the first ack-based admin adoption supplies its
 concrete period shape.
 
 Tests: `python -m pytest` — 1543 passed, 1 skipped; one pre-existing macOS GNU-`sed -i` fixture failure reproduces on `main`.
-
-## Dream Skill: validate-drift
-
-Generated: 2026-07-25T01:17:29+00:00
-Command: `coga validate --json --fix`
-Task: `ship-a-shared-recurring-reminder-engine-battery`
-
-Applied fixes: 1.
-
-- `x`: `missing-file` - created log.md (`coga/tasks/x/log.md`)
-
-Git: committed and pushed `repair-branch`
-
-Result: no remaining validation drift found.

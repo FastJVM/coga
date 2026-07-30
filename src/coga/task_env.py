@@ -6,7 +6,7 @@ import os
 import sys
 from pathlib import Path
 
-from coga.config import Config
+from coga.config import Config, ConfigError, find_repo_root
 from coga.paths import log_path
 from coga.tasks import BootstrapRef, TargetRef
 
@@ -68,26 +68,66 @@ def apply_task_env(env: dict[str, str], cfg: Config, ref: TargetRef) -> dict[str
     return updated
 
 
-def blackboard_from_env() -> Path | None:
+def discover_coga_os_root(cwd: Path | None) -> Path | None:
+    """The Coga OS root a recipe run from `cwd` operates on, or `None`.
+
+    `None` means "cannot tell" — there is no `coga.toml` to discover, as in a
+    unit test driving a recipe against a bare tmp dir. Callers hand the result
+    to `blackboard_from_env`, which fails closed rather than guessing that an
+    inherited blackboard belongs to the target.
+    """
+    try:
+        return find_repo_root(cwd)
+    except ConfigError:
+        return None
+
+
+def blackboard_from_env(coga_os_root: Path | None) -> Path | None:
     """The blackboard a recipe should append its report to, or `None`.
 
     `None` means "write the report to stdout" — the caller's existing
-    no-blackboard path. Beyond the variable simply being unset, a path outside
-    a `tasks/` tree is refused: a recipe can still inherit a stale value from
-    an outer process (a bootstrap session predating this contract, a test
-    harness), and there the inherited ticket path is a packaged resource rather
-    than a task blackboard. Defence in depth for the same class as
-    `build_task_env`'s bootstrap carve-out, on the reading side.
+    no-blackboard path. Beyond the variable simply being unset, two shapes are
+    refused, because a recipe can inherit a stale value from an outer process
+    (a bootstrap session predating this contract, a test harness):
+
+    - A path outside a `tasks/` tree: there the inherited ticket path is a
+      packaged resource rather than a task blackboard.
+    - A path outside the discovered root's `tasks/` tree: the report belongs to
+      the repo the recipe is *operating on*, and a blackboard in another
+      checkout is by definition not this run's. That is the shape a `pytest`
+      run inside `coga launch` produces — the recipe validates a fixture repo
+      under `/tmp` while the inherited blackboard points at the live outer
+      ticket, which satisfies the `tasks/` check on its own.
+    - A path whose target root cannot be discovered: without a root there is no
+      safe containment judgment, so the report falls back to stdout.
+
+    Defence in depth for the same class as `build_task_env`'s bootstrap
+    carve-out, on the reading side. The autouse env guard in
+    `tests/conftest.py` is the other half; neither is meant to be the only one.
     """
     value = os.environ.get("COGA_TASK_BLACKBOARD")
     if not value:
         return None
     path = Path(value)
-    if "tasks" not in path.resolve().parts[:-1]:
-        print(
-            "Warning: ignoring COGA_TASK_BLACKBOARD outside a tasks/ tree: "
-            f"{path} — writing the report to stdout instead.",
-            file=sys.stderr,
+    resolved = path.resolve()
+    if "tasks" not in resolved.parts[:-1]:
+        _refuse_blackboard(path, "outside a tasks/ tree")
+        return None
+    if coga_os_root is None:
+        _refuse_blackboard(
+            path, "because the target Coga root could not be discovered"
         )
         return None
+    tasks_root = (coga_os_root / "tasks").resolve()
+    if not resolved.is_relative_to(tasks_root):
+        _refuse_blackboard(path, f"outside {tasks_root}")
+        return None
     return path
+
+
+def _refuse_blackboard(path: Path, reason: str) -> None:
+    print(
+        f"Warning: ignoring COGA_TASK_BLACKBOARD {reason}: "
+        f"{path} — writing the report to stdout instead.",
+        file=sys.stderr,
+    )
