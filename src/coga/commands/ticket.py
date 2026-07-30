@@ -163,8 +163,16 @@ def _resolve_existing(ref: TaskRef) -> tuple[TaskRef, Ticket, bool]:
 
 
 def _authoring_ticket(ticket: Ticket) -> Ticket:
+    """Project a ticket into an authoring-only prompt without mutating it.
+
+    The real ticket's workflow and step remain on disk for the interviewer to
+    preserve. Removing ``step`` only from this ephemeral copy prevents prompt
+    composition from mixing the current task-execution skill into the
+    ``bootstrap/ticket`` authoring interview.
+    """
     fm = dict(ticket.frontmatter)
     fm["skills"] = [AUTHORING_SKILL]
+    fm.pop("step", None)
     return Ticket(frontmatter=fm, body=ticket.body)
 
 

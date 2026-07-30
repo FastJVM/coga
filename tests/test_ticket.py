@@ -460,6 +460,8 @@ def test_ticket_edits_blocked_task_without_unblocking(
         watchers=[],
         status="blocked",
     )
+    original_step = Ticket.read(ref["path"]).step
+    assert original_step is not None
     append_blocker(
         Path(ref["path"]),
         "agent:claude",
@@ -471,10 +473,14 @@ def test_ticket_edits_blocked_task_without_unblocking(
     result = CliRunner().invoke(app, ["ticket", "waiting-work"])
 
     assert result.exit_code == 0, result.output
-    assert Ticket.read(ref["path"]).status == "blocked"
+    authored = Ticket.read(ref["path"])
+    assert authored.status == "blocked"
+    assert authored.step == original_step
     assert len(prompts) == 1
     assert "Which retry ceiling should the ticket specify?" in prompts[0]
     assert "Resolve the open blocker first" not in prompts[0]
+    assert "Current step: execute" not in prompts[0]
+    assert "Skill: direct/body" not in prompts[0]
 
 
 def test_ticket_repairs_invalid_status_with_terminal_shape(

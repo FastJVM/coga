@@ -25,13 +25,13 @@ your filled ticket has to match. For a real example, browse the same tree:
 A ticket carries a workflow — the ordered steps the work moves through —
 everywhere except while it is a `draft`. A ticket with no workflow can't be
 activated: `coga mark active` refuses it, and `coga validate` errors on a
-workflow-less `active`/`in_progress`/`paused` ticket. Picking the workflow is
-part of this interview (step 3), and your default is to hand back a ticket
-with one. The one exception is deliberate **concept-capture**: when the human
-wants to stash an idea before its shape is settled, a workflow-less *draft* is
-a valid end state — it simply stays a draft until someone adds a workflow.
-Don't force a workflow onto an idea that isn't ready for one; just make the
-tradeoff explicit (it can't be activated yet).
+workflow-less `active`/`in_progress`/`blocked`/`paused` ticket. Picking the
+workflow is part of this interview (step 3), and your default is to hand back
+a ticket with one. The one exception is deliberate **concept-capture**: when
+the human wants to stash an idea before its shape is settled, a workflow-less
+*draft* is a valid end state — it simply stays a draft until someone adds a
+workflow. Don't force a workflow onto an idea that isn't ready for one; just
+make the tradeoff explicit (it can't be activated yet).
 
 Match this shape exactly. Don't invent fields the template doesn't define
 (see "YAML discipline" in the base prompt).
@@ -203,11 +203,15 @@ out-of-vocabulary `status:` value: that is malformed metadata, not a lifecycle
 transition. Confirm the intended valid status with the human and repair the
 whole validator-correlated lifecycle shape during this session, because final
 validation rejects malformed state after the interview: remove `step:` when
-repairing to terminal `done` or `canceled`; for any non-terminal replacement
-with a frozen workflow, preserve a valid current `step:` or confirm and repair
-it when missing or invalid. A repaired live status (`active`, `in_progress`,
-`blocked`, or `paused`) must also retain a workflow. Do not rewrite an
-otherwise-valid frozen workflow snapshot.
+repairing to terminal `done` or `canceled`. A repaired live status (`active`,
+`in_progress`, `blocked`, or `paused`) must carry both a **frozen workflow
+snapshot** and a valid current `step:` — never leave its workflow as a bare
+string or its step missing/invalid. If either is malformed, load the selected
+workflow definition, write its frozen `name` plus ordered `steps` (including
+each step's `skills`, `assignee`, and `requires` metadata when present), and
+set `step:` to the intended matching position; use `1 (<first-step-name>)`
+when there is no valid prior position and the human does not select another.
+Do not rewrite an otherwise-valid frozen workflow snapshot.
 
 ## Step 4 — Create missing contexts and skills
 
@@ -244,9 +248,13 @@ Edit the exact ticket path from the composed prompt. A new draft normally starts
 as `coga/tasks/<slug>.md`; convert it to directory form only when it needs
 attachments. YAML discipline (from the base prompt) applies:
 
-- Set `workflow:` to the workflow name you picked (e.g. `code/with-review`).
-  This is required — a ticket with no workflow can't be activated. Write it
-  as a bare string; the first `coga bump` freezes the snapshot.
+- For a draft, set `workflow:` to the workflow name you picked (e.g.
+  `code/with-review`). This is required — a ticket with no workflow can't be
+  activated. Write it as a bare string, and first-launch activation freezes
+  the snapshot and seeds its first step. An existing live ticket keeps its
+  frozen snapshot. If repairing malformed metadata to a live status — or
+  explicitly changing a live ticket's workflow — write the full frozen
+  snapshot and a valid `step:` as described in step 3.
 - Add `contexts:` as a YAML list (one item per line with `- `).
 - Do not add a context just because it is generally related. If in doubt, leave
   it out and write the one needed fact into `## Context`.
@@ -263,7 +271,7 @@ attachments. YAML discipline (from the base prompt) applies:
 - Fill the `## Description` and `## Context` body sections from the
   interview.
 
-Do not call `coga bump`. There's no workflow running yet.
+Do not call `coga bump`. Guided authoring never advances the target workflow.
 
 ## Step 6 — Run the evaluator review
 
