@@ -1,7 +1,7 @@
 ---
 slug: recurring/autoclose-merged
 title: Autoclose merged tickets
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
