@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -177,3 +177,66 @@ is the version worth keeping. Both gates go.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+pr: https://github.com/FastJVM/coga/pull/674
+branch: codex/always-accept-coga-ticket
+worktree: /tmp/coga-always-accept-coga-ticket
+
+## Implementation notes
+
+- Regression reproduced before the fix: the new blocked-ticket test exited 2
+  with `unknown status 'blocked'; refusing guided ticket editing`.
+- Removed the CLI status refusal and unconditional caution. Guided authoring
+  now accepts every lifecycle value while preserving valid status and step
+  state.
+- The authoring-only prompt projection omits both the launch-only blocker
+  preamble and current workflow-step execution layer. Blocker asks remain
+  visible as blackboard context without triggering an unblock flow.
+- The packaged authoring skill now repairs malformed status metadata as one
+  correlated lifecycle shape: terminal repairs clear `step:`, while live
+  repairs require a frozen workflow and valid step.
+- Updated the packaged CLI/ticket skill prose and matching live/packaged Coga
+  behavior contexts. No example fixture change was needed.
+
+## Peer review
+
+- Ran `codex review --base main` against the implementation and again against
+  the rebased review fixes.
+- Applied all five reported must-fix findings: isolate blocker resolution from
+  authoring, clear stale terminal steps during malformed-status repair,
+  suppress live execution-step skills, require frozen live workflow repairs,
+  and correct the CLI status-preservation contract.
+- Commits: `277b0c29` (`Always allow guided ticket editing`), `633d3fa4`
+  (`Peer review: preserve authoring lifecycle state`), and `62ebb89f`
+  (`Peer review: isolate guided authoring`).
+
+## Verification
+
+- Final post-rebase `python -m pytest` — 1571 passed, 1 skipped.
+- `env PYTHONPATH=/tmp/coga-always-accept-coga-ticket/src python -m coga.cli ticket --help`
+  — passed; help still says existing tickets may be edited at any status.
+- `env PYTHONPATH=/tmp/coga-always-accept-coga-ticket/src python -m coga.cli validate --task always-accept-coga-ticket --json`
+  — passed with one valid task and no issues.
+- `git diff --check` passed; live and packaged `coga/architecture` copies are
+  byte-identical.
+
+## Handoff
+
+- Final `git fetch origin main` + `git rebase FETCH_HEAD` reported the branch
+  up to date; it is zero commits behind and three commits ahead of fetched
+  `origin/main`.
+- Feature checkout is clean. Nothing was pushed and no PR was opened, as
+  required before the deterministic open-PR step.
+
+## PR
+
+`coga ticket <slug>` now opens guided authoring for every lifecycle value,
+including `blocked` and malformed statuses, without mechanical status
+commentary. Valid lifecycle state and blocker asks are preserved; the
+authoring-only prompt cannot inherit task-execution or unblock instructions;
+and the interview repairs malformed status/workflow/step metadata as one
+consistent shape. Regression coverage and shipped behavior documentation are
+updated together.
+
+Test plan: `python -m pytest` (1571 passed, 1 skipped); `coga validate --task always-accept-coga-ticket --json`; `git diff --check`.
