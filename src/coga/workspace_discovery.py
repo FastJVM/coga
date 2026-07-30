@@ -18,17 +18,25 @@ _REPO_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
 def discover_coga_repos(root: Path, *, strict: bool = False) -> list[Path]:
     """Return every ``coga/`` workspace at or below ``root``.
 
-    A workspace is identified by a directory named ``coga`` containing
-    ``coga.toml``. A host repo may itself be named ``coga``, so a same-named
-    directory without that file is still traversed. Directory segments whose
-    names start with ``_`` are explicit exclusions below the scan root.
+    Below the scan root a workspace is identified by a directory named ``coga``
+    containing ``coga.toml``. A host repo may itself be named ``coga``, so a
+    same-named directory without that file is still traversed. Directory
+    segments whose names start with ``_`` are explicit exclusions below the
+    scan root.
+
+    The scan root itself is recognized by its ``coga.toml`` alone, whatever its
+    basename. `find_repo_root()` resolves a workspace directly from a
+    ``coga.toml`` at any directory, so requiring the ``coga`` basename here
+    would leave such a workspace undiscoverable — `_live_checkout_claim()`
+    would then report the current workspace as missing and every `coga retire`
+    would skip its worktree and branch cleanup.
 
     ``strict`` makes an unreadable directory fail the scan instead of being
     silently omitted. Destructive callers use that mode so incomplete
     discovery preserves shared state; parent schedulers retain best-effort
     discovery and report configuration/dispatch failures per workspace.
     """
-    if root.name == "coga" and (root / "coga.toml").is_file():
+    if (root / "coga.toml").is_file():
         return [root]
 
     def _raise_walk_error(error: OSError) -> None:
