@@ -8,7 +8,7 @@ agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: docs/with-review
+workflow: code/with-review
 secrets: null
 script: null
 ---
@@ -106,24 +106,52 @@ already loads. Don't silently pick one; say which and why in the blackboard.
   framing. Ordering is arguably out of place there; README:11 "schedules the
   queue" is unexplained and could take a clause. Decide, don't reflexively edit.
 
+### Tests — cover discoverability, not the ordering logic
+
+Megalaunch is an important command and this ticket ships tests. Aim them
+correctly:
+
+**The ordering logic is already well covered — do not add more there.**
+`tests/test_service_order.py` has 9 focused tests including every edge case
+(`2fa-login` is not numbered, top-level numbering ignored, no-log-line sorts
+last, block anchoring, per-directory numbering, nested groups), plus
+`tests/test_megalaunch.py:1757` end-to-end. Duplicating that is waste.
+
+**What is untested is the thing that actually failed: discoverability.**
+Nothing asserts that any human- or agent-facing surface states the convention,
+which is why it could go missing without a red test. Add regression tests that
+would have caught this:
+
+- `coga megalaunch --help` output mentions the drain order and the numbered-task
+  convention. Assert on substance (oldest-first, `1-`/`2-`/`3-` sequencing), not
+  exact prose, so wording can be edited without breaking the test.
+- The packaged megalaunch skill `SKILL.md` exists and is non-empty — a template
+  completeness check, ideally generalized so every packaged recipe skill
+  directory must contain a `SKILL.md`. That would have caught the empty
+  directory too.
+- If a context ends up duplicated repo↔packaged, a test that the two copies
+  match, following whatever existing sync-test pattern the suite already uses.
+
+Prefer extending existing test modules over inventing new ones. Run
+`python -m pytest` and report the exact command in the PR.
+
 ### Scope boundary — read this before widening
 
-This is a **docs ticket with a narrow code allowance**. The permitted code
-change is the CLI help/docstring text on `coga megalaunch` (and `coga pick` if
-it needs the same line) so `--help` states the drain order and points at the
-numbering convention.
+This is a **documentation and discoverability ticket**. Permitted changes:
+markdown surfaces, the CLI help/docstring text on `coga megalaunch` (and `coga
+pick` if it needs the same line), the missing packaged skill, and the tests
+above.
 
-**Do not change ordering logic, `coga.service_order`, or any behavior.** The
-convention is correct as built; this ticket only makes it discoverable. If you
-conclude the convention itself is wrong, stop and raise it — that is a
-different ticket.
+**Do not change ordering logic, `coga.service_order`, or any runtime
+behavior.** The convention is correct as built; this ticket only makes it
+discoverable. If you conclude the convention itself is wrong, stop and raise it
+— that is a different ticket.
 
-`docs/with-review` was chosen deliberately over `code/with-review`, with the
-tradeoff understood: the peer-review step reviews prose, accuracy, and
-repo↔packaged sync rather than running `/code-review` and `python -m pytest`.
-That is the right bar for a markdown-dominant diff. It stops being the right
-bar if the code side grows past help-text strings — so if it does, escalate to
-the owner rather than continuing under a workflow that won't test the change.
+Workflow note: this started as `docs/with-review` and was moved to
+`code/with-review` deliberately, because the ticket now ships tests and
+`docs/with-review` runs none. The peer-review step must run `python -m pytest`
+and `/code-review` on the diff, and must *also* check repo↔packaged sync, which
+is the failure mode a code-focused review is most likely to skim past.
 
 ### Repo ↔ packaged sync
 
