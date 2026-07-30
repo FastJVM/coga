@@ -36,6 +36,37 @@ This keeps task-state edits (`ticket.md`, plus the repo-global `coga/log.md`)
 from mixing with source changes on a feature branch. If task-state
 changes need to be committed, commit them separately from the code PR.
 
+### Who retires the checkout
+
+You do not remove your own feature checkout. `coga retire` does, at the
+lifecycle event where the ticket still exists and its `## Dev` lines are still
+readable. Retire removes the recorded worktree *first* — a branch still checked
+out in a linked worktree cannot be deleted at all — and then prunes the branch.
+Leave `worktree:` recorded and accurate; that line is what retire acts on.
+
+Retire only removes a checkout Git identifies as a **linked worktree of the same
+repository** that still holds the recorded branch. It also refuses cleanup when
+another non-terminal ticket in any Coga workspace in the same Git checkout
+records the branch/worktree, while any PR for that head remains open, or when
+the branch has neither landed on the control branch nor retained the exact head
+of its recorded merged PR. Remote deletion verifies that exact head again and
+uses a force-with-lease, so a reused branch is never deleted on stale PR state.
+
+Before removal, retire checks tracked, untracked, **and ignored** files. This is
+stricter than Git's ordinary unforced removal, which silently deletes ignored
+files. These survive and are reported for manual disposal:
+
+- an independent fallback clone (the `/tmp` sandbox path above) — it is a
+  separate repository, not a linked worktree;
+- the checkout currently running `coga retire`, a stale path now holding
+  another branch, a checkout shared with another live ticket (including one in
+  a sibling Coga workspace), or a branch still used by an open PR;
+- a worktree with tracked, untracked, or ignored local state (including caches
+  and machine-local config), or a locked one;
+- a recorded path that is already gone. Retire reports the stale registration
+  rather than pruning it; `coga run branch-sweep` prunes repo-wide and reports
+  any branch still pinned by a live worktree as `skipped-worktree-pinned`.
+
 ## The `## Dev` blackboard section
 
 Every code-style ticket gets a `## Dev` section near the top of its

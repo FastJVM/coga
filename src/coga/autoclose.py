@@ -134,9 +134,72 @@ def pr_state(url: str) -> str:
 
     Returns the raw state string ("MERGED", "CLOSED", "OPEN").
     """
+    data = _pr_view(url, "state")
+    return str(data.get("state", ""))
+
+
+def pr_head(url: str) -> tuple[str, str]:
+    """Return the PR's ``(head branch, head commit)`` from GitHub.
+
+    Cleanup callers use the exact head commit to prove a branch has not been
+    reused or advanced since the recorded PR merged. Missing fields are an
+    error: treating an incomplete response as authorization would make a stale
+    ``pr:`` line destructive.
+    """
+    data = _pr_view(url, "headRefName,headRefOid")
+    branch = str(data.get("headRefName", "")).strip()
+    oid = str(data.get("headRefOid", "")).strip()
+    if not branch or not oid:
+        raise GhError(
+            f"`gh pr view {url}` returned no complete headRefName/headRefOid"
+        )
+    return branch, oid
+
+
+def prs_for_head(branch: str, state: str) -> list[dict[str, object]]:
+    """Return GitHub PRs for one head branch and state.
+
+    Branch retirement and the repository-wide branch sweep share this lookup:
+    neither may dispose of a branch while another PR still has that head.
+    """
     try:
         result = subprocess.run(
-            ["gh", "pr", "view", url, "--json", "state"],
+            [
+                "gh",
+                "pr",
+                "list",
+                "--head",
+                branch,
+                "--state",
+                state,
+                "--json",
+                "number,headRefOid",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise GhError("`gh` not found on PATH") from exc
+    if result.returncode != 0:
+        raise GhError(
+            f"`gh pr list --head {branch} --state {state}` failed "
+            f"(exit {result.returncode}): {result.stderr.strip()}"
+        )
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise GhError(f"`gh pr list --head {branch}` returned non-JSON: {exc}") from exc
+    if not isinstance(data, list):
+        raise GhError(f"`gh pr list --head {branch}` returned unexpected JSON")
+    return [item for item in data if isinstance(item, dict)]
+
+
+def _pr_view(url: str, fields: str) -> dict[str, object]:
+    """Query selected JSON fields for one PR, normalizing CLI failures."""
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", url, "--json", fields],
             capture_output=True,
             text=True,
             check=False,
@@ -152,7 +215,9 @@ def pr_state(url: str) -> str:
         data = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise GhError(f"`gh pr view {url}` returned non-JSON: {exc}") from exc
-    return str(data.get("state", ""))
+    if not isinstance(data, dict):
+        raise GhError(f"`gh pr view {url}` returned unexpected JSON")
+    return data
 
 
 def _on_final_step(ticket: Ticket) -> bool:
@@ -286,5 +351,8 @@ __all__ = [
     "parse_pr_number",
     "parse_pr_url",
     "parse_branch_name",
+    "parse_worktree_path",
+    "pr_head",
     "pr_state",
+    "prs_for_head",
 ]

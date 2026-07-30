@@ -33,14 +33,13 @@ than duplicated.
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from coga.autoclose import GhError, parse_branch_name
+from coga.autoclose import GhError, parse_branch_name, prs_for_head
 from coga.branchcleanup import (
     BranchCleanupResult,
     delete_local_branch,
@@ -154,6 +153,7 @@ def sweep_branches(
                 echo,
                 cleanup,
                 landed_ref=cfg.git_control_branch,
+                expected_tip=local_tip,
             )
 
         # During rebase/bisect Git can report a worktree as detached while
@@ -192,9 +192,10 @@ def branch_merged_without_open_pr(branch: str, current_tip: str) -> bool:
     Raises `GhError` if `gh` is missing, unauthed, or errors.
     """
     merged = any(
-        item.get("headRefOid") == current_tip for item in _gh_prs(branch, "merged")
+        item.get("headRefOid") == current_tip
+        for item in prs_for_head(branch, "merged")
     )
-    return merged and not _gh_prs(branch, "open")
+    return merged and not prs_for_head(branch, "open")
 
 
 def run_branch_sweep_recipe(cfg: Config, argv: list[str]) -> int:
@@ -235,40 +236,6 @@ def _merged_for_tip(
     if key not in cache:
         cache[key] = branch_merged_without_open_pr(branch, tip)
     return cache[key]
-
-
-def _gh_prs(branch: str, state: str) -> list[dict[str, object]]:
-    try:
-        result = subprocess.run(
-            [
-                "gh",
-                "pr",
-                "list",
-                "--head",
-                branch,
-                "--state",
-                state,
-                "--json",
-                "number,headRefOid",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise GhError("`gh` not found on PATH") from exc
-    if result.returncode != 0:
-        raise GhError(
-            f"`gh pr list --head {branch} --state {state}` failed "
-            f"(exit {result.returncode}): {result.stderr.strip()}"
-        )
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise GhError(f"`gh pr list --head {branch}` returned non-JSON: {exc}") from exc
-    if not isinstance(data, list):
-        raise GhError(f"`gh pr list --head {branch}` returned unexpected JSON")
-    return [item for item in data if isinstance(item, dict)]
 
 
 def _live_ticket_branches(cfg: Config) -> set[str]:

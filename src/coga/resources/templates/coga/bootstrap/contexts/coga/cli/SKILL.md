@@ -466,21 +466,31 @@ checkout.
 
 ## coga retire \<slug\> [--agent <type>] [--no-launch]
 
-Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
-invokes the `retro/done-ticket` skill against the named ticket. The retro
-skill opens the PR that records the `## Retro` marker, edits the knowledge
-base if warranted, and deletes the source task directory in the same PR.
-The retire task is scaffolded straight to `active`; `coga retire` launches
-it unless `--no-launch` is passed.
+Wrap up a `done` ticket. First it disposes of the ticket's feature checkout and
+branch, read from `## Dev` while the ticket still exists: the recorded linked
+worktree is removed only after proving it is a same-repository linked worktree
+still holding the recorded branch, no live ticket in any sibling Coga workspace
+shares it, no PR for that head remains open, and the branch is landed or still
+equals the recorded merged PR head. Tracked, untracked, and ignored local files
+all preserve it, as do locked, missing, independent-clone, and currently-running
+checkouts. That removal unpins the branch; local cleanup then runs before a
+merged remote deletion whose exact head is protected by force-with-lease.
+Finally, retire scaffolds a one-shot `retire-<slug>` task whose body invokes the
+`retro/done-ticket` skill against the named ticket. The retro
+skill opens the PR that records the `## Retro` marker, edits the knowledge base
+if warranted, and deletes the source task directory in the same PR. The retire
+task is scaffolded straight to `active`; `coga retire` launches it unless
+`--no-launch` is passed.
 
 - `coga retire <slug>` — scaffold and launch an agent retire task.
 - `coga retire <slug> --no-launch` — scaffold the retire task (already
   `active`) and print the explicit `coga launch <slug>` command.
 
 Refuses if the target task is not `status: done`. Use `coga delete` for an
-abandoned ticket where retro has nothing to extract. Branch hygiene (pruning
-the merged feature branch, sweeping stale branches) belongs in a Dream
-worker, not here.
+abandoned ticket where retro has nothing to extract. Checkout hygiene is
+best-effort: a cleanup failure is reported and never aborts the retire run.
+Sweeping branches with no live ticket remains the separate `branch-sweep`
+recipe's job.
 
 ## coga skill
 

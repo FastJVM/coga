@@ -280,6 +280,9 @@ def test_retire_prunes_merged_branch_before_launch(
     self-skips without a merged-PR signal.
     """
     monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head", lambda _branch, _state: []
+    )
     _git(repo, "init", "-b", "main", ".")
     _git(repo, "config", "user.email", "t@example.com")
     _git(repo, "config", "user.name", "Tester")
@@ -342,6 +345,310 @@ def test_retire_prunes_merged_branch_before_launch(
             capture_output=True,
         ).returncode
         != 0
+    )
+
+
+def test_retire_removes_linked_worktree_then_prunes_its_branch(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The worktree goes first, which is what lets the pinned branch be deleted.
+
+    A branch still checked out in a linked worktree is undeletable, so before
+    this retire step the branch survived every sweep.
+    """
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head", lambda _branch, _state: []
+    )
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    feature = tmp_path / "feature"
+    _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
+    (feature / "work.txt").write_text("work")
+    _git(feature, "add", "work.txt")
+    _git(feature, "commit", "-m", "work")
+    _git(repo, "merge", "--ff-only", "fix-retry-branch")
+
+    slug = "fix-retry-logic"
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        f"""
+        ---
+        slug: {slug}
+        title: Fix retry logic
+        status: done
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: fix-retry-branch
+        worktree: {feature}
+        pr: https://github.com/owner/repo/pull/9
+        """,
+    )
+    (task_dir / "log.md").write_text("")
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert f"Worktree cleanup: removed linked worktree '{feature}'." in result.output
+    assert "Branch cleanup: deleted local 'fix-retry-branch'." in result.output
+    assert not feature.exists()
+    assert (
+        subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--verify", "--quiet",
+             "refs/heads/fix-retry-branch"],
+            capture_output=True,
+        ).returncode
+        != 0
+    )
+
+
+def test_retire_leaves_dirty_worktree_in_place(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    feature = tmp_path / "feature"
+    _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
+    (feature / "uncommitted.txt").write_text("work in progress")
+
+    slug = "fix-retry-logic"
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        f"""
+        ---
+        slug: {slug}
+        title: Fix retry logic
+        status: done
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: fix-retry-branch
+        worktree: {feature}
+        """,
+    )
+    (task_dir / "log.md").write_text("")
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert "contains tracked, untracked, or ignored local state" in result.output
+    assert (feature / "uncommitted.txt").is_file()
+
+
+def test_retire_preserves_checkout_claimed_by_another_live_ticket(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    feature = tmp_path / "feature"
+    _git(repo, "worktree", "add", str(feature), "-b", "shared-branch")
+
+    source_slug = "finished-half"
+    source_dir = repo / "tasks" / source_slug
+    source_dir.mkdir(parents=True)
+    _write(
+        source_dir / "ticket.md",
+        f"""
+        ---
+        slug: {source_slug}
+        title: Finished half
+        status: done
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: shared-branch
+        worktree: {feature}
+        """,
+    )
+    live_dir = repo / "tasks" / "still-active"
+    live_dir.mkdir(parents=True)
+    _write(
+        live_dir / "ticket.md",
+        f"""
+        ---
+        slug: still-active
+        title: Still active
+        status: in_progress
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Still using the shared checkout.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: shared-branch
+        worktree: {feature}
+        """,
+    )
+
+    result = CliRunner().invoke(app, ["retire", source_slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert (
+        "live ticket 'still-active' also records branch 'shared-branch'"
+        in result.output
+    )
+    assert feature.is_dir()
+    assert (
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                "refs/heads/shared-branch",
+            ],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
+def test_retire_preserves_checkout_claimed_by_sibling_coga_workspace(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from coga.commands import retire as retire_cmd
+    from coga.config import load_config
+    from coga.tasks import resolve_task
+
+    root = tmp_path / "monorepo"
+    root.mkdir()
+    _git(root, "init", "-b", "main", ".")
+    _git(root, "config", "user.email", "t@example.com")
+    _git(root, "config", "user.name", "Tester")
+
+    current = root / "alpha" / "coga"
+    sibling = root / "beta" / "coga"
+    for workspace in (current, sibling):
+        _write(
+            workspace / "coga.toml",
+            'version = 1\ndefault_status = "draft"\n',
+        )
+        _write(
+            workspace / "coga.local.toml",
+            'user = "marc"\n[slack]\nenabled = false\n',
+        )
+
+    feature = tmp_path / "shared-feature"
+    _write(
+        current / "tasks" / "finished" / "ticket.md",
+        f"""
+        ---
+        slug: finished
+        title: Finished
+        status: done
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: shared-branch
+        worktree: {feature}
+        """,
+    )
+    _write(
+        sibling / "tasks" / "still-active" / "ticket.md",
+        f"""
+        ---
+        slug: still-active
+        title: Still active
+        status: in_progress
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Still using the repository-global checkout.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: shared-branch
+        worktree: {feature}
+        """,
+    )
+    (root / "seed.txt").write_text("seed")
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "seed monorepo workspaces")
+    _git(root, "worktree", "add", str(feature), "-b", "shared-branch")
+
+    cfg = load_config(current)
+    retire_cmd._cleanup_checkout(cfg, resolve_task(cfg, "finished"))
+
+    output = capsys.readouterr().out
+    assert "still-active" in output
+    assert "also records branch 'shared-branch'" in output
+    assert feature.is_dir()
+    assert (
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                "refs/heads/shared-branch",
+            ],
+            capture_output=True,
+        ).returncode
+        == 0
     )
 
 

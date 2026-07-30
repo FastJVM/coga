@@ -403,7 +403,7 @@ def test_reused_branch_requires_current_tip(repo: Path, monkeypatch) -> None:
             return [{"number": 7, "headRefOid": old_tip}]
         return []
 
-    monkeypatch.setattr(bs, "_gh_prs", fake_prs)
+    monkeypatch.setattr(bs, "prs_for_head", fake_prs)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -456,7 +456,7 @@ def test_branch_merged_without_open_pr(monkeypatch) -> None:
             return [{"number": 7, "headRefOid": "abc"}]
         return []
 
-    monkeypatch.setattr(bs, "_gh_prs", fake_prs)
+    monkeypatch.setattr(bs, "prs_for_head", fake_prs)
     assert bs.branch_merged_without_open_pr("feat", "abc") is True
     assert ("feat", "merged") in calls
     assert ("feat", "open") in calls
@@ -466,7 +466,7 @@ def test_branch_merged_without_open_pr_false_when_reopened(monkeypatch) -> None:
     def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
         return [{"number": 7, "headRefOid": "abc"}] if state in ("merged", "open") else []
 
-    monkeypatch.setattr(bs, "_gh_prs", fake_prs)
+    monkeypatch.setattr(bs, "prs_for_head", fake_prs)
     assert bs.branch_merged_without_open_pr("feat", "abc") is False
 
 
@@ -476,5 +476,5 @@ def test_branch_merged_without_open_pr_false_when_tip_differs(monkeypatch) -> No
             return [{"number": 7, "headRefOid": "old"}]
         return []
 
-    monkeypatch.setattr(bs, "_gh_prs", fake_prs)
+    monkeypatch.setattr(bs, "prs_for_head", fake_prs)
     assert bs.branch_merged_without_open_pr("feat", "current") is False
