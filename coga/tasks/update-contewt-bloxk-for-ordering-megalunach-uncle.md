@@ -18,59 +18,93 @@ script: null
 `coga megalaunch` has real ordering capability — tasks drain oldest-first by
 first `coga/log.md` line, and a sub-directory whose tasks carry `1-`/`2-`/`3-`
 prefixes runs as one contiguous block in number order, anchored where its
-oldest task would have run. This shipped with the tool, but the docs never
-caught up: the behavior is written down only in `docs/reference.md` and in
-Python docstrings. Neither surface is what a person or agent about to run
-`coga megalaunch` actually reads.
+oldest task would have run. The numbering convention is effectively invisible
+to whoever is about to run a megalaunch: there is no flag to stumble onto,
+because it is a naming convention. They serialize by hand, or assume ordering
+isn't supported at all.
 
-The consequence is that the numbering convention is effectively invisible.
-Someone sequencing a multi-step pipeline has no way to discover that naming
-tasks `1-schema`, `2-migrate`, `3-cutover` is how you express order — there is
-no flag to stumble onto, because it is a naming convention. They either
-serialize by hand or assume ordering isn't supported.
+The surprise is that this is **not** a case of nobody writing it down. A full,
+accurate writeup exists in the *packaged* `bootstrap/contexts/coga/cli`
+context. It just isn't reachable from the surfaces a launcher reads — and in
+this repo specifically it isn't reachable at all, because there is no repo-side
+copy of that context. Bootstrapped repos get the drain-order rules; coga's own
+repo does not.
 
-Close the gap at the surfaces that get read: the operator-facing coga contexts,
-the megalaunch prompt/skill layer, and the CLI help text itself.
+So the work is two-part: decide how the existing writeup reaches this repo's
+launchers, and close the surfaces that are silent regardless — `coga megalaunch
+--help`, the queued-agent prompt directive, and the missing megalaunch skill.
 
 ## Context
 
-### What the behavior actually is (verified, don't re-derive)
+### What the behavior actually is (verified — do not re-derive)
 
-Source of truth is `coga.service_order`. The two authoritative prose
-statements already exist and are accurate — reuse their wording rather than
-inventing new phrasing:
+Source of truth is `src/coga/service_order.py`. Reuse the existing accurate
+prose rather than inventing new phrasing:
 
-- `src/coga/megalaunch.py:38-42` (module docstring): "Tasks are serviced
-  oldest-first (first `coga/log.md` line per ref — committed content, so the
-  order survives clones where file mtimes don't), except that a sub-directory
-  holding `1-`/`2-`/`3-` prefixed tasks runs as one contiguous block in number
-  order, anchored where its oldest task would have run."
-- `docs/reference.md:122-128` — the fullest existing writeup. Adds the edge
-  cases: unnumbered siblings follow the numbered ones; a sub-tree with no
-  numbered task (or a top-level `1-foo`) is unaffected; `--pick` lists in the
-  same order; `coga status --order-by created` matches; `coga validate` warns
-  when two tasks in one directory claim the same position.
-- `src/coga/megalaunch.py:723-727` — picker docstring, confirms the picker
-  lists in drain order.
+- **Rule 1 — age.** Oldest-first by the earliest `coga/log.md` line per ref
+  (`first_activity_map`, `src/coga/logfile.py:99-129`). Committed content, so
+  order survives clones where mtimes collapse. Tasks with no parseable log line
+  sort **last** (`_NO_TIMESTAMP`, `service_order.py:44`), then by `id_slug`.
+- **Rule 2 — numeric prefix on the slug leaf.** `_NUMBERED =
+  re.compile(r"^(\d+)-")` (`service_order.py:37-40`), deliberately strict:
+  `02-` == `2-`, `10-` sorts after `9-`, and `2fa-login` / `schema-1` are
+  **not** numbered.
+- A sub-directory **opts in** by having at least one `<n>-` task; it then runs
+  as one contiguous block **anchored at its oldest member**, so it never jumps
+  the queue. Inside the block: numbered by number, then unnumbered siblings by
+  age. Top-level `1-foo` is ignored — `tasks/` itself is not a pipeline.
+- **`--pick` does not order anything.** The selection is a *set filter* applied
+  over the already-service-ordered queue (`megalaunch.py:213-218`), and the
+  saved `.coga/megalaunch-selection.json` is a membership list, not a queue.
+  Pick order is discarded. This is a genuine gotcha and worth stating.
+- **No parallelism.** Strictly serial interactive PTY launches; requires a TTY.
+- Dependency drain (`megalaunch.py:330-495`) is **separate from numbering** and
+  text-based: a blocker `--reason` naming an exact path-qualified slug is
+  retried when that task finishes. Don't conflate the two mechanisms.
+- `coga validate` warns `duplicate-task-number` when two tasks in one directory
+  claim the same position (`src/coga/validate.py:809-848`). Gaps (`1-`, `2-`,
+  `5-`) are deliberately fine.
+
+Existing prose to reuse: `docs/reference.md:122-128`,
+`src/coga/megalaunch.py:38-42`, `service_order.py:1-27`, and — the fullest
+version — packaged `bootstrap/contexts/coga/cli/SKILL.md:652-678`.
+Tests that pin the behavior: `tests/test_service_order.py` (9 tests),
+`tests/test_megalaunch.py:1709,1757`, `tests/test_validate.py:1619-1662`.
 
 ### Where the gap is (verified by grep, 2026-07-30)
 
-- `coga/contexts/coga/usage/SKILL.md` — mentions megalaunch once (line 56),
-  only in a list of interview-capable commands. **No ordering, no numbering.**
-  This is the highest-value fix: it is the operator-facing usage context.
-- `coga/contexts/coga/architecture/SKILL.md` — megalaunch at lines 350, 431-432,
-  578 (blocked re-listing, prompt composition, core-command status). **No
-  ordering, no numbering.**
+**The root cause — a packaged-only context.**
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md:652-678`
+has a dedicated "**Drain order.**" section covering the whole rule set. There
+is **no `coga/contexts/coga/cli/` directory in this repo**, so it is the one
+shipped context with no repo-side copy. Bootstrapped repos load it; coga's own
+agents get only the one-line pointer at
+`coga/contexts/coga/codebase/SKILL.md:35-36` ("the drain order (age plus
+numbered sub-directories) in `service_order.py`"), and `codebase` is itself
+repo-only and never ships. **Decide how to resolve this** — add the repo-side
+`cli` context copy, or lift the drain-order facts into a context this repo
+already loads. Don't silently pick one; say which and why in the blackboard.
+
+**Surfaces that are silent everywhere:**
+
 - `coga megalaunch --help` — documents `DIR`, `--pick`, `--relaunch`,
-  `--max-tasks`, `--agent`. **Says nothing about drain order.** A launcher
-  reading `--help` cannot learn the convention exists.
-- `src/coga/resources/prompt-megalaunch.md` (32 lines) — zero hits for
-  order/numbered.
-- `src/coga/resources/templates/coga/bootstrap/skills/coga/megalaunch/run/` —
-  zero hits for order/numbered.
-- `README.md:11,57` and `AGENTS.md`/`CLAUDE.md:19` mention megalaunch but in
-  scheduling/microkernel framing; ordering is out of place there. Probably
-  leave alone — decide, don't reflexively edit.
+  `--max-tasks`, `--agent` and **says nothing about drain order**. Highest-value
+  fix: it is where a launcher actually looks.
+- `src/coga/resources/prompt-megalaunch.md` (32 lines) — the directive injected
+  into every queued session. Zero mentions of ordering. Agents running *under*
+  megalaunch are never told the convention exists.
+- `src/coga/resources/templates/coga/bootstrap/skills/coga/megalaunch/` —
+  contains **only** a stale untracked `run/__pycache__/*.pyc` and **no
+  `SKILL.md`**, while every sibling recipe skill (`autoclose/sweep`,
+  `blockers/remind`, `branch-sweep/sweep`) has one. Also delete the stray
+  `.pyc`.
+- `coga/contexts/coga/usage/SKILL.md:56` — megalaunch mentioned once, about
+  usage capture. No ordering.
+- `coga/contexts/coga/architecture/SKILL.md:350,431-432,578` — documents the
+  dependency drain and prompt composition; zero hits for numbering.
+- `README.md:11,57` and `AGENTS.md`/`CLAUDE.md:19` — scheduling/microkernel
+  framing. Ordering is arguably out of place there; README:11 "schedules the
+  queue" is unexplained and could take a clause. Decide, don't reflexively edit.
 
 ### Scope boundary — read this before widening
 
@@ -99,12 +133,27 @@ Any edit to a shipped context or skill must land in **both**, or the difference
 must be intentional and documented. The peer-review step of `docs/with-review`
 checks exactly this — don't make it find a missed copy.
 
+Current drift, already surveyed (`diff -q` per context):
+
+- **Byte-identical both sides:** `architecture`, `important`, `patterns`,
+  `period-task`, `principles`, `sync`. Edit these in both places.
+- **Repo-only, never packaged:** `codebase`, `current-direction`,
+  `extension-model`, `project-stage`, `recurring`, `roadmap`, `secrets`,
+  `usage`. Editing these does *not* need a packaged counterpart.
+- **Packaged-only, no repo copy:** `cli`. This is the asymmetry the ticket
+  turns on — see the root-cause note above.
+
+Existing drift is out of scope to fix wholesale. Touch only what the ordering
+docs require.
+
 ### Done looks like
 
-Someone who has never used megalaunch can learn, from `coga megalaunch --help`
-and the coga usage context alone, that (a) tasks drain oldest-first, (b)
-numbering a sub-directory's tasks `1-`/`2-`/`3-` sequences them, and (c) it is
-a naming convention, not a flag.
+Someone who has never used megalaunch can learn, without reading source, that
+(a) tasks drain oldest-first, (b) numbering a sub-directory's tasks
+`1-`/`2-`/`3-` sequences them, and (c) it is a naming convention, not a flag —
+reaching that from `coga megalaunch --help` plus a context this repo actually
+loads. The packaged megalaunch skill exists. The `cli`-context asymmetry is
+resolved one way or the other, with the choice recorded.
 
 <!-- coga:blackboard -->
 
