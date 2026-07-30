@@ -118,10 +118,7 @@ Run the guided ticket-authoring interview (`bootstrap/ticket`).
 - `coga ticket` — ask for a title, create a draft, and fill it.
 - `coga ticket "Add retry to webhook handler"` — create that draft, then
   launch the authoring skill against it.
-- `coga ticket add-retry` — edit an existing ticket at any status. Editing
-  leaves the status unchanged; for an `in_progress`, `done`, or `canceled`
-  ticket it prints a heads-up first (revising one in flight or already closed
-  is unusual) but does not refuse.
+- `coga ticket add-retry` — edit an existing ticket at any status.
 
 The guided authoring flow chooses workflow/context/assignee with the human,
 edits the ticket, and leaves status unchanged. After the session it

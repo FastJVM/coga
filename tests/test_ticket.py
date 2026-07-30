@@ -425,7 +425,7 @@ def test_ticket_edits_in_progress_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cfg = load_config(repo)
-    create_task(
+    ref = create_task(
         cfg=cfg,
         title="Running work",
         workflow_name="direct/body",
@@ -440,9 +440,32 @@ def test_ticket_edits_in_progress_task(
 
     result = CliRunner().invoke(app, ["ticket", "running-work"])
     assert result.exit_code == 0, result.output
-    # in_progress no longer refused — the editing session launches, with a
-    # heads-up that the ticket is in flight.
-    assert "in_progress" in (result.output + (result.stderr or ""))
+    assert Ticket.read(ref["path"]).status == "in_progress"
+    assert len(prompts) == 1
+
+
+def test_ticket_edits_blocked_task_without_unblocking(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Waiting work",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="blocked",
+    )
+    prompts: list[str] = []
+    _allow_ticket_launch(monkeypatch, prompts)
+
+    result = CliRunner().invoke(app, ["ticket", "waiting-work"])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(ref["path"]).status == "blocked"
     assert len(prompts) == 1
 
 
@@ -467,8 +490,6 @@ def test_ticket_can_edit_canceled_task_without_reopening(
     result = CliRunner().invoke(app, ["ticket", "declined-work"])
 
     assert result.exit_code == 0, result.output
-    combined = result.output + (result.stderr or "")
-    assert "already canceled" in combined
     assert Ticket.read(ref["path"]).status == "canceled"
     assert len(prompts) == 1
 
