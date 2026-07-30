@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -192,3 +192,75 @@ owner-assigned final step.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+pr: https://github.com/FastJVM/coga/pull/675
+branch: codex/final-bump-done
+worktree: /tmp/coga-final-bump-done
+
+## Implement
+
+- Final-step forward bumps will bypass `advance_step` and call the shared
+  `mark_done` library path, preserving the existing `requires:` gate and
+  emitting the supervisor done marker once from the bump command.
+- Add `--force` to `coga bump`; this keeps stranded-product-code remediation
+  available without making the final-step caller switch back to a second verb.
+- Owner-assigned final review gates remain advisory by design. The base prompt
+  and all four packaged review workflows will explicitly prohibit both
+  `coga bump` and `coga mark done` without human approval.
+- Regression tests first reproduced the final-step error. The implementation
+  now routes terminal forward bumps through `mark_done`, always uses the done
+  notification/digest path, exposes `bump --force`, and threads a final
+  `requires:` gate's branch-publication flag into the done-state sync.
+- Added an autoclose race test where a manual final bump lands during the PR
+  lookup; the sweep's existing second read observes `done`, so only one
+  terminal log entry is written.
+
+## Verification
+
+- `python -m pytest`: 1573 passed, 1 skipped.
+- `coga validate --json --task bump-can-mark-done-too`: 1 ok, no issues.
+- Seeded `example/` `coga validate --json`: 2 ok, no issues.
+- `python -m coga.cli bump --help`: terminal completion and `--force` are
+  present in the rendered CLI help.
+- `git diff --check`: clean; stale old-rule wording search returned no matches.
+
+## Handoff
+
+- Implementation commit: `bebcbe87ab658e22ffe39b8087b874e014a7df74` (`Let bump finish final
+  workflow steps`).
+- Peer-review commit: `58f08de65209fbdd826b6e4a124da45d70995c4a`
+  (`peer-review: fix terminal bump workflow template`).
+- `git fetch origin main && git rebase FETCH_HEAD`: branch is current (0
+  behind, 2 ahead); both commits were rebased cleanly.
+- Feature checkout is clean. No push or PR has been performed.
+
+## Peer review
+
+- `codex review --base main` completed against the recorded feature branch.
+  Core terminal-state, notification, sync, supervisor, and race-regression
+  paths passed review; the full suite reported 1573 passed, 1 skipped.
+- One P2 contract miss was found: the live and packaged starter workflow
+  templates still said `coga bump` stops at the final step. Both copies now
+  teach the terminal bump behavior and are byte-identical.
+- Post-fix template/packaging tests passed (117 passed, 1 skipped). After the
+  required fresh rebase, the full suite passed again (1573 passed, 1 skipped),
+  scoped and seeded-example validation were clean, CLI help was correct, and
+  stale old-rule wording was absent.
+
+## PR
+
+Make `coga bump` the single workflow-step completion verb: a forward bump on
+the final step now delegates to the shared `mark_done` finalizer, preserving
+done-state audit, notification, digest, sync, and supervisor behavior. Preserve
+the workflow-less error, completion gates, feature-branch publication, and the
+stranded-product-code guard with a matching `bump --force` escape hatch.
+
+Update the base prompt, CLI/user docs, live and packaged contexts, starter
+templates, and all four owner-controlled review workflows to match the new
+contract while keeping owner gates advisory. Add regression coverage for final
+completion, notification shape, required artifacts, branch publication,
+stranded code, supervisor chaining, and autoclose overlap.
+
+Test plan: `python -m pytest` (1573 passed, 1 skipped); scoped task validation
+and seeded `example/` validation both report no issues.
