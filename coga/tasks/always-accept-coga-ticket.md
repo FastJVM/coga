@@ -1,7 +1,7 @@
 ---
 slug: always-accept-coga-ticket
 title: always accept coga ticket
-status: draft
+status: active
 owner: nick
 human: nick
 agent: claude
@@ -9,8 +9,26 @@ assignee: claude
 contexts:
 - dev/code
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
+step: 1 (implement)
 ---
 
 ## Description
