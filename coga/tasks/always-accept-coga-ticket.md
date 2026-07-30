@@ -1,7 +1,7 @@
 ---
 slug: always-accept-coga-ticket
 title: always accept coga ticket
-status: active
+status: in_progress
 owner: nick
 human: nick
 agent: claude
