@@ -89,6 +89,15 @@ def test_bootstrap_ticket_cleanup_preserves_non_draft_blackboards() -> None:
     assert "remove only the authoring\n   sections you used" in text
 
 
+def test_bootstrap_ticket_repairs_invalid_status_lifecycle_shape() -> None:
+    text = BOOTSTRAP_TICKET_SKILL.read_text()
+
+    assert "whole validator-correlated lifecycle shape" in text
+    assert "remove `step:` when\nrepairing to terminal `done` or `canceled`" in text
+    assert "preserve a valid current `step:` or confirm and repair" in text
+    assert "must also retain a workflow" in text
+
+
 def test_bootstrap_ticket_skill_authors_agent_tasks_only() -> None:
     text = BOOTSTRAP_TICKET_SKILL.read_text()
 

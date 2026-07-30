@@ -841,6 +841,7 @@ def spawn_agent_session(
     commit_log: bool = False,
     secrets_are_scoped: bool = True,
     stateless_identity: tuple[str, str] | None = None,
+    include_blocker_preamble: bool = True,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -856,6 +857,9 @@ def spawn_agent_session(
     `stateless_identity` lets an authoring surface compose against a real task
     while recording the agent interaction under its bootstrap identity and
     title, with no workflow step.
+    `include_blocker_preamble` is disabled only for guided authoring: the
+    resolve-or-re-block directive belongs to task execution, while an authoring
+    session must leave a blocked ticket and its open asks intact.
     The launch supervisor loop and step chaining deliberately stay outside.
 
     `commit_log` immediately commits the `log.md` launch append (via
@@ -886,7 +890,15 @@ def spawn_agent_session(
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 
     typer.echo(f"{label}: composing prompt")
-    prompt = compose_prompt(cfg, ref, ticket)
+    if include_blocker_preamble:
+        prompt = compose_prompt(cfg, ref, ticket)
+    else:
+        prompt = compose_prompt(
+            cfg,
+            ref,
+            ticket,
+            include_blocker_preamble=False,
+        )
     if prompt_suffix:
         prompt = f"{prompt}{prompt_suffix}"
     prompt_file = write_prompt_file(prompt, ref)

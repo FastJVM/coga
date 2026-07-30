@@ -441,6 +441,10 @@ resolution: its composed resolve-or-re-block preamble may discuss those
 already-open asks with the picker, then unblock and continue or terminally
 re-block. That does not turn the queue's TTY into general attendance; any new
 unavailable input still takes the terminal block path.
+That preamble is task-execution context, not generic blocker context. Guided
+`coga ticket` authoring explicitly omits it while retaining the blocker text in
+the ordinary blackboard layer, so revising a blocked ticket neither resolves
+its asks nor changes it to `active`.
 This is ephemeral launch context, not ticket state or a new autonomy
 frontmatter field.
 
@@ -540,7 +544,8 @@ launch-only and is *not* pushed into the shared unit. `coga ticket` and `coga
 project` authoring route through the same helper, expressing their differences
 as explicit parameters, never as forked code: `secrets` (none for authoring —
 least privilege), a greet-first `kickoff` token (`coga ticket` opts in;
-`coga chat` / general launch stay silent), and `discussion`.
+`coga chat` / general launch stay silent), `discussion`, and suppression of
+the launch-only blocker-resolution preamble for guided ticket authoring.
 
 Don't hand-roll the compose→spawn sequence in a new command. A forked copy
 drifts — the authoring copies once diverged to a bare `subprocess.run` and lost

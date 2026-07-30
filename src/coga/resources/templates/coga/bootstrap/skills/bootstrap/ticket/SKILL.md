@@ -200,9 +200,14 @@ of an approved ticket, not a new ticket. Preserve the current intent unless the
 human explicitly changes it. Do not change `status:`, `step:`, or an existing
 frozen workflow snapshot during ordinary authoring. The one exception is an
 out-of-vocabulary `status:` value: that is malformed metadata, not a lifecycle
-transition. Confirm the intended valid status with the human and repair it
-during this session, because final validation rejects an invalid status after
-the interview.
+transition. Confirm the intended valid status with the human and repair the
+whole validator-correlated lifecycle shape during this session, because final
+validation rejects malformed state after the interview: remove `step:` when
+repairing to terminal `done` or `canceled`; for any non-terminal replacement
+with a frozen workflow, preserve a valid current `step:` or confirm and repair
+it when missing or invalid. A repaired live status (`active`, `in_progress`,
+`blocked`, or `paused`) must also retain a workflow. Do not rewrite an
+otherwise-valid frozen workflow snapshot.
 
 ## Step 4 — Create missing contexts and skills
 
@@ -253,7 +258,8 @@ attachments. YAML discipline (from the base prompt) applies:
   — the human starts it later with `coga launch`, or queues it without starting
   via `coga mark active`. If the current value is outside `draft`, `active`,
   `in_progress`, `blocked`, `paused`, `done`, and `canceled`, repair it to the
-  human-confirmed valid status as described in step 3.
+  human-confirmed valid status and make `step:` / `workflow:` consistent with
+  it as described in step 3.
 - Fill the `## Description` and `## Context` body sections from the
   interview.
 

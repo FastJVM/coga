@@ -218,6 +218,7 @@ def _run_authoring_session(
             label="Ticket",
             secrets_are_scoped=False,
             stateless_identity=(AUTHORING_SKILL, bootstrap_title),
+            include_blocker_preamble=False,
         )
     except ComposeError as exc:
         _bail(str(exc))

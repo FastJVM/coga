@@ -218,8 +218,9 @@ Last updated: 2026-07-30.
   authoring.** `coga create` creates a raw draft and is intentionally
   Slack-silent.
   `coga ticket` runs the `bootstrap/ticket` interview against a new or
-  existing ticket at any status, without changing that status. Aliases stay
-  positional-pass-through only.
+  existing ticket at any status. It preserves every valid lifecycle status;
+  an out-of-vocabulary value is malformed metadata the interview repairs.
+  Aliases stay positional-pass-through only.
 - **Aliases print their expansion to stderr.** `coga chat` prints
   `→ coga launch bootstrap/orient` before dispatching, so the
   indirection is visible. Users learn the long form by using the short
