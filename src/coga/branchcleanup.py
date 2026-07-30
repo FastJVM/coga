@@ -44,7 +44,13 @@ Branch safety model:
   - **Local** delete prefers `git branch -d`, which refuses an unmerged branch.
     If that refuses but the current tip is the exact head of the merged PR (the
     squash-merge case), we log the tip SHA and force-delete `-D` so the work
-    stays recoverable from the reflog. An advanced/reused branch is preserved.
+    stays recoverable from the reflog. An advanced/reused branch is preserved,
+    and the tip is re-read immediately before `-D` so a branch some other local
+    process advanced after authorization is preserved too. Unlike the remote
+    half this is a re-check rather than a lease: the atomic spelling
+    (`git update-ref -d <ref> <old-oid>`) is plumbing and will happily delete a
+    branch a linked worktree still holds, including the rebase/bisect states
+    branch sweep relies on `-D` to catch.
 
 `gh` missing/unauthed means the merge state can't be confirmed: the gated
 deletes are skipped and reported, never forced.
@@ -101,6 +107,7 @@ class _PrCleanupAuthorization:
     remote_merged: bool = False
     remote_known: bool = False
     remote_present: bool = False
+    local_expected_tip: str | None = None
     remote_expected_tip: str | None = None
 
 
@@ -381,6 +388,7 @@ def delete_ticket_branch(
         authorization.local_merged,
         echo,
         result,
+        expected_tip=authorization.local_expected_tip,
     )
     if local_present and not result.local_deleted:
         _note(
@@ -484,6 +492,8 @@ def _pr_cleanup_authorization(
 
     local_tip = _rev_parse(root, f"refs/heads/{branch}")
     authorization.local_merged = bool(local_tip and local_tip == head_oid)
+    if authorization.local_merged:
+        authorization.local_expected_tip = head_oid
     if local_tip and not authorization.local_merged:
         note(
             f"{prefix}: local {branch!r} advanced past the merged PR head "
@@ -584,6 +594,7 @@ def delete_local_branch(
     result: BranchCleanupResult,
     *,
     landed_ref: str = "HEAD",
+    expected_tip: str | None = None,
 ) -> None:
     """Delete the local `branch` iff safe.
 
@@ -591,6 +602,11 @@ def delete_local_branch(
     `landed_ref` is the ref whose history authorizes a normal `-d` deletion.
     Retire runs on the control checkout and uses the default `HEAD`; branch
     sweep passes the configured control branch explicitly.
+
+    `expected_tip` is the tip the caller actually authorized. The forced-delete
+    path re-reads the ref and preserves the branch when it no longer matches, so
+    a branch another local process advanced after authorization is not deleted
+    on the strength of a stale check.
     """
     if not _local_branch_exists(root, branch):
         _note(result, echo, f"Branch cleanup: local {branch!r} not present.")
@@ -626,7 +642,26 @@ def delete_local_branch(
         )
         return
 
+    # Re-read the ref and drop out if it moved since the caller authorized it.
+    # `git update-ref -d <ref> <old-oid>` would make that check atomic, but it is
+    # plumbing: it deletes a branch a linked worktree still holds. `git branch -D`
+    # is the only spelling that refuses one, *including* the rebase/bisect states
+    # where the holding worktree reports as detached and the branch is invisible
+    # to both `git worktree list --porcelain` and `%(worktreepath)` — the hidden
+    # state branch sweep leans on this gate to catch. Keeping the porcelain and
+    # re-checking here trades an atomic compare-and-delete for a race window one
+    # exec wide, rather than trading away the worktree gate.
     tip = _rev_parse(root, f"refs/heads/{branch}")
+    if expected_tip is not None and tip != expected_tip:
+        _note(
+            result,
+            echo,
+            f"Branch cleanup: local {branch!r} moved from the authorized tip "
+            f"{expected_tip[:12]} to {tip[:12] if tip else 'nothing'} since it "
+            "was checked — left in place.",
+        )
+        return
+
     forced = _git(root, "branch", "-D", branch)
     if forced.returncode == 0:
         result.local_deleted = True

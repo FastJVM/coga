@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from coga.branchcleanup import delete_ticket_branch, remove_ticket_worktree
+import coga.branchcleanup
+from coga.branchcleanup import (
+    BranchCleanupResult,
+    delete_local_branch,
+    delete_ticket_branch,
+    remove_ticket_worktree,
+)
 from coga.config import load_config
 
 
@@ -199,6 +205,76 @@ def test_merged_pr_does_not_delete_branch_that_advanced_after_merge(
     assert _branch_exists_local(repo, "feat")
     assert _branch_exists_remote(repo, "feat")
     assert any("advanced past the merged PR head" in note for note in notes)
+
+
+def test_local_branch_advanced_after_authorization_is_not_force_deleted(
+    repo: Path, monkeypatch
+) -> None:
+    # Same reused-branch guarantee as the test above, but the reuse lands *after*
+    # authorization read the tip. Reading the live remote ref is a network round
+    # trip, so it stands in for the window another local process can push into.
+    _git(repo, "checkout", "-b", "feat")
+    _commit(repo, "feat.txt", "feat", "feat work")
+    _git(repo, "push", "-u", "origin", "feat")
+    merged_tip = _git(repo, "rev-parse", "feat").stdout.strip()
+    _commit(repo, "later.txt", "later", "reuse branch")
+    later_tip = _git(repo, "rev-parse", "feat").stdout.strip()
+    _git(repo, "reset", "--hard", merged_tip)
+    _git(repo, "checkout", "main")
+    _commit(repo, "feat.txt", "feat", "squashed feat")  # squash shape: forces `-D`
+    _git(repo, "push", "origin", "main")
+
+    _stub_merged_pr(monkeypatch, repo, "feat")
+    real_remote_tip = coga.branchcleanup._remote_branch_tip
+
+    def advance_then_read(cfg, root: Path, branch: str):
+        _git(repo, "update-ref", f"refs/heads/{branch}", later_tip)
+        return real_remote_tip(cfg, root, branch)
+
+    monkeypatch.setattr(
+        "coga.branchcleanup._remote_branch_tip", advance_then_read
+    )
+
+    notes: list[str] = []
+    result = delete_ticket_branch(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", "https://github.com/o/r/pull/7"),
+        echo=notes.append,
+    )
+
+    assert result.local_deleted is False
+    assert result.remote_deleted is False
+    assert _branch_exists_local(repo, "feat")
+    assert _git(repo, "rev-parse", "feat").stdout.strip() == later_tip
+    assert _branch_exists_remote(repo, "feat")
+    assert any("moved from the authorized tip" in note for note in notes), notes
+
+
+def test_rebasing_worktree_still_blocks_the_forced_local_delete(
+    repo: Path, tmp_path: Path
+) -> None:
+    # Regression guard for the delete spelling. During a rebase the holding
+    # worktree reports as detached, so the branch is invisible to both
+    # `git worktree list --porcelain` and `%(worktreepath)`; only `git branch -D`
+    # refuses it. Swapping in `git update-ref -d <ref> <old-oid>` for an atomic
+    # compare-and-delete would delete this branch out from under the rebase.
+    worktree = tmp_path / "wt"
+    _add_worktree(repo, worktree, "feat")
+    _commit(worktree, "shared.txt", "feat", "feat work")
+    tip = _git(repo, "rev-parse", "feat").stdout.strip()
+    _commit(repo, "shared.txt", "main", "conflicting main work")
+
+    _git(worktree, "rebase", "main", check=False)
+    assert _git(worktree, "symbolic-ref", "-q", "HEAD", check=False).returncode != 0
+
+    result = BranchCleanupResult(branch="feat")
+    notes: list[str] = []
+    delete_local_branch(repo, "feat", True, notes.append, result, expected_tip=tip)
+
+    assert result.local_deleted is False
+    assert _branch_exists_local(repo, "feat")
+    assert result.local_worktree_path == str(worktree)
 
 
 def test_landed_local_cleanup_preserves_remote_that_advanced_after_merge(

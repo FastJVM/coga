@@ -153,6 +153,7 @@ def sweep_branches(
                 echo,
                 cleanup,
                 landed_ref=cfg.git_control_branch,
+                expected_tip=local_tip,
             )
 
         # During rebase/bisect Git can report a worktree as detached while
