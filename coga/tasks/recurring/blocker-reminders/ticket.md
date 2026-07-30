@@ -1,7 +1,7 @@
 ---
 slug: recurring/blocker-reminders
 title: Blocker reminders
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,7 +17,6 @@ workflow:
     - coga/blockers/remind
     assignee: agent
 secrets: null
-step: 1 (remind)
 ---
 
 ## Description
