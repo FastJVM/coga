@@ -2431,6 +2431,52 @@ def test_feature_publication_lease_rejects_dirty_exact_tip(
         )
 
 
+def test_feature_publication_lease_allows_only_explicit_append_only_log(
+    git_repo,
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    log = git_repo.coga_os / "log.md"
+    log.write_bytes(b"prior audit\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed audit log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/log-append-assist")
+    git_repo.git("push", "-u", "origin", "feature/log-append-assist")
+    committed = log.read_bytes()
+    log.write_bytes(committed + b"post-session usage append\n")
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="has other changes: coga/log.md",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            "feature/log-append-assist",
+        )
+
+    lease = git.feature_publication_lease(
+        cfg,
+        ticket.parent,
+        "feature/log-append-assist",
+        allow_append_only_log=True,
+    )
+    assert lease.branch == "feature/log-append-assist"
+
+    log.write_bytes(b"rewritten audit history\n")
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="coga/log.md is not an append-only change",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            "feature/log-append-assist",
+            allow_append_only_log=True,
+        )
+
+
 def test_feature_publication_lease_normalizes_lower_level_probe_failure(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -2525,6 +2571,27 @@ def test_file_mutation_rollback_preserves_peer_ticket_and_log_edits(
     assert refused == (ticket,)
     assert ticket.read_text() == peer_ticket
     assert log.read_text() == "prior audit\nconcurrent audit\n"
+
+
+def test_file_mutation_rollback_refuses_unarmed_restore(
+    tmp_path: Path,
+) -> None:
+    ticket = tmp_path / "ticket.md"
+    log = tmp_path / "log.md"
+    ticket.write_text("status: active\n")
+    log.write_text("prior audit\n")
+    rollback = git.FileMutationRollback.capture(
+        (ticket, log),
+        union_paths=(log,),
+    )
+    ticket.write_text("status: blocked\npeer annotation\n")
+    log.write_text("prior audit\npeer audit\n")
+
+    refused = rollback.restore()
+
+    assert refused == (ticket, log)
+    assert ticket.read_text() == "status: blocked\npeer annotation\n"
+    assert log.read_text() == "prior audit\npeer audit\n"
 
 
 def test_strict_feature_publication_cas_preserves_concurrent_local_commit(
@@ -2792,6 +2859,68 @@ def test_strict_feature_publication_compensates_failed_control_landing(
     assert "status: in_progress" in ticket.read_text()
     assert "coga/tasks/demo/ticket.md" in git_repo.git(
         "status", "--porcelain"
+    )
+
+
+def test_strict_feature_compensation_does_not_merge_after_checkout_switch(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    main_before = git_repo.git("rev-parse", "main").strip()
+    git_repo.checkout_branch("feature/switched-compensation-assist")
+    git_repo.git(
+        "push",
+        "-u",
+        "origin",
+        "feature/switched-compensation-assist",
+    )
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+
+    def switch_then_refuse(*args, **kwargs):  # type: ignore[no-untyped-def]
+        git_repo.git("checkout", "main")
+        raise git.GitError("control landing refused after checkout switch")
+
+    monkeypatch.setattr(
+        git,
+        "_land_paths_on_control_branch",
+        switch_then_refuse,
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control landing failed after feature publication",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/switched-compensation-assist",
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+        )
+
+    assert git_repo.git("branch", "--show-current").strip() == "main"
+    assert git_repo.git("rev-parse", "HEAD").strip() == main_before
+    assert "status: active" in git_repo.git(
+        "show",
+        "HEAD:coga/tasks/demo/ticket.md",
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        "refs/heads/feature/switched-compensation-assist:"
+        "coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
     )
 
 

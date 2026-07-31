@@ -478,6 +478,7 @@ def mark_active(
     log_message: str,
     echo: str | None = None,
     sync_state: bool = True,
+    before_sync: Callable[[], None] | None = None,
 ) -> None:
     """Flip a ticket to `active`: write frontmatter and log.
 
@@ -492,6 +493,8 @@ def mark_active(
     ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action="mark active")
     append_log(cfg, ref.id_slug, actor, log_message)
+    if before_sync is not None:
+        before_sync()
     if echo is not None:
         typer.echo(echo)
     if sync_state:

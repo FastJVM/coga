@@ -26,6 +26,7 @@ from coga.commands.launch import (
 from coga.config import AgentType, load_config
 from coga.github_preflight import CheckResult
 from coga.repl_supervisor import (
+    ASSIST_AGENT_ENV,
     ASSIST_BRANCH_ENV,
     ASSIST_PR_ENV,
     EXPECTED_STEP_ENV,
@@ -2841,6 +2842,12 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "coga.commands.launch._recorded_single_checkout_assist_branch",
+        lambda *args, **kwargs: pytest.fail(
+            "an override on an agent-owned task is not a human-step assist"
+        ),
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
@@ -3201,11 +3208,11 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     assert Ticket.read(ticket_path).assignee == "marc"
 
 
-def test_human_assist_aligns_before_classifying_stale_agent_assignee(
+def test_agent_owned_override_does_not_enter_human_assist_alignment(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A remote human handoff cannot launch the stale local agent step."""
+    """Only a locally human-owned override gets strict assist alignment."""
     cfg = load_config(git_repo.coga_os)
     created = create_task(
         cfg=cfg,
@@ -3298,7 +3305,7 @@ def test_human_assist_aligns_before_classifying_stale_agent_assignee(
         queue_guidance=False,
     )
 
-    assert observed == [("marc", "2 (review)")]
+    assert observed == [("claude", "1 (implement)")]
 
 
 def test_human_assist_validates_override_after_remote_config_alignment(
@@ -3781,13 +3788,17 @@ def test_blocked_human_assist_explicit_block_publishes_through_lease(
         ticket_path.read_text(),
     )
 
+    notifications: list[str] = []
+
+    def fail_notification(*args, **kwargs):  # type: ignore[no-untyped-def]
+        notifications.append(kwargs["json"]["text"])
+        raise requests.ConnectionError("notification unavailable")
+
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
     monkeypatch.setattr(
         "coga.notification.slack.requests.post",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            requests.ConnectionError("notification unavailable")
-        ),
+        fail_notification,
     )
     monkeypatch.setattr(
         "coga.commands.launch._refresh_agent_skills_for_launch",
@@ -3815,6 +3826,10 @@ def test_blocked_human_assist_explicit_block_publishes_through_lease(
             env=child_env,
         )
         assert result.exit_code == 0, result.output
+        assert ASSIST_AGENT_ENV in child_env
+        assert child_env[ASSIST_AGENT_ENV] == "claude"
+        assert "agent:claude" in ticket_path.read_text()
+        assert "agent:marc" not in ticket_path.read_text()
         # The strict block notification follows the same rule before the
         # command returns to the CLI catch-all sweep.
         assert git_repo.git("status", "--porcelain").strip() == ""
@@ -3851,6 +3866,8 @@ def test_blocked_human_assist_explicit_block_publishes_through_lease(
         f"main:{rel}",
         cwd=git_repo.origin,
     )
+    assert any("claude blocked" in message for message in notifications)
+    assert all("marc blocked" not in message for message in notifications)
     assert git_repo.git("status", "--porcelain").strip() == ""
     assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
         "rev-parse",
@@ -3896,6 +3913,7 @@ def test_in_session_state_command_refuses_after_recorded_pr_closes(
         ),
     )
     child_env = {
+        ASSIST_AGENT_ENV: "claude",
         ASSIST_BRANCH_ENV: "feature/review",
         ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
         EXPECTED_TASK_ENV: str(ticket_path.resolve()),
@@ -3959,6 +3977,7 @@ def test_unblock_all_aborts_on_refused_assist_publication(
         ),
     )
     child_env = {
+        ASSIST_AGENT_ENV: "claude",
         ASSIST_BRANCH_ENV: "feature/review",
         ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
         EXPECTED_TASK_ENV: str(ticket_path.resolve()),
@@ -4010,6 +4029,7 @@ def test_in_session_state_command_lease_acquisition_uses_no_sweep_exit(
         ),
     )
     child_env = {
+        ASSIST_AGENT_ENV: "claude",
         ASSIST_BRANCH_ENV: "feature/review",
         ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
         EXPECTED_TASK_ENV: str(ticket_path.resolve()),
@@ -4596,6 +4616,87 @@ def test_human_assist_alignment_refusal_uses_no_sweep_exit(
     assert git_repo.git("rev-parse", "HEAD").strip() == remote_before
 
 
+def test_human_assist_without_tty_refuses_before_alignment(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Require a TTY before assist alignment",
+        status="in_progress",
+    )
+    _deny_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._recorded_single_checkout_assist_branch",
+        lambda *args, **kwargs: pytest.fail(
+            "TTY refusal must precede assist-checkout validation"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == 2
+    assert "agent launch requires a TTY" in capsys.readouterr().err
+
+
+def test_human_assist_setup_interrupt_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain interrupted assist setup",
+        status="in_progress",
+    )
+    log_file = git_repo.coga_os / "log.md"
+    retained_line = "retained interrupted assist setup\n"
+    log_file.write_text(log_file.read_text() + retained_line)
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_launch_checkout",
+        lambda *args, **kwargs: pytest.fail(
+            "an interrupted assist setup must not run the generic refresh"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert retained_line in log_file.read_text()
+
+
 def test_human_assist_rejects_control_named_pr_before_writing(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -4734,9 +4835,19 @@ def test_blocked_assist_trailing_log_refusal_reblocks_before_exit(
         "coga.commands.launch.run_with_done_marker",
         lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
     )
+
+    usage_line = (
+        '2026-07-30 12:00 [reblock-after-trailing-refusal] [system] '
+        '{"tokens": 1}\n'
+    )
+
+    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        log = cfg.repo_root / "log.md"
+        log.write_text(log.read_text() + usage_line)
+
     monkeypatch.setattr(
         "coga.commands.launch.usage_tracking.capture_session",
-        lambda **kwargs: None,
+        append_usage,
     )
     sync_calls = 0
     real_sync_log = launch_module.git.sync_log
@@ -4774,6 +4885,11 @@ def test_blocked_assist_trailing_log_refusal_reblocks_before_exit(
     assert "status: blocked" in git_repo.git(
         "show",
         f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert usage_line.strip() in git_repo.git(
+        "show",
+        "refs/heads/feature/review:coga/log.md",
         cwd=git_repo.origin,
     )
 

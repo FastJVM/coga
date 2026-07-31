@@ -18,6 +18,7 @@ from coga.autoclose import (
 from coga.config import Config
 from coga.github_source import redacted_git_source
 from coga.repl_supervisor import (
+    ASSIST_AGENT_ENV,
     ASSIST_BRANCH_ENV,
     ASSIST_PR_ENV,
     EXPECTED_TASK_ENV,
@@ -33,6 +34,7 @@ class AssistPublication:
 
     lease: git.FeaturePublicationLease
     guard: Callable[[str], None]
+    agent: str
 
 
 def _git_remote_repository_identity(
@@ -197,6 +199,7 @@ def assist_publication_from_env(
     ref: TaskRef,
 ) -> AssistPublication | None:
     """Rebuild a scoped assist capability inherited by an in-session command."""
+    agent = os.environ.get(ASSIST_AGENT_ENV, "").strip()
     branch = os.environ.get(ASSIST_BRANCH_ENV, "").strip()
     expected_task = os.environ.get(EXPECTED_TASK_ENV, "").strip()
     expected_pr_url = os.environ.get(ASSIST_PR_ENV, "").strip()
@@ -208,6 +211,14 @@ def assist_publication_from_env(
         raise git.FeaturePublicationError(
             "inherited assist capability is missing its recorded PR"
         )
+    if not agent:
+        raise git.FeaturePublicationError(
+            "inherited assist capability is missing its effective launch agent"
+        )
+    if agent not in cfg.agents:
+        raise git.FeaturePublicationError(
+            f"inherited assist capability names unknown launch agent {agent!r}"
+        )
     lease = git.feature_publication_lease(cfg, ref.path, branch)
     return AssistPublication(
         lease=lease,
@@ -217,6 +228,7 @@ def assist_publication_from_env(
             branch,
             expected_pr_url=expected_pr_url,
         ),
+        agent=agent,
     )
 
 

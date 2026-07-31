@@ -63,15 +63,16 @@ def block(
             (ref.ticket_path, log_path(cfg)),
             union_paths=(log_path(cfg),),
         )
+    effective_assignee = assist.agent if assist is not None else ticket.assignee
     actor = (
-        f"agent:{ticket.assignee}"
-        if ticket.assignee
+        f"agent:{effective_assignee}"
+        if effective_assignee
         else f"human:{cfg.current_user}"
     )
     append_blocker(ref.ticket_path, actor, reason)
 
     owner = ticket.owner or cfg.current_user
-    blocker = ticket.assignee or cfg.current_user
+    blocker = effective_assignee or cfg.current_user
     ticket = read_ticket(ref)
     try:
         mark_blocked(

@@ -220,6 +220,7 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 echo=f"{ref.id_slug}: active (unblocked)",
             )
         else:
+            assert rollback is not None
             mark_active(
                 cfg,
                 ref,
@@ -227,9 +228,8 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 actor=actor,
                 log_message=f"unblocked ({ticket.status} → active): {answer}",
                 sync_state=False,
+                before_sync=rollback.arm,
             )
-            assert rollback is not None
-            rollback.arm()
             git.sync_task_state(
                 cfg,
                 ref.path,

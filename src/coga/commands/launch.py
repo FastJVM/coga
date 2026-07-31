@@ -70,6 +70,7 @@ from coga.notification import preflight_post
 from coga.paths import PackagedResourceMissing, read_packaged_resource
 from coga.open_pr import same_git_checkout
 from coga.repl_supervisor import (
+    ASSIST_AGENT_ENV,
     ASSIST_BRANCH_ENV,
     ASSIST_PR_ENV,
     EXPECTED_STEP_ENV,
@@ -210,9 +211,21 @@ def launch(
     if not prompt_report and agent_override is not None:
         for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
             alignment_ticket = read_ticket(ref)
+            alignment_is_human_assist = (
+                not is_bootstrap
+                and bool(alignment_ticket.assignee)
+                and alignment_ticket.assignee not in cfg.agents
+            )
+            if (
+                alignment_is_human_assist
+                and alignment_ticket.status
+                in {"draft", "active", "in_progress", "paused", "blocked"}
+                and not _interactive_stdio_has_tty()
+            ):
+                _refuse_tty_launch(ref)
             candidate_assist_branch = (
                 None
-                if is_bootstrap
+                if not alignment_is_human_assist
                 else _recorded_single_checkout_assist_branch(cfg, alignment_ticket)
             )
             if candidate_assist_branch is not None:
@@ -221,7 +234,6 @@ def launch(
                 is_bootstrap
                 or alignment_ticket.status
                 not in {"draft", "active", "in_progress", "paused", "blocked"}
-                or not _interactive_stdio_has_tty()
                 or candidate_assist_branch is None
             ):
                 break
@@ -444,12 +456,7 @@ def launch(
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
         if not _interactive_stdio_has_tty():
-            _bail(
-                f"Cannot launch {ref.id_slug!r}: an agent launch requires a TTY "
-                "(stdin and stdout must both be terminals). Run from a real "
-                "shell. Use a registered `coga run` recipe for deterministic "
-                "unattended work."
-            )
+            _refuse_tty_launch(ref)
 
         launch_assignee = agent_override or assignee
         if human_assist:
@@ -625,9 +632,18 @@ def launch(
         if not assist_setup_started:
             _refresh_launch_checkout(cfg)
         raise
-    except BaseException:
-        if not assist_setup_started:
-            _refresh_launch_checkout(cfg)
+    except BaseException as exc:
+        if assist_setup_started:
+            detail = str(exc).strip() or type(exc).__name__
+            typer.secho(
+                f"Cannot launch {ref.id_slug}: assist setup failed before the "
+                f"session started ({detail}). Retained state was left for an "
+                "explicit retry.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
+        _refresh_launch_checkout(cfg)
         raise
 
     suppress_assist_refresh = False
@@ -742,6 +758,11 @@ def launch(
                     # Publish generated assist state only from the recorded
                     # branch and an aligned configured remote.
                     publish_aligned_branch=publish_assist_branch,
+                    assist_agent=(
+                        (step_assignee or launch_assignee)
+                        if publish_assist_branch is not None
+                        else None
+                    ),
                     feature_publication_guard=assist_pr_guard,
                     before_spawn=before_spawn,
                 )
@@ -958,6 +979,7 @@ def _publish_assist_lifecycle_before_spawn(
                 ),
                 echo=f"{ref.id_slug}: active — auto on launch",
                 sync_state=False,
+                before_sync=snapshot.arm,
             )
         if current.status != "active":
             raise git.FeaturePublicationError(
@@ -1110,7 +1132,10 @@ def _reblock_unresolved_resume(
     if feature_branch is not None:
         try:
             feature_publication = git.feature_publication_lease(
-                cfg, ref.path, feature_branch
+                cfg,
+                ref.path,
+                feature_branch,
+                allow_append_only_log=True,
             )
         except git.FeaturePublicationError as exc:
             raise _AssistPublicationRefused(
@@ -1506,6 +1531,7 @@ def spawn_agent_session(
     warn_blackboard: bool = False,
     commit_log: bool = False,
     publish_aligned_branch: str | None = None,
+    assist_agent: str | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
     before_spawn: Callable[[], None] | None = None,
     secrets_are_scoped: bool = True,
@@ -1540,7 +1566,10 @@ def spawn_agent_session(
     merely-behind branch is fast-forwarded while preserving the pending
     union-log append, then pre-session and teardown log-only commits reach the
     feature remote only from an aligned tip on the exact recorded branch, so a
-    branch switch or unrelated unpushed work never rides along. `coga ticket`
+    branch switch or unrelated unpushed work never rides along. `assist_agent`
+    carries the configured agent selected for that ephemeral assist, so
+    in-session blocker attribution does not fall back to the human ticket
+    assignee. `coga ticket`
     leaves both publication arguments unset because its post-session record is
     committed by the shared teardown sync. `secrets_are_scoped` is False only
     when the caller passes an ambient environment instead of
@@ -1562,15 +1591,21 @@ def spawn_agent_session(
     # Never inherit a parent assist capability into a nested ordinary launch.
     # Re-mint it only for the exact recorded branch/PR this spawn already
     # proved.
+    env.pop(ASSIST_AGENT_ENV, None)
     env.pop(ASSIST_BRANCH_ENV, None)
     env.pop(ASSIST_PR_ENV, None)
     if publish_aligned_branch is not None:
+        if not assist_agent:
+            raise ComposeError(
+                "recorded assist checkout has no effective launch agent"
+            )
         _, blackboard = split_body(ticket.body)
         assist_pr_url = parse_pr_url(blackboard or "")
         if not assist_pr_url:
             raise ComposeError(
                 "recorded assist checkout has no `pr:` link under `## Dev`"
             )
+        env[ASSIST_AGENT_ENV] = assist_agent
         env[ASSIST_BRANCH_ENV] = publish_aligned_branch
         env[ASSIST_PR_ENV] = assist_pr_url
 
@@ -1992,6 +2027,15 @@ def _refuse_human_handoff_launch(
 
 def _interactive_stdio_has_tty() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _refuse_tty_launch(ref: TaskRef | BootstrapRef) -> None:
+    _bail(
+        f"Cannot launch {ref.id_slug!r}: an agent launch requires a TTY "
+        "(stdin and stdout must both be terminals). Run from a real "
+        "shell. Use a registered `coga run` recipe for deterministic "
+        "unattended work."
+    )
 
 
 def _refresh_agent_skills_for_launch(coga_os: Path) -> None:
