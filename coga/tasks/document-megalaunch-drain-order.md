@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -168,3 +168,30 @@ so this is the documented independent clone fallback, refreshed from
 - Committed as `b3b0d975` (`Document megalaunch drain order in help`).
 - Final `git fetch origin main && git rebase FETCH_HEAD` reported the feature
   branch up to date; the feature checkout is clean and contains `FETCH_HEAD`.
+
+## Peer review
+
+- Initial inspection confirms the feature diff is limited to the megalaunch
+  help strings and an existing megalaunch test module, as required.
+- The help states oldest-first draining, the sub-directory `1-` / `2-` / `3-`
+  naming convention, and that `--pick` filters the service-ordered queue
+  instead of using selection argument order.
+- `codex review --base main` found no actionable regressions after tracing the
+  wording against `service_order`, the rendered Typer help, and the existing
+  reference/context documentation.
+- Refreshed unconditionally with `git fetch origin main && git rebase
+  FETCH_HEAD`; the feature commit rebased cleanly onto `74aa7f7f`.
+- Full post-rebase suite passed: `python -m pytest` — 1569 passed, 1 skipped in
+  59.69s.
+- No peer-review code changes were necessary; the feature checkout is clean at
+  `18b2d6d1`.
+
+## PR
+
+Surface the existing megalaunch service order in `coga megalaunch --help`:
+tasks drain oldest-first, `1-` / `2-` / `3-` task names sequence a
+sub-directory as a contiguous numbered pipeline, and `--pick` filters that
+already ordered queue. Add a regression test that keeps those conventions
+discoverable without pinning the exact prose.
+
+Test plan: `python -m pytest`
