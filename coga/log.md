@@ -3228,3 +3228,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-31 10:45 [recurring/autoclose-merged] [system] launched as recipe (autoclose)
 2026-07-31 10:45 [always-accept-coga-ticket] [human:nicktoper] auto-bumped on merge of PR #674 → done
 2026-07-31 10:45 [bump-can-mark-done-too] [human:nicktoper] auto-bumped on merge of PR #675 → done
+2026-07-31 10:45 [document-megalaunch-drain-order] [human:nicktoper] auto-bumped on merge of PR #676 → done
