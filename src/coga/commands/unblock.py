@@ -158,6 +158,13 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
     report and continue.
     """
     actor = f"human:{cfg.current_user}"
+    # Pin the first blackboard write before the network-backed assist lease.
+    # A ticket edit made while that lease is acquired must fail the byte CAS,
+    # not become the rollback baseline for this unblock.
+    pre_lease_snapshot = git.FileMutationRollback.capture(
+        (ref.ticket_path, log_path(cfg)),
+        union_paths=(log_path(cfg),),
+    )
     try:
         assist = pr_assist.assist_publication_from_env(cfg, ref)
     except git.FeaturePublicationError as exc:
@@ -167,12 +174,7 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
         ) from exc
     assist_publication = assist.lease if assist is not None else None
     assist_guard = assist.guard if assist is not None else None
-    rollback = None
-    if assist is not None:
-        rollback = git.FileMutationRollback.capture(
-            (ref.ticket_path, log_path(cfg)),
-            union_paths=(log_path(cfg),),
-        )
+    rollback = pre_lease_snapshot if assist is not None else None
     publication_succeeded = False
 
     def record_publication() -> None:

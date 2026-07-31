@@ -4203,15 +4203,20 @@ def test_strict_state_command_interrupt_after_first_mutation_rolls_back(
     command_module = block_module if command == "block" else unblock_module
     real_read_ticket = command_module.read_ticket
     reads = 0
+    interrupt_on = 1 if command == "block" else 2
 
-    def interrupt_second_read(*args, **kwargs):  # type: ignore[no-untyped-def]
+    def interrupt_post_mutation_read(*args, **kwargs):  # type: ignore[no-untyped-def]
         nonlocal reads
         reads += 1
-        if reads == 2:
+        if reads == interrupt_on:
             raise KeyboardInterrupt()
         return real_read_ticket(*args, **kwargs)
 
-    monkeypatch.setattr(command_module, "read_ticket", interrupt_second_read)
+    monkeypatch.setattr(
+        command_module,
+        "read_ticket",
+        interrupt_post_mutation_read,
+    )
     child_env = {
         ASSIST_AGENT_ENV: "claude",
         ASSIST_BRANCH_ENV: "feature/review",
@@ -4313,6 +4318,80 @@ def test_strict_state_command_first_mutation_rejects_peer_revision(
     assert "PEER EDIT BEFORE BLACKBOARD WRITE" in ticket_path.read_text()
     rel = str(ticket_path.relative_to(git_repo.root))
     assert "PEER EDIT BEFORE BLACKBOARD WRITE" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+@pytest.mark.parametrize("command", ["block", "unblock"])
+def test_strict_state_command_pins_ticket_before_lease_acquisition(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    """Network lease time cannot move a peer edit into our rollback baseline."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Pin strict {command} before lease",
+        status="in_progress",
+    )
+    rel = str(ticket_path.relative_to(git_repo.root))
+    if command == "unblock":
+        append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+        git_repo.git("add", rel)
+        git_repo.git("commit", "-m", "ticket: record pre-lease unblock ask")
+        git_repo.git("push", "origin", "feature/review")
+        git_repo.push_competing_commit(rel, ticket_path.read_text())
+    _allow_recorded_assist_pr(monkeypatch)
+    command_module = block_module if command == "block" else unblock_module
+    real_assist = command_module.pr_assist.assist_publication_from_env
+
+    def edit_during_lease(*args, **kwargs):  # type: ignore[no-untyped-def]
+        publication = real_assist(*args, **kwargs)
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "## Description\n\n",
+                "## Description\n\nPEER EDIT DURING LEASE\n\n",
+            )
+        )
+        return publication
+
+    monkeypatch.setattr(
+        command_module.pr_assist,
+        "assist_publication_from_env",
+        edit_during_lease,
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+    argv = (
+        [
+            "block",
+            "--task",
+            str(created["slug"]),
+            "--reason",
+            "owner input still required",
+        ]
+        if command == "block"
+        else [
+            "unblock",
+            str(created["slug"]),
+            "--answer",
+            "cap at five minutes",
+        ]
+    )
+
+    result = CliRunner().invoke(app, argv, env=child_env)
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "ticket changed before its blackboard update" in result.output
+    assert "PEER EDIT DURING LEASE" in ticket_path.read_text()
+    assert "PEER EDIT DURING LEASE" not in git_repo.git(
         "show",
         f"refs/heads/feature/review:{rel}",
         cwd=git_repo.origin,
@@ -4638,6 +4717,62 @@ def test_automatic_reblock_race_restores_ticket_and_log_bytes(
         cwd=git_repo.origin,
     )
     assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_automatic_reblock_pins_ticket_before_lease_acquisition(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lease-time peer edit survives instead of being replaced by stale state."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Pin automatic reblock before lease",
+        status="in_progress",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    rel = str(ticket_path.relative_to(git_repo.root))
+    git_repo.git("add", rel)
+    git_repo.git("commit", "-m", "ticket: record pre-lease reblock ask")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(rel, ticket_path.read_text())
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    real_lease = launch_module.git.feature_publication_lease
+
+    def edit_during_lease(*args, **kwargs):  # type: ignore[no-untyped-def]
+        publication = real_lease(*args, **kwargs)
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "## Description\n\n",
+                "## Description\n\nPEER REBLOCK EDIT DURING LEASE\n\n",
+            )
+        )
+        return publication
+
+    monkeypatch.setattr(
+        launch_module.git,
+        "feature_publication_lease",
+        edit_during_lease,
+    )
+
+    with pytest.raises(
+        launch_module._AssistPublicationRefused,
+        match="strict mutation input changed",
+    ):
+        launch_module._reblock_unresolved_resume(
+            cfg,
+            ref,
+            "claude",
+            feature_branch="feature/review",
+        )
+
+    assert "PEER REBLOCK EDIT DURING LEASE" in ticket_path.read_text()
+    assert "PEER REBLOCK EDIT DURING LEASE" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert rel in git_repo.git("status", "--porcelain")
 
 
 def test_automatic_reblock_interrupt_restores_generated_state(

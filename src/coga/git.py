@@ -94,6 +94,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 from coga.config import Config
 from coga.github_source import redacted_git_source
@@ -1219,8 +1220,7 @@ def refresh_coga_state_from_control(
                 )
                 return False
         control_source = assist_push_url or cfg.git_remote
-        _run_git(root, "fetch", control_source, cfg.git_control_branch)
-        tip = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+        tip = _fetch_branch_oid(root, control_source, cfg.git_control_branch)
         if branch == cfg.git_control_branch:
             _run_git(root, "merge", "--ff-only", "--quiet", tip)
             return True
@@ -2614,8 +2614,7 @@ def _raise_strict_control_landing_failure(
         compensation_oid = ""
         compensated_parent = ""
         for _attempt in range(_MAX_SYNC_ATTEMPTS):
-            _run_git(root, "fetch", push_url, f"refs/heads/{branch}")
-            compensated_parent = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+            compensated_parent = _fetch_branch_oid(root, push_url, branch)
             ancestor = _run_git(
                 root, "merge-base", generated_oid, compensated_parent
             ).strip()
@@ -3066,14 +3065,14 @@ def _rebase_onto_remote(
     The caller surfaces the raised `GitError` as a non-fatal sync miss (stderr +
     log), never a crash: the on-disk markdown is still the source of truth.
     """
-    _run_git(root, "fetch", remote, branch)
+    fetched_tip = _fetch_branch_oid(root, remote, branch)
     if guard is not None:
-        guard(_run_git(root, "rev-parse", "FETCH_HEAD").strip())
+        guard(fetched_tip)
     orig = _run_git(root, "rev-parse", "HEAD").strip()
     stashed = _stash_if_dirty(root)
 
     rebase = subprocess.run(
-        ["git", "-C", str(root), "rebase", "FETCH_HEAD"],
+        ["git", "-C", str(root), "rebase", fetched_tip],
         capture_output=True,
         text=True,
         check=False,
@@ -3571,8 +3570,7 @@ def _control_base_for_attempt(
         if local is not None:
             return local
     source = push_url or _remote_push_urls(root, remote)[0]
-    _run_git(root, "fetch", source, branch)
-    return _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+    return _fetch_branch_oid(root, source, branch)
 
 
 def _local_control_base(root: Path, remote: str, branch: str) -> str | None:
@@ -4334,6 +4332,29 @@ def _remote_branch_oid(
     return observed[0]
 
 
+def _fetch_branch_oid(root: Path, source: str, branch: str) -> str:
+    """Fetch one branch into a private ref and return its exact object ID.
+
+    ``FETCH_HEAD`` is shared by every fetch in a checkout. Coga deliberately
+    permits concurrent local processes, so reading it in a later subprocess
+    can consume an unrelated fetch result. A UUID-scoped ref makes the fetch
+    result command-owned; ``--no-write-fetch-head`` also leaves the shared
+    pseudo-ref untouched.
+    """
+    fetched_ref = f"refs/coga/fetch/{uuid4().hex}"
+    try:
+        _run_git(
+            root,
+            "fetch",
+            "--no-write-fetch-head",
+            source,
+            f"refs/heads/{branch}:{fetched_ref}",
+        )
+        return _run_git(root, "rev-parse", fetched_ref).strip()
+    finally:
+        _run_git_quiet(root, "update-ref", "-d", fetched_ref)
+
+
 def _remote_branch_descends_from(
     root: Path,
     push_url: str,
@@ -4341,7 +4362,7 @@ def _remote_branch_descends_from(
     ancestor: str,
 ) -> bool:
     """Whether the live push destination contains ``ancestor`` in its history."""
-    _run_git(root, "fetch", push_url, f"refs/heads/{branch}")
+    fetched_tip = _fetch_branch_oid(root, push_url, branch)
     try:
         result = subprocess.run(
             [
@@ -4351,7 +4372,7 @@ def _remote_branch_descends_from(
                 "merge-base",
                 "--is-ancestor",
                 ancestor,
-                "FETCH_HEAD",
+                fetched_tip,
             ],
             capture_output=True,
             text=True,
@@ -4450,11 +4471,10 @@ def _prepare_feature_branch_publication(
             remote_oid=None,
         )
 
-    # Fetch the exact branch after advertising it; FETCH_HEAD is the authority
-    # for both ancestry and the fast-forward if the branch moved between the
-    # two network calls.
-    _run_git(root, "fetch", push_urls[0], f"refs/heads/{branch}")
-    remote_tip = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+    # Fetch the exact branch after advertising it. The command-scoped ref is
+    # the authority for both ancestry and the fast-forward if the branch moved
+    # between the two network calls; a concurrent fetch cannot replace it.
+    remote_tip = _fetch_branch_oid(root, push_urls[0], branch)
     local_tip = _run_git(root, "rev-parse", "HEAD").strip()
     strict_changed: set[str] | None = None
     if require_single_push_url:

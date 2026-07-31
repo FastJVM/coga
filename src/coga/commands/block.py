@@ -15,6 +15,7 @@ from coga.mark import mark_blocked
 from coga.notification import preflight_post
 from coga.repl_supervisor import emit_done_marker
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
+from coga.ticket import Ticket
 from coga.validate import TaskValidationError
 
 
@@ -41,7 +42,17 @@ def block(
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
-    ticket = read_ticket(ref)
+    # Capture the exact ticket revision before any network-backed assist lease
+    # or notification preflight. The first strict write remains conditional on
+    # these bytes, so work arriving during either window cannot become this
+    # command's rollback baseline.
+    pre_lease_snapshot = git.FileMutationRollback.capture(
+        (ref.ticket_path, log_path(cfg)),
+        union_paths=(log_path(cfg),),
+    )
+    ticket_bytes = pre_lease_snapshot.originals[ref.ticket_path]
+    assert ticket_bytes is not None
+    ticket = Ticket.parse(ticket_bytes.decode("utf-8"))
     if ticket.status not in {"active", "in_progress", "blocked"}:
         _bail(
             f"Task {ref.id_slug} is {ticket.status!r}; block requires "
@@ -68,12 +79,7 @@ def block(
                 "state publication.",
                 exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             )
-    rollback = None
-    if assist is not None:
-        rollback = git.FileMutationRollback.capture(
-            (ref.ticket_path, log_path(cfg)),
-            union_paths=(log_path(cfg),),
-        )
+    rollback = pre_lease_snapshot if assist is not None else None
     effective_assignee = assist.agent if assist is not None else ticket.assignee
     actor = (
         f"agent:{effective_assignee}"

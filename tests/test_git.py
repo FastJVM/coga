@@ -4419,6 +4419,73 @@ def test_assist_alignment_rechecks_checkout_before_fast_forward(
     assert not (git_repo.root / "review.txt").exists()
 
 
+def test_assist_alignment_ignores_concurrent_fetch_head_update(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A concurrent fetch cannot substitute its tip for the feature tip."""
+    branch = "feature/fetch-head-race"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+
+    peer = git_repo.origin.parent / "peer-fetch-head-race"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", branch, f"origin/{branch}", cwd=peer)
+    (peer / "feature.txt").write_text("feature update\n")
+    git_repo.git("add", "feature.txt", cwd=peer)
+    git_repo.git("commit", "-m", "feature: advance review", cwd=peer)
+    git_repo.git("push", "origin", branch, cwd=peer)
+    feature_tip = git_repo.git(
+        "rev-parse", f"refs/heads/{branch}", cwd=git_repo.origin
+    ).strip()
+
+    git_repo.git("checkout", "-B", "main", "origin/main", cwd=peer)
+    (peer / "main.txt").write_text("unrelated control update\n")
+    git_repo.git("add", "main.txt", cwd=peer)
+    git_repo.git("commit", "-m", "main: unrelated update", cwd=peer)
+    git_repo.git("push", "origin", "main", cwd=peer)
+    main_tip = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+
+    real_run_git = git._run_git
+    injected = False
+
+    def overwrite_fetch_head_before_read(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal injected
+        if (
+            not injected
+            and args[0] == "rev-parse"
+            and (
+                args[1] == "FETCH_HEAD"
+                or args[1].startswith("refs/coga/fetch/")
+            )
+        ):
+            injected = True
+            real_run_git(root, "fetch", "origin", "main")
+        return real_run_git(root, *args, **kwargs)
+
+    monkeypatch.setattr(git, "_run_git", overwrite_fetch_head_before_read)
+
+    state = git._prepare_feature_branch_publication(
+        git_repo.root,
+        "origin",
+        branch,
+        require_single_push_url=True,
+    )
+
+    assert injected
+    assert state.remote_oid == feature_tip
+    assert git_repo.git("rev-parse", "HEAD").strip() == feature_tip
+    assert feature_tip != main_tip
+    assert (
+        git_repo.git(
+            "for-each-ref", "--format=%(refname)", "refs/coga/fetch"
+        ).strip()
+        == ""
+    )
+
+
 @pytest.mark.parametrize(
     "interrupt_stage",
     ["after-hide", "before-merge", "after-merge"],

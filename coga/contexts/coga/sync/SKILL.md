@@ -480,6 +480,13 @@ Concurrent local or cross-machine processes each fetch→build→push; exactly o
 fast-forwards per round and the losers retry, so nothing on the control branch
 is clobbered.
 
+Fetch results used by strict assist alignment and publication are isolated too.
+Each requested branch tip is written to a UUID-scoped command-owned ref with
+`--no-write-fetch-head`, resolved from that ref, and cleaned up afterward.
+`FETCH_HEAD` is checkout-wide mutable state, so a concurrent local fetch may
+replace it between subprocesses and must never be an authority for a strict
+feature or control operation.
+
 After a cross-branch landing wins that push, Coga fast-forwards the local
 control-branch ref best-effort. When no worktree has the branch checked out, a
 bare `update-ref` moves it. When one does — the primary checkout sitting on
@@ -729,6 +736,10 @@ Failure model:
   assist log whose exact PR-tip lease was lost, any aligned-assist setup
   refusal that may inherit such a log, or a failed leased `block`/`unblock`
   mutation, including lease acquisition before either command writes).
+  Strict `block`, `unblock`, and automatic unresolved re-block capture their
+  exact ticket revision before that lease (and before notification preflight),
+  parse from those bytes, and byte-CAS their first write, so a peer edit during
+  network work remains local and cannot become generated rollback state.
   Once assist alignment starts, that retry-only boundary covers every later
   setup operation and session-side exception, including agent-skill refresh,
   override validation, an unreadable ticket on a subsequent read, and signals;

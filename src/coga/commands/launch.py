@@ -34,7 +34,12 @@ import typer
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
 from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
-from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
+from coga.blackboard import (
+    blackboard_size_warning,
+    format_bytes,
+    open_blockers,
+    parse_blockers_text,
+)
 from coga.compose import (
     ComposeError,
     PromptComposition,
@@ -1363,10 +1368,30 @@ def _reblock_unresolved_resume(
     """
     if not isinstance(ref, TaskRef) or not ref.ticket_path.exists():
         return
-    blockers = open_blockers(ref.ticket_path)
+    # The automatic reblock's Ticket object and rollback baseline must predate
+    # its network lease. Parse both lifecycle and blockers from that one exact
+    # revision so a peer edit during lease acquisition is rejected by
+    # ``mark_blocked`` rather than adopted or overwritten.
+    rollback = (
+        _snapshot_assist_state(cfg, ref)
+        if feature_branch is not None
+        else None
+    )
+    if rollback is not None:
+        ticket_bytes = rollback.originals[ref.ticket_path]
+        assert ticket_bytes is not None
+        ticket = Ticket.parse(ticket_bytes.decode("utf-8"))
+        _, blackboard = split_body(ticket.body)
+        blockers = [
+            blocker
+            for blocker in parse_blockers_text(blackboard or "")
+            if not blocker.resolved
+        ]
+    else:
+        blockers = open_blockers(ref.ticket_path)
+        ticket = read_ticket(ref)
     if not blockers:
         return
-    ticket = read_ticket(ref)
     if ticket.status != "in_progress":
         return
 
@@ -1386,11 +1411,8 @@ def _reblock_unresolved_resume(
                 f"Could not return {ref.id_slug} to blocked on the recorded "
                 f"assist branch after the unresolved session: {exc}"
             ) from exc
-    rollback = (
-        _snapshot_assist_state(cfg, ref)
-        if feature_publication is not None
-        else None
-    )
+    if feature_publication is None:
+        rollback = None
     publication_succeeded = False
 
     def record_publication() -> None:
