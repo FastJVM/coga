@@ -334,6 +334,12 @@ at a human handoff, terminal state, blocker, no-progress exit, or non-zero
 exit. A stateless bootstrap agent has no lifecycle transition, so its final
 `coga slack --task bootstrap/<name> ...` FYI is the completion signal.
 
+A human-owned step remains a hard handoff when launched normally. An explicit
+`coga launch <slug> --agent <type>` is the on-demand assist path: it selects a
+configured agent for that launch only, prints the unusual assist in the banner,
+and never rewrites the human `assignee:` on disk. Megalaunch keeps a separate
+human gate and does not inherit this relaxation.
+
 Blocked tickets can resume inline only from an interactive TTY. Their first
 job is to resolve or re-block the open asks.
 

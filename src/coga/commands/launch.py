@@ -8,6 +8,9 @@ so those fail loud with the same remedy `mark active` gives.) An
 already-`in_progress` ticket resumes without another status flip. Terminal
 `done` / `canceled` tickets are refused and left untouched.
 
+Human-owned steps remain unlaunchable by default. An explicit `--agent`
+override starts one visible assist session without rewriting `assignee:`.
+
 Bootstrap tickets are stateless re-entry points (no status, no log of state
 changes) — launch is the only way to run a skill against one.
 """
@@ -99,7 +102,8 @@ def launch(
     agent_override: str | None = typer.Option(
         None,
         "--agent",
-        help="Agent nickname to use for this launch instead of the ticket assignee.",
+        help="Explicit agent override for this launch, including an assist on "
+        "a human-owned step; never rewrites the ticket assignee.",
     ),
     prompt_report: bool = typer.Option(
         False,
@@ -251,8 +255,9 @@ def launch(
                 f"to resume."
             )
 
-    # Refuse human handoffs up front: a human-owned active/in-progress step
-    # should report the handoff directly, before any status mutation.
+    # Refuse unoverridden human handoffs up front: a human-owned
+    # active/in-progress step should report the handoff directly, before any
+    # status mutation. An explicit override is the on-demand assist path.
     if not is_bootstrap and ticket.status not in {"draft", "paused"}:
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
@@ -284,6 +289,15 @@ def launch(
             )
 
         launch_assignee = agent_override or assignee
+        if (
+            not is_bootstrap
+            and agent_override is not None
+            and assignee not in cfg.agents
+        ):
+            typer.echo(
+                f"Launch: agent {agent_override} assisting on human-owned step "
+                f"(assignee={assignee}; ticket assignment unchanged)"
+            )
 
         # Resolve the agent type — the ticket's assignee names it directly.
         try:
@@ -395,9 +409,9 @@ def launch(
             # Resolve the agent for THIS step from the ticket's current
             # assignee, so the supervisor can rotate claude <-> codex across
             # the workflow. The `--agent` override applies only to the first
-            # step; chained steps follow the ticket. A step whose assignee is
-            # a human never reaches here — `_harness_stop_reason` returns
-            # control to the caller before we'd relaunch.
+            # step; chained steps follow the ticket. A human-owned first step
+            # reaches here only through that explicit assist. Later human
+            # handoffs stop in `_harness_stop_reason` before a relaunch.
             step_assignee = (
                 (agent_override or ticket.assignee) if first_step else ticket.assignee
             )
@@ -1252,13 +1266,11 @@ def _refuse_human_handoff_launch(
         isinstance(ref, BootstrapRef)
         or not assignee
         or assignee in cfg.agents
+        or agent_override is not None
     ):
         return
-    override = (
-        f" with --agent {agent_override!r}" if agent_override is not None else ""
-    )
     _bail(
-        f"Cannot launch {ref.id_slug}{override}: assignee {assignee!r} "
+        f"Cannot launch {ref.id_slug}: assignee {assignee!r} "
         "is not a configured agent type. This is a human handoff; "
         "reassign the task to an agent type before launching an agent."
     )

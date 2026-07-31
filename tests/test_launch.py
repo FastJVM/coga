@@ -2823,7 +2823,44 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     assert "assignee=claude, launch_assignee=codex, agent=codex" in log
 
 
-def test_launch_agent_override_does_not_bypass_human_handoff(
+def test_launch_agent_override_assists_human_handoff_without_reassigning(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ref.ticket_path)
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
+
+    assert result.exit_code == 0, result.output
+    assert "assisting on human-owned step" in (
+        result.output + (result.stderr or "")
+    )
+    cmd = captured["cmd"]
+    assert isinstance(cmd, list)
+    assert cmd[0] == "codex"
+    assert Ticket.read(ref.ticket_path).frontmatter["assignee"] == "marc"
+
+    log = _read_log(active_task)
+    assert "assignee=marc, launch_assignee=codex, agent=codex" in log
+
+
+def test_launch_human_handoff_without_agent_override_is_still_refused(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(active_task)
@@ -2838,17 +2875,17 @@ def test_launch_agent_override_does_not_bypass_human_handoff(
         raise AssertionError("human handoff should fail before spawning an agent")
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
-    result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
     assert result.exit_code == 2
-    assert "Cannot launch fix-retry-logic with --agent 'codex'" in (
+    assert "Cannot launch fix-retry-logic" in (
         result.output + (result.stderr or "")
     )
     assert "assignee 'marc' is not a configured agent type" in (
         result.output + (result.stderr or "")
     )
+    assert Ticket.read(ref.ticket_path).frontmatter["assignee"] == "marc"
 
 
 def test_launch_bootstrap_unknown_ticket(

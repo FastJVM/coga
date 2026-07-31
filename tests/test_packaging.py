@@ -71,6 +71,8 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/workflows/digest/post.md",
     # …and the code/* and digest-flush skills those workflows reference.
     "coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/code/address-pr-comments/"
+    "SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/implement/"
     "SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md",
@@ -86,6 +88,11 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
 # templates are curated copies that intentionally diverge from the live
 # `coga/` tree, so this is an explicit allowlist, not a tree diff.
 IDENTICAL_LIVE_PACKAGED_PAIRS = (
+    (
+        "coga/skills/code/address-pr-comments/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/skills/code/"
+        "address-pr-comments/SKILL.md",
+    ),
     (
         "coga/contexts/coga/sync/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",

@@ -87,9 +87,9 @@ def megalaunch(
         None,
         "--agent",
         help=(
-            "Launch swept tasks with this configured agent type regardless "
-            "of each ticket's assignee (ephemeral override, same as "
-            "`coga launch --agent`; human-assigned tickets still skip)."
+            "Launch swept agent-owned tasks with this configured agent type "
+            "(ephemeral first-step override; human-assigned tickets still "
+            "skip, unlike an explicit `coga launch --agent` assist)."
         ),
     ),
 ) -> None:
