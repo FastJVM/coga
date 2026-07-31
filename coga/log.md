@@ -3230,3 +3230,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-31 10:45 [bump-can-mark-done-too] [human:nicktoper] auto-bumped on merge of PR #675 → done
 2026-07-31 10:45 [document-megalaunch-drain-order] [human:nicktoper] auto-bumped on merge of PR #676 → done
 2026-07-31 10:45 [retire-a-finished-ticket-s-linked-worktree-and-mak] [human:nicktoper] auto-bumped on merge of PR #672 → done
+2026-07-31 10:45 [scrub-coga-task-in-the-pytest-autouse-guard-so-fix] [human:nicktoper] auto-bumped on merge of PR #673 → done
