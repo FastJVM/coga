@@ -180,7 +180,16 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
         publication_succeeded = True
 
     try:
-        resolve_open_blockers(ref.ticket_path, actor, answer)
+        resolve_open_blockers(
+            ref.ticket_path,
+            actor,
+            answer,
+            expected_bytes=(
+                rollback.originals[ref.ticket_path]
+                if rollback is not None
+                else None
+            ),
+        )
         if rollback is not None:
             # Resolving the asks is the first generated ticket revision and the
             # exact input any following status write is allowed to replace.

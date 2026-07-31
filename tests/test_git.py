@@ -2542,6 +2542,43 @@ def test_feature_publication_lease_allows_only_explicit_append_only_log(
         )
 
 
+@pytest.mark.parametrize("mutation", ["chmod", "symlink"])
+def test_feature_publication_lease_rejects_audit_log_type_or_mode_change(
+    git_repo,
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    """The append-only exception covers bytes, not metadata or indirection."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    log = git_repo.coga_os / "log.md"
+    log.write_bytes(b"prior audit\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed regular audit log")
+    git_repo.git("push", "origin", "main")
+    branch = f"feature/log-{mutation}-assist"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    if mutation == "chmod":
+        log.chmod(0o755)
+    else:
+        target = tmp_path / "redirected-log.md"
+        target.write_bytes(log.read_bytes() + b"redirected append\n")
+        log.unlink()
+        log.symlink_to(target)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="changed file type or mode",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            branch,
+            allow_append_only_log=True,
+        )
+
+
 def test_feature_publication_lease_normalizes_lower_level_probe_failure(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -2608,6 +2645,75 @@ def test_strict_feature_publication_reraises_generic_git_failure(
                 remote_oid=before,
             ),
         )
+
+
+def test_strict_publication_keeps_verified_push_url_after_config_change(
+    git_repo,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A late remote rewrite cannot redirect either half of the transaction."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/pinned-push-url"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    lease = git.feature_publication_lease(cfg, ticket.parent, branch)
+    assert lease.push_url is not None
+    alternate = tmp_path / "alternate.git"
+    git_repo.git("init", "--bare", str(alternate), cwd=tmp_path)
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    real_push = git._push_ref
+    destinations: list[str] = []
+
+    def record_push(root, remote, refspec, **kwargs):  # type: ignore[no-untyped-def]
+        destinations.append(remote)
+        return real_push(root, remote, refspec, **kwargs)
+
+    def rewrite_config(_expected_oid: str) -> None:
+        git_repo.git(
+            "remote",
+            "set-url",
+            "--push",
+            "origin",
+            str(alternate),
+        )
+
+    monkeypatch.setattr(git, "_push_ref", record_push)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — in_progress",
+        feature_publication=lease,
+        feature_publication_guard=rewrite_config,
+    )
+
+    assert destinations
+    assert set(destinations) == {lease.push_url}
+    rel = str(ticket.relative_to(git_repo.root))
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/{branch}:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git(
+        "for-each-ref",
+        "--format=%(refname)",
+        "refs/heads",
+        cwd=alternate,
+    ).strip() == ""
 
 
 def test_file_mutation_rollback_preserves_peer_ticket_and_log_edits(
@@ -4489,6 +4595,54 @@ def test_strict_refresh_guard_retains_peer_edit_before_write(
 
     assert refreshed is False
     assert ticket.read_text() == "same-checkout peer edit\n"
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert git_repo.git(
+        "rev-parse",
+        f"refs/heads/{branch}",
+        cwd=git_repo.origin,
+    ).strip() == before
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+def test_strict_refresh_rescans_path_dirt_before_write(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An edit after the initial dirty scan is skipped, never adopted."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    rel = str(ticket.relative_to(git_repo.root))
+    branch = "feature/refresh-rescan"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit(rel, _step_ticket_text(step="2 (review)"))
+    real_reason = git._refresh_regression_reason
+    raced = False
+
+    def edit_during_analysis(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if not raced:
+            raced = True
+            ticket.write_text(
+                ticket.read_text().replace(
+                    "## Description\n\nDemo.",
+                    "## Description\n\nPEER EDIT AFTER DIRTY SCAN\n\nDemo.",
+                )
+            )
+        return real_reason(*args, **kwargs)
+
+    monkeypatch.setattr(git, "_refresh_regression_reason", edit_during_analysis)
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Rescan a refresh candidate",
+        publish_if_remote_aligned=True,
+        expected_feature_branch=branch,
+    )
+
+    assert refreshed is True
+    assert "PEER EDIT AFTER DIRTY SCAN" in ticket.read_text()
     assert git_repo.git("rev-parse", "HEAD").strip() == before
     assert git_repo.git(
         "rev-parse",

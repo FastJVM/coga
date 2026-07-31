@@ -89,7 +89,16 @@ def block(
         publication_succeeded = True
 
     try:
-        append_blocker(ref.ticket_path, actor, reason)
+        append_blocker(
+            ref.ticket_path,
+            actor,
+            reason,
+            expected_bytes=(
+                rollback.originals[ref.ticket_path]
+                if rollback is not None
+                else None
+            ),
+        )
         if rollback is not None:
             # The blocker append is the first generated ticket revision. Make
             # it both rollback-safe and the expected input to the status write.

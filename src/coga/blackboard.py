@@ -135,14 +135,24 @@ def prelaunch_blackboard_synthesis_reason_text(text: str) -> str | None:
     return None
 
 
-def append_to_section(ticket_path: Path, heading: str, entry: str) -> None:
+def append_to_section(
+    ticket_path: Path,
+    heading: str,
+    entry: str,
+    *,
+    expected_bytes: bytes | None = None,
+) -> None:
     """Append `entry` to the `## <heading>` section of the blackboard region.
 
     Reads and rewrites only the region below the fence; the body above stays
     byte-for-byte unchanged.
     """
     region = read_blackboard(ticket_path)
-    replace_blackboard(ticket_path, append_to_section_text(region, heading, entry))
+    replace_blackboard(
+        ticket_path,
+        append_to_section_text(region, heading, entry),
+        expected_bytes=expected_bytes,
+    )
 
 
 def prelaunch_blackboard_synthesis_reason(
@@ -201,7 +211,13 @@ def _blocker_id(now: datetime) -> str:
     return now.strftime("%Y%m%dT%H%M%S")
 
 
-def append_blocker(ticket_path: Path, actor: str, reason: str) -> Blocker:
+def append_blocker(
+    ticket_path: Path,
+    actor: str,
+    reason: str,
+    *,
+    expected_bytes: bytes | None = None,
+) -> Blocker:
     """Write a timestamped blocker entry to the blackboard's Blockers section.
 
     `ticket_path` is the task's `ticket.md` (file-form: the `.md` file itself;
@@ -210,7 +226,12 @@ def append_blocker(ticket_path: Path, actor: str, reason: str) -> Blocker:
     ts = now.strftime(BLOCKER_TS_FORMAT)
     blocker_id = _blocker_id(now)
     entry = f"- [ ] [{ts}] [{actor}] id={blocker_id} {reason}"
-    append_to_section(ticket_path, "Blockers", entry)
+    append_to_section(
+        ticket_path,
+        "Blockers",
+        entry,
+        expected_bytes=expected_bytes,
+    )
     return Blocker(
         id=blocker_id,
         created_at=now.replace(second=0, microsecond=0),
@@ -287,7 +308,13 @@ def open_blockers(ticket_path: Path) -> list[Blocker]:
     return [b for b in read_blockers(ticket_path) if not b.resolved]
 
 
-def resolve_open_blockers(ticket_path: Path, actor: str, answer: str) -> list[Blocker]:
+def resolve_open_blockers(
+    ticket_path: Path,
+    actor: str,
+    answer: str,
+    *,
+    expected_bytes: bytes | None = None,
+) -> list[Blocker]:
     """Mark every currently open blocker resolved and append the answer.
 
     A blocked ticket may carry multiple asks. `coga unblock` answers all open
@@ -327,7 +354,11 @@ def resolve_open_blockers(ticket_path: Path, actor: str, answer: str) -> list[Bl
         resolved_lines.append(line)
 
     trailing = "\n" if region.endswith("\n") else ""
-    replace_blackboard(ticket_path, "\n".join(resolved_lines) + trailing)
+    replace_blackboard(
+        ticket_path,
+        "\n".join(resolved_lines) + trailing,
+        expected_bytes=expected_bytes,
+    )
     return [b for b in read_blockers(ticket_path) if b.resolved and b.answer == answer]
 
 

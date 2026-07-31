@@ -730,8 +730,9 @@ Failure model:
   refusal that may inherit such a log, or a failed leased `block`/`unblock`
   mutation, including lease acquisition before either command writes).
   Once assist alignment starts, that retry-only boundary covers every later
-  setup and session-side exception, including an unreadable ticket on a
-  subsequent read; no post-alignment failure may fall back to the broad sweep.
+  setup operation and session-side exception, including agent-skill refresh,
+  override validation, an unreadable ticket on a subsequent read, and signals;
+  no post-alignment failure may fall back to the broad sweep.
   An `unblock --all` walk aborts rather than swallowing this code.
   It tells wrapping layers the CLI end-of-command state sweep must stand down
   instead of re-failing against a stale control checkout or committing bytes
@@ -763,7 +764,11 @@ base are overlaid and committed on the current branch — the same local-commit
 shape the mid-run sync uses — so the branch's product tree is never touched;
 `coga/log.md` is three-way union-merged so locally appended lines survive.
 Working-tree-dirty paths are skipped (they belong to the catch-all sweep and
-its regression guard, not a blind overwrite). Committed changes on both sides
+its regression guard, not a blind overwrite). The refresh retains the bytes
+sampled for each initially clean candidate, rechecks that candidate's dirt
+immediately before writing, and conditions the write on the sample; a peer edit
+after the first status scan is therefore skipped or refused rather than
+overwritten. Committed changes on both sides
 are preserved locally unless the control path's history proves it already
 absorbed that exact local version, and a ticket whose local copy is ahead of
 the control tip is left alone — a refresh must never move state backward.

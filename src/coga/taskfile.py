@@ -144,7 +144,12 @@ def read_blackboard(path: Path, *, blackboard_required: bool = True) -> str:
     return text[matches[0].end():]
 
 
-def replace_blackboard(path: Path, new_blackboard: str) -> None:
+def replace_blackboard(
+    path: Path,
+    new_blackboard: str,
+    *,
+    expected_bytes: bytes | None = None,
+) -> None:
     """Replace only the blackboard region of `path`, leaving the rest verbatim.
 
     Byte-splices the file: everything up to and including the fence marker is
@@ -152,7 +157,12 @@ def replace_blackboard(path: Path, new_blackboard: str) -> None:
     re-rendered), and the region after the fence is replaced with
     `new_blackboard`. Atomic so a crash mid-write can't truncate the ticket.
     """
-    text = path.read_text(encoding="utf-8")
+    raw = path.read_bytes()
+    if expected_bytes is not None and raw != expected_bytes:
+        raise TaskFileError(
+            f"ticket changed before its blackboard update: {path}"
+        )
+    text = raw.decode("utf-8")
     matches = _fence_matches(text)
     if not matches:
         raise TaskFileError(

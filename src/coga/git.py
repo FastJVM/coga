@@ -84,6 +84,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -186,6 +187,7 @@ class FeaturePublicationLease:
     branch: str
     local_oid: str
     remote_oid: str
+    push_url: str | None = None
     control_ticket_state: tuple[str | None, str | None, str | None] | None = None
     control_task_oid: str | None = None
 
@@ -440,6 +442,11 @@ def sync_task_state(
         expected_current_branch_oid=expected_current_branch_oid,
         expected_remote_branch_oid=expected_remote_branch_oid,
         strict_feature_publication=feature_publication is not None,
+        strict_push_url=(
+            feature_publication.push_url
+            if feature_publication is not None
+            else None
+        ),
         feature_publication_guard=feature_publication_guard,
         after_strict_publication=after_strict_publication,
         generated_paths=generated_paths,
@@ -602,7 +609,7 @@ def sync_log(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
             return False
-        log_rel = _relative_to_root(root, log_file)
+        log_rel = _relative_worktree_file_to_root(root, log_file)
         branch = _current_branch(root)
         if (
             expected_feature_branch is not None
@@ -644,6 +651,11 @@ def sync_log(
                 detail=f"remote {cfg.git_remote!r} is not configured",
                 remote_oid=None,
             )
+            assist_push_url = (
+                _single_assist_push_url(root, cfg.git_remote)
+                if strict_assist
+                else None
+            )
             if publish_if_remote_aligned and remote_ok and (
                 strict_assist or not publish_current_branch
             ):
@@ -654,6 +666,7 @@ def sync_log(
                     preserve_union_rel=log_rel,
                     fast_forward_if_behind=allow_feature_fast_forward,
                     require_single_push_url=True,
+                    push_url=assist_push_url,
                 )
             if strict_assist and not publication.aligned:
                 sys.stderr.write(
@@ -712,7 +725,7 @@ def sync_log(
                     push_started = True
                     result = _push_ref(
                         root,
-                        cfg.git_remote,
+                        assist_push_url or cfg.git_remote,
                         f"{generated_oid}:refs/heads/{branch}",
                         force_with_lease=(
                             (f"refs/heads/{branch}", publication.remote_oid)
@@ -745,6 +758,7 @@ def sync_log(
                             cfg.git_remote,
                             branch,
                             generated_oid,
+                            push_url=assist_push_url,
                         )
                     except GitError as probe_exc:
                         raise UncertainFeaturePublicationError(
@@ -798,6 +812,7 @@ def sync_paths(
     expected_current_branch_oid: str | None = None,
     expected_remote_branch_oid: str | None = None,
     strict_feature_publication: bool = False,
+    strict_push_url: str | None = None,
     feature_publication_guard: _FeaturePublicationGuard | None = None,
     after_strict_publication: Callable[[], None] | None = None,
     generated_paths: Mapping[Path, bytes | None] | None = None,
@@ -897,7 +912,7 @@ def sync_paths(
         # commit and ordinarily reach control through a same-branch push or the
         # feature PR. Cancellation is the exception: its branch may never merge,
         # so the caller asks us to union-land the audit/digest evidence now.
-        log_rel = _relative_to_root(root, log_path(cfg))
+        log_rel = _relative_worktree_file_to_root(root, log_path(cfg))
         local_rels = rels + [log_rel] if log_path(cfg).exists() else rels
         local_rels = list(dict.fromkeys(local_rels))
         if strict_feature_publication and generated_rels is None:
@@ -928,6 +943,7 @@ def sync_paths(
             expected_current_branch_oid=expected_current_branch_oid,
             expected_remote_branch_oid=expected_remote_branch_oid,
             strict_feature_publication=strict_feature_publication,
+            strict_push_url=strict_push_url,
             feature_publication_guard=feature_publication_guard,
             after_strict_publication=after_strict_publication,
             generated_paths=generated_rels,
@@ -1163,8 +1179,12 @@ def refresh_coga_state_from_control(
                 root,
                 cfg.git_remote,
                 branch,
-                preserve_union_rel=_relative_to_root(root, log_path(cfg)),
+                preserve_union_rel=_relative_worktree_file_to_root(
+                    root,
+                    log_path(cfg),
+                ),
                 require_single_push_url=True,
+                push_url=assist_push_url,
             )
             if strict_assist and not publication.aligned:
                 sys.stderr.write(
@@ -1206,7 +1226,7 @@ def refresh_coga_state_from_control(
                 push_started = True
                 result = _push_ref(
                     root,
-                    cfg.git_remote,
+                    assist_push_url or cfg.git_remote,
                     f"{refresh.oid}:refs/heads/{branch}",
                     force_with_lease=(
                         (f"refs/heads/{branch}", publication.remote_oid)
@@ -1235,6 +1255,7 @@ def refresh_coga_state_from_control(
                         cfg.git_remote,
                         branch,
                         refresh.oid,
+                        push_url=assist_push_url,
                     )
                 except GitError as probe_exc:
                     raise UncertainFeaturePublicationError(
@@ -1299,6 +1320,11 @@ def _refresh_branch_from_control(
     )
     candidates = [rel for rel in out.split("\x00") if rel]
     dirty = set(_changed_paths_under(root, [tasks_rel]))
+    sampled = {
+        rel: _working_tree_bytes(root, rel)
+        for rel in candidates
+        if rel not in dirty
+    }
     updated: list[str] = []
     originals: dict[str, bytes | None] = {}
     generated: dict[str, bytes | None] = {}
@@ -1336,7 +1362,13 @@ def _refresh_branch_from_control(
                     expected_head,
                     action=f"refresh {rel}",
                 )
-            prior = _working_tree_bytes(root, rel)
+            if _changed_paths_under(root, [rel]):
+                sys.stderr.write(
+                    f"[git] refresh: leaving {rel} untouched — it became "
+                    "dirty after the refresh scan.\n"
+                )
+                continue
+            prior = sampled[rel]
             _write_worktree_bytes(
                 root,
                 rel,
@@ -1551,7 +1583,7 @@ def _refresh_log_from_control(
     the control branch's lines fold in — the same union contract the publish
     paths honor in the opposite direction.
     """
-    log_rel = _relative_to_root(root, log_path(cfg))
+    log_rel = _relative_worktree_file_to_root(root, log_path(cfg))
     control = _tree_bytes(root, tip, log_rel)
     if control is None:
         return None
@@ -1721,6 +1753,7 @@ def _dispatch_branch_sync(
     expected_current_branch_oid: str | None = None,
     expected_remote_branch_oid: str | None = None,
     strict_feature_publication: bool = False,
+    strict_push_url: str | None = None,
     feature_publication_guard: _FeaturePublicationGuard | None = None,
     after_strict_publication: Callable[[], None] | None = None,
     generated_paths: Mapping[str, bytes | None] | None = None,
@@ -1807,7 +1840,10 @@ def _dispatch_branch_sync(
         strict_control_tip: str | None = None
         assist_push_url: str | None = None
         if strict_feature_publication:
-            assist_push_url = _single_assist_push_url(root, cfg.git_remote)
+            assist_push_url = (
+                strict_push_url
+                or _single_assist_push_url(root, cfg.git_remote)
+            )
         if strict_feature_publication:
             try:
                 # The feature update happens before the control landing, so
@@ -1819,6 +1855,7 @@ def _dispatch_branch_sync(
                     cfg.git_remote,
                     cfg.git_control_branch,
                     1,
+                    push_url=assist_push_url,
                 )
                 if guard is not None:
                     guard(strict_control_tip)
@@ -1910,7 +1947,7 @@ def _dispatch_branch_sync(
             push_started = True
             result = _push_ref(
                 root,
-                cfg.git_remote,
+                assist_push_url,
                 f"{generated_oid}:refs/heads/{branch}",
                 force_with_lease=(
                     f"refs/heads/{branch}",
@@ -1973,6 +2010,7 @@ def _dispatch_branch_sync(
                 _raise_strict_control_landing_failure(
                     root,
                     cfg.git_remote,
+                    assist_push_url,
                     branch,
                     before=before,
                     generated_oid=generated_oid,
@@ -2012,6 +2050,11 @@ def _dispatch_branch_sync(
             update_local_control_ref=update_local_control_ref,
             initial_base=strict_control_tip,
             source_rev=generated_oid if strict_feature_publication else None,
+            push_url=(
+                assist_push_url
+                if strict_feature_publication
+                else None
+            ),
         )
         if strict_feature_publication and after_strict_publication is not None:
             after_strict_publication()
@@ -2040,6 +2083,7 @@ def _dispatch_branch_sync(
                         root,
                         cfg.git_remote,
                         cfg.git_control_branch,
+                        push_url=assist_push_url,
                         initial_tip=strict_control_tip,
                         generated_oid=generated_oid,
                         rels=overlay_rels,
@@ -2064,6 +2108,7 @@ def _dispatch_branch_sync(
             _raise_strict_control_landing_failure(
                 root,
                 cfg.git_remote,
+                assist_push_url,
                 branch,
                 before=before,
                 generated_oid=generated_oid,
@@ -2505,6 +2550,7 @@ def _restore_unpushed_sync_commit(root: Path, before: str, rels: list[str]) -> N
 def _raise_strict_control_landing_failure(
     root: Path,
     remote: str,
+    push_url: str,
     branch: str,
     *,
     before: str | None,
@@ -2546,7 +2592,6 @@ def _raise_strict_control_landing_failure(
             raise GitError(
                 "generated feature commit has no compensable state paths"
             )
-        push_url = _single_assist_push_url(root, remote)
         compensation_oid = ""
         compensated_parent = ""
         for _attempt in range(_MAX_SYNC_ATTEMPTS):
@@ -2580,7 +2625,7 @@ def _raise_strict_control_landing_failure(
             try:
                 result = _push_ref(
                     root,
-                    remote,
+                    push_url,
                     f"{compensation_oid}:refs/heads/{branch}",
                     force_with_lease=(
                         f"refs/heads/{branch}",
@@ -2609,6 +2654,7 @@ def _raise_strict_control_landing_failure(
                     remote,
                     branch,
                     compensation_oid,
+                    push_url=push_url,
                 )
             except BaseException as probe_error:
                 raise UncertainFeaturePublicationError(
@@ -3376,6 +3422,7 @@ def _land_paths_on_control_branch(
     update_local_control_ref: bool = True,
     initial_base: str | None = None,
     source_rev: str | None = None,
+    push_url: str | None = None,
 ) -> None:
     """Land selected pathspecs on the control branch from any branch.
 
@@ -3386,13 +3433,20 @@ def _land_paths_on_control_branch(
     """
     remote = cfg.git_remote
     branch = cfg.git_control_branch
+    push_destination = push_url or remote
     union_rels = union_rels or []
 
     for attempt in range(_MAX_SYNC_ATTEMPTS):
         base = (
             initial_base
             if attempt == 0 and initial_base is not None
-            else _control_base_for_attempt(root, remote, branch, attempt)
+            else _control_base_for_attempt(
+                root,
+                remote,
+                branch,
+                attempt,
+                push_url=push_url,
+            )
         )
         if guard is not None:
             guard(base)
@@ -3408,7 +3462,11 @@ def _land_paths_on_control_branch(
             return
 
         new = _run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
-        result = _push_ref(root, remote, f"{new}:refs/heads/{branch}")
+        result = _push_ref(
+            root,
+            push_destination,
+            f"{new}:refs/heads/{branch}",
+        )
         if result is None:
             if update_local_control_ref:
                 _try_update_local_ref(root, branch, new)
@@ -3429,6 +3487,7 @@ def _control_history_contains_generated_paths(
     remote: str,
     branch: str,
     *,
+    push_url: str | None = None,
     initial_tip: str,
     generated_oid: str,
     rels: list[str],
@@ -3440,7 +3499,13 @@ def _control_history_contains_generated_paths(
     current tree: a concurrent descendant may already have edited the task
     again while still preserving the publication commit in history.
     """
-    current_tip = _control_base_for_attempt(root, remote, branch, 1)
+    current_tip = _control_base_for_attempt(
+        root,
+        remote,
+        branch,
+        1,
+        push_url=push_url,
+    )
     generated = {
         rel: _tree_entry_oid(root, generated_oid, rel)
         for rel in rels
@@ -3463,14 +3528,19 @@ def _control_history_contains_generated_paths(
 
 
 def _control_base_for_attempt(
-    root: Path, remote: str, branch: str, attempt: int
+    root: Path,
+    remote: str,
+    branch: str,
+    attempt: int,
+    *,
+    push_url: str | None = None,
 ) -> str:
     if attempt == 0:
         local = _local_control_base(root, remote, branch)
         if local is not None:
             return local
-    push_urls = _remote_push_urls(root, remote)
-    _run_git(root, "fetch", push_urls[0], branch)
+    source = push_url or _remote_push_urls(root, remote)[0]
+    _run_git(root, "fetch", source, branch)
     return _run_git(root, "rev-parse", "FETCH_HEAD").strip()
 
 
@@ -3756,6 +3826,20 @@ def _working_tree_bytes(root: Path, rel: str) -> bytes | None:
     if not path.is_file():
         raise GitError(f"merge=union path {rel!r} is not a file")
     return path.read_bytes()
+
+
+def _regular_worktree_mode(root: Path, rel: str) -> str | None:
+    """Return a Git regular-file mode without following worktree symlinks."""
+    path = Path(rel)
+    if not path.is_absolute():
+        path = root / path
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(mode):
+        return None
+    return "100755" if mode & 0o111 else "100644"
 
 
 def _snapshot_worktree_paths(
@@ -4261,9 +4345,11 @@ def _remote_contains_generated_commit(
     remote: str,
     branch: str,
     generated_oid: str,
+    *,
+    push_url: str | None = None,
 ) -> bool:
     """Whether the sole assist push destination accepted a generated commit."""
-    push_url = _single_assist_push_url(root, remote)
+    push_url = push_url or _single_assist_push_url(root, remote)
     remote_oid = _remote_branch_oid(
         root,
         remote,
@@ -4292,6 +4378,7 @@ def _prepare_feature_branch_publication(
     preserve_union_rel: str | None = None,
     fast_forward_if_behind: bool = True,
     require_single_push_url: bool = False,
+    push_url: str | None = None,
 ) -> _FeaturePublicationState:
     """Align a merely-behind feature checkout before a generated commit.
 
@@ -4308,7 +4395,7 @@ def _prepare_feature_branch_publication(
     post-composition tip and found any mismatch. Callers must skip their
     generated commit in that case.
     """
-    push_urls = _remote_push_urls(root, remote)
+    push_urls = [push_url] if push_url is not None else _remote_push_urls(root, remote)
     if require_single_push_url:
         _single_assist_push_url(root, remote, push_urls=push_urls)
     remote_tip = _remote_branch_oid(
@@ -4368,6 +4455,29 @@ def _prepare_feature_branch_publication(
             preserve_union_rel
             and preserve_union_rel in strict_changed
         ):
+            committed_mode = _tree_entry_mode(
+                root,
+                local_tip,
+                preserve_union_rel,
+            )
+            working_mode = _regular_worktree_mode(root, preserve_union_rel)
+            if (
+                (
+                    committed_mode is not None
+                    and committed_mode not in {"100644", "100755"}
+                )
+                or working_mode != (committed_mode or "100644")
+            ):
+                return _FeaturePublicationState(
+                    aligned=False,
+                    may_commit=False,
+                    detail=(
+                        f"{preserve_union_rel} changed file type or mode; "
+                        "the append-only exception requires the same regular "
+                        "file mode"
+                    ),
+                    remote_oid=remote_tip,
+                )
             working = _working_tree_bytes(root, preserve_union_rel)
             if working is None:
                 return _FeaturePublicationState(
@@ -4377,7 +4487,10 @@ def _prepare_feature_branch_publication(
                     remote_oid=remote_tip,
                 )
             committed = _tree_bytes(root, local_tip, preserve_union_rel) or b""
-            if not working.startswith(committed):
+            if (
+                len(working) <= len(committed)
+                or not working.startswith(committed)
+            ):
                 return _FeaturePublicationState(
                     aligned=False,
                     may_commit=False,
@@ -4611,10 +4724,11 @@ def _feature_publication_lease(
             f"assist publication requires configured remote {cfg.git_remote!r}"
         )
     preserve_union_rel = (
-        _relative_to_root(root, log_path(cfg))
+        _relative_worktree_file_to_root(root, log_path(cfg))
         if allow_append_only_log
         else None
     )
+    push_url = _single_assist_push_url(root, cfg.git_remote)
     publication = _prepare_feature_branch_publication(
         root,
         cfg.git_remote,
@@ -4622,6 +4736,7 @@ def _feature_publication_lease(
         preserve_union_rel=preserve_union_rel,
         fast_forward_if_behind=False,
         require_single_push_url=True,
+        push_url=push_url,
     )
     local_oid = _run_git(root, "rev-parse", "HEAD").strip()
     if (
@@ -4641,6 +4756,7 @@ def _feature_publication_lease(
             cfg.git_remote,
             cfg.git_control_branch,
             1,
+            push_url=push_url,
         )
         control_ticket = _tree_bytes(root, control_tip, ticket_rel)
         control_task_oid = _tree_entry_oid(root, control_tip, task_rel)
@@ -4673,6 +4789,7 @@ def _feature_publication_lease(
         branch=branch,
         local_oid=local_oid,
         remote_oid=publication.remote_oid,
+        push_url=push_url,
         control_ticket_state=feature_state,
         control_task_oid=control_task_oid,
     )
@@ -4787,6 +4904,15 @@ def _relative_to_root(root: Path, task_path: Path) -> str:
         return str(task_path.resolve().relative_to(root.resolve()))
     except ValueError:
         return str(task_path.resolve())
+
+
+def _relative_worktree_file_to_root(root: Path, path: Path) -> str:
+    """Return a worktree leaf path without following that leaf if it is a link."""
+    lexical = path.parent.resolve() / path.name
+    try:
+        return str(lexical.relative_to(root.resolve()))
+    except ValueError:
+        return str(lexical)
 
 
 def _dedupe_paths(paths: Iterable[Path]) -> list[Path]:
