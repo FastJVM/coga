@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 import typer
 
 from coga import git
+from coga import pr_assist
 from coga.blackboard import open_blockers, resolve_open_blockers
 from coga.config import Config, ConfigError, load_config
 from coga.logfile import append_log
@@ -153,14 +153,17 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
     """
     actor = f"human:{cfg.current_user}"
     try:
-        assist_publication = git.assist_publication_lease_from_env(cfg, ref.path)
+        assist = pr_assist.assist_publication_from_env(cfg, ref)
     except git.FeaturePublicationError as exc:
         raise _UnblockError(str(exc)) from exc
-    rollback = (
-        _snapshot_files((ref.ticket_path, log_path(cfg)))
-        if assist_publication is not None
-        else None
-    )
+    assist_publication = assist.lease if assist is not None else None
+    assist_guard = assist.guard if assist is not None else None
+    rollback = None
+    if assist is not None:
+        rollback = git.FileMutationRollback.capture(
+            (ref.ticket_path, log_path(cfg)),
+            union_paths=(log_path(cfg),),
+        )
     resolve_open_blockers(ref.ticket_path, actor, answer)
     ticket = read_ticket(ref)
 
@@ -174,6 +177,8 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
             actor,
             f"unblocked (asks resolved, still in_progress): {answer}",
         )
+        if rollback is not None:
+            rollback.arm()
         try:
             git.sync_task_state(
                 cfg,
@@ -181,13 +186,15 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 message=f"Ticket: {ref.id_slug} — asks resolved",
                 guard=git.ticket_state_guard(cfg, ref.ticket_path),
                 feature_publication=assist_publication,
+                feature_publication_guard=assist_guard,
             )
         except git.FeaturePublicationError as exc:
+            rollback_note = ""
             if rollback is not None:
-                _restore_files(rollback)
+                rollback_note = _rollback_note(rollback)
             raise _UnblockError(
                 "Could not publish the blocker resolution to the recorded "
-                f"assist branch: {exc}"
+                f"assist branch: {exc}{rollback_note}"
             ) from exc
         typer.echo(f"{ref.id_slug}: open asks resolved (still in_progress)")
         return
@@ -221,18 +228,15 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
         raise _UnblockError(str(exc))
 
 
-def _snapshot_files(paths: tuple[Path, ...]) -> dict[Path, bytes | None]:
-    return {path: path.read_bytes() if path.is_file() else None for path in paths}
-
-
-def _restore_files(snapshot: dict[Path, bytes | None]) -> None:
-    for path, data in snapshot.items():
-        if data is None:
-            if path.is_file():
-                path.unlink()
-            continue
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+def _rollback_note(rollback: git.FileMutationRollback) -> str:
+    refused = rollback.restore()
+    if not refused:
+        return ""
+    names = ", ".join(str(path) for path in refused)
+    return (
+        "; concurrent edits were retained instead of being overwritten at "
+        f"{names}"
+    )
 
 
 def _bail(msg: str) -> None:

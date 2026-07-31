@@ -27,20 +27,13 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, NamedTuple
-from urllib.parse import urlsplit
 from uuid import uuid4
 
 import typer
 
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
-from coga.autoclose import (
-    GhError,
-    parse_branch_name,
-    parse_pr_url,
-    parse_worktree_path,
-    pr_view,
-)
+from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
 from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
 from coga.compose import (
     ComposeError,
@@ -59,8 +52,8 @@ from coga.config import (
 )
 from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
-from coga.github_source import redacted_git_source
 from coga import git
+from coga import pr_assist
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, log_path
 from coga.mark import (
@@ -78,6 +71,7 @@ from coga.paths import PackagedResourceMissing, read_packaged_resource
 from coga.open_pr import same_git_checkout
 from coga.repl_supervisor import (
     ASSIST_BRANCH_ENV,
+    ASSIST_PR_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
     AgentCliNotFound,
@@ -191,11 +185,6 @@ def launch(
         _bail(str(exc))
 
     is_bootstrap = isinstance(ref, BootstrapRef)
-    if agent_override is not None:
-        try:
-            cfg.agent_type(agent_override)
-        except ConfigError as exc:
-            _bail(str(exc))
 
     # A supported single-checkout assist may be behind its published PR branch.
     # Align before refreshing the agent-skill view or deriving any launch state:
@@ -249,16 +238,20 @@ def launch(
             except (ConfigError, TaskNotFoundError) as exc:
                 _bail(str(exc))
             is_bootstrap = isinstance(ref, BootstrapRef)
-            try:
-                cfg.agent_type(agent_override)
-            except ConfigError as exc:
-                _bail(str(exc))
         else:
             _bail(
                 f"Cannot launch {ref.id_slug}: the recorded assist branch moved "
                 f"during {_ASSIST_ALIGNMENT_ATTEMPTS} consecutive alignment "
                 "attempts; retry once the PR branch is stable."
             )
+
+    # Alignment may fast-forward coga.toml itself. Resolve an explicit override
+    # only after that final tree is authoritative for the launch.
+    if agent_override is not None:
+        try:
+            cfg.agent_type(agent_override)
+        except ConfigError as exc:
+            _bail(str(exc))
 
     _refresh_agent_skills_for_launch(cfg.repo_root)
 
@@ -939,9 +932,10 @@ def _publish_assist_lifecycle_before_spawn(
             echo=f"{ref.id_slug}: in_progress",
             feature_publication=publication,
             feature_publication_guard=publication_guard,
+            before_sync=snapshot.arm,
         )
     except BaseException as exc:
-        _restore_assist_state(snapshot)
+        rollback_note = _restore_assist_state(snapshot)
         if isinstance(
             exc,
             (
@@ -955,28 +949,32 @@ def _publish_assist_lifecycle_before_spawn(
         ):
             raise _AssistPublicationRefused(
                 "The assist lifecycle could not be published at the final "
-                f"spawn gate. No agent was started: {exc}"
+                f"spawn gate. No agent was started: {exc}{rollback_note}"
             ) from exc
         raise
 
 
 def _snapshot_assist_state(
     cfg: Config, ref: TaskRef
-) -> dict[Path, bytes | None]:
+) -> git.FileMutationRollback:
     """Capture the two files launch may mutate before a child actually starts."""
     paths = (ref.ticket_path, log_path(cfg))
-    return {path: path.read_bytes() if path.is_file() else None for path in paths}
+    return git.FileMutationRollback.capture(
+        paths,
+        union_paths=(log_path(cfg),),
+    )
 
 
-def _restore_assist_state(snapshot: dict[Path, bytes | None]) -> None:
-    """Restore a refused assist's ticket/log bytes after its commit is reset."""
-    for path, data in snapshot.items():
-        if data is None:
-            if path.is_file():
-                path.unlink()
-            continue
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+def _restore_assist_state(snapshot: git.FileMutationRollback) -> str:
+    """Conditionally restore refused assist state; report retained peer edits."""
+    refused = snapshot.restore()
+    if not refused:
+        return ""
+    names = ", ".join(str(path) for path in refused)
+    return (
+        "; concurrent edits were retained instead of being overwritten at "
+        f"{names}"
+    )
 
 
 def _auto_activate(
@@ -1099,13 +1097,15 @@ def _reblock_unresolved_resume(
             ),
             feature_publication=feature_publication,
             feature_publication_guard=feature_publication_guard,
+            before_sync=rollback.arm if rollback is not None else None,
         )
     except git.FeaturePublicationError as exc:
+        rollback_note = ""
         if rollback is not None:
-            _restore_assist_state(rollback)
+            rollback_note = _restore_assist_state(rollback)
         message = (
             f"Could not publish {ref.id_slug}'s unresolved blocked state to "
-            f"the recorded assist branch: {exc}"
+            f"the recorded assist branch: {exc}{rollback_note}"
         )
         if feature_branch is not None:
             raise _AssistPublicationRefused(
@@ -1114,14 +1114,15 @@ def _reblock_unresolved_resume(
             ) from exc
         _bail(message)
     except TaskValidationError as exc:
+        rollback_note = ""
         if rollback is not None:
-            _restore_assist_state(rollback)
+            rollback_note = _restore_assist_state(rollback)
         if feature_branch is not None:
             raise _AssistPublicationRefused(
-                str(exc),
+                f"{exc}{rollback_note}",
                 post_session=True,
             ) from exc
-        _bail(str(exc))
+        _bail(f"{exc}{rollback_note}")
 
 
 def _preflight_push_auth(
@@ -1219,121 +1220,11 @@ def _recorded_single_checkout_assist_branch(
         return None
 
 
-def _git_remote_repository_identity(
-    remote_url: str,
-) -> tuple[str, str, str] | None:
-    """Normalize a GitHub-style remote URL to ``(host, owner, repository)``."""
-    value = remote_url.strip()
-    if not value:
-        return None
-
-    host = ""
-    path = ""
-    if "://" in value:
-        parsed = urlsplit(value)
-        host = parsed.hostname or ""
-        path = parsed.path
-    else:
-        left, separator, right = value.partition(":")
-        if separator and "/" in right and "/" not in left:
-            host = left.rsplit("@", 1)[-1]
-            path = right
-        else:
-            return None
-
-    parts = [part for part in path.strip("/").split("/") if part]
-    if not host or len(parts) != 2:
-        return None
-    owner, repository = parts
-    if repository.endswith(".git"):
-        repository = repository[:-4]
-    if not owner or not repository:
-        return None
-    return host.casefold(), owner.casefold(), repository.casefold()
-
-
 def _verify_recorded_assist_pr_head(
     cfg: Config, ticket: Ticket, branch: str
 ) -> str:
-    """Return the live open PR head OID after proving its push repository.
-
-    A recorded branch name is not enough: fork PRs commonly have a same-named
-    branch in the base repository. Before alignment or any generated push,
-    verify that `pr:` is open, names this branch, and reports a head repository
-    identical to the configured remote.
-    """
-    _, blackboard = split_body(ticket.body)
-    pr_url = parse_pr_url(blackboard or "")
-    if not pr_url:
-        raise git.FeaturePublicationError(
-            "recorded assist checkout has no `pr:` link under `## Dev`"
-        )
-    try:
-        data = pr_view(
-            pr_url,
-            "state,url,headRefName,headRefOid,headRepository,headRepositoryOwner",
-        )
-    except GhError as exc:
-        raise git.FeaturePublicationError(
-            f"could not verify recorded PR {pr_url}: {exc}"
-        ) from exc
-
-    state = str(data.get("state", "")).upper()
-    head_branch = str(data.get("headRefName", "")).strip()
-    head_oid = str(data.get("headRefOid", "")).strip()
-    repository = data.get("headRepository")
-    owner = data.get("headRepositoryOwner")
-    repository_name = (
-        str(repository.get("name", "")).strip()
-        if isinstance(repository, dict)
-        else ""
-    )
-    owner_login = (
-        str(owner.get("login", "")).strip() if isinstance(owner, dict) else ""
-    )
-    if state != "OPEN":
-        raise git.FeaturePublicationError(
-            f"recorded PR {pr_url} is {state or 'missing a state'}, not OPEN"
-        )
-    if head_branch != branch:
-        raise git.FeaturePublicationError(
-            f"recorded PR {pr_url} uses head branch {head_branch!r}, not "
-            f"recorded branch {branch!r}"
-        )
-    if not head_oid or not repository_name or not owner_login:
-        raise git.FeaturePublicationError(
-            f"recorded PR {pr_url} returned incomplete head repository/OID data"
-        )
-
-    root = git._toplevel(cfg.repo_root)
-    if root is None:
-        raise git.FeaturePublicationError(
-            "recorded assist checkout is not inside a git repository"
-        )
-    push_url = git._single_assist_push_url(root, cfg.git_remote)
-    pr_host = (urlsplit(pr_url).hostname or "").casefold()
-    expected_identity = (
-        pr_host,
-        owner_login.casefold(),
-        repository_name.casefold(),
-    )
-    remote_identity = _git_remote_repository_identity(push_url)
-    safe_push_url = redacted_git_source(push_url)
-    if remote_identity is None:
-        raise git.FeaturePublicationError(
-            f"configured remote {cfg.git_remote!r} push URL "
-            f"{safe_push_url!r} does not identify a GitHub repository"
-        )
-    if remote_identity != expected_identity:
-        remote_repo = "/".join(remote_identity[1:])
-        pr_repo = f"{owner_login}/{repository_name}"
-        raise git.FeaturePublicationError(
-            f"configured remote {cfg.git_remote!r} push URL "
-            f"{safe_push_url!r} identifies "
-            f"{remote_identity[0]}/{remote_repo}, but recorded PR {pr_url} "
-            f"publishes from {pr_host}/{pr_repo}"
-        )
-    return head_oid
+    """Compatibility seam around the shared PR-assist verifier."""
+    return pr_assist.verify_recorded_assist_pr_head(cfg, ticket, branch)
 
 
 def _assist_pr_publication_guard(
@@ -1609,10 +1500,19 @@ def spawn_agent_session(
     # inheritance.
     env = apply_task_env(env, cfg, ref)
     # Never inherit a parent assist capability into a nested ordinary launch.
-    # Re-mint it only for the exact recorded branch this spawn already proved.
+    # Re-mint it only for the exact recorded branch/PR this spawn already
+    # proved.
     env.pop(ASSIST_BRANCH_ENV, None)
+    env.pop(ASSIST_PR_ENV, None)
     if publish_aligned_branch is not None:
+        _, blackboard = split_body(ticket.body)
+        assist_pr_url = parse_pr_url(blackboard or "")
+        if not assist_pr_url:
+            raise ComposeError(
+                "recorded assist checkout has no `pr:` link under `## Dev`"
+            )
         env[ASSIST_BRANCH_ENV] = publish_aligned_branch
+        env[ASSIST_PR_ENV] = assist_pr_url
 
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)

@@ -518,6 +518,7 @@ def mark_in_progress(
     expected_remote_branch_oid: str | None = None,
     feature_publication: git.FeaturePublicationLease | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
+    before_sync: Callable[[], None] | None = None,
 ) -> None:
     """Flip a ticket to `in_progress`: write frontmatter, log, optionally post."""
     owner = ticket.owner or cfg.current_user
@@ -525,6 +526,8 @@ def mark_in_progress(
     ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action="mark in_progress")
     append_log(cfg, ref.id_slug, actor, log_message)
+    if before_sync is not None:
+        before_sync()
 
     def sync_state() -> None:
         git.sync_task_state(
@@ -572,6 +575,7 @@ def mark_blocked(
     echo: str | None = None,
     feature_publication: git.FeaturePublicationLease | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
+    before_sync: Callable[[], None] | None = None,
 ) -> None:
     """Flip a ticket to `blocked` without changing its workflow step."""
     owner = ticket.owner or cfg.current_user
@@ -579,6 +583,8 @@ def mark_blocked(
     ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action="mark blocked")
     append_log(cfg, ref.id_slug, actor, log_message)
+    if before_sync is not None:
+        before_sync()
 
     def sync_state() -> None:
         git.sync_task_state(

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 import typer
 
 from coga import git
+from coga import pr_assist
 from coga.blackboard import append_blocker
 from coga.config import ConfigError, load_config
 from coga.logfile import log_path
@@ -48,17 +48,20 @@ def block(
         )
 
     try:
-        assist_publication = git.assist_publication_lease_from_env(cfg, ref.path)
+        assist = pr_assist.assist_publication_from_env(cfg, ref)
     except git.FeaturePublicationError as exc:
         _bail(
             "Could not verify the recorded assist branch before blocking "
             f"{ref.id_slug}: {exc}"
         )
-    rollback = (
-        _snapshot_files((ref.ticket_path, log_path(cfg)))
-        if assist_publication is not None
-        else None
-    )
+    assist_publication = assist.lease if assist is not None else None
+    assist_guard = assist.guard if assist is not None else None
+    rollback = None
+    if assist is not None:
+        rollback = git.FileMutationRollback.capture(
+            (ref.ticket_path, log_path(cfg)),
+            union_paths=(log_path(cfg),),
+        )
     actor = (
         f"agent:{ticket.assignee}"
         if ticket.assignee
@@ -83,18 +86,22 @@ def block(
             image_url=cfg.gif_for("block") or cfg.gif_for("panic"),
             echo=f"{ref.id_slug}: blocked (owner {owner} needs to answer)",
             feature_publication=assist_publication,
+            feature_publication_guard=assist_guard,
+            before_sync=rollback.arm if rollback is not None else None,
         )
     except git.FeaturePublicationError as exc:
+        rollback_note = ""
         if rollback is not None:
-            _restore_files(rollback)
+            rollback_note = _rollback_note(rollback)
         _bail(
             f"Could not publish {ref.id_slug}'s blocked state to the recorded "
-            f"assist branch: {exc}"
+            f"assist branch: {exc}{rollback_note}"
         )
     except TaskValidationError as exc:
+        rollback_note = ""
         if rollback is not None:
-            _restore_files(rollback)
-        _bail(str(exc))
+            rollback_note = _rollback_note(rollback)
+        _bail(f"{exc}{rollback_note}")
 
     # `id_slug` (not the resolved path) scopes the signal so it matches the
     # supervisor regardless of which checkout the command runs in. See
@@ -102,18 +109,15 @@ def block(
     emit_done_marker(session_id=ref.id_slug)
 
 
-def _snapshot_files(paths: tuple[Path, ...]) -> dict[Path, bytes | None]:
-    return {path: path.read_bytes() if path.is_file() else None for path in paths}
-
-
-def _restore_files(snapshot: dict[Path, bytes | None]) -> None:
-    for path, data in snapshot.items():
-        if data is None:
-            if path.is_file():
-                path.unlink()
-            continue
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+def _rollback_note(rollback: git.FileMutationRollback) -> str:
+    refused = rollback.restore()
+    if not refused:
+        return ""
+    names = ", ".join(str(path) for path in refused)
+    return (
+        "; concurrent edits were retained instead of being overwritten at "
+        f"{names}"
+    )
 
 
 def _bail(msg: str) -> None:

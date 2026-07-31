@@ -23,6 +23,7 @@ TASK_ENV_KEYS = (
     "COGA_COGA_OS_ROOT",
     "COGA_REPO_ROOT",
     "COGA_ASSIST_BRANCH",
+    "COGA_ASSIST_PR",
 )
 
 

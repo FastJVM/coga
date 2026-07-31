@@ -2352,6 +2352,123 @@ def test_feature_publication_lease_rejects_multiple_pushurls(
         )
 
 
+def test_feature_publication_lease_rejects_dirty_exact_tip(
+    git_repo,
+) -> None:
+    """An exact remote tip does not authorize ambient checkout bytes."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/dirty-assist")
+    git_repo.git("push", "-u", "origin", "feature/dirty-assist")
+    (git_repo.root / "untracked-review-output.txt").write_text("do not publish\n")
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="has other changes: untracked-review-output.txt",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            "feature/dirty-assist",
+        )
+
+
+def test_feature_publication_lease_normalizes_lower_level_probe_failure(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/probe-failure-assist")
+    git_repo.git("push", "-u", "origin", "feature/probe-failure-assist")
+    monkeypatch.setattr(
+        git,
+        "_prepare_feature_branch_publication",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            git.GitError("ls-remote failed")
+        ),
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="could not verify assist publication lease: ls-remote failed",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            "feature/probe-failure-assist",
+        )
+
+
+def test_strict_feature_publication_reraises_generic_git_failure(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Strict publication cannot fall through the ordinary soft-failure path."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/strict-probe-assist")
+    git_repo.git("push", "-u", "origin", "feature/strict-probe-assist")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    monkeypatch.setattr(
+        git,
+        "_union_merge_paths",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            git.GitError("check-attr failed")
+        ),
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="strict feature publication failed: check-attr failed",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/strict-probe-assist",
+                local_oid=before,
+                remote_oid=before,
+            ),
+        )
+
+
+def test_file_mutation_rollback_preserves_peer_ticket_and_log_edits(
+    tmp_path: Path,
+) -> None:
+    ticket = tmp_path / "ticket.md"
+    log = tmp_path / "log.md"
+    ticket.write_text("status: active\n")
+    log.write_text("prior audit\n")
+    rollback = git.FileMutationRollback.capture(
+        (ticket, log),
+        union_paths=(log,),
+    )
+    ticket.write_text("status: in_progress\n")
+    log.write_text("prior audit\ngenerated transition\n")
+    rollback.arm()
+
+    peer_ticket = "status: in_progress\npeer annotation\n"
+    ticket.write_text(peer_ticket)
+    log.write_text(
+        "prior audit\ngenerated transition\nconcurrent audit\n"
+    )
+
+    refused = rollback.restore()
+
+    assert refused == (ticket,)
+    assert ticket.read_text() == peer_ticket
+    assert log.read_text() == "prior audit\nconcurrent audit\n"
+
+
 def test_strict_feature_publication_cas_preserves_concurrent_local_commit(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -2653,9 +2770,17 @@ def test_strict_feature_compensation_preserves_concurrent_descendant(
         )
         peer_note = peer / "coga" / "tasks" / "demo" / "peer-notes.md"
         peer_note.write_text("peer survives compensation\n")
+        peer_ticket = peer / "coga" / "tasks" / "demo" / "ticket.md"
+        peer_ticket.write_text(
+            peer_ticket.read_text().replace(
+                "## Description\n\nDemo.",
+                "## Description\n\nPeer review note survives.\n\nDemo.",
+            )
+        )
         git_repo.git(
             "add",
             "coga/tasks/demo/peer-notes.md",
+            "coga/tasks/demo/ticket.md",
             cwd=peer,
         )
         git_repo.git("commit", "-m", "review: concurrent peer fix", cwd=peer)
@@ -2687,6 +2812,11 @@ def test_strict_feature_compensation_preserves_concurrent_descendant(
         cwd=git_repo.origin,
     )
     assert "status: active" in git_repo.git(
+        "show",
+        f"{remote}:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "Peer review note survives." in git_repo.git(
         "show",
         f"{remote}:coga/tasks/demo/ticket.md",
         cwd=git_repo.origin,
