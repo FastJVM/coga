@@ -5,7 +5,7 @@ description: What we're building right now in coga. Recent decisions, open ticke
 
 # Coga — current direction
 
-Last updated: 2026-07-17.
+Last updated: 2026-07-30.
 
 ## Current redesign (recurring lifecycle and identity)
 
@@ -218,8 +218,12 @@ Last updated: 2026-07-17.
   authoring.** `coga create` creates a raw draft and is intentionally
   Slack-silent.
   `coga ticket` runs the `bootstrap/ticket` interview against a new or
-  existing draft/active/paused ticket. Aliases stay positional-pass-through
-  only.
+  existing ticket at any status. It preserves every valid lifecycle status;
+  an out-of-vocabulary value is malformed metadata the interview repairs,
+  including a frozen workflow and valid step when the repaired status is live.
+  Its prompt keeps the ticket's authoring context but omits the current
+  workflow-step execution layer and launch-only blocker-resolution preamble.
+  Aliases stay positional-pass-through only.
 - **Aliases print their expansion to stderr.** `coga chat` prints
   `→ coga launch bootstrap/orient` before dispatching, so the
   indirection is visible. Users learn the long form by using the short

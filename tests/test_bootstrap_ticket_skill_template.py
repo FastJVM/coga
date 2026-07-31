@@ -39,13 +39,17 @@ def test_bootstrap_ticket_skill_mandates_a_workflow() -> None:
     Workflow choice also carries the human-gate judgment that the removed
     autonomy-triage question used to ask separately."""
     text = BOOTSTRAP_TICKET_SKILL.read_text()
+    normalized = " ".join(text.split())
 
     assert "A ticket carries a workflow" in text
-    assert "A ticket with no workflow can't be\nactivated" in text
-    assert "your default is to hand back a ticket\nwith one" in text
+    assert "A ticket with no workflow can't be activated" in normalized
+    assert "your default is to hand back a ticket with one" in normalized
     # The concept-capture exemption is stated, not erased.
     assert "concept-capture" in text
-    assert "This is required — a ticket with no workflow can't be activated." in text
+    assert (
+        "This is required — a ticket with no workflow can't be activated."
+        in normalized
+    )
     # The one-sentence rule that replaced the three-question tier test.
     assert "outward-facing step, pick a workflow with a human gate before it." in text
 
@@ -87,6 +91,20 @@ def test_bootstrap_ticket_cleanup_preserves_non_draft_blackboards() -> None:
     assert "If editing an existing non-draft ticket" in text
     assert "preserve unrelated blackboard content such as blockers" in text
     assert "remove only the authoring\n   sections you used" in text
+
+
+def test_bootstrap_ticket_repairs_invalid_status_lifecycle_shape() -> None:
+    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    normalized = " ".join(text.split())
+
+    assert "whole validator-correlated lifecycle shape" in text
+    assert (
+        "remove `step:` when repairing to terminal `done` or `canceled`"
+        in normalized
+    )
+    assert "must carry both a **frozen workflow snapshot**" in normalized
+    assert "never leave its workflow as a bare string" in normalized
+    assert "write the full frozen snapshot and a valid `step:`" in normalized
 
 
 def test_bootstrap_ticket_skill_authors_agent_tasks_only() -> None:

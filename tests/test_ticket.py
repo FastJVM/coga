@@ -7,6 +7,7 @@ import pytest
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
+from coga.blackboard import append_blocker
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
@@ -425,7 +426,7 @@ def test_ticket_edits_in_progress_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cfg = load_config(repo)
-    create_task(
+    ref = create_task(
         cfg=cfg,
         title="Running work",
         workflow_name="direct/body",
@@ -440,10 +441,88 @@ def test_ticket_edits_in_progress_task(
 
     result = CliRunner().invoke(app, ["ticket", "running-work"])
     assert result.exit_code == 0, result.output
-    # in_progress no longer refused — the editing session launches, with a
-    # heads-up that the ticket is in flight.
-    assert "in_progress" in (result.output + (result.stderr or ""))
+    assert Ticket.read(ref["path"]).status == "in_progress"
     assert len(prompts) == 1
+
+
+def test_ticket_edits_blocked_task_without_unblocking(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Waiting work",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="blocked",
+    )
+    original_step = Ticket.read(ref["path"]).step
+    assert original_step is not None
+    append_blocker(
+        Path(ref["path"]),
+        "agent:claude",
+        "Which retry ceiling should the ticket specify?",
+    )
+    prompts: list[str] = []
+    _allow_ticket_launch(monkeypatch, prompts)
+
+    result = CliRunner().invoke(app, ["ticket", "waiting-work"])
+
+    assert result.exit_code == 0, result.output
+    authored = Ticket.read(ref["path"])
+    assert authored.status == "blocked"
+    assert authored.step == original_step
+    assert len(prompts) == 1
+    assert "Which retry ceiling should the ticket specify?" in prompts[0]
+    assert "Resolve the open blocker first" not in prompts[0]
+    assert "Current step: execute" not in prompts[0]
+    assert "Skill: direct/body" not in prompts[0]
+
+
+def test_ticket_repairs_invalid_status_with_terminal_shape(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Typoed lifecycle",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="in_progress",
+    )
+    ticket = Ticket.read(ref["path"])
+    assert ticket.step is not None
+    ticket.frontmatter["status"] = "cancelld"
+    ticket.write(ref["path"])
+
+    def repair_lifecycle_shape() -> None:
+        authored = Ticket.read(ref["path"])
+        authored.frontmatter["status"] = "canceled"
+        authored.frontmatter.pop("step", None)
+        authored.write(ref["path"])
+
+    prompts: list[str] = []
+    _allow_ticket_launch(
+        monkeypatch,
+        prompts,
+        on_run=repair_lifecycle_shape,
+    )
+
+    result = CliRunner().invoke(app, ["ticket", "typoed-lifecycle"])
+
+    assert result.exit_code == 0, result.output
+    authored = Ticket.read(ref["path"])
+    assert authored.status == "canceled"
+    assert authored.step is None
+    assert "Status: cancelld" in prompts[0]
 
 
 def test_ticket_can_edit_canceled_task_without_reopening(
@@ -467,8 +546,6 @@ def test_ticket_can_edit_canceled_task_without_reopening(
     result = CliRunner().invoke(app, ["ticket", "declined-work"])
 
     assert result.exit_code == 0, result.output
-    combined = result.output + (result.stderr or "")
-    assert "already canceled" in combined
     assert Ticket.read(ref["path"]).status == "canceled"
     assert len(prompts) == 1
 

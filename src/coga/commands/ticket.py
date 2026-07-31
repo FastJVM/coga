@@ -37,18 +37,6 @@ from coga.validate import TaskValidationError
 
 
 AUTHORING_SKILL = "bootstrap/ticket"
-# Guided editing is allowed from any lifecycle status — the human owns the
-# ticket and may revise it at any stage. `in_progress` and terminal tickets are
-# unusual enough to warrant a heads-up (see CAUTION_STATUSES) but are not refused.
-EDITABLE_STATUSES = {
-    "draft",
-    "active",
-    "in_progress",
-    "paused",
-    "done",
-    "canceled",
-}
-CAUTION_STATUSES = {"in_progress", "done", "canceled"}
 
 # Kickoff tokens — the authoring session's first user turn, which the
 # `bootstrap/ticket` skill reads to greet the human as the right launch shape.
@@ -164,36 +152,27 @@ def _resolve_or_create_target(
 
 
 def _resolve_existing(ref: TaskRef) -> tuple[TaskRef, Ticket, bool]:
-    """Read an existing task for editing, gating on its status.
+    """Read an existing task for guided editing.
 
     Shared by the normal `resolve_task` hit and the nested bare-leaf scan, so
-    both edit paths apply the same status guard and caution heads-up. `created`
-    is always False — an existing ticket is never a fresh draft.
+    both edit paths behave identically. `created` is always False — an existing
+    ticket is never a fresh draft.
     """
     ticket = read_ticket(ref)
-    if ticket.status not in EDITABLE_STATUSES:
-        _bail(
-            f"Task {ref.id_slug} has unknown status {ticket.status!r}; "
-            "refusing guided ticket editing."
-        )
-    if ticket.status in CAUTION_STATUSES:
-        lifecycle_note = {
-            "in_progress": "already in flight",
-            "done": "already finished",
-            "canceled": "already canceled",
-        }[ticket.status]
-        typer.secho(
-            f"Note: {ref.id_slug} is {ticket.status!r}. Editing leaves its "
-            f"status unchanged; this revises a ticket {lifecycle_note}",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
     return ref, ticket, False
 
 
 def _authoring_ticket(ticket: Ticket) -> Ticket:
+    """Project a ticket into an authoring-only prompt without mutating it.
+
+    The real ticket's workflow and step remain on disk for the interviewer to
+    preserve. Removing ``step`` only from this ephemeral copy prevents prompt
+    composition from mixing the current task-execution skill into the
+    ``bootstrap/ticket`` authoring interview.
+    """
     fm = dict(ticket.frontmatter)
     fm["skills"] = [AUTHORING_SKILL]
+    fm.pop("step", None)
     return Ticket(frontmatter=fm, body=ticket.body)
 
 
@@ -247,6 +226,7 @@ def _run_authoring_session(
             label="Ticket",
             secrets_are_scoped=False,
             stateless_identity=(AUTHORING_SKILL, bootstrap_title),
+            include_blocker_preamble=False,
         )
     except ComposeError as exc:
         _bail(str(exc))

@@ -25,13 +25,13 @@ your filled ticket has to match. For a real example, browse the same tree:
 A ticket carries a workflow — the ordered steps the work moves through —
 everywhere except while it is a `draft`. A ticket with no workflow can't be
 activated: `coga mark active` refuses it, and `coga validate` errors on a
-workflow-less `active`/`in_progress`/`paused` ticket. Picking the workflow is
-part of this interview (step 3), and your default is to hand back a ticket
-with one. The one exception is deliberate **concept-capture**: when the human
-wants to stash an idea before its shape is settled, a workflow-less *draft* is
-a valid end state — it simply stays a draft until someone adds a workflow.
-Don't force a workflow onto an idea that isn't ready for one; just make the
-tradeoff explicit (it can't be activated yet).
+workflow-less `active`/`in_progress`/`blocked`/`paused` ticket. Picking the
+workflow is part of this interview (step 3), and your default is to hand back
+a ticket with one. The one exception is deliberate **concept-capture**: when
+the human wants to stash an idea before its shape is settled, a workflow-less
+*draft* is a valid end state — it simply stays a draft until someone adds a
+workflow. Don't force a workflow onto an idea that isn't ready for one; just
+make the tradeoff explicit (it can't be activated yet).
 
 Match this shape exactly. Don't invent fields the template doesn't define
 (see "YAML discipline" in the base prompt).
@@ -82,8 +82,9 @@ signal of anything. Open with:
 > I'll turn your answer into the ticket."
 
 - **Existing-ticket edit** — kickoff `Begin (editing existing ticket)`; a real
-`tasks/<slug>` at any editable status (`draft`, `active`, `in_progress`,
-`paused`, `done`, or `canceled`). You're revising a ticket that already exists
+`tasks/<slug>` at any status (`draft`, `active`, `in_progress`, `blocked`,
+`paused`, `done`, `canceled`, or even an unrecognized value). You're revising a
+ticket that already exists
 — **even if its body is still empty**, which is exactly the state of a draft batch-created with `coga
 create` and then opened here. Open with:
 > "You're editing `<slug>` (status: `<status>`). What would you like to change?"
@@ -92,9 +93,9 @@ create` and then opened here. Open with:
   they want to change. If the body is empty there's nothing to preserve, so
   greet as an edit but pivot straight to filling it ("…it's empty right now, so:
   what should it do, and why?") — never announce it "has been created". For an
-  `in_progress`, `done`, or `canceled` ticket, note you are revising one already
-  in flight or
-  finished — confirm intent if the change looks substantive.
+  `in_progress`, `blocked`, `done`, or `canceled` ticket, note you are revising
+  one already in flight, blocked, or finished — confirm intent if the change
+  looks substantive.
 
 New-title and existing-*draft* tickets both show `Status: draft` with an empty
 body — the kickoff token is what separates them, not the body, so trust it. In
@@ -194,10 +195,23 @@ While interviewing, watch for **gaps** — domain knowledge that recurs across
 recent tickets but isn't captured anywhere, or process steps that workflows
 keep needing inline. Surface them in step 4.
 
-For existing `active` or `paused` tickets, treat this as refinement of an
-approved ticket, not a new ticket. Preserve the current intent unless the
+For existing `active`, `paused`, or `blocked` tickets, treat this as refinement
+of an approved ticket, not a new ticket. Preserve the current intent unless the
 human explicitly changes it. Do not change `status:`, `step:`, or an existing
-frozen workflow snapshot.
+frozen workflow snapshot during ordinary authoring. The one exception is an
+out-of-vocabulary `status:` value: that is malformed metadata, not a lifecycle
+transition. Confirm the intended valid status with the human and repair the
+whole validator-correlated lifecycle shape during this session, because final
+validation rejects malformed state after the interview: remove `step:` when
+repairing to terminal `done` or `canceled`. A repaired live status (`active`,
+`in_progress`, `blocked`, or `paused`) must carry both a **frozen workflow
+snapshot** and a valid current `step:` — never leave its workflow as a bare
+string or its step missing/invalid. If either is malformed, load the selected
+workflow definition, write its frozen `name` plus ordered `steps` (including
+each step's `skills`, `assignee`, and `requires` metadata when present), and
+set `step:` to the intended matching position; use `1 (<first-step-name>)`
+when there is no valid prior position and the human does not select another.
+Do not rewrite an otherwise-valid frozen workflow snapshot.
 
 ## Step 4 — Create missing contexts and skills
 
@@ -234,9 +248,13 @@ Edit the exact ticket path from the composed prompt. A new draft normally starts
 as `coga/tasks/<slug>.md`; convert it to directory form only when it needs
 attachments. YAML discipline (from the base prompt) applies:
 
-- Set `workflow:` to the workflow name you picked (e.g. `code/with-review`).
-  This is required — a ticket with no workflow can't be activated. Write it
-  as a bare string; the first `coga bump` freezes the snapshot.
+- For a draft, set `workflow:` to the workflow name you picked (e.g.
+  `code/with-review`). This is required — a ticket with no workflow can't be
+  activated. Write it as a bare string, and first-launch activation freezes
+  the snapshot and seeds its first step. An existing live ticket keeps its
+  frozen snapshot. If repairing malformed metadata to a live status — or
+  explicitly changing a live ticket's workflow — write the full frozen
+  snapshot and a valid `step:` as described in step 3.
 - Add `contexts:` as a YAML list (one item per line with `- `).
 - Do not add a context just because it is generally related. If in doubt, leave
   it out and write the one needed fact into `## Context`.
@@ -244,13 +262,16 @@ attachments. YAML discipline (from the base prompt) applies:
 - If the target file actually has `skill: bootstrap/ticket` in frontmatter
   from an older seeded flow, remove it. Modern `coga ticket` injects this
   skill only into the prompt; it should not persist on normal tasks.
-- Preserve the current `status:`. You do not activate or start the ticket —
-  the human starts it later with `coga launch`, or queues it without starting
-  via `coga mark active`.
+- Preserve the current valid `status:`. You do not activate or start the ticket
+  — the human starts it later with `coga launch`, or queues it without starting
+  via `coga mark active`. If the current value is outside `draft`, `active`,
+  `in_progress`, `blocked`, `paused`, `done`, and `canceled`, repair it to the
+  human-confirmed valid status and make `step:` / `workflow:` consistent with
+  it as described in step 3.
 - Fill the `## Description` and `## Context` body sections from the
   interview.
 
-Do not call `coga bump`. There's no workflow running yet.
+Do not call `coga bump`. Guided authoring never advances the target workflow.
 
 ## Step 6 — Run the evaluator review
 
@@ -349,9 +370,10 @@ After confirmation, do one final cleanup pass before printing the closing line:
 3. If the ticket is still `status: draft`, reset the blackboard region to the
    stock placeholder for this ticket title. Do not leave empty authoring
    headings behind.
-4. If editing an existing non-draft ticket (`active`, `in_progress`, `paused`,
-   `done`, or `canceled`), preserve unrelated blackboard content such as blockers,
-   dev notes, production notes, and handoff notes; remove only the authoring
+4. If editing an existing non-draft ticket
+   (`active`, `in_progress`, `blocked`, `paused`, `done`, or `canceled`),
+   preserve unrelated blackboard content such as blockers, dev notes,
+   production notes, and handoff notes; remove only the authoring
    sections you used.
 5. Re-read the ticket and verify the durable notes now live above the
    blackboard fence and the blackboard cleanup matches the ticket status.

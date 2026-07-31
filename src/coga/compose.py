@@ -106,15 +106,24 @@ def compose_prompt(
     cfg: Config,
     task_ref: TargetRef,
     ticket: Ticket,
+    *,
+    include_blocker_preamble: bool = True,
 ) -> str:
     """Assemble the composed prompt in spec order (§compose)."""
-    return compose_prompt_report(cfg, task_ref, ticket).prompt
+    return compose_prompt_report(
+        cfg,
+        task_ref,
+        ticket,
+        include_blocker_preamble=include_blocker_preamble,
+    ).prompt
 
 
 def compose_prompt_report(
     cfg: Config,
     task_ref: TargetRef,
     ticket: Ticket,
+    *,
+    include_blocker_preamble: bool = True,
 ) -> PromptComposition:
     """Assemble the prompt and keep per-layer measurement metadata."""
     layers: list[PromptLayer] = []
@@ -162,7 +171,7 @@ def compose_prompt_report(
     # blackboard rather than a launch-threaded flag keeps the preamble purely
     # composed state: it reappears if a session dies mid-discussion and
     # disappears once `coga unblock` records the answer.
-    if not isinstance(task_ref, BootstrapRef):
+    if include_blocker_preamble and not isinstance(task_ref, BootstrapRef):
         open_asks = [
             b
             for b in parse_blockers_text(blackboard_text or "")

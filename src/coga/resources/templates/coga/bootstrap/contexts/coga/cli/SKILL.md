@@ -118,17 +118,16 @@ Run the guided ticket-authoring interview (`bootstrap/ticket`).
 - `coga ticket` — ask for a title, create a draft, and fill it.
 - `coga ticket "Add retry to webhook handler"` — create that draft, then
   launch the authoring skill against it.
-- `coga ticket add-retry` — edit an existing ticket at any status. Editing
-  leaves the status unchanged; for an `in_progress`, `done`, or `canceled`
-  ticket it prints a heads-up first (revising one in flight or already closed
-  is unusual) but does not refuse.
+- `coga ticket add-retry` — edit an existing ticket at any status.
 
 The guided authoring flow chooses workflow/context/assignee with the human,
-edits the ticket, and leaves status unchanged. After the session it
-validates the task; a draft handed back with no workflow is rejected at the
-terminal rather than later at activation. For a new draft, the boot sequence
-is: `coga ticket "<title>"` → review/edit → `coga launch <slug>`, which
-activates the draft inline as it starts work.
+edits the ticket, and preserves any valid lifecycle status. An
+out-of-vocabulary status is malformed metadata: the interview confirms the
+intended valid status and repairs its correlated workflow/step shape. After
+the session it validates the task; a draft handed back with no workflow is
+rejected at the terminal rather than later at activation. For a new draft,
+the boot sequence is: `coga ticket "<title>"` → review/edit → `coga launch
+<slug>`, which activates the draft inline as it starts work.
 
 For the standard `claude` and `codex` CLIs, `coga ticket` passes the
 composed authoring prompt as system/developer context instead of as the first
