@@ -53,11 +53,13 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
    local changes or stage `coga/log.md` with a fix. The launch supervisor owns
    its audit lines. For a recorded primary-worktree assist, it fast-forwards a
    merely-behind checkout *before* activation and its final
-   ticket/config/prompt reads, publishes any generated lifecycle state, then
-   commits the launch line by itself. If the PR branch moves in any direction
-   after prompt composition, launch refuses to spawn and asks for a retry
-   instead of working underneath stale instructions. Publication still
-   requires the configured remote and a safely aligned tip.
+   ticket/config/prompt reads, publishes any generated lifecycle state with an
+   exact-tip lease, then commits the launch line by itself. If the PR branch
+   moves in any direction after prompt composition, launch refuses to spawn and
+   asks for a retry instead of working underneath stale instructions. A failed
+   generated-log push leaves the append dirty rather than stranding a divergent
+   audit commit. Publication still requires the configured remote and a safely
+   aligned tip.
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
    remote for every fetch and push. Resolve its GitHub owner/repository from
    `git remote get-url <configured-remote>`.

@@ -297,6 +297,85 @@ def test_sync_log_publishes_aligned_feature_branch_for_agent_assist(git_repo):
     )
 
 
+def test_sync_log_rolls_back_generated_commit_when_assist_push_races(
+    git_repo, monkeypatch, capsys
+):
+    """A lost exact-tip lease leaves the append dirty and retryable."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    local_before = git_repo.git("rev-parse", "HEAD").strip()
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+
+    real_push = git._push_ref
+    raced = False
+
+    def race_push(
+        root,
+        remote,
+        refspec,
+        *,
+        force_with_lease=None,
+    ):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if not raced:
+            raced = True
+            peer = git_repo.origin.parent / "peer-log-push-race"
+            git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+            git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+            git_repo.git("config", "user.name", "Peer", cwd=peer)
+            git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+            git_repo.git(
+                "checkout",
+                "-B",
+                "feature/x",
+                "origin/feature/x",
+                cwd=peer,
+            )
+            (peer / "peer.txt").write_text("won publication race\n")
+            git_repo.git("add", "peer.txt", cwd=peer)
+            git_repo.git("commit", "-m", "review: concurrent push", cwd=peer)
+            git_repo.git("push", "origin", "feature/x", cwd=peer)
+        return real_push(
+            root,
+            remote,
+            refspec,
+            force_with_lease=force_with_lease,
+        )
+
+    monkeypatch.setattr(git, "_push_ref", race_push)
+
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+        allow_feature_fast_forward=False,
+        expected_feature_branch="feature/x",
+    )
+
+    assert synced is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == local_before
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "won publication race" in git_repo.git(
+        "show", "refs/heads/feature/x:peer.txt", cwd=git_repo.origin
+    )
+    assert "log sync failed" in capsys.readouterr().err
+
+    assert git.sync_log(
+        cfg,
+        message="Log: ship-it retry",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    assert "launched assist" in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+
+
 def test_sync_log_fast_forwards_behind_assist_branch_before_publishing(git_repo):
     """A remote-only review update stays a fast-forward, not a divergence."""
     cfg = load_config(git_repo.coga_os)

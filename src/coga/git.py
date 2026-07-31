@@ -198,6 +198,7 @@ def sync_task_state(
     guard: _StateGuard | None = None,
     publish_current_branch: bool = False,
     expected_current_branch: str | None = None,
+    expected_remote_branch_oid: str | None = None,
 ) -> None:
     """Commit the task directory's files and push to the control branch.
 
@@ -230,6 +231,8 @@ def sync_task_state(
     newer control tip. `expected_current_branch` pins an explicitly requested
     feature publication to the branch the caller already verified; switching
     checkouts between verification and sync fails before any commit or push.
+    `expected_remote_branch_oid` leases that publication to the verified
+    remote tip, refusing a deleted or rewritten branch instead of restoring it.
     """
     sync_paths(
         cfg,
@@ -239,6 +242,7 @@ def sync_task_state(
         guard=guard,
         publish_current_branch=publish_current_branch,
         expected_current_branch=expected_current_branch,
+        expected_remote_branch_oid=expected_remote_branch_oid,
     )
 
 
@@ -308,6 +312,7 @@ class _FeaturePublicationState:
     aligned: bool
     may_commit: bool
     detail: str
+    remote_oid: str | None
 
 
 def sync_log(
@@ -416,6 +421,7 @@ def sync_log(
                 aligned=False,
                 may_commit=True,
                 detail=f"remote {cfg.git_remote!r} is not configured",
+                remote_oid=None,
             )
             if (
                 publish_if_remote_aligned
@@ -436,17 +442,42 @@ def sync_log(
                     f"uncommitted. ({message})\n"
                 )
                 return False
+            before = (
+                _run_git(root, "rev-parse", "HEAD").strip()
+                if publication.aligned
+                else None
+            )
             committed = _commit_paths(root, [log_rel], message)
             if publish_current_branch or publication.aligned:
                 if not remote_ok:
                     sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
                     return False
-                result = _push_ref(root, cfg.git_remote, branch)
-                if result is not None:
-                    raise GitError(
-                        f"`git push {cfg.git_remote} {branch}` failed while "
-                        f"publishing the session log: {result}"
+                try:
+                    result = _push_ref(
+                        root,
+                        cfg.git_remote,
+                        branch,
+                        force_with_lease=(
+                            (f"refs/heads/{branch}", publication.remote_oid)
+                            if publication.aligned
+                            and publication.remote_oid is not None
+                            else None
+                        ),
                     )
+                    if result is not None:
+                        raise GitError(
+                            f"`git push {cfg.git_remote} {branch}` failed while "
+                            f"publishing the session log: {result}"
+                        )
+                except GitError:
+                    # An assist publication is a generated log-only commit. If
+                    # its exact-tip lease loses a race (or the push otherwise
+                    # fails), undo only that commit and leave the append dirty.
+                    # The next launch can then align and retry without a local
+                    # audit commit permanently diverging the PR branch.
+                    if committed and before is not None:
+                        _restore_unpushed_sync_commit(root, before, [log_rel])
+                    raise
             elif publish_if_remote_aligned and committed:
                 target = f"{cfg.git_remote}/{branch}" if remote_ok else cfg.git_remote
                 sys.stderr.write(
@@ -471,6 +502,7 @@ def sync_paths(
     guard: _StateGuard | None = None,
     publish_current_branch: bool = False,
     expected_current_branch: str | None = None,
+    expected_remote_branch_oid: str | None = None,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -490,6 +522,9 @@ def sync_paths(
     state on control, also fast-forward the current feature branch on the
     configured remote. `expected_current_branch` pins that generated
     publication to a branch the caller already verified.
+    `expected_remote_branch_oid` additionally leases the push to the exact
+    remote tip that caller verified, so a deleted or force-reset PR branch
+    cannot be recreated from stale local history.
 
     `guard` is called with each candidate control-branch base before the
     overlay is built — including the base refetched after a non-fast-forward
@@ -550,6 +585,7 @@ def sync_paths(
             update_local_control_ref=update_local_control_ref,
             publish_current_branch=publish_current_branch,
             expected_current_branch=expected_current_branch,
+            expected_remote_branch_oid=expected_remote_branch_oid,
         )
     except StateRegressionError as exc:
         # A refusal is not a failure to reach git — it is git refusing to bury
@@ -744,6 +780,7 @@ def refresh_coga_state_from_control(
             aligned=False,
             may_commit=True,
             detail="aligned publication was not requested",
+            remote_oid=None,
         )
         if branch != cfg.git_control_branch and publish_if_remote_aligned:
             publication = _prepare_feature_branch_publication(
@@ -765,7 +802,16 @@ def refresh_coga_state_from_control(
             return
         _refresh_branch_from_control(cfg, root, tip, message)
         if publication.aligned:
-            result = _push_ref(root, cfg.git_remote, branch)
+            result = _push_ref(
+                root,
+                cfg.git_remote,
+                branch,
+                force_with_lease=(
+                    (f"refs/heads/{branch}", publication.remote_oid)
+                    if publication.remote_oid is not None
+                    else None
+                ),
+            )
             if result is not None:
                 raise GitError(
                     f"`git push {cfg.git_remote} {branch}` failed while "
@@ -988,6 +1034,7 @@ def _dispatch_branch_sync(
     update_local_control_ref: bool = True,
     publish_current_branch: bool = False,
     expected_current_branch: str | None = None,
+    expected_remote_branch_oid: str | None = None,
 ) -> None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
@@ -1072,7 +1119,16 @@ def _dispatch_branch_sync(
             update_local_control_ref=update_local_control_ref,
         )
         if publish_current_branch:
-            result = _push_ref(root, cfg.git_remote, branch)
+            result = _push_ref(
+                root,
+                cfg.git_remote,
+                branch,
+                force_with_lease=(
+                    (f"refs/heads/{branch}", expected_remote_branch_oid)
+                    if expected_remote_branch_oid is not None
+                    else None
+                ),
+            )
             if result is not None:
                 raise GitError(
                     f"`git push {cfg.git_remote} {branch}` failed while "
@@ -1895,15 +1951,40 @@ def _hash_blob(root: Path, data: bytes) -> str:
     return result.stdout.decode().strip()
 
 
-def _push_ref(root: Path, remote: str, refspec: str) -> str | None:
+def _push_ref(
+    root: Path,
+    remote: str,
+    refspec: str,
+    *,
+    force_with_lease: tuple[str, str] | None = None,
+) -> str | None:
     """Push `refspec` to `remote`. Return None on success, else stderr+stdout.
 
     Unlike `_run_git`, a non-zero exit is returned (not raised) so the caller
-    can distinguish a recoverable non-fast-forward from a hard failure.
+    can distinguish a recoverable non-fast-forward from a hard failure. An
+    exact-tip lease is additionally constrained to a source that descends from
+    the expected OID; the lease may authorize the race-safe update, never a
+    history rewrite.
     """
     try:
+        command = ["git", "-C", str(root), "push"]
+        if force_with_lease is not None:
+            ref, expected_oid = force_with_lease
+            source = refspec.split(":", 1)[0]
+            source_oid = _run_git(root, "rev-parse", source).strip()
+            merge_base = _run_git(
+                root, "merge-base", expected_oid, source_oid
+            ).strip()
+            if merge_base != expected_oid:
+                return (
+                    "refusing exact-tip leased push: source "
+                    f"{source_oid} does not descend from expected remote "
+                    f"tip {expected_oid}"
+                )
+            command.append(f"--force-with-lease={ref}:{expected_oid}")
+        command.extend([remote, refspec])
         result = subprocess.run(
-            ["git", "-C", str(root), "push", remote, refspec],
+            command,
             capture_output=True,
             text=True,
             check=False,
@@ -2266,6 +2347,7 @@ def _prepare_feature_branch_publication(
                     else " after launch composition"
                 )
             ),
+            remote_oid=None,
         )
 
     # Fetch the exact branch after advertising it; FETCH_HEAD is the authority
@@ -2279,6 +2361,7 @@ def _prepare_feature_branch_publication(
             aligned=True,
             may_commit=True,
             detail=f"matched {remote}/{branch}",
+            remote_oid=remote_tip,
         )
 
     merge_base = _run_git(root, "merge-base", local_tip, remote_tip).strip()
@@ -2297,12 +2380,14 @@ def _prepare_feature_branch_publication(
                 f"local tip moved {relation} relative to {remote}/{branch} "
                 "after launch composition"
             ),
+            remote_oid=remote_tip,
         )
     if relation != "behind":
         return _FeaturePublicationState(
             aligned=False,
             may_commit=True,
             detail=f"local tip is {relation} relative to {remote}/{branch}",
+            remote_oid=remote_tip,
         )
 
     changed = set(_changed_paths_under(root, "."))
@@ -2316,6 +2401,7 @@ def _prepare_feature_branch_publication(
                 f"local tip is behind {remote}/{branch} and the checkout has "
                 f"other changes: {', '.join(unexpected)}"
             ),
+            remote_oid=remote_tip,
         )
 
     if preserve_union_rel and _has_staged_changes(root, [preserve_union_rel]):
@@ -2326,6 +2412,7 @@ def _prepare_feature_branch_publication(
                 f"local tip is behind {remote}/{branch} and "
                 f"{preserve_union_rel} has staged changes"
             ),
+            remote_oid=remote_tip,
         )
 
     if preserve_union_rel and preserve_union_rel in changed:
@@ -2338,6 +2425,7 @@ def _prepare_feature_branch_publication(
                     f"local tip is behind {remote}/{branch} and "
                     f"{preserve_union_rel} was deleted"
                 ),
+                remote_oid=remote_tip,
             )
         base = _tree_bytes(root, local_tip, preserve_union_rel)
         fetched = _tree_bytes(root, remote_tip, preserve_union_rel)
@@ -2360,6 +2448,7 @@ def _prepare_feature_branch_publication(
         aligned=True,
         may_commit=True,
         detail=f"fast-forwarded to {remote}/{branch}",
+        remote_oid=remote_tip,
     )
 
 

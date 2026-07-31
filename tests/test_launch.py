@@ -3133,6 +3133,99 @@ def test_human_assist_aligns_resumable_state_before_lifecycle_commits(
     ).strip()
 
 
+def test_human_assist_does_not_recreate_branch_deleted_after_alignment(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Lifecycle publication is leased to the remote tip verified at launch."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Refuse a deleted review branch",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/5
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed deleted-branch review")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("reviewed branch\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: reviewed branch")
+    git_repo.git("push", "-u", "origin", "feature/review")
+
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def delete_remote_after_preflights(repo_root):  # type: ignore[no-untyped-def]
+        git_repo.git("push", "origin", "--delete", "feature/review")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.warn_if_installed_predates_source",
+        delete_remote_after_preflights,
+    )
+    child_started = False
+
+    def unexpected_child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal child_started
+        child_started = True
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        unexpected_child,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert exc_info.value.code == 2
+    assert child_started is False
+    assert launch_module.git._remote_branch_oid(
+        git_repo.root, "origin", "feature/review"
+    ) is None
+    assert Ticket.read(ticket_path).assignee == "marc"
+    output = capsys.readouterr()
+    assert "No agent was started" in output.err
+
+
 def test_human_assist_branch_switch_cannot_redirect_teardown_publication(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,

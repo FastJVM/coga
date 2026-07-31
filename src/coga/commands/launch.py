@@ -183,28 +183,37 @@ def launch(
     # the fetched commit can change coga.toml, the ticket, or a composed skill.
     # Reload and repeat after every fast-forward so publication authorization,
     # secrets, expected step, prompt, and command all come from the final tree.
+    aligned_assist_branch: str | None = None
+    aligned_assist_remote_oid: str | None = None
     if not prompt_report and agent_override is not None:
         for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
             alignment_ticket = read_ticket(ref)
+            candidate_assist_branch = (
+                None
+                if is_bootstrap
+                else _recorded_single_checkout_assist_branch(cfg, alignment_ticket)
+            )
             if (
                 is_bootstrap
                 or alignment_ticket.status
-                not in {"active", "in_progress", "paused", "blocked"}
+                not in {"draft", "active", "in_progress", "paused", "blocked"}
                 or not _interactive_stdio_has_tty()
                 or alignment_ticket.assignee in cfg.agents
-                or _recorded_single_checkout_assist_branch(
-                    cfg, alignment_ticket
-                ) is None
+                or candidate_assist_branch is None
             ):
                 break
             try:
-                moved = _align_recorded_assist_checkout(cfg, alignment_ticket)
+                moved, remote_oid = _align_recorded_assist_checkout(
+                    cfg, alignment_ticket
+                )
             except git.GitError as exc:
                 _bail(
                     f"Cannot launch {ref.id_slug}: could not align the recorded "
                     f"assist checkout before composing the prompt: {exc}"
                 )
             if not moved:
+                aligned_assist_branch = candidate_assist_branch
+                aligned_assist_remote_oid = remote_oid
                 break
             try:
                 cfg = load_config(cfg.repo_root)
@@ -350,6 +359,14 @@ def launch(
             if human_assist and isinstance(ref, TaskRef)
             else None
         )
+        if single_checkout_assist_branch is not None and (
+            single_checkout_assist_branch != aligned_assist_branch
+            or aligned_assist_remote_oid is None
+        ):
+            _bail(
+                f"Cannot launch {ref.id_slug}: the recorded assist branch "
+                "changed after alignment; retry once the PR branch is stable."
+            )
         if human_assist:
             typer.echo(
                 f"Launch: agent {agent_override} assisting on human-owned step "
@@ -434,6 +451,7 @@ def launch(
                     # from redirecting that publication.
                     publish_current_branch=bool(single_checkout_assist_branch),
                     expected_current_branch=single_checkout_assist_branch,
+                    expected_remote_branch_oid=aligned_assist_remote_oid,
                 )
             except TaskValidationError as exc:
                 _bail(str(exc))
@@ -823,19 +841,22 @@ def _recorded_single_checkout_assist_branch(
         return None
 
 
-def _align_recorded_assist_checkout(cfg: Config, ticket: Ticket) -> bool:
+def _align_recorded_assist_checkout(
+    cfg: Config, ticket: Ticket
+) -> tuple[bool, str]:
     """Fast-forward a proven recorded assist checkout before launch derivation.
 
-    Returns whether HEAD moved. A merely-behind checkout with unrelated dirt
-    raises instead of composing from stale files. The union-safe audit log is
-    the sole permitted dirty path so a prior interrupted launch can recover on
-    retry without losing its append.
+    Returns whether HEAD moved plus the exact fetched remote OID. A
+    merely-behind checkout with unrelated dirt, a missing remote branch, or an
+    ahead/diverged tip raises instead of composing from stale files. The
+    union-safe audit log is the sole permitted dirty path so a prior interrupted
+    launch can recover on retry without losing its append.
     """
     _, blackboard = split_body(ticket.body)
     branch = parse_branch_name(blackboard or "")
     root = git._toplevel(cfg.repo_root)
     if root is None or not branch or not git._remote_configured(root, cfg.git_remote):
-        return False
+        raise git.GitError("the recorded assist checkout has no configured remote")
     before = git._run_git(root, "rev-parse", "HEAD").strip()
     log_rel = git._relative_to_root(root, log_path(cfg))
     publication = git._prepare_feature_branch_publication(
@@ -844,10 +865,10 @@ def _align_recorded_assist_checkout(cfg: Config, ticket: Ticket) -> bool:
         branch,
         preserve_union_rel=log_rel,
     )
-    if not publication.may_commit:
+    if not publication.aligned or publication.remote_oid is None:
         raise git.GitError(publication.detail)
     after = git._run_git(root, "rev-parse", "HEAD").strip()
-    return before != after
+    return before != after, publication.remote_oid
 
 
 def _queue_prompt_suffix() -> str:
