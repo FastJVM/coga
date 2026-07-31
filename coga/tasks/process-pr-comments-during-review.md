@@ -1,7 +1,7 @@
 ---
 slug: process-pr-comments-during-review
 title: process pr comments during review
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
