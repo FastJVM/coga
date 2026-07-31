@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -138,3 +138,33 @@ fails if that stops being true.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Implementation notes
+
+- Scope confirmed: change only `src/coga/commands/megalaunch.py` help text and
+  extend an existing test module with a help-discoverability regression.
+- Help must state oldest-first draining, the sub-directory `1-` / `2-` / `3-`
+  naming convention, and that `--pick` filters the already ordered queue rather
+  than honoring selection argument order.
+- Runtime ordering and long-form documentation are already correct and remain
+  untouched.
+
+## Dev
+
+branch: codex/megalaunch-drain-help
+worktree: /tmp/coga-feature.Q4qFDr/repo
+
+The linked-worktree attempt hit the launch sandbox's read-only `.git` metadata,
+so this is the documented independent clone fallback, refreshed from
+`origin/main`.
+
+## Verification
+
+- Added the discoverability regression first; it failed against the existing
+  help because `oldest-first` was absent:
+  `python -m pytest tests/test_megalaunch.py::test_megalaunch_help_describes_drain_order`
+- After the help change, the focused regression passed.
+- Full suite passed: `python -m pytest` — 1569 passed, 1 skipped in 57.17s.
+- Committed as `b3b0d975` (`Document megalaunch drain order in help`).
+- Final `git fetch origin main && git rebase FETCH_HEAD` reported the feature
+  branch up to date; the feature checkout is clean and contains `FETCH_HEAD`.

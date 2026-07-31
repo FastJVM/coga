@@ -3200,3 +3200,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-30 17:19 [document-megalaunch-drain-order] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-07-30 17:19 [process-pr-comments-during-review] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-07-30 17:19 [document-megalaunch-drain-order] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-30 17:19 [document-megalaunch-drain-order] [megalaunch] launched via coga megalaunch
+2026-07-30 17:25 [document-megalaunch-drain-order] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
