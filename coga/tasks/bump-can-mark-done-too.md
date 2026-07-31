@@ -1,7 +1,7 @@
 ---
 slug: bump-can-mark-done-too
 title: bump can mark done too
-status: in_progress
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
