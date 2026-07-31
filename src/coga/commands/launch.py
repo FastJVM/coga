@@ -33,6 +33,7 @@ import typer
 
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
+from coga.autoclose import parse_branch_name, parse_worktree_path
 from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
 from coga.compose import (
     ComposeError,
@@ -64,6 +65,7 @@ from coga.mark import (
     mark_in_progress,
 )
 from coga.paths import PackagedResourceMissing, read_packaged_resource
+from coga.open_pr import same_git_checkout
 from coga.repl_supervisor import (
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
@@ -72,6 +74,7 @@ from coga.repl_supervisor import (
 )
 from coga.task_env import apply_task_env
 from coga.step_gate import gate_publishes_current_branch
+from coga.taskfile import split_body
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -294,6 +297,11 @@ def launch(
             and agent_override is not None
             and assignee not in cfg.agents
         )
+        single_checkout_assist = (
+            human_assist
+            and isinstance(ref, TaskRef)
+            and _assist_uses_recorded_single_checkout(cfg, ticket)
+        )
         if human_assist:
             typer.echo(
                 f"Launch: agent {agent_override} assisting on human-owned step "
@@ -418,6 +426,7 @@ def launch(
                 and human_assist
                 and ticket.assignee not in cfg.agents
             )
+            publish_assist_state = assist_session and single_checkout_assist
             step_assignee = (
                 (agent_override or ticket.assignee) if first_step else ticket.assignee
             )
@@ -478,15 +487,14 @@ def launch(
                     max_session=max_session,
                     label="Launch",
                     warn_blackboard=True,
-                    # An assist may run from the supported single-checkout
-                    # layout, where the PR branch is also the launch checkout.
-                    # Commit the launch audit line before spawning so the
-                    # agent's clean-tree gate does not trip on Coga's own log.
-                    commit_log=is_bootstrap or assist_session,
-                    # Publish assist log-only commits only when the feature tip
-                    # already matches the live configured remote. This keeps an
-                    # open PR branch aligned without sweeping unpushed work.
-                    publish_aligned_log=assist_session,
+                    # A proven recorded single-checkout assist runs on the PR
+                    # branch itself. Commit the launch audit line before
+                    # spawning so the clean-tree gate does not trip on Coga's
+                    # own log.
+                    commit_log=is_bootstrap or publish_assist_state,
+                    # Fast-forward a merely-behind tip, then publish generated
+                    # assist state only from an aligned configured remote.
+                    publish_aligned_log=publish_assist_state,
                 )
             except ComposeError as exc:
                 _bail(str(exc))
@@ -558,7 +566,10 @@ def launch(
         # state back into the checkout the operator launched from, so the
         # `coga status` they run next in this terminal shows the world the
         # run just created.
-        _refresh_launch_checkout(cfg)
+        _refresh_launch_checkout(
+            cfg,
+            publish_aligned_state=single_checkout_assist,
+        )
 
 
 # --- helpers ------------------------------------------------------------------
@@ -697,18 +708,51 @@ def _preflight_push_auth(
         )
 
 
-def _refresh_launch_checkout(cfg: Config) -> None:
+def _refresh_launch_checkout(
+    cfg: Config, *, publish_aligned_state: bool = False
+) -> None:
     """Pull the control branch's task state back into the launch checkout.
 
     Runs once on every exit path the supervisor sees, so the operator's
     checkout never stays stale until a manual pull. Non-fatal by
     construction: `refresh_coga_state_from_control` surfaces git failures on
     stderr + the log and never raises, so a refresh miss cannot mask the
-    launch's real outcome.
+    launch's real outcome. A proven recorded single-checkout assist asks the
+    refresh layer to keep its generated state aligned with the feature remote;
+    unproven checkouts retain ordinary local-only feature refresh behavior.
     """
     git.refresh_coga_state_from_control(
-        cfg, message="Refresh coga state after launch"
+        cfg,
+        message="Refresh coga state after launch",
+        publish_if_remote_aligned=publish_aligned_state,
     )
+
+
+def _assist_uses_recorded_single_checkout(cfg: Config, ticket: Ticket) -> bool:
+    """Whether this launch checkout is the ticket's recorded PR checkout.
+
+    Human ownership plus an explicit override authorizes the assist, but it
+    does not prove that the checkout running `coga launch` owns the recorded
+    branch. Only the supported primary single-checkout layout may publish the
+    launcher's audit/state commits to that feature branch. A separate recorded
+    worktree, a linked worktree, a missing `## Dev` field, or a different
+    current branch all fail closed and retain ordinary local-only log handling.
+    """
+    _, blackboard = split_body(ticket.body)
+    branch = parse_branch_name(blackboard or "")
+    worktree = parse_worktree_path(blackboard or "")
+    if not branch or not worktree:
+        return False
+    try:
+        root = git._toplevel(cfg.repo_root)
+        return bool(
+            root is not None
+            and same_git_checkout(cfg.repo_root, worktree)
+            and not git.is_linked_worktree(cfg.repo_root)
+            and git._current_branch(root) == branch
+        )
+    except git.GitError:
+        return False
 
 
 def _queue_prompt_suffix() -> str:
@@ -894,17 +938,17 @@ def spawn_agent_session(
     `commit_log` immediately commits the `log.md` launch append (via
     `sync_log`) instead of leaving it dirty. Stateless bootstrap launches use
     it because no later task-state sync will carry the log. An explicit assist
-    on a human-owned step also uses it because the supported single-checkout
-    layout puts the launch process in the same PR worktree whose cleanliness
-    the assist must verify. `publish_aligned_log` is the assist's narrower
-    publication rule: pre-session and teardown log-only commits reach a feature
-    remote only when its tip exactly matched the configured remote before the
-    commit, so unrelated unpushed work never rides along. `coga ticket` leaves
-    both False because its post-session record is committed by the shared
-    teardown sync. `secrets_are_scoped` is False only when the caller passes an
-    ambient environment instead of `build_launch_env`; that distinction keeps
-    redaction from mistaking an unrelated same-named variable for a configured
-    secret value.
+    on a human-owned step also uses it only after proving the launch checkout is
+    the recorded primary PR worktree on the recorded branch.
+    `publish_aligned_log` is that assist's narrower publication rule: a
+    merely-behind branch is fast-forwarded while preserving the pending
+    union-log append, then pre-session and teardown log-only commits reach the
+    feature remote only from an aligned tip, so unrelated unpushed work never
+    rides along. `coga ticket` leaves both False because its post-session record
+    is committed by the shared teardown sync. `secrets_are_scoped` is False
+    only when the caller passes an ambient environment instead of
+    `build_launch_env`; that distinction keeps redaction from mistaking an
+    unrelated same-named variable for a configured secret value.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the

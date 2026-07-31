@@ -2863,8 +2863,10 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
 
     log = _read_log(active_task)
     assert "assignee=marc, launch_assignee=codex, agent=codex" in log
-    assert len(sync_calls) == 2
-    assert all(call["publish_if_remote_aligned"] is True for call in sync_calls)
+    # No recorded `branch:` / `worktree:` means this launch is authorized as
+    # an assist, but the current checkout is not authorized to publish for it.
+    assert len(sync_calls) == 1
+    assert sync_calls[0]["publish_if_remote_aligned"] is False
 
 
 def test_human_assist_keeps_single_checkout_pr_branch_clean_and_aligned(
@@ -2887,6 +2889,17 @@ def test_human_assist_keeps_single_checkout_pr_branch_clean_and_aligned(
     ticket.frontmatter["step"] = "2 (review)"
     ticket.frontmatter["assignee"] = "marc"
     ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/1
+            """
+        ),
+    )
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "ticket: seed review assist")
     git_repo.git("push", "origin", "main")
@@ -2917,6 +2930,17 @@ def test_human_assist_keeps_single_checkout_pr_branch_clean_and_aligned(
         git_repo.git("add", "implementation.txt")
         git_repo.git("commit", "-m", "fix: address review")
         git_repo.git("push", "origin", "feature/review")
+        # Control-plane state can move while the assist is running. Launch
+        # teardown must fold this into the single checkout and publish the
+        # generated refresh commit instead of leaving local HEAD ahead.
+        control_log = git_repo.git(
+            "show", "main:coga/log.md", cwd=git_repo.origin
+        )
+        git_repo.push_competing_commit(
+            "coga/log.md",
+            control_log
+            + "2026-07-30 12:01 [other-task] [system] concurrent state\n",
+        )
         return ReplOutcome(exit_code=0, kind="exit")
 
     monkeypatch.setattr(
@@ -2952,6 +2976,90 @@ def test_human_assist_keeps_single_checkout_pr_branch_clean_and_aligned(
     ).strip()
     assert '{"tokens": 1}' in git_repo.git(
         "show", "refs/heads/feature/review:coga/log.md", cwd=git_repo.origin
+    )
+    assert "concurrent state" in git_repo.git(
+        "show", "refs/heads/feature/review:coga/log.md", cwd=git_repo.origin
+    )
+    assert Ticket.read(ticket_path).assignee == "marc"
+
+
+def test_human_assist_does_not_publish_from_an_unrecorded_branch(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Address review elsewhere",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/recorded
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/2
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed separate review assist")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/unrelated")
+    (git_repo.root / "unrelated.txt").write_text("another PR\n")
+    git_repo.git("add", "unrelated.txt")
+    git_repo.git("commit", "-m", "feature: unrelated")
+    git_repo.git("push", "-u", "origin", "feature/unrelated")
+    remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/unrelated", cwd=git_repo.origin
+    ).strip()
+
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        "address-review-elsewhere",
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/unrelated", cwd=git_repo.origin
+    ).strip() == remote_before
+    assert "Log: address-review-elsewhere" not in git_repo.git(
+        "log", "--format=%s", "refs/heads/feature/unrelated", cwd=git_repo.origin
     )
     assert Ticket.read(ticket_path).assignee == "marc"
 

@@ -52,8 +52,10 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
 2. Verify `git status --short` is clean before starting. Do not absorb unrelated
    local changes or stage `coga/log.md` with a fix. The launch supervisor owns
    its audit lines: before spawning this assist it commits the launch line by
-   itself, and in a single-checkout PR branch it publishes that log-only commit
-   only when the local tip exactly matched the configured remote.
+   itself only when the launch checkout is the recorded primary worktree on the
+   recorded branch. A merely-behind checkout is fast-forwarded while preserving
+   that union-log append; publication still requires an aligned configured
+   remote.
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
    remote for every fetch and push. Resolve its GitHub owner/repository from
    `git remote get-url <configured-remote>`.
@@ -202,6 +204,7 @@ Finish by giving the attending human a compact list of addressed threads, the
 pushed commit, the exact test result, and anything that still needs their
 judgment. Then stop naturally with the ticket still `in_progress` on `review`.
 The launch supervisor owns the trailing usage-log commit; when the PR branch
-still matches its configured remote, it publishes that log-only commit during
-teardown so the local and remote tips stay aligned. Do not add a completion
-commit or signal to imitate that teardown.
+still matches its configured remote, it publishes that log-only commit and any
+generated control-state refresh during teardown so the local and remote tips
+stay aligned. Do not add a completion commit or signal to imitate that
+teardown.

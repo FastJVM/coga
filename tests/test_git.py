@@ -297,6 +297,45 @@ def test_sync_log_publishes_aligned_feature_branch_for_agent_assist(git_repo):
     )
 
 
+def test_sync_log_fast_forwards_behind_assist_branch_before_publishing(git_repo):
+    """A remote-only review update stays a fast-forward, not a divergence."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+
+    peer = git_repo.origin.parent / "peer-feature"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/x", "origin/feature/x", cwd=peer)
+    (peer / "remote-review.txt").write_text("remote review update\n")
+    (peer / "coga" / "log.md").write_text("remote audit line\n")
+    git_repo.git("add", "remote-review.txt", "coga/log.md", cwd=peer)
+    git_repo.git("commit", "-m", "review: remote update", cwd=peer)
+    git_repo.git("push", "origin", "feature/x", cwd=peer)
+
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+    git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+    )
+
+    local = git_repo.git("rev-parse", "HEAD").strip()
+    remote = git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    assert local == remote
+    assert (git_repo.root / "remote-review.txt").read_text() == "remote review update\n"
+    assert "launched assist" in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+    assert "remote audit line" in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+
+
 def test_sync_log_does_not_publish_unaligned_feature_work(git_repo, capsys):
     """The assist guard commits its log but never sweeps an unpushed change."""
     cfg = load_config(git_repo.coga_os)
@@ -2401,6 +2440,33 @@ def test_refresh_pulls_newer_control_ticket_into_feature_checkout(git_repo):
         "log", "--format=%s", "feature/x"
     )
     assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
+
+
+def test_refresh_publishes_generated_state_for_aligned_assist_branch(git_repo):
+    """The launch-end pull-back does not leave an assist branch locally ahead."""
+    cfg = load_config(git_repo.coga_os)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+
+    git_repo.push_competing_commit("coga/log.md", "base\ncontrol update\n")
+    git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh after assist",
+        publish_if_remote_aligned=True,
+    )
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    assert "control update" in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
 
 
 def test_refresh_adds_control_only_ticket_and_leaves_product_tree_alone(git_repo):

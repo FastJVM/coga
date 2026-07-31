@@ -297,6 +297,15 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
         return []
 
 
+@dataclass(frozen=True)
+class _FeaturePublicationState:
+    """Safety result for publishing a generated feature-branch commit."""
+
+    aligned: bool
+    may_commit: bool
+    detail: str
+
+
 def sync_log(
     cfg: Config,
     *,
@@ -327,9 +336,11 @@ def sync_log(
         set `publish_current_branch` so the final session-usage commit also
         reaches the already-open PR branch. An explicit human-step assist uses
         the narrower `publish_if_remote_aligned`: publish the log-only commit
-        only when the current feature tip exactly matched the live configured
-        remote tip before committing it. That keeps an already-published PR
-        branch aligned without accidentally publishing unrelated local commits.
+        only from an aligned live configured remote tip. A merely-behind branch
+        is fast-forwarded first while its one dirty union-log append is
+        preserved; a behind checkout with other dirt is left untouched rather
+        than made divergent. That keeps an already-published PR branch aligned
+        without accidentally publishing unrelated local commits.
       - Detached HEAD: skip (the commit would be orphaned); the line stays
         dirty, reported to stderr.
 
@@ -372,30 +383,31 @@ def sync_log(
                 f"[git] detached HEAD — log append not committed locally. ({message})\n"
             )
         else:
-            remote_aligned = False
-            alignment_error: GitError | None = None
+            publication = _FeaturePublicationState(
+                aligned=False,
+                may_commit=True,
+                detail=f"remote {cfg.git_remote!r} is not configured",
+            )
             if (
                 publish_if_remote_aligned
                 and not publish_current_branch
                 and remote_ok
             ):
-                local_tip = _run_git(root, "rev-parse", "HEAD").strip()
-                try:
-                    remote_tip = _remote_branch_oid(root, cfg.git_remote, branch)
-                except GitError as exc:
-                    alignment_error = exc
-                else:
-                    remote_aligned = (
-                        remote_tip is not None and remote_tip == local_tip
-                    )
-            _commit_paths(root, [log_rel], message)
-            if alignment_error is not None:
-                raise GitError(
-                    "could not confirm feature-branch alignment before "
-                    f"publishing the log; it was committed locally only: "
-                    f"{alignment_error}"
+                publication = _prepare_feature_branch_publication(
+                    root,
+                    cfg.git_remote,
+                    branch,
+                    preserve_union_rel=log_rel,
                 )
-            if publish_current_branch or remote_aligned:
+            if publish_if_remote_aligned and not publication.may_commit:
+                sys.stderr.write(
+                    f"[git] feature branch {branch!r} was not ready for aligned "
+                    f"log publication ({publication.detail}) — log left "
+                    f"uncommitted. ({message})\n"
+                )
+                return
+            committed = _commit_paths(root, [log_rel], message)
+            if publish_current_branch or publication.aligned:
                 if not remote_ok:
                     sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
                     return
@@ -405,12 +417,12 @@ def sync_log(
                         f"`git push {cfg.git_remote} {branch}` failed while "
                         f"publishing the session log: {result}"
                     )
-            elif publish_if_remote_aligned:
+            elif publish_if_remote_aligned and committed:
                 target = f"{cfg.git_remote}/{branch}" if remote_ok else cfg.git_remote
                 sys.stderr.write(
                     f"[git] feature branch {branch!r} did not match {target!r} "
                     "before the log commit — log committed locally but not "
-                    f"published. ({message})\n"
+                    f"published ({publication.detail}). ({message})\n"
                 )
     except GitError as exc:
         sys.stderr.write(f"[git] log sync failed: {exc}. Message was: {message}\n")
@@ -609,7 +621,10 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
 
 
 def refresh_coga_state_from_control(
-    cfg: Config, *, message: str = "Refresh coga state from control"
+    cfg: Config,
+    *,
+    message: str = "Refresh coga state from control",
+    publish_if_remote_aligned: bool = False,
 ) -> None:
     """Pull the control branch's task state back into this checkout.
 
@@ -641,6 +656,12 @@ def refresh_coga_state_from_control(
         and a ticket whose local state is *ahead* of the control copy is skipped
         (`_guard_coga_state_regressions`'s rule pointed the other way — a
         refresh must never move local state backward).
+        A proven single-checkout assist may set
+        `publish_if_remote_aligned`: the refresh first fast-forwards a merely
+        behind clean checkout, then publishes only when its pre-refresh tip
+        matched the live feature remote. An ahead/diverged checkout retains
+        ordinary local-only refresh behavior, while a behind dirty checkout is
+        left untouched rather than turned into a divergence.
       - Detached HEAD → skip with a stderr note; the refresh commit would be
         orphaned. Launch runs this against the checkout it was invoked from.
 
@@ -670,12 +691,42 @@ def refresh_coga_state_from_control(
                 f"[git] detached HEAD — coga state not refreshed. ({message})\n"
             )
             return
+        publication = _FeaturePublicationState(
+            aligned=False,
+            may_commit=True,
+            detail="aligned publication was not requested",
+        )
+        if branch != cfg.git_control_branch and publish_if_remote_aligned:
+            publication = _prepare_feature_branch_publication(
+                root,
+                cfg.git_remote,
+                branch,
+            )
+            if not publication.may_commit:
+                sys.stderr.write(
+                    f"[git] feature branch {branch!r} was not ready for an "
+                    f"aligned control-state refresh ({publication.detail}) — "
+                    f"refresh skipped. ({message})\n"
+                )
+                return
         _run_git(root, "fetch", cfg.git_remote, cfg.git_control_branch)
         tip = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
         if branch == cfg.git_control_branch:
             _run_git(root, "merge", "--ff-only", "--quiet", tip)
             return
         _refresh_branch_from_control(cfg, root, tip, message)
+        if publication.aligned:
+            result = _push_ref(root, cfg.git_remote, branch)
+            if result is not None:
+                raise GitError(
+                    f"`git push {cfg.git_remote} {branch}` failed while "
+                    f"publishing the assist refresh: {result}"
+                )
+        elif publish_if_remote_aligned:
+            sys.stderr.write(
+                f"[git] feature branch {branch!r} refreshed locally but was not "
+                f"published ({publication.detail}). ({message})\n"
+            )
     except GitError as exc:
         sys.stderr.write(f"[git] refresh failed: {exc}. Message was: {message}\n")
         append_log(
@@ -2122,6 +2173,114 @@ def _remote_branch_oid(root: Path, remote: str, branch: str) -> str | None:
     )
     line = next((line for line in output.splitlines() if line.strip()), "")
     return line.split(maxsplit=1)[0] if line else None
+
+
+def _prepare_feature_branch_publication(
+    root: Path,
+    remote: str,
+    branch: str,
+    *,
+    preserve_union_rel: str | None = None,
+) -> _FeaturePublicationState:
+    """Align a merely-behind feature checkout before a generated commit.
+
+    Exact alignment is immediately publishable. A local tip that is ahead or
+    diverged remains eligible for an ordinary local-only generated commit, but
+    is never pushed. A merely-behind checkout is fast-forwarded first so Coga
+    does not turn a recoverable state into a divergence. Fast-forwarding needs
+    a clean checkout, except that `sync_log` may name its one dirty union path;
+    that append is three-way unioned over the fetched tip and restored after
+    the fast-forward.
+
+    `may_commit=False` means the branch is behind but cannot be safely
+    fast-forwarded. Callers must skip their generated commit in that case.
+    """
+    remote_tip = _remote_branch_oid(root, remote, branch)
+    if remote_tip is None:
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=True,
+            detail=f"{remote}/{branch} does not exist",
+        )
+
+    # Fetch the exact branch after advertising it; FETCH_HEAD is the authority
+    # for both ancestry and the fast-forward if the branch moved between the
+    # two network calls.
+    _run_git(root, "fetch", remote, f"refs/heads/{branch}")
+    remote_tip = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+    local_tip = _run_git(root, "rev-parse", "HEAD").strip()
+    if local_tip == remote_tip:
+        return _FeaturePublicationState(
+            aligned=True,
+            may_commit=True,
+            detail=f"matched {remote}/{branch}",
+        )
+
+    merge_base = _run_git(root, "merge-base", local_tip, remote_tip).strip()
+    if merge_base != local_tip:
+        relation = "ahead" if merge_base == remote_tip else "diverged"
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=True,
+            detail=f"local tip is {relation} relative to {remote}/{branch}",
+        )
+
+    changed = set(_changed_paths_under(root, "."))
+    permitted = {preserve_union_rel} if preserve_union_rel else set()
+    unexpected = sorted(changed - permitted)
+    if unexpected:
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=False,
+            detail=(
+                f"local tip is behind {remote}/{branch} and the checkout has "
+                f"other changes: {', '.join(unexpected)}"
+            ),
+        )
+
+    if preserve_union_rel and _has_staged_changes(root, [preserve_union_rel]):
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=False,
+            detail=(
+                f"local tip is behind {remote}/{branch} and "
+                f"{preserve_union_rel} has staged changes"
+            ),
+        )
+
+    if preserve_union_rel and preserve_union_rel in changed:
+        working = _working_tree_bytes(root, preserve_union_rel)
+        if working is None:
+            return _FeaturePublicationState(
+                aligned=False,
+                may_commit=False,
+                detail=(
+                    f"local tip is behind {remote}/{branch} and "
+                    f"{preserve_union_rel} was deleted"
+                ),
+            )
+        base = _tree_bytes(root, local_tip, preserve_union_rel)
+        fetched = _tree_bytes(root, remote_tip, preserve_union_rel)
+        merged = _merge_union_bytes(
+            current=fetched or b"",
+            base=base or b"",
+            other=working,
+        )
+        _write_worktree_bytes(root, preserve_union_rel, base)
+        try:
+            _run_git(root, "merge", "--ff-only", "--quiet", remote_tip)
+        except GitError:
+            _write_worktree_bytes(root, preserve_union_rel, working)
+            raise
+        _write_worktree_bytes(root, preserve_union_rel, merged)
+    else:
+        _run_git(root, "merge", "--ff-only", "--quiet", remote_tip)
+
+    return _FeaturePublicationState(
+        aligned=True,
+        may_commit=True,
+        detail=f"fast-forwarded to {remote}/{branch}",
+    )
 
 
 def _remote_branch_present(root: Path, remote: str, branch: str) -> bool:
