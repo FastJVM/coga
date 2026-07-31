@@ -84,10 +84,24 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
    branch in the base repository is not the PR head when the PR comes from a
    fork, and a separate fetch URL does not authorize lifecycle pushes to the
    wrong repository.
-5. Fetch `refs/heads/<branch-name>` directly from `<verified-push-url>` and require
-   `FETCH_HEAD` to equal the PR's reported `headRefOid`. Fast-forward the local
-   checkout when it is merely behind. If it is ahead unexpectedly or diverged,
-   ask the human before rewriting published history.
+5. Create a fresh, command-unique `<assist-fetch-ref>` under
+   `refs/coga/address-pr-comments/<unique-token>`; never reuse it for another
+   fetch. Fetch the branch directly from `<verified-push-url>`, resolve the
+   fetched OID, then delete the private ref:
+
+   ```text
+   git fetch --no-write-fetch-head <verified-push-url> refs/heads/<branch-name>:<assist-fetch-ref>
+   git rev-parse <assist-fetch-ref>
+   git update-ref -d <assist-fetch-ref>
+   ```
+
+   Record the resolved value before deletion as `<verified-remote-oid>` and
+   require it to equal the PR's reported `headRefOid`. Always delete the private
+   ref after recording the OID, including on a mismatch or later failure.
+   Do not read `FETCH_HEAD`: it is shared by concurrent fetches in the checkout
+   and can be replaced between commands. Fast-forward the local checkout from
+   the exact recorded OID when it is merely behind. If it is ahead unexpectedly
+   or diverged, ask the human before rewriting published history.
 
 Remain on the recorded branch for the entire assist. Inspect another ref with
 read-only Git commands rather than checking it out: the launch supervisor pins
@@ -180,10 +194,10 @@ inventory:
 - **At least one thread required a code change.** Commit the requested fixes on
   the recorded branch with a short factual subject. Immediately before pushing,
   re-read the PR's `state`, head repository, `headRefName`, and `headRefOid`;
-  require the PR to remain open with the same repository and branch. Fetch the
-  `<verified-push-url>` branch again, require `FETCH_HEAD` to equal that
-  `headRefOid`, and record it as `<verified-remote-oid>`. Prove the local fix is
-  a fast-forward descendant with
+  require the PR to remain open with the same repository and branch. Repeat the
+  command-scoped verification sequence above with a new unique private ref,
+  record it as `<verified-remote-oid>`, and require that OID to equal the fresh
+  `headRefOid`. Prove the local fix is a fast-forward descendant with
   `git merge-base --is-ancestor <verified-remote-oid> HEAD`, then publish under
   an exact lease:
 
@@ -199,10 +213,11 @@ git push --force-with-lease=refs/heads/<branch-name>:<verified-remote-oid> <veri
   `gh pr view <pr-url> --json headRefOid` and require the reported OID to equal
   `git rev-parse HEAD`.
 - **Every thread is already satisfied.** Do not manufacture a commit and do not
-  push. Re-require the PR to be open, fetch `<verified-push-url>` again,
-  and re-read the PR's `headRefOid`; require `FETCH_HEAD`, that reported OID, and
-  `git rev-parse HEAD` to be identical. This proves the file/commit evidence you
-  are about to cite describes the PR's current head.
+  push. Re-require the PR to be open, repeat the command-scoped fetch with a new
+  unique private ref, and re-read the PR's `headRefOid`; require the recorded
+  fetched OID, that reported OID, and `git rev-parse HEAD` to be identical. This
+  proves the file/commit evidence you are about to cite describes the PR's
+  current head.
 
 Do not reply to threads until the applicable post-push or no-change proof
 succeeds.

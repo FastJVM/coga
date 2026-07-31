@@ -34,7 +34,12 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
     assert "git push origin" not in skill
     assert "Every thread is already satisfied" in skill
     assert "Do not manufacture a commit and do not" in skill
-    assert "`FETCH_HEAD`, that reported OID" in skill
+    assert "git fetch --no-write-fetch-head <verified-push-url>" in skill
+    assert "refs/coga/address-pr-comments/<unique-token>" in skill
+    assert "git rev-parse <assist-fetch-ref>" in skill
+    assert "git update-ref -d <assist-fetch-ref>" in skill
+    assert "Do not read `FETCH_HEAD`" in skill
+    assert skill.count("FETCH_HEAD") == 1
     assert "applicable post-push or no-change proof" in skill
     assert "trailing usage-log commit" in skill
     assert "publishes that log-only commit" in skill
