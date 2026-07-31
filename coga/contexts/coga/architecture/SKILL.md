@@ -337,34 +337,41 @@ exit. A stateless bootstrap agent has no lifecycle transition, so its final
 A human-owned step remains a hard handoff when launched normally. An explicit
 `coga launch <slug> --agent <type>` is the on-demand assist path: it selects a
 configured agent for that launch only, prints the unusual assist in the banner,
-and never rewrites the human `assignee:` on disk. Publication requires the
-launch checkout to be the recorded primary `worktree:` on the recorded
-`branch:`; a separate, linked, missing, or mismatched checkout keeps ordinary
-local-only log handling. A merely-behind recorded checkout is fast-forwarded
-before the final config, ticket, skill-view, secrets, expected-step, and prompt
-reads for every resumable status, including paused and blocked tickets; launch
-then reloads that state from the aligned tree. Activation and `in_progress`
-state are deferred until every launch preflight passes. Their combined
-generated commit is accepted only while local `HEAD` still equals the verified
-tip, then pushed by captured OID under an exact remote-tip lease *before* its
-control-plane landing or start notification. A lost lease resets that commit
-and restores the prior ticket/log bytes, so no child ran, no false lifecycle
-state landed, and no unrelated concurrent local commit was swept. The assist
-also commits its own launch-log append so Coga's audit line cannot trip the PR
-worktree's clean-tree gate. If the remote moves in any direction after
-composition, launch refuses to spawn and requires a retry rather than working
-under stale instructions; a failed generated-log push undoes only that commit
-and leaves the append dirty for the retry. The child inherits a task-scoped
-recorded-branch capability, allowing required in-session state commands such as
-the blocked-resume `coga unblock` to use the same local/remote lease without
-granting it to nested ordinary launches. The pre-session log, trailing usage
-log, and final generated control-state refresh remain pinned to the recorded
-branch and publish captured generated OIDs only from a safely aligned, exact
-remote tip. A lost refresh lease restores its pre-refresh tip and dirty bytes.
-If the agent switches branches, teardown skips those commits instead of
-redirecting them. This preserves the PR branch's local/remote alignment without
-sweeping unrelated local commits. Megalaunch keeps a separate human gate and
-does not inherit this relaxation.
+and never rewrites the human `assignee:` on disk. Publication requires launch
+to run from the exact recorded `worktree:` on the recorded `branch:`; primary
+checkouts, linked worktrees, and independent fallback clones are all supported,
+while a separate, missing, or mismatched checkout keeps ordinary local-only log
+handling. Before touching that branch, launch requires the recorded `pr:` to be
+open and proves its actual head repository, branch, and OID match the configured
+remote — a same-named base-repository branch cannot stand in for a fork PR head.
+A merely-behind recorded checkout is then fast-forwarded before the final
+config, ticket, skill-view, secrets, expected-step, and prompt reads for every
+resumable status, including paused and blocked tickets; launch reloads that
+state from the aligned tree. Activation and `in_progress` state are deferred
+until every launch preflight passes. Their combined generated commit is accepted
+only while local `HEAD` still equals the verified tip, then pushed by captured
+OID under an exact remote-tip lease *before* its control-plane landing or start
+notification. A lost lease resets that commit. If the later control landing
+fails, a leased fast-forward compensation restores the prior feature tree and
+the error still escapes; the caller restores the prior ticket/log bytes, so no
+child ran, no false lifecycle state remains published, and no unrelated
+concurrent local commit was swept. The assist also commits its own launch-log
+append so Coga's audit line cannot trip the PR worktree's clean-tree gate. If
+the remote moves in any direction after composition, launch refuses to spawn
+and requires a retry rather than working under stale instructions; a failed
+generated-log push undoes only that commit and leaves the append dirty for the
+retry. The child inherits a task-scoped recorded-branch capability, allowing
+required in-session state commands such as the blocked-resume `coga unblock` to
+use the same local/remote lease without granting it to nested ordinary launches.
+If that resumed session exits with its ask still open, launch obtains a fresh
+lease and republishes the automatic `blocked` transition before notifying the
+owner. The pre-session log, trailing usage log, and final generated control-state
+refresh remain pinned to the recorded branch and publish captured generated OIDs
+only from a safely aligned, exact remote tip. A lost refresh lease restores its
+pre-refresh tip and dirty bytes. If the agent switches branches, teardown skips
+those commits instead of redirecting them. This preserves the PR branch's
+local/remote alignment without sweeping unrelated local commits. Megalaunch
+keeps a separate human gate and does not inherit this relaxation.
 
 Blocked tickets can resume inline only from an interactive TTY. Their first
 job is to resolve or re-block the open asks.

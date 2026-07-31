@@ -2234,6 +2234,74 @@ def test_strict_feature_publication_checks_fresh_control_state_before_push(
     )
 
 
+@pytest.mark.parametrize(
+    "landing_error",
+    [
+        git.StateRegressionError("terminal control state won the race"),
+        git.GitError("control push failed"),
+    ],
+    ids=["state-regression", "git-failure"],
+)
+def test_strict_feature_publication_compensates_failed_control_landing(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    landing_error: git.GitError,
+) -> None:
+    """No child may start with lifecycle state rejected by the control branch."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/transactional-assist")
+    git_repo.git("push", "-u", "origin", "feature/transactional-assist")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="working\n"
+        )
+    )
+
+    def refuse_control_landing(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise landing_error
+
+    monkeypatch.setattr(
+        git, "_land_paths_on_control_branch", refuse_control_landing
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control landing failed after feature publication",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=git.ticket_state_guard(cfg, ticket),
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/transactional-assist",
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+        )
+
+    remote_feature = git_repo.git(
+        "show",
+        "refs/heads/feature/transactional-assist:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in remote_feature
+    assert "status: active" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/transactional-assist",
+        cwd=git_repo.origin,
+    ).strip()
+    assert "status: in_progress" in ticket.read_text()
+    assert "coga/tasks/demo/ticket.md" in git_repo.git(
+        "status", "--porcelain"
+    )
+
+
 def test_sync_paths_guard_allows_forward_transition(git_repo):
     """The guard only blocks regressions — normal progress still lands."""
     cfg = load_config(git_repo.coga_os)

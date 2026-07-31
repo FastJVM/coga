@@ -28,9 +28,10 @@ The human still owns the review and merge decision.
 - Do not use `coga slack` as a completion signal. It is non-terminal for an
   ordinary task and this attended assist ends when the human ends the session.
 
-Because neither `step:` nor `status:` changes, the launch supervisor stops
-after this assist instead of chaining another session. The existing
-`autoclose-merged` sweep marks the ticket done after the human merges.
+On the normal `in_progress` review path neither `step:` nor `status:` changes,
+so the launch supervisor stops after this assist instead of chaining another
+session. The existing `autoclose-merged` sweep marks the ticket done after the
+human merges.
 
 ## 1. Verify the recorded PR and checkout
 
@@ -51,8 +52,10 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
 1. Verify `git branch --show-current` equals `branch:`.
 2. Verify `git status --short` is clean before starting. Do not absorb unrelated
    local changes or stage `coga/log.md` with a fix. The launch supervisor owns
-   its audit lines. For a recorded primary-worktree assist, it fast-forwards a
-   merely-behind checkout *before* activation and its final
+   its audit lines. When launch runs from the exact recorded checkout (primary,
+   linked worktree, or independent fallback clone), it first proves the open
+   PR's actual head repository and OID, then fast-forwards a merely-behind
+   checkout *before* activation and its final
    ticket/config/prompt reads. Paused/blocked activation waits for all
    preflights; the combined lifecycle commit is pushed by captured OID only if
    local `HEAD` still equals the verified tip and the exact remote-tip lease
@@ -167,22 +170,29 @@ Do not continue with failing tests. Then choose the path that matches the
 inventory:
 
 - **At least one thread required a code change.** Commit the requested fixes on
-  the recorded branch with a short factual subject. Fetch the configured remote
-  branch again and re-read the PR's `headRefOid`; stop if either moved since
-  verification. Push normally to the verified PR-head remote:
+  the recorded branch with a short factual subject. Immediately before pushing,
+  re-read the PR's `state`, head repository, `headRefName`, and `headRefOid`;
+  require the PR to remain open with the same repository and branch. Fetch the
+  configured remote branch again, require `FETCH_HEAD` to equal that
+  `headRefOid`, and record it as `<verified-remote-oid>`. Prove the local fix is
+  a fast-forward descendant with
+  `git merge-base --is-ancestor <verified-remote-oid> HEAD`, then publish under
+  an exact lease:
 
 ```text
-git push <configured-remote> HEAD:refs/heads/<branch-name>
+git push --force-with-lease=refs/heads/<branch-name>:<verified-remote-oid> <configured-remote> HEAD:refs/heads/<branch-name>
 ```
 
-  Never force-push during this assist. If the push is rejected because the
-  remote moved, fetch and reconcile with the attending human instead of
-  overwriting it. After the push, re-run
+  The lease is a compare-and-swap guard, not permission to rewrite history:
+  never run it unless the ancestor proof succeeded, and never use another
+  force option. If the branch was deleted, the PR closed, or the remote moved,
+  this exact lease must reject instead of recreating or overwriting the branch;
+  fetch and reconcile with the attending human. After the push, re-run
   `gh pr view <pr-url> --json headRefOid` and require the reported OID to equal
   `git rev-parse HEAD`.
 - **Every thread is already satisfied.** Do not manufacture a commit and do not
-  push. Fetch the configured remote branch again and re-read the PR's
-  `headRefOid`; require `FETCH_HEAD`, that reported OID, and
+  push. Re-require the PR to be open, fetch the configured remote branch again,
+  and re-read the PR's `headRefOid`; require `FETCH_HEAD`, that reported OID, and
   `git rev-parse HEAD` to be identical. This proves the file/commit evidence you
   are about to cite describes the PR's current head.
 
@@ -232,5 +242,6 @@ stay aligned. Those writes remain pinned to the recorded branch, publish their
 captured generated OID, and restore the prior local tip/dirty bytes if an
 exact-tip lease loses a race. The task-scoped branch capability also lets the
 mandatory blocker-resolution preamble publish `coga unblock` without leaking
-that authority into nested ordinary launches. Do not add a completion commit or
-signal to imitate teardown.
+that authority into nested ordinary launches; if an unresolved resumed blocker
+must be parked again after exit, the supervisor publishes that reblock under a
+fresh lease too. Do not add a completion commit or signal to imitate teardown.

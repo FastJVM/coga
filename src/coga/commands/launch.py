@@ -27,13 +27,20 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import typer
 
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
-from coga.autoclose import parse_branch_name, parse_worktree_path
+from coga.autoclose import (
+    GhError,
+    parse_branch_name,
+    parse_pr_url,
+    parse_worktree_path,
+    pr_view,
+)
 from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
 from coga.compose import (
     ComposeError,
@@ -204,13 +211,23 @@ def launch(
             ):
                 break
             try:
+                pr_head_oid = _verify_recorded_assist_pr_head(
+                    cfg, alignment_ticket, candidate_assist_branch
+                )
                 moved, remote_oid = _align_recorded_assist_checkout(
                     cfg, alignment_ticket
                 )
+                if remote_oid != pr_head_oid:
+                    raise git.FeaturePublicationError(
+                        f"configured remote {cfg.git_remote!r} branch "
+                        f"{candidate_assist_branch!r} is at {remote_oid}, but "
+                        f"the recorded PR head is {pr_head_oid}"
+                    )
             except git.GitError as exc:
                 _bail(
-                    f"Cannot launch {ref.id_slug}: could not align the recorded "
-                    f"assist checkout before composing the prompt: {exc}"
+                    f"Cannot launch {ref.id_slug}: could not verify and align "
+                    f"the recorded assist checkout before composing the "
+                    f"prompt: {exc}"
                 )
             if not moved:
                 aligned_assist_branch = candidate_assist_branch
@@ -342,6 +359,19 @@ def launch(
             f"Cannot launch {ref.id_slug}: the recorded assist branch "
             "changed after alignment; retry once the PR branch is stable."
         )
+    if single_checkout_assist_branch is not None:
+        try:
+            current_pr_head_oid = _verify_recorded_assist_pr_head(
+                cfg, ticket, single_checkout_assist_branch
+            )
+        except git.FeaturePublicationError as exc:
+            _bail(f"Cannot launch {ref.id_slug}: {exc}")
+        if current_pr_head_oid != aligned_assist_remote_oid:
+            _bail(
+                f"Cannot launch {ref.id_slug}: recorded PR head moved from "
+                f"{aligned_assist_remote_oid} to {current_pr_head_oid} after "
+                "checkout alignment; retry once the PR branch is stable."
+            )
     assist_publication = (
         git.FeaturePublicationLease(
             branch=single_checkout_assist_branch,
@@ -442,6 +472,24 @@ def launch(
         # fixed in source), so surface it here, before the status flip and spawn.
         # Warn-only, and a silent no-op outside a coga source checkout.
         warn_if_installed_predates_source(cfg.repo_root)
+
+        if assist_publication is not None:
+            try:
+                current_pr_head_oid = _verify_recorded_assist_pr_head(
+                    cfg, ticket, assist_publication.branch
+                )
+            except git.FeaturePublicationError as exc:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: the recorded PR could not be "
+                    f"re-verified before lifecycle publication. No agent was "
+                    f"started: {exc}"
+                )
+            if current_pr_head_oid != assist_publication.remote_oid:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: the recorded PR head moved "
+                    "during launch preflight; retry so the prompt and lifecycle "
+                    "state use the same tip. No agent was started."
+                )
 
         assist_rollback = (
             _snapshot_assist_state(cfg, ref)
@@ -618,7 +666,12 @@ def launch(
 
             typer.echo(f"Launch: agent exited with code {session.exit_code}")
             if blocked_resume:
-                _reblock_unresolved_resume(cfg, ref, step_assignee or launch_assignee)
+                _reblock_unresolved_resume(
+                    cfg,
+                    ref,
+                    step_assignee or launch_assignee,
+                    feature_branch=publish_assist_branch,
+                )
                 blocked_resume = False
             if session.termination_kind == "timeout":
                 # A liveness limit (idle / max-session) tore the REPL down — the
@@ -767,7 +820,11 @@ def _auto_activate(
 
 
 def _reblock_unresolved_resume(
-    cfg: Config, ref: TaskRef | BootstrapRef, blocker: str | None
+    cfg: Config,
+    ref: TaskRef | BootstrapRef,
+    blocker: str | None,
+    *,
+    feature_branch: str | None = None,
 ) -> None:
     """Return an unresolved blocked-ticket resume to the blocked queue.
 
@@ -787,6 +844,17 @@ def _reblock_unresolved_resume(
 
     owner = ticket.owner or cfg.current_user
     detail = "; ".join(b.reason for b in blockers)
+    feature_publication = None
+    if feature_branch is not None:
+        try:
+            feature_publication = git.feature_publication_lease(
+                cfg, ref.path, feature_branch
+            )
+        except git.FeaturePublicationError as exc:
+            _bail(
+                f"Could not return {ref.id_slug} to blocked on the recorded "
+                f"assist branch after the unresolved session: {exc}"
+            )
     try:
         mark_blocked(
             cfg,
@@ -804,6 +872,12 @@ def _reblock_unresolved_resume(
                 f"{ref.id_slug}: blocked (unresolved blocker still open; "
                 f"owner {owner} needs to answer)"
             ),
+            feature_publication=feature_publication,
+        )
+    except git.FeaturePublicationError as exc:
+        _bail(
+            f"Could not publish {ref.id_slug}'s unresolved blocked state to "
+            f"the recorded assist branch: {exc}"
         )
     except TaskValidationError as exc:
         _bail(str(exc))
@@ -869,28 +943,30 @@ def _refresh_launch_checkout(
 def _recorded_single_checkout_assist_branch(
     cfg: Config, ticket: Ticket
 ) -> str | None:
-    """The recorded PR branch when this is its supported launch checkout.
+    """The recorded PR branch when launch runs in its exact recorded checkout.
 
     Human ownership plus an explicit override authorizes the assist, but it
     does not prove that the checkout running `coga launch` owns the recorded
-    branch. Only the supported primary single-checkout layout may publish the
-    launcher's audit/state commits to that feature branch. A separate recorded
-    worktree, a linked worktree, a missing `## Dev` field, or a different
-    current branch all return None and retain ordinary local-only log handling.
+    branch. The current checkout must equal `worktree:`, be on `branch:`, and
+    carry a recorded `pr:` link before launch may even attempt the live PR-head
+    verification that authorizes publication. A different checkout, a missing
+    `## Dev` field, or a different current branch returns None and retains
+    ordinary local-only log handling. Linked worktrees and independent fallback
+    clones are supported when they are themselves the exact recorded checkout.
     """
     if not cfg.git_enabled:
         return None
     _, blackboard = split_body(ticket.body)
     branch = parse_branch_name(blackboard or "")
     worktree = parse_worktree_path(blackboard or "")
-    if not branch or not worktree:
+    pr_url = parse_pr_url(blackboard or "")
+    if not branch or not worktree or not pr_url:
         return None
     try:
         root = git._toplevel(cfg.repo_root)
         matches = bool(
             root is not None
             and same_git_checkout(cfg.repo_root, worktree)
-            and not git.is_linked_worktree(cfg.repo_root)
             and git._current_branch(root) == branch
         )
         return branch if matches else None
@@ -898,10 +974,127 @@ def _recorded_single_checkout_assist_branch(
         return None
 
 
+def _git_remote_repository_identity(
+    remote_url: str,
+) -> tuple[str, str, str] | None:
+    """Normalize a GitHub-style remote URL to ``(host, owner, repository)``."""
+    value = remote_url.strip()
+    if not value:
+        return None
+
+    host = ""
+    path = ""
+    if "://" in value:
+        parsed = urlsplit(value)
+        host = parsed.hostname or ""
+        path = parsed.path
+    else:
+        left, separator, right = value.partition(":")
+        if separator and "/" in right and "/" not in left:
+            host = left.rsplit("@", 1)[-1]
+            path = right
+        else:
+            return None
+
+    parts = [part for part in path.strip("/").split("/") if part]
+    if not host or len(parts) != 2:
+        return None
+    owner, repository = parts
+    if repository.endswith(".git"):
+        repository = repository[:-4]
+    if not owner or not repository:
+        return None
+    return host.casefold(), owner.casefold(), repository.casefold()
+
+
+def _verify_recorded_assist_pr_head(
+    cfg: Config, ticket: Ticket, branch: str
+) -> str:
+    """Return the live open PR head OID after proving its push repository.
+
+    A recorded branch name is not enough: fork PRs commonly have a same-named
+    branch in the base repository. Before alignment or any generated push,
+    verify that `pr:` is open, names this branch, and reports a head repository
+    identical to the configured remote.
+    """
+    _, blackboard = split_body(ticket.body)
+    pr_url = parse_pr_url(blackboard or "")
+    if not pr_url:
+        raise git.FeaturePublicationError(
+            "recorded assist checkout has no `pr:` link under `## Dev`"
+        )
+    try:
+        data = pr_view(
+            pr_url,
+            "state,url,headRefName,headRefOid,headRepository,headRepositoryOwner",
+        )
+    except GhError as exc:
+        raise git.FeaturePublicationError(
+            f"could not verify recorded PR {pr_url}: {exc}"
+        ) from exc
+
+    state = str(data.get("state", "")).upper()
+    head_branch = str(data.get("headRefName", "")).strip()
+    head_oid = str(data.get("headRefOid", "")).strip()
+    repository = data.get("headRepository")
+    owner = data.get("headRepositoryOwner")
+    repository_name = (
+        str(repository.get("name", "")).strip()
+        if isinstance(repository, dict)
+        else ""
+    )
+    owner_login = (
+        str(owner.get("login", "")).strip() if isinstance(owner, dict) else ""
+    )
+    if state != "OPEN":
+        raise git.FeaturePublicationError(
+            f"recorded PR {pr_url} is {state or 'missing a state'}, not OPEN"
+        )
+    if head_branch != branch:
+        raise git.FeaturePublicationError(
+            f"recorded PR {pr_url} uses head branch {head_branch!r}, not "
+            f"recorded branch {branch!r}"
+        )
+    if not head_oid or not repository_name or not owner_login:
+        raise git.FeaturePublicationError(
+            f"recorded PR {pr_url} returned incomplete head repository/OID data"
+        )
+
+    root = git._toplevel(cfg.repo_root)
+    if root is None:
+        raise git.FeaturePublicationError(
+            "recorded assist checkout is not inside a git repository"
+        )
+    remote_url = git._run_git(
+        root, "remote", "get-url", cfg.git_remote
+    ).strip()
+    remote_identity = _git_remote_repository_identity(remote_url)
+    pr_host = (urlsplit(pr_url).hostname or "").casefold()
+    expected_identity = (
+        pr_host,
+        owner_login.casefold(),
+        repository_name.casefold(),
+    )
+    if remote_identity is None:
+        raise git.FeaturePublicationError(
+            f"configured remote {cfg.git_remote!r} URL {remote_url!r} does not "
+            "identify a GitHub repository"
+        )
+    if remote_identity != expected_identity:
+        remote_repo = "/".join(remote_identity[1:])
+        pr_repo = f"{owner_login}/{repository_name}"
+        raise git.FeaturePublicationError(
+            f"configured remote {cfg.git_remote!r} identifies "
+            f"{remote_identity[0]}/{remote_repo}, but recorded PR {pr_url} "
+            f"publishes from {pr_host}/{pr_repo}"
+        )
+    return head_oid
+
+
 def _align_recorded_assist_checkout(
     cfg: Config, ticket: Ticket
 ) -> tuple[bool, str]:
-    """Fast-forward a proven recorded assist checkout before launch derivation.
+    """Fast-forward a verified recorded assist checkout before launch derivation.
 
     Returns whether HEAD moved plus the exact fetched remote OID. A
     merely-behind checkout with unrelated dirt, a missing remote branch, or an

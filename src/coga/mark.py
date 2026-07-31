@@ -553,6 +553,7 @@ def mark_blocked(
     slack_text: str,
     image_url: str | None = None,
     echo: str | None = None,
+    feature_publication: git.FeaturePublicationLease | None = None,
 ) -> None:
     """Flip a ticket to `blocked` without changing its workflow step."""
     owner = ticket.owner or cfg.current_user
@@ -560,6 +561,21 @@ def mark_blocked(
     ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action="mark blocked")
     append_log(cfg, ref.id_slug, actor, log_message)
+
+    def sync_state() -> None:
+        git.sync_task_state(
+            cfg,
+            ref.path,
+            message=f"Ticket: {ref.id_slug} — blocked",
+            guard=_state_guard(cfg, ref),
+            feature_publication=feature_publication,
+        )
+
+    # A resumed single-checkout assist must republish `blocked` before telling
+    # the owner the unresolved ask is safely parked. Ordinary block calls keep
+    # their established echo/notification-before-sync ordering.
+    if feature_publication is not None:
+        sync_state()
     if echo is not None:
         typer.echo(echo)
     post(
@@ -573,12 +589,8 @@ def mark_blocked(
         # blocked ticket's agent REPL alive to its idle timeout.
         fatal=False,
     )
-    git.sync_task_state(
-        cfg,
-        ref.path,
-        message=f"Ticket: {ref.id_slug} — blocked",
-        guard=_state_guard(cfg, ref),
-    )
+    if feature_publication is None:
+        sync_state()
 
 
 def mark_paused(

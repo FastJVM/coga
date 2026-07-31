@@ -21,7 +21,10 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
     assert "headRepositoryOwner" in skill
     assert "[git].remote" in skill
     assert "python -m pytest" in skill
-    assert "git push <configured-remote>" in skill
+    assert "git push --force-with-lease=refs/heads/<branch-name>:" in skill
+    assert "git merge-base --is-ancestor <verified-remote-oid> HEAD" in skill
+    assert "require the PR to remain open" in skill
+    assert "not permission to rewrite history" in skill
     assert "git push origin" not in skill
     assert "Every thread is already satisfied" in skill
     assert "Do not manufacture a commit and do not" in skill

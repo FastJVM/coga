@@ -251,8 +251,11 @@ def sync_task_state(
     after verification. `expected_remote_branch_oid` leases the remote update,
     refusing a deleted or rewritten branch instead of restoring it.
     `feature_publication` supplies all three values as one strict capability:
-    the generated commit is pushed first, by captured OID, and a failed lease
-    is raised so its caller can restore the pre-transition files.
+    the generated commit is pushed first, by captured OID, and every later
+    publication failure is raised so its caller can restore the pre-transition
+    files. If the control landing fails after the feature push, a leased
+    compensating commit restores the feature branch's prior tree before the
+    error escapes.
     """
     if feature_publication is not None:
         publish_current_branch = True
@@ -573,8 +576,9 @@ def sync_paths(
     caller verified, so a deleted or force-reset PR branch cannot be recreated
     from stale local history. `strict_feature_publication` is the assist-only
     transactional form: publish the captured generated commit before landing
-    control state and re-raise any pre-publication failure so the state writer
-    can restore its pre-transition files.
+    control state, compensate that feature update if the control landing then
+    fails, and re-raise every publication failure so the state writer can
+    restore its pre-transition files.
 
     `guard` is called with each candidate control-branch base before the
     overlay is built — including the base refetched after a non-fast-forward
@@ -1349,9 +1353,35 @@ def _dispatch_branch_sync(
                     f"`git push {cfg.git_remote} {branch}` failed while "
                     f"publishing gated task state: {result}"
                 )
-    except StateRegressionError:
-        if before is not None and not strict_feature_publication:
+    except StateRegressionError as exc:
+        if strict_feature_publication:
+            _raise_strict_control_landing_failure(
+                root,
+                cfg.git_remote,
+                branch,
+                before=before,
+                generated_oid=generated_oid,
+                local_rels=local_rels,
+                message=message,
+                failure=exc,
+                committed=committed,
+            )
+        if before is not None:
             _restore_unpushed_sync_commit(root, before, local_rels)
+        raise
+    except GitError as exc:
+        if strict_feature_publication:
+            _raise_strict_control_landing_failure(
+                root,
+                cfg.git_remote,
+                branch,
+                before=before,
+                generated_oid=generated_oid,
+                local_rels=local_rels,
+                message=message,
+                failure=exc,
+                committed=committed,
+            )
         raise
 
 
@@ -1697,6 +1727,77 @@ def _restore_unpushed_sync_commit(root: Path, before: str, rels: list[str]) -> N
     """Undo a just-created state-sync commit while keeping its files dirty."""
     _run_git(root, "reset", "--soft", before)
     _run_git(root, "reset", before, "--", *rels)
+
+
+def _raise_strict_control_landing_failure(
+    root: Path,
+    remote: str,
+    branch: str,
+    *,
+    before: str | None,
+    generated_oid: str,
+    local_rels: list[str],
+    message: str,
+    failure: GitError,
+    committed: bool,
+) -> None:
+    """Compensate a strict feature push whose control landing then failed.
+
+    The feature push intentionally happens first: an assist may not announce or
+    spawn against lifecycle state that never reached the PR branch. That leaves
+    one failure window — control can reject the same transition after the
+    feature update. Restore the prior feature *tree* with a fast-forward
+    compensating commit, leased to the generated OID, rather than rewriting
+    published history. The caller then restores its pre-transition working-tree
+    bytes after this helper raises.
+    """
+    detail = f"control landing failed after feature publication: {failure}"
+    if not committed or before is None:
+        raise FeaturePublicationError(detail) from failure
+
+    try:
+        prior_tree = _run_git(root, "rev-parse", f"{before}^{{tree}}").strip()
+        compensation_oid = _run_git(
+            root,
+            "commit-tree",
+            prior_tree,
+            "-p",
+            generated_oid,
+            "-m",
+            f"{message} (compensate failed control landing)",
+        ).strip()
+        result = _push_ref(
+            root,
+            remote,
+            f"{compensation_oid}:refs/heads/{branch}",
+            force_with_lease=(f"refs/heads/{branch}", generated_oid),
+        )
+        if result is not None:
+            raise GitError(
+                f"`git push {remote} {compensation_oid}:refs/heads/{branch}` "
+                f"failed: {result}"
+            )
+
+        # Move the local branch to the same compensating commit only if nothing
+        # else committed locally while the control landing was in flight.
+        current_oid = _run_git(root, "rev-parse", "HEAD").strip()
+        if current_oid != generated_oid:
+            raise GitError(
+                f"feature compensation reached {remote}/{branch}, but local "
+                f"HEAD moved from {generated_oid} to {current_oid}"
+            )
+        _run_git(root, "reset", "--soft", compensation_oid)
+        _run_git(root, "reset", compensation_oid, "--", *local_rels)
+    except GitError as compensation_error:
+        raise FeaturePublicationError(
+            f"{detail}; compensating the feature branch also failed: "
+            f"{compensation_error}"
+        ) from failure
+
+    raise FeaturePublicationError(
+        f"{detail}; restored {remote}/{branch} with compensating commit "
+        f"{compensation_oid}"
+    ) from failure
 
 
 def _push_control_branch(
@@ -2667,24 +2768,16 @@ def _prepare_feature_branch_publication(
     )
 
 
-def assist_publication_lease_from_env(
-    cfg: Config, task_path: Path
-) -> FeaturePublicationLease | None:
-    """Return the current assist capability for this exact task, if inherited.
+def feature_publication_lease(
+    cfg: Config, task_path: Path, branch: str
+) -> FeaturePublicationLease:
+    """Verify and lease one exact aligned feature-branch tip.
 
-    Launch exports only the recorded feature branch. The already-existing
-    ``COGA_EXPECTED_TASK`` witness scopes that branch to the session's task, and
-    this reader re-verifies both local and live remote tips immediately before a
-    state command mutates files. A moved branch is a loud refusal: after prompt
-    composition an in-session command may not fast-forward underneath the
-    agent's instructions.
+    Both the child-facing environment reader and launch's post-session
+    blocked-resume reblock use this primitive. It never fast-forwards: once a
+    prompt has run, a moved branch requires a fresh launch rather than silently
+    changing the state the agent worked against.
     """
-    branch = os.environ.get(ASSIST_BRANCH_ENV, "").strip()
-    expected_task = os.environ.get(EXPECTED_TASK_ENV, "").strip()
-    if not branch or not expected_task:
-        return None
-    if Path(expected_task).resolve() != task_path.resolve():
-        return None
     if not cfg.git_enabled:
         raise FeaturePublicationError("assist publication requires git sync")
     root = _toplevel(task_path)
@@ -2720,6 +2813,27 @@ def assist_publication_lease_from_env(
         local_oid=local_oid,
         remote_oid=publication.remote_oid,
     )
+
+
+def assist_publication_lease_from_env(
+    cfg: Config, task_path: Path
+) -> FeaturePublicationLease | None:
+    """Return the current assist capability for this exact task, if inherited.
+
+    Launch exports only the recorded feature branch. The already-existing
+    ``COGA_EXPECTED_TASK`` witness scopes that branch to the session's task, and
+    this reader re-verifies both local and live remote tips immediately before a
+    state command mutates files. A moved branch is a loud refusal: after prompt
+    composition an in-session command may not fast-forward underneath the
+    agent's instructions.
+    """
+    branch = os.environ.get(ASSIST_BRANCH_ENV, "").strip()
+    expected_task = os.environ.get(EXPECTED_TASK_ENV, "").strip()
+    if not branch or not expected_task:
+        return None
+    if Path(expected_task).resolve() != task_path.resolve():
+        return None
+    return feature_publication_lease(cfg, task_path, branch)
 
 
 def _remote_branch_present(root: Path, remote: str, branch: str) -> bool:
@@ -2876,8 +2990,12 @@ def _path_exists(root: Path, rel: str) -> bool:
 
 
 __all__ = [
+    "FeaturePublicationError",
+    "FeaturePublicationLease",
     "GitError",
     "StateRegressionError",
+    "assist_publication_lease_from_env",
+    "feature_publication_lease",
     "guard_ticket_state",
     "is_linked_worktree",
     "refresh_coga_state_from_control",
