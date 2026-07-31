@@ -50,8 +50,13 @@ BLACKBOARD_FENCE = "<!-- coga:blackboard -->"
 
 # Match the fence only as a line of its own (optionally trailing whitespace), so
 # a ticket body that *mentions* the fence string inline — e.g. a ticket about
-# this very format — is not mistaken for a region split.
-_FENCE_RE = re.compile(rf"^{re.escape(BLACKBOARD_FENCE)}[ \t]*$", re.MULTILINE)
+# this very format — is not mistaken for a region split. Raw-byte CAS readers do
+# not apply universal-newline translation, so accept the carriage return in a
+# CRLF fence line explicitly.
+_FENCE_RE = re.compile(
+    rf"^{re.escape(BLACKBOARD_FENCE)}[ \t]*\r?$",
+    re.MULTILINE,
+)
 
 
 def _fence_matches(text: str) -> list[re.Match[str]]:
