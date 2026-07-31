@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
 from coga.cli import app
+from coga.blackboard import append_blocker, resolve_open_blockers
 from coga.commands import launch as launch_module
 from coga.create import create_task
 from coga.commands.launch import (
@@ -3015,6 +3016,225 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
         "show", "refs/heads/feature/review:coga/log.md", cwd=git_repo.origin
     )
     assert "Remote prompt state: address the latest review." in ticket_path.read_text()
+    assert Ticket.read(ticket_path).assignee == "marc"
+
+
+@pytest.mark.parametrize("initial_status", ["active", "paused", "blocked"])
+def test_human_assist_aligns_resumable_state_before_lifecycle_commits(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    initial_status: str,
+) -> None:
+    """Activation state reaches the aligned PR tip before the child starts."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title=f"Resume {initial_status} review",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = initial_status
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/3
+            """
+        ),
+    )
+    if initial_status == "blocked":
+        append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", f"ticket: seed {initial_status} review")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("before remote review\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: initial implementation")
+    git_repo.git("push", "-u", "origin", "feature/review")
+
+    peer = git_repo.origin.parent / f"peer-{initial_status}-review"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
+    (peer / "implementation.txt").write_text("remote review tip\n")
+    git_repo.git("add", "implementation.txt", cwd=peer)
+    git_repo.git("commit", "-m", "review: advance PR tip", cwd=peer)
+    git_repo.git("push", "origin", "feature/review", cwd=peer)
+
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def observe_aligned_child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        assert (git_repo.root / "implementation.txt").read_text() == (
+            "remote review tip\n"
+        )
+        assert Ticket.read(ticket_path).status == "in_progress"
+        assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+            "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+        ).strip()
+        if initial_status == "blocked":
+            resolve_open_blockers(ticket_path, "human:marc", "cap at five minutes")
+            launch_module.git.sync_task_state(
+                cfg,
+                ticket_path,
+                message="Ticket: resolve review blocker",
+                publish_current_branch=True,
+                expected_current_branch="feature/review",
+            )
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        observe_aligned_child,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        str(created["slug"]),
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert Ticket.read(ticket_path).status == "in_progress"
+    assert Ticket.read(ticket_path).assignee == "marc"
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+    ).strip()
+
+
+def test_human_assist_branch_switch_cannot_redirect_teardown_publication(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Keep teardown on the reviewed branch",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/4
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed branch-pinned review")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/other")
+    (git_repo.root / "other.txt").write_text("another branch\n")
+    git_repo.git("add", "other.txt")
+    git_repo.git("commit", "-m", "feature: unrelated branch")
+    git_repo.git("push", "-u", "origin", "feature/other")
+    unrelated_remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip()
+
+    git_repo.git("checkout", "main")
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("reviewed branch\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: reviewed branch")
+    git_repo.git("push", "-u", "origin", "feature/review")
+
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def switch_branches(*args, **kwargs):  # type: ignore[no-untyped-def]
+        git_repo.git("checkout", "feature/other")
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        switch_branches,
+    )
+
+    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        log = cfg.repo_root / "log.md"
+        log.write_text(
+            log.read_text()
+            + '2026-07-30 12:00 [branch-pinned] [system] {"tokens": 1}\n'
+        )
+
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        append_usage,
+    )
+
+    launch_module.launch(
+        str(created["slug"]),
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip() == unrelated_remote_before
+    assert "Log: keep-teardown-on-the-reviewed-branch" not in git_repo.git(
+        "log", "--format=%s", "refs/heads/feature/other", cwd=git_repo.origin
+    )
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "expected feature branch 'feature/review'" in capsys.readouterr().err
     assert Ticket.read(ticket_path).assignee == "marc"
 
 

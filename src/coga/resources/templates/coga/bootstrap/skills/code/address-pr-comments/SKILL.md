@@ -52,11 +52,12 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
 2. Verify `git status --short` is clean before starting. Do not absorb unrelated
    local changes or stage `coga/log.md` with a fix. The launch supervisor owns
    its audit lines. For a recorded primary-worktree assist, it fast-forwards a
-   merely-behind checkout *before* its final ticket/config/prompt reads, then
-   commits the launch line by itself. If the PR branch moves again after prompt
-   composition, launch refuses to spawn and asks for a retry instead of
-   fast-forwarding underneath stale instructions. Publication still requires
-   the configured remote and a safely aligned tip.
+   merely-behind checkout *before* activation and its final
+   ticket/config/prompt reads, publishes any generated lifecycle state, then
+   commits the launch line by itself. If the PR branch moves in any direction
+   after prompt composition, launch refuses to spawn and asks for a retry
+   instead of working underneath stale instructions. Publication still
+   requires the configured remote and a safely aligned tip.
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
    remote for every fetch and push. Resolve its GitHub owner/repository from
    `git remote get-url <configured-remote>`.
@@ -72,6 +73,11 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
    `FETCH_HEAD` to equal the PR's reported `headRefOid`. Fast-forward the local
    checkout when it is merely behind. If it is ahead unexpectedly or diverged,
    ask the human before rewriting published history.
+
+Remain on the recorded branch for the entire assist. Inspect another ref with
+read-only Git commands rather than checking it out: the launch supervisor pins
+its generated teardown commits to the recorded branch and deliberately leaves
+them uncommitted if `HEAD` changes.
 
 Extract the base repository owner, repository name, and PR number from the
 recorded PR URL. The URL identifies the base repository even when the PR comes
@@ -218,5 +224,6 @@ judgment. Then stop naturally with the ticket still `in_progress` on `review`.
 The launch supervisor owns the trailing usage-log commit; when the PR branch
 still matches its configured remote, it publishes that log-only commit and any
 generated control-state refresh during teardown so the local and remote tips
-stay aligned. Do not add a completion commit or signal to imitate that
+stay aligned. Those writes remain pinned to the recorded branch and are skipped
+if `HEAD` changed. Do not add a completion commit or signal to imitate that
 teardown.

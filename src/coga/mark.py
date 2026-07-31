@@ -495,6 +495,8 @@ def mark_in_progress(
     log_message: str,
     slack_text: str | None = None,
     echo: str | None = None,
+    publish_current_branch: bool = False,
+    expected_current_branch: str | None = None,
 ) -> None:
     """Flip a ticket to `in_progress`: write frontmatter, log, optionally post."""
     owner = ticket.owner or cfg.current_user
@@ -518,6 +520,8 @@ def mark_in_progress(
         ref.path,
         message=f"Ticket: {ref.id_slug} — in_progress",
         guard=_state_guard(cfg, ref),
+        publish_current_branch=publish_current_branch,
+        expected_current_branch=expected_current_branch,
     )
 
 

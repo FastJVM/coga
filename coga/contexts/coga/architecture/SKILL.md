@@ -342,15 +342,18 @@ launch checkout to be the recorded primary `worktree:` on the recorded
 `branch:`; a separate, linked, missing, or mismatched checkout keeps ordinary
 local-only log handling. A merely-behind recorded checkout is fast-forwarded
 before the final config, ticket, skill-view, secrets, expected-step, and prompt
-reads; launch then reloads that state from the aligned tree. Before spawning,
-the assist commits its own launch-log append so Coga's audit line cannot trip
-the PR worktree's clean-tree gate. If the remote moves again after composition,
-launch refuses to spawn and requires a retry rather than fast-forwarding under
-stale instructions. The pre-session log, trailing usage log, and final
-generated control-state refresh are published only from a safely aligned tip,
-preserving the PR branch's local/remote alignment without sweeping unrelated
-local commits. Megalaunch keeps a separate human gate and does not inherit this
-relaxation.
+reads for every resumable status, including paused and blocked tickets; launch
+then reloads that state from the aligned tree. Activation and `in_progress`
+commits generated before spawn are published to that verified feature branch.
+The assist also commits its own launch-log append so Coga's audit line cannot
+trip the PR worktree's clean-tree gate. If the remote moves in any direction
+after composition, launch refuses to spawn and requires a retry rather than
+working under stale instructions. The pre-session log, trailing usage log, and
+final generated control-state refresh remain pinned to the recorded branch and
+are published only from a safely aligned tip. If the agent switches branches,
+teardown skips those commits instead of redirecting them. This preserves the PR
+branch's local/remote alignment without sweeping unrelated local commits.
+Megalaunch keeps a separate human gate and does not inherit this relaxation.
 
 Blocked tickets can resume inline only from an interactive TTY. Their first
 job is to resolve or re-block the open asks.

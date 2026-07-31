@@ -188,10 +188,13 @@ def launch(
             alignment_ticket = read_ticket(ref)
             if (
                 is_bootstrap
-                or alignment_ticket.status not in {"active", "in_progress"}
+                or alignment_ticket.status
+                not in {"active", "in_progress", "paused", "blocked"}
                 or not _interactive_stdio_has_tty()
                 or alignment_ticket.assignee in cfg.agents
-                or not _assist_uses_recorded_single_checkout(cfg, alignment_ticket)
+                or _recorded_single_checkout_assist_branch(
+                    cfg, alignment_ticket
+                ) is None
             ):
                 break
             try:
@@ -308,6 +311,7 @@ def launch(
     if not is_bootstrap and ticket.status not in {"draft", "paused"}:
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
+    single_checkout_assist_branch: str | None = None
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
         # is brought to `active` inline rather than refused with a "run
@@ -341,10 +345,10 @@ def launch(
             and agent_override is not None
             and assignee not in cfg.agents
         )
-        single_checkout_assist = (
-            human_assist
-            and isinstance(ref, TaskRef)
-            and _assist_uses_recorded_single_checkout(cfg, ticket)
+        single_checkout_assist_branch = (
+            _recorded_single_checkout_assist_branch(cfg, ticket)
+            if human_assist and isinstance(ref, TaskRef)
+            else None
         )
         if human_assist:
             typer.echo(
@@ -423,6 +427,13 @@ def launch(
                         f"\"{ticket.title}\" (assignee: {launch_assignee})"
                     ),
                     echo=f"{ref.id_slug}: in_progress",
+                    # A recorded primary-checkout assist must start with its
+                    # generated lifecycle state on the published PR tip. This
+                    # push also carries a paused ticket's preceding activation
+                    # commit. The expected branch prevents a checkout switch
+                    # from redirecting that publication.
+                    publish_current_branch=bool(single_checkout_assist_branch),
+                    expected_current_branch=single_checkout_assist_branch,
                 )
             except TaskValidationError as exc:
                 _bail(str(exc))
@@ -451,7 +462,10 @@ def launch(
         # Setup can exit after state was already published (the auto-activate
         # or in_progress flip), so pull that state back into the launch
         # checkout before surfacing the exit.
-        _refresh_launch_checkout(cfg)
+        _refresh_launch_checkout(
+            cfg,
+            expected_assist_branch=single_checkout_assist_branch,
+        )
         raise
 
     try:
@@ -470,7 +484,9 @@ def launch(
                 and human_assist
                 and ticket.assignee not in cfg.agents
             )
-            publish_assist_state = assist_session and single_checkout_assist
+            publish_assist_branch = (
+                single_checkout_assist_branch if assist_session else None
+            )
             step_assignee = (
                 (agent_override or ticket.assignee) if first_step else ticket.assignee
             )
@@ -535,10 +551,10 @@ def launch(
                     # branch itself. Commit the launch audit line before
                     # spawning so the clean-tree gate does not trip on Coga's
                     # own log.
-                    commit_log=is_bootstrap or publish_assist_state,
-                    # Fast-forward a merely-behind tip, then publish generated
-                    # assist state only from an aligned configured remote.
-                    publish_aligned_log=publish_assist_state,
+                    commit_log=is_bootstrap or bool(publish_assist_branch),
+                    # Publish generated assist state only from the recorded
+                    # branch and an aligned configured remote.
+                    publish_aligned_branch=publish_assist_branch,
                 )
             except ComposeError as exc:
                 _bail(str(exc))
@@ -612,7 +628,7 @@ def launch(
         # run just created.
         _refresh_launch_checkout(
             cfg,
-            publish_aligned_state=single_checkout_assist,
+            expected_assist_branch=single_checkout_assist_branch,
         )
 
 
@@ -753,7 +769,7 @@ def _preflight_push_auth(
 
 
 def _refresh_launch_checkout(
-    cfg: Config, *, publish_aligned_state: bool = False
+    cfg: Config, *, expected_assist_branch: str | None = None
 ) -> None:
     """Pull the control branch's task state back into the launch checkout.
 
@@ -762,43 +778,49 @@ def _refresh_launch_checkout(
     construction: `refresh_coga_state_from_control` surfaces git failures on
     stderr + the log and never raises, so a refresh miss cannot mask the
     launch's real outcome. A proven recorded single-checkout assist asks the
-    refresh layer to keep its generated state aligned with the feature remote;
-    unproven checkouts retain ordinary local-only feature refresh behavior.
+    refresh layer to keep its generated state aligned with the feature remote,
+    pinned to the branch the session started on. If the agent changed branches,
+    teardown leaves that checkout alone. Unproven checkouts retain ordinary
+    local-only feature refresh behavior.
     """
     git.refresh_coga_state_from_control(
         cfg,
         message="Refresh coga state after launch",
-        publish_if_remote_aligned=publish_aligned_state,
+        publish_if_remote_aligned=expected_assist_branch is not None,
+        expected_feature_branch=expected_assist_branch,
     )
 
 
-def _assist_uses_recorded_single_checkout(cfg: Config, ticket: Ticket) -> bool:
-    """Whether this launch checkout is the ticket's recorded PR checkout.
+def _recorded_single_checkout_assist_branch(
+    cfg: Config, ticket: Ticket
+) -> str | None:
+    """The recorded PR branch when this is its supported launch checkout.
 
     Human ownership plus an explicit override authorizes the assist, but it
     does not prove that the checkout running `coga launch` owns the recorded
     branch. Only the supported primary single-checkout layout may publish the
     launcher's audit/state commits to that feature branch. A separate recorded
     worktree, a linked worktree, a missing `## Dev` field, or a different
-    current branch all fail closed and retain ordinary local-only log handling.
+    current branch all return None and retain ordinary local-only log handling.
     """
     if not cfg.git_enabled:
-        return False
+        return None
     _, blackboard = split_body(ticket.body)
     branch = parse_branch_name(blackboard or "")
     worktree = parse_worktree_path(blackboard or "")
     if not branch or not worktree:
-        return False
+        return None
     try:
         root = git._toplevel(cfg.repo_root)
-        return bool(
+        matches = bool(
             root is not None
             and same_git_checkout(cfg.repo_root, worktree)
             and not git.is_linked_worktree(cfg.repo_root)
             and git._current_branch(root) == branch
         )
+        return branch if matches else None
     except git.GitError:
-        return False
+        return None
 
 
 def _align_recorded_assist_checkout(cfg: Config, ticket: Ticket) -> bool:
@@ -984,7 +1006,7 @@ def spawn_agent_session(
     label: str = "Launch",
     warn_blackboard: bool = False,
     commit_log: bool = False,
-    publish_aligned_log: bool = False,
+    publish_aligned_branch: str | None = None,
     secrets_are_scoped: bool = True,
     stateless_identity: tuple[str, str] | None = None,
     include_blocker_preamble: bool = True,
@@ -1013,13 +1035,14 @@ def spawn_agent_session(
     it because no later task-state sync will carry the log. An explicit assist
     on a human-owned step also uses it only after proving the launch checkout is
     the recorded primary PR worktree on the recorded branch.
-    `publish_aligned_log` is that assist's narrower publication rule: a
+    `publish_aligned_branch` is that assist's narrower publication rule: a
     merely-behind branch is fast-forwarded while preserving the pending
     union-log append, then pre-session and teardown log-only commits reach the
-    feature remote only from an aligned tip, so unrelated unpushed work never
-    rides along. `coga ticket` leaves both False because its post-session record
-    is committed by the shared teardown sync. `secrets_are_scoped` is False
-    only when the caller passes an ambient environment instead of
+    feature remote only from an aligned tip on the exact recorded branch, so a
+    branch switch or unrelated unpushed work never rides along. `coga ticket`
+    leaves both publication arguments unset because its post-session record is
+    committed by the shared teardown sync. `secrets_are_scoped` is False only
+    when the caller passes an ambient environment instead of
     `build_launch_env`; that distinction keeps redaction from mistaking an
     unrelated same-named variable for a configured secret value.
     """
@@ -1104,13 +1127,14 @@ def spawn_agent_session(
             log_synced = git.sync_log(
                 cfg,
                 message=f"Log: {ref.id_slug}",
-                publish_if_remote_aligned=publish_aligned_log,
+                publish_if_remote_aligned=publish_aligned_branch is not None,
+                expected_feature_branch=publish_aligned_branch,
                 # A recorded assist was aligned before ticket/config/prompt
                 # derivation. If its remote moves now, refuse to spawn instead
                 # of fast-forwarding underneath already-composed state.
-                allow_feature_fast_forward=not publish_aligned_log,
+                allow_feature_fast_forward=publish_aligned_branch is None,
             )
-            if publish_aligned_log and not log_synced:
+            if publish_aligned_branch is not None and not log_synced:
                 raise ComposeError(
                     "The recorded PR branch moved or could not be verified "
                     "after launch composition. No agent was started; retry "
@@ -1197,7 +1221,8 @@ def spawn_agent_session(
                     cfg,
                     message=f"Log: {session_slug}",
                     publish_current_branch=publish_session_log,
-                    publish_if_remote_aligned=publish_aligned_log,
+                    publish_if_remote_aligned=publish_aligned_branch is not None,
+                    expected_feature_branch=publish_aligned_branch,
                 )
         try:
             prompt_file.unlink()

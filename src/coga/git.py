@@ -197,6 +197,7 @@ def sync_task_state(
     message: str,
     guard: _StateGuard | None = None,
     publish_current_branch: bool = False,
+    expected_current_branch: str | None = None,
 ) -> None:
     """Commit the task directory's files and push to the control branch.
 
@@ -226,7 +227,9 @@ def sync_task_state(
 
     `guard` is forwarded to `sync_paths`; status-transition callers pass
     `guard_ticket_state` so a stale checkout cannot overlay its ticket onto a
-    newer control tip.
+    newer control tip. `expected_current_branch` pins an explicitly requested
+    feature publication to the branch the caller already verified; switching
+    checkouts between verification and sync fails before any commit or push.
     """
     sync_paths(
         cfg,
@@ -235,6 +238,7 @@ def sync_task_state(
         message=message,
         guard=guard,
         publish_current_branch=publish_current_branch,
+        expected_current_branch=expected_current_branch,
     )
 
 
@@ -313,6 +317,7 @@ def sync_log(
     publish_current_branch: bool = False,
     publish_if_remote_aligned: bool = False,
     allow_feature_fast_forward: bool = True,
+    expected_feature_branch: str | None = None,
 ) -> bool:
     """Commit the repo-global `log.md` alone, and publish when required.
 
@@ -344,8 +349,12 @@ def sync_log(
         aligned before composing may set `allow_feature_fast_forward=False`:
         if the remote moved after composition, leave the log uncommitted and
         report failure so the caller can refuse to spawn with stale state.
-        These rules keep an already-published PR branch aligned without
-        accidentally publishing unrelated local commits.
+        `expected_feature_branch` additionally pins an assist's pre-session
+        and teardown commits to its recorded branch. If the agent changes
+        branches, the audit append stays dirty for explicit recovery instead
+        of being committed or pushed to the newly checked-out branch. These
+        rules keep an already-published PR branch aligned without accidentally
+        publishing unrelated local commits.
       - Detached HEAD: skip (the commit would be orphaned); the line stays
         dirty, reported to stderr.
 
@@ -376,6 +385,16 @@ def sync_log(
             return False
         log_rel = _relative_to_root(root, log_file)
         branch = _current_branch(root)
+        if (
+            expected_feature_branch is not None
+            and branch != expected_feature_branch
+        ):
+            sys.stderr.write(
+                f"[git] expected feature branch {expected_feature_branch!r}, "
+                f"but the checkout is on {branch!r} — log left uncommitted. "
+                f"({message})\n"
+            )
+            return False
         # A commit is always local and never touches the remote, so it proceeds
         # even with no remote configured; only the *push* is soft-skipped in
         # that case (calm notice, no raw fatal). Every other push failure stays
@@ -451,6 +470,7 @@ def sync_paths(
     land_union_files_to_control: bool = False,
     guard: _StateGuard | None = None,
     publish_current_branch: bool = False,
+    expected_current_branch: str | None = None,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -468,7 +488,8 @@ def sync_paths(
     intentionally never merge. `publish_current_branch` is the narrower
     post-artifact path: after committing locally and landing the selected
     state on control, also fast-forward the current feature branch on the
-    configured remote.
+    configured remote. `expected_current_branch` pins that generated
+    publication to a branch the caller already verified.
 
     `guard` is called with each candidate control-branch base before the
     overlay is built — including the base refetched after a non-fast-forward
@@ -528,6 +549,7 @@ def sync_paths(
             guard=guard,
             update_local_control_ref=update_local_control_ref,
             publish_current_branch=publish_current_branch,
+            expected_current_branch=expected_current_branch,
         )
     except StateRegressionError as exc:
         # A refusal is not a failure to reach git — it is git refusing to bury
@@ -638,6 +660,7 @@ def refresh_coga_state_from_control(
     *,
     message: str = "Refresh coga state from control",
     publish_if_remote_aligned: bool = False,
+    expected_feature_branch: str | None = None,
 ) -> None:
     """Pull the control branch's task state back into this checkout.
 
@@ -675,6 +698,9 @@ def refresh_coga_state_from_control(
         matched the live feature remote. An ahead/diverged checkout retains
         ordinary local-only refresh behavior, while a behind dirty checkout is
         left untouched rather than turned into a divergence.
+        `expected_feature_branch` pins the whole refresh to the branch the
+        assist started on. If the agent switched branches, teardown skips
+        before fetching, committing, or pushing anything in that checkout.
       - Detached HEAD → skip with a stderr note; the refresh commit would be
         orphaned. Launch runs this against the checkout it was invoked from.
 
@@ -699,6 +725,16 @@ def refresh_coga_state_from_control(
             sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
             return
         branch = _current_branch(root)
+        if (
+            expected_feature_branch is not None
+            and branch != expected_feature_branch
+        ):
+            sys.stderr.write(
+                f"[git] expected feature branch {expected_feature_branch!r}, "
+                f"but the checkout is on {branch!r} — coga state refresh "
+                f"skipped. ({message})\n"
+            )
+            return
         if branch == "HEAD":
             sys.stderr.write(
                 f"[git] detached HEAD — coga state not refreshed. ({message})\n"
@@ -951,6 +987,7 @@ def _dispatch_branch_sync(
     guard: _StateGuard | None = None,
     update_local_control_ref: bool = True,
     publish_current_branch: bool = False,
+    expected_current_branch: str | None = None,
 ) -> None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
@@ -969,6 +1006,11 @@ def _dispatch_branch_sync(
     """
     control_union_rels = control_union_rels or []
     branch = _current_branch(root)
+    if expected_current_branch is not None and branch != expected_current_branch:
+        raise GitError(
+            f"expected current branch {expected_current_branch!r}, "
+            f"but the checkout is on {branch!r}"
+        )
     # The local commit never touches the remote, so it proceeds even with no
     # remote configured; only the control-branch *landing/push* is soft-skipped
     # in that case (calm notice, no raw fatal). Every other push failure stays
@@ -2198,24 +2240,32 @@ def _prepare_feature_branch_publication(
 ) -> _FeaturePublicationState:
     """Align a merely-behind feature checkout before a generated commit.
 
-    Exact alignment is immediately publishable. A local tip that is ahead or
-    diverged remains eligible for an ordinary local-only generated commit, but
-    is never pushed. A merely-behind checkout is fast-forwarded first so Coga
-    does not turn a recoverable state into a divergence. Fast-forwarding needs
-    a clean checkout, except that `sync_log` may name its one dirty union path;
-    that append is three-way unioned over the fetched tip and restored after
-    the fast-forward.
+    Exact alignment is immediately publishable. By default, a local tip that
+    is ahead or diverged remains eligible for an ordinary local-only generated
+    commit, but is never pushed. A merely-behind checkout is fast-forwarded
+    first so Coga does not turn a recoverable state into a divergence.
+    Fast-forwarding needs a clean checkout, except that `sync_log` may name its
+    one dirty union path; that append is three-way unioned over the fetched tip
+    and restored after the fast-forward.
 
     `may_commit=False` means the branch is behind but cannot be safely
-    fast-forwarded, or the caller explicitly forbade a post-composition
-    fast-forward. Callers must skip their generated commit in that case.
+    fast-forwarded, or the caller explicitly required the exact
+    post-composition tip and found any mismatch. Callers must skip their
+    generated commit in that case.
     """
     remote_tip = _remote_branch_oid(root, remote, branch)
     if remote_tip is None:
         return _FeaturePublicationState(
             aligned=False,
-            may_commit=True,
-            detail=f"{remote}/{branch} does not exist",
+            may_commit=fast_forward_if_behind,
+            detail=(
+                f"{remote}/{branch} does not exist"
+                + (
+                    ""
+                    if fast_forward_if_behind
+                    else " after launch composition"
+                )
+            ),
         )
 
     # Fetch the exact branch after advertising it; FETCH_HEAD is the authority
@@ -2232,22 +2282,27 @@ def _prepare_feature_branch_publication(
         )
 
     merge_base = _run_git(root, "merge-base", local_tip, remote_tip).strip()
-    if merge_base != local_tip:
-        relation = "ahead" if merge_base == remote_tip else "diverged"
-        return _FeaturePublicationState(
-            aligned=False,
-            may_commit=True,
-            detail=f"local tip is {relation} relative to {remote}/{branch}",
-        )
-
+    relation = (
+        "behind"
+        if merge_base == local_tip
+        else "ahead"
+        if merge_base == remote_tip
+        else "diverged"
+    )
     if not fast_forward_if_behind:
         return _FeaturePublicationState(
             aligned=False,
             may_commit=False,
             detail=(
-                f"local tip moved behind {remote}/{branch} after launch "
-                "composition"
+                f"local tip moved {relation} relative to {remote}/{branch} "
+                "after launch composition"
             ),
+        )
+    if relation != "behind":
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=True,
+            detail=f"local tip is {relation} relative to {remote}/{branch}",
         )
 
     changed = set(_changed_paths_under(root, "."))

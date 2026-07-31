@@ -371,6 +371,73 @@ def test_sync_log_refuses_late_assist_fast_forward_after_composition(
     assert "moved behind" in capsys.readouterr().err
 
 
+def test_sync_log_refuses_diverged_assist_tip_after_composition(
+    git_repo, capsys
+):
+    """A force-pushed PR tip invalidates the already-composed launch state."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "local-review.txt").write_text("old PR tip\n")
+    git_repo.git("add", "local-review.txt")
+    git_repo.git("commit", "-m", "feature: old review tip")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    local_before = git_repo.git("rev-parse", "HEAD").strip()
+
+    peer = git_repo.origin.parent / "peer-rewrite"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/x", "origin/main", cwd=peer)
+    (peer / "rewritten-review.txt").write_text("rewritten PR tip\n")
+    git_repo.git("add", "rewritten-review.txt", cwd=peer)
+    git_repo.git("commit", "-m", "feature: rewritten review tip", cwd=peer)
+    git_repo.git("push", "--force", "origin", "feature/x", cwd=peer)
+
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+        allow_feature_fast_forward=False,
+        expected_feature_branch="feature/x",
+    )
+
+    assert synced is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == local_before
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "moved diverged" in capsys.readouterr().err
+
+
+def test_sync_log_refuses_assist_publication_after_branch_switch(
+    git_repo, capsys
+):
+    """Teardown cannot redirect an assist's audit commit to another branch."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/review")
+    git_repo.git("push", "-u", "origin", "feature/review")
+    git_repo.checkout_branch("feature/other")
+    git_repo.git("push", "-u", "origin", "feature/other")
+    remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip()
+    append_log(cfg, "ship-it", "system", '{"tokens": 1}')
+
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/review",
+    )
+
+    assert synced is False
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip() == remote_before
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "expected feature branch 'feature/review'" in capsys.readouterr().err
+
+
 def test_sync_log_does_not_publish_unaligned_feature_work(git_repo, capsys):
     """The assist guard commits its log but never sweeps an unpushed change."""
     cfg = load_config(git_repo.coga_os)
@@ -2502,6 +2569,35 @@ def test_refresh_publishes_generated_state_for_aligned_assist_branch(git_repo):
     assert "control update" in git_repo.git(
         "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
     )
+
+
+def test_refresh_refuses_assist_state_after_branch_switch(git_repo, capsys):
+    """Launch teardown leaves an unrelated checkout branch untouched."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/review")
+    git_repo.git("push", "-u", "origin", "feature/review")
+    git_repo.checkout_branch("feature/other")
+    git_repo.git("push", "-u", "origin", "feature/other")
+    remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip()
+    git_repo.push_competing_commit(
+        "coga/tasks/remote/ticket.md",
+        _step_ticket_text(step="1 (implement)"),
+    )
+
+    git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh after assist",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/review",
+    )
+
+    assert not (git_repo.coga_os / "tasks" / "remote").exists()
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip() == remote_before
+    assert "expected feature branch 'feature/review'" in capsys.readouterr().err
 
 
 def test_refresh_adds_control_only_ticket_and_leaves_product_tree_alone(git_repo):
