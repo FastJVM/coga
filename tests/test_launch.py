@@ -5,6 +5,7 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+import requests
 from types import SimpleNamespace
 from typer.testing import CliRunner
 
@@ -3656,7 +3657,11 @@ def test_human_assist_does_not_recreate_branch_deleted_after_alignment(
 
 
 def _seed_single_checkout_human_review(
-    git_repo, *, title: str, status: str
+    git_repo,
+    *,
+    title: str,
+    status: str,
+    branch: str = "feature/review",
 ) -> tuple[dict[str, str], Path]:
     cfg = load_config(git_repo.coga_os)
     created = create_task(
@@ -3680,7 +3685,7 @@ def _seed_single_checkout_human_review(
         dedent(
             f"""
             ## Dev
-            branch: feature/review
+            branch: {branch}
             worktree: {git_repo.root}
             pr: https://github.com/example/repo/pull/8
             """
@@ -3689,11 +3694,12 @@ def _seed_single_checkout_human_review(
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", f"ticket: seed {status} review")
     git_repo.git("push", "origin", "main")
-    git_repo.checkout_branch("feature/review")
+    if branch != "main":
+        git_repo.checkout_branch(branch)
     (git_repo.root / "implementation.txt").write_text("reviewed branch\n")
     git_repo.git("add", "implementation.txt")
     git_repo.git("commit", "-m", "feature: reviewed branch")
-    git_repo.git("push", "-u", "origin", "feature/review")
+    git_repo.git("push", "-u", "origin", branch)
     return created, ticket_path
 
 
@@ -3778,6 +3784,12 @@ def test_blocked_human_assist_explicit_block_publishes_through_lease(
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
     monkeypatch.setattr(
+        "coga.notification.slack.requests.post",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            requests.ConnectionError("notification unavailable")
+        ),
+    )
+    monkeypatch.setattr(
         "coga.commands.launch._refresh_agent_skills_for_launch",
         lambda coga_os: None,
     )
@@ -3787,6 +3799,9 @@ def test_blocked_human_assist_explicit_block_publishes_through_lease(
     )
 
     def explicitly_reblock(*args, **kwargs):  # type: ignore[no-untyped-def]
+        # The strict start notification failed after lifecycle publication,
+        # but its unleased audit line must not dirty the child checkout.
+        assert git_repo.git("status", "--porcelain").strip() == ""
         child_env = args[1]
         result = CliRunner().invoke(
             app,
@@ -3800,6 +3815,9 @@ def test_blocked_human_assist_explicit_block_publishes_through_lease(
             env=child_env,
         )
         assert result.exit_code == 0, result.output
+        # The strict block notification follows the same rule before the
+        # command returns to the CLI catch-all sweep.
+        assert git_repo.git("status", "--porcelain").strip() == ""
         return ReplOutcome(exit_code=0, kind="done")
 
     monkeypatch.setattr(
@@ -3962,6 +3980,68 @@ def test_unblock_all_aborts_on_refused_assist_publication(
         "refs/heads/feature/review",
         cwd=git_repo.origin,
     ).strip() == remote_before
+
+
+@pytest.mark.parametrize("command", ["block", "unblock", "unblock-all"])
+def test_in_session_state_command_lease_acquisition_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    """A refused inherited lease aborts before mutation and cannot be swept."""
+    status = "blocked" if command == "unblock-all" else "in_progress"
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Refuse {command} lease acquisition",
+        status=status,
+    )
+    if command != "block":
+        append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+        git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+        git_repo.git("commit", "-m", "ticket: record lease-refusal ask")
+        git_repo.git("push", "origin", "feature/review")
+    before_ticket = ticket_path.read_bytes()
+    monkeypatch.setattr(
+        "coga.pr_assist.assist_publication_from_env",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            launch_module.git.FeaturePublicationError(
+                "assist lease acquisition refused"
+            )
+        ),
+    )
+    child_env = {
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+    if command == "block":
+        argv = [
+            "block",
+            "--task",
+            str(created["slug"]),
+            "--reason",
+            "owner input still required",
+        ]
+        input_text = None
+    elif command == "unblock":
+        argv = [
+            "unblock",
+            str(created["slug"]),
+            "--answer",
+            "cap at five minutes",
+        ]
+        input_text = None
+    else:
+        argv = ["unblock", "--all"]
+        input_text = "cap at five minutes\n"
+
+    result = CliRunner().invoke(app, argv, input=input_text, env=child_env)
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "assist lease acquisition refused" in result.output
+    assert ticket_path.read_bytes() == before_ticket
+    if command == "unblock-all":
+        assert "Unblocked 0, skipped 1" not in result.output
 
 
 def test_automatic_reblock_race_restores_ticket_and_log_bytes(
@@ -4470,6 +4550,89 @@ def test_human_assist_setup_refusal_uses_no_sweep_exit(
     )
     assert Ticket.read(ticket_path).status == "in_progress"
     assert git_repo.git("rev-parse", "HEAD").strip() == remote_before
+
+
+def test_human_assist_alignment_refusal_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pre-classification PR/alignment gate preserves a retained log."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain early alignment retry log",
+        status="in_progress",
+    )
+    log_file = git_repo.coga_os / "log.md"
+    retained_line = "retained early assist retry\n"
+    log_file.write_text(log_file.read_text() + retained_line)
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._verify_recorded_assist_pr_head",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            launch_module.git.FeaturePublicationError(
+                "recorded PR unavailable during alignment"
+            )
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert retained_line in log_file.read_text()
+    assert git_repo.git("rev-parse", "HEAD").strip() == remote_before
+
+
+def test_human_assist_rejects_control_named_pr_before_writing(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    """A same-named fork head cannot enter ordinary control-branch sync."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Refuse control-named review head",
+        status="active",
+        branch="main",
+    )
+    log_file = git_repo.coga_os / "log.md"
+    retained_line = "retained control-name assist retry\n"
+    log_file.write_text(log_file.read_text() + retained_line)
+    remote_before = git_repo.git("rev-parse", "refs/heads/main", cwd=git_repo.origin)
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("control-named assist must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert retained_line in log_file.read_text()
+    assert git_repo.git("rev-parse", "HEAD").strip() == remote_before.strip()
+    assert "same name as the configured control branch" in capsys.readouterr().err
 
 
 def test_human_assist_pins_recorded_pr_url_after_alignment(

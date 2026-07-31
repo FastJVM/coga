@@ -194,6 +194,19 @@ def launch(
     aligned_assist_branch: str | None = None
     aligned_assist_remote_oid: str | None = None
     aligned_assist_pr_url: str | None = None
+    assist_setup_started = False
+
+    def setup_bail(message: str) -> None:
+        """Refuse without sweeping once this checkout is an assist candidate."""
+        _bail(
+            message,
+            exit_code=(
+                git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                if assist_setup_started
+                else 2
+            ),
+        )
+
     if not prompt_report and agent_override is not None:
         for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
             alignment_ticket = read_ticket(ref)
@@ -202,6 +215,8 @@ def launch(
                 if is_bootstrap
                 else _recorded_single_checkout_assist_branch(cfg, alignment_ticket)
             )
+            if candidate_assist_branch is not None:
+                assist_setup_started = True
             if (
                 is_bootstrap
                 or alignment_ticket.status
@@ -211,6 +226,12 @@ def launch(
             ):
                 break
             try:
+                if candidate_assist_branch == cfg.git_control_branch:
+                    raise git.FeaturePublicationError(
+                        f"recorded assist branch {candidate_assist_branch!r} "
+                        "has the same name as the configured control branch; "
+                        "strict assist publication requires a distinct branch"
+                    )
                 pr_head_oid = _verify_recorded_assist_pr_head(
                     cfg, alignment_ticket, candidate_assist_branch
                 )
@@ -224,7 +245,7 @@ def launch(
                         f"the recorded PR head is {pr_head_oid}"
                     )
             except git.GitError as exc:
-                _bail(
+                setup_bail(
                     f"Cannot launch {ref.id_slug}: could not verify and align "
                     f"the recorded assist checkout before composing the "
                     f"prompt: {exc}"
@@ -241,10 +262,10 @@ def launch(
                 cfg = load_config(cfg.repo_root)
                 ref = resolve_target(cfg, task)
             except (ConfigError, TaskNotFoundError) as exc:
-                _bail(str(exc))
+                setup_bail(str(exc))
             is_bootstrap = isinstance(ref, BootstrapRef)
         else:
-            _bail(
+            setup_bail(
                 f"Cannot launch {ref.id_slug}: the recorded assist branch moved "
                 f"during {_ASSIST_ALIGNMENT_ATTEMPTS} consecutive alignment "
                 "attempts; retry once the PR branch is stable."
@@ -256,7 +277,7 @@ def launch(
         try:
             cfg.agent_type(agent_override)
         except ConfigError as exc:
-            _bail(str(exc))
+            setup_bail(str(exc))
 
     _refresh_agent_skills_for_launch(cfg.repo_root)
 
@@ -300,7 +321,7 @@ def launch(
         and isinstance(ref, TaskRef)
         and ticket.status in TERMINAL_STATUSES
     ):
-        _bail(
+        setup_bail(
             f"Cannot launch {ref.id_slug}: it is {ticket.status}, a terminal "
             "status; nothing to launch. Launch a different ticket."
         )
@@ -320,7 +341,7 @@ def launch(
     if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "blocked":
         if _interactive_stdio_has_tty():
             if not open_blockers(ref.ticket_path):
-                _bail(
+                setup_bail(
                     f"Cannot launch {ref.id_slug}: it is blocked but has no "
                     "open blocker asks to resolve. Record a blocker with "
                     f"`coga block --task {ref.id_slug} --reason \"...\"` or "
@@ -332,7 +353,7 @@ def launch(
                 "the session's first job is to resolve or re-block the open asks."
             )
         else:
-            _bail(
+            setup_bail(
                 f"Cannot launch {ref.id_slug}: it is blocked, and only an "
                 f"interactive launch from a TTY can resume it to resolve the "
                 f"blocker in-session. Run `coga status --blocked` to read the "
@@ -348,7 +369,7 @@ def launch(
 
     assignee = ticket.assignee
     if not assignee:
-        _bail(f"Task {ref.id_slug} has no assignee")
+        setup_bail(f"Task {ref.id_slug} has no assignee")
     human_assist = (
         not is_bootstrap
         and agent_override is not None
@@ -364,7 +385,7 @@ def launch(
         or aligned_assist_remote_oid is None
         or aligned_assist_pr_url is None
     ):
-        _bail(
+        setup_bail(
             f"Cannot launch {ref.id_slug}: the recorded assist branch or PR "
             "changed after alignment; retry once the PR is stable."
         )
@@ -377,9 +398,9 @@ def launch(
                 expected_pr_url=aligned_assist_pr_url,
             )
         except git.FeaturePublicationError as exc:
-            _bail(f"Cannot launch {ref.id_slug}: {exc}")
+            setup_bail(f"Cannot launch {ref.id_slug}: {exc}")
         if current_pr_head_oid != aligned_assist_remote_oid:
-            _bail(
+            setup_bail(
                 f"Cannot launch {ref.id_slug}: recorded PR head moved from "
                 f"{aligned_assist_remote_oid} to {current_pr_head_oid} after "
                 "checkout alignment; retry once the PR branch is stable."
@@ -597,15 +618,15 @@ def launch(
         signal.signal(signal.SIGTERM, _on_signal)
     except SystemExit as exc:
         if (
-            single_checkout_assist_branch is not None
+            assist_setup_started
             and exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE
         ):
             raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
-        if single_checkout_assist_branch is None:
+        if not assist_setup_started:
             _refresh_launch_checkout(cfg)
         raise
     except BaseException:
-        if single_checkout_assist_branch is None:
+        if not assist_setup_started:
             _refresh_launch_checkout(cfg)
         raise
 

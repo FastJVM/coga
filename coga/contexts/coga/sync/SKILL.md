@@ -128,6 +128,13 @@ not decide whether a session ends, and "fail loud" means surface the miss, not
 crash. Misconfiguration (an unresolved webhook) still crashes on both paths —
 a rerun reproduces it identically, so the crash is the fix.
 
+The strict single-checkout assist path has one narrower exception after it has
+published lifecycle state under an exact feature lease: a live delivery failure
+still reports on stderr, but does not append its audit line. That lease is
+already consumed, and leaving a new line dirty would either block the child on
+its clean-checkout gate or let CLI teardown sweep unleased bytes. Ordinary
+transitions retain the audit append described above.
+
 Why crash instead of degrading to stderr-only? Because a silent FYI
 becomes a stale mental model on the human side, and that's worse than a
 noisy retry. Loud failures force resolution; quiet ones rot. That bargain
@@ -721,7 +728,8 @@ Failure model:
   code when it deliberately retains retryable dirty state (for example, an
   assist log whose exact PR-tip lease was lost, any aligned-assist setup
   refusal that may inherit such a log, or a failed leased `block`/`unblock`
-  mutation). An `unblock --all` walk aborts rather than swallowing this code.
+  mutation, including lease acquisition before either command writes).
+  An `unblock --all` walk aborts rather than swallowing this code.
   It tells wrapping layers the CLI end-of-command state sweep must stand down
   instead of re-failing against a stale control checkout or committing bytes
   the narrow publisher intentionally left dirty.

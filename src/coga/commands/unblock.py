@@ -161,7 +161,10 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
     try:
         assist = pr_assist.assist_publication_from_env(cfg, ref)
     except git.FeaturePublicationError as exc:
-        raise _UnblockError(str(exc)) from exc
+        raise _UnblockError(
+            str(exc),
+            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+        ) from exc
     assist_publication = assist.lease if assist is not None else None
     assist_guard = assist.guard if assist is not None else None
     rollback = None

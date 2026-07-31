@@ -519,9 +519,11 @@ def sync_log(
         `expected_feature_branch` additionally pins an assist's pre-session
         and teardown commits to its recorded branch. If the agent changes
         branches, the audit append stays dirty for explicit recovery instead
-        of being committed or pushed to the newly checked-out branch. These
-        rules keep an already-published PR branch aligned without accidentally
-        publishing unrelated local commits.
+        of being committed or pushed to the newly checked-out branch. A pinned
+        call also requires an exact live remote tip and a branch name distinct
+        from the control branch; it never falls back to a local-only generated
+        commit. These rules keep an already-published PR branch aligned without
+        accidentally publishing unrelated local commits.
       - Detached HEAD: skip (the commit would be orphaned); the line stays
         dirty, reported to stderr.
 
@@ -534,6 +536,7 @@ def sync_log(
     would re-dirty the very file it just failed to commit, recreating the
     dangling-line problem instead of closing it.
     """
+    strict_assist = expected_feature_branch is not None
     if not cfg.git_enabled:
         sys.stderr.write(f"[git] disabled (log sync suppressed): {message}\n")
         return False
@@ -562,6 +565,13 @@ def sync_log(
                 f"({message})\n"
             )
             return False
+        if strict_assist and branch == cfg.git_control_branch:
+            sys.stderr.write(
+                f"[git] strict assist branch {branch!r} is also the configured "
+                "control branch — log left uncommitted. "
+                f"({message})\n"
+            )
+            return False
         # A commit is always local and never touches the remote, so it proceeds
         # even with no remote configured; only the *push* is soft-skipped in
         # that case (calm notice, no raw fatal). Every other push failure stays
@@ -585,10 +595,8 @@ def sync_log(
                 detail=f"remote {cfg.git_remote!r} is not configured",
                 remote_oid=None,
             )
-            if (
-                publish_if_remote_aligned
-                and not publish_current_branch
-                and remote_ok
+            if publish_if_remote_aligned and remote_ok and (
+                strict_assist or not publish_current_branch
             ):
                 publication = _prepare_feature_branch_publication(
                     root,
@@ -598,7 +606,18 @@ def sync_log(
                     fast_forward_if_behind=allow_feature_fast_forward,
                     require_single_push_url=True,
                 )
-            if publish_if_remote_aligned and not publication.may_commit:
+            if strict_assist and not publication.aligned:
+                sys.stderr.write(
+                    f"[git] strict assist branch {branch!r} was not at an exact "
+                    f"remote tip ({publication.detail}) — log left uncommitted. "
+                    f"({message})\n"
+                )
+                return False
+            if (
+                not strict_assist
+                and publish_if_remote_aligned
+                and not publication.may_commit
+            ):
                 sys.stderr.write(
                     f"[git] feature branch {branch!r} was not ready for aligned "
                     f"log publication ({publication.detail}) — log left "
@@ -978,6 +997,8 @@ def refresh_coga_state_from_control(
         `expected_feature_branch` pins the whole refresh to the branch the
         assist started on. If the agent switched branches, teardown skips
         before fetching, committing, or pushing anything in that checkout.
+        A pinned refresh likewise requires an exact live remote tip and never
+        creates a local-only refresh commit when that branch disappeared.
         Its control fetch comes from the same single verified push destination
         as the PR branch, which keeps a fork's assist state out of the base
         repository's potentially different control plane.
@@ -1017,6 +1038,13 @@ def refresh_coga_state_from_control(
                 f"skipped. ({message})\n"
             )
             return False
+        if strict_assist and branch == cfg.git_control_branch:
+            sys.stderr.write(
+                f"[git] strict assist branch {branch!r} is also the configured "
+                "control branch — coga state refresh skipped. "
+                f"({message})\n"
+            )
+            return False
         if branch == "HEAD":
             sys.stderr.write(
                 f"[git] detached HEAD — coga state not refreshed. ({message})\n"
@@ -1038,7 +1066,14 @@ def refresh_coga_state_from_control(
                 preserve_union_rel=_relative_to_root(root, log_path(cfg)),
                 require_single_push_url=True,
             )
-            if not publication.may_commit:
+            if strict_assist and not publication.aligned:
+                sys.stderr.write(
+                    f"[git] strict assist branch {branch!r} was not at an exact "
+                    f"remote tip ({publication.detail}) — refresh skipped. "
+                    f"({message})\n"
+                )
+                return False
+            if not strict_assist and not publication.may_commit:
                 sys.stderr.write(
                     f"[git] feature branch {branch!r} was not ready for an "
                     f"aligned control-state refresh ({publication.detail}) — "
@@ -3747,6 +3782,11 @@ def _feature_publication_lease(
     """
     if not cfg.git_enabled:
         raise FeaturePublicationError("assist publication requires git sync")
+    if branch == cfg.git_control_branch:
+        raise FeaturePublicationError(
+            f"assist branch {branch!r} is also the configured control branch; "
+            "strict assist publication requires a distinct branch"
+        )
     root = _toplevel(task_path)
     if root is None:
         raise FeaturePublicationError(

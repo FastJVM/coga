@@ -66,6 +66,7 @@ def post(
     image_url: str | None = None,
     important: bool = False,
     fatal: bool = True,
+    record_failure: bool = True,
 ) -> None:
     """Post a live notification through every configured channel.
 
@@ -88,6 +89,11 @@ def post(
 
     Configuration failures (no webhook resolved) still crash on both paths —
     a rerun reproduces them identically, so the crash is the fix.
+
+    A strict feature publisher may set ``record_failure=False`` after it has
+    atomically published lifecycle state. Delivery still fails loud on stderr,
+    but the backend must not append a new, unleased audit line that would dirty
+    or later sweep the protected feature checkout.
     """
     channels = _channels(cfg)
     if not channels:
@@ -102,11 +108,12 @@ def post(
                 watchers=watchers,
                 image_url=image_url,
                 important=important,
+                record_failure=record_failure,
             )
         except NotificationDeliveryError:
-            # Already reported to stderr + `log.md` by the channel itself, so
-            # a non-fatal caller swallows nothing; a fatal one keeps exiting 1.
-            # Remaining channels are still attempted when non-fatal.
+            # Already reported to stderr and, unless the strict-publisher
+            # exception suppressed it, `log.md`; a fatal caller keeps exiting
+            # 1. Remaining channels are still attempted when non-fatal.
             if fatal:
                 raise typer.Exit(1) from None
 

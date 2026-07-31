@@ -555,6 +555,64 @@ def test_sync_log_refuses_assist_publication_after_branch_switch(
     assert "expected feature branch 'feature/review'" in capsys.readouterr().err
 
 
+def test_sync_log_strict_assist_leaves_log_dirty_when_remote_branch_disappears(
+    git_repo, capsys
+) -> None:
+    """A deleted PR head cannot turn teardown into a local-only log commit."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    append_log(cfg, "ship-it", "human:marc", "pending assist audit")
+    git_repo.git("push", "origin", "--delete", "feature/x")
+
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+
+    assert synced is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "not at an exact remote tip" in capsys.readouterr().err
+
+
+def test_sync_log_strict_assist_gate_wins_over_generic_publish_flag(
+    git_repo,
+) -> None:
+    """A generic publish request cannot bypass the pinned assist PR guard."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    append_log(cfg, "ship-it", "human:marc", "pending assist audit")
+    guard_calls: list[str] = []
+
+    def refuse_closed_pr(oid: str) -> None:
+        guard_calls.append(oid)
+        raise git.FeaturePublicationError("recorded PR closed")
+
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_current_branch=True,
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+        feature_publication_guard=refuse_closed_pr,
+    )
+
+    assert synced is False
+    assert guard_calls == [remote_before]
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip() == remote_before
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+
+
 def test_sync_log_does_not_publish_unaligned_feature_work(git_repo, capsys):
     """The assist guard commits its log but never sweeps an unpushed change."""
     cfg = load_config(git_repo.coga_os)
@@ -3484,6 +3542,36 @@ def test_refresh_refuses_assist_state_after_branch_switch(git_repo, capsys):
         "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
     ).strip() == remote_before
     assert "expected feature branch 'feature/review'" in capsys.readouterr().err
+
+
+def test_refresh_strict_assist_does_not_commit_after_remote_branch_deletion(
+    git_repo, capsys
+) -> None:
+    """A disappeared PR head leaves control refresh state entirely untouched."""
+    cfg = load_config(git_repo.coga_os)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed strict refresh log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit("coga/log.md", "base\ncontrol update\n")
+    git_repo.git("push", "origin", "--delete", "feature/x")
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh after deleted assist",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+
+    assert refreshed is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert log.read_text() == "base\n"
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert "not at an exact remote tip" in capsys.readouterr().err
 
 
 def test_refresh_adds_control_only_ticket_and_leaves_product_tree_alone(git_repo):

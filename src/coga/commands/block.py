@@ -52,7 +52,8 @@ def block(
     except git.FeaturePublicationError as exc:
         _bail(
             "Could not verify the recorded assist branch before blocking "
-            f"{ref.id_slug}: {exc}"
+            f"{ref.id_slug}: {exc}",
+            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
         )
     assist_publication = assist.lease if assist is not None else None
     assist_guard = assist.guard if assist is not None else None

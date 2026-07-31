@@ -112,6 +112,7 @@ class SlackChannel:
         watchers: list[str] | None = None,
         image_url: str | None = None,
         important: bool = False,
+        record_failure: bool = True,
     ) -> None:
         """Post a message through Slack, or crash trying."""
         full_message = self.render_text(message, owner=owner, watchers=watchers)
@@ -132,8 +133,13 @@ class SlackChannel:
             sys.stderr.write(
                 f"[slack] post failed: {message}. Message was: {full_message}\n"
             )
-            if task_path is not None:
-                append_log(self.cfg, ref_tag_for_path(self.cfg, task_path), "slack", f"post failed: {log_detail}")
+            if task_path is not None and record_failure:
+                append_log(
+                    self.cfg,
+                    ref_tag_for_path(self.cfg, task_path),
+                    "slack",
+                    f"post failed: {log_detail}",
+                )
             # Report first, then raise: `notification.post` decides whether an
             # undeliverable message crashes the command or is only reported.
             raise NotificationDeliveryError(message)

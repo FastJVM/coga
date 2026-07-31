@@ -558,6 +558,10 @@ def mark_in_progress(
             owner=owner,
             watchers=ticket.watchers,
             fatal=False,
+            # Strict lifecycle state already consumed its exact feature lease.
+            # Keep a delivery failure on stderr instead of appending an
+            # unleased audit line that would dirty the checkout before spawn.
+            record_failure=feature_publication is None,
         )
     if feature_publication is None:
         sync_state()
@@ -613,6 +617,9 @@ def mark_blocked(
         # `coga block` ends the session: a Slack outage must not keep the
         # blocked ticket's agent REPL alive to its idle timeout.
         fatal=False,
+        # The strict state push above consumed this assist lease. A new Slack
+        # failure line cannot safely enter the generic CLI sweep afterwards.
+        record_failure=feature_publication is None,
     )
     if feature_publication is None:
         sync_state()
