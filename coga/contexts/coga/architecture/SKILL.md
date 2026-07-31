@@ -395,8 +395,11 @@ requires a retry rather than working under stale instructions; a failed
 generated-log push undoes only that commit and leaves the append dirty for the
 retry. That retryable refusal exits with the no-sweep temporary-failure code,
 so neither launch refresh nor CLI teardown can immediately commit the retained
-append. A non-`SystemExit` failure after strict assist setup has begun uses the
-same no-sweep exit. The child inherits a task-scoped recorded-branch,
+append. TTY refusal still precedes recorded-checkout and remote validation, but
+it locally recognizes a sole unstaged append-only audit-log delta and uses that
+same no-sweep exit; a clean checkout or any other dirt keeps the ordinary exit
+2. A non-`SystemExit` failure after strict assist setup has begun uses the same
+no-sweep exit. The child inherits a task-scoped recorded-branch,
 recorded-PR, and effective-agent capability,
 allowing required in-session state commands such as the blocked-resume
 `coga unblock` and an explicit `coga block` to use the same feature/control

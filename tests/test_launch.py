@@ -4649,6 +4649,78 @@ def test_human_assist_without_tty_refuses_before_alignment(
     assert "agent launch requires a TTY" in capsys.readouterr().err
 
 
+def test_human_assist_without_tty_preserves_append_only_retry_log(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain TTY-less assist retry log",
+        status="in_progress",
+    )
+    log_file = git_repo.coga_os / "log.md"
+    retained_line = "retained TTY-less assist retry\n"
+    log_file.write_text(log_file.read_text() + retained_line)
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    _deny_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._recorded_single_checkout_assist_branch",
+        lambda *args, **kwargs: pytest.fail(
+            "TTY refusal must precede assist-checkout validation"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert retained_line in log_file.read_text()
+    assert git_repo.git("rev-parse", "HEAD").strip() == remote_before
+    assert retained_line not in git_repo.git(
+        "show",
+        "refs/heads/feature/review:coga/log.md",
+        cwd=git_repo.origin,
+    )
+
+
+def test_human_assist_without_tty_does_not_protect_rewritten_log(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Reject rewritten TTY-less assist log",
+        status="in_progress",
+    )
+    (git_repo.coga_os / "log.md").write_text("rewritten audit log\n")
+    _deny_interactive_tty(monkeypatch)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == 2
+
+
 def test_human_assist_setup_interrupt_uses_no_sweep_exit(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,

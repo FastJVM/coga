@@ -222,7 +222,14 @@ def launch(
                 in {"draft", "active", "in_progress", "paused", "blocked"}
                 and not _interactive_stdio_has_tty()
             ):
-                _refuse_tty_launch(ref)
+                _refuse_tty_launch(
+                    ref,
+                    exit_code=(
+                        git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                        if _has_retained_append_only_assist_log(cfg)
+                        else 2
+                    ),
+                )
             candidate_assist_branch = (
                 None
                 if not alignment_is_human_assist
@@ -1289,6 +1296,38 @@ def _recorded_single_checkout_assist_branch(
         return None
 
 
+def _has_retained_append_only_assist_log(cfg: Config) -> bool:
+    """Whether the sole checkout change is one unstaged audit-log append.
+
+    TTY refusal deliberately precedes recorded-checkout and remote validation,
+    but a prior strict-assist publication failure may have left its audit
+    append dirty for a safe retry. Recognize only that local shape so the
+    refusal can suppress the CLI catch-all sweep without weakening the normal
+    exit-2 contract for clean launches or arbitrary dirt.
+    """
+    if not cfg.git_enabled:
+        return False
+    try:
+        root = git._toplevel(cfg.repo_root)
+        if root is None:
+            return False
+        log_rel = git._relative_to_root(root, log_path(cfg))
+        if set(git._changed_paths_under(root, ".")) != {log_rel}:
+            return False
+        if git._has_staged_changes(root, [log_rel]):
+            return False
+        working = git._working_tree_bytes(root, log_rel)
+        committed = git._tree_bytes(root, "HEAD", log_rel)
+    except (git.GitError, OSError):
+        return False
+    return (
+        working is not None
+        and committed is not None
+        and working != committed
+        and working.startswith(committed)
+    )
+
+
 def _verify_recorded_assist_pr_head(
     cfg: Config,
     ticket: Ticket,
@@ -2029,12 +2068,17 @@ def _interactive_stdio_has_tty() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
-def _refuse_tty_launch(ref: TaskRef | BootstrapRef) -> None:
+def _refuse_tty_launch(
+    ref: TaskRef | BootstrapRef,
+    *,
+    exit_code: int = 2,
+) -> None:
     _bail(
         f"Cannot launch {ref.id_slug!r}: an agent launch requires a TTY "
         "(stdin and stdout must both be terminals). Run from a real "
         "shell. Use a registered `coga run` recipe for deterministic "
-        "unattended work."
+        "unattended work.",
+        exit_code=exit_code,
     )
 
 
