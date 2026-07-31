@@ -298,7 +298,11 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
 
 
 def sync_log(
-    cfg: Config, *, message: str, publish_current_branch: bool = False
+    cfg: Config,
+    *,
+    message: str,
+    publish_current_branch: bool = False,
+    publish_if_remote_aligned: bool = False,
 ) -> None:
     """Commit the repo-global `log.md` alone, and publish when required.
 
@@ -321,7 +325,11 @@ def sync_log(
         cross-branch overlay, which replaces the file wholesale and would drop
         lines another branch appended. A successful artifact-gated handoff may
         set `publish_current_branch` so the final session-usage commit also
-        reaches the already-open PR branch.
+        reaches the already-open PR branch. An explicit human-step assist uses
+        the narrower `publish_if_remote_aligned`: publish the log-only commit
+        only when the current feature tip exactly matched the live configured
+        remote tip before committing it. That keeps an already-published PR
+        branch aligned without accidentally publishing unrelated local commits.
       - Detached HEAD: skip (the commit would be orphaned); the line stays
         dirty, reported to stderr.
 
@@ -364,8 +372,30 @@ def sync_log(
                 f"[git] detached HEAD — log append not committed locally. ({message})\n"
             )
         else:
+            remote_aligned = False
+            alignment_error: GitError | None = None
+            if (
+                publish_if_remote_aligned
+                and not publish_current_branch
+                and remote_ok
+            ):
+                local_tip = _run_git(root, "rev-parse", "HEAD").strip()
+                try:
+                    remote_tip = _remote_branch_oid(root, cfg.git_remote, branch)
+                except GitError as exc:
+                    alignment_error = exc
+                else:
+                    remote_aligned = (
+                        remote_tip is not None and remote_tip == local_tip
+                    )
             _commit_paths(root, [log_rel], message)
-            if publish_current_branch:
+            if alignment_error is not None:
+                raise GitError(
+                    "could not confirm feature-branch alignment before "
+                    f"publishing the log; it was committed locally only: "
+                    f"{alignment_error}"
+                )
+            if publish_current_branch or remote_aligned:
                 if not remote_ok:
                     sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
                     return
@@ -375,6 +405,13 @@ def sync_log(
                         f"`git push {cfg.git_remote} {branch}` failed while "
                         f"publishing the session log: {result}"
                     )
+            elif publish_if_remote_aligned:
+                target = f"{cfg.git_remote}/{branch}" if remote_ok else cfg.git_remote
+                sys.stderr.write(
+                    f"[git] feature branch {branch!r} did not match {target!r} "
+                    "before the log commit — log committed locally but not "
+                    f"published. ({message})\n"
+                )
     except GitError as exc:
         sys.stderr.write(f"[git] log sync failed: {exc}. Message was: {message}\n")
 
@@ -2072,6 +2109,19 @@ def _remote_configured(root: Path, remote: str) -> bool:
         check=False,
     )
     return result.returncode == 0
+
+
+def _remote_branch_oid(root: Path, remote: str, branch: str) -> str | None:
+    """Return the live remote branch OID, or None when the branch is absent."""
+    output = _run_git(
+        root,
+        "ls-remote",
+        "--heads",
+        remote,
+        f"refs/heads/{branch}",
+    )
+    line = next((line for line in output.splitlines() if line.strip()), "")
+    return line.split(maxsplit=1)[0] if line else None
 
 
 def _remote_branch_present(root: Path, remote: str, branch: str) -> bool:

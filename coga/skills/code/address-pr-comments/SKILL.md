@@ -50,12 +50,25 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
 
 1. Verify `git branch --show-current` equals `branch:`.
 2. Verify `git status --short` is clean before starting. Do not absorb unrelated
-   local changes.
-3. Run `gh pr view <pr-url> --json state,url,headRefName` and require an open PR
-   whose head ref matches `branch:`.
-4. Fetch the remote branch and make sure the local checkout is not behind or
-   diverged. A normal fast-forward is fine; ask the human before rewriting
-   published history.
+   local changes or stage `coga/log.md` with a fix. The launch supervisor owns
+   its audit lines: before spawning this assist it commits the launch line by
+   itself, and in a single-checkout PR branch it publishes that log-only commit
+   only when the local tip exactly matched the configured remote.
+3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
+   remote for every fetch and push. Resolve its GitHub owner/repository from
+   `git remote get-url <configured-remote>`.
+4. Use `gh pr view <pr-url> --json ...` to read `state`, `url`,
+   `headRefName`, `headRefOid`, `headRepository`, and
+   `headRepositoryOwner`. Require an open PR whose head ref matches `branch:`.
+   Construct the actual PR head repository as
+   `<headRepositoryOwner.login>/<headRepository.name>` and require the
+   configured remote to identify that same GitHub repository. A same-named
+   branch in the base repository is not the PR head when the PR comes from a
+   fork.
+5. Fetch `refs/heads/<branch-name>` from the configured remote and require
+   `FETCH_HEAD` to equal the PR's reported `headRefOid`. Fast-forward the local
+   checkout when it is merely behind. If it is ahead unexpectedly or diverged,
+   ask the human before rewriting published history.
 
 Extract the base repository owner, repository name, and PR number from the
 recorded PR URL. The URL identifies the base repository even when the PR comes
@@ -138,14 +151,19 @@ python -m pytest
 ```
 
 Do not push with failing tests. Commit the requested fixes on the recorded
-branch with a short factual subject. Then push normally:
+branch with a short factual subject. Fetch the configured remote branch again
+and re-read the PR's `headRefOid`; stop if either moved since verification.
+Then push normally to the verified PR-head remote:
 
 ```text
-git push origin HEAD:<branch-name>
+git push <configured-remote> HEAD:refs/heads/<branch-name>
 ```
 
 Never force-push during this assist. If the push is rejected because the remote
 moved, fetch and reconcile with the attending human instead of overwriting it.
+After the push, re-run `gh pr view <pr-url> --json headRefOid` and require the
+reported OID to equal `git rev-parse HEAD`. Do not reply to threads until this
+proves the commit actually reached the recorded PR.
 
 ## 4. Reply without resolving
 
@@ -183,3 +201,7 @@ gh api graphql -F threadId=<thread-node-id> -f body='<reply>' -f query='<mutatio
 Finish by giving the attending human a compact list of addressed threads, the
 pushed commit, the exact test result, and anything that still needs their
 judgment. Then stop naturally with the ticket still `in_progress` on `review`.
+The launch supervisor owns the trailing usage-log commit; when the PR branch
+still matches its configured remote, it publishes that log-only commit during
+teardown so the local and remote tips stay aligned. Do not add a completion
+commit or signal to imitate that teardown.

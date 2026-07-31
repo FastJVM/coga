@@ -275,6 +275,59 @@ def test_sync_log_can_publish_feature_branch_after_shared_artifact(git_repo):
     )
 
 
+def test_sync_log_publishes_aligned_feature_branch_for_agent_assist(git_repo):
+    """An assist can publish its log-only commit when the PR tip was aligned."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+
+    git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+    )
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    assert "launched assist" in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+
+
+def test_sync_log_does_not_publish_unaligned_feature_work(git_repo, capsys):
+    """The assist guard commits its log but never sweeps an unpushed change."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+
+    (git_repo.root / "UNPUSHED.txt").write_text("keep local\n")
+    git_repo.git("add", "UNPUSHED.txt")
+    git_repo.git("commit", "-m", "local only")
+    append_log(cfg, "ship-it", "system", '{"tokens": 1}')
+
+    git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+    )
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip() == remote_before
+    assert "UNPUSHED.txt" not in git_repo.git(
+        "ls-tree", "-r", "--name-only", "refs/heads/feature/x",
+        cwd=git_repo.origin,
+    )
+    assert "committed locally but not published" in capsys.readouterr().err
+
+
 def test_sync_log_failure_does_not_redirty_the_log(git_repo, capsys):
     """A failed log sync surfaces to stderr but does NOT append to log.md —
     re-dirtying the file it failed to commit would recreate the dangling line."""

@@ -17,8 +17,14 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
     assert "gh api graphql" in skill
     assert "reviewThreads" in skill
     assert "addPullRequestReviewThreadReply" in skill
+    assert "headRefOid" in skill
+    assert "headRepositoryOwner" in skill
+    assert "[git].remote" in skill
     assert "python -m pytest" in skill
-    assert "git push" in skill
+    assert "git push <configured-remote>" in skill
+    assert "git push origin" not in skill
+    assert "trailing usage-log commit" in skill
+    assert "publishes that log-only commit" in skill
     assert "Do not merge" in skill
     assert "Do not resolve" in skill
     assert "Do not run `coga bump`" in skill

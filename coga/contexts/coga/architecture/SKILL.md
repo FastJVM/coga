@@ -337,8 +337,14 @@ exit. A stateless bootstrap agent has no lifecycle transition, so its final
 A human-owned step remains a hard handoff when launched normally. An explicit
 `coga launch <slug> --agent <type>` is the on-demand assist path: it selects a
 configured agent for that launch only, prints the unusual assist in the banner,
-and never rewrites the human `assignee:` on disk. Megalaunch keeps a separate
-human gate and does not inherit this relaxation.
+and never rewrites the human `assignee:` on disk. Before spawning, the assist
+commits its own launch-log append so Coga's audit line cannot trip a
+single-checkout PR worktree's clean-tree gate. On a feature branch, that
+pre-session log commit and the trailing usage-log commit are published only
+when the branch tip exactly matched the live configured remote before the
+commit; this preserves an already-published PR branch's local/remote alignment
+without sweeping unrelated local commits. Megalaunch keeps a separate human
+gate and does not inherit this relaxation.
 
 Blocked tickets can resume inline only from an interactive TTY. Their first
 job is to resolve or re-block the open asks.

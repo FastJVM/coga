@@ -289,11 +289,12 @@ def launch(
             )
 
         launch_assignee = agent_override or assignee
-        if (
+        human_assist = (
             not is_bootstrap
             and agent_override is not None
             and assignee not in cfg.agents
-        ):
+        )
+        if human_assist:
             typer.echo(
                 f"Launch: agent {agent_override} assisting on human-owned step "
                 f"(assignee={assignee}; ticket assignment unchanged)"
@@ -412,6 +413,11 @@ def launch(
             # step; chained steps follow the ticket. A human-owned first step
             # reaches here only through that explicit assist. Later human
             # handoffs stop in `_harness_stop_reason` before a relaunch.
+            assist_session = (
+                first_step
+                and human_assist
+                and ticket.assignee not in cfg.agents
+            )
             step_assignee = (
                 (agent_override or ticket.assignee) if first_step else ticket.assignee
             )
@@ -472,7 +478,15 @@ def launch(
                     max_session=max_session,
                     label="Launch",
                     warn_blackboard=True,
-                    commit_log=is_bootstrap,
+                    # An assist may run from the supported single-checkout
+                    # layout, where the PR branch is also the launch checkout.
+                    # Commit the launch audit line before spawning so the
+                    # agent's clean-tree gate does not trip on Coga's own log.
+                    commit_log=is_bootstrap or assist_session,
+                    # Publish assist log-only commits only when the feature tip
+                    # already matches the live configured remote. This keeps an
+                    # open PR branch aligned without sweeping unpushed work.
+                    publish_aligned_log=assist_session,
                 )
             except ComposeError as exc:
                 _bail(str(exc))
@@ -853,6 +867,7 @@ def spawn_agent_session(
     label: str = "Launch",
     warn_blackboard: bool = False,
     commit_log: bool = False,
+    publish_aligned_log: bool = False,
     secrets_are_scoped: bool = True,
     stateless_identity: tuple[str, str] | None = None,
     include_blocker_preamble: bool = True,
@@ -877,12 +892,15 @@ def spawn_agent_session(
     The launch supervisor loop and step chaining deliberately stay outside.
 
     `commit_log` immediately commits the `log.md` launch append (via
-    `sync_log`) instead of leaving it dirty. Callers set it only when no later
-    sync will carry the log: a stateless bootstrap-ticket launch has no
-    subsequent bump/`sync_paths`, so without this its append blocks the next
-    `git pull` at the checkout gate (the append is committed before the REPL
-    starts, so even an in-session `git pull` is unblocked). `coga ticket`
-    leaves it False because its post-session record is committed by the shared
+    `sync_log`) instead of leaving it dirty. Stateless bootstrap launches use
+    it because no later task-state sync will carry the log. An explicit assist
+    on a human-owned step also uses it because the supported single-checkout
+    layout puts the launch process in the same PR worktree whose cleanliness
+    the assist must verify. `publish_aligned_log` is the assist's narrower
+    publication rule: pre-session and teardown log-only commits reach a feature
+    remote only when its tip exactly matched the configured remote before the
+    commit, so unrelated unpushed work never rides along. `coga ticket` leaves
+    both False because its post-session record is committed by the shared
     teardown sync. `secrets_are_scoped` is False only when the caller passes an
     ambient environment instead of `build_launch_env`; that distinction keeps
     redaction from mistaking an unrelated same-named variable for a configured
@@ -962,12 +980,15 @@ def spawn_agent_session(
 
         append_log(cfg, ref.id_slug, actor, log_message)
         if commit_log:
-            # Commit the launch line now so it never lingers uncommitted in the
-            # working tree. A bootstrap-ticket launch has no later sync to carry
-            # the log, so without this its append blocks the next `git pull` at
-            # the checkout gate (merge=union only saves committed content).
+            # Commit the launch line before spawning. A bootstrap target has no
+            # later task-state sync to carry it; a human-step assist may share
+            # the PR checkout whose clean-tree gate the agent is about to run.
             # Non-fatal on any git failure.
-            git.sync_log(cfg, message=f"Log: {ref.id_slug}")
+            git.sync_log(
+                cfg,
+                message=f"Log: {ref.id_slug}",
+                publish_if_remote_aligned=publish_aligned_log,
+            )
 
         if name and sys.stdout.isatty():
             sys.stdout.write(f"\033]2;{name}\007")
@@ -1049,6 +1070,7 @@ def spawn_agent_session(
                     cfg,
                     message=f"Log: {session_slug}",
                     publish_current_branch=publish_session_log,
+                    publish_if_remote_aligned=publish_aligned_log,
                 )
         try:
             prompt_file.unlink()

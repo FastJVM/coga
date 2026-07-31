@@ -2827,6 +2827,7 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     captured: dict[str, object] = {}
+    sync_calls: list[dict[str, object]] = []
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     ticket = Ticket.read(ref.ticket_path)
@@ -2844,6 +2845,10 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "coga.commands.launch.git.sync_log",
+        lambda cfg, **kwargs: sync_calls.append(kwargs),
+    )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
 
@@ -2858,6 +2863,97 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
 
     log = _read_log(active_task)
     assert "assignee=marc, launch_assignee=codex, agent=codex" in log
+    assert len(sync_calls) == 2
+    assert all(call["publish_if_remote_aligned"] is True for call in sync_calls)
+
+
+def test_human_assist_keeps_single_checkout_pr_branch_clean_and_aligned(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Address review",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed review assist")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("before review\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: initial implementation")
+    git_repo.git("push", "-u", "origin", "feature/review")
+
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def apply_and_push_fix(*args, **kwargs):  # type: ignore[no-untyped-def]
+        # The assist must not inherit the launcher's own dirty audit append.
+        assert git_repo.git("status", "--porcelain").strip() == ""
+        assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+            "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+        ).strip()
+        (git_repo.root / "implementation.txt").write_text("review fixed\n")
+        git_repo.git("add", "implementation.txt")
+        git_repo.git("commit", "-m", "fix: address review")
+        git_repo.git("push", "origin", "feature/review")
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        apply_and_push_fix,
+    )
+
+    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        log = cfg.repo_root / "log.md"
+        log.write_text(
+            log.read_text()
+            + '2026-07-30 12:00 [address-review] [system] {"tokens": 1}\n'
+        )
+
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        append_usage,
+    )
+
+    launch_module.launch(
+        "address-review",
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+    ).strip()
+    assert '{"tokens": 1}' in git_repo.git(
+        "show", "refs/heads/feature/review:coga/log.md", cwd=git_repo.origin
+    )
+    assert Ticket.read(ticket_path).assignee == "marc"
 
 
 def test_launch_human_handoff_without_agent_override_is_still_refused(
