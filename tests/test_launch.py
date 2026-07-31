@@ -1036,6 +1036,14 @@ def _allow_recorded_assist_pr(monkeypatch: pytest.MonkeyPatch) -> None:
     """Model GitHub reporting the bare test remote's current branch as the PR head."""
 
     def verify(cfg, ticket, branch, **kwargs):  # type: ignore[no-untyped-def]
+        _, blackboard = launch_module.split_body(ticket.body)
+        actual_pr_url = launch_module.parse_pr_url(blackboard or "")
+        expected_pr_url = kwargs.get("expected_pr_url")
+        if expected_pr_url is not None and actual_pr_url != expected_pr_url:
+            raise launch_module.git.FeaturePublicationError(
+                f"recorded assist PR changed from {expected_pr_url} "
+                f"to {actual_pr_url}"
+            )
         root = launch_module.git._toplevel(cfg.repo_root)
         assert root is not None
         oid = launch_module.git._remote_branch_oid(
@@ -3633,7 +3641,7 @@ def test_human_assist_does_not_recreate_branch_deleted_after_alignment(
             queue_guidance=False,
         )
 
-    assert exc_info.value.code == 2
+    assert exc_info.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert child_started is False
     assert launch_module.git._remote_branch_oid(
         git_repo.root, "origin", "feature/review"
@@ -3893,8 +3901,61 @@ def test_in_session_state_command_refuses_after_recorded_pr_closes(
 
     result = CliRunner().invoke(app, argv, env=child_env)
 
-    assert result.exit_code == 2
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert "recorded PR is MERGED, not OPEN" in result.output
+    assert ticket_path.read_bytes() == before_ticket
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_before
+
+
+def test_unblock_all_aborts_on_refused_assist_publication(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The interactive walker cannot swallow a strict assist publication race."""
+    _created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Abort refused unblock all",
+        status="blocked",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record unblock-all ask")
+    git_repo.git("push", "origin", "feature/review")
+
+    before_ticket = ticket_path.read_bytes()
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    monkeypatch.setattr(
+        "coga.pr_assist.verify_recorded_assist_pr_head",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            launch_module.git.FeaturePublicationError(
+                "recorded PR changed during unblock --all"
+            )
+        ),
+    )
+    child_env = {
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+
+    result = CliRunner().invoke(
+        app,
+        ["unblock", "--all"],
+        input="cap at five minutes\n",
+        env=child_env,
+    )
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "recorded PR changed during unblock --all" in result.output
+    assert "Unblocked 0, skipped 1" not in result.output
     assert ticket_path.read_bytes() == before_ticket
     assert git_repo.git(
         "rev-parse",
@@ -4353,6 +4414,134 @@ def test_human_assist_log_refusal_uses_no_sweep_exit(
     assert "coga/log.md" in git_repo.git("status", "--porcelain")
 
 
+def test_human_assist_setup_refusal_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A setup error cannot hand a retained retry log to the CLI sweep."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain setup retry log",
+        status="in_progress",
+    )
+    log_file = git_repo.coga_os / "log.md"
+    retained_line = "retained assist setup retry\n"
+    log_file.write_text(log_file.read_text() + retained_line)
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.build_launch_env",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            launch_module.SecretError("missing setup secret")
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert retained_line in log_file.read_text()
+    assert retained_line not in git_repo.git(
+        "show",
+        "refs/heads/feature/review:coga/log.md",
+        cwd=git_repo.origin,
+    )
+    assert Ticket.read(ticket_path).status == "in_progress"
+    assert git_repo.git("rev-parse", "HEAD").strip() == remote_before
+
+
+def test_human_assist_pins_recorded_pr_url_after_alignment(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rewritten `pr:` cannot redirect the already-authorized assist lease."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Pin aligned review PR",
+        status="in_progress",
+    )
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def redirect_recorded_pr(repo_root):  # type: ignore[no-untyped-def]
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "https://github.com/example/repo/pull/8",
+                "https://github.com/example/repo/pull/99",
+            )
+        )
+
+    monkeypatch.setattr(
+        "coga.commands.launch.warn_if_installed_predates_source",
+        redirect_recorded_pr,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("redirected PR must not spawn"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "pull/99" in ticket_path.read_text()
+    assert "pull/99" not in git_repo.git(
+        "show",
+        "refs/heads/feature/review:"
+        + str(ticket_path.relative_to(git_repo.root)),
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_before
+
+
 def test_blocked_assist_trailing_log_refusal_reblocks_before_exit(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -4447,7 +4636,7 @@ def test_assist_trailing_log_refuses_after_recorded_pr_closes(
     )
     closed = False
 
-    def verify(cfg, ticket, branch):  # type: ignore[no-untyped-def]
+    def verify(cfg, ticket, branch, **kwargs):  # type: ignore[no-untyped-def]
         if closed:
             raise launch_module.git.FeaturePublicationError(
                 "recorded PR is MERGED, not OPEN"
@@ -4534,7 +4723,7 @@ def test_assist_refresh_refuses_after_pr_closes_post_trailing_log(
     )
     closed = False
 
-    def verify(cfg, ticket, branch):  # type: ignore[no-untyped-def]
+    def verify(cfg, ticket, branch, **kwargs):  # type: ignore[no-untyped-def]
         if closed:
             raise launch_module.git.FeaturePublicationError(
                 "recorded PR is MERGED, not OPEN"

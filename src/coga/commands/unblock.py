@@ -22,6 +22,10 @@ from coga.workflow import WorkflowError
 class _UnblockError(Exception):
     """A single ticket could not be unblocked (reported, loop continues)."""
 
+    def __init__(self, message: str, *, exit_code: int = 2):
+        super().__init__(message)
+        self.exit_code = exit_code
+
 
 def unblock(
     task: str | None = typer.Argument(
@@ -93,7 +97,7 @@ def unblock(
     try:
         _apply_unblock(cfg, ref, answer)
     except _UnblockError as exc:
-        _bail(str(exc))
+        _bail(str(exc), exit_code=exc.exit_code)
 
 
 def _unblock_all(cfg: Config) -> None:
@@ -136,6 +140,8 @@ def _unblock_all(cfg: Config) -> None:
             _apply_unblock(cfg, ref, answer)
             unblocked += 1
         except _UnblockError as exc:
+            if exc.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+                _bail(str(exc), exit_code=exc.exit_code)
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             skipped += 1
 
@@ -194,38 +200,89 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 rollback_note = _rollback_note(rollback)
             raise _UnblockError(
                 "Could not publish the blocker resolution to the recorded "
-                f"assist branch: {exc}{rollback_note}"
+                f"assist branch: {exc}{rollback_note}",
+                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             ) from exc
         typer.echo(f"{ref.id_slug}: open asks resolved (still in_progress)")
         return
 
     try:
-        mark_active(
-            cfg,
-            ref,
-            ticket,
-            actor=actor,
-            log_message=f"unblocked ({ticket.status} → active): {answer}",
-            echo=f"{ref.id_slug}: active (unblocked)",
-        )
-    except WorkflowMissing:
+        if assist_publication is None:
+            mark_active(
+                cfg,
+                ref,
+                ticket,
+                actor=actor,
+                log_message=f"unblocked ({ticket.status} → active): {answer}",
+                echo=f"{ref.id_slug}: active (unblocked)",
+            )
+        else:
+            mark_active(
+                cfg,
+                ref,
+                ticket,
+                actor=actor,
+                log_message=f"unblocked ({ticket.status} → active): {answer}",
+                sync_state=False,
+            )
+            assert rollback is not None
+            rollback.arm()
+            git.sync_task_state(
+                cfg,
+                ref.path,
+                message=f"Ticket: {ref.id_slug} — active",
+                guard=git.ticket_state_guard(cfg, ref.ticket_path),
+                feature_publication=assist_publication,
+                feature_publication_guard=assist_guard,
+            )
+            typer.echo(f"{ref.id_slug}: active (unblocked)")
+    except git.FeaturePublicationError as exc:
+        rollback_note = ""
+        if rollback is not None:
+            rollback_note = _rollback_note(rollback)
         raise _UnblockError(
+            f"Could not publish {ref.id_slug}'s active state to the recorded "
+            f"assist branch: {exc}{rollback_note}",
+            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+        ) from exc
+    except WorkflowMissing:
+        _raise_unblock_error(
             f"Cannot unblock {ref.id_slug}: ticket has no workflow. Set "
-            "`workflow: <name>` in `ticket.md`, then retry."
+            "`workflow: <name>` in `ticket.md`, then retry.",
+            rollback,
         )
     except WorkflowError as exc:
-        raise _UnblockError(
+        _raise_unblock_error(
             f"Cannot unblock {ref.id_slug}: its `workflow:` ref could not "
-            f"be frozen — {exc}"
+            f"be frozen — {exc}",
+            rollback,
         )
     except RequiredExtensionMissing as exc:
         names = ", ".join(repr(f) for f in exc.fields)
-        raise _UnblockError(
+        _raise_unblock_error(
             f"Cannot unblock {ref.id_slug}: required extension field(s) "
-            f"empty: {names}. Fill them in `ticket.md` then retry."
+            f"empty: {names}. Fill them in `ticket.md` then retry.",
+            rollback,
         )
     except TaskValidationError as exc:
-        raise _UnblockError(str(exc))
+        _raise_unblock_error(str(exc), rollback)
+
+
+def _raise_unblock_error(
+    message: str,
+    rollback: git.FileMutationRollback | None,
+) -> None:
+    rollback_note = ""
+    if rollback is not None:
+        rollback_note = _rollback_note(rollback)
+    raise _UnblockError(
+        f"{message}{rollback_note}",
+        exit_code=(
+            git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+            if rollback is not None
+            else 2
+        ),
+    )
 
 
 def _rollback_note(rollback: git.FileMutationRollback) -> str:
@@ -239,6 +296,6 @@ def _rollback_note(rollback: git.FileMutationRollback) -> str:
     )
 
 
-def _bail(msg: str) -> None:
+def _bail(msg: str, *, exit_code: int = 2) -> None:
     typer.secho(msg, fg=typer.colors.RED, err=True)
-    sys.exit(2)
+    sys.exit(exit_code)

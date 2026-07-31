@@ -193,6 +193,7 @@ def launch(
     # secrets, expected step, prompt, and command all come from the final tree.
     aligned_assist_branch: str | None = None
     aligned_assist_remote_oid: str | None = None
+    aligned_assist_pr_url: str | None = None
     if not prompt_report and agent_override is not None:
         for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
             alignment_ticket = read_ticket(ref)
@@ -229,8 +230,12 @@ def launch(
                     f"prompt: {exc}"
                 )
             if not moved:
+                _, alignment_blackboard = split_body(alignment_ticket.body)
                 aligned_assist_branch = candidate_assist_branch
                 aligned_assist_remote_oid = remote_oid
+                aligned_assist_pr_url = parse_pr_url(
+                    alignment_blackboard or ""
+                )
                 break
             try:
                 cfg = load_config(cfg.repo_root)
@@ -357,15 +362,19 @@ def launch(
     if single_checkout_assist_branch is not None and (
         single_checkout_assist_branch != aligned_assist_branch
         or aligned_assist_remote_oid is None
+        or aligned_assist_pr_url is None
     ):
         _bail(
-            f"Cannot launch {ref.id_slug}: the recorded assist branch "
-            "changed after alignment; retry once the PR branch is stable."
+            f"Cannot launch {ref.id_slug}: the recorded assist branch or PR "
+            "changed after alignment; retry once the PR is stable."
         )
     if single_checkout_assist_branch is not None:
         try:
             current_pr_head_oid = _verify_recorded_assist_pr_head(
-                cfg, ticket, single_checkout_assist_branch
+                cfg,
+                ticket,
+                single_checkout_assist_branch,
+                expected_pr_url=aligned_assist_pr_url,
             )
         except git.FeaturePublicationError as exc:
             _bail(f"Cannot launch {ref.id_slug}: {exc}")
@@ -390,9 +399,11 @@ def launch(
             cfg,
             ref,
             single_checkout_assist_branch,
+            expected_pr_url=aligned_assist_pr_url,
         )
         if isinstance(ref, TaskRef)
         and single_checkout_assist_branch is not None
+        and aligned_assist_pr_url is not None
         else None
     )
     try:
@@ -496,7 +507,10 @@ def launch(
         if assist_publication is not None:
             try:
                 current_pr_head_oid = _verify_recorded_assist_pr_head(
-                    cfg, ticket, assist_publication.branch
+                    cfg,
+                    ticket,
+                    assist_publication.branch,
+                    expected_pr_url=aligned_assist_pr_url,
                 )
             except git.FeaturePublicationError as exc:
                 _bail(
@@ -581,6 +595,15 @@ def launch(
 
         signal.signal(signal.SIGINT, _on_signal)
         signal.signal(signal.SIGTERM, _on_signal)
+    except SystemExit as exc:
+        if (
+            single_checkout_assist_branch is not None
+            and exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+        ):
+            raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
+        if single_checkout_assist_branch is None:
+            _refresh_launch_checkout(cfg)
+        raise
     except BaseException:
         if single_checkout_assist_branch is None:
             _refresh_launch_checkout(cfg)
@@ -1221,16 +1244,27 @@ def _recorded_single_checkout_assist_branch(
 
 
 def _verify_recorded_assist_pr_head(
-    cfg: Config, ticket: Ticket, branch: str
+    cfg: Config,
+    ticket: Ticket,
+    branch: str,
+    *,
+    expected_pr_url: str | None = None,
 ) -> str:
     """Compatibility seam around the shared PR-assist verifier."""
-    return pr_assist.verify_recorded_assist_pr_head(cfg, ticket, branch)
+    return pr_assist.verify_recorded_assist_pr_head(
+        cfg,
+        ticket,
+        branch,
+        expected_pr_url=expected_pr_url,
+    )
 
 
 def _assist_pr_publication_guard(
     cfg: Config,
     ref: TaskRef,
     branch: str,
+    *,
+    expected_pr_url: str,
 ) -> Callable[[str], None]:
     """Re-prove an open recorded PR immediately before a generated push."""
 
@@ -1248,7 +1282,12 @@ def _assist_pr_publication_guard(
                 f"recorded assist branch changed from {branch!r} to "
                 f"{recorded_branch!r}"
             )
-        live_pr_oid = _verify_recorded_assist_pr_head(cfg, current, branch)
+        live_pr_oid = _verify_recorded_assist_pr_head(
+            cfg,
+            current,
+            branch,
+            expected_pr_url=expected_pr_url,
+        )
         if live_pr_oid != expected_remote_oid:
             raise git.FeaturePublicationError(
                 f"recorded PR head moved from expected {expected_remote_oid} "

@@ -357,10 +357,11 @@ the sole explicit exception. Draft, paused, and blocked activation and
 `in_progress` publication stay deferred through prompt
 composition, prompt-file and argv construction, and the pre-session audit
 commit. At the final pre-spawn boundary launch re-reads the unchanged ticket,
-re-proves that its recorded PR is open at the exact leased remote OID, and
-requires the committed feature ticket's `(status, step, assignee)` lifecycle
-tuple to match a freshly fetched control copy. The publication guard repeats
-the open-PR/OID proof immediately before every generated feature push. The
+re-proves that the exact recorded PR URL authorized during alignment is
+unchanged and open at the exact leased remote OID, and requires the committed
+feature ticket's `(status, step, assignee)` lifecycle tuple to match a freshly
+fetched control copy. The publication guard repeats that same-URL open-PR/OID
+proof immediately before every generated feature push. The
 combined lifecycle commit is built directly on the verified tip and moves the
 local branch with an expected-old-OID ref CAS; its captured tree is then pushed
 under an exact remote-tip lease *before* the same captured state lands on

@@ -719,10 +719,12 @@ Failure model:
   `git.STALE_CONTROL_EXIT_CODE` (75, EX_TEMPFAIL). It aliases the generic
   `git.RETRY_WITHOUT_SWEEP_EXIT_CODE`: a narrow publisher can use the same
   code when it deliberately retains retryable dirty state (for example, an
-  assist log whose exact PR-tip lease was lost). That code tells wrapping
-  layers the CLI end-of-command state sweep must stand down instead of
-  re-failing against a stale control checkout or committing bytes the narrow
-  publisher intentionally left dirty.
+  assist log whose exact PR-tip lease was lost, any aligned-assist setup
+  refusal that may inherit such a log, or a failed leased `block`/`unblock`
+  mutation). An `unblock --all` walk aborts rather than swallowing this code.
+  It tells wrapping layers the CLI end-of-command state sweep must stand down
+  instead of re-failing against a stale control checkout or committing bytes
+  the narrow publisher intentionally left dirty.
   Mid-workflow syncs (`coga bump`, `mark`, the catch-all state sweep, and
   recurring task-state writes after entry) remain non-fatal.
 

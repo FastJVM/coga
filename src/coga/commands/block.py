@@ -95,13 +95,25 @@ def block(
             rollback_note = _rollback_note(rollback)
         _bail(
             f"Could not publish {ref.id_slug}'s blocked state to the recorded "
-            f"assist branch: {exc}{rollback_note}"
+            f"assist branch: {exc}{rollback_note}",
+            exit_code=(
+                git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                if rollback is not None
+                else 2
+            ),
         )
     except TaskValidationError as exc:
         rollback_note = ""
         if rollback is not None:
             rollback_note = _rollback_note(rollback)
-        _bail(f"{exc}{rollback_note}")
+        _bail(
+            f"{exc}{rollback_note}",
+            exit_code=(
+                git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                if rollback is not None
+                else 2
+            ),
+        )
 
     # `id_slug` (not the resolved path) scopes the signal so it matches the
     # supervisor regardless of which checkout the command runs in. See
@@ -120,6 +132,6 @@ def _rollback_note(rollback: git.FileMutationRollback) -> str:
     )
 
 
-def _bail(msg: str) -> None:
+def _bail(msg: str, *, exit_code: int = 2) -> None:
     typer.secho(msg, fg=typer.colors.RED, err=True)
-    sys.exit(2)
+    sys.exit(exit_code)
