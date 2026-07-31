@@ -59,28 +59,32 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
    ticket/config/prompt reads and assignee classification. Draft, paused, and
    blocked activation waits for all preflights; the committed feature ticket's
    `(status, step, assignee)` must exactly match fresh control state, and the
-   combined lifecycle commit is pushed by captured OID only if local `HEAD`
-   still equals the verified tip and both the control-state and exact remote-tip
-   leases hold. A refusal
+   combined lifecycle commit is built on the verified tip and moves the local
+   branch with an expected-old-OID ref CAS; its captured OID is pushed only if
+   both the control-state and exact remote-tip leases hold. A refusal
    restores the prior task/log state before any child or start notification.
    If the PR branch or control ticket moves after prompt composition, launch
    refuses to spawn and asks for a retry instead of working underneath stale
    instructions. A failed generated-log push leaves the append dirty rather
-   than stranding a divergent audit commit. Publication still requires the
-   configured remote and a safely aligned tip.
+   than stranding a divergent audit commit, and its temporary-failure exit
+   suppresses the CLI catch-all sweep so that append stays retryable.
+   Publication still requires the configured remote and a safely aligned tip.
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
-   remote for every fetch and push. Resolve every effective push URL with
-   `git remote get-url --push --all <configured-remote>`.
+   remote to resolve the publication destination with
+   `git remote get-url --push --all <configured-remote>`. Require exactly one
+   non-empty result and call it `<verified-push-url>`. Stop if there are zero or
+   multiple results: Git can partially update a multi-push remote, so it cannot
+   preserve the assist's exact-tip transaction.
 4. Use `gh pr view <pr-url> --json ...` to read `state`, `url`,
    `headRefName`, `headRefOid`, `headRepository`, and
    `headRepositoryOwner`. Require an open PR whose head ref matches `branch:`.
    Construct the actual PR head repository as
    `<headRepositoryOwner.login>/<headRepository.name>` and require the
-   configured remote's every effective push URL to identify that same GitHub
-   repository. A same-named branch in the base repository is not the PR head
-   when the PR comes from a fork, and a separate fetch URL does not authorize
-   lifecycle pushes to the wrong repository.
-5. Fetch `refs/heads/<branch-name>` from the configured remote and require
+   `<verified-push-url>` to identify that same GitHub repository. A same-named
+   branch in the base repository is not the PR head when the PR comes from a
+   fork, and a separate fetch URL does not authorize lifecycle pushes to the
+   wrong repository.
+5. Fetch `refs/heads/<branch-name>` directly from `<verified-push-url>` and require
    `FETCH_HEAD` to equal the PR's reported `headRefOid`. Fast-forward the local
    checkout when it is merely behind. If it is ahead unexpectedly or diverged,
    ask the human before rewriting published history.
@@ -177,14 +181,14 @@ inventory:
   the recorded branch with a short factual subject. Immediately before pushing,
   re-read the PR's `state`, head repository, `headRefName`, and `headRefOid`;
   require the PR to remain open with the same repository and branch. Fetch the
-  configured remote branch again, require `FETCH_HEAD` to equal that
+  `<verified-push-url>` branch again, require `FETCH_HEAD` to equal that
   `headRefOid`, and record it as `<verified-remote-oid>`. Prove the local fix is
   a fast-forward descendant with
   `git merge-base --is-ancestor <verified-remote-oid> HEAD`, then publish under
   an exact lease:
 
 ```text
-git push --force-with-lease=refs/heads/<branch-name>:<verified-remote-oid> <configured-remote> HEAD:refs/heads/<branch-name>
+git push --force-with-lease=refs/heads/<branch-name>:<verified-remote-oid> <verified-push-url> HEAD:refs/heads/<branch-name>
 ```
 
   The lease is a compare-and-swap guard, not permission to rewrite history:
@@ -195,7 +199,7 @@ git push --force-with-lease=refs/heads/<branch-name>:<verified-remote-oid> <conf
   `gh pr view <pr-url> --json headRefOid` and require the reported OID to equal
   `git rev-parse HEAD`.
 - **Every thread is already satisfied.** Do not manufacture a commit and do not
-  push. Re-require the PR to be open, fetch the configured remote branch again,
+  push. Re-require the PR to be open, fetch `<verified-push-url>` again,
   and re-read the PR's `headRefOid`; require `FETCH_HEAD`, that reported OID, and
   `git rev-parse HEAD` to be identical. This proves the file/commit evidence you
   are about to cite describes the PR's current head.

@@ -216,10 +216,10 @@ def test_strict_feature_publication_surfaces_local_commit_failure(
     before = git_repo.git("rev-parse", "HEAD").strip()
     task = _task_dir(git_repo.coga_os)
 
-    def refuse_commit(root, rels, message):  # type: ignore[no-untyped-def]
+    def refuse_commit(root, rels, message, **kwargs):  # type: ignore[no-untyped-def]
         raise git.GitError("simulated commit failure")
 
-    monkeypatch.setattr(git, "_commit_paths", refuse_commit)
+    monkeypatch.setattr(git, "_commit_paths_at_expected_head", refuse_commit)
 
     with pytest.raises(
         git.FeaturePublicationError,
@@ -2267,6 +2267,181 @@ def test_feature_publication_lease_reads_separate_pushurl(
     assert lease.control_ticket_state == ("active", "1 (implement)", "claude")
 
 
+def test_feature_publication_lease_rejects_multiple_pushurls(
+    git_repo,
+) -> None:
+    """Git multi-push can partially succeed, so it cannot back an assist lease."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/multi-push-assist")
+    git_repo.git("push", "-u", "origin", "feature/multi-push-assist")
+    git_repo.git(
+        "remote",
+        "set-url",
+        "--add",
+        "--push",
+        "origin",
+        str(git_repo.origin),
+    )
+    git_repo.git(
+        "remote",
+        "set-url",
+        "--add",
+        "--push",
+        "origin",
+        str(git_repo.origin),
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="requires exactly one effective push URL.*found 2",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            "feature/multi-push-assist",
+        )
+
+
+def test_strict_feature_publication_cas_preserves_concurrent_local_commit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A generated assist commit may not adopt or reset over a local race."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/local-cas-assist")
+    git_repo.git("push", "-u", "origin", "feature/local-cas-assist")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+
+    real_build = git._build_overlay_tree
+    raced = False
+
+    def race_after_tree(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        tree = real_build(*args, **kwargs)
+        if not raced:
+            raced = True
+            race = git_repo.root / "RACE.txt"
+            race.write_text("concurrent local work\n")
+            git_repo.git("add", "RACE.txt")
+            git_repo.git(
+                "commit",
+                "--only",
+                "-m",
+                "concurrent local work",
+                "--",
+                "RACE.txt",
+            )
+        return tree
+
+    monkeypatch.setattr(git, "_build_overlay_tree", race_after_tree)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="moved from verified tip",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/local-cas-assist",
+                local_oid=before,
+                remote_oid=before,
+            ),
+        )
+
+    assert git_repo.git("log", "-1", "--format=%s").strip() == "concurrent local work"
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/local-cas-assist",
+        cwd=git_repo.origin,
+    ).strip() == before
+    assert "RACE.txt" not in git_repo.git(
+        "ls-tree",
+        "-r",
+        "--name-only",
+        "refs/heads/feature/local-cas-assist",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        "main:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
+
+
+def test_strict_feature_publication_lands_captured_commit_not_late_worktree(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Feature and control receive one state even if the worktree changes later."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/captured-state-assist")
+    git_repo.git("push", "-u", "origin", "feature/captured-state-assist")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="published transition\n",
+        )
+    )
+    real_push = git._push_ref
+    mutated = False
+
+    def mutate_after_feature_push(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal mutated
+        result = real_push(*args, **kwargs)
+        if not mutated:
+            mutated = True
+            ticket.write_text(
+                _step_ticket_text(
+                    step="1 (implement)",
+                    status="blocked",
+                    blackboard="late working-tree edit\n",
+                )
+            )
+        return result
+
+    monkeypatch.setattr(git, "_push_ref", mutate_after_feature_push)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — in_progress",
+        feature_publication=git.FeaturePublicationLease(
+            branch="feature/captured-state-assist",
+            local_oid=before,
+            remote_oid=before,
+        ),
+    )
+
+    rel = "coga/tasks/demo/ticket.md"
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/feature/captured-state-assist:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: blocked" in ticket.read_text()
+    assert rel in git_repo.git("status", "--porcelain")
+
+
 def test_strict_feature_publication_leases_exact_control_lifecycle(
     git_repo,
 ) -> None:
@@ -3293,11 +3468,12 @@ def test_summarize_git_failure_falls_back_to_last_line():
     assert git.summarize_git_failure("") == ""
 
 
-def test_cli_main_skips_end_of_command_sweep_on_stale_control_exit(monkeypatch):
-    """A stale-control refusal must not be chased by the end-of-command state
-    sweep: its rebase onto the control tip would re-fail against the same
-    divergence and its local commit would deepen it by one per failed run.
-    Every other exit keeps the sweep."""
+def test_cli_main_skips_end_of_command_sweep_on_retryable_state_exit(monkeypatch):
+    """A narrow publisher's retained retry state must outlive CLI teardown.
+
+    This covers both stale-control refusals and assist log lease losses; every
+    other exit keeps the catch-all sweep.
+    """
     from types import SimpleNamespace
 
     from coga import cli
@@ -3316,7 +3492,7 @@ def test_cli_main_skips_end_of_command_sweep_on_stale_control_exit(monkeypatch):
     monkeypatch.setattr(cli, "app", refuse_stale)
     with pytest.raises(SystemExit) as excinfo:
         cli.main()
-    assert excinfo.value.code == git.STALE_CONTROL_EXIT_CODE
+    assert excinfo.value.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert calls == []
 
     def ordinary_failure() -> None:

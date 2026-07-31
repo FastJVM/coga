@@ -105,6 +105,10 @@ DEFAULT_DISCUSSION_TEMPLATES = {
 _ASSIST_ALIGNMENT_ATTEMPTS = 3
 
 
+class _AssistPublicationRefused(ComposeError):
+    """A retryable assist write was intentionally left out of the final sweep."""
+
+
 def launch(
     task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` ticket."),
     args: list[str] | None = typer.Argument(
@@ -713,6 +717,11 @@ def launch(
                     # branch and an aligned configured remote.
                     publish_aligned_branch=publish_assist_branch,
                 )
+            except _AssistPublicationRefused as exc:
+                _bail(
+                    str(exc),
+                    exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+                )
             except ComposeError as exc:
                 _bail(str(exc))
             except AgentCliNotFound:
@@ -1130,33 +1139,28 @@ def _verify_recorded_assist_pr_head(
         raise git.FeaturePublicationError(
             "recorded assist checkout is not inside a git repository"
         )
-    push_urls = git._remote_push_urls(root, cfg.git_remote)
+    push_url = git._single_assist_push_url(root, cfg.git_remote)
     pr_host = (urlsplit(pr_url).hostname or "").casefold()
     expected_identity = (
         pr_host,
         owner_login.casefold(),
         repository_name.casefold(),
     )
-    if not push_urls:
+    remote_identity = _git_remote_repository_identity(push_url)
+    if remote_identity is None:
         raise git.FeaturePublicationError(
-            f"configured remote {cfg.git_remote!r} has no effective push URL"
+            f"configured remote {cfg.git_remote!r} push URL "
+            f"{push_url!r} does not identify a GitHub repository"
         )
-    for push_url in push_urls:
-        remote_identity = _git_remote_repository_identity(push_url)
-        if remote_identity is None:
-            raise git.FeaturePublicationError(
-                f"configured remote {cfg.git_remote!r} push URL "
-                f"{push_url!r} does not identify a GitHub repository"
-            )
-        if remote_identity != expected_identity:
-            remote_repo = "/".join(remote_identity[1:])
-            pr_repo = f"{owner_login}/{repository_name}"
-            raise git.FeaturePublicationError(
-                f"configured remote {cfg.git_remote!r} push URL "
-                f"{push_url!r} identifies "
-                f"{remote_identity[0]}/{remote_repo}, but recorded PR {pr_url} "
-                f"publishes from {pr_host}/{pr_repo}"
-            )
+    if remote_identity != expected_identity:
+        remote_repo = "/".join(remote_identity[1:])
+        pr_repo = f"{owner_login}/{repository_name}"
+        raise git.FeaturePublicationError(
+            f"configured remote {cfg.git_remote!r} push URL "
+            f"{push_url!r} identifies "
+            f"{remote_identity[0]}/{remote_repo}, but recorded PR {pr_url} "
+            f"publishes from {pr_host}/{pr_repo}"
+        )
     return head_oid
 
 
@@ -1183,6 +1187,7 @@ def _align_recorded_assist_checkout(
         cfg.git_remote,
         branch,
         preserve_union_rel=log_rel,
+        require_single_push_url=True,
     )
     if not publication.aligned or publication.remote_oid is None:
         raise git.GitError(publication.detail)
@@ -1446,6 +1451,7 @@ def spawn_agent_session(
     usage_window_start = datetime.now(timezone.utc)
     spawn_started = False
     publish_session_log = False
+    assist_log_refusal: str | None = None
     outcome_status: usage_tracking.OutcomeStatus = "unknown"
 
     try:
@@ -1480,10 +1486,12 @@ def spawn_agent_session(
                 allow_feature_fast_forward=publish_aligned_branch is None,
             )
             if publish_aligned_branch is not None and not log_synced:
-                raise ComposeError(
+                raise _AssistPublicationRefused(
                     "The recorded PR branch moved or could not be verified "
                     "after launch composition. No agent was started; retry "
-                    "the launch so its prompt is composed from the new tip."
+                    "the launch so its prompt is composed from the new tip. "
+                    "The launch audit append remains dirty and the catch-all "
+                    "state sweep has been suppressed."
                 )
 
         if name and sys.stdout.isatty():
@@ -1562,17 +1570,29 @@ def spawn_agent_session(
             # this trailing commit there too so the local and PR tips stay in
             # lockstep. Non-fatal.
             if isinstance(cfg, Config):
-                git.sync_log(
+                trailing_log_synced = git.sync_log(
                     cfg,
                     message=f"Log: {session_slug}",
                     publish_current_branch=publish_session_log,
                     publish_if_remote_aligned=publish_aligned_branch is not None,
                     expected_feature_branch=publish_aligned_branch,
                 )
+                if (
+                    publish_aligned_branch is not None
+                    and not trailing_log_synced
+                ):
+                    assist_log_refusal = (
+                        "The recorded PR branch changed or could not publish "
+                        "the trailing assist audit record. The record remains "
+                        "dirty for an explicit retry and the catch-all state "
+                        "sweep has been suppressed."
+                    )
         try:
             prompt_file.unlink()
         except FileNotFoundError:
             pass
+        if assist_log_refusal is not None:
+            raise _AssistPublicationRefused(assist_log_refusal)
 
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
@@ -1819,6 +1839,6 @@ def _refresh_agent_skills_for_launch(coga_os: Path) -> None:
         )
 
 
-def _bail(msg: str) -> None:
+def _bail(msg: str, *, exit_code: int = 2) -> None:
     typer.secho(msg, fg=typer.colors.RED, err=True)
-    sys.exit(2)
+    sys.exit(exit_code)

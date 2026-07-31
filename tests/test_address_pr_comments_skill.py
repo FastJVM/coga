@@ -21,6 +21,9 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
     assert "headRepositoryOwner" in skill
     assert "[git].remote" in skill
     assert "git remote get-url --push --all <configured-remote>" in skill
+    assert "Require exactly one" in skill
+    assert "multi-push remote" in skill
+    assert "<verified-push-url>" in skill
     assert "`(status, step, assignee)`" in skill
     assert "`coga block`" in skill
     assert "python -m pytest" in skill

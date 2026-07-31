@@ -2984,7 +2984,7 @@ def test_recorded_assist_pr_head_accepts_the_configured_fork_remote(
     ) == "abc123"
 
 
-def test_recorded_assist_pr_head_rejects_any_mismatched_pushurl(
+def test_recorded_assist_pr_head_rejects_multiple_pushurls(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(active_task)
@@ -3025,7 +3025,7 @@ def test_recorded_assist_pr_head_rejects_any_mismatched_pushurl(
 
     with pytest.raises(
         launch_module.git.FeaturePublicationError,
-        match="push URL.*base/repo.git.*publishes from",
+        match="requires exactly one effective push URL.*found 2",
     ):
         launch_module._verify_recorded_assist_pr_head(
             cfg, ticket, "feature/review"
@@ -4140,6 +4140,58 @@ def test_human_assist_does_not_sweep_commit_created_after_alignment(
     )
 
 
+def test_human_assist_log_refusal_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retained launch append must not reach the CLI catch-all sweep."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retry a refused assist log",
+        status="in_progress",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.git.sync_log",
+        lambda *args, **kwargs: False,
+    )
+    child_started = False
+
+    def unexpected_child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal child_started
+        child_started = True
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        unexpected_child,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert child_started is False
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+
+
 def test_human_assist_branch_switch_cannot_redirect_teardown_publication(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -4225,16 +4277,18 @@ def test_human_assist_branch_switch_cannot_redirect_teardown_publication(
         append_usage,
     )
 
-    launch_module.launch(
-        str(created["slug"]),
-        agent_override="claude",
-        prompt_report=False,
-        idle_timeout=None,
-        max_session=None,
-        return_timeout=False,
-        queue_guidance=False,
-    )
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
 
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert git_repo.git(
         "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
     ).strip() == unrelated_remote_before

@@ -342,10 +342,11 @@ to run from the exact recorded `worktree:` on the recorded `branch:`; primary
 checkouts, linked worktrees, and independent fallback clones are all supported,
 while a separate, missing, or mismatched checkout keeps ordinary local-only log
 handling. Before touching that branch, launch requires the recorded `pr:` to be
-open and proves its actual head repository, branch, and OID match every
-effective push URL for the configured remote — a same-named base-repository
-branch cannot stand in for a fork PR head, and a separate fetch URL cannot
-authorize pushes to another repository.
+open and proves its actual head repository, branch, and OID match the
+configured remote's **single** effective push URL — a same-named
+base-repository branch cannot stand in for a fork PR head, a separate fetch URL
+cannot authorize pushes to another repository, and a multi-`pushurl` remote is
+refused because Git cannot update all of its destinations atomically.
 A merely-behind recorded checkout is then fast-forwarded before the final
 config, ticket, skill-view, secrets, expected-step, and prompt reads for every
 resumable status, including paused and blocked tickets; launch reloads that
@@ -355,20 +356,24 @@ preflight passes. Immediately before mutation and again before spawn, the
 committed feature ticket's `(status, step, assignee)` lifecycle tuple must
 exactly match a freshly fetched control copy; the lease carries that
 pre-transition state so every candidate control tip is rechecked during
-publication. Their combined generated commit is accepted only
-while local `HEAD` still equals the verified tip, then pushed by captured OID
-under an exact remote-tip lease *before* its control-plane landing or start
-notification. A lost lease resets that commit. If the later control landing
-fails, a leased fast-forward compensation restores the prior feature tree and
-the error still escapes; the caller restores the prior ticket/log bytes, so no
-child ran, no false lifecycle state remains published, and no unrelated
-concurrent local commit was swept. Reproducible notification configuration
-errors are likewise checked before publication. The assist also commits its own
-launch-log append so Coga's audit line cannot trip the PR worktree's clean-tree
-gate. If the remote or control ticket moves after composition, launch refuses
-to spawn and requires a retry rather than working under stale instructions; a
-failed generated-log push undoes only that commit and leaves the append dirty
-for the retry. The child inherits a task-scoped recorded-branch capability,
+publication. Their combined generated commit is built directly on the verified
+tip and moves the local branch with an expected-old-OID ref CAS; its captured
+tree is then pushed under an exact remote-tip lease *before* the same captured
+state lands on control or a start notification is sent. A lost lease removes
+that commit only when the local ref still names it. If the later control
+landing fails, a leased fast-forward compensation restores the prior feature
+tree and a second local-ref CAS refuses to move over concurrent work; the error
+still escapes and the caller restores the prior ticket/log bytes. No child ran,
+no false lifecycle state remains published, and no unrelated concurrent local
+commit was swept. Reproducible notification configuration errors are likewise
+checked before publication. The assist also commits its own launch-log append
+so Coga's audit line cannot trip the PR worktree's clean-tree gate. If the
+remote or control ticket moves after composition, launch refuses to spawn and
+requires a retry rather than working under stale instructions; a failed
+generated-log push undoes only that commit and leaves the append dirty for the
+retry. That retryable refusal exits with the no-sweep temporary-failure code,
+so CLI teardown cannot immediately commit the retained append anyway. The
+child inherits a task-scoped recorded-branch capability,
 allowing required in-session state commands such as the blocked-resume
 `coga unblock` and an explicit `coga block` to use the same feature/control
 lease without granting it to nested ordinary launches. If that resumed session
@@ -379,9 +384,10 @@ log, and final generated control-state refresh remain pinned to the recorded
 branch and publish captured generated OIDs only from a safely aligned, exact
 remote tip. A lost refresh lease restores its pre-refresh tip and dirty bytes.
 If the agent switches branches, teardown skips those commits instead of
-redirecting them. This preserves the PR branch's local/remote alignment without
-sweeping unrelated local commits. Megalaunch keeps a separate human gate and
-does not inherit this relaxation.
+redirecting them and uses the same no-sweep exit. This preserves the PR
+branch's local/remote alignment without the catch-all sweep committing the
+retained log on an unrelated branch. Megalaunch keeps a separate human gate
+and does not inherit this relaxation.
 
 Blocked tickets can resume inline only from an interactive TTY. Their first
 job is to resolve or re-block the open asks.
