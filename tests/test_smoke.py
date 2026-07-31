@@ -3,7 +3,7 @@
 Verifies:
 - task creating creates a task with a frozen workflow snapshot.
 - Prompt composition includes every expected section.
-- `coga bump` advances; `coga mark done` finishes the final step.
+- `coga bump` advances and finishes the final step.
 - `coga block` writes to blackboard + releases the session.
 - `coga slack` logs a message.
 - `coga status` lists the task queue.
@@ -96,8 +96,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Blackboard" in prompt
 
     # 3. Advance steps. The PR step cannot advance until its required artifact
-    #    is recorded, then the remaining bumps walk to the last step and
-    #    `coga mark done` finishes the ticket.
+    #    is recorded, then the remaining bumps walk to and finish the last step.
     runner = CliRunner()
     slug = ref["slug"]
     r = runner.invoke(app, ["bump", slug])
@@ -113,7 +112,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     for _ in range(2):
         r = runner.invoke(app, ["bump", slug])
         assert r.exit_code == 0, r.output
-    r = runner.invoke(app, ["mark", "done", slug])
+    r = runner.invoke(app, ["bump", slug])
     assert r.exit_code == 0, r.output
     assert read_ticket(task_ref).status == "done"
 

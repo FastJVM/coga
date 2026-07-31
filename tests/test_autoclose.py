@@ -421,6 +421,40 @@ def test_sweep_merged_idempotent(
     assert second == 0
 
 
+def test_sweep_rechecks_after_concurrent_manual_final_bump(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A manual final-step bump during the PR lookup wins exactly once.
+
+    The sweep's second ticket read must observe `done` and skip its own
+    `mark_done`, avoiding a duplicate terminal audit entry.
+    """
+    slug, path = _make_task(
+        repo,
+        status="in_progress",
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/15",
+    )
+
+    def finish_while_checking(url: str) -> str:
+        result = CliRunner().invoke(app, ["bump", slug])
+        assert result.exit_code == 0, result.output
+        return "MERGED"
+
+    monkeypatch.setattr(am, "pr_state", finish_while_checking)
+    cfg = load_config(repo)
+
+    count = am.sweep_merged(cfg, quiet=True)
+
+    assert count == 0
+    assert Ticket.read(path).status == "done"
+    from coga.logfile import task_log_lines
+
+    log = "\n".join(task_log_lines(cfg, slug))
+    assert log.count("task done") == 1
+    assert "auto-bumped on merge" not in log
+
+
 def test_sweep_merged_quiet_swallows_gh_error(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

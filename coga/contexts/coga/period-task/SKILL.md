@@ -43,8 +43,8 @@ Every period-task run that carries state follows the same shape:
    stopped.
 2. Do this period's work.
 3. Before finishing, update that same file with whatever the next run
-   needs. Then `coga mark done` (or `coga bump` to the next non-final
-   workflow step, if the run is not complete yet).
+   needs. Then finish the current workflow step with `coga bump` (or use
+   `coga mark done` for a workflow-less ticket).
 
 The recurring task's `ticket.md` body names *which* keys it persists
 (e.g. `last_commit`, a cursor section). That's the contract; this

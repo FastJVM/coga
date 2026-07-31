@@ -19,8 +19,8 @@ match the step name. One paragraph is plenty for inline instructions.
 
 ## last-step
 
-Wrap-up. `coga bump` stops at the last step; finish with
-`coga mark done <slug>` when the work is complete.
+Wrap-up. Run `coga bump <slug>` when the work is complete; because this is the
+final step, the bump marks the ticket `done`.
 
 ## On `assignee:`
 

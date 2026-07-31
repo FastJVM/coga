@@ -351,7 +351,8 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
     # Old continue-in-same-session rule must be gone.
     assert "After bumping, inspect the new state" not in prompt
     assert "continue that next step in this same session" not in prompt
-    assert "coga bump` marks the task `done`" not in prompt
+    assert "On the final step, `coga bump` marks" in prompt
+    assert "the task `done`" in prompt
 
 
 def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:

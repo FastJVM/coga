@@ -2168,7 +2168,7 @@ def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
     assert calls == []  # help is not a state change
 
 
-# --- direct/body stranding guard (`stranded_product_paths`, `mark done`) --------
+# --- direct/body stranding guard (`stranded_product_paths`, terminal finish) ----
 #
 # A `direct/body` workflow has no push/PR step, so product code the agent commits
 # rides a throwaway branch or detached checkout that state-sync never lands on
@@ -2271,6 +2271,33 @@ def test_mark_done_force_overrides_stranded_code(git_repo):
     result = runner.invoke(app, ["mark", "done", slug, "--force"])
 
     assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "done"
+
+
+def test_final_bump_force_overrides_stranded_code(git_repo):
+    """A final-step bump exposes the same explicit stranding escape hatch."""
+    slug, task_path = _active_task(
+        git_repo, workflow="direct/body", slug="forced-bump"
+    )
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(task_path)
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "start direct task")
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    refused = runner.invoke(app, ["bump", slug])
+
+    assert refused.exit_code == 2, refused.output
+    combined = refused.output + (refused.stderr or "")
+    assert "src/coga/stray.py" in combined
+    assert f"coga bump {slug} --force" in combined
+    assert Ticket.read(task_path).status == "in_progress"
+
+    forced = runner.invoke(app, ["bump", slug, "--force"])
+
+    assert forced.exit_code == 0, forced.output
     assert Ticket.read(task_path).status == "done"
 
 

@@ -25,6 +25,7 @@ from coga.cli import app
 from coga.config import load_config
 from coga.repl_supervisor import SENTINEL_ENV
 from coga.create import create_task
+from coga.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -156,19 +157,18 @@ def test_bump_success_unsupervised_is_noop(
     assert result.exit_code == 0, result.output
 
 
-def test_bump_error_past_final_step_does_not_signal(
+def test_bump_final_step_marks_done_and_signals(
     repo: Path, sentinel: Path
 ) -> None:
-    slug, _ = _make_task(repo)
+    slug, task_path = _make_task(repo)
     runner = CliRunner()
     runner.invoke(app, ["bump", slug])  # → step 2
     runner.invoke(app, ["bump", slug])  # → step 3 (final), signals success
-    # Clear the sentinel left by the successful bumps so the assertion below
-    # isolates the *erroring* bump's behavior.
     sentinel.unlink(missing_ok=True)
-    result = runner.invoke(app, ["bump", slug])  # past final
-    assert result.exit_code == 2
-    assert not sentinel.exists()
+    result = runner.invoke(app, ["bump", slug])  # final step → done
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "done"
+    assert sentinel.read_text().strip() == slug
 
 
 def test_bump_error_no_workflow_does_not_signal(

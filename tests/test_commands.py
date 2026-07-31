@@ -383,19 +383,74 @@ def test_bump_supervised_allows_unfrozen_workflow_without_step(repo: Path) -> No
     assert Ticket.read(ticket_path).step == "2 (pr)"
 
 
-def test_bump_past_final_step_errors_with_mark_done_hint(repo: Path) -> None:
+def test_bump_on_final_step_marks_ticket_done(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     runner = CliRunner()
     # Workflow has 3 steps; advance to the final step.
     runner.invoke(app, ["bump", slug])
     runner.invoke(app, ["bump", slug])
     result = runner.invoke(app, ["bump", slug])
-    assert result.exit_code == 2, result.output
-    assert "final step" in result.output
-    assert f"coga mark done {slug}" in result.output
-    # Ticket stays in progress — bump does not mark done.
+    assert result.exit_code == 0, result.output
+    assert f"{slug}: done" in result.output
     t = Ticket.read(task_path)
-    assert t.status == "in_progress"
+    assert t.status == "done"
+    assert t.step is None
+    assert "task done" in _log_text(repo, slug)
+
+
+def test_bump_on_final_step_uses_mark_done_notification_shape(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, task_path = _make_task(repo)
+    notifications: list[tuple[str, dict[str, object]]] = []
+
+    def capture_notify(cfg, text, **kwargs):  # type: ignore[no-untyped-def]
+        notifications.append((text, kwargs))
+
+    monkeypatch.setattr("coga.mark.notify", capture_notify)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])
+    runner.invoke(app, ["bump", slug])
+
+    result = runner.invoke(
+        app, ["bump", slug, "--message", "shipped and verified"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "done"
+    assert "task done — shipped and verified" in _log_text(repo, slug)
+    assert len(notifications) == 1
+    text, kwargs = notifications[0]
+    assert (
+        text
+        == f'🎉 claude finished *{slug}* "Work": merge → done'
+        " — shipped and verified"
+    )
+    assert kwargs["kind"] == "done"
+    assert (
+        kwargs["detail"]
+        == "claude finished: merge → done ✅ — shipped and verified"
+    )
+    assert kwargs["ticket"] == slug
+
+
+def test_bump_supervised_final_step_prints_terminal_hint(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])
+    runner.invoke(app, ["bump", slug])
+
+    result = runner.invoke(
+        app,
+        ["bump", slug],
+        env={"COGA_SUPERVISED": "1"},
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Supervised launch: final step done" in result.output
+    assert "The task is finished" in result.output
+    assert "Next step hands off" not in result.output
+    assert Ticket.read(task_path).status == "done"
 
 
 @pytest.mark.parametrize("status", ["paused", "canceled"])
@@ -454,6 +509,47 @@ def test_bump_gate_blocks_until_required_artifact_recorded(repo: Path) -> None:
     allowed = runner.invoke(app, ["bump", slug])
     assert allowed.exit_code == 0, allowed.output
     assert Ticket.read(task_path).step == "2 (pr)"
+
+
+def test_bump_final_step_requires_artifact_before_marking_done(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, task_path = _make_task(repo)
+    _set_step_requires(task_path, 2, "pr")
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])
+    runner.invoke(app, ["bump", slug])
+    published: list[bool] = []
+
+    def capture_sync_task_state(
+        cfg,
+        task_path,
+        *,
+        message,
+        guard=None,
+        publish_current_branch=False,
+    ):  # type: ignore[no-untyped-def]
+        published.append(publish_current_branch)
+
+    monkeypatch.setattr("coga.git.sync_task_state", capture_sync_task_state)
+
+    blocked = runner.invoke(app, ["bump", slug])
+
+    assert blocked.exit_code == 2, blocked.output
+    assert "requires a recorded `pr`" in blocked.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "in_progress"
+    assert ticket.step == "3 (merge)"
+    assert published == []
+
+    _record_pr(task_path, "https://github.com/acme/repo/pull/6")
+    allowed = runner.invoke(app, ["bump", slug])
+
+    assert allowed.exit_code == 0, allowed.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "done"
+    assert ticket.step is None
+    assert published == [True]
 
 
 def test_bump_rewind_ignores_requires_gate(repo: Path) -> None:

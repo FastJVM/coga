@@ -163,8 +163,9 @@ spawns the next step automatically, rotating to the peer agent for the review
 step.
 
 You'll land at the final `review` step with an open PR, which is a human gate:
-Coga hands control back to you to review and merge on GitHub. Close the ticket
-with `coga mark done <task>` once it's merged. If your repo runs the
+Coga hands control back to you to review and merge on GitHub. Finish the step
+with `coga bump <task>` once it's merged; because it is the final step, that
+bump marks the ticket `done`. If your repo runs the
 `autoclose-merged` recurring sweep on a schedule, that sweep will also mark a
 merged ticket `done` on its next run — but that's opt-in maintenance, not
 something that happens on its own (see [Operations](operations.md#recurring-maintenance)).

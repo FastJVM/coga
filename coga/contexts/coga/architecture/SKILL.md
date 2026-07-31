@@ -278,8 +278,10 @@ bundled refs may replace that list with specific cleanup instructions.
 
 - **Control plane (`status`)** — `draft`, `active`, `in_progress`, `paused`,
   and `blocked`, plus the terminal outcomes `done` and `canceled`. Governs
-  *whether* work happens. `coga mark` owns the
-  `draft`/`active`/`paused`/`done`/`canceled` transitions;
+  *whether* work happens. The shared `coga.mark` finalizers own the
+  `draft`/`active`/`paused`/`done`/`canceled` writes; the `coga mark` command
+  exposes them directly, while a final-step `coga bump` delegates to
+  `mark_done`.
   `coga block` owns the `blocked` transition, and `coga unblock` resolves
   open blocker asks and moves `blocked → active` while preserving `step:`.
   `coga launch`
@@ -299,23 +301,25 @@ bundled refs may replace that list with specific cleanup instructions.
   `in_progress` ticket resolves the asks without touching status or step.
   If the resumed session exits before recording an answer, launch returns the
   ticket to `blocked` so blocker queues keep reporting it. Script and TTY-less launches keep refusing a blocked ticket until `coga unblock`
-  records the answer. `bump` owns `step:`, not status transitions, but it
-  enforces `status: in_progress` before moving the step.
+  records the answer. `bump` owns workflow progression and enforces
+  `status: in_progress`; at the terminal boundary it delegates the status
+  transition to `mark_done`.
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when
-  status is `in_progress`. Bare `coga bump` advances one step; a human
+  status is `in_progress`. Bare `coga bump` advances one step, or marks the
+  ticket `done` and clears `step:` when the current step is final; a human
   outside a supervised launch may rewind to an earlier step with `--to` or
-  `--backward`. Pausing preserves the step; marking done or canceled clears it.
+  `--backward`. Pausing preserves the step; cancellation clears it.
 
 Tickets without a `workflow` field have no steps and move through
 statuses directly via `coga mark`. `coga bump` refuses them.
 
-The split is deliberate: each command owns its writes. `coga create`
-authors a draft, `coga mark` flips status across the lifecycle,
-`coga bump` moves steps, and `coga launch` spawns the agent — bringing a
-  `draft` or `paused` ticket to `active` first (reusing `coga mark active`),
-  then flipping `active → in_progress` as it does. `launch` is the one command
-  that touches both planes.
+The split is deliberate: each state change has one shared writer. `coga create`
+authors a draft, the `coga.mark` finalizers flip status across the lifecycle,
+`coga bump` moves steps and delegates final completion to `mark_done`, and
+`coga launch` spawns the agent — bringing a `draft` or `paused` ticket to
+`active` first (reusing `coga mark active`), then flipping
+`active → in_progress` as it does.
 
 ## Agent launches and registered recipes
 

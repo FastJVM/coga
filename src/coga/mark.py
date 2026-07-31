@@ -112,6 +112,7 @@ def mark_done(
     image_url: str | None = None,
     echo: str | None = None,
     force: bool = False,
+    publish_current_branch: bool = False,
 ) -> None:
     """Flip a ticket to `done`: write frontmatter, log, notify.
 
@@ -127,6 +128,9 @@ def mark_done(
     A `direct/body` ticket that committed tracked product code off the control
     branch is refused with `StrandedProductCode` (the code would strand); pass
     `force=True` to override. See `_assert_no_stranded_product_code`.
+
+    A completion gate may set `publish_current_branch=True` so the terminal
+    task-state commit is also published to the current feature branch.
     """
     if not force:
         _assert_no_stranded_product_code(cfg, ref, ticket)
@@ -154,7 +158,12 @@ def mark_done(
         fatal=False,
     )
     snapshot = read_snapshot(ref.path)
-    _sync_done_state(cfg, ref, snapshot)
+    _sync_done_state(
+        cfg,
+        ref,
+        snapshot,
+        publish_current_branch=publish_current_branch,
+    )
     _warn_if_state_not_advanced(cfg, ref, ticket, owner, snapshot)
 
 
@@ -238,12 +247,25 @@ def mark_canceled(
 
 
 def _sync_done_state(
-    cfg: Config, ref: TaskRef, snapshot: StateSnapshot | None
+    cfg: Config,
+    ref: TaskRef,
+    snapshot: StateSnapshot | None,
+    *,
+    publish_current_branch: bool = False,
 ) -> None:
     message = f"Ticket: {ref.id_slug} — done"
     guard = _state_guard(cfg, ref)
+    publish_kwargs = (
+        {"publish_current_branch": True} if publish_current_branch else {}
+    )
     if snapshot is None:
-        git.sync_task_state(cfg, ref.path, message=message, guard=guard)
+        git.sync_task_state(
+            cfg,
+            ref.path,
+            message=message,
+            guard=guard,
+            **publish_kwargs,
+        )
         return
 
     paths = [ref.path]
@@ -252,7 +274,14 @@ def _sync_done_state(
     parent_ticket = recurring_dir(cfg) / snapshot.parent / "ticket.md"
     if parent_ticket.parent.is_dir():
         paths.append(parent_ticket)
-    git.sync_paths(cfg, ref.path, paths, message=message, guard=guard)
+    git.sync_paths(
+        cfg,
+        ref.path,
+        paths,
+        message=message,
+        guard=guard,
+        **publish_kwargs,
+    )
 
 
 def _warn_if_state_not_advanced(

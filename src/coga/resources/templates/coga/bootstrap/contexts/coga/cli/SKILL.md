@@ -170,8 +170,8 @@ frontmatter field, so the command shape is `<status field value> on disk` =
 - `mark paused <slug>` — allowed from `active` or `in_progress`. Preserves
   `step:`. Posts `⏸️`.
 - `mark done <slug>` — allowed from `active` or `in_progress`. Clears
-  `step:`. Posts `🎉`. Use this to finish a workflow on its final step, or
-  to finish any ticket without a workflow.
+  `step:`. Posts `🎉`. Use this to finish a ticket without a workflow or to
+  request an explicit status close without walking the remaining steps.
 - `mark canceled <slug> --message "<reason>"` — allowed from every
   non-terminal status, including `draft` and `blocked`. Requires a non-empty
   reason, clears `step:`, and posts `🚫`. The reason is appended to the audit
@@ -186,8 +186,8 @@ activate a `draft`/`paused` ticket inline first (launching is the readiness
 signal). `blocked` is command-owned by `coga block` / `coga unblock`. `done`
 and `canceled` are distinct terminal outcomes, and canceled has no transition
 back to active.
-`coga bump` no longer marks final-step tickets done. The status state machine
-and the step state machine are separate.
+On a workflow's final step, `coga bump` delegates to the same `mark_done`
+finalizer, so the ordinary step-completion verb also closes the ticket.
 
 ## coga launch \<target\>
 
@@ -403,21 +403,27 @@ terminal, rendered as markdown via Rich. Same prefix matching as
 blackboard or log). For grep/pipe use, read the files directly — `show`
 is for human eyes.
 
-## coga bump \<slug\> [--message "..."]
+## coga bump \<slug\> [--message "..."] [--force]
 
-Advance a workflow-bound task one step. Updates `step:`, appends a log
-entry. Requires `status: in_progress`. The workflow is frozen into the
-ticket at create time, so step semantics don't drift mid-task.
+Finish the current step of a workflow-bound task. It updates `step:` and
+appends a log entry when another step follows; on the final step it marks the
+ticket `done` through the same log, notification, digest, and sync path as
+`coga mark done`. Requires `status: in_progress`. The workflow is frozen into
+the ticket at create time, so step semantics don't drift mid-task.
 
-`bump` no longer finishes tickets. Bumping past the last step is an
-error pointing you at `coga mark done <slug>`. Bumping a ticket
-without a workflow is the same error — those tickets only have one
-"step" (the whole ticket), and `mark done` is how you finish them.
+Bumping a ticket without a workflow remains an error pointing you at
+`coga mark done <slug>`: without a frozen step there is nothing for `bump` to
+finish.
 
 `--message` piggy-backs an FYI onto the state-transition Slack
 broadcast — one post instead of two. Use it for transition-tied notes
 like "PR opened: <link>" or "shipped, watching error rate". For FYIs
 that don't fit a transition, reach for `coga slack` instead.
+
+`--force` applies only when the current step is final. It allows a
+`direct/body` ticket with committed product code off the control branch to
+finish while acknowledging that the code will remain stranded, matching
+`coga mark done --force`.
 
 ## coga autoclose
 
@@ -969,7 +975,8 @@ only; they don't accept their own flags.
 - Starting a draft's work → `coga launch <slug>` (activates inline).
 - Approving/queueing without launching → `coga mark active <slug>`.
 - Pausing a task → `coga mark paused <slug>`.
-- Finishing a task (final step, or no workflow) → `coga mark done <slug>`.
+- Finishing a workflow step, including the final step → `coga bump <slug>`.
+- Finishing a ticket with no workflow → `coga mark done <slug>`.
 - Intentionally abandoning a ticket →
   `coga mark canceled <slug> --message "<reason>"`.
 - Ticket-less chat session → `coga chat` (alias for

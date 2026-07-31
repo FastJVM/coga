@@ -13,6 +13,7 @@ from coga.bump import (
     resolve_step_assignee,
 )
 from coga.config import ConfigError, load_config
+from coga.mark import StrandedProductCode, mark_done
 from coga.paths import resolve_workflow_path
 from coga.step_gate import gate_publishes_current_branch, gate_unmet_reason
 from coga.taskfile import read_blackboard
@@ -48,11 +49,18 @@ def bump(
         "--backward",
         help="Human-only: rewind one workflow step.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="When finishing the final step, allow committed direct/body "
+        "product code to remain stranded off the control branch.",
+    ),
 ) -> None:
-    """Advance one workflow step, or let a human rewind to an earlier step.
+    """Finish the current step, or let a human rewind to an earlier step.
 
-    Bumping past the last step is an error — call `coga mark done <slug>`
-    to finish. Tickets without a workflow can't be bumped at all.
+    A forward bump advances to the next workflow step, or marks the ticket
+    done when the current step is final. Tickets without a workflow can't be
+    bumped at all.
     """
     if message is not None and not message.strip():
         _bail("--message cannot be empty")
@@ -119,6 +127,7 @@ def bump(
             f"Task {ref.id_slug} has invalid step {ticket.step!r}. "
             f"Workflow has steps 1-{total}."
         )
+    finish = False
     if backward:
         next_step = current_idx - 1
         if current_idx <= 1:
@@ -133,11 +142,7 @@ def bump(
             _bail("Cannot skip ahead with --to. Use `coga bump` to advance one step.")
     else:
         next_step = current_idx + 1
-        if current_idx >= total:
-            _bail(
-                f"Task {ref.id_slug} is on the final step. "
-                f"Run `coga mark done {ref.id_slug}` to finish."
-            )
+        finish = current_idx >= total
 
     # Completion gate: refuse to advance *off* a step that declares `requires:`
     # until its artifact is recorded on the blackboard. Forward advancement only
@@ -156,6 +161,55 @@ def bump(
             if reason:
                 _bail(reason)
             publish_current_branch = gate_publishes_current_branch(requires)
+
+    if finish:
+        finisher = ticket.assignee or cfg.current_user
+        actor = f"human:{cfg.current_user}"
+        prev = ticket.current_step()
+        transition = f": {prev['name']} → done" if prev else ""
+        try:
+            mark_done(
+                cfg,
+                ref,
+                ticket,
+                actor=actor,
+                log_message=f"task done{suffix}",
+                slack_text=(
+                    f"🎉 {finisher} finished *{ref.id_slug}* "
+                    f'"{ticket.title}"{transition}{suffix}'
+                ),
+                digest_detail=(
+                    f"{finisher} finished{transition or ' → done'} ✅{suffix}"
+                ),
+                image_url=cfg.gif_for("done"),
+                echo=f"{ref.id_slug}: done",
+                force=force,
+                publish_current_branch=publish_current_branch,
+            )
+        except StrandedProductCode as exc:
+            listed = "\n".join(f"    {path}" for path in exc.paths)
+            _bail(
+                f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow "
+                f"has no push/PR step, but this checkout committed tracked "
+                f"product code that is not on {cfg.git_control_branch!r}:\n"
+                f"{listed}\n"
+                f"That code will strand off the control branch if this checkout "
+                f"or its branch is removed. Move the ticket to a code/* workflow "
+                f"(code/with-self-review or code/with-review) so it opens a PR, "
+                f"or re-run `coga bump {ref.id_slug} --force` to finish anyway "
+                f"and keep the code stranded."
+            )
+        except TaskValidationError as exc:
+            _bail(str(exc))
+
+        if os.environ.get("COGA_SUPERVISED"):
+            typer.secho(
+                "Supervised launch: final step done. The task is finished "
+                "— coga launch will stop and return to the caller.",
+                fg=typer.colors.CYAN,
+            )
+        emit_done_marker(session_id=ref.id_slug)
+        return
 
     new_step = steps[next_step - 1]
     new_step_name = new_step["name"]
