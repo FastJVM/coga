@@ -2234,6 +2234,100 @@ def test_strict_feature_publication_checks_fresh_control_state_before_push(
     )
 
 
+def test_feature_publication_lease_reads_separate_pushurl(
+    git_repo,
+    tmp_path: Path,
+) -> None:
+    """Lease reads follow the destination that `git push <remote>` updates."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/pushurl-assist")
+    git_repo.git("push", "-u", "origin", "feature/pushurl-assist")
+    expected = git_repo.git("rev-parse", "HEAD").strip()
+
+    fetch_only = tmp_path / "fetch-only.git"
+    git_repo.git("init", "--bare", str(fetch_only), cwd=tmp_path)
+    git_repo.git("remote", "set-url", "origin", str(fetch_only))
+    git_repo.git(
+        "remote",
+        "set-url",
+        "--push",
+        "origin",
+        str(git_repo.origin),
+    )
+
+    lease = git.feature_publication_lease(
+        cfg,
+        ticket.parent,
+        "feature/pushurl-assist",
+    )
+
+    assert lease.local_oid == expected
+    assert lease.remote_oid == expected
+    assert lease.control_ticket_state == ("active", "1 (implement)", "claude")
+
+
+def test_strict_feature_publication_leases_exact_control_lifecycle(
+    git_repo,
+) -> None:
+    """A concurrent park cannot be overwritten after the lease is minted."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/exact-control-assist")
+    git_repo.git("push", "-u", "origin", "feature/exact-control-assist")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    lease = git.feature_publication_lease(
+        cfg,
+        ticket.parent,
+        "feature/exact-control-assist",
+    )
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(
+            step="1 (implement)",
+            status="blocked",
+            blackboard="owner parked this work\n",
+        ),
+    )
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="agent started from the old prompt\n",
+        )
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control ticket changed after the assist lease",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=git.ticket_state_guard(cfg, ticket),
+            feature_publication=lease,
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == feature_before
+    assert "status: active" in git_repo.git(
+        "show",
+        "refs/heads/feature/exact-control-assist:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: blocked" in git_repo.git(
+        "show",
+        "main:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in ticket.read_text()
+    assert "coga/tasks/demo/ticket.md" in git_repo.git(
+        "status",
+        "--porcelain",
+    )
+
+
 @pytest.mark.parametrize(
     "landing_error",
     [

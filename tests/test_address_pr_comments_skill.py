@@ -20,6 +20,9 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
     assert "headRefOid" in skill
     assert "headRepositoryOwner" in skill
     assert "[git].remote" in skill
+    assert "git remote get-url --push --all <configured-remote>" in skill
+    assert "`(status, step, assignee)`" in skill
+    assert "`coga block`" in skill
     assert "python -m pytest" in skill
     assert "git push --force-with-lease=refs/heads/<branch-name>:" in skill
     assert "git merge-base --is-ancestor <verified-remote-oid> HEAD" in skill

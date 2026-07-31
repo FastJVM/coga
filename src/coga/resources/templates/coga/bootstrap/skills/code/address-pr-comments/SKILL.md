@@ -56,26 +56,30 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
    linked worktree, or independent fallback clone), it first proves the open
    PR's actual head repository and OID, then fast-forwards a merely-behind
    checkout *before* activation and its final
-   ticket/config/prompt reads. Paused/blocked activation waits for all
-   preflights; the combined lifecycle commit is pushed by captured OID only if
-   local `HEAD` still equals the verified tip and the exact remote-tip lease
-   holds. A refusal restores the prior task/log state before any child or start
-   notification. If the PR branch moves in any direction after prompt
-   composition, launch refuses to spawn and asks for a retry instead of working
-   underneath stale instructions. A failed generated-log push leaves the append
-   dirty rather than stranding a divergent audit commit. Publication still
-   requires the configured remote and a safely aligned tip.
+   ticket/config/prompt reads and assignee classification. Draft, paused, and
+   blocked activation waits for all preflights; the committed feature ticket's
+   `(status, step, assignee)` must exactly match fresh control state, and the
+   combined lifecycle commit is pushed by captured OID only if local `HEAD`
+   still equals the verified tip and both the control-state and exact remote-tip
+   leases hold. A refusal
+   restores the prior task/log state before any child or start notification.
+   If the PR branch or control ticket moves after prompt composition, launch
+   refuses to spawn and asks for a retry instead of working underneath stale
+   instructions. A failed generated-log push leaves the append dirty rather
+   than stranding a divergent audit commit. Publication still requires the
+   configured remote and a safely aligned tip.
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
-   remote for every fetch and push. Resolve its GitHub owner/repository from
-   `git remote get-url <configured-remote>`.
+   remote for every fetch and push. Resolve every effective push URL with
+   `git remote get-url --push --all <configured-remote>`.
 4. Use `gh pr view <pr-url> --json ...` to read `state`, `url`,
    `headRefName`, `headRefOid`, `headRepository`, and
    `headRepositoryOwner`. Require an open PR whose head ref matches `branch:`.
    Construct the actual PR head repository as
    `<headRepositoryOwner.login>/<headRepository.name>` and require the
-   configured remote to identify that same GitHub repository. A same-named
-   branch in the base repository is not the PR head when the PR comes from a
-   fork.
+   configured remote's every effective push URL to identify that same GitHub
+   repository. A same-named branch in the base repository is not the PR head
+   when the PR comes from a fork, and a separate fetch URL does not authorize
+   lifecycle pushes to the wrong repository.
 5. Fetch `refs/heads/<branch-name>` from the configured remote and require
    `FETCH_HEAD` to equal the PR's reported `headRefOid`. Fast-forward the local
    checkout when it is merely behind. If it is ahead unexpectedly or diverged,
@@ -241,7 +245,9 @@ generated control-state refresh during teardown so the local and remote tips
 stay aligned. Those writes remain pinned to the recorded branch, publish their
 captured generated OID, and restore the prior local tip/dirty bytes if an
 exact-tip lease loses a race. The task-scoped branch capability also lets the
-mandatory blocker-resolution preamble publish `coga unblock` without leaking
-that authority into nested ordinary launches; if an unresolved resumed blocker
-must be parked again after exit, the supervisor publishes that reblock under a
-fresh lease too. Do not add a completion commit or signal to imitate teardown.
+mandatory blocker-resolution preamble publish `coga unblock` or an explicit
+`coga block` without leaking that authority into nested ordinary launches; if
+an unresolved resumed blocker must be parked again after exit, the supervisor
+publishes that reblock under a fresh lease and restores the prior task/log bytes
+if the lease loses a race. Do not add a completion commit or signal to imitate
+teardown.

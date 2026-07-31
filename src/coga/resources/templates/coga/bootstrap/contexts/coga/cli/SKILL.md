@@ -245,17 +245,20 @@ agent's optional `discussion = "...{prompt}..."` override. In discussion
 launches the Coga prompt is context and the first human ask can name the session.
 Other task launches keep passing the composed prompt positionally.
 
-`launch` does not probe `gh` for PR state before composing the prompt —
+Ordinary `launch` does not probe `gh` for PR state before composing the prompt —
 auto-bumping a ticket whose final-step PR has merged is the job of
-`coga autoclose` / the `autoclose-merged` recurring sweep, never launch. It
-does, though, **pre-flight git push access**: before flipping status or
-spawning the agent, it runs a non-interactive `git push --dry-run` against the
-configured remote (the same push-auth probe `coga validate --check-github`
-uses) and refuses the launch if push auth is broken. Coga drives the whole session
-through git/gh (branch push, `gh pr create`, every `coga bump` syncs ticket
-state), so a dead remote means a run guaranteed to fail at ship time — fail
-loud at the door, not after a long run. The gate self-skips for bootstrap
-tickets, `[git].enabled = false`, and non-git checkouts.
+`coga autoclose` / the `autoclose-merged` recurring sweep, never launch. The
+explicit human-step assist is the narrow exception: it verifies its recorded
+open PR head before composing because that head authorizes generated writes to
+the already-published branch. Launch also **pre-flights git push access**:
+before flipping status or spawning the agent, it runs a non-interactive
+`git push --dry-run` against the configured remote (the same push-auth probe
+`coga validate --check-github` uses) and refuses the launch if push auth is
+broken. Coga drives the whole session through git/gh (branch push,
+`gh pr create`, every `coga bump` syncs ticket state), so a dead remote means a
+run guaranteed to fail at ship time — fail loud at the door, not after a long
+run. The gate self-skips for bootstrap tickets, `[git].enabled = false`, and
+non-git checkouts.
 
 All of coga's git subprocesses run non-interactively (`GIT_TERMINAL_PROMPT=0`,
 SSH `BatchMode=yes`), so a credential-less remote fails fast instead of hanging

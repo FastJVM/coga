@@ -49,6 +49,13 @@ def _channels(cfg: Config) -> list[SlackChannel]:
     return channels
 
 
+def preflight_post(cfg: Config, *, important: bool = False) -> None:
+    """Fail before a state mutation when a selected live channel is unusable."""
+    for channel in _channels(cfg):
+        if channel.cfg.slack_enabled:
+            channel.require_webhook(important=important)
+
+
 def post(
     cfg: Config,
     message: str,

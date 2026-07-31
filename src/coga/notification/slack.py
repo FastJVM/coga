@@ -87,6 +87,22 @@ class SlackChannel:
         )
         raise typer.Exit(1)
 
+    def require_webhook(self, *, important: bool) -> str:
+        """Return the selected webhook or fail with the configuration remedy."""
+        webhook = self.webhook_for(important=important)
+        if webhook:
+            return webhook
+        sys.stderr.write(
+            "[notification.slack] Slack is selected in "
+            "[notification].channels but no webhook is configured. Set "
+            "[notification.slack].webhook in coga.toml "
+            '(e.g. webhook = "env:SLACK_WEBHOOK_URL", then export '
+            "SLACK_WEBHOOK_URL), remove slack from [notification].channels "
+            "to run without it, or opt out with "
+            "[notification.slack].enabled = false in coga.local.toml.\n"
+        )
+        raise typer.Exit(1)
+
     def send(
         self,
         message: str,
@@ -104,18 +120,7 @@ class SlackChannel:
             sys.stderr.write(f"[slack] disabled (post suppressed): {full_message}\n")
             return
 
-        webhook = self.webhook_for(important=important)
-        if not webhook:
-            sys.stderr.write(
-                "[notification.slack] Slack is selected in "
-                "[notification].channels but no webhook is configured. Set "
-                "[notification.slack].webhook in coga.toml "
-                '(e.g. webhook = "env:SLACK_WEBHOOK_URL", then export '
-                "SLACK_WEBHOOK_URL), remove slack from [notification].channels "
-                "to run without it, or opt out with "
-                "[notification.slack].enabled = false in coga.local.toml.\n"
-            )
-            raise typer.Exit(1)
+        webhook = self.require_webhook(important=important)
 
         payload: dict[str, object] = {"text": full_message}
         if image_url:

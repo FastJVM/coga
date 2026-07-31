@@ -155,11 +155,19 @@ class FeaturePublicationError(GitError):
 
 @dataclass(frozen=True)
 class FeaturePublicationLease:
-    """Exact local/remote tips authorizing one generated branch publication."""
+    """Exact branch/control state authorizing one generated publication.
+
+    ``control_ticket_state`` is the exact ``(status, step, assignee)`` tuple
+    shared by the verified feature and control tips before the state command
+    mutates its working-tree copy. Strict publication rechecks that tuple
+    against every candidate control tip. Ticket prose may legitimately differ
+    on the PR branch; lifecycle authority may not.
+    """
 
     branch: str
     local_oid: str
     remote_oid: str
+    control_ticket_state: tuple[str | None, str | None, str | None] | None = None
 
 
 def summarize_git_failure(output: str) -> str:
@@ -262,6 +270,12 @@ def sync_task_state(
         expected_current_branch = feature_publication.branch
         expected_current_branch_oid = feature_publication.local_oid
         expected_remote_branch_oid = feature_publication.remote_oid
+        if feature_publication.control_ticket_state is not None:
+            guard = _assist_control_ticket_guard(
+                task_path,
+                feature_publication.control_ticket_state,
+                fallback=guard,
+            )
     sync_paths(
         cfg,
         task_path,
@@ -1234,18 +1248,19 @@ def _dispatch_branch_sync(
         )
         return
     else:
+        strict_control_tip: str | None = None
         if strict_feature_publication and guard is not None:
             try:
                 # The feature update happens before the control landing, so
                 # reject a stale/terminal control copy against a freshly
                 # fetched tip before publishing anything to the PR branch.
-                control_tip = _control_base_for_attempt(
+                strict_control_tip = _control_base_for_attempt(
                     root,
                     cfg.git_remote,
                     cfg.git_control_branch,
                     1,
                 )
-                guard(control_tip)
+                guard(strict_control_tip)
             except StateRegressionError as exc:
                 raise FeaturePublicationError(
                     f"control state refused the assist transition: {exc}"
@@ -1336,6 +1351,7 @@ def _dispatch_branch_sync(
             message=message,
             guard=guard,
             update_local_control_ref=update_local_control_ref,
+            initial_base=strict_control_tip,
         )
         if publish_current_branch and not strict_feature_publication:
             result = _push_ref(
@@ -1510,6 +1526,75 @@ def ticket_state_guard(
         )
 
     return guard
+
+
+def _assist_control_ticket_guard(
+    task_path: Path,
+    expected: tuple[str | None, str | None, str | None],
+    *,
+    fallback: _StateGuard | None,
+) -> _StateGuard:
+    """Require an assist's pre-transition lifecycle tuple on every control tip."""
+    root = _toplevel(task_path)
+    if root is None:
+        raise FeaturePublicationError(
+            "assist control-state verification requires a git checkout"
+        )
+    ticket_path = _ticket_path_for_task_path(task_path)
+    rel = _relative_to_root(root, ticket_path)
+
+    def guard(base: str) -> None:
+        actual_bytes = _tree_bytes(root, base, rel)
+        actual = _ticket_lifecycle_state(actual_bytes)
+        if actual != expected:
+            raise StateRegressionError(
+                f"{rel}: control ticket changed after the assist lease "
+                f"(expected {_lifecycle_state_summary(expected)}; "
+                f"found {_ticket_state_summary(actual_bytes)})"
+            )
+        if fallback is not None:
+            fallback(base)
+
+    return guard
+
+
+def _ticket_path_for_task_path(task_path: Path) -> Path:
+    """Resolve a file- or directory-form task path to its ticket markdown."""
+    directory_ticket = task_path / "ticket.md"
+    return directory_ticket if task_path.is_dir() else task_path
+
+
+def _ticket_state_summary(data: bytes | None) -> str:
+    """Compact lifecycle identity for an exact-ticket mismatch message."""
+    if data is None:
+        return "a missing ticket"
+    try:
+        ticket = Ticket.parse(data.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError):
+        return "an unreadable ticket"
+    return (
+        f"status={ticket.status!r}, step={ticket.step!r}, "
+        f"assignee={ticket.assignee!r}"
+    )
+
+
+def _ticket_lifecycle_state(
+    data: bytes | None,
+) -> tuple[str | None, str | None, str | None] | None:
+    if data is None:
+        return None
+    try:
+        ticket = Ticket.parse(data.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError):
+        return None
+    return ticket.status, ticket.step, ticket.assignee
+
+
+def _lifecycle_state_summary(
+    state: tuple[str | None, str | None, str | None],
+) -> str:
+    status, step, assignee = state
+    return f"status={status!r}, step={step!r}, assignee={assignee!r}"
 
 
 def _guard_coga_state_regressions(
@@ -2034,6 +2119,7 @@ def _land_paths_on_control_branch(
     message: str,
     guard: _StateGuard | None = None,
     update_local_control_ref: bool = True,
+    initial_base: str | None = None,
 ) -> None:
     """Land selected pathspecs on the control branch from any branch."""
     remote = cfg.git_remote
@@ -2041,7 +2127,11 @@ def _land_paths_on_control_branch(
     union_rels = union_rels or []
 
     for attempt in range(_MAX_SYNC_ATTEMPTS):
-        base = _control_base_for_attempt(root, remote, branch, attempt)
+        base = (
+            initial_base
+            if attempt == 0 and initial_base is not None
+            else _control_base_for_attempt(root, remote, branch, attempt)
+        )
         if guard is not None:
             guard(base)
 
@@ -2073,7 +2163,8 @@ def _control_base_for_attempt(
         local = _local_control_base(root, remote, branch)
         if local is not None:
             return local
-    _run_git(root, "fetch", remote, branch)
+    push_urls = _remote_push_urls(root, remote)
+    _run_git(root, "fetch", push_urls[0], branch)
     return _run_git(root, "rev-parse", "FETCH_HEAD").strip()
 
 
@@ -2614,17 +2705,47 @@ def _remote_configured(root: Path, remote: str) -> bool:
     return result.returncode == 0
 
 
-def _remote_branch_oid(root: Path, remote: str, branch: str) -> str | None:
-    """Return the live remote branch OID, or None when the branch is absent."""
+def _remote_push_urls(root: Path, remote: str) -> list[str]:
+    """Return every destination affected by ``git push <remote>``."""
     output = _run_git(
         root,
-        "ls-remote",
-        "--heads",
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
         remote,
-        f"refs/heads/{branch}",
     )
-    line = next((line for line in output.splitlines() if line.strip()), "")
-    return line.split(maxsplit=1)[0] if line else None
+    urls = [line.strip() for line in output.splitlines() if line.strip()]
+    if not urls:
+        raise GitError(f"remote {remote!r} has no effective push URL")
+    return urls
+
+
+def _remote_branch_oid(root: Path, remote: str, branch: str) -> str | None:
+    """Return one OID shared by every effective push destination.
+
+    Git reads a remote's fetch URL for ``ls-remote <name>`` but writes its
+    ``pushurl`` values for ``push <name>``. Publication leases must inspect the
+    destinations they actually update. Multiple push URLs are supported only
+    while the named branch has the same presence and OID on all of them.
+    """
+    observed: list[str | None] = []
+    for push_url in _remote_push_urls(root, remote):
+        output = _run_git(
+            root,
+            "ls-remote",
+            "--heads",
+            push_url,
+            f"refs/heads/{branch}",
+        )
+        line = next((line for line in output.splitlines() if line.strip()), "")
+        observed.append(line.split(maxsplit=1)[0] if line else None)
+    if len(set(observed)) != 1:
+        raise GitError(
+            f"effective push destinations for {remote!r}/{branch} disagree "
+            "about the branch tip"
+        )
+    return observed[0]
 
 
 def _prepare_feature_branch_publication(
@@ -2669,7 +2790,8 @@ def _prepare_feature_branch_publication(
     # Fetch the exact branch after advertising it; FETCH_HEAD is the authority
     # for both ancestry and the fast-forward if the branch moved between the
     # two network calls.
-    _run_git(root, "fetch", remote, f"refs/heads/{branch}")
+    push_urls = _remote_push_urls(root, remote)
+    _run_git(root, "fetch", push_urls[0], f"refs/heads/{branch}")
     remote_tip = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
     local_tip = _run_git(root, "rev-parse", "HEAD").strip()
     if local_tip == remote_tip:
@@ -2771,12 +2893,14 @@ def _prepare_feature_branch_publication(
 def feature_publication_lease(
     cfg: Config, task_path: Path, branch: str
 ) -> FeaturePublicationLease:
-    """Verify and lease one exact aligned feature-branch tip.
+    """Verify and lease one exact aligned feature/control state.
 
     Both the child-facing environment reader and launch's post-session
     blocked-resume reblock use this primitive. It never fast-forwards: once a
     prompt has run, a moved branch requires a fresh launch rather than silently
-    changing the state the agent worked against.
+    changing the state the agent worked against. The feature tip's committed
+    lifecycle tuple must also exactly match a freshly fetched control copy; the
+    returned lease rechecks that pre-transition tuple during publication.
     """
     if not cfg.git_enabled:
         raise FeaturePublicationError("assist publication requires git sync")
@@ -2808,10 +2932,44 @@ def feature_publication_lease(
         or local_oid != publication.remote_oid
     ):
         raise FeaturePublicationError(publication.detail)
+
+    ticket_path = _ticket_path_for_task_path(task_path)
+    ticket_rel = _relative_to_root(root, ticket_path)
+    feature_ticket = _tree_bytes(root, local_oid, ticket_rel)
+    try:
+        control_tip = _control_base_for_attempt(
+            root,
+            cfg.git_remote,
+            cfg.git_control_branch,
+            1,
+        )
+        control_ticket = _tree_bytes(root, control_tip, ticket_rel)
+    except GitError as exc:
+        raise FeaturePublicationError(
+            f"could not verify the assist ticket on control branch "
+            f"{cfg.git_control_branch!r}: {exc}"
+        ) from exc
+    if feature_ticket is None:
+        raise FeaturePublicationError(
+            f"assist feature tip has no ticket at {ticket_rel}"
+        )
+    feature_state = _ticket_lifecycle_state(feature_ticket)
+    control_state = _ticket_lifecycle_state(control_ticket)
+    if feature_state is None:
+        raise FeaturePublicationError(
+            f"assist feature tip has an unreadable ticket at {ticket_rel}"
+        )
+    if control_state != feature_state:
+        raise FeaturePublicationError(
+            f"assist ticket does not match fresh control state "
+            f"(feature {_ticket_state_summary(feature_ticket)}; "
+            f"control {_ticket_state_summary(control_ticket)})"
+        )
     return FeaturePublicationLease(
         branch=branch,
         local_oid=local_oid,
         remote_oid=publication.remote_oid,
+        control_ticket_state=feature_state,
     )
 
 
@@ -2840,30 +2998,7 @@ def _remote_branch_present(root: Path, remote: str, branch: str) -> bool:
     """True when the configured remote has `refs/heads/<branch>`."""
     if not _remote_configured(root, remote):
         return False
-
-    result = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "ls-remote",
-            "--exit-code",
-            "--heads",
-            remote,
-            branch,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode == 0:
-        return True
-    if result.returncode == 2:
-        return False
-    raise GitError(
-        f"`git ls-remote --heads {remote} {branch}` failed "
-        f"(exit {result.returncode}): {result.stderr.strip()}"
-    )
+    return _remote_branch_oid(root, remote, branch) is not None
 
 
 def _control_branch_present(root: Path, branch: str, remote: str) -> bool:

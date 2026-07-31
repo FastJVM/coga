@@ -2966,15 +2966,70 @@ def test_recorded_assist_pr_head_accepts_the_configured_fork_remote(
         },
     )
     monkeypatch.setattr(launch_module.git, "_toplevel", lambda path: active_task)
-    monkeypatch.setattr(
-        launch_module.git,
-        "_run_git",
-        lambda root, *args: "ssh://git@github.com/fork-owner/repo.git\n",
-    )
+
+    def push_url(root, *args):  # type: ignore[no-untyped-def]
+        assert args == (
+            "remote",
+            "get-url",
+            "--push",
+            "--all",
+            cfg.git_remote,
+        )
+        return "ssh://git@github.com/fork-owner/repo.git\n"
+
+    monkeypatch.setattr(launch_module.git, "_run_git", push_url)
 
     assert launch_module._verify_recorded_assist_pr_head(
         cfg, ticket, "feature/review"
     ) == "abc123"
+
+
+def test_recorded_assist_pr_head_rejects_any_mismatched_pushurl(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(
+        ref.ticket_path,
+        dedent(
+            """
+            ## Dev
+            branch: feature/review
+            worktree: /tmp/review
+            pr: https://github.com/base/repo/pull/12
+            """
+        ),
+    )
+    ticket = Ticket.read(ref.ticket_path)
+    monkeypatch.setattr(
+        launch_module,
+        "pr_view",
+        lambda url, fields: {
+            "state": "OPEN",
+            "url": url,
+            "headRefName": "feature/review",
+            "headRefOid": "abc123",
+            "headRepository": {"name": "repo"},
+            "headRepositoryOwner": {"login": "fork-owner"},
+        },
+    )
+    monkeypatch.setattr(launch_module.git, "_toplevel", lambda path: active_task)
+    monkeypatch.setattr(
+        launch_module.git,
+        "_run_git",
+        lambda root, *args: (
+            "ssh://git@github.com/fork-owner/repo.git\n"
+            "ssh://git@github.com/base/repo.git\n"
+        ),
+    )
+
+    with pytest.raises(
+        launch_module.git.FeaturePublicationError,
+        match="push URL.*base/repo.git.*publishes from",
+    ):
+        launch_module._verify_recorded_assist_pr_head(
+            cfg, ticket, "feature/review"
+        )
 
 
 def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
@@ -3127,7 +3182,182 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     assert Ticket.read(ticket_path).assignee == "marc"
 
 
-@pytest.mark.parametrize("initial_status", ["active", "paused", "blocked"])
+def test_human_assist_aligns_before_classifying_stale_agent_assignee(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A remote human handoff cannot launch the stale local agent step."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Align the review handoff",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["step"] = "1 (implement)"
+    ticket.frontmatter["assignee"] = "claude"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/21
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed stale handoff")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("implemented\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: implementation")
+    git_repo.git("push", "-u", "origin", "feature/review")
+
+    peer = git_repo.origin.parent / "peer-review-handoff"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
+    peer_ticket = peer / ticket_path.relative_to(git_repo.root)
+    handed_off = Ticket.read(peer_ticket)
+    handed_off.frontmatter["status"] = "in_progress"
+    handed_off.frontmatter["step"] = "2 (review)"
+    handed_off.frontmatter["assignee"] = "marc"
+    handed_off.write(peer_ticket)
+    git_repo.git("add", str(peer_ticket.relative_to(peer)), cwd=peer)
+    git_repo.git("commit", "-m", "ticket: hand off to review", cwd=peer)
+    git_repo.git("push", "origin", "feature/review", cwd=peer)
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        handed_off.render(),
+    )
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    observed: list[tuple[str | None, str | None]] = []
+
+    def observe_review(*args, **kwargs):  # type: ignore[no-untyped-def]
+        current = Ticket.read(ticket_path)
+        observed.append((current.assignee, current.step))
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        observe_review,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        str(created["slug"]),
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert observed == [("marc", "2 (review)")]
+
+
+@pytest.mark.parametrize(
+    ("local_status", "control_status"),
+    [
+        ("active", "paused"),
+        ("active", "blocked"),
+        ("in_progress", "done"),
+    ],
+)
+def test_human_assist_refuses_mismatched_fresh_control_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    local_status: str,
+    control_status: str,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Refuse control {control_status}",
+        status=local_status,
+    )
+    control_ticket = Ticket.read(ticket_path)
+    control_ticket.frontmatter["status"] = control_status
+    if control_status == "done":
+        control_ticket.frontmatter.pop("step", None)
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        control_ticket.render(),
+    )
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    child_started = False
+
+    def unexpected_child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal child_started
+        child_started = True
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        unexpected_child,
+    )
+
+    with pytest.raises(SystemExit):
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert child_started is False
+    assert Ticket.read(ticket_path).status == local_status
+    assert f"status: {control_status}" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+@pytest.mark.parametrize(
+    "initial_status",
+    ["draft", "active", "paused", "blocked"],
+)
 def test_human_assist_aligns_resumable_state_before_lifecycle_commits(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -3398,6 +3628,10 @@ def test_blocked_human_assist_republishes_unresolved_reblock(
     git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
     git_repo.git("commit", "-m", "ticket: record review blocker")
     git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.read_text(),
+    )
 
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
@@ -3440,6 +3674,160 @@ def test_blocked_human_assist_republishes_unresolved_reblock(
     assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
         "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
     ).strip()
+
+
+def test_blocked_human_assist_explicit_block_publishes_through_lease(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Explicitly reblock review",
+        status="blocked",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record explicit reblock ask")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.read_text(),
+    )
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def explicitly_reblock(*args, **kwargs):  # type: ignore[no-untyped-def]
+        child_env = args[1]
+        result = CliRunner().invoke(
+            app,
+            [
+                "block",
+                "--task",
+                str(created["slug"]),
+                "--reason",
+                "owner must choose the retry ceiling",
+            ],
+            env=child_env,
+        )
+        assert result.exit_code == 0, result.output
+        return ReplOutcome(exit_code=0, kind="done")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        explicitly_reblock,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        str(created["slug"]),
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert Ticket.read(ticket_path).status == "blocked"
+    assert "status: blocked" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: blocked" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+
+
+def test_automatic_reblock_race_restores_ticket_and_log_bytes(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Restore a raced automatic reblock",
+        status="in_progress",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record raced reblock ask")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.read_text(),
+    )
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    log_path = git_repo.coga_os / "log.md"
+    ticket_before = ticket_path.read_bytes()
+    log_before = log_path.read_bytes() if log_path.is_file() else None
+    real_mark_blocked = launch_module.mark_blocked
+
+    def race_before_reblock(*args, **kwargs):  # type: ignore[no-untyped-def]
+        peer = git_repo.origin.parent / "peer-automatic-reblock-race"
+        git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+        git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+        git_repo.git("config", "user.name", "Peer", cwd=peer)
+        git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+        git_repo.git(
+            "checkout",
+            "-B",
+            "feature/review",
+            "origin/feature/review",
+            cwd=peer,
+        )
+        (peer / "peer.txt").write_text("won automatic reblock race\n")
+        git_repo.git("add", "peer.txt", cwd=peer)
+        git_repo.git("commit", "-m", "review: win reblock race", cwd=peer)
+        git_repo.git("push", "origin", "feature/review", cwd=peer)
+        return real_mark_blocked(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "coga.commands.launch.mark_blocked",
+        race_before_reblock,
+    )
+
+    with pytest.raises(SystemExit):
+        launch_module._reblock_unresolved_resume(
+            cfg,
+            ref,
+            "claude",
+            feature_branch="feature/review",
+        )
+
+    assert ticket_path.read_bytes() == ticket_before
+    if log_before is None:
+        assert not log_path.exists()
+    else:
+        assert log_path.read_bytes() == log_before
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
 
 
 def test_human_assist_from_recorded_linked_worktree_starts_clean(
@@ -3544,13 +3932,16 @@ def test_human_assist_from_recorded_linked_worktree_starts_clean(
     ).strip()
 
 
-def test_paused_human_assist_preflight_failure_preserves_paused_state(
-    git_repo, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("initial_status", ["draft", "paused"])
+def test_parked_human_assist_preflight_failure_preserves_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    initial_status: str,
 ) -> None:
     created, ticket_path = _seed_single_checkout_human_review(
         git_repo,
-        title="Keep paused review retryable",
-        status="paused",
+        title=f"Keep {initial_status} review retryable",
+        status=initial_status,
     )
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
@@ -3571,20 +3962,82 @@ def test_paused_human_assist_preflight_failure_preserves_paused_state(
             queue_guidance=False,
         )
 
-    assert Ticket.read(ticket_path).status == "paused"
+    assert Ticket.read(ticket_path).status == initial_status
     assert git_repo.git("status", "--porcelain").strip() == ""
     assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
         "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
     ).strip()
 
 
-def test_paused_human_assist_activation_failure_restores_paused_state(
-    git_repo, monkeypatch: pytest.MonkeyPatch
+def test_human_assist_notification_preflight_preserves_unstarted_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     created, ticket_path = _seed_single_checkout_human_review(
         git_repo,
-        title="Roll back a failed review activation",
-        status="paused",
+        title="Require notification config before review",
+        status="active",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    child_started = False
+
+    def unexpected_child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal child_started
+        child_started = True
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        unexpected_child,
+    )
+
+    with pytest.raises(SystemExit):
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert child_started is False
+    assert Ticket.read(ticket_path).status == "active"
+    assert "status: active" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+@pytest.mark.parametrize("initial_status", ["draft", "paused"])
+def test_parked_human_assist_activation_failure_restores_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    initial_status: str,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Roll back a failed {initial_status} review activation",
+        status=initial_status,
     )
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
@@ -3622,7 +4075,7 @@ def test_paused_human_assist_activation_failure_restores_paused_state(
             queue_guidance=False,
         )
 
-    assert Ticket.read(ticket_path).status == "paused"
+    assert Ticket.read(ticket_path).status == initial_status
     assert git_repo.git("status", "--porcelain").strip() == ""
     assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
         "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin

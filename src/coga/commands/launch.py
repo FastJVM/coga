@@ -71,6 +71,7 @@ from coga.mark import (
     mark_blocked,
     mark_in_progress,
 )
+from coga.notification import preflight_post
 from coga.paths import PackagedResourceMissing, read_packaged_resource
 from coga.open_pr import same_git_checkout
 from coga.repl_supervisor import (
@@ -206,7 +207,6 @@ def launch(
                 or alignment_ticket.status
                 not in {"draft", "active", "in_progress", "paused", "blocked"}
                 or not _interactive_stdio_has_tty()
-                or alignment_ticket.assignee in cfg.agents
                 or candidate_assist_branch is None
             ):
                 break
@@ -382,9 +382,10 @@ def launch(
         and aligned_assist_remote_oid is not None
         else None
     )
-    defer_assist_activation = (
-        assist_publication is not None and ticket.status == "paused"
-    )
+    defer_assist_activation = assist_publication is not None and ticket.status in {
+        "draft",
+        "paused",
+    }
     assist_rollback: dict[Path, bytes | None] | None = None
     assist_lifecycle_published = False
     try:
@@ -457,6 +458,18 @@ def launch(
         except SecretError as exc:
             _bail(str(exc))
 
+        # Strict assist state is published before its start notification. Catch
+        # reproducible notification configuration errors while both branches
+        # and the working tree still hold the pre-launch lifecycle state.
+        if assist_publication is not None and ticket.status != "in_progress":
+            try:
+                preflight_post(cfg)
+            except typer.Exit:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: notification configuration "
+                    "must be valid before assist lifecycle state is published."
+                )
+
         # Refuse to start an agent session when git push access is broken. Coga
         # drives the whole session through git/gh (branch push, `gh pr create`,
         # every `coga bump` syncs ticket state), so a dead remote means an
@@ -490,6 +503,26 @@ def launch(
                     "during launch preflight; retry so the prompt and lifecycle "
                     "state use the same tip. No agent was started."
                 )
+            try:
+                fresh_publication = git.feature_publication_lease(
+                    cfg,
+                    ref.path,
+                    assist_publication.branch,
+                )
+            except git.FeaturePublicationError as exc:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: the recorded assist state "
+                    "no longer matches the PR and control branches. No agent "
+                    f"was started: {exc}"
+                )
+            if fresh_publication.remote_oid != current_pr_head_oid:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: the recorded PR branch moved "
+                    "while its control state was being verified. Retry so the "
+                    "prompt and lifecycle state use one exact tip. No agent "
+                    "was started."
+                )
+            assist_publication = fresh_publication
 
         assist_rollback = (
             _snapshot_assist_state(cfg, ref)
@@ -499,7 +532,7 @@ def launch(
         if (
             defer_assist_activation
             and isinstance(ref, TaskRef)
-            and ticket.status == "paused"
+            and ticket.status in {"draft", "paused"}
         ):
             _auto_activate(cfg, ref, ticket, sync_state=False)
         if blocked_resume and isinstance(ref, TaskRef) and ticket.status == "blocked":
@@ -620,6 +653,29 @@ def launch(
             )
 
             _echo_launch_iteration(ref, ticket)
+            if publish_assist_branch is not None:
+                try:
+                    spawn_lease = git.feature_publication_lease(
+                        cfg,
+                        ref.path,
+                        publish_assist_branch,
+                    )
+                    spawn_pr_oid = _verify_recorded_assist_pr_head(
+                        cfg,
+                        ticket,
+                        publish_assist_branch,
+                    )
+                except git.FeaturePublicationError as exc:
+                    _bail(
+                        f"Cannot start {ref.id_slug}'s assist: its recorded PR "
+                        f"or control state changed after preflight: {exc}"
+                    )
+                if spawn_lease.remote_oid != spawn_pr_oid:
+                    _bail(
+                        f"Cannot start {ref.id_slug}'s assist: its recorded PR "
+                        "head moved after control-state verification; retry "
+                        "from the current review tip."
+                    )
             step_env = dict(env)
             step_env[EXPECTED_TASK_ENV] = str(ref.path.resolve())
             step_env[EXPECTED_STEP_ENV] = ticket.step or ""
@@ -855,6 +911,11 @@ def _reblock_unresolved_resume(
                 f"Could not return {ref.id_slug} to blocked on the recorded "
                 f"assist branch after the unresolved session: {exc}"
             )
+    rollback = (
+        _snapshot_assist_state(cfg, ref)
+        if feature_publication is not None
+        else None
+    )
     try:
         mark_blocked(
             cfg,
@@ -875,11 +936,15 @@ def _reblock_unresolved_resume(
             feature_publication=feature_publication,
         )
     except git.FeaturePublicationError as exc:
+        if rollback is not None:
+            _restore_assist_state(rollback)
         _bail(
             f"Could not publish {ref.id_slug}'s unresolved blocked state to "
             f"the recorded assist branch: {exc}"
         )
     except TaskValidationError as exc:
+        if rollback is not None:
+            _restore_assist_state(rollback)
         _bail(str(exc))
 
 
@@ -1065,29 +1130,33 @@ def _verify_recorded_assist_pr_head(
         raise git.FeaturePublicationError(
             "recorded assist checkout is not inside a git repository"
         )
-    remote_url = git._run_git(
-        root, "remote", "get-url", cfg.git_remote
-    ).strip()
-    remote_identity = _git_remote_repository_identity(remote_url)
+    push_urls = git._remote_push_urls(root, cfg.git_remote)
     pr_host = (urlsplit(pr_url).hostname or "").casefold()
     expected_identity = (
         pr_host,
         owner_login.casefold(),
         repository_name.casefold(),
     )
-    if remote_identity is None:
+    if not push_urls:
         raise git.FeaturePublicationError(
-            f"configured remote {cfg.git_remote!r} URL {remote_url!r} does not "
-            "identify a GitHub repository"
+            f"configured remote {cfg.git_remote!r} has no effective push URL"
         )
-    if remote_identity != expected_identity:
-        remote_repo = "/".join(remote_identity[1:])
-        pr_repo = f"{owner_login}/{repository_name}"
-        raise git.FeaturePublicationError(
-            f"configured remote {cfg.git_remote!r} identifies "
-            f"{remote_identity[0]}/{remote_repo}, but recorded PR {pr_url} "
-            f"publishes from {pr_host}/{pr_repo}"
-        )
+    for push_url in push_urls:
+        remote_identity = _git_remote_repository_identity(push_url)
+        if remote_identity is None:
+            raise git.FeaturePublicationError(
+                f"configured remote {cfg.git_remote!r} push URL "
+                f"{push_url!r} does not identify a GitHub repository"
+            )
+        if remote_identity != expected_identity:
+            remote_repo = "/".join(remote_identity[1:])
+            pr_repo = f"{owner_login}/{repository_name}"
+            raise git.FeaturePublicationError(
+                f"configured remote {cfg.git_remote!r} push URL "
+                f"{push_url!r} identifies "
+                f"{remote_identity[0]}/{remote_repo}, but recorded PR {pr_url} "
+                f"publishes from {pr_host}/{pr_repo}"
+            )
     return head_oid
 
 
