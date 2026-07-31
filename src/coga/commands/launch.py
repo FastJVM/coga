@@ -210,92 +210,112 @@ def launch(
         )
 
     if not prompt_report and agent_override is not None:
-        for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
-            alignment_ticket = read_ticket(ref)
-            alignment_is_human_assist = (
-                not is_bootstrap
-                and bool(alignment_ticket.assignee)
-                and alignment_ticket.assignee not in cfg.agents
-            )
-            if (
-                alignment_is_human_assist
-                and alignment_ticket.status
-                in {"draft", "active", "in_progress", "paused", "blocked"}
-                and not _interactive_stdio_has_tty()
-            ):
-                _refuse_tty_launch(
-                    ref,
-                    exit_code=(
-                        git.RETRY_WITHOUT_SWEEP_EXIT_CODE
-                        if _has_retained_append_only_assist_log(cfg)
-                        else 2
-                    ),
+        try:
+            for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
+                alignment_ticket = read_ticket(ref)
+                alignment_is_human_assist = (
+                    not is_bootstrap
+                    and bool(alignment_ticket.assignee)
+                    and alignment_ticket.assignee not in cfg.agents
                 )
-            candidate_assist_branch = (
-                None
-                if not alignment_is_human_assist
-                else _recorded_single_checkout_assist_branch(cfg, alignment_ticket)
-            )
-            if candidate_assist_branch is not None:
-                assist_setup_started = True
-            if (
-                is_bootstrap
-                or alignment_ticket.status
-                not in {"draft", "active", "in_progress", "paused", "blocked"}
-                or candidate_assist_branch is None
-            ):
-                break
-            try:
-                if candidate_assist_branch == cfg.git_control_branch:
-                    raise git.FeaturePublicationError(
-                        f"recorded assist branch {candidate_assist_branch!r} "
-                        "has the same name as the configured control branch; "
-                        "strict assist publication requires a distinct branch"
+                if (
+                    alignment_is_human_assist
+                    and alignment_ticket.status
+                    in {"draft", "active", "in_progress", "paused", "blocked"}
+                    and not _interactive_stdio_has_tty()
+                ):
+                    _refuse_tty_launch(
+                        ref,
+                        exit_code=(
+                            git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                            if _has_retained_append_only_assist_log(cfg)
+                            else 2
+                        ),
                     )
-                pr_head_oid = _verify_recorded_assist_pr_head(
-                    cfg, alignment_ticket, candidate_assist_branch
-                )
-                moved, remote_oid = _align_recorded_assist_checkout(
-                    cfg, alignment_ticket
-                )
-                if remote_oid != pr_head_oid:
-                    raise git.FeaturePublicationError(
-                        f"configured remote {cfg.git_remote!r} branch "
-                        f"{candidate_assist_branch!r} is at {remote_oid}, but "
-                        f"the recorded PR head is {pr_head_oid}"
+                candidate_assist_branch = (
+                    None
+                    if not alignment_is_human_assist
+                    else _recorded_single_checkout_assist_branch(
+                        cfg, alignment_ticket
                     )
-            except git.GitError as exc:
+                )
+                if candidate_assist_branch is not None:
+                    assist_setup_started = True
+                if (
+                    is_bootstrap
+                    or alignment_ticket.status
+                    not in {"draft", "active", "in_progress", "paused", "blocked"}
+                    or candidate_assist_branch is None
+                ):
+                    break
+                try:
+                    if candidate_assist_branch == cfg.git_control_branch:
+                        raise git.FeaturePublicationError(
+                            f"recorded assist branch {candidate_assist_branch!r} "
+                            "has the same name as the configured control branch; "
+                            "strict assist publication requires a distinct branch"
+                        )
+                    pr_head_oid = _verify_recorded_assist_pr_head(
+                        cfg, alignment_ticket, candidate_assist_branch
+                    )
+                    moved, remote_oid = _align_recorded_assist_checkout(
+                        cfg, alignment_ticket
+                    )
+                    if remote_oid != pr_head_oid:
+                        raise git.FeaturePublicationError(
+                            f"configured remote {cfg.git_remote!r} branch "
+                            f"{candidate_assist_branch!r} is at {remote_oid}, but "
+                            f"the recorded PR head is {pr_head_oid}"
+                        )
+                except git.GitError as exc:
+                    setup_bail(
+                        f"Cannot launch {ref.id_slug}: could not verify and align "
+                        f"the recorded assist checkout before composing the "
+                        f"prompt: {exc}"
+                    )
+                if not moved:
+                    _, alignment_blackboard = split_body(alignment_ticket.body)
+                    aligned_assist_branch = candidate_assist_branch
+                    aligned_assist_remote_oid = remote_oid
+                    aligned_assist_pr_url = parse_pr_url(
+                        alignment_blackboard or ""
+                    )
+                    break
+                try:
+                    cfg = load_config(cfg.repo_root)
+                    ref = resolve_target(cfg, resolved_target_slug)
+                    if ref.id_slug != resolved_target_slug:
+                        raise TaskNotFoundError(
+                            f"Selected task {resolved_target_slug!r} disappeared "
+                            "during assist alignment; refusing to launch the "
+                            f"different prefix match {ref.id_slug!r}."
+                        )
+                except (ConfigError, TaskNotFoundError) as exc:
+                    setup_bail(str(exc))
+                is_bootstrap = isinstance(ref, BootstrapRef)
+            else:
                 setup_bail(
-                    f"Cannot launch {ref.id_slug}: could not verify and align "
-                    f"the recorded assist checkout before composing the "
-                    f"prompt: {exc}"
+                    f"Cannot launch {ref.id_slug}: the recorded assist branch "
+                    f"moved during {_ASSIST_ALIGNMENT_ATTEMPTS} consecutive "
+                    "alignment attempts; retry once the PR branch is stable."
                 )
-            if not moved:
-                _, alignment_blackboard = split_body(alignment_ticket.body)
-                aligned_assist_branch = candidate_assist_branch
-                aligned_assist_remote_oid = remote_oid
-                aligned_assist_pr_url = parse_pr_url(
-                    alignment_blackboard or ""
-                )
-                break
-            try:
-                cfg = load_config(cfg.repo_root)
-                ref = resolve_target(cfg, resolved_target_slug)
-                if ref.id_slug != resolved_target_slug:
-                    raise TaskNotFoundError(
-                        f"Selected task {resolved_target_slug!r} disappeared "
-                        "during assist alignment; refusing to launch the "
-                        f"different prefix match {ref.id_slug!r}."
-                    )
-            except (ConfigError, TaskNotFoundError) as exc:
-                setup_bail(str(exc))
-            is_bootstrap = isinstance(ref, BootstrapRef)
-        else:
-            setup_bail(
-                f"Cannot launch {ref.id_slug}: the recorded assist branch moved "
-                f"during {_ASSIST_ALIGNMENT_ATTEMPTS} consecutive alignment "
-                "attempts; retry once the PR branch is stable."
+        except BaseException as exc:
+            if not assist_setup_started:
+                raise
+            if (
+                isinstance(exc, SystemExit)
+                and exc.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+            ):
+                raise
+            detail = str(exc).strip() or type(exc).__name__
+            typer.secho(
+                f"Cannot launch {ref.id_slug}: assist alignment/setup failed "
+                f"after the recorded checkout was selected ({detail}). "
+                "Retained state was left for an explicit retry.",
+                fg=typer.colors.RED,
+                err=True,
             )
+            raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
 
     # Alignment may fast-forward coga.toml itself. Resolve an explicit override
     # only after that final tree is authoritative for the launch.
@@ -1221,6 +1241,12 @@ def _reblock_unresolved_resume(
         if feature_publication is not None
         else None
     )
+    publication_succeeded = False
+
+    def record_publication() -> None:
+        nonlocal publication_succeeded
+        publication_succeeded = True
+
     try:
         mark_blocked(
             cfg,
@@ -1241,13 +1267,17 @@ def _reblock_unresolved_resume(
             feature_publication=feature_publication,
             feature_publication_guard=feature_publication_guard,
             mutation_snapshot=rollback,
+            after_sync=record_publication if rollback is not None else None,
         )
     except git.FeaturePublicationError as exc:
         rollback_note = ""
-        if isinstance(exc, git.UncertainFeaturePublicationError):
+        if (
+            publication_succeeded
+            or isinstance(exc, git.UncertainFeaturePublicationError)
+        ):
             rollback_note = (
-                "; generated state was retained because remote publication "
-                "could not be determined"
+                "; generated state was retained because publication succeeded "
+                "or could not be determined"
             )
         elif rollback is not None:
             rollback_note = _restore_assist_state(rollback)
@@ -1271,6 +1301,22 @@ def _reblock_unresolved_resume(
                 post_session=True,
             ) from exc
         _bail(f"{exc}{rollback_note}")
+    except BaseException as exc:
+        if rollback is None:
+            raise
+        if publication_succeeded:
+            rollback_note = (
+                "; generated state was retained because feature and control "
+                "publication already succeeded"
+            )
+        else:
+            rollback_note = _restore_assist_state(rollback)
+        detail = str(exc).strip() or type(exc).__name__
+        raise _AssistPublicationRefused(
+            f"Could not complete {ref.id_slug}'s automatic unresolved re-block "
+            f"after {type(exc).__name__}: {detail}{rollback_note}",
+            post_session=True,
+        ) from exc
 
 
 def _preflight_push_auth(

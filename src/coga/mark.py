@@ -490,6 +490,8 @@ def mark_active(
     """
     prior_status = ticket.status
     prepare_active(cfg, ref, ticket)
+    if mutation_snapshot is not None:
+        mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket.write(ref.ticket_path)
     if mutation_snapshot is not None:
         # Strict callers captured the pre-mutation bytes. Arm immediately after
@@ -536,6 +538,8 @@ def mark_in_progress(
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
+    if mutation_snapshot is not None:
+        mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket.write(ref.ticket_path)
     if mutation_snapshot is not None:
         # A validation exception is still a failed generated mutation; make it
@@ -606,10 +610,13 @@ def mark_blocked(
     feature_publication: git.FeaturePublicationLease | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
     mutation_snapshot: git.FileMutationRollback | None = None,
+    after_sync: Callable[[], None] | None = None,
 ) -> None:
     """Flip a ticket to `blocked` without changing its workflow step."""
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "blocked"
+    if mutation_snapshot is not None:
+        mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket.write(ref.ticket_path)
     if mutation_snapshot is not None:
         # Arm before validation so a strict block rejected by validation does
@@ -629,6 +636,7 @@ def mark_blocked(
             guard=_state_guard(cfg, ref),
             feature_publication=feature_publication,
             feature_publication_guard=feature_publication_guard,
+            after_strict_publication=after_sync,
             generated_paths=(
                 mutation_snapshot.generated
                 if mutation_snapshot is not None

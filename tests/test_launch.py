@@ -12,7 +12,9 @@ from typer.testing import CliRunner
 from conftest import seed_direct_body_workflow
 from coga.cli import app
 from coga.blackboard import append_blocker
+from coga.commands import block as block_module
 from coga.commands import launch as launch_module
+from coga.commands import unblock as unblock_module
 from coga.create import create_task
 from coga.commands.launch import (
     _MAX_PROMPT_ARG_BYTES,
@@ -4114,6 +4116,74 @@ def test_strict_block_preflights_notification_before_mutation(
 
 
 @pytest.mark.parametrize("command", ["block", "unblock"])
+def test_strict_state_command_interrupt_after_first_mutation_rolls_back(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    """Signals after the first ticket edit use exit 75 and retain no half-state."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Interrupt strict {command}",
+        status="in_progress",
+    )
+    if command == "unblock":
+        append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+        git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+        git_repo.git("commit", "-m", "ticket: record interrupted unblock ask")
+        git_repo.git("push", "origin", "feature/review")
+    _allow_recorded_assist_pr(monkeypatch)
+    before_ticket = ticket_path.read_bytes()
+    audit = git_repo.coga_os / "log.md"
+    before_audit = audit.read_bytes() if audit.is_file() else None
+    command_module = block_module if command == "block" else unblock_module
+    real_read_ticket = command_module.read_ticket
+    reads = 0
+
+    def interrupt_second_read(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal reads
+        reads += 1
+        if reads == 2:
+            raise KeyboardInterrupt()
+        return real_read_ticket(*args, **kwargs)
+
+    monkeypatch.setattr(command_module, "read_ticket", interrupt_second_read)
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+    argv = (
+        [
+            "block",
+            "--task",
+            str(created["slug"]),
+            "--reason",
+            "owner input still required",
+        ]
+        if command == "block"
+        else [
+            "unblock",
+            str(created["slug"]),
+            "--answer",
+            "cap at five minutes",
+        ]
+    )
+
+    result = CliRunner().invoke(app, argv, env=child_env)
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "after KeyboardInterrupt" in result.output
+    assert ticket_path.read_bytes() == before_ticket
+    if before_audit is None:
+        assert not audit.exists()
+    else:
+        assert audit.read_bytes() == before_audit
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+@pytest.mark.parametrize("command", ["block", "unblock"])
 def test_in_session_state_command_refuses_after_recorded_pr_closes(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -4368,6 +4438,53 @@ def test_automatic_reblock_race_restores_ticket_and_log_bytes(
         f"refs/heads/feature/review:{rel}",
         cwd=git_repo.origin,
     )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_automatic_reblock_interrupt_restores_generated_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Interrupt an automatic reblock",
+        status="in_progress",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record interrupted reblock ask")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.read_text(),
+    )
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    audit = git_repo.coga_os / "log.md"
+    before_ticket = ticket_path.read_bytes()
+    before_audit = audit.read_bytes() if audit.is_file() else None
+    monkeypatch.setattr(
+        "coga.mark.assert_task_valid",
+        lambda *args, **kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+
+    with pytest.raises(
+        launch_module._AssistPublicationRefused,
+        match="after KeyboardInterrupt",
+    ) as excinfo:
+        launch_module._reblock_unresolved_resume(
+            cfg,
+            ref,
+            "claude",
+            feature_branch="feature/review",
+        )
+
+    assert excinfo.value.post_session is True
+    assert ticket_path.read_bytes() == before_ticket
+    if before_audit is None:
+        assert not audit.exists()
+    else:
+        assert audit.read_bytes() == before_audit
     assert git_repo.git("status", "--porcelain").strip() == ""
 
 
@@ -4678,6 +4795,63 @@ def test_final_assist_lease_rechecks_exact_ticket_bytes(
     assert "PEER EDIT DURING LEASE" in ticket_path.read_text()
     rel = str(ticket_path.relative_to(git_repo.root))
     assert "PEER EDIT DURING LEASE" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+
+
+def test_final_assist_state_write_rechecks_snapshot_bytes(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A peer edit after snapshot capture is never replaced by a stale Ticket."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Guard the final assist state write",
+        status="active",
+    )
+    cfg = load_config(git_repo.coga_os)
+    ref = next(
+        ref for ref in list_tasks(cfg) if ref.id_slug == str(created["slug"])
+    )
+    expected = Ticket.read(ticket_path)
+    expected_bytes = ticket_path.read_bytes()
+    real_mark_in_progress = launch_module.mark_in_progress
+
+    def edit_before_state_write(*args, **kwargs):  # type: ignore[no-untyped-def]
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "## Description\n\n",
+                "## Description\n\nPEER EDIT BEFORE STATE WRITE\n\n",
+            )
+        )
+        return real_mark_in_progress(*args, **kwargs)
+
+    monkeypatch.setattr(
+        launch_module,
+        "mark_in_progress",
+        edit_before_state_write,
+    )
+
+    with pytest.raises(
+        launch_module._AssistPublicationRefused,
+        match="strict mutation input changed",
+    ):
+        launch_module._publish_assist_lifecycle_before_spawn(
+            cfg,
+            ref,
+            expected=expected,
+            expected_bytes=expected_bytes,
+            branch="feature/review",
+            launch_assignee="claude",
+            publication_guard=lambda oid: None,
+        )
+
+    assert "PEER EDIT BEFORE STATE WRITE" in ticket_path.read_text()
+    assert Ticket.read(ticket_path).status == "active"
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "PEER EDIT BEFORE STATE WRITE" not in git_repo.git(
         "show",
         f"refs/heads/feature/review:{rel}",
         cwd=git_repo.origin,
@@ -5126,6 +5300,59 @@ def test_aligned_assist_unreadable_ticket_uses_no_sweep_exit(
         "refs/heads/feature/review",
         cwd=git_repo.origin,
     ).strip() == remote_before
+    assert str(ticket_path.relative_to(git_repo.root)) in git_repo.git(
+        "status", "--porcelain"
+    )
+
+
+def test_assist_alignment_reread_failure_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The loop's first reread after a fast-forward stays in the assist boundary."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain a failed post-alignment reread",
+        status="in_progress",
+    )
+    remote_oid = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+
+    def align_then_corrupt(*args, **kwargs):  # type: ignore[no-untyped-def]
+        ticket_path.write_text("malformed immediately after alignment\n")
+        return True, remote_oid
+
+    monkeypatch.setattr(
+        launch_module,
+        "_align_recorded_assist_checkout",
+        align_then_corrupt,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_launch_checkout",
+        lambda *args, **kwargs: pytest.fail(
+            "a failed aligned reread must not run the generic refresh"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert ticket_path.read_text() == "malformed immediately after alignment\n"
     assert str(ticket_path.relative_to(git_repo.root)) in git_repo.git(
         "status", "--porcelain"
     )

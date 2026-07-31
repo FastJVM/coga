@@ -173,22 +173,32 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
             (ref.ticket_path, log_path(cfg)),
             union_paths=(log_path(cfg),),
         )
-    resolve_open_blockers(ref.ticket_path, actor, answer)
-    ticket = read_ticket(ref)
+    publication_succeeded = False
 
-    if ticket.status == "in_progress":
-        # Launch already reactivated the ticket (blocked → active →
-        # in_progress); the session is recording its resolution mid-step.
-        # Resolve-only: no status flip, `step:` untouched.
-        append_log(
-            cfg,
-            ref.id_slug,
-            actor,
-            f"unblocked (asks resolved, still in_progress): {answer}",
-        )
+    def record_publication() -> None:
+        nonlocal publication_succeeded
+        publication_succeeded = True
+
+    try:
+        resolve_open_blockers(ref.ticket_path, actor, answer)
         if rollback is not None:
+            # Resolving the asks is the first generated ticket revision and the
+            # exact input any following status write is allowed to replace.
             rollback.arm()
-        try:
+        ticket = read_ticket(ref)
+
+        if ticket.status == "in_progress":
+            # Launch already reactivated the ticket (blocked → active →
+            # in_progress); the session is recording its resolution mid-step.
+            # Resolve-only: no status flip, `step:` untouched.
+            append_log(
+                cfg,
+                ref.id_slug,
+                actor,
+                f"unblocked (asks resolved, still in_progress): {answer}",
+            )
+            if rollback is not None:
+                rollback.arm()
             git.sync_task_state(
                 cfg,
                 ref.path,
@@ -196,28 +206,16 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 guard=git.ticket_state_guard(cfg, ref.ticket_path),
                 feature_publication=assist_publication,
                 feature_publication_guard=assist_guard,
+                after_strict_publication=(
+                    record_publication if rollback is not None else None
+                ),
                 generated_paths=(
                     rollback.generated if rollback is not None else None
                 ),
             )
-        except git.FeaturePublicationError as exc:
-            rollback_note = ""
-            if isinstance(exc, git.UncertainFeaturePublicationError):
-                rollback_note = (
-                    "; generated state was retained because remote "
-                    "publication could not be determined"
-                )
-            elif rollback is not None:
-                rollback_note = _rollback_note(rollback)
-            raise _UnblockError(
-                "Could not publish the blocker resolution to the recorded "
-                f"assist branch: {exc}{rollback_note}",
-                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-            ) from exc
-        typer.echo(f"{ref.id_slug}: open asks resolved (still in_progress)")
-        return
+            typer.echo(f"{ref.id_slug}: open asks resolved (still in_progress)")
+            return
 
-    try:
         if assist_publication is None:
             mark_active(
                 cfg,
@@ -245,22 +243,21 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 guard=git.ticket_state_guard(cfg, ref.ticket_path),
                 feature_publication=assist_publication,
                 feature_publication_guard=assist_guard,
+                after_strict_publication=record_publication,
                 generated_paths=rollback.generated,
             )
             typer.echo(f"{ref.id_slug}: active (unblocked)")
     except git.FeaturePublicationError as exc:
-        rollback_note = ""
-        if isinstance(exc, git.UncertainFeaturePublicationError):
-            rollback_note = (
-                "; generated state was retained because remote publication "
-                "could not be determined"
+        if rollback is not None:
+            _raise_strict_unblock_error(
+                "Could not publish the blocker resolution to the recorded "
+                f"assist branch: {exc}",
+                exc,
+                rollback,
+                publication_succeeded=publication_succeeded,
             )
-        elif rollback is not None:
-            rollback_note = _rollback_note(rollback)
         raise _UnblockError(
-            f"Could not publish {ref.id_slug}'s active state to the recorded "
-            f"assist branch: {exc}{rollback_note}",
-            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+            f"Could not publish {ref.id_slug}'s unblock state: {exc}",
         ) from exc
     except WorkflowMissing:
         _raise_unblock_error(
@@ -283,6 +280,17 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
         )
     except TaskValidationError as exc:
         _raise_unblock_error(str(exc), rollback)
+    except BaseException as exc:
+        if rollback is None:
+            raise
+        detail = str(exc).strip() or type(exc).__name__
+        _raise_strict_unblock_error(
+            f"Could not complete {ref.id_slug}'s strict unblock transition "
+            f"after {type(exc).__name__}: {detail}",
+            exc,
+            rollback,
+            publication_succeeded=publication_succeeded,
+        )
 
 
 def _raise_unblock_error(
@@ -300,6 +308,29 @@ def _raise_unblock_error(
             else 2
         ),
     )
+
+
+def _raise_strict_unblock_error(
+    message: str,
+    cause: BaseException,
+    rollback: git.FileMutationRollback,
+    *,
+    publication_succeeded: bool,
+) -> None:
+    if (
+        publication_succeeded
+        or isinstance(cause, git.UncertainFeaturePublicationError)
+    ):
+        rollback_note = (
+            "; generated state was retained because publication succeeded or "
+            "could not be determined"
+        )
+    else:
+        rollback_note = _rollback_note(rollback)
+    raise _UnblockError(
+        f"{message}{rollback_note}",
+        exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+    ) from cause
 
 
 def _rollback_note(rollback: git.FileMutationRollback) -> str:

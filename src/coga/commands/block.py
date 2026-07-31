@@ -80,12 +80,21 @@ def block(
         if effective_assignee
         else f"human:{cfg.current_user}"
     )
-    append_blocker(ref.ticket_path, actor, reason)
-
     owner = ticket.owner or cfg.current_user
     blocker = effective_assignee or cfg.current_user
-    ticket = read_ticket(ref)
+    publication_succeeded = False
+
+    def record_publication() -> None:
+        nonlocal publication_succeeded
+        publication_succeeded = True
+
     try:
+        append_blocker(ref.ticket_path, actor, reason)
+        if rollback is not None:
+            # The blocker append is the first generated ticket revision. Make
+            # it both rollback-safe and the expected input to the status write.
+            rollback.arm()
+        ticket = read_ticket(ref)
         mark_blocked(
             cfg,
             ref,
@@ -101,13 +110,17 @@ def block(
             feature_publication=assist_publication,
             feature_publication_guard=assist_guard,
             mutation_snapshot=rollback,
+            after_sync=record_publication if rollback is not None else None,
         )
     except git.FeaturePublicationError as exc:
         rollback_note = ""
-        if isinstance(exc, git.UncertainFeaturePublicationError):
+        if (
+            publication_succeeded
+            or isinstance(exc, git.UncertainFeaturePublicationError)
+        ):
             rollback_note = (
-                "; generated state was retained because remote publication "
-                "could not be determined"
+                "; generated state was retained because publication succeeded "
+                "or could not be determined"
             )
         elif rollback is not None:
             rollback_note = _rollback_note(rollback)
@@ -131,6 +144,22 @@ def block(
                 if rollback is not None
                 else 2
             ),
+        )
+    except BaseException as exc:
+        if rollback is None:
+            raise
+        if publication_succeeded:
+            rollback_note = (
+                "; generated state was retained because feature and control "
+                "publication already succeeded"
+            )
+        else:
+            rollback_note = _rollback_note(rollback)
+        detail = str(exc).strip() or type(exc).__name__
+        _bail(
+            f"Could not complete {ref.id_slug}'s strict blocked transition "
+            f"after {type(exc).__name__}: {detail}{rollback_note}",
+            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
         )
 
     # `id_slug` (not the resolved path) scopes the signal so it matches the
