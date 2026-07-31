@@ -1,7 +1,7 @@
 ---
 slug: document-megalaunch-drain-order
 title: Surface megalaunch drain order and the numbered-task convention in `--help`
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
