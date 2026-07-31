@@ -71,6 +71,18 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
+def test_megalaunch_help_describes_drain_order() -> None:
+    from typer.testing import CliRunner
+
+    result = CliRunner().invoke(app, ["megalaunch", "--help"])
+    help_text = " ".join(result.output.split())
+
+    assert result.exit_code == 0, result.output
+    assert "oldest-first" in help_text
+    assert "naming convention" in help_text
+    assert all(prefix in help_text for prefix in ("1-", "2-", "3-"))
+
+
 def test_megalaunch_runs_active_agent_task(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

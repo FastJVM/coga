@@ -65,6 +65,8 @@ def megalaunch(
             "nothing pre-checked; the confirmed set is prepared (a batch "
             "prompt offers to run the authoring interview on picked drafts), "
             "activated, then launched, and is saved for --relaunch."
+            " Selection filters the service-ordered queue; the order tasks "
+            "are picked does not set their run order."
         ),
     ),
     relaunch: bool = typer.Option(
@@ -91,7 +93,13 @@ def megalaunch(
         ),
     ),
 ) -> None:
-    """Run the shared megalaunch engine once."""
+    """Drain launchable tasks sequentially.
+
+    Tasks drain oldest-first by their first `coga/log.md` entry. Naming tasks
+    in a sub-directory with numeric prefixes such as `1-`, `2-`, `3-`
+    sequences that directory as one contiguous block in number order; this is
+    a naming convention, not a flag.
+    """
     try:
         cfg = load_config()
     except ConfigError as exc:
