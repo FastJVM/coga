@@ -38,6 +38,7 @@ from coga.repl_supervisor import (
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
 from coga.tasks import BootstrapRef, TaskRef, list_tasks
 from coga.ticket import Ticket
+from coga.validate import TaskValidationError
 
 
 def _write(path: Path, text: str) -> None:
@@ -3837,6 +3838,63 @@ def test_human_assist_retains_consistent_state_after_post_publication_interrupt(
     assert "published in_progress state was retained consistently" in (
         capsys.readouterr().err
     )
+
+
+def test_human_assist_validation_refusal_restores_armed_generated_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Post-write validation cannot strand an unpublished lifecycle mutation."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Restore validation-rejected assist state",
+        status="active",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def reject_generated_state(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise TaskValidationError([], action=kwargs["action"])
+
+    monkeypatch.setattr("coga.mark.assert_task_valid", reject_generated_state)
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("a validation-rejected child must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert Ticket.read(ticket_path).status == "active"
+    assert "status: active" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
 
 
 def test_blocked_human_assist_republishes_unresolved_reblock(

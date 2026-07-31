@@ -2766,7 +2766,7 @@ def test_strict_feature_publication_leases_exact_control_lifecycle(
 
     with pytest.raises(
         git.FeaturePublicationError,
-        match="control ticket changed after the assist lease",
+        match="control task changed after the assist lease",
     ):
         git.sync_task_state(
             cfg,
@@ -2787,6 +2787,80 @@ def test_strict_feature_publication_leases_exact_control_lifecycle(
         "main:coga/tasks/demo/ticket.md",
         cwd=git_repo.origin,
     )
+    assert "status: in_progress" in ticket.read_text()
+    assert "coga/tasks/demo/ticket.md" in git_repo.git(
+        "status",
+        "--porcelain",
+    )
+
+
+@pytest.mark.parametrize(
+    ("changed_rel", "changed_text"),
+    [
+        (
+            "coga/tasks/demo/ticket.md",
+            _step_ticket_text(
+                step="1 (implement)",
+                status="active",
+                blackboard="owner added a control-only note\n",
+            ),
+        ),
+        (
+            "coga/tasks/demo/owner-notes.md",
+            "owner added a control-only attachment\n",
+        ),
+    ],
+    ids=["ticket-prose", "task-attachment"],
+)
+def test_strict_feature_publication_leases_exact_control_task_object(
+    git_repo,
+    changed_rel: str,
+    changed_text: str,
+) -> None:
+    """Same-lifecycle control edits force a retry instead of being overlaid."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/exact-control-task-assist")
+    git_repo.git("push", "-u", "origin", "feature/exact-control-task-assist")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    lease = git.feature_publication_lease(
+        cfg,
+        ticket.parent,
+        "feature/exact-control-task-assist",
+    )
+    assert lease.control_task_oid is not None
+
+    git_repo.push_competing_commit(changed_rel, changed_text)
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="agent started from the leased prompt\n",
+        )
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control task changed after the assist lease",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=git.ticket_state_guard(cfg, ticket),
+            feature_publication=lease,
+        )
+
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/exact-control-task-assist",
+        cwd=git_repo.origin,
+    ).strip() == feature_before
+    assert git_repo.git(
+        "show",
+        f"main:{changed_rel}",
+        cwd=git_repo.origin,
+    ) == changed_text
     assert "status: in_progress" in ticket.read_text()
     assert "coga/tasks/demo/ticket.md" in git_repo.git(
         "status",
@@ -2859,6 +2933,137 @@ def test_strict_feature_publication_compensates_failed_control_landing(
     assert "status: in_progress" in ticket.read_text()
     assert "coga/tasks/demo/ticket.md" in git_repo.git(
         "status", "--porcelain"
+    )
+
+
+def test_strict_feature_publication_compensates_interrupt_after_feature_push(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SIGINT after Git accepts the first push cannot split feature/control."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/interrupted-feature-push-assist"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    real_push = git._push_ref
+    interrupted = False
+
+    def push_then_interrupt(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal interrupted
+        result = real_push(*args, **kwargs)
+        if not interrupted:
+            interrupted = True
+            raise SystemExit(130)
+        return result
+
+    monkeypatch.setattr(git, "_push_ref", push_then_interrupt)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control landing failed after feature publication",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch=branch,
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+        )
+
+    assert "status: active" in git_repo.git(
+        "show",
+        f"refs/heads/{branch}:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        "main:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse",
+        f"refs/heads/{branch}",
+        cwd=git_repo.origin,
+    ).strip()
+    assert "status: in_progress" in ticket.read_text()
+    assert "coga/tasks/demo/ticket.md" in git_repo.git(
+        "status",
+        "--porcelain",
+    )
+
+
+def test_strict_feature_publication_records_interrupt_after_control_push(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A post-control SIGINT reports the already-complete durable boundary."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/interrupted-control-push-assist"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    real_push = git._push_ref
+    push_count = 0
+    published = False
+
+    def interrupt_second_push(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal push_count
+        result = real_push(*args, **kwargs)
+        push_count += 1
+        if push_count == 2:
+            raise SystemExit(130)
+        return result
+
+    def record_publication() -> None:
+        nonlocal published
+        published = True
+
+    monkeypatch.setattr(git, "_push_ref", interrupt_second_push)
+
+    with pytest.raises(SystemExit) as excinfo:
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch=branch,
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+            after_strict_publication=record_publication,
+        )
+
+    assert excinfo.value.code == 130
+    assert published is True
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/{branch}:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        "main:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
     )
 
 

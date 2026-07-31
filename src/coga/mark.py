@@ -491,9 +491,14 @@ def mark_active(
     prior_status = ticket.status
     prepare_active(cfg, ref, ticket)
     ticket.write(ref.ticket_path)
+    if before_sync is not None:
+        # Strict callers captured the pre-mutation bytes. Arm immediately after
+        # the write so a post-write validation refusal can still restore them.
+        before_sync()
     assert_task_valid(cfg, ref, action="mark active")
     append_log(cfg, ref.id_slug, actor, log_message)
     if before_sync is not None:
+        # Include the generated audit append in the exact publication snapshot.
         before_sync()
     if echo is not None:
         typer.echo(echo)
@@ -532,9 +537,14 @@ def mark_in_progress(
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(ref.ticket_path)
+    if before_sync is not None:
+        # A validation exception is still a failed generated mutation; make it
+        # rollback-safe before validation can raise.
+        before_sync()
     assert_task_valid(cfg, ref, action="mark in_progress")
     append_log(cfg, ref.id_slug, actor, log_message)
     if before_sync is not None:
+        # Re-arm after the audit append so strict sync consumes both writes.
         before_sync()
 
     def sync_state() -> None:
@@ -549,6 +559,7 @@ def mark_in_progress(
             expected_remote_branch_oid=expected_remote_branch_oid,
             feature_publication=feature_publication,
             feature_publication_guard=feature_publication_guard,
+            after_strict_publication=after_sync,
         )
 
     # A strict assist publication must succeed before announcing a started
@@ -556,8 +567,6 @@ def mark_in_progress(
     # ordinary launches and other callers.
     if feature_publication is not None:
         sync_state()
-        if after_sync is not None:
-            after_sync()
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:
@@ -597,9 +606,14 @@ def mark_blocked(
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "blocked"
     ticket.write(ref.ticket_path)
+    if before_sync is not None:
+        # Arm before validation so a strict block rejected by validation does
+        # not leave an unpublished generated status behind.
+        before_sync()
     assert_task_valid(cfg, ref, action="mark blocked")
     append_log(cfg, ref.id_slug, actor, log_message)
     if before_sync is not None:
+        # Re-arm with the generated blocker audit line included.
         before_sync()
 
     def sync_state() -> None:

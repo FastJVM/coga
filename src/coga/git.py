@@ -165,15 +165,19 @@ class FeaturePublicationLease:
 
     ``control_ticket_state`` is the exact ``(status, step, assignee)`` tuple
     shared by the verified feature and control tips before the state command
-    mutates its working-tree copy. Strict publication rechecks that tuple
-    against every candidate control tip. Ticket prose may legitimately differ
-    on the PR branch; lifecycle authority may not.
+    mutates its working-tree copy. ``control_task_oid`` pins the complete
+    control-side task object at that same boundary (the ticket blob for a
+    file-form task, or the task tree including attachments for directory form).
+    Strict publication rechecks both against every candidate control tip.
+    Ticket prose may legitimately differ on the PR branch at lease time, but a
+    later control-side edit must force a retry rather than be overlaid.
     """
 
     branch: str
     local_oid: str
     remote_oid: str
     control_ticket_state: tuple[str | None, str | None, str | None] | None = None
+    control_task_oid: str | None = None
 
 
 @dataclass
@@ -329,6 +333,7 @@ def sync_task_state(
     expected_remote_branch_oid: str | None = None,
     feature_publication: FeaturePublicationLease | None = None,
     feature_publication_guard: _FeaturePublicationGuard | None = None,
+    after_strict_publication: Callable[[], None] | None = None,
 ) -> None:
     """Commit the task directory's files and push to the control branch.
 
@@ -380,6 +385,7 @@ def sync_task_state(
             guard = _assist_control_ticket_guard(
                 task_path,
                 feature_publication.control_ticket_state,
+                expected_task_oid=feature_publication.control_task_oid,
                 fallback=guard,
             )
     sync_paths(
@@ -394,6 +400,7 @@ def sync_task_state(
         expected_remote_branch_oid=expected_remote_branch_oid,
         strict_feature_publication=feature_publication is not None,
         feature_publication_guard=feature_publication_guard,
+        after_strict_publication=after_strict_publication,
     )
 
 
@@ -716,6 +723,7 @@ def sync_paths(
     expected_remote_branch_oid: str | None = None,
     strict_feature_publication: bool = False,
     feature_publication_guard: _FeaturePublicationGuard | None = None,
+    after_strict_publication: Callable[[], None] | None = None,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -831,6 +839,7 @@ def sync_paths(
             expected_remote_branch_oid=expected_remote_branch_oid,
             strict_feature_publication=strict_feature_publication,
             feature_publication_guard=feature_publication_guard,
+            after_strict_publication=after_strict_publication,
         )
     except FeaturePublicationError as exc:
         sys.stderr.write(
@@ -1472,6 +1481,7 @@ def _dispatch_branch_sync(
     expected_remote_branch_oid: str | None = None,
     strict_feature_publication: bool = False,
     feature_publication_guard: _FeaturePublicationGuard | None = None,
+    after_strict_publication: Callable[[], None] | None = None,
 ) -> None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
@@ -1553,20 +1563,23 @@ def _dispatch_branch_sync(
         return
     else:
         strict_control_tip: str | None = None
+        assist_push_url: str | None = None
         if strict_feature_publication:
-            _single_assist_push_url(root, cfg.git_remote)
-        if strict_feature_publication and guard is not None:
+            assist_push_url = _single_assist_push_url(root, cfg.git_remote)
+        if strict_feature_publication:
             try:
                 # The feature update happens before the control landing, so
-                # reject a stale/terminal control copy against a freshly
-                # fetched tip before publishing anything to the PR branch.
+                # capture a fresh control tip before publishing anything to
+                # the PR branch. A state guard, when supplied, rejects a
+                # stale/terminal or otherwise changed task against that tip.
                 strict_control_tip = _control_base_for_attempt(
                     root,
                     cfg.git_remote,
                     cfg.git_control_branch,
                     1,
                 )
-                guard(strict_control_tip)
+                if guard is not None:
+                    guard(strict_control_tip)
             except StateRegressionError as exc:
                 raise FeaturePublicationError(
                     f"control state refused the assist transition: {exc}"
@@ -1657,7 +1670,49 @@ def _dispatch_branch_sync(
                     expected_remote_branch_oid,
                 ),
             )
-        except GitError as exc:
+        except BaseException as exc:
+            # A signal handler raises SystemExit asynchronously. If it lands
+            # after Git accepted the push but before `_push_ref` returns, this
+            # stack has no successful return value even though the PR branch
+            # already contains the generated state. Probe the exact push
+            # destination before deciding whether local-only cleanup is safe.
+            assert assist_push_url is not None
+            try:
+                remote_after_failure = _remote_branch_oid(
+                    root,
+                    cfg.git_remote,
+                    branch,
+                    push_urls=[assist_push_url],
+                )
+            except GitError as probe_exc:
+                raise FeaturePublicationError(
+                    f"could not determine whether generated state reached "
+                    f"{branch!r} after {type(exc).__name__}: {probe_exc}"
+                ) from exc
+            feature_was_published = (
+                remote_after_failure == generated_oid
+                or (
+                    remote_after_failure is not None
+                    and _remote_branch_descends_from(
+                        root,
+                        assist_push_url,
+                        branch,
+                        generated_oid,
+                    )
+                )
+            )
+            if feature_was_published:
+                _raise_strict_control_landing_failure(
+                    root,
+                    cfg.git_remote,
+                    branch,
+                    before=before,
+                    generated_oid=generated_oid,
+                    local_rels=local_rels,
+                    message=message,
+                    failure=exc,
+                    committed=committed,
+                )
             if committed and before is not None:
                 try:
                     _restore_generated_feature_commit(
@@ -1673,9 +1728,11 @@ def _dispatch_branch_sync(
                         f"{exc}; local generated commit cleanup also refused: "
                         f"{restore_exc}"
                     ) from exc
-            raise FeaturePublicationError(
-                f"could not publish generated state to {branch!r}: {exc}"
-            ) from exc
+            if isinstance(exc, GitError):
+                raise FeaturePublicationError(
+                    f"could not publish generated state to {branch!r}: {exc}"
+                ) from exc
+            raise
         if result is not None:
             if committed and before is not None:
                 try:
@@ -1709,6 +1766,8 @@ def _dispatch_branch_sync(
             initial_base=strict_control_tip,
             source_rev=generated_oid if strict_feature_publication else None,
         )
+        if strict_feature_publication and after_strict_publication is not None:
+            after_strict_publication()
         if publish_current_branch and not strict_feature_publication:
             result = _push_ref(
                 root,
@@ -1725,8 +1784,35 @@ def _dispatch_branch_sync(
                     f"`git push {cfg.git_remote} {branch}` failed while "
                     f"publishing gated task state: {result}"
                 )
-    except StateRegressionError as exc:
+    except BaseException as exc:
         if strict_feature_publication:
+            assert strict_control_tip is not None
+            try:
+                control_contains_generated = (
+                    _control_history_contains_generated_paths(
+                        root,
+                        cfg.git_remote,
+                        cfg.git_control_branch,
+                        initial_tip=strict_control_tip,
+                        generated_oid=generated_oid,
+                        rels=overlay_rels,
+                    )
+                )
+            except GitError as probe_exc:
+                exc = FeaturePublicationError(
+                    "could not determine whether the control branch accepted "
+                    f"generated assist state after {type(exc).__name__}: "
+                    f"{probe_exc}"
+                )
+                control_contains_generated = False
+            if control_contains_generated:
+                # The signal/exception arrived only after both durable halves
+                # accepted the same generated paths. Publish that boundary to
+                # the caller before propagating so it retains the consistent
+                # state instead of restoring local pre-transition bytes.
+                if after_strict_publication is not None:
+                    after_strict_publication()
+                raise
             _raise_strict_control_landing_failure(
                 root,
                 cfg.git_remote,
@@ -1738,22 +1824,8 @@ def _dispatch_branch_sync(
                 failure=exc,
                 committed=committed,
             )
-        if before is not None:
+        if isinstance(exc, StateRegressionError) and before is not None:
             _restore_unpushed_sync_commit(root, before, local_rels)
-        raise
-    except GitError as exc:
-        if strict_feature_publication:
-            _raise_strict_control_landing_failure(
-                root,
-                cfg.git_remote,
-                branch,
-                before=before,
-                generated_oid=generated_oid,
-                local_rels=local_rels,
-                message=message,
-                failure=exc,
-                committed=committed,
-            )
         raise
 
 
@@ -1888,9 +1960,10 @@ def _assist_control_ticket_guard(
     task_path: Path,
     expected: tuple[str | None, str | None, str | None],
     *,
+    expected_task_oid: str | None,
     fallback: _StateGuard | None,
 ) -> _StateGuard:
-    """Require an assist's pre-transition lifecycle tuple on every control tip."""
+    """Require an assist's exact leased control task on every candidate tip."""
     root = _toplevel(task_path)
     if root is None:
         raise FeaturePublicationError(
@@ -1898,8 +1971,19 @@ def _assist_control_ticket_guard(
         )
     ticket_path = _ticket_path_for_task_path(task_path)
     rel = _relative_to_root(root, ticket_path)
+    task_rel = _relative_to_root(root, task_path)
 
     def guard(base: str) -> None:
+        actual_task_oid = _tree_entry_oid(root, base, task_rel)
+        if (
+            expected_task_oid is not None
+            and actual_task_oid != expected_task_oid
+        ):
+            raise StateRegressionError(
+                f"{task_rel}: control task changed after the assist lease "
+                f"(expected object {expected_task_oid}; "
+                f"found {actual_task_oid or 'missing'})"
+            )
         actual_bytes = _tree_bytes(root, base, rel)
         actual = _ticket_lifecycle_state(actual_bytes)
         if actual != expected:
@@ -2179,7 +2263,7 @@ def _raise_strict_control_landing_failure(
     generated_oid: str,
     local_rels: list[str],
     message: str,
-    failure: GitError,
+    failure: BaseException,
     committed: bool,
 ) -> None:
     """Compensate a strict feature push whose control landing then failed.
@@ -2501,6 +2585,19 @@ def _tree_entry_mode(root: Path, rev: str, rel: str) -> str | None:
         if path == rel:
             mode, _kind, _oid = metadata.split(" ", 2)
             return mode
+    return None
+
+
+def _tree_entry_oid(root: Path, rev: str, rel: str) -> str | None:
+    """Return the exact blob/tree object named by ``rel`` at ``rev``."""
+    output = _run_git(root, "ls-tree", "-z", rev, "--", rel)
+    for entry in output.split("\x00"):
+        if not entry:
+            continue
+        metadata, path = entry.split("\t", 1)
+        if path == rel:
+            _mode, _kind, oid = metadata.split(" ", 2)
+            return oid
     return None
 
 
@@ -2974,6 +3071,44 @@ def _land_paths_on_control_branch(
     raise GitError(
         f"could not land on {branch!r} after {_MAX_SYNC_ATTEMPTS} attempts — "
         f"contention on refs/heads/{branch}"
+    )
+
+
+def _control_history_contains_generated_paths(
+    root: Path,
+    remote: str,
+    branch: str,
+    *,
+    initial_tip: str,
+    generated_oid: str,
+    rels: list[str],
+) -> bool:
+    """Whether control durably absorbed one strict generated path snapshot.
+
+    A signal can arrive after the control push succeeds but before the plumbing
+    helper returns. Inspect the freshly fetched control history, not only its
+    current tree: a concurrent descendant may already have edited the task
+    again while still preserving the publication commit in history.
+    """
+    current_tip = _control_base_for_attempt(root, remote, branch, 1)
+    generated = {
+        rel: _tree_entry_oid(root, generated_oid, rel)
+        for rel in rels
+    }
+    if not generated:
+        return True
+    history = _run_git(
+        root,
+        "rev-list",
+        f"{initial_tip}..{current_tip}",
+    ).splitlines()
+    candidates = list(dict.fromkeys([current_tip, *history]))
+    return any(
+        all(
+            _tree_entry_oid(root, commit, rel) == expected_oid
+            for rel, expected_oid in generated.items()
+        )
+        for commit in candidates
     )
 
 
@@ -3677,6 +3812,43 @@ def _remote_branch_oid(
     return observed[0]
 
 
+def _remote_branch_descends_from(
+    root: Path,
+    push_url: str,
+    branch: str,
+    ancestor: str,
+) -> bool:
+    """Whether the live push destination contains ``ancestor`` in its history."""
+    _run_git(root, "fetch", push_url, f"refs/heads/{branch}")
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "merge-base",
+                "--is-ancestor",
+                ancestor,
+                "FETCH_HEAD",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, **_noninteractive_git_env()},
+        )
+    except FileNotFoundError as exc:
+        raise GitError("`git` not found on PATH") from exc
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    raise GitError(
+        "`git merge-base --is-ancestor` failed "
+        f"(exit {result.returncode}): "
+        f"{result.stderr.strip() or result.stdout.strip()}"
+    )
+
+
 def _prepare_feature_branch_publication(
     root: Path,
     remote: str,
@@ -3983,6 +4155,7 @@ def _feature_publication_lease(
 
     ticket_path = _ticket_path_for_task_path(task_path)
     ticket_rel = _relative_to_root(root, ticket_path)
+    task_rel = _relative_to_root(root, task_path)
     feature_ticket = _tree_bytes(root, local_oid, ticket_rel)
     try:
         control_tip = _control_base_for_attempt(
@@ -3992,6 +4165,7 @@ def _feature_publication_lease(
             1,
         )
         control_ticket = _tree_bytes(root, control_tip, ticket_rel)
+        control_task_oid = _tree_entry_oid(root, control_tip, task_rel)
     except GitError as exc:
         raise FeaturePublicationError(
             f"could not verify the assist ticket on control branch "
@@ -4000,6 +4174,10 @@ def _feature_publication_lease(
     if feature_ticket is None:
         raise FeaturePublicationError(
             f"assist feature tip has no ticket at {ticket_rel}"
+        )
+    if control_task_oid is None:
+        raise FeaturePublicationError(
+            f"assist control tip has no task at {task_rel}"
         )
     feature_state = _ticket_lifecycle_state(feature_ticket)
     control_state = _ticket_lifecycle_state(control_ticket)
@@ -4018,6 +4196,7 @@ def _feature_publication_lease(
         local_oid=local_oid,
         remote_oid=publication.remote_oid,
         control_ticket_state=feature_state,
+        control_task_oid=control_task_oid,
     )
 
 
