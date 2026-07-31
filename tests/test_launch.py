@@ -3710,6 +3710,135 @@ def _seed_single_checkout_human_review(
     return created, ticket_path
 
 
+def test_human_assist_alignment_keeps_original_prefix_target(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A moved PR tip cannot retarget a prefix launch to another task."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Preserve prefix target",
+        status="in_progress",
+    )
+    cfg = load_config(git_repo.coga_os)
+    original = list_tasks(cfg)[0]
+    alternate = TaskRef(
+        slug=f"{original.slug}-replacement",
+        path=original.path,
+        directory=original.directory,
+        file_form=original.file_form,
+    )
+    prefix = original.id_slug[:8]
+    resolve_calls: list[str] = []
+
+    def retargeting_resolver(cfg, arg):  # type: ignore[no-untyped-def]
+        resolve_calls.append(arg)
+        return original if len(resolve_calls) == 1 else alternate
+
+    monkeypatch.setattr(
+        "coga.commands.launch.resolve_target",
+        retargeting_resolver,
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._align_recorded_assist_checkout",
+        lambda cfg, ticket: (True, "aligned-oid"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._verify_recorded_assist_pr_head",
+        lambda cfg, ticket, branch, **kwargs: "aligned-oid",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("a retargeted task must not launch"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            prefix,
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert resolve_calls == [prefix, original.id_slug]
+    assert "different prefix match" in capsys.readouterr().err
+    assert Ticket.read(ticket_path).assignee == "marc"
+    assert created["slug"] == original.id_slug
+
+
+def test_human_assist_retains_consistent_state_after_post_publication_interrupt(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An interrupt after strict sync must not locally rewind published state."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Keep published lifecycle consistent",
+        status="active",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    real_mark_in_progress = launch_module.mark_in_progress
+
+    def interrupt_after_publication(*args, **kwargs):  # type: ignore[no-untyped-def]
+        real_mark_in_progress(*args, **kwargs)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        "coga.commands.launch.mark_in_progress",
+        interrupt_after_publication,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("the interrupted child must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert Ticket.read(ticket_path).status == "in_progress"
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert "published in_progress state was retained consistently" in (
+        capsys.readouterr().err
+    )
+
+
 def test_blocked_human_assist_republishes_unresolved_reblock(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

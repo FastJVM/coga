@@ -185,6 +185,7 @@ def launch(
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
+    resolved_target_slug = ref.id_slug
     is_bootstrap = isinstance(ref, BootstrapRef)
 
     # A supported single-checkout assist may be behind its published PR branch.
@@ -279,7 +280,13 @@ def launch(
                 break
             try:
                 cfg = load_config(cfg.repo_root)
-                ref = resolve_target(cfg, task)
+                ref = resolve_target(cfg, resolved_target_slug)
+                if ref.id_slug != resolved_target_slug:
+                    raise TaskNotFoundError(
+                        f"Selected task {resolved_target_slug!r} disappeared "
+                        "during assist alignment; refusing to launch the "
+                        f"different prefix match {ref.id_slug!r}."
+                    )
             except (ConfigError, TaskNotFoundError) as exc:
                 setup_bail(str(exc))
             is_bootstrap = isinstance(ref, BootstrapRef)
@@ -974,6 +981,12 @@ def _publish_assist_lifecycle_before_spawn(
         return
 
     snapshot = _snapshot_assist_state(cfg, ref)
+    lifecycle_published = False
+
+    def record_publication() -> None:
+        nonlocal lifecycle_published
+        lifecycle_published = True
+
     try:
         if current.status in {"draft", "paused", "blocked"}:
             mark_active(
@@ -1006,8 +1019,16 @@ def _publish_assist_lifecycle_before_spawn(
             feature_publication=publication,
             feature_publication_guard=publication_guard,
             before_sync=snapshot.arm,
+            after_sync=record_publication,
         )
     except BaseException as exc:
+        if lifecycle_published:
+            raise _AssistPublicationRefused(
+                "The assist lifecycle reached the feature and control "
+                "branches, but launch was interrupted before the agent "
+                "started. The published in_progress state was retained "
+                "consistently; retry the same launch to start the agent."
+            ) from exc
         rollback_note = _restore_assist_state(snapshot)
         if isinstance(
             exc,

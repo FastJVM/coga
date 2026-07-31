@@ -3525,6 +3525,52 @@ def test_refresh_publishes_generated_state_for_aligned_assist_branch(git_repo):
     )
 
 
+def test_assist_alignment_rechecks_checkout_before_fast_forward(
+    git_repo, monkeypatch
+) -> None:
+    """A concurrent checkout switch cannot redirect the PR fast-forward."""
+    git_repo.checkout_branch("feature/review")
+    git_repo.git("push", "-u", "origin", "feature/review")
+    peer = git_repo.origin.parent / "peer-alignment-race"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git(
+        "checkout", "-B", "feature/review", "origin/feature/review", cwd=peer
+    )
+    (peer / "review.txt").write_text("remote review update\n")
+    git_repo.git("add", "review.txt", cwd=peer)
+    git_repo.git("commit", "-m", "review: advance branch", cwd=peer)
+    git_repo.git("push", "origin", "feature/review", cwd=peer)
+    main_before = git_repo.git("rev-parse", "main").strip()
+
+    real_changed = git._changed_paths_under
+    switched = False
+
+    def switch_after_status(root, pathspecs):  # type: ignore[no-untyped-def]
+        nonlocal switched
+        changed = real_changed(root, pathspecs)
+        if not switched:
+            switched = True
+            git_repo.git("checkout", "main")
+        return changed
+
+    monkeypatch.setattr(git, "_changed_paths_under", switch_after_status)
+
+    with pytest.raises(git.GitError, match="expected checkout 'feature/review'"):
+        git._prepare_feature_branch_publication(
+            git_repo.root,
+            "origin",
+            "feature/review",
+            require_single_push_url=True,
+        )
+
+    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
+    assert git_repo.git("rev-parse", "HEAD").strip() == main_before
+    assert not (git_repo.root / "review.txt").exists()
+
+
 def test_assist_refresh_reads_control_from_verified_push_destination(
     git_repo,
     tmp_path: Path,
@@ -3642,6 +3688,98 @@ def test_refresh_rolls_back_generated_commit_when_assist_push_races(
     assert "won refresh race" in git_repo.git(
         "show", "refs/heads/feature/x:peer.txt", cwd=git_repo.origin
     )
+
+
+def test_refresh_cleanup_preserves_same_branch_peer_edit(
+    git_repo, monkeypatch
+) -> None:
+    """A failed refresh removes only bytes still owned by that refresh."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    rel = str(ticket.relative_to(git_repo.root))
+    original = ticket.read_text()
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit(
+        rel, _step_ticket_text(step="2 (review)")
+    )
+
+    def refuse_after_peer_edit(
+        root,
+        remote,
+        refspec,
+        *,
+        force_with_lease=None,
+    ):  # type: ignore[no-untyped-def]
+        assert force_with_lease is not None
+        ticket.write_text("same-branch peer edit\n")
+        return "simulated refresh push refusal"
+
+    monkeypatch.setattr(git, "_push_ref", refuse_after_peer_edit)
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh after peer edit",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+
+    assert refreshed is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == feature_before
+    assert ticket.read_text() == "same-branch peer edit\n"
+    assert git_repo.git("show", f":{rel}") == original
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+def test_refresh_cleanup_does_not_reset_switched_checkout(
+    git_repo, monkeypatch
+) -> None:
+    """A failed refresh leaves another branch's index and bytes untouched."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    rel = str(ticket.relative_to(git_repo.root))
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    git_repo.git("checkout", "main")
+    git_repo.checkout_branch("feature/other")
+    ticket.write_text("committed other-branch state\n")
+    git_repo.git("add", rel)
+    git_repo.git("commit", "-m", "other: keep branch state")
+    other_tip = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.git("checkout", "feature/x")
+    git_repo.push_competing_commit(
+        rel, _step_ticket_text(step="2 (review)")
+    )
+
+    def refuse_after_switch(
+        root,
+        remote,
+        refspec,
+        *,
+        force_with_lease=None,
+    ):  # type: ignore[no-untyped-def]
+        assert force_with_lease is not None
+        git_repo.git("checkout", "feature/other")
+        ticket.write_text("uncommitted other-branch peer edit\n")
+        return "simulated refresh push refusal"
+
+    monkeypatch.setattr(git, "_push_ref", refuse_after_switch)
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh across checkout switch",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+
+    assert refreshed is False
+    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == (
+        "feature/other"
+    )
+    assert git_repo.git("rev-parse", "HEAD").strip() == other_tip
+    assert ticket.read_text() == "uncommitted other-branch peer edit\n"
+    assert git_repo.git("show", f":{rel}") == "committed other-branch state\n"
 
 
 def test_refresh_refuses_assist_state_after_branch_switch(git_repo, capsys):

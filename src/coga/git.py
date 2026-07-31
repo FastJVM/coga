@@ -468,10 +468,11 @@ class _FeaturePublicationState:
 
 @dataclass(frozen=True)
 class _RefreshCommit:
-    """Generated refresh paths plus their pre-refresh working-tree bytes."""
+    """Generated refresh paths plus their before/after working-tree bytes."""
 
     paths: tuple[str, ...]
     originals: dict[str, bytes | None]
+    generated: dict[str, bytes | None]
     oid: str
 
 
@@ -1193,6 +1194,7 @@ def _refresh_branch_from_control(
     if log_updated:
         originals[log_rel] = log_before
         updated.extend(log_updated)
+    generated = {rel: _working_tree_bytes(root, rel) for rel in updated}
     try:
         if expected_head is not None and expected_branch is not None:
             _committed, generated_oid = _commit_paths_at_expected_head(
@@ -1208,12 +1210,28 @@ def _refresh_branch_from_control(
         else:
             generated_oid = _run_git(root, "rev-parse", "HEAD").strip()
     except GitError:
-        for rel, data in originals.items():
-            _write_worktree_bytes(root, rel, data)
+        if expected_head is not None and expected_branch is not None:
+            _require_checkout_tip(
+                root,
+                expected_branch,
+                expected_head,
+                action="restore a failed assist refresh",
+            )
+            _restore_refresh_worktree(
+                root,
+                originals=originals,
+                generated=generated,
+                expected_branch=expected_branch,
+                expected_oid=expected_head,
+            )
+        else:
+            for rel, data in originals.items():
+                _write_worktree_bytes(root, rel, data)
         raise
     return _RefreshCommit(
         paths=tuple(updated),
         originals=originals,
+        generated=generated,
         oid=generated_oid,
     )
 
@@ -1235,8 +1253,51 @@ def _restore_generated_refresh(
         generated_oid=refresh.oid,
         rels=list(refresh.paths),
     )
-    for rel, data in refresh.originals.items():
-        _write_worktree_bytes(root, rel, data)
+    _require_checkout_tip(
+        root,
+        branch,
+        before,
+        action="restore assist refresh working-tree bytes",
+    )
+    _restore_refresh_worktree(
+        root,
+        originals=refresh.originals,
+        generated=refresh.generated,
+        expected_branch=branch,
+        expected_oid=before,
+    )
+
+
+def _restore_refresh_worktree(
+    root: Path,
+    *,
+    originals: dict[str, bytes | None],
+    generated: dict[str, bytes | None],
+    expected_branch: str | None = None,
+    expected_oid: str | None = None,
+) -> None:
+    """Undo only refresh bytes still attributable to this generated update."""
+    union_rels = _union_merge_paths(root, list(originals))
+    paths = {rel: root / rel for rel in originals}
+    rollback = FileMutationRollback(
+        originals={paths[rel]: data for rel, data in originals.items()},
+        union_paths=frozenset(paths[rel] for rel in union_rels),
+        generated={paths[rel]: generated[rel] for rel in originals},
+    )
+    if expected_branch is not None and expected_oid is not None:
+        _require_checkout_tip(
+            root,
+            expected_branch,
+            expected_oid,
+            action="restore assist refresh bytes",
+        )
+    refused = rollback.restore()
+    if refused:
+        names = ", ".join(str(path.relative_to(root)) for path in refused)
+        raise GitError(
+            "refresh cleanup retained concurrent working-tree edits at "
+            f"{names}"
+        )
 
 
 def _refresh_regression_reason(
@@ -2773,6 +2834,12 @@ def _restore_generated_feature_commit(
 ) -> None:
     """Undo one unpushed generated commit without moving over newer work."""
     ref = f"refs/heads/{branch}"
+    _require_checkout_tip(
+        root,
+        branch,
+        generated_oid,
+        action="restore a generated feature commit",
+    )
     try:
         _run_git(root, "update-ref", ref, before, generated_oid)
     except GitError as exc:
@@ -2780,7 +2847,30 @@ def _restore_generated_feature_commit(
             f"local {branch!r} moved after generated commit {generated_oid}; "
             "refusing to reset over the newer commit"
         ) from exc
+    _require_checkout_tip(
+        root,
+        branch,
+        before,
+        action="reset generated feature paths",
+    )
     _run_git(root, "reset", before, "--", *rels)
+
+
+def _require_checkout_tip(
+    root: Path,
+    branch: str,
+    expected_oid: str,
+    *,
+    action: str,
+) -> None:
+    """Fail if a worktree-changing operation was redirected after sampling."""
+    current_branch = _current_branch(root)
+    current_oid = _run_git(root, "rev-parse", "HEAD").strip()
+    if current_branch != branch or current_oid != expected_oid:
+        raise GitError(
+            f"cannot {action}: expected checkout {branch!r} at "
+            f"{expected_oid}, found {current_branch!r} at {current_oid}"
+        )
 
 
 def _land_on_control_branch(
@@ -3771,14 +3861,32 @@ def _prepare_feature_branch_publication(
             base=base or b"",
             other=working,
         )
+        _require_checkout_tip(
+            root,
+            branch,
+            local_tip,
+            action=f"fast-forward {remote}/{branch}",
+        )
         _write_worktree_bytes(root, preserve_union_rel, base)
         try:
+            _require_checkout_tip(
+                root,
+                branch,
+                local_tip,
+                action=f"fast-forward {remote}/{branch}",
+            )
             _run_git(root, "merge", "--ff-only", "--quiet", remote_tip)
         except GitError:
             _write_worktree_bytes(root, preserve_union_rel, working)
             raise
         _write_worktree_bytes(root, preserve_union_rel, merged)
     else:
+        _require_checkout_tip(
+            root,
+            branch,
+            local_tip,
+            action=f"fast-forward {remote}/{branch}",
+        )
         _run_git(root, "merge", "--ff-only", "--quiet", remote_tip)
 
     return _FeaturePublicationState(

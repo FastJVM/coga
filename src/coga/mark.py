@@ -522,8 +522,13 @@ def mark_in_progress(
     feature_publication: git.FeaturePublicationLease | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
     before_sync: Callable[[], None] | None = None,
+    after_sync: Callable[[], None] | None = None,
 ) -> None:
-    """Flip a ticket to `in_progress`: write frontmatter, log, optionally post."""
+    """Flip a ticket to `in_progress`: write, sync, then optionally post.
+
+    ``after_sync`` observes the exact boundary after durable publication and
+    before output or notification work that may still interrupt the caller.
+    """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(ref.ticket_path)
@@ -551,6 +556,8 @@ def mark_in_progress(
     # ordinary launches and other callers.
     if feature_publication is not None:
         sync_state()
+        if after_sync is not None:
+            after_sync()
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:
@@ -568,6 +575,8 @@ def mark_in_progress(
         )
     if feature_publication is None:
         sync_state()
+        if after_sync is not None:
+            after_sync()
 
 
 def mark_blocked(
