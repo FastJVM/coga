@@ -3233,3 +3233,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-07-31 10:45 [scrub-coga-task-in-the-pytest-autouse-guard-so-fix] [human:nicktoper] auto-bumped on merge of PR #673 → done
 2026-07-31 10:45 [recurring/autoclose-merged] [system] recipe autoclose exited with code 0
 2026-07-31 10:45 [recurring/autoclose-merged] [system] completed (recipe autoclose exited 0) via coga recurring
+2026-07-31 10:45 [recurring/digest] [system] started (active → in_progress) via recurring recipe digest
