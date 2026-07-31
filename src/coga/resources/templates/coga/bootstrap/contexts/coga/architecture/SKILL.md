@@ -366,7 +366,9 @@ the local tip already equals the remote; a genuinely append-only pending
 union-safe audit log is the sole explicit exception. Draft, paused, and blocked activation and
 `in_progress` publication stay deferred through prompt
 composition, prompt-file and argv construction, and the pre-session audit
-commit. At the final pre-spawn boundary launch re-reads the unchanged ticket,
+commit. At the final pre-spawn boundary launch captures and rechecks the exact
+ticket bytes, then rechecks them again after the network-backed publication
+lease is acquired,
 re-proves that the exact recorded PR URL authorized during alignment is
 unchanged and open at the exact leased remote OID, and requires the committed
 feature ticket's `(status, step, assignee)` lifecycle tuple to match a freshly
@@ -377,20 +379,31 @@ same-lifecycle owner prose or attachment edit forces a fresh launch instead of
 being overlaid. The publication guard repeats that same-URL open-PR/OID proof
 immediately before every generated feature push. The
 combined lifecycle commit is built directly on the verified tip and moves the
-local branch with an expected-old-OID ref CAS; its captured tree is then pushed
+local branch with an expected-old-OID ref CAS. Its ticket and audit leaves come
+from the rollback snapshot armed by the state writer, while unchanged task
+attachments come from the leased feature tree; a concurrent worktree edit is
+left visible and dirty instead of being adopted into either durable ref. An
+interrupt around the local ref CAS rolls that exact generated commit back
+before any remote publication. The captured tree is then pushed
 under an exact remote-tip lease *before* the same captured state lands on
 control or a start notification is sent. A lost lease removes that commit only
 when the local ref still names it. An interrupt after the feature push probes
 the exact destination: when control has not accepted the state it compensates
 the feature branch before propagating, and when control has accepted it the
 publisher records that durable boundary before propagating so local rollback
-cannot split the two refs. If the later control landing fails,
+cannot split the two refs. If the control acceptance probe itself is
+inconclusive, the generated feature state is retained for explicit
+reconciliation; compensation is forbidden because control may already contain
+it. If the later control landing fails,
 compensation fetches the live feature descendant, applies only the inverse of
 Coga's generated paths on top, reverse-three-way-merging ordinary files so
 non-overlapping peer edits to the same path survive and refusing compensation
 when those edits overlap. The checkout rechecks its active branch and HEAD
 immediately before fast-forwarding to that compensation, and skips the local
-merge if another command switched it. The error still escapes and the caller
+merge if another command switched it. A completed local fast-forward keeps the
+compensated descendant's worktree bytes, including same-path peer edits,
+instead of rewriting the stale failed transition over them. The error still
+escapes and the caller
 restores an ordinary file only while it still equals an armed generated
 snapshot, while removing generated audit lines union-safely from a concurrently
 appended log; an unarmed rollback refuses rather than guessing that current
@@ -402,7 +415,8 @@ publication succeeded, launch retains the identical published `in_progress`
 state instead of locally rewinding into a dirty split; the same explicit
 launch can then retry the still-unstarted session. No unrelated concurrent
 work is swept. Reproducible
-notification configuration errors are likewise checked before publication.
+notification configuration errors are likewise checked before publication,
+including an explicit in-session `coga block`.
 If live delivery still fails after strict state publication, the failure stays
 loud on stderr but does not append a new unleased audit line to the protected
 checkout.
@@ -411,13 +425,18 @@ Coga's audit line cannot trip the PR worktree's clean-tree gate. If the remote
 or control ticket moves after composition, launch refuses to spawn and
 requires a retry rather than working under stale instructions; a failed
 generated-log push undoes only that commit and leaves the append dirty for the
-retry. That retryable refusal exits with the no-sweep temporary-failure code,
+retry. Behind-checkout audit alignment uses guarded replacement before the
+fast-forward and append-only union restoration after it, so an audit line
+appended during alignment is never overwritten. That retryable refusal exits
+with the no-sweep temporary-failure code,
 so neither launch refresh nor CLI teardown can immediately commit the retained
 append. TTY refusal still precedes recorded-checkout and remote validation, but
 it locally recognizes a sole unstaged append-only audit-log delta and uses that
 same no-sweep exit; a clean checkout or any other dirt keeps the ordinary exit
-2. A non-`SystemExit` failure after strict assist setup has begun uses the same
-no-sweep exit. The child inherits a task-scoped recorded-branch,
+2. Every failure after strict assist alignment has begun, including later
+ticket reads and other pre-session setup, uses the same no-sweep exit. A
+checkout switch after alignment is a retry-only refusal, never a silent
+downgrade to an ordinary launch. The child inherits a task-scoped recorded-branch,
 recorded-PR, and effective-agent capability,
 allowing required in-session state commands such as the blocked-resume
 `coga unblock` and an explicit `coga block` to use the same feature/control
@@ -433,10 +452,13 @@ remain pinned to the recorded branch, re-prove the recorded PR is still open,
 and publish captured generated OIDs only from a safely aligned, exact remote
 tip. Assist refresh also reads control state from that verified push
 destination, not a fork remote's potentially different fetch/base repository.
-A lost refresh lease restores its pre-refresh tip only while the expected
-branch and HEAD still own the checkout, then restores ordinary bytes only when
+A strict refresh verifies the expected branch and HEAD again before its first
+worktree write. A lost refresh lease restores its pre-refresh tip only while the
+expected branch and HEAD still own the checkout, then restores ordinary bytes only when
 they still match the generated snapshot and removes generated audit lines
-union-safely around concurrent appends. If the agent
+union-safely around concurrent appends. Strict audit and refresh pushes catch
+interrupts as well as ordinary Git failures and probe the exact destination
+before deciding whether to retain or unwind their local generated commit. If the agent
 switches branches or the PR closes, teardown skips those commits instead of
 redirecting or advancing a merged branch and uses the same no-sweep exit. This
 preserves the PR branch's local/remote alignment without the catch-all sweep

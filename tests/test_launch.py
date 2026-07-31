@@ -4063,6 +4063,56 @@ def test_blocked_human_assist_explicit_block_publishes_through_lease(
     ).strip()
 
 
+def test_strict_block_preflights_notification_before_mutation(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Preflight strict block notification",
+        status="in_progress",
+    )
+    _allow_recorded_assist_pr(monkeypatch)
+    before_ticket = ticket_path.read_bytes()
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    monkeypatch.setattr(
+        "coga.commands.block.preflight_post",
+        lambda cfg: (_ for _ in ()).throw(launch_module.typer.Exit(1)),
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "block",
+            "--task",
+            str(created["slug"]),
+            "--reason",
+            "owner input still required",
+        ],
+        env=child_env,
+    )
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "notification configuration must be valid" in result.output
+    assert ticket_path.read_bytes() == before_ticket
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_before
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
 @pytest.mark.parametrize("command", ["block", "unblock"])
 def test_in_session_state_command_refuses_after_recorded_pr_closes(
     git_repo,
@@ -4555,7 +4605,7 @@ def test_parked_human_assist_activation_failure_restores_state(
         lambda *args, **kwargs: pytest.fail("agent must not start"),
     )
 
-    with pytest.raises(RuntimeError, match="simulated post-activation failure"):
+    with pytest.raises(SystemExit) as excinfo:
         launch_module.launch(
             str(created["slug"]),
             agent_override="claude",
@@ -4566,11 +4616,72 @@ def test_parked_human_assist_activation_failure_restores_state(
             queue_guidance=False,
         )
 
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert Ticket.read(ticket_path).status == initial_status
     assert git_repo.git("status", "--porcelain").strip() == ""
     assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
         "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
     ).strip()
+
+
+def test_final_assist_lease_rechecks_exact_ticket_bytes(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A peer edit during final lease acquisition is retained, not overwritten."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Recheck final assist bytes",
+        status="active",
+    )
+    cfg = load_config(git_repo.coga_os)
+    ref = next(
+        ref for ref in list_tasks(cfg) if ref.id_slug == str(created["slug"])
+    )
+    expected = Ticket.read(ticket_path)
+    expected_bytes = ticket_path.read_bytes()
+    lease = launch_module.git.feature_publication_lease(
+        cfg,
+        ref.path,
+        "feature/review",
+    )
+
+    def lease_after_peer_edit(*args, **kwargs):  # type: ignore[no-untyped-def]
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "## Description\n\n",
+                "## Description\n\nPEER EDIT DURING LEASE\n\n",
+            )
+        )
+        return lease
+
+    monkeypatch.setattr(
+        launch_module.git,
+        "feature_publication_lease",
+        lease_after_peer_edit,
+    )
+
+    with pytest.raises(
+        launch_module._AssistPublicationRefused,
+        match="changed while the final assist publication lease",
+    ):
+        launch_module._publish_assist_lifecycle_before_spawn(
+            cfg,
+            ref,
+            expected=expected,
+            expected_bytes=expected_bytes,
+            branch="feature/review",
+            launch_assignee="claude",
+            publication_guard=lambda oid: None,
+        )
+
+    assert "PEER EDIT DURING LEASE" in ticket_path.read_text()
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "PEER EDIT DURING LEASE" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
 
 
 def test_human_assist_does_not_sweep_commit_created_after_alignment(
@@ -4956,6 +5067,113 @@ def test_human_assist_setup_interrupt_uses_no_sweep_exit(
     assert retained_line in log_file.read_text()
 
 
+def test_aligned_assist_unreadable_ticket_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Post-alignment setup failures remain inside the retry-only boundary."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain malformed aligned ticket",
+        status="in_progress",
+    )
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    real_signal = launch_module.signal.signal
+    registrations = 0
+
+    def corrupt_after_signal_setup(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal registrations
+        result = real_signal(*args, **kwargs)
+        registrations += 1
+        if registrations == 2:
+            ticket_path.write_text("malformed ticket retained for retry\n")
+        return result
+
+    monkeypatch.setattr(
+        "coga.commands.launch.signal.signal",
+        corrupt_after_signal_setup,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert ticket_path.read_text() == "malformed ticket retained for retry\n"
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_before
+    assert str(ticket_path.relative_to(git_repo.root)) in git_repo.git(
+        "status", "--porcelain"
+    )
+
+
+def test_aligned_assist_refuses_checkout_switch_before_session(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Refuse aligned checkout switch",
+        status="in_progress",
+    )
+    git_repo.git("branch", "feature/other")
+    other_before = git_repo.git("rev-parse", "feature/other").strip()
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+
+    def switch_after_alignment(coga_os):  # type: ignore[no-untyped-def]
+        git_repo.git("checkout", "feature/other")
+
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        switch_after_alignment,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.spawn_agent_session",
+        lambda *args, **kwargs: pytest.fail("switched assist must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert git_repo.git("branch", "--show-current").strip() == "feature/other"
+    assert git_repo.git("rev-parse", "HEAD").strip() == other_before
+    assert Ticket.read(ticket_path).assignee == "marc"
+
+
 def test_human_assist_rejects_control_named_pr_before_writing(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -5324,8 +5542,8 @@ def test_assist_refresh_refuses_after_pr_closes_post_trailing_log(
         "refs/heads/feature/review",
         cwd=git_repo.origin,
     ).strip() == remote_after_trailing
-    assert "refresh failed" in (git_repo.coga_os / "log.md").read_text()
-    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "refresh failed" not in (git_repo.coga_os / "log.md").read_text()
+    assert git_repo.git("status", "--porcelain").strip() == ""
 
 
 def test_human_assist_branch_switch_cannot_redirect_teardown_publication(

@@ -196,10 +196,18 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 guard=git.ticket_state_guard(cfg, ref.ticket_path),
                 feature_publication=assist_publication,
                 feature_publication_guard=assist_guard,
+                generated_paths=(
+                    rollback.generated if rollback is not None else None
+                ),
             )
         except git.FeaturePublicationError as exc:
             rollback_note = ""
-            if rollback is not None:
+            if isinstance(exc, git.UncertainFeaturePublicationError):
+                rollback_note = (
+                    "; generated state was retained because remote "
+                    "publication could not be determined"
+                )
+            elif rollback is not None:
                 rollback_note = _rollback_note(rollback)
             raise _UnblockError(
                 "Could not publish the blocker resolution to the recorded "
@@ -228,7 +236,7 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 actor=actor,
                 log_message=f"unblocked ({ticket.status} → active): {answer}",
                 sync_state=False,
-                before_sync=rollback.arm,
+                mutation_snapshot=rollback,
             )
             git.sync_task_state(
                 cfg,
@@ -237,11 +245,17 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 guard=git.ticket_state_guard(cfg, ref.ticket_path),
                 feature_publication=assist_publication,
                 feature_publication_guard=assist_guard,
+                generated_paths=rollback.generated,
             )
             typer.echo(f"{ref.id_slug}: active (unblocked)")
     except git.FeaturePublicationError as exc:
         rollback_note = ""
-        if rollback is not None:
+        if isinstance(exc, git.UncertainFeaturePublicationError):
+            rollback_note = (
+                "; generated state was retained because remote publication "
+                "could not be determined"
+            )
+        elif rollback is not None:
             rollback_note = _rollback_note(rollback)
         raise _UnblockError(
             f"Could not publish {ref.id_slug}'s active state to the recorded "

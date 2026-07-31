@@ -406,14 +406,15 @@ def launch(
         if human_assist and isinstance(ref, TaskRef)
         else None
     )
-    if single_checkout_assist_branch is not None and (
+    if aligned_assist_branch is not None and (
         single_checkout_assist_branch != aligned_assist_branch
         or aligned_assist_remote_oid is None
         or aligned_assist_pr_url is None
     ):
         setup_bail(
-            f"Cannot launch {ref.id_slug}: the recorded assist branch or PR "
-            "changed after alignment; retry once the PR is stable."
+            f"Cannot launch {ref.id_slug}: the recorded assist checkout, "
+            "branch, or PR changed after alignment; retry from the recorded "
+            "checkout once the PR is stable."
         )
     if single_checkout_assist_branch is not None:
         try:
@@ -724,12 +725,16 @@ def launch(
                     spawn_ticket = _prospective_assist_ticket(cfg, ref, ticket)
                 except ComposeError as exc:
                     _bail(str(exc))
+                expected_ticket_bytes = ref.ticket_path.read_bytes()
 
-                def publish_lifecycle() -> None:
+                def publish_lifecycle(
+                    expected_bytes: bytes = expected_ticket_bytes,
+                ) -> None:
                     _publish_assist_lifecycle_before_spawn(
                         cfg,
                         ref,
                         expected=ticket,
+                        expected_bytes=expected_bytes,
                         branch=publish_assist_branch,
                         launch_assignee=step_assignee or launch_assignee,
                         publication_guard=assist_pr_guard,
@@ -879,6 +884,23 @@ def launch(
             if stop_reason is not None:
                 typer.echo(stop_reason)
                 break
+    except BaseException as exc:
+        if assist_setup_started:
+            suppress_assist_refresh = True
+            if (
+                isinstance(exc, SystemExit)
+                and exc.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+            ):
+                raise
+            detail = str(exc).strip() or type(exc).__name__
+            typer.secho(
+                f"Cannot continue {ref.id_slug}'s aligned assist "
+                f"({detail}). Retained state was left for an explicit retry.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
+        raise
     finally:
         # On every exit path — clean chain completion, `sys.exit` on a
         # non-zero/timeout agent, or an exception — pull the run's published
@@ -956,11 +978,19 @@ def _publish_assist_lifecycle_before_spawn(
     ref: TaskRef,
     *,
     expected: Ticket,
+    expected_bytes: bytes | None = None,
     branch: str,
     launch_assignee: str,
     publication_guard: Callable[[str], None],
 ) -> None:
     """Publish lifecycle state at the last boundary before the child process."""
+    initial_bytes = ref.ticket_path.read_bytes()
+    if expected_bytes is not None and initial_bytes != expected_bytes:
+        raise _AssistPublicationRefused(
+            "The ticket bytes changed after assist composition. No agent was "
+            "started; retry so the prompt and lifecycle state come from the "
+            "same ticket revision."
+        )
     current = read_ticket(ref)
     if current.render() != expected.render():
         raise _AssistPublicationRefused(
@@ -976,6 +1006,15 @@ def _publish_assist_lifecycle_before_spawn(
             "The recorded PR or control state changed after assist "
             f"composition. No agent was started: {exc}"
         ) from exc
+
+    # Lease and PR verification can perform network I/O. A peer edit during
+    # that window must not be replaced by the stale Ticket object read above.
+    if ref.ticket_path.read_bytes() != initial_bytes:
+        raise _AssistPublicationRefused(
+            "The ticket changed while the final assist publication lease was "
+            "being acquired. No agent was started; retry from the new bytes."
+        )
+    current = read_ticket(ref)
 
     if current.status == "in_progress":
         return
@@ -999,7 +1038,7 @@ def _publish_assist_lifecycle_before_spawn(
                 ),
                 echo=f"{ref.id_slug}: active — auto on launch",
                 sync_state=False,
-                before_sync=snapshot.arm,
+                mutation_snapshot=snapshot,
             )
         if current.status != "active":
             raise git.FeaturePublicationError(
@@ -1018,7 +1057,7 @@ def _publish_assist_lifecycle_before_spawn(
             echo=f"{ref.id_slug}: in_progress",
             feature_publication=publication,
             feature_publication_guard=publication_guard,
-            before_sync=snapshot.arm,
+            mutation_snapshot=snapshot,
             after_sync=record_publication,
         )
     except BaseException as exc:
@@ -1028,6 +1067,13 @@ def _publish_assist_lifecycle_before_spawn(
                 "branches, but launch was interrupted before the agent "
                 "started. The published in_progress state was retained "
                 "consistently; retry the same launch to start the agent."
+            ) from exc
+        if isinstance(exc, git.UncertainFeaturePublicationError):
+            raise _AssistPublicationRefused(
+                "The assist lifecycle reached the recorded feature branch, "
+                "but control publication could not be determined. Generated "
+                "state was retained for explicit reconciliation; no agent was "
+                f"started: {exc}"
             ) from exc
         rollback_note = _restore_assist_state(snapshot)
         if isinstance(
@@ -1194,11 +1240,16 @@ def _reblock_unresolved_resume(
             ),
             feature_publication=feature_publication,
             feature_publication_guard=feature_publication_guard,
-            before_sync=rollback.arm if rollback is not None else None,
+            mutation_snapshot=rollback,
         )
     except git.FeaturePublicationError as exc:
         rollback_note = ""
-        if rollback is not None:
+        if isinstance(exc, git.UncertainFeaturePublicationError):
+            rollback_note = (
+                "; generated state was retained because remote publication "
+                "could not be determined"
+            )
+        elif rollback is not None:
             rollback_note = _restore_assist_state(rollback)
         message = (
             f"Could not publish {ref.id_slug}'s unresolved blocked state to "

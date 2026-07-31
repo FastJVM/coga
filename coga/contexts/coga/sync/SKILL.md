@@ -729,6 +729,9 @@ Failure model:
   assist log whose exact PR-tip lease was lost, any aligned-assist setup
   refusal that may inherit such a log, or a failed leased `block`/`unblock`
   mutation, including lease acquisition before either command writes).
+  Once assist alignment starts, that retry-only boundary covers every later
+  setup and session-side exception, including an unreadable ticket on a
+  subsequent read; no post-alignment failure may fall back to the broad sweep.
   An `unblock --all` walk aborts rather than swallowing this code.
   It tells wrapping layers the CLI end-of-command state sweep must stand down
   instead of re-failing against a stale control checkout or committing bytes

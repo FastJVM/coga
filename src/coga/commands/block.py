@@ -12,6 +12,7 @@ from coga.blackboard import append_blocker
 from coga.config import ConfigError, load_config
 from coga.logfile import log_path
 from coga.mark import mark_blocked
+from coga.notification import preflight_post
 from coga.repl_supervisor import emit_done_marker
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 from coga.validate import TaskValidationError
@@ -57,6 +58,16 @@ def block(
         )
     assist_publication = assist.lease if assist is not None else None
     assist_guard = assist.guard if assist is not None else None
+    if assist is not None:
+        try:
+            preflight_post(cfg)
+        except typer.Exit:
+            _bail(
+                "Could not block from the recorded assist branch: "
+                "notification configuration must be valid before strict "
+                "state publication.",
+                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+            )
     rollback = None
     if assist is not None:
         rollback = git.FileMutationRollback.capture(
@@ -89,11 +100,16 @@ def block(
             echo=f"{ref.id_slug}: blocked (owner {owner} needs to answer)",
             feature_publication=assist_publication,
             feature_publication_guard=assist_guard,
-            before_sync=rollback.arm if rollback is not None else None,
+            mutation_snapshot=rollback,
         )
     except git.FeaturePublicationError as exc:
         rollback_note = ""
-        if rollback is not None:
+        if isinstance(exc, git.UncertainFeaturePublicationError):
+            rollback_note = (
+                "; generated state was retained because remote publication "
+                "could not be determined"
+            )
+        elif rollback is not None:
             rollback_note = _rollback_note(rollback)
         _bail(
             f"Could not publish {ref.id_slug}'s blocked state to the recorded "

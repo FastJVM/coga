@@ -478,7 +478,7 @@ def mark_active(
     log_message: str,
     echo: str | None = None,
     sync_state: bool = True,
-    before_sync: Callable[[], None] | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
 ) -> None:
     """Flip a ticket to `active`: write frontmatter and log.
 
@@ -491,15 +491,15 @@ def mark_active(
     prior_status = ticket.status
     prepare_active(cfg, ref, ticket)
     ticket.write(ref.ticket_path)
-    if before_sync is not None:
+    if mutation_snapshot is not None:
         # Strict callers captured the pre-mutation bytes. Arm immediately after
         # the write so a post-write validation refusal can still restore them.
-        before_sync()
+        mutation_snapshot.arm()
     assert_task_valid(cfg, ref, action="mark active")
     append_log(cfg, ref.id_slug, actor, log_message)
-    if before_sync is not None:
+    if mutation_snapshot is not None:
         # Include the generated audit append in the exact publication snapshot.
-        before_sync()
+        mutation_snapshot.arm()
     if echo is not None:
         typer.echo(echo)
     if sync_state:
@@ -526,7 +526,7 @@ def mark_in_progress(
     expected_remote_branch_oid: str | None = None,
     feature_publication: git.FeaturePublicationLease | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
-    before_sync: Callable[[], None] | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
     after_sync: Callable[[], None] | None = None,
 ) -> None:
     """Flip a ticket to `in_progress`: write, sync, then optionally post.
@@ -537,15 +537,15 @@ def mark_in_progress(
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(ref.ticket_path)
-    if before_sync is not None:
+    if mutation_snapshot is not None:
         # A validation exception is still a failed generated mutation; make it
         # rollback-safe before validation can raise.
-        before_sync()
+        mutation_snapshot.arm()
     assert_task_valid(cfg, ref, action="mark in_progress")
     append_log(cfg, ref.id_slug, actor, log_message)
-    if before_sync is not None:
+    if mutation_snapshot is not None:
         # Re-arm after the audit append so strict sync consumes both writes.
-        before_sync()
+        mutation_snapshot.arm()
 
     def sync_state() -> None:
         git.sync_task_state(
@@ -560,6 +560,11 @@ def mark_in_progress(
             feature_publication=feature_publication,
             feature_publication_guard=feature_publication_guard,
             after_strict_publication=after_sync,
+            generated_paths=(
+                mutation_snapshot.generated
+                if mutation_snapshot is not None
+                else None
+            ),
         )
 
     # A strict assist publication must succeed before announcing a started
@@ -600,21 +605,21 @@ def mark_blocked(
     echo: str | None = None,
     feature_publication: git.FeaturePublicationLease | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
-    before_sync: Callable[[], None] | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
 ) -> None:
     """Flip a ticket to `blocked` without changing its workflow step."""
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "blocked"
     ticket.write(ref.ticket_path)
-    if before_sync is not None:
+    if mutation_snapshot is not None:
         # Arm before validation so a strict block rejected by validation does
         # not leave an unpublished generated status behind.
-        before_sync()
+        mutation_snapshot.arm()
     assert_task_valid(cfg, ref, action="mark blocked")
     append_log(cfg, ref.id_slug, actor, log_message)
-    if before_sync is not None:
+    if mutation_snapshot is not None:
         # Re-arm with the generated blocker audit line included.
-        before_sync()
+        mutation_snapshot.arm()
 
     def sync_state() -> None:
         git.sync_task_state(
@@ -624,6 +629,11 @@ def mark_blocked(
             guard=_state_guard(cfg, ref),
             feature_publication=feature_publication,
             feature_publication_guard=feature_publication_guard,
+            generated_paths=(
+                mutation_snapshot.generated
+                if mutation_snapshot is not None
+                else None
+            ),
         )
 
     # A resumed single-checkout assist must republish `blocked` before telling
