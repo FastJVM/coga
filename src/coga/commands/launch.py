@@ -1003,11 +1003,27 @@ def launch(
         # `coga status` they run next in this terminal shows the world the
         # run just created.
         if not suppress_assist_refresh:
-            refreshed = _refresh_launch_checkout(
-                cfg,
-                expected_assist_branch=single_checkout_assist_branch,
-                feature_publication_guard=assist_pr_guard,
-            )
+            try:
+                refreshed = _refresh_launch_checkout(
+                    cfg,
+                    expected_assist_branch=single_checkout_assist_branch,
+                    feature_publication_guard=assist_pr_guard,
+                )
+            except BaseException as exc:
+                if single_checkout_assist_branch is None:
+                    raise
+                detail = str(exc).strip() or type(exc).__name__
+                typer.secho(
+                    "The recorded PR branch refresh was interrupted or failed "
+                    f"during assist teardown ({detail}). Generated state was "
+                    "left for an explicit retry and the catch-all sweep has "
+                    "been suppressed.",
+                    fg=typer.colors.RED,
+                    err=True,
+                )
+                raise SystemExit(
+                    git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                ) from exc
             if single_checkout_assist_branch is not None and not refreshed:
                 _bail(
                     "The recorded PR branch could not be safely refreshed "

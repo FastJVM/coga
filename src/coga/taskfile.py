@@ -119,7 +119,12 @@ def read_task_file(path: Path, *, blackboard_required: bool = True) -> TaskFile:
     return TaskFile(ticket=ticket, body=above, blackboard=blackboard)
 
 
-def read_blackboard(path: Path, *, blackboard_required: bool = True) -> str:
+def read_blackboard(
+    path: Path,
+    *,
+    blackboard_required: bool = True,
+    expected_bytes: bytes | None = None,
+) -> str:
     """Return the blackboard region of `path` (text after the fence marker).
 
     Returns ``""`` for a fence-less file when `blackboard_required` is False
@@ -127,7 +132,12 @@ def read_blackboard(path: Path, *, blackboard_required: bool = True) -> str:
     `replace_blackboard`: ``replace_blackboard(p, read_blackboard(p))`` is a
     no-op.
     """
-    text = path.read_text(encoding="utf-8")
+    raw = path.read_bytes()
+    if expected_bytes is not None and raw != expected_bytes:
+        raise TaskFileError(
+            f"ticket changed before its blackboard update: {path}"
+        )
+    text = raw.decode("utf-8")
     matches = _fence_matches(text)
     if not matches:
         if blackboard_required:
@@ -149,7 +159,7 @@ def replace_blackboard(
     new_blackboard: str,
     *,
     expected_bytes: bytes | None = None,
-) -> None:
+) -> bytes:
     """Replace only the blackboard region of `path`, leaving the rest verbatim.
 
     Byte-splices the file: everything up to and including the fence marker is
@@ -174,7 +184,9 @@ def replace_blackboard(
             f"ticket.md carries {len(matches)} blackboard fences "
             f"({BLACKBOARD_FENCE!r}); exactly one is allowed."
         )
-    atomic_write_text(path, text[: matches[0].end()] + new_blackboard)
+    rendered = text[: matches[0].end()] + new_blackboard
+    atomic_write_text(path, rendered)
+    return rendered.encode("utf-8")
 
 
 def upsert_blackboard(path: Path, new_blackboard: str) -> None:

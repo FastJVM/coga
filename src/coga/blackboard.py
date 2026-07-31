@@ -10,6 +10,7 @@ and body above the fence are never touched.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -141,6 +142,7 @@ def append_to_section(
     entry: str,
     *,
     expected_bytes: bytes | None = None,
+    after_write: Callable[[bytes], None] | None = None,
 ) -> None:
     """Append `entry` to the `## <heading>` section of the blackboard region.
 
@@ -148,11 +150,13 @@ def append_to_section(
     byte-for-byte unchanged.
     """
     region = read_blackboard(ticket_path)
-    replace_blackboard(
+    written = replace_blackboard(
         ticket_path,
         append_to_section_text(region, heading, entry),
         expected_bytes=expected_bytes,
     )
+    if after_write is not None:
+        after_write(written)
 
 
 def prelaunch_blackboard_synthesis_reason(
@@ -217,6 +221,7 @@ def append_blocker(
     reason: str,
     *,
     expected_bytes: bytes | None = None,
+    after_write: Callable[[bytes], None] | None = None,
 ) -> Blocker:
     """Write a timestamped blocker entry to the blackboard's Blockers section.
 
@@ -231,6 +236,7 @@ def append_blocker(
         "Blockers",
         entry,
         expected_bytes=expected_bytes,
+        after_write=after_write,
     )
     return Blocker(
         id=blocker_id,
@@ -314,6 +320,7 @@ def resolve_open_blockers(
     answer: str,
     *,
     expected_bytes: bytes | None = None,
+    after_write: Callable[[bytes], None] | None = None,
 ) -> list[Blocker]:
     """Mark every currently open blocker resolved and append the answer.
 
@@ -322,7 +329,7 @@ def resolve_open_blockers(
     """
     now = datetime.now()
     ts = now.strftime(BLOCKER_TS_FORMAT)
-    region = read_blackboard(ticket_path)
+    region = read_blackboard(ticket_path, expected_bytes=expected_bytes)
     lines = region.splitlines()
     blockers_before = parse_blockers_text(region)
     if not [b for b in blockers_before if not b.resolved]:
@@ -354,11 +361,13 @@ def resolve_open_blockers(
         resolved_lines.append(line)
 
     trailing = "\n" if region.endswith("\n") else ""
-    replace_blackboard(
+    written = replace_blackboard(
         ticket_path,
         "\n".join(resolved_lines) + trailing,
         expected_bytes=expected_bytes,
     )
+    if after_write is not None:
+        after_write(written)
     return [b for b in read_blockers(ticket_path) if b.resolved and b.answer == answer]
 
 

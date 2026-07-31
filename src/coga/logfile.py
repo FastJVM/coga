@@ -32,14 +32,15 @@ from coga.paths import log_path, recurring_dir, tasks_dir
 _LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) \[([^\]]*)\]")
 
 
-def append_log(cfg: Config, task_ref: str, actor: str, message: str) -> None:
-    """Append one line to the repo-global `coga/log.md`, tagged `task_ref`."""
+def append_log(cfg: Config, task_ref: str, actor: str, message: str) -> bytes:
+    """Append and return one exact encoded repo-global audit-log line."""
     path = log_path(cfg)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    line = f"{timestamp} [{task_ref}] [{actor}] {message}\n"
+    line = f"{timestamp} [{task_ref}] [{actor}] {message}\n".encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as f:
+    with path.open("ab") as f:
         f.write(line)
+    return line
 
 
 def ref_tag_for_path(cfg: Config, path: Path) -> str:

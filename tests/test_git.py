@@ -2729,7 +2729,12 @@ def test_file_mutation_rollback_preserves_peer_ticket_and_log_edits(
     )
     ticket.write_text("status: in_progress\n")
     log.write_text("prior audit\ngenerated transition\n")
-    rollback.arm()
+    rollback.arm(
+        {
+            ticket: b"status: in_progress\n",
+            log: b"prior audit\ngenerated transition\n",
+        }
+    )
 
     peer_ticket = "status: in_progress\npeer annotation\n"
     ticket.write_text(peer_ticket)
@@ -2742,6 +2747,25 @@ def test_file_mutation_rollback_preserves_peer_ticket_and_log_edits(
     assert refused == (ticket,)
     assert ticket.read_text() == peer_ticket
     assert log.read_text() == "prior audit\nconcurrent audit\n"
+
+
+def test_file_mutation_rollback_does_not_adopt_peer_edit_before_arm(
+    tmp_path: Path,
+) -> None:
+    ticket = tmp_path / "ticket.md"
+    ticket.write_text("status: active\n")
+    rollback = git.FileMutationRollback.capture((ticket,))
+    generated = b"status: in_progress\n"
+    ticket.write_bytes(generated)
+    peer = generated + b"peer annotation\n"
+    ticket.write_bytes(peer)
+
+    rollback.arm({ticket: generated})
+    refused = rollback.restore()
+
+    assert rollback.generated == {ticket: generated}
+    assert refused == (ticket,)
+    assert ticket.read_bytes() == peer
 
 
 def test_file_mutation_rollback_refuses_unarmed_restore(
@@ -2962,6 +2986,85 @@ def test_strict_feature_publication_leases_exact_control_lifecycle(
     assert "coga/tasks/demo/ticket.md" in git_repo.git(
         "status",
         "--porcelain",
+    )
+
+
+def test_strict_control_push_leases_guarded_base_across_force_rewind(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale candidate cannot silently restore a force-rewound control tip."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    marker = git_repo.root / "CONTROL-MARKER.txt"
+    marker.write_text("control commit intentionally rewound by peer\n")
+    git_repo.git("add", "CONTROL-MARKER.txt")
+    git_repo.git("commit", "-m", "seed control-only marker")
+    git_repo.git("push", "origin", "main")
+    guarded_tip = git_repo.git(
+        "rev-parse", "refs/heads/main", cwd=git_repo.origin
+    ).strip()
+    rewound_tip = git_repo.git(
+        "rev-parse", f"{guarded_tip}^", cwd=git_repo.origin
+    ).strip()
+
+    branch = "feature/control-force-rewind"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    lease = git.feature_publication_lease(cfg, ticket.parent, branch)
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="generated after guarded control read\n",
+        )
+    )
+
+    real_push = git._push_ref
+    control_leases: list[tuple[str, str] | None] = []
+    raced = False
+
+    def rewind_before_control_push(
+        root,
+        remote,
+        refspec,
+        *,
+        force_with_lease=None,
+    ):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if refspec.endswith(":refs/heads/main"):
+            control_leases.append(force_with_lease)
+            if not raced:
+                raced = True
+                git_repo.git(
+                    "update-ref",
+                    "refs/heads/main",
+                    rewound_tip,
+                    cwd=git_repo.origin,
+                )
+        return real_push(
+            root,
+            remote,
+            refspec,
+            force_with_lease=force_with_lease,
+        )
+
+    monkeypatch.setattr(git, "_push_ref", rewind_before_control_push)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — in_progress",
+        feature_publication=lease,
+    )
+
+    assert control_leases[0] == ("refs/heads/main", guarded_tip)
+    assert all(item is not None for item in control_leases)
+    assert "status: in_progress" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert "CONTROL-MARKER.txt" not in git_repo.git(
+        "ls-tree", "-r", "--name-only", "main", cwd=git_repo.origin
     )
 
 
@@ -3451,7 +3554,7 @@ def test_strict_publication_uses_armed_generated_bytes(
             blackboard="working\n",
         )
     )
-    rollback.arm()
+    rollback.arm({ticket: ticket.read_bytes()})
     real_build = git._build_overlay_tree
     raced = False
 

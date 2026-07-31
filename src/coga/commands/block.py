@@ -98,11 +98,12 @@ def block(
                 if rollback is not None
                 else None
             ),
+            after_write=(
+                (lambda written: rollback.arm({ref.ticket_path: written}))
+                if rollback is not None
+                else None
+            ),
         )
-        if rollback is not None:
-            # The blocker append is the first generated ticket revision. Make
-            # it both rollback-safe and the expected input to the status write.
-            rollback.arm()
         ticket = read_ticket(ref)
         mark_blocked(
             cfg,

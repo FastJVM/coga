@@ -21,7 +21,7 @@ from coga.blackboard import prelaunch_blackboard_synthesis_reason
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import append_log
-from coga.paths import recurring_dir, resolve_workflow_path
+from coga.paths import log_path, recurring_dir, resolve_workflow_path
 from coga.period_state import StateSnapshot, read_snapshot, stale_keys
 from coga.notification import digest_spool_path, notify, post
 from coga.tasks import TaskRef
@@ -492,16 +492,17 @@ def mark_active(
     prepare_active(cfg, ref, ticket)
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
+    ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
     if mutation_snapshot is not None:
         # Strict callers captured the pre-mutation bytes. Arm immediately after
         # the write so a post-write validation refusal can still restore them.
-        mutation_snapshot.arm()
+        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     assert_task_valid(cfg, ref, action="mark active")
-    append_log(cfg, ref.id_slug, actor, log_message)
+    audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
         # Include the generated audit append in the exact publication snapshot.
-        mutation_snapshot.arm()
+        mutation_snapshot.arm_append(log_path(cfg), audit_append)
     if echo is not None:
         typer.echo(echo)
     if sync_state:
@@ -540,16 +541,17 @@ def mark_in_progress(
     ticket.frontmatter["status"] = "in_progress"
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
+    ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
     if mutation_snapshot is not None:
         # A validation exception is still a failed generated mutation; make it
         # rollback-safe before validation can raise.
-        mutation_snapshot.arm()
+        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     assert_task_valid(cfg, ref, action="mark in_progress")
-    append_log(cfg, ref.id_slug, actor, log_message)
+    audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
         # Re-arm after the audit append so strict sync consumes both writes.
-        mutation_snapshot.arm()
+        mutation_snapshot.arm_append(log_path(cfg), audit_append)
 
     def sync_state() -> None:
         git.sync_task_state(
@@ -617,16 +619,17 @@ def mark_blocked(
     ticket.frontmatter["status"] = "blocked"
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
+    ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
     if mutation_snapshot is not None:
         # Arm before validation so a strict block rejected by validation does
         # not leave an unpublished generated status behind.
-        mutation_snapshot.arm()
+        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     assert_task_valid(cfg, ref, action="mark blocked")
-    append_log(cfg, ref.id_slug, actor, log_message)
+    audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
         # Re-arm with the generated blocker audit line included.
-        mutation_snapshot.arm()
+        mutation_snapshot.arm_append(log_path(cfg), audit_append)
 
     def sync_state() -> None:
         git.sync_task_state(

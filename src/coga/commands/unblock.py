@@ -189,25 +189,26 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
                 if rollback is not None
                 else None
             ),
+            after_write=(
+                (lambda written: rollback.arm({ref.ticket_path: written}))
+                if rollback is not None
+                else None
+            ),
         )
-        if rollback is not None:
-            # Resolving the asks is the first generated ticket revision and the
-            # exact input any following status write is allowed to replace.
-            rollback.arm()
         ticket = read_ticket(ref)
 
         if ticket.status == "in_progress":
             # Launch already reactivated the ticket (blocked → active →
             # in_progress); the session is recording its resolution mid-step.
             # Resolve-only: no status flip, `step:` untouched.
-            append_log(
+            audit_append = append_log(
                 cfg,
                 ref.id_slug,
                 actor,
                 f"unblocked (asks resolved, still in_progress): {answer}",
             )
             if rollback is not None:
-                rollback.arm()
+                rollback.arm_append(log_path(cfg), audit_append)
             git.sync_task_state(
                 cfg,
                 ref.path,

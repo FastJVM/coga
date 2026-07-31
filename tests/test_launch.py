@@ -4320,6 +4320,68 @@ def test_strict_state_command_first_mutation_rejects_peer_revision(
     assert rel in git_repo.git("status", "--porcelain")
 
 
+def test_strict_unblock_checks_ticket_revision_before_no_blocker_return(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A peer resolution cannot be adopted and relabeled as this command's."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Guard strict unblock no-op race",
+        status="in_progress",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    rel = str(ticket_path.relative_to(git_repo.root))
+    git_repo.git("add", rel)
+    git_repo.git("commit", "-m", "ticket: record no-op race blocker")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(rel, ticket_path.read_text())
+    _allow_recorded_assist_pr(monkeypatch)
+    real_resolve = unblock_module.resolve_open_blockers
+
+    def peer_resolves_then_command_retries(*args, **kwargs):  # type: ignore[no-untyped-def]
+        real_resolve(
+            ticket_path,
+            "human:peer",
+            "peer chose seven retries",
+        )
+        return real_resolve(*args, **kwargs)
+
+    monkeypatch.setattr(
+        unblock_module,
+        "resolve_open_blockers",
+        peer_resolves_then_command_retries,
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "unblock",
+            str(created["slug"]),
+            "--answer",
+            "caller chose five retries",
+        ],
+        env=child_env,
+    )
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "ticket changed before its blackboard update" in result.output
+    assert "peer chose seven retries" in ticket_path.read_text()
+    assert "caller chose five retries" not in ticket_path.read_text()
+    assert "peer chose seven retries" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert rel in git_repo.git("status", "--porcelain")
+
+
 @pytest.mark.parametrize("command", ["block", "unblock"])
 def test_in_session_state_command_refuses_after_recorded_pr_closes(
     git_repo,
@@ -5836,6 +5898,50 @@ def test_blocked_assist_trailing_log_refusal_reblocks_before_exit(
         "refs/heads/feature/review:coga/log.md",
         cwd=git_repo.origin,
     )
+
+
+@pytest.mark.parametrize("signal_exit", [130, 143])
+def test_aligned_assist_teardown_refresh_interrupt_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    signal_exit: int,
+) -> None:
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Normalize teardown signal {signal_exit}",
+        status="in_progress",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_launch_checkout",
+        lambda *args, **kwargs: (_ for _ in ()).throw(SystemExit(signal_exit)),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
 
 
 def test_assist_trailing_log_refuses_after_recorded_pr_closes(
