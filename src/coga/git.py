@@ -312,7 +312,8 @@ def sync_log(
     message: str,
     publish_current_branch: bool = False,
     publish_if_remote_aligned: bool = False,
-) -> None:
+    allow_feature_fast_forward: bool = True,
+) -> bool:
     """Commit the repo-global `log.md` alone, and publish when required.
 
     For the union-safe audit log to survive a `git pull`, its appended lines
@@ -336,13 +337,21 @@ def sync_log(
         set `publish_current_branch` so the final session-usage commit also
         reaches the already-open PR branch. An explicit human-step assist uses
         the narrower `publish_if_remote_aligned`: publish the log-only commit
-        only from an aligned live configured remote tip. A merely-behind branch
-        is fast-forwarded first while its one dirty union-log append is
-        preserved; a behind checkout with other dirt is left untouched rather
-        than made divergent. That keeps an already-published PR branch aligned
-        without accidentally publishing unrelated local commits.
+        only from an aligned live configured remote tip. By default, a
+        merely-behind branch is fast-forwarded first while its one dirty
+        union-log append is preserved; a behind checkout with other dirt is
+        left untouched rather than made divergent. A launch that already
+        aligned before composing may set `allow_feature_fast_forward=False`:
+        if the remote moved after composition, leave the log uncommitted and
+        report failure so the caller can refuse to spawn with stale state.
+        These rules keep an already-published PR branch aligned without
+        accidentally publishing unrelated local commits.
       - Detached HEAD: skip (the commit would be orphaned); the line stays
         dirty, reported to stderr.
+
+    Returns whether the log reached a safe terminal state. Most callers retain
+    the non-fatal contract and ignore the result; the assist launcher checks it
+    so a late remote move stops before the child starts.
 
     Same non-fatal failure model as `sync_paths` (stderr, never a crash) with
     one deliberate difference: it does **not** `append_log` on failure. That
@@ -351,20 +360,20 @@ def sync_log(
     """
     if not cfg.git_enabled:
         sys.stderr.write(f"[git] disabled (log sync suppressed): {message}\n")
-        return
+        return False
     log_file = log_path(cfg)
     if not log_file.exists():
-        return
+        return True
     try:
         root = _toplevel(log_file)
         if root is None:
             sys.stderr.write(f"[git] not a git repo (log sync skipped): {message}\n")
-            return
+            return False
         if not _control_branch_present(root, cfg.git_control_branch, cfg.git_remote):
             sys.stderr.write(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
-            return
+            return False
         log_rel = _relative_to_root(root, log_file)
         branch = _current_branch(root)
         # A commit is always local and never touches the remote, so it proceeds
@@ -382,6 +391,7 @@ def sync_log(
             sys.stderr.write(
                 f"[git] detached HEAD — log append not committed locally. ({message})\n"
             )
+            return False
         else:
             publication = _FeaturePublicationState(
                 aligned=False,
@@ -398,6 +408,7 @@ def sync_log(
                     cfg.git_remote,
                     branch,
                     preserve_union_rel=log_rel,
+                    fast_forward_if_behind=allow_feature_fast_forward,
                 )
             if publish_if_remote_aligned and not publication.may_commit:
                 sys.stderr.write(
@@ -405,12 +416,12 @@ def sync_log(
                     f"log publication ({publication.detail}) — log left "
                     f"uncommitted. ({message})\n"
                 )
-                return
+                return False
             committed = _commit_paths(root, [log_rel], message)
             if publish_current_branch or publication.aligned:
                 if not remote_ok:
                     sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
-                    return
+                    return False
                 result = _push_ref(root, cfg.git_remote, branch)
                 if result is not None:
                     raise GitError(
@@ -424,8 +435,10 @@ def sync_log(
                     "before the log commit — log committed locally but not "
                     f"published ({publication.detail}). ({message})\n"
                 )
+        return True
     except GitError as exc:
         sys.stderr.write(f"[git] log sync failed: {exc}. Message was: {message}\n")
+        return False
 
 
 def sync_paths(
@@ -2181,6 +2194,7 @@ def _prepare_feature_branch_publication(
     branch: str,
     *,
     preserve_union_rel: str | None = None,
+    fast_forward_if_behind: bool = True,
 ) -> _FeaturePublicationState:
     """Align a merely-behind feature checkout before a generated commit.
 
@@ -2193,7 +2207,8 @@ def _prepare_feature_branch_publication(
     the fast-forward.
 
     `may_commit=False` means the branch is behind but cannot be safely
-    fast-forwarded. Callers must skip their generated commit in that case.
+    fast-forwarded, or the caller explicitly forbade a post-composition
+    fast-forward. Callers must skip their generated commit in that case.
     """
     remote_tip = _remote_branch_oid(root, remote, branch)
     if remote_tip is None:
@@ -2223,6 +2238,16 @@ def _prepare_feature_branch_publication(
             aligned=False,
             may_commit=True,
             detail=f"local tip is {relation} relative to {remote}/{branch}",
+        )
+
+    if not fast_forward_if_behind:
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=False,
+            detail=(
+                f"local tip moved behind {remote}/{branch} after launch "
+                "composition"
+            ),
         )
 
     changed = set(_changed_paths_under(root, "."))

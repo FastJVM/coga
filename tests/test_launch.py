@@ -2869,7 +2869,7 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
     assert sync_calls[0]["publish_if_remote_aligned"] is False
 
 
-def test_human_assist_keeps_single_checkout_pr_branch_clean_and_aligned(
+def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(git_repo.coga_os)
@@ -2910,6 +2910,24 @@ def test_human_assist_keeps_single_checkout_pr_branch_clean_and_aligned(
     git_repo.git("commit", "-m", "feature: initial implementation")
     git_repo.git("push", "-u", "origin", "feature/review")
 
+    # Another machine advances the PR branch, including prompt-bearing ticket
+    # state. Launch must fast-forward before its final ticket/prompt reads, not
+    # inside the later launch-log commit after composition.
+    peer = git_repo.origin.parent / "peer-review-assist"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
+    peer_ticket = peer / ticket_path.relative_to(git_repo.root)
+    peer_ticket.write_text(
+        peer_ticket.read_text() + "\nRemote prompt state: address the latest review.\n"
+    )
+    git_repo.git("add", str(peer_ticket.relative_to(peer)), cwd=peer)
+    git_repo.git("commit", "-m", "review: update assist instructions", cwd=peer)
+    git_repo.git("push", "origin", "feature/review", cwd=peer)
+    assert "Remote prompt state" not in ticket_path.read_text()
+
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr(
         "coga.commands.launch._refresh_agent_skills_for_launch",
@@ -2919,10 +2937,26 @@ def test_human_assist_keeps_single_checkout_pr_branch_clean_and_aligned(
         "coga.commands.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
+    real_compose_prompt = launch_module.compose_prompt
+    composed_ticket_bodies: list[str] = []
+
+    def capture_compose_prompt(cfg, ref, ticket):  # type: ignore[no-untyped-def]
+        composed_ticket_bodies.append(ticket.body)
+        return real_compose_prompt(cfg, ref, ticket)
+
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        capture_compose_prompt,
+    )
 
     def apply_and_push_fix(*args, **kwargs):  # type: ignore[no-untyped-def]
         # The assist must not inherit the launcher's own dirty audit append.
         assert git_repo.git("status", "--porcelain").strip() == ""
+        assert composed_ticket_bodies
+        assert all(
+            "Remote prompt state: address the latest review." in body
+            for body in composed_ticket_bodies
+        )
         assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
             "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
         ).strip()
@@ -2980,6 +3014,7 @@ def test_human_assist_keeps_single_checkout_pr_branch_clean_and_aligned(
     assert "concurrent state" in git_repo.git(
         "show", "refs/heads/feature/review:coga/log.md", cwd=git_repo.origin
     )
+    assert "Remote prompt state: address the latest review." in ticket_path.read_text()
     assert Ticket.read(ticket_path).assignee == "marc"
 
 

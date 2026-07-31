@@ -51,11 +51,12 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
 1. Verify `git branch --show-current` equals `branch:`.
 2. Verify `git status --short` is clean before starting. Do not absorb unrelated
    local changes or stage `coga/log.md` with a fix. The launch supervisor owns
-   its audit lines: before spawning this assist it commits the launch line by
-   itself only when the launch checkout is the recorded primary worktree on the
-   recorded branch. A merely-behind checkout is fast-forwarded while preserving
-   that union-log append; publication still requires an aligned configured
-   remote.
+   its audit lines. For a recorded primary-worktree assist, it fast-forwards a
+   merely-behind checkout *before* its final ticket/config/prompt reads, then
+   commits the launch line by itself. If the PR branch moves again after prompt
+   composition, launch refuses to spawn and asks for a retry instead of
+   fast-forwarding underneath stale instructions. Publication still requires
+   the configured remote and a safely aligned tip.
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
    remote for every fetch and push. Resolve its GitHub owner/repository from
    `git remote get-url <configured-remote>`.
@@ -152,27 +153,38 @@ Run:
 python -m pytest
 ```
 
-Do not push with failing tests. Commit the requested fixes on the recorded
-branch with a short factual subject. Fetch the configured remote branch again
-and re-read the PR's `headRefOid`; stop if either moved since verification.
-Then push normally to the verified PR-head remote:
+Do not continue with failing tests. Then choose the path that matches the
+inventory:
+
+- **At least one thread required a code change.** Commit the requested fixes on
+  the recorded branch with a short factual subject. Fetch the configured remote
+  branch again and re-read the PR's `headRefOid`; stop if either moved since
+  verification. Push normally to the verified PR-head remote:
 
 ```text
 git push <configured-remote> HEAD:refs/heads/<branch-name>
 ```
 
-Never force-push during this assist. If the push is rejected because the remote
-moved, fetch and reconcile with the attending human instead of overwriting it.
-After the push, re-run `gh pr view <pr-url> --json headRefOid` and require the
-reported OID to equal `git rev-parse HEAD`. Do not reply to threads until this
-proves the commit actually reached the recorded PR.
+  Never force-push during this assist. If the push is rejected because the
+  remote moved, fetch and reconcile with the attending human instead of
+  overwriting it. After the push, re-run
+  `gh pr view <pr-url> --json headRefOid` and require the reported OID to equal
+  `git rev-parse HEAD`.
+- **Every thread is already satisfied.** Do not manufacture a commit and do not
+  push. Fetch the configured remote branch again and re-read the PR's
+  `headRefOid`; require `FETCH_HEAD`, that reported OID, and
+  `git rev-parse HEAD` to be identical. This proves the file/commit evidence you
+  are about to cite describes the PR's current head.
+
+Do not reply to threads until the applicable post-push or no-change proof
+succeeds.
 
 ## 4. Reply without resolving
 
-Reply only after the fix commit is successfully on the PR branch. Add one
-concise reply to every unresolved thread in the inventory, saying what changed
-(or why the current code already satisfies it), naming the commit when useful,
-and reporting the verification result.
+Reply only after the applicable head proof succeeds. Add one concise reply to
+every unresolved thread in the inventory, saying what changed (or why the
+current code already satisfies it), naming the commit when useful, and
+reporting the verification result.
 
 Use the thread's GraphQL node ID with this mutation:
 

@@ -54,7 +54,7 @@ from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga import git
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.logfile import append_log
+from coga.logfile import append_log, log_path
 from coga.mark import (
     BlackboardNeedsSynthesis,
     RequiredExtensionMissing,
@@ -93,6 +93,7 @@ DEFAULT_DISCUSSION_TEMPLATES = {
     "claude": "--append-system-prompt {prompt}",
     "codex": "-c developer_instructions={prompt}",
 }
+_ASSIST_ALIGNMENT_ATTEMPTS = 3
 
 
 def launch(
@@ -164,7 +165,6 @@ def launch(
         cfg = load_config()
     except ConfigError as exc:
         _bail(str(exc))
-    _refresh_agent_skills_for_launch(cfg.repo_root)
 
     try:
         ref = resolve_target(cfg, task)
@@ -177,6 +177,50 @@ def launch(
             cfg.agent_type(agent_override)
         except ConfigError as exc:
             _bail(str(exc))
+
+    # A supported single-checkout assist may be behind its published PR branch.
+    # Align before refreshing the agent-skill view or deriving any launch state:
+    # the fetched commit can change coga.toml, the ticket, or a composed skill.
+    # Reload and repeat after every fast-forward so publication authorization,
+    # secrets, expected step, prompt, and command all come from the final tree.
+    if not prompt_report and agent_override is not None:
+        for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
+            alignment_ticket = read_ticket(ref)
+            if (
+                is_bootstrap
+                or alignment_ticket.status not in {"active", "in_progress"}
+                or not _interactive_stdio_has_tty()
+                or alignment_ticket.assignee in cfg.agents
+                or not _assist_uses_recorded_single_checkout(cfg, alignment_ticket)
+            ):
+                break
+            try:
+                moved = _align_recorded_assist_checkout(cfg, alignment_ticket)
+            except git.GitError as exc:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: could not align the recorded "
+                    f"assist checkout before composing the prompt: {exc}"
+                )
+            if not moved:
+                break
+            try:
+                cfg = load_config(cfg.repo_root)
+                ref = resolve_target(cfg, task)
+            except (ConfigError, TaskNotFoundError) as exc:
+                _bail(str(exc))
+            is_bootstrap = isinstance(ref, BootstrapRef)
+            try:
+                cfg.agent_type(agent_override)
+            except ConfigError as exc:
+                _bail(str(exc))
+        else:
+            _bail(
+                f"Cannot launch {ref.id_slug}: the recorded assist branch moved "
+                f"during {_ASSIST_ALIGNMENT_ATTEMPTS} consecutive alignment "
+                "attempts; retry once the PR branch is stable."
+            )
+
+    _refresh_agent_skills_for_launch(cfg.repo_root)
 
     def _read(target: TaskRef | BootstrapRef) -> Ticket:
         """Read the ticket, applying the ephemeral `--agent` override."""
@@ -738,6 +782,8 @@ def _assist_uses_recorded_single_checkout(cfg: Config, ticket: Ticket) -> bool:
     worktree, a linked worktree, a missing `## Dev` field, or a different
     current branch all fail closed and retain ordinary local-only log handling.
     """
+    if not cfg.git_enabled:
+        return False
     _, blackboard = split_body(ticket.body)
     branch = parse_branch_name(blackboard or "")
     worktree = parse_worktree_path(blackboard or "")
@@ -753,6 +799,33 @@ def _assist_uses_recorded_single_checkout(cfg: Config, ticket: Ticket) -> bool:
         )
     except git.GitError:
         return False
+
+
+def _align_recorded_assist_checkout(cfg: Config, ticket: Ticket) -> bool:
+    """Fast-forward a proven recorded assist checkout before launch derivation.
+
+    Returns whether HEAD moved. A merely-behind checkout with unrelated dirt
+    raises instead of composing from stale files. The union-safe audit log is
+    the sole permitted dirty path so a prior interrupted launch can recover on
+    retry without losing its append.
+    """
+    _, blackboard = split_body(ticket.body)
+    branch = parse_branch_name(blackboard or "")
+    root = git._toplevel(cfg.repo_root)
+    if root is None or not branch or not git._remote_configured(root, cfg.git_remote):
+        return False
+    before = git._run_git(root, "rev-parse", "HEAD").strip()
+    log_rel = git._relative_to_root(root, log_path(cfg))
+    publication = git._prepare_feature_branch_publication(
+        root,
+        cfg.git_remote,
+        branch,
+        preserve_union_rel=log_rel,
+    )
+    if not publication.may_commit:
+        raise git.GitError(publication.detail)
+    after = git._run_git(root, "rev-parse", "HEAD").strip()
+    return before != after
 
 
 def _queue_prompt_suffix() -> str:
@@ -1028,11 +1101,21 @@ def spawn_agent_session(
             # later task-state sync to carry it; a human-step assist may share
             # the PR checkout whose clean-tree gate the agent is about to run.
             # Non-fatal on any git failure.
-            git.sync_log(
+            log_synced = git.sync_log(
                 cfg,
                 message=f"Log: {ref.id_slug}",
                 publish_if_remote_aligned=publish_aligned_log,
+                # A recorded assist was aligned before ticket/config/prompt
+                # derivation. If its remote moves now, refuse to spawn instead
+                # of fast-forwarding underneath already-composed state.
+                allow_feature_fast_forward=not publish_aligned_log,
             )
+            if publish_aligned_log and not log_synced:
+                raise ComposeError(
+                    "The recorded PR branch moved or could not be verified "
+                    "after launch composition. No agent was started; retry "
+                    "the launch so its prompt is composed from the new tip."
+                )
 
         if name and sys.stdout.isatty():
             sys.stdout.write(f"\033]2;{name}\007")

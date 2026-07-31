@@ -336,6 +336,41 @@ def test_sync_log_fast_forwards_behind_assist_branch_before_publishing(git_repo)
     )
 
 
+def test_sync_log_refuses_late_assist_fast_forward_after_composition(
+    git_repo, capsys
+):
+    """A remote move after prompt composition stops instead of changing its tree."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    local_before = git_repo.git("rev-parse", "HEAD").strip()
+
+    peer = git_repo.origin.parent / "peer-feature"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/x", "origin/feature/x", cwd=peer)
+    (peer / "remote-review.txt").write_text("moved after composition\n")
+    git_repo.git("add", "remote-review.txt", cwd=peer)
+    git_repo.git("commit", "-m", "review: concurrent update", cwd=peer)
+    git_repo.git("push", "origin", "feature/x", cwd=peer)
+
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+        allow_feature_fast_forward=False,
+    )
+
+    assert synced is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == local_before
+    assert not (git_repo.root / "remote-review.txt").exists()
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "moved behind" in capsys.readouterr().err
+
+
 def test_sync_log_does_not_publish_unaligned_feature_work(git_repo, capsys):
     """The assist guard commits its log but never sweeps an unpushed change."""
     cfg = load_config(git_repo.coga_os)

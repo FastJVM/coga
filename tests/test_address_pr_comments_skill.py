@@ -23,6 +23,10 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
     assert "python -m pytest" in skill
     assert "git push <configured-remote>" in skill
     assert "git push origin" not in skill
+    assert "Every thread is already satisfied" in skill
+    assert "Do not manufacture a commit and do not" in skill
+    assert "`FETCH_HEAD`, that reported OID" in skill
+    assert "applicable post-push or no-change proof" in skill
     assert "trailing usage-log commit" in skill
     assert "publishes that log-only commit" in skill
     assert "Do not merge" in skill
