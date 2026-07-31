@@ -1,7 +1,7 @@
 ---
 slug: always-accept-coga-ticket
 title: always accept coga ticket
-status: in_progress
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
