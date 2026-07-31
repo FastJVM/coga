@@ -53,13 +53,15 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
    local changes or stage `coga/log.md` with a fix. The launch supervisor owns
    its audit lines. For a recorded primary-worktree assist, it fast-forwards a
    merely-behind checkout *before* activation and its final
-   ticket/config/prompt reads, publishes any generated lifecycle state with an
-   exact-tip lease, then commits the launch line by itself. If the PR branch
-   moves in any direction after prompt composition, launch refuses to spawn and
-   asks for a retry instead of working underneath stale instructions. A failed
-   generated-log push leaves the append dirty rather than stranding a divergent
-   audit commit. Publication still requires the configured remote and a safely
-   aligned tip.
+   ticket/config/prompt reads. Paused/blocked activation waits for all
+   preflights; the combined lifecycle commit is pushed by captured OID only if
+   local `HEAD` still equals the verified tip and the exact remote-tip lease
+   holds. A refusal restores the prior task/log state before any child or start
+   notification. If the PR branch moves in any direction after prompt
+   composition, launch refuses to spawn and asks for a retry instead of working
+   underneath stale instructions. A failed generated-log push leaves the append
+   dirty rather than stranding a divergent audit commit. Publication still
+   requires the configured remote and a safely aligned tip.
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
    remote for every fetch and push. Resolve its GitHub owner/repository from
    `git remote get-url <configured-remote>`.
@@ -226,6 +228,9 @@ judgment. Then stop naturally with the ticket still `in_progress` on `review`.
 The launch supervisor owns the trailing usage-log commit; when the PR branch
 still matches its configured remote, it publishes that log-only commit and any
 generated control-state refresh during teardown so the local and remote tips
-stay aligned. Those writes remain pinned to the recorded branch and are skipped
-if `HEAD` changed. Do not add a completion commit or signal to imitate that
-teardown.
+stay aligned. Those writes remain pinned to the recorded branch, publish their
+captured generated OID, and restore the prior local tip/dirty bytes if an
+exact-tip lease loses a race. The task-scoped branch capability also lets the
+mandatory blocker-resolution preamble publish `coga unblock` without leaking
+that authority into nested ordinary launches. Do not add a completion commit or
+signal to imitate teardown.

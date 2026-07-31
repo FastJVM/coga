@@ -450,6 +450,7 @@ def mark_active(
     actor: str,
     log_message: str,
     echo: str | None = None,
+    sync_state: bool = True,
 ) -> None:
     """Flip a ticket to `active`: write frontmatter and log.
 
@@ -478,12 +479,13 @@ def mark_active(
     append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    git.sync_task_state(
-        cfg,
-        ref.path,
-        message=f"Ticket: {ref.id_slug} — active",
-        guard=_state_guard(cfg, ref),
-    )
+    if sync_state:
+        git.sync_task_state(
+            cfg,
+            ref.path,
+            message=f"Ticket: {ref.id_slug} — active",
+            guard=_state_guard(cfg, ref),
+        )
 
 
 def mark_in_progress(
@@ -497,7 +499,9 @@ def mark_in_progress(
     echo: str | None = None,
     publish_current_branch: bool = False,
     expected_current_branch: str | None = None,
+    expected_current_branch_oid: str | None = None,
     expected_remote_branch_oid: str | None = None,
+    feature_publication: git.FeaturePublicationLease | None = None,
 ) -> None:
     """Flip a ticket to `in_progress`: write frontmatter, log, optionally post."""
     owner = ticket.owner or cfg.current_user
@@ -505,6 +509,25 @@ def mark_in_progress(
     ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action="mark in_progress")
     append_log(cfg, ref.id_slug, actor, log_message)
+
+    def sync_state() -> None:
+        git.sync_task_state(
+            cfg,
+            ref.path,
+            message=f"Ticket: {ref.id_slug} — in_progress",
+            guard=_state_guard(cfg, ref),
+            publish_current_branch=publish_current_branch,
+            expected_current_branch=expected_current_branch,
+            expected_current_branch_oid=expected_current_branch_oid,
+            expected_remote_branch_oid=expected_remote_branch_oid,
+            feature_publication=feature_publication,
+        )
+
+    # A strict assist publication must succeed before announcing a started
+    # session. Preserve the existing notification-before-sync ordering for
+    # ordinary launches and other callers.
+    if feature_publication is not None:
+        sync_state()
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:
@@ -516,15 +539,8 @@ def mark_in_progress(
             watchers=ticket.watchers,
             fatal=False,
         )
-    git.sync_task_state(
-        cfg,
-        ref.path,
-        message=f"Ticket: {ref.id_slug} — in_progress",
-        guard=_state_guard(cfg, ref),
-        publish_current_branch=publish_current_branch,
-        expected_current_branch=expected_current_branch,
-        expected_remote_branch_oid=expected_remote_branch_oid,
-    )
+    if feature_publication is None:
+        sync_state()
 
 
 def mark_blocked(

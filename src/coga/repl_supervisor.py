@@ -54,6 +54,13 @@ SENTINEL_ENV = "COGA_DONE_SENTINEL"
 EXPECTED_TASK_ENV = "COGA_EXPECTED_TASK"
 EXPECTED_STEP_ENV = "COGA_EXPECTED_STEP"
 
+# A human-step assist may run from the recorded PR checkout itself. Launch
+# exports this capability only after proving that checkout is on the recorded
+# branch and aligned with its live remote tip. In-session state commands pair it
+# with EXPECTED_TASK_ENV before publishing generated task/log commits back to
+# that branch; nested non-assist launches clear it at the spawn boundary.
+ASSIST_BRANCH_ENV = "COGA_ASSIST_BRANCH"
+
 # Grace period after SIGTERM before we escalate to SIGKILL. Claude Code and
 # Codex respect SIGTERM, but a wedged or signal-trapping REPL would otherwise
 # block the recurring sweep indefinitely.
@@ -514,6 +521,7 @@ def emit_done_marker(session_id: str | None = None) -> None:
 
 
 __all__ = [
+    "ASSIST_BRANCH_ENV",
     "SENTINEL_ENV",
     "EXPECTED_STEP_ENV",
     "EXPECTED_TASK_ENV",

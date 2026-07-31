@@ -10,8 +10,10 @@ from coga.config import Config, ConfigError, find_repo_root
 from coga.paths import log_path
 from coga.tasks import BootstrapRef, TargetRef
 
-# Every variable `build_task_env` owns. The namespace is cleared before it is
-# rewritten (see `apply_task_env`) so no member can survive by inheritance.
+# Every task-scoped variable `apply_task_env` owns. The metadata members are
+# rebuilt by `build_task_env`; narrower launch capabilities are cleared here
+# and re-minted only by the caller that re-verifies them. No member can survive
+# by inheritance.
 TASK_ENV_KEYS = (
     "COGA_TASK_SLUG",
     "COGA_TASK_DIR",
@@ -20,6 +22,7 @@ TASK_ENV_KEYS = (
     "COGA_TASK_LOG",
     "COGA_COGA_OS_ROOT",
     "COGA_REPO_ROOT",
+    "COGA_ASSIST_BRANCH",
 )
 
 

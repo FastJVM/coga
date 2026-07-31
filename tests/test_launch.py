@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
 from coga.cli import app
-from coga.blackboard import append_blocker, resolve_open_blockers
+from coga.blackboard import append_blocker
 from coga.commands import launch as launch_module
 from coga.create import create_task
 from coga.commands.launch import (
@@ -3096,14 +3096,18 @@ def test_human_assist_aligns_resumable_state_before_lifecycle_commits(
             "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
         ).strip()
         if initial_status == "blocked":
-            resolve_open_blockers(ticket_path, "human:marc", "cap at five minutes")
-            launch_module.git.sync_task_state(
-                cfg,
-                ticket_path,
-                message="Ticket: resolve review blocker",
-                publish_current_branch=True,
-                expected_current_branch="feature/review",
+            child_env = args[1]
+            result = CliRunner().invoke(
+                app,
+                [
+                    "unblock",
+                    str(created["slug"]),
+                    "--answer",
+                    "cap at five minutes",
+                ],
+                env=child_env,
             )
+            assert result.exit_code == 0, result.output
         return ReplOutcome(exit_code=0, kind="exit")
 
     monkeypatch.setattr(
@@ -3221,9 +3225,195 @@ def test_human_assist_does_not_recreate_branch_deleted_after_alignment(
     assert launch_module.git._remote_branch_oid(
         git_repo.root, "origin", "feature/review"
     ) is None
+    assert Ticket.read(ticket_path).status == "active"
     assert Ticket.read(ticket_path).assignee == "marc"
+    assert "Ticket: refuse-a-deleted-review-branch — in_progress" not in (
+        git_repo.git("log", "--format=%s", "main", cwd=git_repo.origin)
+    )
     output = capsys.readouterr()
     assert "No agent was started" in output.err
+
+
+def _seed_single_checkout_human_review(
+    git_repo, *, title: str, status: str
+) -> tuple[dict[str, str], Path]:
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title=title,
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = status
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/8
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", f"ticket: seed {status} review")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("reviewed branch\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: reviewed branch")
+    git_repo.git("push", "-u", "origin", "feature/review")
+    return created, ticket_path
+
+
+def test_paused_human_assist_preflight_failure_preserves_paused_state(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Keep paused review retryable",
+        status="paused",
+    )
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+
+    with pytest.raises(SystemExit):
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert Ticket.read(ticket_path).status == "paused"
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+    ).strip()
+
+
+def test_paused_human_assist_activation_failure_restores_paused_state(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Roll back a failed review activation",
+        status="paused",
+    )
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    real_auto_activate = launch_module._auto_activate
+
+    def fail_after_activation(cfg, ref, ticket, *, sync_state=True):  # type: ignore[no-untyped-def]
+        real_auto_activate(cfg, ref, ticket, sync_state=False)
+        raise RuntimeError("simulated post-activation failure")
+
+    monkeypatch.setattr(
+        "coga.commands.launch._auto_activate",
+        fail_after_activation,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("agent must not start"),
+    )
+
+    with pytest.raises(RuntimeError, match="simulated post-activation failure"):
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert Ticket.read(ticket_path).status == "paused"
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+    ).strip()
+
+
+def test_human_assist_does_not_sweep_commit_created_after_alignment(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Refuse a local publication race",
+        status="active",
+    )
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def commit_unrelated_work(repo_root):  # type: ignore[no-untyped-def]
+        (git_repo.root / "RACE.txt").write_text("local concurrent work\n")
+        git_repo.git("add", "RACE.txt")
+        git_repo.git("commit", "-m", "concurrent local work")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.warn_if_installed_predates_source",
+        commit_unrelated_work,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("agent must not start"),
+    )
+
+    with pytest.raises(SystemExit):
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert Ticket.read(ticket_path).status == "active"
+    remote_tree = git_repo.git(
+        "ls-tree",
+        "-r",
+        "--name-only",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    )
+    assert "RACE.txt" not in remote_tree
+    assert "Ticket: refuse-a-local-publication-race — in_progress" not in (
+        git_repo.git("log", "--format=%s", "main", cwd=git_repo.origin)
+    )
 
 
 def test_human_assist_branch_switch_cannot_redirect_teardown_publication(

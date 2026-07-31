@@ -206,6 +206,44 @@ def test_sync_lands_on_main_from_feature_branch(git_repo):
     assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
 
 
+def test_strict_feature_publication_surfaces_local_commit_failure(
+    git_repo, monkeypatch
+):
+    """An assist cannot start when its generated state commit was not created."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    task = _task_dir(git_repo.coga_os)
+
+    def refuse_commit(root, rels, message):  # type: ignore[no-untyped-def]
+        raise git.GitError("simulated commit failure")
+
+    monkeypatch.setattr(git, "_commit_paths", refuse_commit)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="could not create the generated 'feature/x' state commit",
+    ):
+        git.sync_task_state(
+            cfg,
+            task,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/x",
+                local_oid=before,
+                remote_oid=before,
+            ),
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip() == before
+    assert (task / "ticket.md").is_file()
+    assert "coga/tasks/" in git_repo.git("status", "--porcelain")
+
+
 # --- sync_log branches ---------------------------------------------------------
 
 
@@ -2146,6 +2184,56 @@ def test_sync_paths_guard_refuses_stale_overwrite_of_terminal_control_copy(
     assert "status: in_progress" in ticket.read_text()
 
 
+def test_strict_feature_publication_checks_fresh_control_state_before_push(
+    git_repo,
+):
+    """A stale assist cannot publish in_progress after control closed the task."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/stale-assist")
+    git_repo.git("push", "-u", "origin", "feature/stale-assist")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(
+            step="1 (implement)", status="done", blackboard="finished\n"
+        ),
+    )
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="stale\n"
+        )
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control state refused the assist transition",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=git.ticket_state_guard(cfg, ticket),
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/stale-assist",
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == feature_before
+    remote_feature_ticket = git_repo.git(
+        "show",
+        "refs/heads/feature/stale-assist:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in remote_feature_ticket
+    assert "status: done" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+
+
 def test_sync_paths_guard_allows_forward_transition(git_repo):
     """The guard only blocks regressions — normal progress still lands."""
     cfg = load_config(git_repo.coga_os)
@@ -2647,6 +2735,74 @@ def test_refresh_publishes_generated_state_for_aligned_assist_branch(git_repo):
     ).strip()
     assert "control update" in git_repo.git(
         "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+
+
+def test_refresh_rolls_back_generated_commit_when_assist_push_races(
+    git_repo, monkeypatch
+):
+    """A lost teardown lease restores the prior tip and dirty usage append."""
+    cfg = load_config(git_repo.coga_os)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+
+    git_repo.push_competing_commit("coga/log.md", "base\ncontrol update\n")
+    log.write_text("base\npending usage\n")
+    real_push = git._push_ref
+    raced = False
+
+    def race_push(
+        root,
+        remote,
+        refspec,
+        *,
+        force_with_lease=None,
+    ):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if force_with_lease is not None and not raced:
+            raced = True
+            peer = git_repo.origin.parent / "peer-refresh-race"
+            git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+            git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+            git_repo.git("config", "user.name", "Peer", cwd=peer)
+            git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+            git_repo.git(
+                "checkout", "-B", "feature/x", "origin/feature/x", cwd=peer
+            )
+            (peer / "peer.txt").write_text("won refresh race\n")
+            git_repo.git("add", "peer.txt", cwd=peer)
+            git_repo.git("commit", "-m", "review: concurrent refresh", cwd=peer)
+            git_repo.git("push", "origin", "feature/x", cwd=peer)
+        return real_push(
+            root,
+            remote,
+            refspec,
+            force_with_lease=force_with_lease,
+        )
+
+    monkeypatch.setattr(git, "_push_ref", race_push)
+
+    git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh after assist",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == feature_before
+    restored_log = log.read_text()
+    assert restored_log.startswith("base\npending usage\n")
+    assert "control update" not in restored_log
+    assert "refresh failed" in restored_log
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "won refresh race" in git_repo.git(
+        "show", "refs/heads/feature/x:peer.txt", cwd=git_repo.origin
     )
 
 

@@ -67,6 +67,7 @@ from coga.mark import (
 from coga.paths import PackagedResourceMissing, read_packaged_resource
 from coga.open_pr import same_git_checkout
 from coga.repl_supervisor import (
+    ASSIST_BRANCH_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
     AgentCliNotFound,
@@ -320,7 +321,42 @@ def launch(
     if not is_bootstrap and ticket.status not in {"draft", "paused"}:
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
-    single_checkout_assist_branch: str | None = None
+    assignee = ticket.assignee
+    if not assignee:
+        _bail(f"Task {ref.id_slug} has no assignee")
+    human_assist = (
+        not is_bootstrap
+        and agent_override is not None
+        and assignee not in cfg.agents
+    )
+    single_checkout_assist_branch = (
+        _recorded_single_checkout_assist_branch(cfg, ticket)
+        if human_assist and isinstance(ref, TaskRef)
+        else None
+    )
+    if single_checkout_assist_branch is not None and (
+        single_checkout_assist_branch != aligned_assist_branch
+        or aligned_assist_remote_oid is None
+    ):
+        _bail(
+            f"Cannot launch {ref.id_slug}: the recorded assist branch "
+            "changed after alignment; retry once the PR branch is stable."
+        )
+    assist_publication = (
+        git.FeaturePublicationLease(
+            branch=single_checkout_assist_branch,
+            local_oid=aligned_assist_remote_oid,
+            remote_oid=aligned_assist_remote_oid,
+        )
+        if single_checkout_assist_branch is not None
+        and aligned_assist_remote_oid is not None
+        else None
+    )
+    defer_assist_activation = (
+        assist_publication is not None and ticket.status == "paused"
+    )
+    assist_rollback: dict[Path, bytes | None] | None = None
+    assist_lifecycle_published = False
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
         # is brought to `active` inline rather than refused with a "run
@@ -331,12 +367,9 @@ def launch(
             not is_bootstrap
             and isinstance(ref, TaskRef)
             and ticket.status in {"draft", "paused"}
+            and not defer_assist_activation
         ):
             _auto_activate(cfg, ref, ticket)
-
-        assignee = ticket.assignee
-        if not assignee:
-            _bail(f"Task {ref.id_slug} has no assignee")
 
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
@@ -349,24 +382,6 @@ def launch(
             )
 
         launch_assignee = agent_override or assignee
-        human_assist = (
-            not is_bootstrap
-            and agent_override is not None
-            and assignee not in cfg.agents
-        )
-        single_checkout_assist_branch = (
-            _recorded_single_checkout_assist_branch(cfg, ticket)
-            if human_assist and isinstance(ref, TaskRef)
-            else None
-        )
-        if single_checkout_assist_branch is not None and (
-            single_checkout_assist_branch != aligned_assist_branch
-            or aligned_assist_remote_oid is None
-        ):
-            _bail(
-                f"Cannot launch {ref.id_slug}: the recorded assist branch "
-                "changed after alignment; retry once the PR branch is stable."
-            )
         if human_assist:
             typer.echo(
                 f"Launch: agent {agent_override} assisting on human-owned step "
@@ -428,8 +443,24 @@ def launch(
         # Warn-only, and a silent no-op outside a coga source checkout.
         warn_if_installed_predates_source(cfg.repo_root)
 
+        assist_rollback = (
+            _snapshot_assist_state(cfg, ref)
+            if assist_publication is not None and isinstance(ref, TaskRef)
+            else None
+        )
+        if (
+            defer_assist_activation
+            and isinstance(ref, TaskRef)
+            and ticket.status == "paused"
+        ):
+            _auto_activate(cfg, ref, ticket, sync_state=False)
         if blocked_resume and isinstance(ref, TaskRef) and ticket.status == "blocked":
-            _auto_activate(cfg, ref, ticket)
+            _auto_activate(
+                cfg,
+                ref,
+                ticket,
+                sync_state=assist_publication is None,
+            )
 
         if isinstance(ref, TaskRef) and ticket.status == "active":
             try:
@@ -449,12 +480,16 @@ def launch(
                     # push also carries a paused ticket's preceding activation
                     # commit. The expected branch prevents a checkout switch
                     # from redirecting that publication.
-                    publish_current_branch=bool(single_checkout_assist_branch),
-                    expected_current_branch=single_checkout_assist_branch,
-                    expected_remote_branch_oid=aligned_assist_remote_oid,
+                    feature_publication=assist_publication,
+                )
+            except git.FeaturePublicationError as exc:
+                _bail(
+                    "The recorded PR branch moved before lifecycle state could "
+                    f"be published. No agent was started: {exc}"
                 )
             except TaskValidationError as exc:
                 _bail(str(exc))
+            assist_lifecycle_published = assist_publication is not None
 
         # Agent launches chain across consecutive agent-owned steps. After the
         # agent exits (via autoquit on
@@ -480,10 +515,10 @@ def launch(
         # Setup can exit after state was already published (the auto-activate
         # or in_progress flip), so pull that state back into the launch
         # checkout before surfacing the exit.
-        _refresh_launch_checkout(
-            cfg,
-            expected_assist_branch=single_checkout_assist_branch,
-        )
+        if assist_rollback is not None and not assist_lifecycle_published:
+            _restore_assist_state(assist_rollback)
+        if single_checkout_assist_branch is None:
+            _refresh_launch_checkout(cfg)
         raise
 
     try:
@@ -653,7 +688,28 @@ def launch(
 # --- helpers ------------------------------------------------------------------
 
 
-def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+def _snapshot_assist_state(
+    cfg: Config, ref: TaskRef
+) -> dict[Path, bytes | None]:
+    """Capture the two files launch may mutate before a child actually starts."""
+    paths = (ref.ticket_path, log_path(cfg))
+    return {path: path.read_bytes() if path.is_file() else None for path in paths}
+
+
+def _restore_assist_state(snapshot: dict[Path, bytes | None]) -> None:
+    """Restore a refused assist's ticket/log bytes after its commit is reset."""
+    for path, data in snapshot.items():
+        if data is None:
+            if path.is_file():
+                path.unlink()
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+
+def _auto_activate(
+    cfg: Config, ref: TaskRef, ticket: Ticket, *, sync_state: bool = True
+) -> None:
     """Bring a draft / paused / resumable blocked ticket to `active` inline.
 
     `coga launch` used to refuse any status but `active`/`in_progress` and
@@ -680,6 +736,7 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
             actor=f"human:{cfg.current_user}",
             log_message=f"activated ({prior} → active){suffix}",
             echo=f"{ref.id_slug}: active{suffix}",
+            sync_state=sync_state,
         )
     except WorkflowMissing:
         _bail(
@@ -1076,6 +1133,11 @@ def spawn_agent_session(
     # bootstrap ticket's absent `COGA_TASK_BLACKBOARD`) cannot survive by
     # inheritance.
     env = apply_task_env(env, cfg, ref)
+    # Never inherit a parent assist capability into a nested ordinary launch.
+    # Re-mint it only for the exact recorded branch this spawn already proved.
+    env.pop(ASSIST_BRANCH_ENV, None)
+    if publish_aligned_branch is not None:
+        env[ASSIST_BRANCH_ENV] = publish_aligned_branch
 
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
