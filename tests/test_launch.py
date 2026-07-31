@@ -2924,16 +2924,20 @@ def test_recorded_assist_pr_head_requires_the_configured_head_repository(
     monkeypatch.setattr(
         launch_module.git,
         "_run_git",
-        lambda root, *args: "git@github.com:base/repo.git\n",
+        lambda root, *args: (
+            "https://agent:TOP-SECRET@github.com/base/repo.git\n"
+        ),
     )
 
     with pytest.raises(
         launch_module.git.FeaturePublicationError,
         match="publishes from github.com/fork-owner/repo",
-    ):
+    ) as excinfo:
         launch_module._verify_recorded_assist_pr_head(
             cfg, ticket, "feature/review"
         )
+    assert "TOP-SECRET" not in str(excinfo.value)
+    assert "agent@" not in str(excinfo.value)
 
 
 def test_recorded_assist_pr_head_accepts_the_configured_fork_remote(
@@ -3808,7 +3812,7 @@ def test_automatic_reblock_race_restores_ticket_and_log_bytes(
         race_before_reblock,
     )
 
-    with pytest.raises(SystemExit):
+    with pytest.raises(launch_module._AssistPublicationRefused):
         launch_module._reblock_unresolved_resume(
             cfg,
             ref,
@@ -4049,14 +4053,14 @@ def test_parked_human_assist_activation_failure_restores_state(
         "coga.commands.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
-    real_auto_activate = launch_module._auto_activate
+    real_mark_active = launch_module.mark_active
 
-    def fail_after_activation(cfg, ref, ticket, *, sync_state=True):  # type: ignore[no-untyped-def]
-        real_auto_activate(cfg, ref, ticket, sync_state=False)
+    def fail_after_activation(*args, **kwargs):  # type: ignore[no-untyped-def]
+        real_mark_active(*args, **kwargs)
         raise RuntimeError("simulated post-activation failure")
 
     monkeypatch.setattr(
-        "coga.commands.launch._auto_activate",
+        "coga.commands.launch.mark_active",
         fail_after_activation,
     )
     monkeypatch.setattr(
@@ -4144,11 +4148,11 @@ def test_human_assist_log_refusal_uses_no_sweep_exit(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A retained launch append must not reach the CLI catch-all sweep."""
-    created, _ticket_path = _seed_single_checkout_human_review(
+    """A pre-spawn refusal neither publishes lifecycle nor runs teardown refresh."""
+    created, ticket_path = _seed_single_checkout_human_review(
         git_repo,
         title="Retry a refused assist log",
-        status="in_progress",
+        status="active",
     )
     _allow_interactive_tty(monkeypatch)
     _allow_recorded_assist_pr(monkeypatch)
@@ -4163,6 +4167,12 @@ def test_human_assist_log_refusal_uses_no_sweep_exit(
     monkeypatch.setattr(
         "coga.commands.launch.git.sync_log",
         lambda *args, **kwargs: False,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_launch_checkout",
+        lambda *args, **kwargs: pytest.fail(
+            "a no-sweep assist refusal must skip teardown refresh"
+        ),
     )
     child_started = False
 
@@ -4189,6 +4199,263 @@ def test_human_assist_log_refusal_uses_no_sweep_exit(
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert child_started is False
+    assert Ticket.read(ticket_path).status == "active"
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "status: active" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+
+
+def test_blocked_assist_trailing_log_refusal_reblocks_before_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A teardown refusal cannot bypass the unresolved-blocker safety net."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Reblock after trailing refusal",
+        status="blocked",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record trailing-refusal blocker")
+    git_repo.git("push", "origin", "feature/review")
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+    sync_calls = 0
+
+    def refuse_trailing(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal sync_calls
+        sync_calls += 1
+        return sync_calls == 1
+
+    monkeypatch.setattr("coga.commands.launch.git.sync_log", refuse_trailing)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_launch_checkout",
+        lambda *args, **kwargs: pytest.fail(
+            "a trailing no-sweep refusal must skip refresh"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert sync_calls == 2
+    assert Ticket.read(ticket_path).status == "blocked"
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "status: blocked" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+
+
+def test_assist_trailing_log_refuses_after_recorded_pr_closes(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Closing or merging the PR revokes teardown publication immediately."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Stop trailing publication after close",
+        status="in_progress",
+    )
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    closed = False
+
+    def verify(cfg, ticket, branch):  # type: ignore[no-untyped-def]
+        if closed:
+            raise launch_module.git.FeaturePublicationError(
+                "recorded PR is MERGED, not OPEN"
+            )
+        root = launch_module.git._toplevel(cfg.repo_root)
+        assert root is not None
+        oid = launch_module.git._remote_branch_oid(root, cfg.git_remote, branch)
+        assert oid is not None
+        return oid
+
+    monkeypatch.setattr(
+        "coga.commands.launch._verify_recorded_assist_pr_head",
+        verify,
+    )
+    remote_at_close = ""
+
+    def close_pr(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal closed, remote_at_close
+        remote_at_close = git_repo.git(
+            "rev-parse",
+            "refs/heads/feature/review",
+            cwd=git_repo.origin,
+        ).strip()
+        closed = True
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        close_pr,
+    )
+
+    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        log = cfg.repo_root / "log.md"
+        log.write_text(log.read_text() + "trailing usage after PR close\n")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        append_usage,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_at_close
+    assert "trailing usage after PR close" not in git_repo.git(
+        "show",
+        "refs/heads/feature/review:coga/log.md",
+        cwd=git_repo.origin,
+    )
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+
+
+def test_assist_refresh_refuses_after_pr_closes_post_trailing_log(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The final control refresh has the same open-PR gate as audit pushes."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Stop refresh publication after close",
+        status="in_progress",
+    )
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    closed = False
+
+    def verify(cfg, ticket, branch):  # type: ignore[no-untyped-def]
+        if closed:
+            raise launch_module.git.FeaturePublicationError(
+                "recorded PR is MERGED, not OPEN"
+            )
+        root = launch_module.git._toplevel(cfg.repo_root)
+        assert root is not None
+        oid = launch_module.git._remote_branch_oid(root, cfg.git_remote, branch)
+        assert oid is not None
+        return oid
+
+    monkeypatch.setattr(
+        "coga.commands.launch._verify_recorded_assist_pr_head",
+        verify,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+    real_sync_log = launch_module.git.sync_log
+    sync_calls = 0
+    remote_after_trailing = ""
+
+    def close_after_trailing(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal closed, remote_after_trailing, sync_calls
+        synced = real_sync_log(*args, **kwargs)
+        sync_calls += 1
+        if sync_calls == 2:
+            remote_after_trailing = git_repo.git(
+                "rev-parse",
+                "refs/heads/feature/review",
+                cwd=git_repo.origin,
+            ).strip()
+            closed = True
+        return synced
+
+    monkeypatch.setattr(
+        "coga.commands.launch.git.sync_log",
+        close_after_trailing,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert sync_calls == 2
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_after_trailing
+    assert "refresh failed" in (git_repo.coga_os / "log.md").read_text()
     assert "coga/log.md" in git_repo.git("status", "--porcelain")
 
 

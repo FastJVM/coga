@@ -442,6 +442,33 @@ def _refuse_unsynthesized_draft_blackboard(
         raise BlackboardNeedsSynthesis(reason)
 
 
+def prepare_active(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+) -> None:
+    """Validate and mutate ``ticket`` to active without writing durable state.
+
+    Launch uses this pure preparation boundary to compose a prospective prompt
+    before an assist's final publication gate. ``mark_active`` remains the
+    durable wrapper that writes, audits, and optionally syncs the result.
+    """
+    prior_status = ticket.status
+    if prior_status == "canceled":
+        raise CancellationError("a canceled ticket cannot be reactivated")
+    _refuse_unsynthesized_draft_blackboard(ref, prior_status)
+
+    if not _has_workflow(ticket):
+        raise WorkflowMissing()
+    _freeze_workflow_ref(cfg, ticket)
+
+    missing = _missing_required_extensions(cfg, ticket)
+    if missing:
+        raise RequiredExtensionMissing(missing)
+
+    ticket.frontmatter["status"] = "active"
+
+
 def mark_active(
     cfg: Config,
     ref: TaskRef,
@@ -461,19 +488,7 @@ def mark_active(
     sync remain the audit trail.
     """
     prior_status = ticket.status
-    if prior_status == "canceled":
-        raise CancellationError("a canceled ticket cannot be reactivated")
-    _refuse_unsynthesized_draft_blackboard(ref, prior_status)
-
-    if not _has_workflow(ticket):
-        raise WorkflowMissing()
-    _freeze_workflow_ref(cfg, ticket)
-
-    missing = _missing_required_extensions(cfg, ticket)
-    if missing:
-        raise RequiredExtensionMissing(missing)
-
-    ticket.frontmatter["status"] = "active"
+    prepare_active(cfg, ref, ticket)
     ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action="mark active")
     append_log(cfg, ref.id_slug, actor, log_message)
@@ -502,6 +517,7 @@ def mark_in_progress(
     expected_current_branch_oid: str | None = None,
     expected_remote_branch_oid: str | None = None,
     feature_publication: git.FeaturePublicationLease | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
 ) -> None:
     """Flip a ticket to `in_progress`: write frontmatter, log, optionally post."""
     owner = ticket.owner or cfg.current_user
@@ -521,6 +537,7 @@ def mark_in_progress(
             expected_current_branch_oid=expected_current_branch_oid,
             expected_remote_branch_oid=expected_remote_branch_oid,
             feature_publication=feature_publication,
+            feature_publication_guard=feature_publication_guard,
         )
 
     # A strict assist publication must succeed before announcing a started
@@ -554,6 +571,7 @@ def mark_blocked(
     image_url: str | None = None,
     echo: str | None = None,
     feature_publication: git.FeaturePublicationLease | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
 ) -> None:
     """Flip a ticket to `blocked` without changing its workflow step."""
     owner = ticket.owner or cfg.current_user
@@ -569,6 +587,7 @@ def mark_blocked(
             message=f"Ticket: {ref.id_slug} — blocked",
             guard=_state_guard(cfg, ref),
             feature_publication=feature_publication,
+            feature_publication_guard=feature_publication_guard,
         )
 
     # A resumed single-checkout assist must republish `blocked` before telling
@@ -643,6 +662,7 @@ def mark_paused(
 
 __all__ = [
     "mark_active",
+    "prepare_active",
     "mark_in_progress",
     "mark_blocked",
     "mark_paused",

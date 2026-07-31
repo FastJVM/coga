@@ -351,43 +351,50 @@ A merely-behind recorded checkout is then fast-forwarded before the final
 config, ticket, skill-view, secrets, expected-step, and prompt reads for every
 resumable status, including paused and blocked tickets; launch reloads that
 state from the aligned tree before classifying its assignee. Draft, paused, and
-blocked activation and `in_progress` state are deferred until every launch
-preflight passes. Immediately before mutation and again before spawn, the
-committed feature ticket's `(status, step, assignee)` lifecycle tuple must
-exactly match a freshly fetched control copy; the lease carries that
-pre-transition state so every candidate control tip is rechecked during
-publication. Their combined generated commit is built directly on the verified
-tip and moves the local branch with an expected-old-OID ref CAS; its captured
-tree is then pushed under an exact remote-tip lease *before* the same captured
-state lands on control or a start notification is sent. A lost lease removes
-that commit only when the local ref still names it. If the later control
-landing fails, a leased fast-forward compensation restores the prior feature
-tree and a second local-ref CAS refuses to move over concurrent work; the error
-still escapes and the caller restores the prior ticket/log bytes. No child ran,
-no false lifecycle state remains published, and no unrelated concurrent local
-commit was swept. Reproducible notification configuration errors are likewise
-checked before publication. The assist also commits its own launch-log append
-so Coga's audit line cannot trip the PR worktree's clean-tree gate. If the
-remote or control ticket moves after composition, launch refuses to spawn and
+blocked activation and `in_progress` publication stay deferred through prompt
+composition, prompt-file and argv construction, and the pre-session audit
+commit. At the final pre-spawn boundary launch re-reads the unchanged ticket,
+re-proves that its recorded PR is open at the exact leased remote OID, and
+requires the committed feature ticket's `(status, step, assignee)` lifecycle
+tuple to match a freshly fetched control copy. The publication guard repeats
+the open-PR/OID proof immediately before every generated feature push. The
+combined lifecycle commit is built directly on the verified tip and moves the
+local branch with an expected-old-OID ref CAS; its captured tree is then pushed
+under an exact remote-tip lease *before* the same captured state lands on
+control or a start notification is sent. A lost lease removes that commit only
+when the local ref still names it. If the later control landing fails,
+compensation fetches the live feature descendant, applies only the inverse of
+Coga's generated paths on top (preserving concurrent peer paths), and retries a
+leased fast-forward push. The checkout fast-forwards to that compensation when
+it can do so without overwriting concurrent local state; the error still
+escapes and the caller restores the prior ticket/log bytes. No child ran, no
+false lifecycle state remains published, and no unrelated concurrent work was
+swept. Reproducible notification configuration errors are likewise checked
+before publication. The assist also commits its own launch-log append so
+Coga's audit line cannot trip the PR worktree's clean-tree gate. If the remote
+or control ticket moves after composition, launch refuses to spawn and
 requires a retry rather than working under stale instructions; a failed
 generated-log push undoes only that commit and leaves the append dirty for the
 retry. That retryable refusal exits with the no-sweep temporary-failure code,
-so CLI teardown cannot immediately commit the retained append anyway. The
-child inherits a task-scoped recorded-branch capability,
+so neither launch refresh nor CLI teardown can immediately commit the retained
+append. The child inherits a task-scoped recorded-branch capability,
 allowing required in-session state commands such as the blocked-resume
 `coga unblock` and an explicit `coga block` to use the same feature/control
 lease without granting it to nested ordinary launches. If that resumed session
 exits with its ask still open, launch obtains a fresh lease and republishes the
 automatic `blocked` transition before notifying the owner; a lost reblock lease
 restores the prior ticket and log bytes. The pre-session log, trailing usage
-log, and final generated control-state refresh remain pinned to the recorded
-branch and publish captured generated OIDs only from a safely aligned, exact
-remote tip. A lost refresh lease restores its pre-refresh tip and dirty bytes.
-If the agent switches branches, teardown skips those commits instead of
-redirecting them and uses the same no-sweep exit. This preserves the PR
-branch's local/remote alignment without the catch-all sweep committing the
-retained log on an unrelated branch. Megalaunch keeps a separate human gate
-and does not inherit this relaxation.
+log, automatic unresolved re-block, and final generated control-state refresh
+remain pinned to the recorded branch, re-prove the recorded PR is still open,
+and publish captured generated OIDs only from a safely aligned, exact remote
+tip. Assist refresh also reads control state from that verified push
+destination, not a fork remote's potentially different fetch/base repository.
+A lost refresh lease restores its pre-refresh tip and dirty bytes. If the agent
+switches branches or the PR closes, teardown skips those commits instead of
+redirecting or advancing a merged branch and uses the same no-sweep exit. This
+preserves the PR branch's local/remote alignment without the catch-all sweep
+committing retained state on an unrelated or closed branch. Megalaunch keeps a
+separate human gate and does not inherit this relaxation.
 
 Blocked tickets can resume inline only from an interactive TTY. Their first
 job is to resolve or re-block the open asks.

@@ -1808,10 +1808,59 @@ def test_run_git_overlay_preserves_caller_env(monkeypatch, tmp_path):
     assert envs[0]["GIT_INDEX_FILE"] == "/tmp/idx"
 
 
+def test_run_git_redacts_credentialed_url_from_command_and_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    credentialed = "https://agent:TOP-SECRET@github.com/acme/repo.git"
+
+    def fail(*args, **kwargs):  # type: ignore[no-untyped-def]
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=128,
+            stdout="",
+            stderr=f"fatal: unable to access {credentialed}: denied\n",
+        )
+
+    monkeypatch.setattr(git.subprocess, "run", fail)
+
+    with pytest.raises(git.GitError) as excinfo:
+        git._run_git(tmp_path, "fetch", credentialed, "main")
+
+    detail = str(excinfo.value)
+    assert "TOP-SECRET" not in detail
+    assert "agent@" not in detail
+    assert "https://github.com/acme/repo.git" in detail
+
+
 def test_push_ref_runs_non_interactively(monkeypatch, tmp_path):
     envs = _capture_run(monkeypatch)
     assert git._push_ref(tmp_path, "origin", "main") is None
     assert envs[0]["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_push_ref_redacts_credentialed_url_from_git_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    credentialed = "https://agent:TOP-SECRET@github.com/acme/repo.git"
+    monkeypatch.setattr(
+        git.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout="",
+            stderr=f"fatal: unable to access {credentialed}: denied\n",
+        ),
+    )
+
+    detail = git._push_ref(tmp_path, "origin", "main")
+
+    assert detail is not None
+    assert "TOP-SECRET" not in detail
+    assert "agent@" not in detail
+    assert "https://github.com/acme/repo.git" in detail
 
 
 # --- sync_coga_state: the catch-all subtree sweep ------------------------------
@@ -2571,6 +2620,90 @@ def test_strict_feature_publication_compensates_failed_control_landing(
     )
 
 
+def test_strict_feature_compensation_preserves_concurrent_descendant(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Compensation reverts only generated state atop a peer's newer tip."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/descendant-assist")
+    git_repo.git("push", "-u", "origin", "feature/descendant-assist")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+
+    def peer_then_refuse(*args, **kwargs):  # type: ignore[no-untyped-def]
+        peer = git_repo.origin.parent / "peer-compensation-descendant"
+        git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+        git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+        git_repo.git("config", "user.name", "Peer", cwd=peer)
+        git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+        git_repo.git(
+            "checkout",
+            "-B",
+            "feature/descendant-assist",
+            "origin/feature/descendant-assist",
+            cwd=peer,
+        )
+        peer_note = peer / "coga" / "tasks" / "demo" / "peer-notes.md"
+        peer_note.write_text("peer survives compensation\n")
+        git_repo.git(
+            "add",
+            "coga/tasks/demo/peer-notes.md",
+            cwd=peer,
+        )
+        git_repo.git("commit", "-m", "review: concurrent peer fix", cwd=peer)
+        git_repo.git("push", "origin", "feature/descendant-assist", cwd=peer)
+        raise git.GitError("control push failed")
+
+    monkeypatch.setattr(git, "_land_paths_on_control_branch", peer_then_refuse)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="restored origin/feature/descendant-assist",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=git.ticket_state_guard(cfg, ticket),
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/descendant-assist",
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+        )
+
+    remote = "refs/heads/feature/descendant-assist"
+    assert "peer survives compensation" in git_repo.git(
+        "show",
+        f"{remote}:coga/tasks/demo/peer-notes.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        f"{remote}:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert (
+        git_repo.root / "coga" / "tasks" / "demo" / "peer-notes.md"
+    ).read_text() == (
+        "peer survives compensation\n"
+    )
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse",
+        remote,
+        cwd=git_repo.origin,
+    ).strip()
+    assert "status: in_progress" in ticket.read_text()
+
+
 def test_sync_paths_guard_allows_forward_transition(git_repo):
     """The guard only blocks regressions — normal progress still lands."""
     cfg = load_config(git_repo.coga_os)
@@ -3072,6 +3205,57 @@ def test_refresh_publishes_generated_state_for_aligned_assist_branch(git_repo):
     ).strip()
     assert "control update" in git_repo.git(
         "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+
+
+def test_assist_refresh_reads_control_from_verified_push_destination(
+    git_repo,
+    tmp_path: Path,
+) -> None:
+    """A fork assist must not import control state from its base fetch URL."""
+    cfg = load_config(git_repo.coga_os)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed fork log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/fork-assist")
+    git_repo.git("push", "-u", "origin", "feature/fork-assist")
+
+    base_fetch = tmp_path / "base-fetch.git"
+    git_repo.git(
+        "clone",
+        "--bare",
+        str(git_repo.origin),
+        str(base_fetch),
+        cwd=tmp_path,
+    )
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        "base\nfork control update\n",
+    )
+    git_repo.git("remote", "set-url", "origin", str(base_fetch))
+    git_repo.git(
+        "remote",
+        "set-url",
+        "--push",
+        "origin",
+        str(git_repo.origin),
+    )
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh fork assist",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/fork-assist",
+    )
+
+    assert refreshed is True
+    assert "fork control update" in log.read_text()
+    assert "fork control update" in git_repo.git(
+        "show",
+        "refs/heads/feature/fork-assist:coga/log.md",
+        cwd=git_repo.origin,
     )
 
 
