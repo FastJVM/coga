@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -211,4 +211,379 @@ helper in core is exactly what the rule forbids.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+pr: https://github.com/FastJVM/coga/pull/677
+branch: codex/address-pr-comments
+worktree: /tmp/coga-address-pr-comments.WN9lV7/repo
+
+## Implementation
+
+- Started from `main` at `e8f6678a`.
+- Keep the explicit `--agent` override ephemeral and expose the assist in the
+  launch banner; leave megalaunch's independent human gate unchanged.
+- Accept the documented `coga slack` audit-actor wrinkle: the assist skill
+  explicitly forbids using Slack as a terminator, and threading transient
+  launch identity through unrelated commands would widen this change.
+- Implemented the explicit human-step assist gate and visible banner without
+  mutating `assignee:`, kept megalaunch's independent gate, added the live and
+  packaged `code/address-pr-comments` skill, and wired all three bundled code
+  workflows.
+- Added regression coverage for explicit assist, no-override refusal,
+  on-disk assignee preservation, all three frozen review-step skill refs and
+  prompt composition, packaged resources, and the skill's owner-gate limits.
+  The focused regression set passes (8 tests).
+- Committed as `4da030e2` (`Enable agent assists during PR review`). A final
+  `git fetch origin main && git rebase FETCH_HEAD` reported the branch
+  up-to-date; `FETCH_HEAD` (`e8f6678a`) is an ancestor and the feature checkout
+  is clean.
+- Final verification: `python -m pytest` → 1573 passed, 1 skipped;
+  source-backed CLI smoke passed; `coga validate --json` against `example/coga`
+  reported 2 ok and no issues. The example's local `approve → merge` workflow
+  is an intentional override, so the bundled `review` wiring does not apply to
+  it.
+- Peer review has since hardened the single-checkout assist publication path
+  around exact PR/control lifecycle leases, push-destination identity,
+  transactional draft/paused activation, block/reblock rollback, and
+  notification preflight. A fresh `codex review --base main` on commit
+  `0ab8373e` found three remaining P1 races: generated commits need a local-ref
+  CAS, assists must reject non-atomic multi-`pushurl` remotes, and retryable
+  log-publication refusals must suppress the CLI catch-all sweep. All three are
+  now fixed with regression coverage; the captured generated tree also owns
+  the control overlay so late worktree edits cannot split PR/control state.
+  Current verification: `python -m pytest` → 1618 passed, 1 skipped. Do not
+  advance until the branch is committed/rebased and a new review is clean.
+- A fresh independent review of `b4279b4a` found seven further must-fix gaps:
+  fork assists can fetch control state from the base fetch URL instead of the
+  verified push destination; lifecycle state is published before the final
+  spawn gates; raw credential-bearing push URLs can leak through Git errors;
+  compensation fails if a concurrent descendant advances the feature ref;
+  a no-sweep refusal still runs the aligned refresh; a trailing-log refusal
+  skips the blocked-resume reblock; and teardown can push generated commits
+  after the PR closes or merges. All seven are now addressed: assist refresh
+  reads the verified push destination; lifecycle publication is the final
+  pre-spawn action; Git diagnostics redact URL credentials; compensation
+  reverses only generated paths atop live descendants; no-sweep paths skip
+  refresh; trailing refusals re-block first; and every generated teardown push
+  re-proves the PR is open at the exact OID. The matching live/packaged
+  architecture context now records those guarantees. Focused verification is
+  green (`tests/test_git.py`: 136 passed; `tests/test_mark.py` +
+  `tests/test_launch.py`: 176 passed). Full-suite/rebase/final-review checks
+  remain before advancement.
+- Committed the seven-finding review fix as `3a5387da` (`Peer review: harden
+  assist publication`). Pre-rebase full verification is green:
+  `python -m pytest` → 1625 passed, 1 skipped. A fresh
+  `git fetch origin main && git rebase FETCH_HEAD` found the branch already
+  current at `eb5a198a`; that fetched tip is an ancestor, both live/packaged
+  pairs are byte-identical, and the feature checkout is clean.
+- The mandatory post-rebase `codex review --base main` found seven additional
+  actionable gaps: same-path peer edits can be lost during remote
+  compensation; unconditional local byte restoration can overwrite concurrent
+  ticket/log work; exact-tip alignment accepts unexpected dirt; generic
+  `GitError` can be swallowed in strict mode; in-session block/unblock pushes
+  do not re-prove that the PR remains open; override validation runs before an
+  aligning fast-forward can refresh config; and lower-level lease probe errors
+  escape the assist refusal path. All seven are fixed with focused regressions:
+  compensation now reverse-merges ordinary paths and refuses overlap; shared
+  rollback is conditional and union-preserves concurrent audit lines; strict
+  leases reject exact-tip dirt and normalize/re-raise every Git failure;
+  in-session block/unblock inherit the exact recorded PR and re-prove it open
+  at the push boundary; and override validation runs only after alignment.
+  Broad focused verification passed (269 Git/launch tests and 159
+  command/mark/env/supervisor/skill tests), followed by
+  `python -m pytest` → 1632 passed, 1 skipped. Commit, unconditional rebase,
+  post-rebase verification, and a clean repeat review remain before advancement.
+- Committed that seven-finding pass as `9ef12b3f` (`Peer review: fail closed on
+  assist races`), rebased unconditionally onto fetched `origin/main`
+  (`eb5a198a`, already current), and re-ran the full suite: 1632 passed,
+  1 skipped. The required repeat `codex review --base main` found three more
+  actionable transaction/authorization gaps: failed leased `block`/`unblock`
+  commands can fall through to the ordinary state sweep (including
+  `unblock --all` swallowing the failure); launch publication can switch to a
+  newly edited `pr:` URL instead of staying bound to the URL verified during
+  alignment; and an aligned-assist setup failure can sweep a deliberately
+  retained retry log into an unpublished feature commit. Fix all three, add
+  regressions, and obtain another clean review before advancement.
+- The three repeat-review gaps are now fixed: strict `block`/`unblock`
+  failures use the no-sweep retry code and `unblock --all` aborts; launch pins
+  every guard to the exact `pr:` URL authorized during alignment; and
+  aligned-assist setup refusals cannot hand retained state to CLI teardown.
+  The matching live/packaged architecture and sync contexts are updated and
+  byte-identical. Targeted race tests and the full command/launch suites pass
+  (213 tests), followed by `python -m pytest` → 1635 passed, 1 skipped.
+  Committed as `3f4b9a98` (`Peer review: pin assist authorization`), fetched
+  `origin/main`, and rebased unconditionally onto `FETCH_HEAD` (already
+  current). Post-rebase `python -m pytest` is also green: 1635 passed,
+  1 skipped. A clean repeat review remains before advancement.
+- The next mandatory `codex review --base main` found five more actionable
+  strict-assist edges: early alignment/config refusals and failed in-session
+  lease acquisition can still enter the broad CLI sweep; a Slack delivery
+  failure can append an unleased audit line after strict state publication;
+  a deleted PR branch can fall back to a local-only generated commit during
+  teardown; and a fork PR whose head is named like the control branch is only
+  rejected after an ordinary log push. Address all five (including the
+  analogous `unblock --all` acquisition path), add regressions, and obtain a
+  clean repeat review before advancement.
+- Those five edges are fixed: launch marks the recorded checkout as retry-only
+  before PR alignment and rejects control-named PR heads before any write;
+  `block`, direct `unblock`, and `unblock --all` propagate no-sweep lease
+  acquisition failures; strict lifecycle notifications keep delivery failures
+  on stderr without appending unleased audit bytes; and pinned log/refresh
+  publishers require an exact live remote tip instead of creating local-only
+  commits after branch deletion. Live/packaged architecture and sync contexts
+  remain byte-identical. Focused affected suites pass (560 tests), followed by
+  `python -m pytest` → 1644 passed, 1 skipped. Commit, unconditional rebase,
+  post-rebase verification, and a clean repeat review remain.
+- Committed that pass as `a5ccafd7` (`Peer review: close assist teardown
+  gaps`), fetched `origin/main`, and rebased unconditionally onto `FETCH_HEAD`
+  (already current). Post-rebase `python -m pytest` is green: 1644 passed,
+  1 skipped. The required repeat review remains before advancement.
+- The post-rebase repeat review found eight further P1/P2 correctness gaps:
+  automatic unresolved re-block cannot reacquire a lease while the trailing
+  usage append is dirty; the permitted log dirt is not proven append-only;
+  compensation can merge onto a concurrently switched branch; strict alignment
+  also runs for agent-owned overrides; unexpected setup exceptions can re-enable
+  the broad CLI sweep; a TTY-less assist reports an alignment error instead of
+  the documented TTY refusal; explicit `coga block` attributes the human owner
+  instead of the effective assist agent; and an unarmed rollback can snapshot
+  peer bytes as generated state and erase them. Fix all eight with regressions,
+  then repeat the full verification/rebase/review loop. The review's P3 request
+  to move the one-caller notification preflight is a placement nit and is
+  intentionally skipped under this step's “skip nits” rule.
+- All eight correctness gaps are now covered in the feature checkout. The
+  unresolved re-block lease admits only an explicit append-only audit delta;
+  strict publication rejects audit rewrites; compensation verifies the active
+  branch and HEAD before its local merge; only human-owned overrides enter
+  assist alignment; setup interrupts retain the no-sweep exit; TTY refusal
+  precedes assist validation; the child carries its effective agent for
+  blocker/audit attribution; and unarmed rollback refuses to guess at current
+  bytes. The live and packaged architecture contexts record these boundaries
+  and remain byte-identical. Focused verification is green:
+  `tests/test_git.py` (146 passed) and `tests/test_launch.py` (139 passed).
+  Full-suite verification, commit, unconditional fetch/rebase, post-rebase
+  verification, and a clean repeat review remain before advancement.
+- Committed the eight-finding pass as `967ff987` (`Peer review: close remaining
+  assist races`), fetched `origin/main`, and rebased unconditionally onto
+  `FETCH_HEAD` (`eb5a198a`, already current). Post-rebase
+  `python -m pytest` is green: 1649 passed, 1 skipped. Live/packaged
+  architecture and skill pairs are byte-identical and the feature checkout is
+  clean. The required repeat review found one P2: a non-TTY retry refuses
+  before strict assist setup is marked, so a deliberately retained append-only
+  assist log can fall through to the generic CLI sweep. Preserve the ordinary
+  exit-2 TTY refusal for clean launches, but use the no-sweep retry exit when
+  the checkout locally proves that sole append-only log shape; add a regression
+  and repeat the full verification/rebase/review loop. The fix now performs
+  that local proof before the TTY refusal without touching recorded-checkout or
+  remote validation; clean and rewritten-log cases retain exit 2. The launch
+  suite passes 141 tests and `python -m pytest` passes 1651 tests with 1
+  skipped; live/packaged architecture context copies are byte-identical and
+  `git diff --check` is clean. Committed as `f2ac1748` (`Peer review: preserve
+  TTY retry state`), fetched `origin/main`, and rebased unconditionally onto
+  `FETCH_HEAD` (already current). Post-rebase `python -m pytest` is green:
+  1651 passed, 1 skipped. One clean repeat review remains before advancement.
+- The repeat review found four more must-fix races/invariants. A concurrent
+  checkout switch can redirect the assist alignment fast-forward onto another
+  branch; failed refresh cleanup can reset that branch's index and blindly
+  overwrite its worktree bytes; an exception after strict lifecycle
+  publication restores only local bytes and leaves feature/control state
+  published as `in_progress`; and re-resolving the user's prefix after
+  alignment can silently select a different task if the original ticket moved.
+  Fix all four with focused regressions, then repeat the full
+  verification/rebase/review loop before advancement.
+- All four findings are fixed with five focused regressions. Alignment pins
+  the exact initially resolved task slug and rechecks the sampled branch/HEAD
+  before either fast-forward path. Failed refresh cleanup verifies checkout
+  ownership, resets no unrelated index, restores only bytes still matching
+  its generated snapshot, and union-removes generated audit lines around peer
+  appends. The strict lifecycle publisher records its durable boundary before
+  output/notification work, so a later interrupt retains one clean,
+  feature/control-consistent `in_progress` state for retry instead of locally
+  rewinding it. Live/packaged architecture contexts remain byte-identical.
+  The focused regressions, complete Git suite (149 passed), complete launch
+  suite (143 passed), and `python -m pytest` (1656 passed, 1 skipped) are
+  green. Commit, unconditional fetch/rebase, post-rebase full verification,
+  and a clean repeat review remain before advancement.
+- Committed the four-finding pass as `029105a7` (`Peer review: guard final
+  assist races`), fetched `origin/main`, and rebased unconditionally onto
+  `FETCH_HEAD` (already current). Post-rebase `python -m pytest` is green:
+  1656 passed, 1 skipped. The mandatory repeat review remains before
+  advancement.
+- The repeat review found three more must-fix transaction gaps. The control
+  guard leases only `(status, step, assignee)`, so a concurrent owner
+  body/blackboard/attachment edit can be overwritten by the whole-task
+  overlay; an interrupt after the feature push but before the control landing
+  bypasses compensation and splits the two refs; and strict mark rollback is
+  armed only after post-write validation, so a validation rejection can retain
+  an unpublished generated mutation. Fix all three fail-closed with
+  regressions, then repeat the full verification/rebase/review loop.
+- All three transaction gaps are now fixed. The lease pins the exact
+  control-side task object (including directory-form attachments); strict
+  publication catches interrupts across both pushes, compensating a
+  feature-only publication and retaining a proven feature/control publication;
+  and state writers arm rollback immediately after each generated write,
+  before validation, then re-arm after the audit append. Live and packaged
+  architecture contexts document the guarantees and remain byte-identical.
+  The focused regressions pass, the complete Git/launch suites pass
+  (297 tests), and `python -m pytest` is green (1661 passed, 1 skipped).
+  Committed as `68ce1768` (`Peer review: close assist transaction gaps`),
+  fetched `origin/main`, and rebased unconditionally onto `FETCH_HEAD`
+  (already current). Post-rebase `python -m pytest` is also green:
+  1661 passed, 1 skipped. A clean repeat review remains before advancement.
+- The mandatory repeat review reproduced eleven further transaction and
+  teardown gaps. An inconclusive post-control probe can compensate the feature
+  half after control accepted it; the final launch lease can overwrite a ticket
+  edit made after its stale read; strict commits read selected paths from the
+  live worktree instead of the armed snapshot; log fast-forward can erase an
+  append made after its sample; refresh writes paths before re-verifying the
+  checkout; some post-alignment setup work sits outside the no-sweep guard;
+  explicit strict `block` can publish before discovering invalid notification
+  config; compensation rewrites stale requested bytes over a preserved peer
+  edit; and interrupts can strand local strict commits or leave strict
+  log/refresh push outcomes unreconciled. Fix all eleven with regressions, then
+  repeat the full verification/rebase/review loop before advancement.
+- All eleven findings are fixed, with an additional fail-closed check for a
+  checkout switch between alignment and session setup. Strict lifecycle
+  commits now use the state writer's armed byte snapshot; final launch bytes
+  are rechecked after lease acquisition; ambiguous durable outcomes retain
+  generated state; log/refresh pushes reconcile interrupts against the exact
+  destination; refresh and alignment writes recheck checkout ownership;
+  compensation keeps its peer-preserving descendant bytes; and strict block
+  notification config is preflighted before mutation. All post-alignment
+  failures use the no-sweep exit. Live and packaged architecture/sync contexts
+  remain byte-identical. Focused Git/launch verification passes 309 tests and
+  `python -m pytest` is green (1673 passed, 1 skipped). Commit, unconditional
+  fetch/rebase, post-rebase full verification, and a clean repeat review
+  remain.
+- Committed that pass as `da3d30a0` (`Peer review: harden assist
+  publication`), fetched `origin/main`, and rebased unconditionally onto
+  `FETCH_HEAD` (already current). Post-rebase `python -m pytest` is green:
+  1673 passed, 1 skipped; parity and diff checks are clean.
+- The mandatory repeat review reproduced eight further must-fix gaps:
+  strict ticket writers can overwrite a peer edit made after their stale
+  `Ticket` read; strict refresh writes do not compare the live worktree with
+  their sampled bytes; explicit block, unblock, and automatic reblock do not
+  roll back and use the no-sweep exit for every interrupt after their first
+  mutation; an ambiguous compensating push is treated as definitively failed;
+  alignment can lose its temporarily hidden audit append on an interrupt;
+  a post-fast-forward alignment reread still sits outside the no-sweep
+  boundary; refresh rollback starts only after its first worktree writes; and
+  strict commit finalization accepts a switch to another branch at the same
+  OID. Fix all eight with regressions, then repeat the full
+  verification/rebase/review loop before advancement.
+- Those eight gaps are fixed in `afa46d77` (`Peer review: harden assist
+  transactions`), rebased unconditionally onto fetched `origin/main`
+  (`46c6f0b5`). Post-rebase `python -m pytest` is green (1696 passed,
+  1 skipped), resource parity and validation checks pass, and the checkout is
+  clean. The required repeat `codex review --base origin/main` found eight
+  additional actionable edges: post-alignment setup can still escape the
+  no-sweep boundary; exceptional blocked-assist exits can bypass automatic
+  re-blocking; lifecycle snapshot capture can adopt or overwrite a peer ticket
+  revision; the first strict block/unblock blackboard write is unguarded;
+  lifecycle publication is not revalidated immediately before spawn; refresh
+  can overwrite dirt arriving after its initial scan; strict pushes can
+  re-resolve a changed remote instead of using the verified URL; and the
+  append-only log exception does not reject mode/type-only changes. Fix all
+  eight with regressions, then repeat the full verification/rebase/review loop
+  before advancement.
+- Those eight findings are fixed in `27a008dd` (`Peer review: close strict
+  assist races`). The post-alignment setup operations share the no-sweep
+  boundary; exceptional exits re-block unresolved resumes; lifecycle parse,
+  rollback, and final spawn validation use one exact ticket revision and a
+  fresh branch/control/PR proof; first blocker mutations are conditional;
+  refresh rechecks each sampled path; every strict feature/control/
+  compensation operation uses the lease's captured push URL; and the audit
+  exception rejects mode/type changes and requires a real byte suffix. Live
+  and packaged architecture/sync contexts remain byte-identical. The affected
+  Git/launch suites pass 333 tests, `python -m pytest` passes 1705 with 1
+  skipped both before and after an unconditional fetch/rebase onto
+  `origin/main` (`46c6f0b5`, already current), and the feature checkout is
+  clean. A clean repeat review remains before advancement.
+- The required repeat `codex review --base origin/main` passed all 1705 tests
+  but found four further must-fix correctness gaps: strict control publication
+  uses an ordinary push that can recreate a deleted or force-rewound control
+  ref; rollback `arm()` resamples live files and can adopt a peer edit made
+  after Coga's write; strict unblock can return early when a peer already
+  resolved the final blocker without checking its captured ticket revision;
+  and an interrupt during aligned teardown refresh can escape as 130/143 and
+  re-enable the broad CLI state sweep. Fix all four with regressions, update
+  the durable contract where needed, and repeat the full
+  verification/rebase/review loop before advancement.
+- All four findings are now fixed with focused regressions. Strict control
+  candidates use an exact lease on each freshly guarded base; rollback arming
+  accepts only caller-constructed ticket bytes and exact encoded log appends;
+  a would-be no-op blocker resolution validates the captured full-ticket
+  revision before returning; and exceptional assist teardown refresh exits are
+  normalized to the no-sweep temporary failure. The live and packaged
+  architecture contexts document those boundaries and remain paired. The nine
+  focused race cases pass, followed by the complete affected Git/launch/mark/
+  ticket/primitives/commands suites (504 passed). Committed as `a046c2b4`
+  (`Peer review: lease strict assist state`), fetched `origin/main`, and
+  rebased unconditionally onto `FETCH_HEAD` (`46c6f0b5`, already current).
+  `python -m pytest` is green both before and after rebase (1710 passed,
+  1 skipped), the context pair and diff check are clean, and the checkout is
+  clean. A clean repeat review remains before advancement.
+- The required repeat review reran the full suite (1710 passed, 1 skipped) and
+  reproduced two remaining P1 races. Strict `block`, `unblock`, and automatic
+  unresolved reblock capture their rollback baseline only after network lease
+  acquisition, so a peer ticket edit in that window can be adopted or replaced
+  by stale state. Separately, feature alignment reads the process-shared
+  `FETCH_HEAD` after fetching; another fetch in the same checkout can replace
+  it and make the assist fast-forward its feature branch to an unrelated
+  control commit. Capture the exact ticket revision before lease/preflight and
+  recheck it at the first write across all three paths; bind strict fetches to
+  command-scoped refs instead of `FETCH_HEAD`, with regressions and durable
+  context updates before repeating the full verification/rebase/review loop.
+- Both P1 races now have fixes and regressions in the feature checkout. Strict
+  block/unblock/reblock pin and parse the pre-lease ticket bytes before their
+  first conditional write; strict Git fetch consumers resolve UUID-scoped refs
+  and never rely on shared `FETCH_HEAD`. Live and packaged architecture/sync
+  contexts remain byte-identical, and the complete Git/launch suites pass (342
+  tests). Full-suite verification, commit, rebase, and another clean review are
+  still required before advancement.
+- Committed the two-race fix as `855e0fe2` (`Peer review: isolate assist
+  state`). An unconditional `git fetch origin main && git rebase FETCH_HEAD`
+  found the branch already current at `46c6f0b5`; `python -m pytest` passes
+  after the rebase (1714 passed, 1 skipped), and the feature checkout is clean.
+  The mandatory repeat Codex review is the remaining judgment gate.
+- The repeat reviewer reran the full suite successfully (1714 passed, 1
+  skipped) but did not terminate after an extended exhaustive scan of the
+  12.5k-line branch diff, so it was interrupted rather than allowed to run
+  indefinitely. Its concrete must-fix observation is valid: although core Git
+  consumers now use command-scoped fetch refs, both shipped copies of the
+  address-comments skill still tell the assisting agent to read shared
+  `FETCH_HEAD`. Replace those instructions with unique private refs, cover the
+  contract in the skill test, then run a fresh required review.
+- The skill correction is committed as `6abdfe16` (`Peer review: isolate skill
+  fetch state`), rebased onto the unchanged `origin/main`, and the full suite
+  remains green (1714 passed, 1 skipped). The next review pass again compacted
+  its own context before returning a verdict, but first reproduced one further
+  must-fix regression: `read_blackboard` / `replace_blackboard` now decode raw
+  bytes without universal-newline translation, while `_FENCE_RE` rejects the
+  carriage return on a CRLF fence line. Preserve the exact byte CAS while
+  recognizing CRLF fences, add a compatibility regression, and rerun review at
+  a bounded reasoning setting so the tool can finish.
+- The CRLF compatibility fix is committed as `bb360382` (`Peer review:
+  preserve CRLF ticket fences`) with an exact byte-preservation regression.
+  The branch is current with `origin/main` at `46c6f0b5`, clean, and 25 commits
+  ahead. Final verification is green: `python -m pytest` reports 1715 passed
+  and 1 skipped; resource pairs are byte-identical; `git diff --check` and the
+  source-backed CLI smoke pass; and `coga validate --json` against
+  `example/coga` reports 2 ok with no issues. The bounded mandatory
+  `codex review --base origin/main` completed with: “No actionable correctness
+  issues were identified.”
+
+## PR
+
+Summary:
+- Permit an explicit, ephemeral agent assist on a human-owned launch step and
+  make the assist visible without relaxing the default or megalaunch gates.
+- Ship `code/address-pr-comments` in live and packaged form and attach it to
+  the final review step of all three bundled code workflows, using private
+  command-scoped fetch refs rather than shared `FETCH_HEAD` state.
+- Preserve the owner merge/thread-resolution gate while making assist state
+  publication fail closed under concurrent ticket, checkout, branch, and
+  remote changes; document the changed CLI and synchronization contracts.
+
+Test plan:
+- `python -m pytest` (1715 passed, 1 skipped)
+- source-backed CLI smoke
+- `coga validate --json` against `example/coga` (2 ok, no issues)
