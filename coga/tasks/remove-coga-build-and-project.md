@@ -2,10 +2,10 @@
 slug: remove-coga-build-and-project
 title: remove-coga-build-and-project
 status: draft
-owner: zach
-human: zach
+owner: nick
+human: nick
 agent: claude
-assignee: zach
+assignee: nick
 contexts: []
 skills: []
 workflow: null
@@ -15,7 +15,9 @@ script: null
 
 ## Description
 
+We haven't used coga project or coga build at all. 
 
+Can they both be removed and replaced with coga chat?
 
 ## Context
 
