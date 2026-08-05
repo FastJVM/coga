@@ -3252,3 +3252,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-01 09:27 [recurring-recipe-question] [human:zach] created (status=draft)
 2026-08-01 09:27 [recurring-recipe-question] [human:zach] ticket authoring launched (assignee=claude, agent=claude)
 2026-08-01 14:09 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
+2026-08-05 14:07 [docs-with-review-coga-panic] [human:zach] created (status=draft)
