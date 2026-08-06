@@ -2,10 +2,10 @@
 slug: docs-with-review-coga-panic
 title: docs-with-review-coga-panic
 status: draft
-owner: zach
-human: zach
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: zach
+assignee: claude
 contexts: []
 skills: []
 workflow: null
@@ -14,7 +14,7 @@ secrets: null
 
 ## Description
 
-
+The workflow docs/with-review still carries the old coga panic mechanism. Needs to be corrected to coga block. 
 
 ## Context
 
