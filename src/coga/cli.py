@@ -329,12 +329,11 @@ def main() -> None:
         app()
     except SystemExit as exc:
         # End-of-command boundary (failure half): still sweep on an ordinary
-        # non-zero exit, but not when the command refused because the control
-        # checkout is stale/diverged — the sweep's rebase onto the control tip
-        # is guaranteed to fail against the same divergence, re-dumping the
-        # conflict, and its local commit would deepen the divergence by one
-        # commit per failed run.
-        if exc.code != git.STALE_CONTROL_EXIT_CODE:
+        # non-zero exit, but not when the command deliberately retained
+        # retryable local state. That covers a stale/diverged control checkout
+        # and a refused assist log lease: in either case the sweep would commit
+        # exactly the bytes the narrow publisher intentionally left dirty.
+        if exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
             _sweep_coga_state(cfg)
         raise
     except BaseException:

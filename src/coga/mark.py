@@ -21,7 +21,7 @@ from coga.blackboard import prelaunch_blackboard_synthesis_reason
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import append_log
-from coga.paths import recurring_dir, resolve_workflow_path
+from coga.paths import log_path, recurring_dir, resolve_workflow_path
 from coga.period_state import StateSnapshot, read_snapshot, stale_keys
 from coga.notification import digest_spool_path, notify, post
 from coga.tasks import TaskRef
@@ -442,22 +442,16 @@ def _refuse_unsynthesized_draft_blackboard(
         raise BlackboardNeedsSynthesis(reason)
 
 
-def mark_active(
+def prepare_active(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
-    *,
-    actor: str,
-    log_message: str,
-    echo: str | None = None,
 ) -> None:
-    """Flip a ticket to `active`: write frontmatter and log.
+    """Validate and mutate ``ticket`` to active without writing durable state.
 
-    Refuses to activate a workflow-less ticket. A bare-string `workflow:`
-    ref is frozen into its snapshot here so the activated ticket is
-    launch-ready. Also refuses if any `required = true` extension field is
-    empty. Activation is intentionally silent in Slack; the task log and git
-    sync remain the audit trail.
+    Launch uses this pure preparation boundary to compose a prospective prompt
+    before an assist's final publication gate. ``mark_active`` remains the
+    durable wrapper that writes, audits, and optionally syncs the result.
     """
     prior_status = ticket.status
     if prior_status == "canceled":
@@ -473,17 +467,51 @@ def mark_active(
         raise RequiredExtensionMissing(missing)
 
     ticket.frontmatter["status"] = "active"
+
+
+def mark_active(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    *,
+    actor: str,
+    log_message: str,
+    echo: str | None = None,
+    sync_state: bool = True,
+    mutation_snapshot: git.FileMutationRollback | None = None,
+) -> None:
+    """Flip a ticket to `active`: write frontmatter and log.
+
+    Refuses to activate a workflow-less ticket. A bare-string `workflow:`
+    ref is frozen into its snapshot here so the activated ticket is
+    launch-ready. Also refuses if any `required = true` extension field is
+    empty. Activation is intentionally silent in Slack; the task log and git
+    sync remain the audit trail.
+    """
+    prior_status = ticket.status
+    prepare_active(cfg, ref, ticket)
+    if mutation_snapshot is not None:
+        mutation_snapshot.require_unchanged(ref.ticket_path)
+    ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
+    if mutation_snapshot is not None:
+        # Strict callers captured the pre-mutation bytes. Arm immediately after
+        # the write so a post-write validation refusal can still restore them.
+        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     assert_task_valid(cfg, ref, action="mark active")
-    append_log(cfg, ref.id_slug, actor, log_message)
+    audit_append = append_log(cfg, ref.id_slug, actor, log_message)
+    if mutation_snapshot is not None:
+        # Include the generated audit append in the exact publication snapshot.
+        mutation_snapshot.arm_append(log_path(cfg), audit_append)
     if echo is not None:
         typer.echo(echo)
-    git.sync_task_state(
-        cfg,
-        ref.path,
-        message=f"Ticket: {ref.id_slug} — active",
-        guard=_state_guard(cfg, ref),
-    )
+    if sync_state:
+        git.sync_task_state(
+            cfg,
+            ref.path,
+            message=f"Ticket: {ref.id_slug} — active",
+            guard=_state_guard(cfg, ref),
+        )
 
 
 def mark_in_progress(
@@ -495,13 +523,61 @@ def mark_in_progress(
     log_message: str,
     slack_text: str | None = None,
     echo: str | None = None,
+    publish_current_branch: bool = False,
+    expected_current_branch: str | None = None,
+    expected_current_branch_oid: str | None = None,
+    expected_remote_branch_oid: str | None = None,
+    feature_publication: git.FeaturePublicationLease | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
+    after_sync: Callable[[], None] | None = None,
 ) -> None:
-    """Flip a ticket to `in_progress`: write frontmatter, log, optionally post."""
+    """Flip a ticket to `in_progress`: write, sync, then optionally post.
+
+    ``after_sync`` observes the exact boundary after durable publication and
+    before output or notification work that may still interrupt the caller.
+    """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
+    if mutation_snapshot is not None:
+        mutation_snapshot.require_unchanged(ref.ticket_path)
+    ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
+    if mutation_snapshot is not None:
+        # A validation exception is still a failed generated mutation; make it
+        # rollback-safe before validation can raise.
+        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     assert_task_valid(cfg, ref, action="mark in_progress")
-    append_log(cfg, ref.id_slug, actor, log_message)
+    audit_append = append_log(cfg, ref.id_slug, actor, log_message)
+    if mutation_snapshot is not None:
+        # Re-arm after the audit append so strict sync consumes both writes.
+        mutation_snapshot.arm_append(log_path(cfg), audit_append)
+
+    def sync_state() -> None:
+        git.sync_task_state(
+            cfg,
+            ref.path,
+            message=f"Ticket: {ref.id_slug} — in_progress",
+            guard=_state_guard(cfg, ref),
+            publish_current_branch=publish_current_branch,
+            expected_current_branch=expected_current_branch,
+            expected_current_branch_oid=expected_current_branch_oid,
+            expected_remote_branch_oid=expected_remote_branch_oid,
+            feature_publication=feature_publication,
+            feature_publication_guard=feature_publication_guard,
+            after_strict_publication=after_sync,
+            generated_paths=(
+                mutation_snapshot.generated
+                if mutation_snapshot is not None
+                else None
+            ),
+        )
+
+    # A strict assist publication must succeed before announcing a started
+    # session. Preserve the existing notification-before-sync ordering for
+    # ordinary launches and other callers.
+    if feature_publication is not None:
+        sync_state()
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:
@@ -512,13 +588,15 @@ def mark_in_progress(
             owner=owner,
             watchers=ticket.watchers,
             fatal=False,
+            # Strict lifecycle state already consumed its exact feature lease.
+            # Keep a delivery failure on stderr instead of appending an
+            # unleased audit line that would dirty the checkout before spawn.
+            record_failure=feature_publication is None,
         )
-    git.sync_task_state(
-        cfg,
-        ref.path,
-        message=f"Ticket: {ref.id_slug} — in_progress",
-        guard=_state_guard(cfg, ref),
-    )
+    if feature_publication is None:
+        sync_state()
+        if after_sync is not None:
+            after_sync()
 
 
 def mark_blocked(
@@ -531,13 +609,49 @@ def mark_blocked(
     slack_text: str,
     image_url: str | None = None,
     echo: str | None = None,
+    feature_publication: git.FeaturePublicationLease | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
+    after_sync: Callable[[], None] | None = None,
 ) -> None:
     """Flip a ticket to `blocked` without changing its workflow step."""
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "blocked"
+    if mutation_snapshot is not None:
+        mutation_snapshot.require_unchanged(ref.ticket_path)
+    ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
+    if mutation_snapshot is not None:
+        # Arm before validation so a strict block rejected by validation does
+        # not leave an unpublished generated status behind.
+        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     assert_task_valid(cfg, ref, action="mark blocked")
-    append_log(cfg, ref.id_slug, actor, log_message)
+    audit_append = append_log(cfg, ref.id_slug, actor, log_message)
+    if mutation_snapshot is not None:
+        # Re-arm with the generated blocker audit line included.
+        mutation_snapshot.arm_append(log_path(cfg), audit_append)
+
+    def sync_state() -> None:
+        git.sync_task_state(
+            cfg,
+            ref.path,
+            message=f"Ticket: {ref.id_slug} — blocked",
+            guard=_state_guard(cfg, ref),
+            feature_publication=feature_publication,
+            feature_publication_guard=feature_publication_guard,
+            after_strict_publication=after_sync,
+            generated_paths=(
+                mutation_snapshot.generated
+                if mutation_snapshot is not None
+                else None
+            ),
+        )
+
+    # A resumed single-checkout assist must republish `blocked` before telling
+    # the owner the unresolved ask is safely parked. Ordinary block calls keep
+    # their established echo/notification-before-sync ordering.
+    if feature_publication is not None:
+        sync_state()
     if echo is not None:
         typer.echo(echo)
     post(
@@ -550,13 +664,12 @@ def mark_blocked(
         # `coga block` ends the session: a Slack outage must not keep the
         # blocked ticket's agent REPL alive to its idle timeout.
         fatal=False,
+        # The strict state push above consumed this assist lease. A new Slack
+        # failure line cannot safely enter the generic CLI sweep afterwards.
+        record_failure=feature_publication is None,
     )
-    git.sync_task_state(
-        cfg,
-        ref.path,
-        message=f"Ticket: {ref.id_slug} — blocked",
-        guard=_state_guard(cfg, ref),
-    )
+    if feature_publication is None:
+        sync_state()
 
 
 def mark_paused(
@@ -609,6 +722,7 @@ def mark_paused(
 
 __all__ = [
     "mark_active",
+    "prepare_active",
     "mark_in_progress",
     "mark_blocked",
     "mark_paused",

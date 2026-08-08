@@ -300,7 +300,7 @@ def test_megalaunch_agent_override_launches_regardless_of_assignee(
 ) -> None:
     """`agent_override` is ephemeral: every swept ticket launches with the
     named agent, whatever its `assignee:` says, and the ticket is never
-    rewritten — the same semantics as `coga launch --agent`."""
+    rewritten. Megalaunch separately gates human-owned steps."""
     cfg = load_config(repo)
     claude_ref = create_task(
         cfg=cfg,

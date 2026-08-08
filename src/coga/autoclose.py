@@ -134,7 +134,7 @@ def pr_state(url: str) -> str:
 
     Returns the raw state string ("MERGED", "CLOSED", "OPEN").
     """
-    data = _pr_view(url, "state")
+    data = pr_view(url, "state")
     return str(data.get("state", ""))
 
 
@@ -146,7 +146,7 @@ def pr_head(url: str) -> tuple[str, str]:
     error: treating an incomplete response as authorization would make a stale
     ``pr:`` line destructive.
     """
-    data = _pr_view(url, "headRefName,headRefOid")
+    data = pr_view(url, "headRefName,headRefOid")
     branch = str(data.get("headRefName", "")).strip()
     oid = str(data.get("headRefOid", "")).strip()
     if not branch or not oid:
@@ -195,7 +195,7 @@ def prs_for_head(branch: str, state: str) -> list[dict[str, object]]:
     return [item for item in data if isinstance(item, dict)]
 
 
-def _pr_view(url: str, fields: str) -> dict[str, object]:
+def pr_view(url: str, fields: str) -> dict[str, object]:
     """Query selected JSON fields for one PR, normalizing CLI failures."""
     try:
         result = subprocess.run(
@@ -354,6 +354,7 @@ __all__ = [
     "parse_branch_name",
     "parse_worktree_path",
     "pr_head",
+    "pr_view",
     "pr_state",
     "prs_for_head",
 ]

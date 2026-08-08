@@ -9,6 +9,7 @@ import pytest
 from coga.blackboard import render_blackboard
 from coga.logfile import append_log
 from coga.slugify import slugify
+from coga.taskfile import BLACKBOARD_FENCE, read_blackboard, replace_blackboard
 from coga.ticket import Ticket, TicketError, TicketNotFoundError
 from coga.workflow import Workflow, WorkflowError
 
@@ -101,6 +102,32 @@ def test_ticket_read_missing_file_raises_ticket_error(tmp_path: Path) -> None:
         Ticket.read(tmp_path / "gone" / "ticket.md")
     assert isinstance(excinfo.value, TicketError)
     assert isinstance(excinfo.value, FileNotFoundError)
+
+
+def test_blackboard_byte_cas_accepts_and_preserves_crlf_fence(tmp_path: Path) -> None:
+    path = tmp_path / "ticket.md"
+    original = (
+        "---\r\n"
+        "title: Windows ticket\r\n"
+        "status: active\r\n"
+        "---\r\n\r\n"
+        "## Description\r\n\r\n"
+        "Keep line endings.\r\n\r\n"
+        f"{BLACKBOARD_FENCE}\r\n\r\n"
+        "old note\r\n"
+    ).encode("utf-8")
+    path.write_bytes(original)
+
+    blackboard = read_blackboard(path, expected_bytes=original)
+    written = replace_blackboard(
+        path,
+        blackboard.replace("old note", "new note"),
+        expected_bytes=original,
+    )
+
+    expected = original.replace(b"old note", b"new note")
+    assert written == expected
+    assert path.read_bytes() == expected
 
 
 # --- workflow -----------------------------------------------------------------

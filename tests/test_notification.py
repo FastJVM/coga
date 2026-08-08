@@ -845,6 +845,32 @@ def test_post_failure_non_fatal_reports_and_returns(
     assert "[001-x]" in (cfg_with_webhook.repo_root / "log.md").read_text()
 
 
+def test_post_failure_can_skip_unleased_audit_append(
+    cfg_with_webhook, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A strict publisher can keep a post-lease delivery miss out of its tree."""
+    task_path = tmp_path / "tasks" / "001-x"
+    task_path.mkdir(parents=True)
+    log_path = cfg_with_webhook.repo_root / "log.md"
+    before = log_path.read_bytes() if log_path.is_file() else None
+
+    def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise requests.ConnectionError("no network")
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    post(
+        cfg_with_webhook,
+        "lost strict message",
+        task_path=task_path,
+        fatal=False,
+        record_failure=False,
+    )
+
+    assert "post failed" in capsys.readouterr().err
+    after = log_path.read_bytes() if log_path.is_file() else None
+    assert after == before
+
+
 def test_post_missing_webhook_still_crashes_when_non_fatal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:

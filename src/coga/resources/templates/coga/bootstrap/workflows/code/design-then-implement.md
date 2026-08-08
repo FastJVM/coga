@@ -19,6 +19,8 @@ steps:
       - code/open-pr
   - name: review
     assignee: owner
+    skills:
+      - code/address-pr-comments
 ---
 
 ## review-design

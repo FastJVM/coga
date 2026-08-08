@@ -50,8 +50,13 @@ BLACKBOARD_FENCE = "<!-- coga:blackboard -->"
 
 # Match the fence only as a line of its own (optionally trailing whitespace), so
 # a ticket body that *mentions* the fence string inline — e.g. a ticket about
-# this very format — is not mistaken for a region split.
-_FENCE_RE = re.compile(rf"^{re.escape(BLACKBOARD_FENCE)}[ \t]*$", re.MULTILINE)
+# this very format — is not mistaken for a region split. Raw-byte CAS readers do
+# not apply universal-newline translation, so accept the carriage return in a
+# CRLF fence line explicitly.
+_FENCE_RE = re.compile(
+    rf"^{re.escape(BLACKBOARD_FENCE)}[ \t]*\r?$",
+    re.MULTILINE,
+)
 
 
 def _fence_matches(text: str) -> list[re.Match[str]]:
@@ -119,7 +124,12 @@ def read_task_file(path: Path, *, blackboard_required: bool = True) -> TaskFile:
     return TaskFile(ticket=ticket, body=above, blackboard=blackboard)
 
 
-def read_blackboard(path: Path, *, blackboard_required: bool = True) -> str:
+def read_blackboard(
+    path: Path,
+    *,
+    blackboard_required: bool = True,
+    expected_bytes: bytes | None = None,
+) -> str:
     """Return the blackboard region of `path` (text after the fence marker).
 
     Returns ``""`` for a fence-less file when `blackboard_required` is False
@@ -127,7 +137,12 @@ def read_blackboard(path: Path, *, blackboard_required: bool = True) -> str:
     `replace_blackboard`: ``replace_blackboard(p, read_blackboard(p))`` is a
     no-op.
     """
-    text = path.read_text(encoding="utf-8")
+    raw = path.read_bytes()
+    if expected_bytes is not None and raw != expected_bytes:
+        raise TaskFileError(
+            f"ticket changed before its blackboard update: {path}"
+        )
+    text = raw.decode("utf-8")
     matches = _fence_matches(text)
     if not matches:
         if blackboard_required:
@@ -144,7 +159,12 @@ def read_blackboard(path: Path, *, blackboard_required: bool = True) -> str:
     return text[matches[0].end():]
 
 
-def replace_blackboard(path: Path, new_blackboard: str) -> None:
+def replace_blackboard(
+    path: Path,
+    new_blackboard: str,
+    *,
+    expected_bytes: bytes | None = None,
+) -> bytes:
     """Replace only the blackboard region of `path`, leaving the rest verbatim.
 
     Byte-splices the file: everything up to and including the fence marker is
@@ -152,7 +172,12 @@ def replace_blackboard(path: Path, new_blackboard: str) -> None:
     re-rendered), and the region after the fence is replaced with
     `new_blackboard`. Atomic so a crash mid-write can't truncate the ticket.
     """
-    text = path.read_text(encoding="utf-8")
+    raw = path.read_bytes()
+    if expected_bytes is not None and raw != expected_bytes:
+        raise TaskFileError(
+            f"ticket changed before its blackboard update: {path}"
+        )
+    text = raw.decode("utf-8")
     matches = _fence_matches(text)
     if not matches:
         raise TaskFileError(
@@ -164,7 +189,9 @@ def replace_blackboard(path: Path, new_blackboard: str) -> None:
             f"ticket.md carries {len(matches)} blackboard fences "
             f"({BLACKBOARD_FENCE!r}); exactly one is allowed."
         )
-    atomic_write_text(path, text[: matches[0].end()] + new_blackboard)
+    rendered = text[: matches[0].end()] + new_blackboard
+    atomic_write_text(path, rendered)
+    return rendered.encode("utf-8")
 
 
 def upsert_blackboard(path: Path, new_blackboard: str) -> None:

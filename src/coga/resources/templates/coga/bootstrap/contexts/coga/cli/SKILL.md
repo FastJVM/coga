@@ -224,9 +224,10 @@ commands belong behind the registered `coga run` recipe surface.
   A top-level task is its bare leaf slug; a nested task is referenced by its
   path under `tasks/` (`marketing/coga-crm`), matching what `coga status`
   prints — the bare leaf alone won't resolve.
-- `coga launch <slug> --agent <type>` — one-off agent-type override
-  for an agent-owned task (e.g. `--agent claude`); does not rewrite the
-  ticket's `assignee:` and does not bypass a human handoff.
+- `coga launch <slug> --agent <type>` — explicit one-off agent-type override
+  (e.g. `--agent claude`). It may assist on a human-owned step, prints that
+  unusual handoff in the launch banner, and never rewrites the ticket's
+  `assignee:`. Without the flag, a human handoff is still refused.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent.
@@ -244,17 +245,20 @@ agent's optional `discussion = "...{prompt}..."` override. In discussion
 launches the Coga prompt is context and the first human ask can name the session.
 Other task launches keep passing the composed prompt positionally.
 
-`launch` does not probe `gh` for PR state before composing the prompt —
+Ordinary `launch` does not probe `gh` for PR state before composing the prompt —
 auto-bumping a ticket whose final-step PR has merged is the job of
-`coga autoclose` / the `autoclose-merged` recurring sweep, never launch. It
-does, though, **pre-flight git push access**: before flipping status or
-spawning the agent, it runs a non-interactive `git push --dry-run` against the
-configured remote (the same push-auth probe `coga validate --check-github`
-uses) and refuses the launch if push auth is broken. Coga drives the whole session
-through git/gh (branch push, `gh pr create`, every `coga bump` syncs ticket
-state), so a dead remote means a run guaranteed to fail at ship time — fail
-loud at the door, not after a long run. The gate self-skips for bootstrap
-tickets, `[git].enabled = false`, and non-git checkouts.
+`coga autoclose` / the `autoclose-merged` recurring sweep, never launch. The
+explicit human-step assist is the narrow exception: it verifies its recorded
+open PR head before composing because that head authorizes generated writes to
+the already-published branch. Launch also **pre-flights git push access**:
+before flipping status or spawning the agent, it runs a non-interactive
+`git push --dry-run` against the configured remote (the same push-auth probe
+`coga validate --check-github` uses) and refuses the launch if push auth is
+broken. Coga drives the whole session through git/gh (branch push,
+`gh pr create`, every `coga bump` syncs ticket state), so a dead remote means a
+run guaranteed to fail at ship time — fail loud at the door, not after a long
+run. The gate self-skips for bootstrap tickets, `[git].enabled = false`, and
+non-git checkouts.
 
 All of coga's git subprocesses run non-interactively (`GIT_TERMINAL_PROMPT=0`,
 SSH `BatchMode=yes`), so a credential-less remote fails fast instead of hanging
@@ -264,10 +268,11 @@ start), but a mid-workflow ticket-state sync miss (`coga bump` / `mark`) stays
 on-disk markdown is the source of truth and aborting there would stall the
 supervised chain.
 
-Agent type comes from the ticket's `assignee` directly — it names an
-`[agents.<type>]` block in `coga.toml`. Human assignees aren't
-launchable, and `--agent` does not convert a human handoff into an agent
-step; reassign to an agent type first.
+Agent type normally comes from the ticket's `assignee` directly — it names an
+`[agents.<type>]` block in `coga.toml`. Human assignees are not launchable by
+default. An explicit `--agent <type>` is the on-demand assist escape hatch: it
+selects the agent in memory for that launch only, leaves the human assignee on
+disk, and identifies the assist in the banner.
 
 For workflow-bound interactive tasks, `launch` can continue through
 consecutive agent-owned steps in fresh processes. After a clean agent exit,
@@ -692,14 +697,12 @@ directory claim the same position — the one case where the order you wrote
 down is ambiguous and the sort silently invents an answer from creation time.
 Gaps and unnumbered siblings are legal and unflagged.
 
-Pass `--agent <type>` to launch the swept tasks (and the picker's confirmed
-set) with that configured agent type regardless of each ticket's `assignee:`
-— an ephemeral per-launch override with the same semantics as
-`coga launch --agent`: the ticket's `assignee:` is never rewritten, a
-human-assigned ticket is not converted into an agent step (it still skips as
-a human gate), and on a task that chains multiple steps the override applies
-only to the first launched step—later steps follow the ticket's resolved
-assignee, so `other-agent` rotation keeps its meaning.
+Pass `--agent <type>` to launch swept agent-owned tasks (and launchable tasks
+in the picker's confirmed set) with that configured agent type. The override
+is ephemeral and applies only to the first launched step—later steps follow
+the ticket's resolved assignee, so `other-agent` rotation keeps its meaning.
+Megalaunch deliberately keeps its own human gate: unlike an explicit
+`coga launch --agent` assist, a human-assigned ticket still skips.
 
 An optional positional `DIR` scopes the sweep or the picker to tasks under
 `tasks/<DIR>/` (nested ones included), exactly like `coga status <dir>` —
@@ -794,9 +797,10 @@ recurring --all ~/Code` without racing two checkouts of one remote workspace.
 
 Pass `--agent <type>` to run every agent-backed task in the sweep with that
 configured agent type. The override is ephemeral: it does not rewrite ticket
-assignees, human handoffs remain protected, and deterministic recipe/script
-tasks keep their declared execution path. The command passes the override to
-the scanner as ordinary `--agent` argv.
+assignees, and deterministic recipe/script tasks keep their declared execution
+path. For non-recipe tasks the scanner delegates to `coga launch --agent`, so
+the explicit flag may also assist a current human-owned step. The command
+passes the override to the scanner as ordinary `--agent` argv.
 
 For each template (skipping `_`-prefixed files) `coga recurring` enforces
 **one live task per template**: if the generated task at `recurring/<name>` is

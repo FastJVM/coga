@@ -62,8 +62,9 @@ prompt, and spawns the assignee's agent. A `done` ticket is refused and left
 untouched. Trailing `ARGS` arrive as ordered values in an appended
 `## Launch arguments` prompt block.
 
-- `--agent <nickname>` — use this agent for the launch instead of the ticket
-  assignee.
+- `--agent <nickname>` — explicitly use this agent for one launch instead of
+  the ticket assignee. This can assist on a human-owned step without rewriting
+  `assignee:`; without the flag, a human handoff is still refused.
 - `--prompt-report` — print the composed prompt layers and approximate token
   counts, then exit **without** launching.
 - `--idle-timeout <seconds>` — tear down a stalled interactive REPL after this

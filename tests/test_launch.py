@@ -5,12 +5,16 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+import requests
 from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
 from coga.cli import app
+from coga.blackboard import append_blocker
+from coga.commands import block as block_module
 from coga.commands import launch as launch_module
+from coga.commands import unblock as unblock_module
 from coga.create import create_task
 from coga.commands.launch import (
     _MAX_PROMPT_ARG_BYTES,
@@ -24,6 +28,9 @@ from coga.commands.launch import (
 from coga.config import AgentType, load_config
 from coga.github_preflight import CheckResult
 from coga.repl_supervisor import (
+    ASSIST_AGENT_ENV,
+    ASSIST_BRANCH_ENV,
+    ASSIST_PR_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
     _TIMEOUT_EXIT_CODE,
@@ -33,6 +40,7 @@ from coga.repl_supervisor import (
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
 from coga.tasks import BootstrapRef, TaskRef, list_tasks
 from coga.ticket import Ticket
+from coga.validate import TaskValidationError
 
 
 def _write(path: Path, text: str) -> None:
@@ -1026,6 +1034,39 @@ def _allow_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "coga.commands.launch._interactive_stdio_has_tty",
         lambda: True,
+    )
+
+
+def _allow_recorded_assist_pr(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Model GitHub reporting the bare test remote's current branch as the PR head."""
+
+    def verify(cfg, ticket, branch, **kwargs):  # type: ignore[no-untyped-def]
+        _, blackboard = launch_module.split_body(ticket.body)
+        actual_pr_url = launch_module.parse_pr_url(blackboard or "")
+        expected_pr_url = kwargs.get("expected_pr_url")
+        if expected_pr_url is not None and actual_pr_url != expected_pr_url:
+            raise launch_module.git.FeaturePublicationError(
+                f"recorded assist PR changed from {expected_pr_url} "
+                f"to {actual_pr_url}"
+            )
+        root = launch_module.git._toplevel(cfg.repo_root)
+        assert root is not None
+        oid = launch_module.git._remote_branch_oid(
+            root, cfg.git_remote, branch
+        )
+        if oid is None:
+            raise launch_module.git.FeaturePublicationError(
+                f"{cfg.git_remote}/{branch} does not exist"
+            )
+        return oid
+
+    monkeypatch.setattr(
+        "coga.commands.launch._verify_recorded_assist_pr_head",
+        verify,
+    )
+    monkeypatch.setattr(
+        "coga.pr_assist.verify_recorded_assist_pr_head",
+        verify,
     )
 
 
@@ -2804,6 +2845,12 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "coga.commands.launch._recorded_single_checkout_assist_branch",
+        lambda *args, **kwargs: pytest.fail(
+            "an override on an agent-owned task is not a human-step assist"
+        ),
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
@@ -2823,7 +2870,3581 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     assert "assignee=claude, launch_assignee=codex, agent=codex" in log
 
 
-def test_launch_agent_override_does_not_bypass_human_handoff(
+def test_launch_agent_override_assists_human_handoff_without_reassigning(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+    sync_calls: list[dict[str, object]] = []
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ref.ticket_path)
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "coga.commands.launch.git.sync_log",
+        lambda cfg, **kwargs: sync_calls.append(kwargs),
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
+
+    assert result.exit_code == 0, result.output
+    assert "assisting on human-owned step" in (
+        result.output + (result.stderr or "")
+    )
+    cmd = captured["cmd"]
+    assert isinstance(cmd, list)
+    assert cmd[0] == "codex"
+    assert Ticket.read(ref.ticket_path).frontmatter["assignee"] == "marc"
+
+    log = _read_log(active_task)
+    assert "assignee=marc, launch_assignee=codex, agent=codex" in log
+    # No recorded `branch:` / `worktree:` means this launch is authorized as
+    # an assist, but the current checkout is not authorized to publish for it.
+    assert len(sync_calls) == 1
+    assert sync_calls[0]["publish_if_remote_aligned"] is False
+
+
+def test_recorded_assist_pr_head_requires_the_configured_head_repository(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(
+        ref.ticket_path,
+        dedent(
+            """
+            ## Dev
+            branch: feature/review
+            worktree: /tmp/review
+            pr: https://github.com/base/repo/pull/12
+            """
+        ),
+    )
+    ticket = Ticket.read(ref.ticket_path)
+    monkeypatch.setattr(
+        launch_module.pr_assist,
+        "pr_view",
+        lambda url, fields: {
+            "state": "OPEN",
+            "url": url,
+            "headRefName": "feature/review",
+            "headRefOid": "abc123",
+            "headRepository": {"name": "repo"},
+            "headRepositoryOwner": {"login": "fork-owner"},
+        },
+    )
+    monkeypatch.setattr(launch_module.git, "_toplevel", lambda path: active_task)
+    monkeypatch.setattr(
+        launch_module.git,
+        "_run_git",
+        lambda root, *args: (
+            "https://agent:TOP-SECRET@github.com/base/repo.git\n"
+        ),
+    )
+
+    with pytest.raises(
+        launch_module.git.FeaturePublicationError,
+        match="publishes from github.com/fork-owner/repo",
+    ) as excinfo:
+        launch_module._verify_recorded_assist_pr_head(
+            cfg, ticket, "feature/review"
+        )
+    assert "TOP-SECRET" not in str(excinfo.value)
+    assert "agent@" not in str(excinfo.value)
+
+
+def test_recorded_assist_pr_head_accepts_the_configured_fork_remote(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(
+        ref.ticket_path,
+        dedent(
+            """
+            ## Dev
+            branch: feature/review
+            worktree: /tmp/review
+            pr: https://github.com/base/repo/pull/12
+            """
+        ),
+    )
+    ticket = Ticket.read(ref.ticket_path)
+    monkeypatch.setattr(
+        launch_module.pr_assist,
+        "pr_view",
+        lambda url, fields: {
+            "state": "OPEN",
+            "url": url,
+            "headRefName": "feature/review",
+            "headRefOid": "abc123",
+            "headRepository": {"name": "repo"},
+            "headRepositoryOwner": {"login": "fork-owner"},
+        },
+    )
+    monkeypatch.setattr(launch_module.git, "_toplevel", lambda path: active_task)
+
+    def push_url(root, *args):  # type: ignore[no-untyped-def]
+        assert args == (
+            "remote",
+            "get-url",
+            "--push",
+            "--all",
+            cfg.git_remote,
+        )
+        return "ssh://git@github.com/fork-owner/repo.git\n"
+
+    monkeypatch.setattr(launch_module.git, "_run_git", push_url)
+
+    assert launch_module._verify_recorded_assist_pr_head(
+        cfg, ticket, "feature/review"
+    ) == "abc123"
+
+
+def test_recorded_assist_pr_head_rejects_multiple_pushurls(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(
+        ref.ticket_path,
+        dedent(
+            """
+            ## Dev
+            branch: feature/review
+            worktree: /tmp/review
+            pr: https://github.com/base/repo/pull/12
+            """
+        ),
+    )
+    ticket = Ticket.read(ref.ticket_path)
+    monkeypatch.setattr(
+        launch_module.pr_assist,
+        "pr_view",
+        lambda url, fields: {
+            "state": "OPEN",
+            "url": url,
+            "headRefName": "feature/review",
+            "headRefOid": "abc123",
+            "headRepository": {"name": "repo"},
+            "headRepositoryOwner": {"login": "fork-owner"},
+        },
+    )
+    monkeypatch.setattr(launch_module.git, "_toplevel", lambda path: active_task)
+    monkeypatch.setattr(
+        launch_module.git,
+        "_run_git",
+        lambda root, *args: (
+            "ssh://git@github.com/fork-owner/repo.git\n"
+            "ssh://git@github.com/base/repo.git\n"
+        ),
+    )
+
+    with pytest.raises(
+        launch_module.git.FeaturePublicationError,
+        match="requires exactly one effective push URL.*found 2",
+    ):
+        launch_module._verify_recorded_assist_pr_head(
+            cfg, ticket, "feature/review"
+        )
+
+
+def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Address review",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/1
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed review assist")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("before review\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: initial implementation")
+    git_repo.git("push", "-u", "origin", "feature/review")
+
+    # Another machine advances the PR branch, including prompt-bearing ticket
+    # state. Launch must fast-forward before its final ticket/prompt reads, not
+    # inside the later launch-log commit after composition.
+    peer = git_repo.origin.parent / "peer-review-assist"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
+    peer_ticket = peer / ticket_path.relative_to(git_repo.root)
+    peer_ticket.write_text(
+        peer_ticket.read_text() + "\nRemote prompt state: address the latest review.\n"
+    )
+    git_repo.git("add", str(peer_ticket.relative_to(peer)), cwd=peer)
+    git_repo.git("commit", "-m", "review: update assist instructions", cwd=peer)
+    git_repo.git("push", "origin", "feature/review", cwd=peer)
+    assert "Remote prompt state" not in ticket_path.read_text()
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    real_compose_prompt = launch_module.compose_prompt
+    composed_ticket_bodies: list[str] = []
+
+    def capture_compose_prompt(cfg, ref, ticket):  # type: ignore[no-untyped-def]
+        composed_ticket_bodies.append(ticket.body)
+        return real_compose_prompt(cfg, ref, ticket)
+
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        capture_compose_prompt,
+    )
+
+    def apply_and_push_fix(*args, **kwargs):  # type: ignore[no-untyped-def]
+        # The assist must not inherit the launcher's own dirty audit append.
+        assert git_repo.git("status", "--porcelain").strip() == ""
+        assert composed_ticket_bodies
+        assert all(
+            "Remote prompt state: address the latest review." in body
+            for body in composed_ticket_bodies
+        )
+        assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+            "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+        ).strip()
+        (git_repo.root / "implementation.txt").write_text("review fixed\n")
+        git_repo.git("add", "implementation.txt")
+        git_repo.git("commit", "-m", "fix: address review")
+        git_repo.git("push", "origin", "feature/review")
+        # Control-plane state can move while the assist is running. Launch
+        # teardown must fold this into the single checkout and publish the
+        # generated refresh commit instead of leaving local HEAD ahead.
+        control_log = git_repo.git(
+            "show", "main:coga/log.md", cwd=git_repo.origin
+        )
+        git_repo.push_competing_commit(
+            "coga/log.md",
+            control_log
+            + "2026-07-30 12:01 [other-task] [system] concurrent state\n",
+        )
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        apply_and_push_fix,
+    )
+
+    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        log = cfg.repo_root / "log.md"
+        log.write_text(
+            log.read_text()
+            + '2026-07-30 12:00 [address-review] [system] {"tokens": 1}\n'
+        )
+
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        append_usage,
+    )
+
+    launch_module.launch(
+        "address-review",
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+    ).strip()
+    assert '{"tokens": 1}' in git_repo.git(
+        "show", "refs/heads/feature/review:coga/log.md", cwd=git_repo.origin
+    )
+    assert "concurrent state" in git_repo.git(
+        "show", "refs/heads/feature/review:coga/log.md", cwd=git_repo.origin
+    )
+    assert "Remote prompt state: address the latest review." in ticket_path.read_text()
+    assert Ticket.read(ticket_path).assignee == "marc"
+
+
+def test_agent_owned_override_does_not_enter_human_assist_alignment(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only a locally human-owned override gets strict assist alignment."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Align the review handoff",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["step"] = "1 (implement)"
+    ticket.frontmatter["assignee"] = "claude"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/21
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed stale handoff")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("implemented\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: implementation")
+    git_repo.git("push", "-u", "origin", "feature/review")
+
+    peer = git_repo.origin.parent / "peer-review-handoff"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
+    peer_ticket = peer / ticket_path.relative_to(git_repo.root)
+    handed_off = Ticket.read(peer_ticket)
+    handed_off.frontmatter["status"] = "in_progress"
+    handed_off.frontmatter["step"] = "2 (review)"
+    handed_off.frontmatter["assignee"] = "marc"
+    handed_off.write(peer_ticket)
+    git_repo.git("add", str(peer_ticket.relative_to(peer)), cwd=peer)
+    git_repo.git("commit", "-m", "ticket: hand off to review", cwd=peer)
+    git_repo.git("push", "origin", "feature/review", cwd=peer)
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        handed_off.render(),
+    )
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    observed: list[tuple[str | None, str | None]] = []
+
+    def observe_review(*args, **kwargs):  # type: ignore[no-untyped-def]
+        current = Ticket.read(ticket_path)
+        observed.append((current.assignee, current.step))
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        observe_review,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        str(created["slug"]),
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert observed == [("claude", "1 (implement)")]
+
+
+def test_human_assist_validates_override_after_remote_config_alignment(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fetched coga.toml may define the explicitly requested assist agent."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Load remote reviewer config",
+        status="in_progress",
+    )
+    peer = git_repo.origin.parent / "peer-reviewer-config"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
+    peer_config = peer / "coga" / "coga.toml"
+    peer_config.write_text(
+        peer_config.read_text()
+        + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n'
+    )
+    git_repo.git("add", "coga/coga.toml", cwd=peer)
+    git_repo.git("commit", "-m", "config: add reviewer agent", cwd=peer)
+    git_repo.git("push", "origin", "feature/review", cwd=peer)
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    observed: list[str] = []
+
+    def observe_reviewer(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        observed.append(cmd[0])
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        observe_reviewer,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        str(created["slug"]),
+        agent_override="reviewer",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert observed == ["reviewer"]
+
+
+@pytest.mark.parametrize(
+    ("local_status", "control_status"),
+    [
+        ("active", "paused"),
+        ("active", "blocked"),
+        ("in_progress", "done"),
+    ],
+)
+def test_human_assist_refuses_mismatched_fresh_control_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    local_status: str,
+    control_status: str,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Refuse control {control_status}",
+        status=local_status,
+    )
+    control_ticket = Ticket.read(ticket_path)
+    control_ticket.frontmatter["status"] = control_status
+    if control_status == "done":
+        control_ticket.frontmatter.pop("step", None)
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        control_ticket.render(),
+    )
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    child_started = False
+
+    def unexpected_child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal child_started
+        child_started = True
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        unexpected_child,
+    )
+
+    with pytest.raises(SystemExit):
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert child_started is False
+    assert Ticket.read(ticket_path).status == local_status
+    assert f"status: {control_status}" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+@pytest.mark.parametrize(
+    "initial_status",
+    ["draft", "active", "paused", "blocked"],
+)
+def test_human_assist_aligns_resumable_state_before_lifecycle_commits(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    initial_status: str,
+) -> None:
+    """Activation state reaches the aligned PR tip before the child starts."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title=f"Resume {initial_status} review",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = initial_status
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/3
+            """
+        ),
+    )
+    if initial_status == "blocked":
+        append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", f"ticket: seed {initial_status} review")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("before remote review\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: initial implementation")
+    git_repo.git("push", "-u", "origin", "feature/review")
+
+    peer = git_repo.origin.parent / f"peer-{initial_status}-review"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/review", "origin/feature/review", cwd=peer)
+    (peer / "implementation.txt").write_text("remote review tip\n")
+    git_repo.git("add", "implementation.txt", cwd=peer)
+    git_repo.git("commit", "-m", "review: advance PR tip", cwd=peer)
+    git_repo.git("push", "origin", "feature/review", cwd=peer)
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def observe_aligned_child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        assert (git_repo.root / "implementation.txt").read_text() == (
+            "remote review tip\n"
+        )
+        assert Ticket.read(ticket_path).status == "in_progress"
+        assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+            "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+        ).strip()
+        if initial_status == "blocked":
+            child_env = args[1]
+            result = CliRunner().invoke(
+                app,
+                [
+                    "unblock",
+                    str(created["slug"]),
+                    "--answer",
+                    "cap at five minutes",
+                ],
+                env=child_env,
+            )
+            assert result.exit_code == 0, result.output
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        observe_aligned_child,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        str(created["slug"]),
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert Ticket.read(ticket_path).status == "in_progress"
+    assert Ticket.read(ticket_path).assignee == "marc"
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+    ).strip()
+
+
+def test_human_assist_does_not_recreate_branch_deleted_after_alignment(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Lifecycle publication is leased to the remote tip verified at launch."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Refuse a deleted review branch",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/5
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed deleted-branch review")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("reviewed branch\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: reviewed branch")
+    git_repo.git("push", "-u", "origin", "feature/review")
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def delete_remote_after_preflights(repo_root):  # type: ignore[no-untyped-def]
+        git_repo.git("push", "origin", "--delete", "feature/review")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.warn_if_installed_predates_source",
+        delete_remote_after_preflights,
+    )
+    child_started = False
+
+    def unexpected_child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal child_started
+        child_started = True
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        unexpected_child,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert exc_info.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert child_started is False
+    assert launch_module.git._remote_branch_oid(
+        git_repo.root, "origin", "feature/review"
+    ) is None
+    assert Ticket.read(ticket_path).status == "active"
+    assert Ticket.read(ticket_path).assignee == "marc"
+    assert "Ticket: refuse-a-deleted-review-branch — in_progress" not in (
+        git_repo.git("log", "--format=%s", "main", cwd=git_repo.origin)
+    )
+    output = capsys.readouterr()
+    assert "No agent was started" in output.err
+
+
+def _seed_single_checkout_human_review(
+    git_repo,
+    *,
+    title: str,
+    status: str,
+    branch: str = "feature/review",
+) -> tuple[dict[str, str], Path]:
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title=title,
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = status
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: {branch}
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/8
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", f"ticket: seed {status} review")
+    git_repo.git("push", "origin", "main")
+    if branch != "main":
+        git_repo.checkout_branch(branch)
+    (git_repo.root / "implementation.txt").write_text("reviewed branch\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: reviewed branch")
+    git_repo.git("push", "-u", "origin", branch)
+    return created, ticket_path
+
+
+def test_human_assist_alignment_keeps_original_prefix_target(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A moved PR tip cannot retarget a prefix launch to another task."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Preserve prefix target",
+        status="in_progress",
+    )
+    cfg = load_config(git_repo.coga_os)
+    original = list_tasks(cfg)[0]
+    alternate = TaskRef(
+        slug=f"{original.slug}-replacement",
+        path=original.path,
+        directory=original.directory,
+        file_form=original.file_form,
+    )
+    prefix = original.id_slug[:8]
+    resolve_calls: list[str] = []
+
+    def retargeting_resolver(cfg, arg):  # type: ignore[no-untyped-def]
+        resolve_calls.append(arg)
+        return original if len(resolve_calls) == 1 else alternate
+
+    monkeypatch.setattr(
+        "coga.commands.launch.resolve_target",
+        retargeting_resolver,
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._align_recorded_assist_checkout",
+        lambda cfg, ticket: (True, "aligned-oid"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._verify_recorded_assist_pr_head",
+        lambda cfg, ticket, branch, **kwargs: "aligned-oid",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("a retargeted task must not launch"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            prefix,
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert resolve_calls == [prefix, original.id_slug]
+    assert "different prefix match" in capsys.readouterr().err
+    assert Ticket.read(ticket_path).assignee == "marc"
+    assert created["slug"] == original.id_slug
+
+
+def test_human_assist_retains_consistent_state_after_post_publication_interrupt(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An interrupt after strict sync must not locally rewind published state."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Keep published lifecycle consistent",
+        status="active",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    real_mark_in_progress = launch_module.mark_in_progress
+
+    def interrupt_after_publication(*args, **kwargs):  # type: ignore[no-untyped-def]
+        real_mark_in_progress(*args, **kwargs)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        "coga.commands.launch.mark_in_progress",
+        interrupt_after_publication,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("the interrupted child must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert Ticket.read(ticket_path).status == "in_progress"
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert "published in_progress state was retained consistently" in (
+        capsys.readouterr().err
+    )
+
+
+def test_human_assist_validation_refusal_restores_armed_generated_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Post-write validation cannot strand an unpublished lifecycle mutation."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Restore validation-rejected assist state",
+        status="active",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def reject_generated_state(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise TaskValidationError([], action=kwargs["action"])
+
+    monkeypatch.setattr("coga.mark.assert_task_valid", reject_generated_state)
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("a validation-rejected child must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert Ticket.read(ticket_path).status == "active"
+    assert "status: active" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_blocked_human_assist_republishes_unresolved_reblock(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Reblock unresolved review",
+        status="blocked",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record review blocker")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.read_text(),
+    )
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        str(created["slug"]),
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert Ticket.read(ticket_path).status == "blocked"
+    remote_ticket = git_repo.git(
+        "show",
+        "refs/heads/feature/review:"
+        + str(ticket_path.relative_to(git_repo.root)),
+        cwd=git_repo.origin,
+    )
+    assert "status: blocked" in remote_ticket
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+    ).strip()
+
+
+def test_blocked_human_assist_interrupt_republishes_unresolved_reblock(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An exceptional post-start exit cannot strand an open ask in progress."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Reblock interrupted review",
+        status="blocked",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record interrupted review blocker")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.read_text(),
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert Ticket.read(ticket_path).status == "blocked"
+    assert "status: blocked" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: blocked" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_blocked_human_assist_explicit_block_publishes_through_lease(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Explicitly reblock review",
+        status="blocked",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record explicit reblock ask")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.read_text(),
+    )
+
+    notifications: list[str] = []
+
+    def fail_notification(*args, **kwargs):  # type: ignore[no-untyped-def]
+        notifications.append(kwargs["json"]["text"])
+        raise requests.ConnectionError("notification unavailable")
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.notification.slack.requests.post",
+        fail_notification,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def explicitly_reblock(*args, **kwargs):  # type: ignore[no-untyped-def]
+        # The strict start notification failed after lifecycle publication,
+        # but its unleased audit line must not dirty the child checkout.
+        assert git_repo.git("status", "--porcelain").strip() == ""
+        child_env = args[1]
+        result = CliRunner().invoke(
+            app,
+            [
+                "block",
+                "--task",
+                str(created["slug"]),
+                "--reason",
+                "owner must choose the retry ceiling",
+            ],
+            env=child_env,
+        )
+        assert result.exit_code == 0, result.output
+        assert ASSIST_AGENT_ENV in child_env
+        assert child_env[ASSIST_AGENT_ENV] == "claude"
+        assert "agent:claude" in ticket_path.read_text()
+        assert "agent:marc" not in ticket_path.read_text()
+        # The strict block notification follows the same rule before the
+        # command returns to the CLI catch-all sweep.
+        assert git_repo.git("status", "--porcelain").strip() == ""
+        return ReplOutcome(exit_code=0, kind="done")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        explicitly_reblock,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        str(created["slug"]),
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert Ticket.read(ticket_path).status == "blocked"
+    assert "status: blocked" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: blocked" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert any("claude blocked" in message for message in notifications)
+    assert all("marc blocked" not in message for message in notifications)
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+
+
+def test_strict_block_preflights_notification_before_mutation(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Preflight strict block notification",
+        status="in_progress",
+    )
+    _allow_recorded_assist_pr(monkeypatch)
+    before_ticket = ticket_path.read_bytes()
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    monkeypatch.setattr(
+        "coga.commands.block.preflight_post",
+        lambda cfg: (_ for _ in ()).throw(launch_module.typer.Exit(1)),
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "block",
+            "--task",
+            str(created["slug"]),
+            "--reason",
+            "owner input still required",
+        ],
+        env=child_env,
+    )
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "notification configuration must be valid" in result.output
+    assert ticket_path.read_bytes() == before_ticket
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_before
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+@pytest.mark.parametrize("command", ["block", "unblock"])
+def test_strict_state_command_interrupt_after_first_mutation_rolls_back(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    """Signals after the first ticket edit use exit 75 and retain no half-state."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Interrupt strict {command}",
+        status="in_progress",
+    )
+    if command == "unblock":
+        append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+        git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+        git_repo.git("commit", "-m", "ticket: record interrupted unblock ask")
+        git_repo.git("push", "origin", "feature/review")
+    _allow_recorded_assist_pr(monkeypatch)
+    before_ticket = ticket_path.read_bytes()
+    audit = git_repo.coga_os / "log.md"
+    before_audit = audit.read_bytes() if audit.is_file() else None
+    command_module = block_module if command == "block" else unblock_module
+    real_read_ticket = command_module.read_ticket
+    reads = 0
+    interrupt_on = 1 if command == "block" else 2
+
+    def interrupt_post_mutation_read(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal reads
+        reads += 1
+        if reads == interrupt_on:
+            raise KeyboardInterrupt()
+        return real_read_ticket(*args, **kwargs)
+
+    monkeypatch.setattr(
+        command_module,
+        "read_ticket",
+        interrupt_post_mutation_read,
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+    argv = (
+        [
+            "block",
+            "--task",
+            str(created["slug"]),
+            "--reason",
+            "owner input still required",
+        ]
+        if command == "block"
+        else [
+            "unblock",
+            str(created["slug"]),
+            "--answer",
+            "cap at five minutes",
+        ]
+    )
+
+    result = CliRunner().invoke(app, argv, env=child_env)
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "after KeyboardInterrupt" in result.output
+    assert ticket_path.read_bytes() == before_ticket
+    if before_audit is None:
+        assert not audit.exists()
+    else:
+        assert audit.read_bytes() == before_audit
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+@pytest.mark.parametrize("command", ["block", "unblock"])
+def test_strict_state_command_first_mutation_rejects_peer_revision(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    """The first blackboard write is conditional on the leased ticket bytes."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Guard strict {command} first write",
+        status="in_progress",
+    )
+    if command == "unblock":
+        append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+        git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+        git_repo.git("commit", "-m", "ticket: record guarded unblock ask")
+        git_repo.git("push", "origin", "feature/review")
+        git_repo.push_competing_commit(
+            str(ticket_path.relative_to(git_repo.root)),
+            ticket_path.read_text(),
+        )
+    _allow_recorded_assist_pr(monkeypatch)
+    command_module = block_module if command == "block" else unblock_module
+    mutator_name = "append_blocker" if command == "block" else "resolve_open_blockers"
+    real_mutator = getattr(command_module, mutator_name)
+
+    def edit_then_mutate(*args, **kwargs):  # type: ignore[no-untyped-def]
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "## Description\n\n",
+                "## Description\n\nPEER EDIT BEFORE BLACKBOARD WRITE\n\n",
+            )
+        )
+        return real_mutator(*args, **kwargs)
+
+    monkeypatch.setattr(command_module, mutator_name, edit_then_mutate)
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+    argv = (
+        [
+            "block",
+            "--task",
+            str(created["slug"]),
+            "--reason",
+            "owner input still required",
+        ]
+        if command == "block"
+        else [
+            "unblock",
+            str(created["slug"]),
+            "--answer",
+            "cap at five minutes",
+        ]
+    )
+
+    result = CliRunner().invoke(app, argv, env=child_env)
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "ticket changed before its blackboard update" in result.output
+    assert "PEER EDIT BEFORE BLACKBOARD WRITE" in ticket_path.read_text()
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "PEER EDIT BEFORE BLACKBOARD WRITE" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+@pytest.mark.parametrize("command", ["block", "unblock"])
+def test_strict_state_command_pins_ticket_before_lease_acquisition(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    """Network lease time cannot move a peer edit into our rollback baseline."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Pin strict {command} before lease",
+        status="in_progress",
+    )
+    rel = str(ticket_path.relative_to(git_repo.root))
+    if command == "unblock":
+        append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+        git_repo.git("add", rel)
+        git_repo.git("commit", "-m", "ticket: record pre-lease unblock ask")
+        git_repo.git("push", "origin", "feature/review")
+        git_repo.push_competing_commit(rel, ticket_path.read_text())
+    _allow_recorded_assist_pr(monkeypatch)
+    command_module = block_module if command == "block" else unblock_module
+    real_assist = command_module.pr_assist.assist_publication_from_env
+
+    def edit_during_lease(*args, **kwargs):  # type: ignore[no-untyped-def]
+        publication = real_assist(*args, **kwargs)
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "## Description\n\n",
+                "## Description\n\nPEER EDIT DURING LEASE\n\n",
+            )
+        )
+        return publication
+
+    monkeypatch.setattr(
+        command_module.pr_assist,
+        "assist_publication_from_env",
+        edit_during_lease,
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+    argv = (
+        [
+            "block",
+            "--task",
+            str(created["slug"]),
+            "--reason",
+            "owner input still required",
+        ]
+        if command == "block"
+        else [
+            "unblock",
+            str(created["slug"]),
+            "--answer",
+            "cap at five minutes",
+        ]
+    )
+
+    result = CliRunner().invoke(app, argv, env=child_env)
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "ticket changed before its blackboard update" in result.output
+    assert "PEER EDIT DURING LEASE" in ticket_path.read_text()
+    assert "PEER EDIT DURING LEASE" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+def test_strict_unblock_checks_ticket_revision_before_no_blocker_return(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A peer resolution cannot be adopted and relabeled as this command's."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Guard strict unblock no-op race",
+        status="in_progress",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    rel = str(ticket_path.relative_to(git_repo.root))
+    git_repo.git("add", rel)
+    git_repo.git("commit", "-m", "ticket: record no-op race blocker")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(rel, ticket_path.read_text())
+    _allow_recorded_assist_pr(monkeypatch)
+    real_resolve = unblock_module.resolve_open_blockers
+
+    def peer_resolves_then_command_retries(*args, **kwargs):  # type: ignore[no-untyped-def]
+        real_resolve(
+            ticket_path,
+            "human:peer",
+            "peer chose seven retries",
+        )
+        return real_resolve(*args, **kwargs)
+
+    monkeypatch.setattr(
+        unblock_module,
+        "resolve_open_blockers",
+        peer_resolves_then_command_retries,
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "unblock",
+            str(created["slug"]),
+            "--answer",
+            "caller chose five retries",
+        ],
+        env=child_env,
+    )
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "ticket changed before its blackboard update" in result.output
+    assert "peer chose seven retries" in ticket_path.read_text()
+    assert "caller chose five retries" not in ticket_path.read_text()
+    assert "peer chose seven retries" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+@pytest.mark.parametrize("command", ["block", "unblock"])
+def test_in_session_state_command_refuses_after_recorded_pr_closes(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    """Child commands re-prove the PR, not just their inherited branch lease."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Refuse {command} after PR close",
+        status="in_progress",
+    )
+    if command == "unblock":
+        append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+        git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+        git_repo.git("commit", "-m", "ticket: record unresolved ask")
+        git_repo.git("push", "origin", "feature/review")
+        git_repo.push_competing_commit(
+            str(ticket_path.relative_to(git_repo.root)),
+            ticket_path.read_text(),
+        )
+
+    before_ticket = ticket_path.read_bytes()
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    monkeypatch.setattr(
+        "coga.pr_assist.verify_recorded_assist_pr_head",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            launch_module.git.FeaturePublicationError(
+                "recorded PR is MERGED, not OPEN"
+            )
+        ),
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+    argv = (
+        [
+            "block",
+            "--task",
+            str(created["slug"]),
+            "--reason",
+            "owner input still required",
+        ]
+        if command == "block"
+        else [
+            "unblock",
+            str(created["slug"]),
+            "--answer",
+            "cap at five minutes",
+        ]
+    )
+
+    result = CliRunner().invoke(app, argv, env=child_env)
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "recorded PR is MERGED, not OPEN" in result.output
+    assert ticket_path.read_bytes() == before_ticket
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_before
+
+
+def test_unblock_all_aborts_on_refused_assist_publication(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The interactive walker cannot swallow a strict assist publication race."""
+    _created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Abort refused unblock all",
+        status="blocked",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record unblock-all ask")
+    git_repo.git("push", "origin", "feature/review")
+
+    before_ticket = ticket_path.read_bytes()
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    monkeypatch.setattr(
+        "coga.pr_assist.verify_recorded_assist_pr_head",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            launch_module.git.FeaturePublicationError(
+                "recorded PR changed during unblock --all"
+            )
+        ),
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+
+    result = CliRunner().invoke(
+        app,
+        ["unblock", "--all"],
+        input="cap at five minutes\n",
+        env=child_env,
+    )
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "recorded PR changed during unblock --all" in result.output
+    assert "Unblocked 0, skipped 1" not in result.output
+    assert ticket_path.read_bytes() == before_ticket
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_before
+
+
+@pytest.mark.parametrize("command", ["block", "unblock", "unblock-all"])
+def test_in_session_state_command_lease_acquisition_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+) -> None:
+    """A refused inherited lease aborts before mutation and cannot be swept."""
+    status = "blocked" if command == "unblock-all" else "in_progress"
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Refuse {command} lease acquisition",
+        status=status,
+    )
+    if command != "block":
+        append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+        git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+        git_repo.git("commit", "-m", "ticket: record lease-refusal ask")
+        git_repo.git("push", "origin", "feature/review")
+    before_ticket = ticket_path.read_bytes()
+    monkeypatch.setattr(
+        "coga.pr_assist.assist_publication_from_env",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            launch_module.git.FeaturePublicationError(
+                "assist lease acquisition refused"
+            )
+        ),
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+    if command == "block":
+        argv = [
+            "block",
+            "--task",
+            str(created["slug"]),
+            "--reason",
+            "owner input still required",
+        ]
+        input_text = None
+    elif command == "unblock":
+        argv = [
+            "unblock",
+            str(created["slug"]),
+            "--answer",
+            "cap at five minutes",
+        ]
+        input_text = None
+    else:
+        argv = ["unblock", "--all"]
+        input_text = "cap at five minutes\n"
+
+    result = CliRunner().invoke(app, argv, input=input_text, env=child_env)
+
+    assert result.exit_code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "assist lease acquisition refused" in result.output
+    assert ticket_path.read_bytes() == before_ticket
+    if command == "unblock-all":
+        assert "Unblocked 0, skipped 1" not in result.output
+
+
+def test_automatic_reblock_race_restores_ticket_and_log_bytes(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Restore a raced automatic reblock",
+        status="in_progress",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record raced reblock ask")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.read_text(),
+    )
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    log_path = git_repo.coga_os / "log.md"
+    ticket_before = ticket_path.read_bytes()
+    log_before = log_path.read_bytes() if log_path.is_file() else None
+    real_mark_blocked = launch_module.mark_blocked
+
+    def race_before_reblock(*args, **kwargs):  # type: ignore[no-untyped-def]
+        peer = git_repo.origin.parent / "peer-automatic-reblock-race"
+        git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+        git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+        git_repo.git("config", "user.name", "Peer", cwd=peer)
+        git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+        git_repo.git(
+            "checkout",
+            "-B",
+            "feature/review",
+            "origin/feature/review",
+            cwd=peer,
+        )
+        (peer / "peer.txt").write_text("won automatic reblock race\n")
+        git_repo.git("add", "peer.txt", cwd=peer)
+        git_repo.git("commit", "-m", "review: win reblock race", cwd=peer)
+        git_repo.git("push", "origin", "feature/review", cwd=peer)
+        return real_mark_blocked(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "coga.commands.launch.mark_blocked",
+        race_before_reblock,
+    )
+
+    with pytest.raises(launch_module._AssistPublicationRefused):
+        launch_module._reblock_unresolved_resume(
+            cfg,
+            ref,
+            "claude",
+            feature_branch="feature/review",
+        )
+
+    assert ticket_path.read_bytes() == ticket_before
+    if log_before is None:
+        assert not log_path.exists()
+    else:
+        assert log_path.read_bytes() == log_before
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_automatic_reblock_pins_ticket_before_lease_acquisition(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lease-time peer edit survives instead of being replaced by stale state."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Pin automatic reblock before lease",
+        status="in_progress",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    rel = str(ticket_path.relative_to(git_repo.root))
+    git_repo.git("add", rel)
+    git_repo.git("commit", "-m", "ticket: record pre-lease reblock ask")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(rel, ticket_path.read_text())
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    real_lease = launch_module.git.feature_publication_lease
+
+    def edit_during_lease(*args, **kwargs):  # type: ignore[no-untyped-def]
+        publication = real_lease(*args, **kwargs)
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "## Description\n\n",
+                "## Description\n\nPEER REBLOCK EDIT DURING LEASE\n\n",
+            )
+        )
+        return publication
+
+    monkeypatch.setattr(
+        launch_module.git,
+        "feature_publication_lease",
+        edit_during_lease,
+    )
+
+    with pytest.raises(
+        launch_module._AssistPublicationRefused,
+        match="strict mutation input changed",
+    ):
+        launch_module._reblock_unresolved_resume(
+            cfg,
+            ref,
+            "claude",
+            feature_branch="feature/review",
+        )
+
+    assert "PEER REBLOCK EDIT DURING LEASE" in ticket_path.read_text()
+    assert "PEER REBLOCK EDIT DURING LEASE" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+def test_automatic_reblock_interrupt_restores_generated_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Interrupt an automatic reblock",
+        status="in_progress",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record interrupted reblock ask")
+    git_repo.git("push", "origin", "feature/review")
+    git_repo.push_competing_commit(
+        str(ticket_path.relative_to(git_repo.root)),
+        ticket_path.read_text(),
+    )
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    audit = git_repo.coga_os / "log.md"
+    before_ticket = ticket_path.read_bytes()
+    before_audit = audit.read_bytes() if audit.is_file() else None
+    monkeypatch.setattr(
+        "coga.mark.assert_task_valid",
+        lambda *args, **kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+
+    with pytest.raises(
+        launch_module._AssistPublicationRefused,
+        match="after KeyboardInterrupt",
+    ) as excinfo:
+        launch_module._reblock_unresolved_resume(
+            cfg,
+            ref,
+            "claude",
+            feature_branch="feature/review",
+        )
+
+    assert excinfo.value.post_session is True
+    assert ticket_path.read_bytes() == before_ticket
+    if before_audit is None:
+        assert not audit.exists()
+    else:
+        assert audit.read_bytes() == before_audit
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_human_assist_from_recorded_linked_worktree_starts_clean(
+    git_repo,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    linked = tmp_path / "linked-review"
+    created = create_task(
+        cfg=cfg,
+        title="Review from linked checkout",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/linked-review
+            worktree: {linked}
+            pr: https://github.com/example/repo/pull/18
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed linked review")
+    git_repo.git("push", "origin", "main")
+    git_repo.git(
+        "worktree",
+        "add",
+        "-b",
+        "feature/linked-review",
+        str(linked),
+        "main",
+    )
+    (linked / "coga" / "coga.local.toml").write_text('user = "marc"\n')
+    (linked / "implementation.txt").write_text("reviewed branch\n")
+    git_repo.git("add", "implementation.txt", cwd=linked)
+    git_repo.git("commit", "-m", "feature: linked implementation", cwd=linked)
+    git_repo.git(
+        "push",
+        "-u",
+        "origin",
+        "feature/linked-review",
+        cwd=linked,
+    )
+    linked_ticket = linked / ticket_path.relative_to(git_repo.root)
+
+    monkeypatch.chdir(linked / "coga")
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def observe_clean_checkout(*args, **kwargs):  # type: ignore[no-untyped-def]
+        assert git_repo.git("status", "--porcelain", cwd=linked).strip() == ""
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        observe_clean_checkout,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        str(created["slug"]),
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert Ticket.read(linked_ticket).assignee == "marc"
+    assert git_repo.git("status", "--porcelain", cwd=linked).strip() == ""
+    assert git_repo.git("rev-parse", "HEAD", cwd=linked).strip() == git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/linked-review",
+        cwd=git_repo.origin,
+    ).strip()
+
+
+@pytest.mark.parametrize("initial_status", ["draft", "paused"])
+def test_parked_human_assist_preflight_failure_preserves_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    initial_status: str,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Keep {initial_status} review retryable",
+        status=initial_status,
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+
+    with pytest.raises(SystemExit):
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert Ticket.read(ticket_path).status == initial_status
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+    ).strip()
+
+
+def test_human_assist_notification_preflight_preserves_unstarted_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Require notification config before review",
+        status="active",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    child_started = False
+
+    def unexpected_child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal child_started
+        child_started = True
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        unexpected_child,
+    )
+
+    with pytest.raises(SystemExit):
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert child_started is False
+    assert Ticket.read(ticket_path).status == "active"
+    assert "status: active" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+@pytest.mark.parametrize("initial_status", ["draft", "paused"])
+def test_parked_human_assist_activation_failure_restores_state(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    initial_status: str,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Roll back a failed {initial_status} review activation",
+        status=initial_status,
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    real_mark_active = launch_module.mark_active
+
+    def fail_after_activation(*args, **kwargs):  # type: ignore[no-untyped-def]
+        real_mark_active(*args, **kwargs)
+        raise RuntimeError("simulated post-activation failure")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.mark_active",
+        fail_after_activation,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("agent must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert Ticket.read(ticket_path).status == initial_status
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
+    ).strip()
+
+
+def test_final_assist_lease_rechecks_exact_ticket_bytes(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A peer edit during final lease acquisition is retained, not overwritten."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Recheck final assist bytes",
+        status="active",
+    )
+    cfg = load_config(git_repo.coga_os)
+    ref = next(
+        ref for ref in list_tasks(cfg) if ref.id_slug == str(created["slug"])
+    )
+    expected = Ticket.read(ticket_path)
+    expected_bytes = ticket_path.read_bytes()
+    lease = launch_module.git.feature_publication_lease(
+        cfg,
+        ref.path,
+        "feature/review",
+    )
+
+    def lease_after_peer_edit(*args, **kwargs):  # type: ignore[no-untyped-def]
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "## Description\n\n",
+                "## Description\n\nPEER EDIT DURING LEASE\n\n",
+            )
+        )
+        return lease
+
+    monkeypatch.setattr(
+        launch_module.git,
+        "feature_publication_lease",
+        lease_after_peer_edit,
+    )
+
+    with pytest.raises(
+        launch_module._AssistPublicationRefused,
+        match="changed while the final assist publication lease",
+    ):
+        launch_module._publish_assist_lifecycle_before_spawn(
+            cfg,
+            ref,
+            expected=expected,
+            expected_bytes=expected_bytes,
+            branch="feature/review",
+            launch_assignee="claude",
+            publication_guard=lambda oid: None,
+        )
+
+    assert "PEER EDIT DURING LEASE" in ticket_path.read_text()
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "PEER EDIT DURING LEASE" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+
+
+def test_final_assist_state_write_rechecks_snapshot_bytes(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A peer edit after snapshot capture is never replaced by a stale Ticket."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Guard the final assist state write",
+        status="active",
+    )
+    cfg = load_config(git_repo.coga_os)
+    ref = next(
+        ref for ref in list_tasks(cfg) if ref.id_slug == str(created["slug"])
+    )
+    expected = Ticket.read(ticket_path)
+    expected_bytes = ticket_path.read_bytes()
+    real_mark_in_progress = launch_module.mark_in_progress
+
+    def edit_before_state_write(*args, **kwargs):  # type: ignore[no-untyped-def]
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "## Description\n\n",
+                "## Description\n\nPEER EDIT BEFORE STATE WRITE\n\n",
+            )
+        )
+        return real_mark_in_progress(*args, **kwargs)
+
+    monkeypatch.setattr(
+        launch_module,
+        "mark_in_progress",
+        edit_before_state_write,
+    )
+
+    with pytest.raises(
+        launch_module._AssistPublicationRefused,
+        match="strict mutation input changed",
+    ):
+        launch_module._publish_assist_lifecycle_before_spawn(
+            cfg,
+            ref,
+            expected=expected,
+            expected_bytes=expected_bytes,
+            branch="feature/review",
+            launch_assignee="claude",
+            publication_guard=lambda oid: None,
+        )
+
+    assert "PEER EDIT BEFORE STATE WRITE" in ticket_path.read_text()
+    assert Ticket.read(ticket_path).status == "active"
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "PEER EDIT BEFORE STATE WRITE" not in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+
+
+def test_final_assist_gate_revalidates_generated_publication(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child cannot start after the generated branch/control proof is lost."""
+    _created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Revalidate generated assist state",
+        status="active",
+    )
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.ticket_path == ticket_path)
+    expected = Ticket.read(ticket_path)
+    expected_bytes = ticket_path.read_bytes()
+    initial_lease = launch_module.git.feature_publication_lease(
+        cfg,
+        ref.path,
+        "feature/review",
+    )
+    lease_calls = 0
+
+    def lose_final_proof(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal lease_calls
+        lease_calls += 1
+        if lease_calls == 1:
+            return initial_lease
+        raise launch_module.git.FeaturePublicationError(
+            "generated control task moved before spawn"
+        )
+
+    monkeypatch.setattr(
+        launch_module.git,
+        "feature_publication_lease",
+        lose_final_proof,
+    )
+
+    with pytest.raises(
+        launch_module._AssistPublicationRefused,
+        match="published in_progress state was retained consistently",
+    ) as excinfo:
+        launch_module._publish_assist_lifecycle_before_spawn(
+            cfg,
+            ref,
+            expected=expected,
+            expected_bytes=expected_bytes,
+            branch="feature/review",
+            launch_assignee="claude",
+            publication_guard=lambda oid: None,
+        )
+
+    assert excinfo.value.post_session is True
+    assert lease_calls == 2
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert Ticket.read(ticket_path).status == "in_progress"
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+
+
+def test_human_assist_does_not_sweep_commit_created_after_alignment(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Refuse a local publication race",
+        status="active",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def commit_unrelated_work(repo_root):  # type: ignore[no-untyped-def]
+        (git_repo.root / "RACE.txt").write_text("local concurrent work\n")
+        git_repo.git("add", "RACE.txt")
+        git_repo.git("commit", "-m", "concurrent local work")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.warn_if_installed_predates_source",
+        commit_unrelated_work,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("agent must not start"),
+    )
+
+    with pytest.raises(SystemExit):
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert Ticket.read(ticket_path).status == "active"
+    remote_tree = git_repo.git(
+        "ls-tree",
+        "-r",
+        "--name-only",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    )
+    assert "RACE.txt" not in remote_tree
+    assert "Ticket: refuse-a-local-publication-race — in_progress" not in (
+        git_repo.git("log", "--format=%s", "main", cwd=git_repo.origin)
+    )
+
+
+def test_human_assist_log_refusal_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pre-spawn refusal neither publishes lifecycle nor runs teardown refresh."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retry a refused assist log",
+        status="active",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.git.sync_log",
+        lambda *args, **kwargs: False,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_launch_checkout",
+        lambda *args, **kwargs: pytest.fail(
+            "a no-sweep assist refusal must skip teardown refresh"
+        ),
+    )
+    child_started = False
+
+    def unexpected_child(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal child_started
+        child_started = True
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        unexpected_child,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert child_started is False
+    assert Ticket.read(ticket_path).status == "active"
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "status: active" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+
+
+def test_human_assist_setup_refusal_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A setup error cannot hand a retained retry log to the CLI sweep."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain setup retry log",
+        status="in_progress",
+    )
+    log_file = git_repo.coga_os / "log.md"
+    retained_line = "retained assist setup retry\n"
+    log_file.write_text(log_file.read_text() + retained_line)
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.build_launch_env",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            launch_module.SecretError("missing setup secret")
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert retained_line in log_file.read_text()
+    assert retained_line not in git_repo.git(
+        "show",
+        "refs/heads/feature/review:coga/log.md",
+        cwd=git_repo.origin,
+    )
+    assert Ticket.read(ticket_path).status == "in_progress"
+    assert git_repo.git("rev-parse", "HEAD").strip() == remote_before
+
+
+def test_human_assist_alignment_refusal_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pre-classification PR/alignment gate preserves a retained log."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain early alignment retry log",
+        status="in_progress",
+    )
+    log_file = git_repo.coga_os / "log.md"
+    retained_line = "retained early assist retry\n"
+    log_file.write_text(log_file.read_text() + retained_line)
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._verify_recorded_assist_pr_head",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            launch_module.git.FeaturePublicationError(
+                "recorded PR unavailable during alignment"
+            )
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert retained_line in log_file.read_text()
+    assert git_repo.git("rev-parse", "HEAD").strip() == remote_before
+
+
+def test_human_assist_without_tty_refuses_before_alignment(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Require a TTY before assist alignment",
+        status="in_progress",
+    )
+    _deny_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._recorded_single_checkout_assist_branch",
+        lambda *args, **kwargs: pytest.fail(
+            "TTY refusal must precede assist-checkout validation"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == 2
+    assert "agent launch requires a TTY" in capsys.readouterr().err
+
+
+def test_human_assist_without_tty_preserves_append_only_retry_log(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain TTY-less assist retry log",
+        status="in_progress",
+    )
+    log_file = git_repo.coga_os / "log.md"
+    retained_line = "retained TTY-less assist retry\n"
+    log_file.write_text(log_file.read_text() + retained_line)
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    _deny_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._recorded_single_checkout_assist_branch",
+        lambda *args, **kwargs: pytest.fail(
+            "TTY refusal must precede assist-checkout validation"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert retained_line in log_file.read_text()
+    assert git_repo.git("rev-parse", "HEAD").strip() == remote_before
+    assert retained_line not in git_repo.git(
+        "show",
+        "refs/heads/feature/review:coga/log.md",
+        cwd=git_repo.origin,
+    )
+
+
+def test_human_assist_without_tty_does_not_protect_rewritten_log(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Reject rewritten TTY-less assist log",
+        status="in_progress",
+    )
+    (git_repo.coga_os / "log.md").write_text("rewritten audit log\n")
+    _deny_interactive_tty(monkeypatch)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == 2
+
+
+def test_human_assist_setup_interrupt_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain interrupted assist setup",
+        status="in_progress",
+    )
+    log_file = git_repo.coga_os / "log.md"
+    retained_line = "retained interrupted assist setup\n"
+    log_file.write_text(log_file.read_text() + retained_line)
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_launch_checkout",
+        lambda *args, **kwargs: pytest.fail(
+            "an interrupted assist setup must not run the generic refresh"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert retained_line in log_file.read_text()
+
+
+def test_human_assist_post_alignment_refresh_interrupt_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The first post-alignment operation is already retry-only."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain interrupted post-alignment refresh",
+        status="in_progress",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_launch_checkout",
+        lambda *args, **kwargs: pytest.fail(
+            "a post-alignment setup failure must not run the generic refresh"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+
+
+def test_aligned_assist_unreadable_ticket_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Post-alignment setup failures remain inside the retry-only boundary."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain malformed aligned ticket",
+        status="in_progress",
+    )
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    real_signal = launch_module.signal.signal
+    registrations = 0
+
+    def corrupt_after_signal_setup(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal registrations
+        result = real_signal(*args, **kwargs)
+        registrations += 1
+        if registrations == 2:
+            ticket_path.write_text("malformed ticket retained for retry\n")
+        return result
+
+    monkeypatch.setattr(
+        "coga.commands.launch.signal.signal",
+        corrupt_after_signal_setup,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert ticket_path.read_text() == "malformed ticket retained for retry\n"
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_before
+    assert str(ticket_path.relative_to(git_repo.root)) in git_repo.git(
+        "status", "--porcelain"
+    )
+
+
+def test_assist_alignment_reread_failure_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The loop's first reread after a fast-forward stays in the assist boundary."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Retain a failed post-alignment reread",
+        status="in_progress",
+    )
+    remote_oid = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+
+    def align_then_corrupt(*args, **kwargs):  # type: ignore[no-untyped-def]
+        ticket_path.write_text("malformed immediately after alignment\n")
+        return True, remote_oid
+
+    monkeypatch.setattr(
+        launch_module,
+        "_align_recorded_assist_checkout",
+        align_then_corrupt,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_launch_checkout",
+        lambda *args, **kwargs: pytest.fail(
+            "a failed aligned reread must not run the generic refresh"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert ticket_path.read_text() == "malformed immediately after alignment\n"
+    assert str(ticket_path.relative_to(git_repo.root)) in git_repo.git(
+        "status", "--porcelain"
+    )
+
+
+def test_aligned_assist_refuses_checkout_switch_before_session(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Refuse aligned checkout switch",
+        status="in_progress",
+    )
+    git_repo.git("branch", "feature/other")
+    other_before = git_repo.git("rev-parse", "feature/other").strip()
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+
+    def switch_after_alignment(coga_os):  # type: ignore[no-untyped-def]
+        git_repo.git("checkout", "feature/other")
+
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        switch_after_alignment,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.spawn_agent_session",
+        lambda *args, **kwargs: pytest.fail("switched assist must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert git_repo.git("branch", "--show-current").strip() == "feature/other"
+    assert git_repo.git("rev-parse", "HEAD").strip() == other_before
+    assert Ticket.read(ticket_path).assignee == "marc"
+
+
+def test_human_assist_rejects_control_named_pr_before_writing(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    """A same-named fork head cannot enter ordinary control-branch sync."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Refuse control-named review head",
+        status="active",
+        branch="main",
+    )
+    log_file = git_repo.coga_os / "log.md"
+    retained_line = "retained control-name assist retry\n"
+    log_file.write_text(log_file.read_text() + retained_line)
+    remote_before = git_repo.git("rev-parse", "refs/heads/main", cwd=git_repo.origin)
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("control-named assist must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert retained_line in log_file.read_text()
+    assert git_repo.git("rev-parse", "HEAD").strip() == remote_before.strip()
+    assert "same name as the configured control branch" in capsys.readouterr().err
+
+
+def test_human_assist_pins_recorded_pr_url_after_alignment(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rewritten `pr:` cannot redirect the already-authorized assist lease."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Pin aligned review PR",
+        status="in_progress",
+    )
+    remote_before = git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip()
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def redirect_recorded_pr(repo_root):  # type: ignore[no-untyped-def]
+        ticket_path.write_text(
+            ticket_path.read_text().replace(
+                "https://github.com/example/repo/pull/8",
+                "https://github.com/example/repo/pull/99",
+            )
+        )
+
+    monkeypatch.setattr(
+        "coga.commands.launch.warn_if_installed_predates_source",
+        redirect_recorded_pr,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: pytest.fail("redirected PR must not spawn"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "pull/99" in ticket_path.read_text()
+    assert "pull/99" not in git_repo.git(
+        "show",
+        "refs/heads/feature/review:"
+        + str(ticket_path.relative_to(git_repo.root)),
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_before
+
+
+def test_blocked_assist_trailing_log_refusal_reblocks_before_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A teardown refusal cannot bypass the unresolved-blocker safety net."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Reblock after trailing refusal",
+        status="blocked",
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    git_repo.git("add", str(ticket_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: record trailing-refusal blocker")
+    git_repo.git("push", "origin", "feature/review")
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
+    )
+
+    usage_line = (
+        '2026-07-30 12:00 [reblock-after-trailing-refusal] [system] '
+        '{"tokens": 1}\n'
+    )
+
+    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        log = cfg.repo_root / "log.md"
+        log.write_text(log.read_text() + usage_line)
+
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        append_usage,
+    )
+    sync_calls = 0
+    real_sync_log = launch_module.git.sync_log
+
+    def refuse_trailing(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal sync_calls
+        sync_calls += 1
+        if sync_calls == 1:
+            return real_sync_log(*args, **kwargs)
+        return False
+
+    monkeypatch.setattr("coga.commands.launch.git.sync_log", refuse_trailing)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_launch_checkout",
+        lambda *args, **kwargs: pytest.fail(
+            "a trailing no-sweep refusal must skip refresh"
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert sync_calls == 2
+    assert Ticket.read(ticket_path).status == "blocked"
+    rel = str(ticket_path.relative_to(git_repo.root))
+    assert "status: blocked" in git_repo.git(
+        "show",
+        f"refs/heads/feature/review:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert usage_line.strip() in git_repo.git(
+        "show",
+        "refs/heads/feature/review:coga/log.md",
+        cwd=git_repo.origin,
+    )
+
+
+@pytest.mark.parametrize("signal_exit", [130, 143])
+def test_aligned_assist_teardown_refresh_interrupt_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    signal_exit: int,
+) -> None:
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Normalize teardown signal {signal_exit}",
+        status="in_progress",
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_launch_checkout",
+        lambda *args, **kwargs: (_ for _ in ()).throw(SystemExit(signal_exit)),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+
+
+def test_assist_trailing_log_refuses_after_recorded_pr_closes(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Closing or merging the PR revokes teardown publication immediately."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Stop trailing publication after close",
+        status="in_progress",
+    )
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    closed = False
+
+    def verify(cfg, ticket, branch, **kwargs):  # type: ignore[no-untyped-def]
+        if closed:
+            raise launch_module.git.FeaturePublicationError(
+                "recorded PR is MERGED, not OPEN"
+            )
+        root = launch_module.git._toplevel(cfg.repo_root)
+        assert root is not None
+        oid = launch_module.git._remote_branch_oid(root, cfg.git_remote, branch)
+        assert oid is not None
+        return oid
+
+    monkeypatch.setattr(
+        "coga.commands.launch._verify_recorded_assist_pr_head",
+        verify,
+    )
+    remote_at_close = ""
+
+    def close_pr(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal closed, remote_at_close
+        remote_at_close = git_repo.git(
+            "rev-parse",
+            "refs/heads/feature/review",
+            cwd=git_repo.origin,
+        ).strip()
+        closed = True
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        close_pr,
+    )
+
+    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        log = cfg.repo_root / "log.md"
+        log.write_text(log.read_text() + "trailing usage after PR close\n")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        append_usage,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_at_close
+    assert "trailing usage after PR close" not in git_repo.git(
+        "show",
+        "refs/heads/feature/review:coga/log.md",
+        cwd=git_repo.origin,
+    )
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+
+
+def test_assist_refresh_refuses_after_pr_closes_post_trailing_log(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The final control refresh has the same open-PR gate as audit pushes."""
+    created, _ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Stop refresh publication after close",
+        status="in_progress",
+    )
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    closed = False
+
+    def verify(cfg, ticket, branch, **kwargs):  # type: ignore[no-untyped-def]
+        if closed:
+            raise launch_module.git.FeaturePublicationError(
+                "recorded PR is MERGED, not OPEN"
+            )
+        root = launch_module.git._toplevel(cfg.repo_root)
+        assert root is not None
+        oid = launch_module.git._remote_branch_oid(root, cfg.git_remote, branch)
+        assert oid is not None
+        return oid
+
+    monkeypatch.setattr(
+        "coga.commands.launch._verify_recorded_assist_pr_head",
+        verify,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+    real_sync_log = launch_module.git.sync_log
+    sync_calls = 0
+    remote_after_trailing = ""
+
+    def close_after_trailing(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal closed, remote_after_trailing, sync_calls
+        synced = real_sync_log(*args, **kwargs)
+        sync_calls += 1
+        if sync_calls == 2:
+            remote_after_trailing = git_repo.git(
+                "rev-parse",
+                "refs/heads/feature/review",
+                cwd=git_repo.origin,
+            ).strip()
+            closed = True
+        return synced
+
+    monkeypatch.setattr(
+        "coga.commands.launch.git.sync_log",
+        close_after_trailing,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert sync_calls == 2
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/review",
+        cwd=git_repo.origin,
+    ).strip() == remote_after_trailing
+    assert "refresh failed" not in (git_repo.coga_os / "log.md").read_text()
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_human_assist_branch_switch_cannot_redirect_teardown_publication(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Keep teardown on the reviewed branch",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/review
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/4
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed branch-pinned review")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/other")
+    (git_repo.root / "other.txt").write_text("another branch\n")
+    git_repo.git("add", "other.txt")
+    git_repo.git("commit", "-m", "feature: unrelated branch")
+    git_repo.git("push", "-u", "origin", "feature/other")
+    unrelated_remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip()
+
+    git_repo.git("checkout", "main")
+    git_repo.checkout_branch("feature/review")
+    (git_repo.root / "implementation.txt").write_text("reviewed branch\n")
+    git_repo.git("add", "implementation.txt")
+    git_repo.git("commit", "-m", "feature: reviewed branch")
+    git_repo.git("push", "-u", "origin", "feature/review")
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    def switch_branches(*args, **kwargs):  # type: ignore[no-untyped-def]
+        git_repo.git("checkout", "feature/other")
+        return ReplOutcome(exit_code=0, kind="exit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        switch_branches,
+    )
+
+    def append_usage(*, cfg, **kwargs):  # type: ignore[no-untyped-def]
+        log = cfg.repo_root / "log.md"
+        log.write_text(
+            log.read_text()
+            + '2026-07-30 12:00 [branch-pinned] [system] {"tokens": 1}\n'
+        )
+
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        append_usage,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip() == unrelated_remote_before
+    assert "Log: keep-teardown-on-the-reviewed-branch" not in git_repo.git(
+        "log", "--format=%s", "refs/heads/feature/other", cwd=git_repo.origin
+    )
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "expected feature branch 'feature/review'" in capsys.readouterr().err
+    assert Ticket.read(ticket_path).assignee == "marc"
+
+
+def test_human_assist_does_not_publish_from_an_unrecorded_branch(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Address review elsewhere",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["step"] = "2 (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+    replace_blackboard(
+        ticket_path,
+        dedent(
+            f"""
+            ## Dev
+            branch: feature/recorded
+            worktree: {git_repo.root}
+            pr: https://github.com/example/repo/pull/2
+            """
+        ),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed separate review assist")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/unrelated")
+    (git_repo.root / "unrelated.txt").write_text("another PR\n")
+    git_repo.git("add", "unrelated.txt")
+    git_repo.git("commit", "-m", "feature: unrelated")
+    git_repo.git("push", "-u", "origin", "feature/unrelated")
+    remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/unrelated", cwd=git_repo.origin
+    ).strip()
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="exit"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    launch_module.launch(
+        "address-review-elsewhere",
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/unrelated", cwd=git_repo.origin
+    ).strip() == remote_before
+    assert "Log: address-review-elsewhere" not in git_repo.git(
+        "log", "--format=%s", "refs/heads/feature/unrelated", cwd=git_repo.origin
+    )
+    assert Ticket.read(ticket_path).assignee == "marc"
+
+
+def test_launch_human_handoff_without_agent_override_is_still_refused(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(active_task)
@@ -2838,17 +6459,17 @@ def test_launch_agent_override_does_not_bypass_human_handoff(
         raise AssertionError("human handoff should fail before spawning an agent")
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
-    result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
     assert result.exit_code == 2
-    assert "Cannot launch fix-retry-logic with --agent 'codex'" in (
+    assert "Cannot launch fix-retry-logic" in (
         result.output + (result.stderr or "")
     )
     assert "assignee 'marc' is not a configured agent type" in (
         result.output + (result.stderr or "")
     )
+    assert Ticket.read(ref.ticket_path).frontmatter["assignee"] == "marc"
 
 
 def test_launch_bootstrap_unknown_ticket(
