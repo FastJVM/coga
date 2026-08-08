@@ -3255,3 +3255,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-05 14:07 [docs-with-review-coga-panic] [human:zach] created (status=draft)
 2026-08-06 16:44 [unblock-rewind] [human:zach] created (status=draft)
 2026-08-07 07:15 [secrets-instructions-correction] [human:zach] created (status=draft)
+2026-08-08 10:05 [launch-ignores-the-recorded-worktree-stranding-bla] [human:zach] created (status=draft)
