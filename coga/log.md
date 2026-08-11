@@ -3258,3 +3258,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-08 10:05 [launch-ignores-the-recorded-worktree-stranding-bla] [human:zach] created (status=draft)
 2026-08-11 09:07 [service-account-scoping-single-vault-rule-conflict] [human:zach] created (status=draft)
 2026-08-11 09:07 [recurring-last-serviced-period-compares-as-a-strin] [human:zach] created (status=draft)
+2026-08-11 09:09 [service-account-scoping-single-vault-rule-conflict] [human:zach] activated (draft → active)

@@ -1,15 +1,27 @@
 ---
 slug: service-account-scoping-single-vault-rule-conflict
 title: 'Service account scoping: single-vault rule conflicts with trust-tiered vaults'
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: null
+workflow:
+  name: draft-for-human
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: human
+  - name: report-to-coga
+    skills: []
+    assignee: agent
 secrets: null
+step: 1 (agent-produces)
 ---
 
 ## Description
