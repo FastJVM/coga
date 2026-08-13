@@ -1,7 +1,7 @@
 ---
 slug: recurring-can-only-be-launched-by-owner
 title: recurring can only be launched by owner
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
