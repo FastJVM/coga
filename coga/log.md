@@ -3283,3 +3283,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-13 09:38 [recurring/branch-sweep] [system] recipe branch-sweep exited with code 0
 2026-08-13 09:38 [recurring/branch-sweep] [system] completed (recipe branch-sweep exited 0) via coga recurring
 2026-08-13 09:38 [recurring/resolve-conflicts] [human:nicktoper] started (active → in_progress) via coga launch
+2026-08-13 09:38 [recurring/resolve-conflicts] [human:nicktoper] launched (assignee=claude, agent=claude)

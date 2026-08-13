@@ -26,3 +26,4 @@ consumed_through: f4c4a92f773e
 {"id":"f4c4a92f773e","ts":"2026-07-31T10:45","project":"coga","kind":"done","detail":"→ done (recipe: autoclose)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
 {"id":"29cf100eb419","ts":"2026-07-31T10:45","project":"coga","kind":"done","detail":"→ done (recipe: digest)","ticket":"recurring/digest","owner":"nicktoper"}
 {"id":"0e58d3eb568b","ts":"2026-07-31T10:45","project":"coga","kind":"done","detail":"→ done (recipe: blocker-reminders)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+{"id":"c757bf711fc7","ts":"2026-08-13T09:38","project":"coga","kind":"done","detail":"→ done (recipe: branch-sweep)","ticket":"recurring/branch-sweep","owner":"nicktoper"}
