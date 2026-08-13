@@ -3280,3 +3280,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-13 09:37 [recurring/skill-update] [system] created recurring/skill-update for 2026-W33
 2026-08-13 09:37 [recurring/branch-sweep] [system] started (active → in_progress) via recurring recipe branch-sweep
 2026-08-13 09:37 [recurring/branch-sweep] [system] launched as recipe (branch-sweep)
+2026-08-13 09:38 [recurring/branch-sweep] [system] recipe branch-sweep exited with code 0
+2026-08-13 09:38 [recurring/branch-sweep] [system] completed (recipe branch-sweep exited 0) via coga recurring
