@@ -1,7 +1,7 @@
 ---
 slug: remove-coga-build-and-project
 title: remove-coga-build-and-project
-status: active
+status: in_progress
 owner: nick
 human: nick
 agent: claude
