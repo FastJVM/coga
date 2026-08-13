@@ -83,6 +83,7 @@ the local operator (`current_user`) is not that owner. Set `owner =
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/687
 branch: recurring-owner-gate
 worktree: /home/n/Code/claude/coga-recurring-owner-gate
 

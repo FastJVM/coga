@@ -107,3 +107,34 @@ Watch out for:
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: remove-build-project
+worktree: /home/n/Code/claude/coga-remove-build-project
+
+## Plan
+
+Pure removal in one commit. Confirmed reference inventory by grep:
+
+- `src/coga/aliases.py` — drop `"project"` from `BUILTIN_COMMANDS`, drop
+  `"build": "launch coga-build"` from `DEFAULT_ALIASES`, fix the comment.
+- `src/coga/cli.py` — drop the `project_cmd` import, the `app.command("project")`
+  registration, and `"project"` from `_SWEEPING_COMMANDS`.
+- `src/coga/commands/project.py` — delete.
+- `src/coga/commands/init.py` — delete `_ONBOARDING_TICKET_DIRS` /
+  `_prune_onboarding_tickets` / the pruned-onboarding message, repoint the
+  closing steps at `coga chat`.
+- `src/coga/dependencies.py` — swap `coga build` for `coga chat` in the two
+  agent-CLI prompts.
+- Packaged templates: delete `tasks/coga-build.md`, `workflows/build/`,
+  `bootstrap/project/`, `bootstrap/skills/bootstrap/project/`; edit
+  `coga.toml`, `log.md`, `bootstrap/contexts/coga/cli/SKILL.md`.
+- Live copies: `coga/coga.toml`, `coga/workflows/build/`,
+  `coga/contexts/coga/codebase/SKILL.md`.
+- Tests: delete `tests/test_project.py`; update `test_aliases.py`,
+  `test_init.py`, `test_packaging.py`.
+- Docs: `README.md`, `docs/getting-started.md`, `docs/reference.md`,
+  `docs/cli-extension-audit.md`.
+- Supersede notes (not migrations) in the two `v2/cleanup-core-commands/`
+  drafts that list `coga project`.
