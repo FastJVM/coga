@@ -28,3 +28,4 @@ consumed_through: f4c4a92f773e
 {"id":"0e58d3eb568b","ts":"2026-07-31T10:45","project":"coga","kind":"done","detail":"→ done (recipe: blocker-reminders)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
 {"id":"c757bf711fc7","ts":"2026-08-13T09:38","project":"coga","kind":"done","detail":"→ done (recipe: branch-sweep)","ticket":"recurring/branch-sweep","owner":"nicktoper"}
 {"id":"8c2689dc8804","ts":"2026-08-13T09:40","project":"coga","kind":"done","detail":"→ done (recipe: skill-update)","ticket":"recurring/skill-update","owner":"nicktoper"}
+{"id":"eb1db23b9bc2","ts":"2026-08-13T09:40","project":"coga","kind":"done","detail":"→ done (recipe: blocker-reminders)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
