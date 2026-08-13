@@ -39,7 +39,9 @@ Tasks are serviced oldest-first (first `coga/log.md` line per ref — committed
 content, so the order survives clones where file mtimes don't), except that a
 sub-directory holding `1-`/`2-`/`3-` prefixed tasks runs as one contiguous
 block in number order, anchored where its oldest task would have run. See
-`coga.service_order` for the key.
+`coga.service_order` for the key. The `--pick` list *displays* like the
+default `coga status` view instead (last updated, newest first), but the
+confirmed set still launches in this drain order.
 """
 
 from __future__ import annotations
@@ -90,6 +92,7 @@ from coga.tasks import (
 )
 from coga.ticket import Ticket, TicketError, TicketNotFoundError
 from coga.validate import TaskValidationError
+from coga.views import last_updated_map
 
 
 class MegalaunchError(Exception):
@@ -720,11 +723,14 @@ def launchable_candidates(
     *,
     directory: str | None = None,
 ) -> list[tuple[TaskRef, Ticket]]:
-    """The tasks the interactive picker offers, in drain order.
+    """The tasks the interactive picker offers, ordered like `coga status`.
 
-    Listed exactly as the sweep would service them (`coga.service_order`:
-    oldest-first, numbered sub-trees in number order), so a numbered pipeline
-    reads `1-`, `2-`, `3-` down the picker and runs in that order once picked.
+    Listed as the default status view reads (last updated, newest first, tasks
+    with no recorded activity last; ties keep drain order), so the picker and
+    the triage view are one list. Display order only: the engine re-derives
+    the launch queue from `coga.service_order` and treats the confirmed set as
+    a filter, so a numbered pipeline (`1-`, `2-`, `3-`) still runs in number
+    order however its rows were displayed.
 
     Every non-terminal task of any owner — `done` and `canceled` are the only
     exclusions. The picker deliberately does *not* pre-filter for
@@ -746,6 +752,15 @@ def launchable_candidates(
         if ticket.status in TERMINAL_STATUSES:
             continue
         candidates.append((ref, ticket))
+    # The same two-pass sort as `render_status`'s default: newest first, then
+    # the no-timestamp bucket last. Both passes are stable, so ties keep the
+    # drain order the list was built in.
+    updated = last_updated_map(cfg, [ref for ref, _ in candidates])
+    candidates.sort(
+        key=lambda pair: updated.get(pair[0].id_slug) or datetime.min,
+        reverse=True,
+    )
+    candidates.sort(key=lambda pair: pair[0].id_slug not in updated)
     return candidates
 
 
@@ -791,8 +806,9 @@ def load_selection(cfg: Config) -> list[str]:
 def _tasks_in_service_order(cfg: Config) -> list[TaskRef]:
     """All tasks in drain order — oldest first, numbered sub-trees in sequence.
 
-    The key lives in `coga.service_order` so the sweep, the `--pick` list, and
-    `coga status --order-by created` all read the same order.
+    The key lives in `coga.service_order` so the sweep and `coga status
+    --order-by created` read the same order. The picker displays status order
+    instead, but a confirmed selection still launches in this drain order.
     """
     return service_order(list_tasks(cfg), first_activity_map(cfg))
 

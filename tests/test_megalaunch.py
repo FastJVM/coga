@@ -2478,6 +2478,48 @@ def test_launchable_candidates_blocked_needs_open_asks(repo: Path) -> None:
     assert offered == {with_ask["slug"], askless["slug"]}
 
 
+def test_launchable_candidates_ordered_like_status_updated_first(
+    repo: Path,
+) -> None:
+    """The picker lists tasks like the default `coga status` view.
+
+    Last updated first (the last log line per ref), tasks with no recorded
+    activity in a trailing bucket — not drain order. Display only: the engine
+    re-derives the launch queue in drain order from the confirmed set.
+    """
+    from coga.megalaunch import launchable_candidates
+    from coga.paths import log_path
+
+    cfg = load_config(repo)
+    for title in ("Stale", "Fresh", "Silent"):
+        create_task(
+            cfg=cfg,
+            title=title,
+            workflow_name="code",
+            contexts=[],
+            owner="marc",
+            assignee="claude",
+            status="active",
+            watchers=[],
+        )
+    # Rewrite the log: stale was created first but touched earlier than fresh,
+    # and silent has no log line at all (and no git fallback in a non-git tmp
+    # repo), so drain order would read [stale, fresh, silent] while the status
+    # order under test reads newest activity first with silent trailing.
+    log_path(cfg).write_text(
+        "2026-06-01 10:00 [stale] [human:marc] created\n"
+        "2026-06-02 10:00 [fresh] [human:marc] created\n"
+        "2026-06-03 10:00 [stale] [human:marc] bumped\n"
+        "2026-06-04 10:00 [fresh] [human:marc] bumped\n"
+    )
+
+    assert [ref.id_slug for ref, _ in launchable_candidates(cfg)] == [
+        "fresh",
+        "stale",
+        "silent",
+    ]
+
+
 def test_save_and_load_selection_roundtrip(repo: Path) -> None:
     from coga.megalaunch import MegalaunchError, load_selection, save_selection
 
