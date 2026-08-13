@@ -26,8 +26,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -99,7 +98,7 @@ Surface (surgical, recipient only):
 ## Dev
 
 branch: drop-important-recipient
-worktree: /Users/zach2179/dev/coga-drop-important-recipient
+worktree: /tmp/coga-drop-important-recipient
 
 ## Done (implement step)
 
@@ -124,3 +123,37 @@ the editable install points at the primary checkout):
   `missing-user` warning from the fresh worktree having no gitignored
   `coga.local.toml`).
 - PR 578 already CLOSED — nothing to close.
+
+## Peer Review
+
+- Ran `codex review --base main` from the feature checkout. It found no
+  actionable defects: the removed value had no runtime consumer, owner mention
+  rendering and `important_webhook` routing remain intact, and the live/packaged
+  context pairs match.
+- Fetched fresh `origin/main` and rebased unconditionally. The four conflicts
+  were limited to the live/packaged `coga/important` and `coga/sync` contexts;
+  resolution kept all newer `main` notification lifecycle material and replaced
+  only the stale `important_recipient` paragraphs with owner-based triage.
+- Rebased feature commit: `23220b6f`.
+
+Verification after rebase:
+- `python -m pytest` — 1572 passed, 1 skipped.
+- `coga validate --task important-alerts-the-task-owner-drop-important-rec
+  --json` — one task clean, no issues or fixes.
+- Direct load smoke — stale `important_recipient` is rejected as an unknown key
+  from both `coga.toml` and `coga.local.toml`.
+- `git diff --check` clean; branch clean and exactly one commit ahead of fresh
+  `origin/main`; live/packaged context pairs byte-identical.
+- PR 578 confirmed `CLOSED`.
+
+## PR
+
+Summary:
+- Remove the unused `[notification.slack].important_recipient` field, resolver,
+  schema entry, examples, and tests so stale downstream config fails loud.
+- Keep important alerts addressed to the task owner through the existing Slack
+  renderer while preserving the separate, live `important_webhook` routing.
+- Rewrite the live and packaged `coga/important` and `coga/sync` contexts around
+  owner-based triage.
+
+Test plan: `python -m pytest` (1572 passed, 1 skipped); task-scoped `coga validate --json` (no issues).
