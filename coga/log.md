@@ -3304,3 +3304,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-13 09:41 [recurring/digest] [system] recipe digest exited with code 0
 2026-08-13 09:41 [recurring/digest] [system] completed (recipe digest exited 0) via coga recurring
 2026-08-13 09:41 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
+2026-08-13 09:41 [recurring/dream] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-08-13 09:42 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
