@@ -46,8 +46,8 @@ instructions. Check each occurrence against this table:
 | `relay-os/…`, `relay-os/contexts/…` | Renamed — now `coga/`, `coga/contexts/…`. |
 | `relay launch`, `relay recurring`, `relay status`, `relay bump` | Renamed — the `coga` equivalents exist. |
 | `relay draft` | **Gone.** Ticket creation is `coga create` (raw draft) or `coga ticket` (authoring skill). |
-| `relay panic` | **Gone.** No replacement command. |
-| `mode:` ticket frontmatter (`script` / `auto` / `interactive`) | **Gone.** There is no `mode` field. See `coga/recurring`: agent work needs a TTY; recipes and complete scripts can be headless, and a known `recipe:` selects deterministic behavior. |
+| `relay panic` | **Replaced.** Use `coga block --task <slug> --reason "…"` for unresolved input; it records the ask, marks the task blocked, notifies the owner, and ends the session. |
+| `mode:` ticket frontmatter (`script` / `auto` / `interactive`) | **Gone.** There is no `mode` field. See `coga/recurring`: agent work needs a TTY; only registered recipes can run headlessly, and a known `recipe:` selects that deterministic path. |
 | Child `mode: script` tasks driven by a parent task | **Gone.** Deterministic phases invoke registered recipes directly from the parent and inherit its `COGA_TASK_*`. |
 | `[secrets]` bulk-inject config block | **Gone.** Secrets are per-ticket `secrets:` frontmatter holding `op://vault/item/field` refs; see `coga/secrets`. |
 
