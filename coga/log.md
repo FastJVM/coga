@@ -3306,3 +3306,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-13 09:41 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-08-13 09:41 [recurring/dream] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-08-13 09:42 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-08-01 14:39 [recurring-recipe-question] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
