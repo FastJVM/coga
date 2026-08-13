@@ -1,7 +1,7 @@
 ---
 slug: retire-coga-important-support-second-webhook
 title: Retire coga-important/support-second-webhook
-status: in_progress
+status: blocked
 owner: zach
 human: zach
 agent: codex
@@ -16,7 +16,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-script: null
 step: 1 (execute)
 ---
 
@@ -74,3 +73,15 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Findings
+
+- 2026-08-13: Retro preflight stopped before delegation because the exact source task `coga-important/support-second-webhook` is absent from `coga/tasks/` on the current `main` checkout.
+- Current history contains commit `bc94a150` (`Ticket: coga-important/support-second-webhook — deleted`), while `coga/log.md` shows this retire shell was created and first launched immediately after the source was marked done on 2026-07-16. The shell remained `in_progress` after the source deletion.
+- Per this ticket's explicit missing-source stop condition, did not infer that the prior deletion completed this run, did not run Retro, and did not mark the retire shell done. Owner reconciliation is required: close/cancel this shell as already satisfied, or restore the source if Retro must be rerun.
+
+---
+
+## Blockers
+
+- [ ] [2026-08-13 11:06] [agent:codex] id=20260813T110630 Source task coga-important/support-second-webhook is missing from the current control checkout; commit bc94a150 says it was already direct-deleted while this retire shell remained in_progress. Please decide whether to close/cancel this shell as already satisfied or restore the source for a fresh Retro run.

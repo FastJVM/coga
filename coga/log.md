@@ -3325,3 +3325,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-13 11:04 [decide-the-fate-of-two-premise-dead-v2-drafts-whos] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-13 11:04 [remove-coga-build-and-project] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-13 11:04 [recurring-can-only-be-launched-by-owner] [megalaunch] activated (draft → active) — explicit megalaunch pick
+2026-08-13 11:04 [retire-coga-important-support-second-webhook] [megalaunch] launched via coga megalaunch
+2026-08-13 11:06 [retire-coga-important-support-second-webhook] [agent:codex] blocked: Source task coga-important/support-second-webhook is missing from the current control checkout; commit bc94a150 says it was already direct-deleted while this retire shell remained in_progress. Please decide whether to close/cancel this shell as already satisfied or restore the source for a fresh Retro run.
