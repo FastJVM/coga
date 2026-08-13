@@ -2,7 +2,6 @@
 slug: _template
 title: Replace with a one-line task title
 status: draft
-autonomy: interactive
 owner: replace-with-human-name
 human: replace-with-human-name
 agent: replace-with-agent-nickname
@@ -10,13 +9,14 @@ assignee: replace-with-human-or-agent-nickname
 contexts: []
 skills: []
 workflow: null
-# Secrets this task needs (keys from [secrets] in relay.local.toml). Omit or
-# `null` = legacy blanket-inject all secrets; `[]` = inject none; a list =
-# inject only those keys (and fail loud at launch if any is unset).
+# Secrets this task needs, declared inline — one `- NAME: <ref>` list entry per
+# secret, where `<ref>` is an `op://vault/item/field` 1Password reference or an
+# `env:VAR` indirection. Absent / `null` / `[]` inject nothing; a list injects
+# only those keys (and fails loud at launch if any ref is unset).
 secrets: null
 # --- extensions ---
-# Repo-declared fields (see `[ticket.fields.<name>]` in relay.toml) are
-# injected by `relay create` / `relay ticket` below this marker. No
+# Repo-declared fields (see `[ticket.fields.<name>]` in coga.toml) are
+# injected by `coga create` / `coga ticket` below this marker. No
 # extensions configured → nothing here, marker is harmless.
 ---
 
