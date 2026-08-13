@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -88,4 +88,96 @@ Dream's knowledge scan confirmed the broader half this draft already names: the 
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Premise verification (2026-08-13)
+
+Both premise-dead claims confirmed against current `main` before deciding:
+
+- **`mode:` ticket field is gone.** `coga/contexts/coga/recurring/SKILL.md:118`
+  states "there is no `mode` field. A known `recipe:` selects deterministic
+  recipe…". The only `mode` left in `src/coga/` is `Config.mode`
+  (`config.py:38`, `"local" | "remote" | "cloud"`) and megalaunch's selection
+  mode — neither is ticket frontmatter. Grep for `mode: script` outside
+  `tasks/v2/` returns only this ticket and Dream's own routing note.
+- **Child-script-task orchestration is gone.** `coga/tasks/recurring/dream/ticket.md:71-74`
+  — "The two deterministic phases (1 and 5) run registered recipes directly
+  from … then invoke the exact `coga run` command below. The recipe inherits
+  this [task's env]." No child tasks, no worker skills, no one-step workflows.
+
+## Decision
+
+Cancel both. Reasons recorded per ticket:
+
+- **`v2/document-interactive-recurring-sweep-hazard-in-rel` → cancel.** The
+  entire ticket is about the `mode:` field and the two open tickets meant to
+  settle it. The field was removed, which is the strongest possible form of
+  `enforce-mode-auto-for-recurring-templates` landing; the ticket's own text
+  says to "close as a duplicate" in that case. The surviving true constraint
+  (agent work needs a TTY; recipes and complete scripts can be headless) is
+  already documented in `coga/recurring`. Nothing left to salvage.
+- **`v2/document-parent-orchestrates-child-script-tasks-pa` → cancel, not
+  rewrite.** The shape it asks to canonize was deleted. The rewrite option was
+  conditional — "only if that pattern is actually wanted as a reusable
+  convention" — and it is not: the phase-list-plus-subagent-scan shape has
+  exactly one consumer (Dream), which documents its own convention in place
+  (`recurring/dream/ticket.md:65-69`, "Adding or removing a Dream phase is a
+  normal change to this template… If you want a different maintenance loop,
+  make another task with its own body and ordered phase list"). Promoting a
+  one-consumer shape into `coga/patterns` would contradict the same
+  ≥2-consumers bar CLAUDE.md applies to core code. If a second maintenance
+  loop ever appears, that is the moment to name the pattern.
+
+**Correction — where the cancellations actually landed.** I ran both
+`coga mark canceled` calls from the feature checkout intending the disposition
+to travel through the PR and the owner's `review` step. It does not:
+`coga mark canceled` syncs ticket state to `origin/main` immediately, the same
+way `bump` does. Both cancel commits are on `origin/main` now (`d8f1c776`,
+`2935dc04`) and the Slack broadcasts have already fired; the later rebase
+skipped them as already-applied. So the PR carries **only** the README and the
+roadmap edit.
+
+That is coga's designed behavior for state transitions, not something the
+branch can hold back — a ticket's `status` is live repo state, not PR content.
+The consequence for the owner: the two cancellations are already in effect and
+reviewing this PR does not gate them. Reversing either one means
+`coga mark active v2/<slug>` (allowed from `draft`/`paused`, so a canceled
+ticket needs a hand-edit or a revert of its commit), not a PR rejection.
+Flagging it rather than reverting, because reverting would leave the audit log
+and the Slack record describing a cancellation that did not stick.
+
+## v2-wide relay sweep (folded in per Dream 2026-W33)
+
+46 of 78 files under `coga/tasks/v2/` mention `relay`. **Decision: warn, do not
+rename.** A mechanical `relay`→`coga` rewrite would convert dead surfaces into
+live-looking ones (`relay panic` → `coga panic`, which does not exist;
+`relay draft … --mode script`, `[secrets]` bulk-inject, `relay-os/contexts/…`),
+hiding staleness instead of flagging it. That is the opposite of legibility.
+
+Landing instead: `coga/tasks/v2/README.md` — already a supported non-task file
+(`src/coga/tasks.py:125`, `_NON_TASK_FILES`), so it does not become a phantom
+task — carrying the parking-area contract and the concrete dead-surface
+checklist, plus a pointer from `coga/contexts/coga/roadmap` "Deferred work",
+which already owns the pull-forward rule.
+
+No packaged copy to sync: `src/coga/resources/templates/coga/contexts/` ships
+only `_template` and `browser`, and the packaged `tasks/` tree has no `v2/`.
+
+## Dev
+
+branch: v2-premise-dead-drafts
+worktree: /home/n/Code/claude/coga-v2-premise-dead-drafts
+
+Branch contents (rebased onto `origin/main`, 0 commits behind):
+`coga/tasks/v2/README.md` (new, 68 lines) + a 9-line addition to
+`coga/contexts/coga/roadmap/SKILL.md`. The two cancel commits are already
+upstream — see the correction above.
+
+Verification run in the feature checkout:
+- `python3.12 -m pytest` → 1578 passed, 1 skipped. (Note for later steps: the
+  default `python` on this box is 3.9 and `src/coga/__init__.py` hard-refuses
+  it, so `python -m pytest` fails at conftest import. Use `python3.12`.)
+- `coga validate --json` → 0 errors, 0 warnings.
+- `coga status v2` → no `README` row, confirming the new file is treated as
+  directory documentation and not a phantom task.
+
+No example-fixture update needed: this change is documentation only — no task
+layout, prompt composition, or workflow semantics changed.
