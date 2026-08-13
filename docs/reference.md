@@ -141,6 +141,15 @@ secrets and `COGA_TASK_*` metadata, and follow the normal
 the task unfinished and reports the failure. Templates without a recipe launch
 an agent and require a TTY.
 
+If the committed `coga.toml` sets a top-level `owner = "<name>"`, every
+recurring *launch* — the bare sweep, `--force`, `coga run recurring-scan`, and
+`coga recurring launch` — refuses to run for any other operator (`user` in
+`coga.local.toml`), so two clones can't sweep the same repo at once. There is no
+override flag; taking recurring over means editing the committed `owner`. Under
+`--all` the gate is per repo: repos owned by someone else are skipped and named,
+and the sweep continues. `coga recurring list` and `promote` stay ungated, and a
+repo with no `owner` set behaves as before.
+
 - `--interactive` — launch due agent tasks as a human-stepped run, leaving REPL
   liveness backstops unarmed; ticket files aren't modified.
 - `--all <PATH>` — discover every Coga repo below `PATH` and run each repo's due

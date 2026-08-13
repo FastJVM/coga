@@ -5,6 +5,13 @@ version = 1
 # it without launching.
 default_status = "draft"
 
+# The operator who runs recurring sweeps here. Committed, so every clone
+# agrees: `coga recurring` (including `--force`) and `coga recurring launch`
+# refuse to run for anyone whose `user` in coga.local.toml differs, which is
+# what keeps two machines from sweeping this repo at the same time. Taking it
+# over means changing this line.
+owner = "nicktoper"
+
 # --- Agents ---
 # Removed headless-agent keys (`auto`, `skip_permissions`,
 # `skip_permissions_argv`) are rejected as unknown config.

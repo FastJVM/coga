@@ -122,6 +122,13 @@ class Config:
     launch_idle_timeout: float | None = None
     launch_idle_timeout_present: bool = False
     launch_max_session: float | None = None
+    # The repo's recurring owner: the one operator whose checkout may launch
+    # recurring sweeps. Committed in `coga.toml` — unlike machine-local
+    # `current_user` — so every clone agrees on who runs them, which is what
+    # keeps two operators from sweeping the same repo concurrently. Empty means
+    # unset, and recurring stays ungated. See
+    # `coga.recurring_runner.recurring_owner_refusal`.
+    owner: str = ""
 
     # --- convenience accessors -------------------------------------------------
 
@@ -242,6 +249,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     _reject_unknown_sections(shared, local)
 
     default_status = shared.get("default_status", "draft")
+    owner = _parse_owner(shared.get("owner"))
     agents = _parse_agents(shared.get("agents", {}), local.get("agents", {}))
     notification_channels = _resolve_notification_channels(
         shared.get("notification"),
@@ -323,6 +331,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         launch_idle_timeout=launch_idle_timeout,
         launch_idle_timeout_present=launch_idle_timeout_present,
         launch_max_session=launch_max_session,
+        owner=owner,
     )
 
 
@@ -367,6 +376,7 @@ def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> 
 _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "version",
     "default_status",
+    "owner",
     "agents",
     "notification",
     "slack",
@@ -644,6 +654,21 @@ def _parse_ticket_fields(raw: dict | None) -> dict[str, TicketField]:
             required=required,
         )
     return out
+
+
+def _parse_owner(raw: object) -> str:
+    """Parse the shared `owner` key — the repo's recurring owner.
+
+    Committed in `coga.toml` (never `coga.local.toml`, where it would say
+    nothing to the other clones the gate exists to hold off). Absent or empty
+    means unset, and recurring stays ungated; a non-string fails loud like
+    every other fixed-schema value.
+    """
+    if raw is None:
+        return ""
+    if not isinstance(raw, str):
+        raise ConfigError(f"`owner` must be a string (got {type(raw).__name__})")
+    return raw.strip()
 
 
 def _parse_aliases(raw: dict) -> dict[str, str]:

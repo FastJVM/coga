@@ -144,6 +144,13 @@ is recorded in the template so the next scan knows what's already done.
 Point a single cron entry at `coga recurring` (or `coga recurring --all`) and the
 schedules inside the templates do the rest.
 
+If two people have clones of the same repo, name one of them in the committed
+`coga.toml` — `owner = "<name>"` — so only their machine sweeps it. Everyone
+else's recurring launches (including `--force`) are refused with the owner's
+name; `--all` skips repos they don't own and keeps going. It's a policy gate,
+not a lock: it stops two *operators* racing, not one operator running two
+clones. Leave `owner` unset and nothing changes.
+
 ### Dream: generic ticket cleanup
 
 **Dream** is Coga's built-in maintenance pass — a recurring template

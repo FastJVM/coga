@@ -97,7 +97,9 @@ the example under "Extend recurring with a task-specific workflow").
   and end-of-command git sync stay repo-local. TOML parse errors and failures
   after dispatch are reported without preventing later repos from running; the
   parent command exits non-zero after the sweep. `--force` may be combined with
-  `--all <path>` to force every template in every selected repo.
+  `--all <path>` to force every template in every selected repo. The owner gate
+  below applies per repo: repos owned by someone else are skipped and named in
+  the summary, and the sweep continues rather than failing.
 - `coga recurring launch <name>` — creates one named recurring task now,
   ignoring its schedule. `<name>` is the directory name. Unless
   `--interactive` is set, the launched REPL receives the same concrete
@@ -128,6 +130,32 @@ the example under "Extend recurring with a task-specific workflow").
   still workflow-carrying and bumpable — `direct/body` is the workflow.)
 - `owner`, `assignee`, `watchers`, `contexts`, `secrets` — passed through to
   the created period task.
+
+## One operator owns recurring: the `owner` gate
+
+A repo may name a recurring owner with a top-level `owner = "<name>"` in the
+**committed** `coga.toml`. With it set, every launching entry point — the bare
+sweep, `--force`, `coga run recurring-scan`, and `coga recurring launch <name>`
+— refuses to run for any operator whose machine-local `user` (in
+`coga.local.toml`) differs, naming the owner so they know who to ask. Leave
+`owner` unset and recurring is ungated, exactly as before, so a repo opts in by
+naming someone.
+
+Why: a sweep mutates shared period state (the created period task, the
+template's `last_serviced_period` high-water mark) and then launches real work.
+Two *different* operators sweeping the same repo from their own clones race
+each other, and the same period gets launched twice. Naming one owner in
+committed config is the cheapest thing that closes that: every clone reads the
+same name.
+
+This is a **policy gate, not a lock.** Same-machine overlap is already
+prevented by the sweep being sequential and foreground; the owner running two
+of their own clones concurrently can still race, and the gate does not try to
+stop them. There is deliberately no override flag — `--force` forces the
+*schedule and status filters*, not the gate — so taking recurring over is an
+explicit, reviewable change to the committed `owner`. Read-only
+`coga recurring list` and the non-launching `coga recurring promote` stay
+ungated.
 
 ## Dropping a new recurring task
 

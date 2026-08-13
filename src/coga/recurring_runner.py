@@ -66,6 +66,47 @@ from coga.workspace_discovery import discover_coga_repos
 # the window or, at `<= 0` / non-finite, disarms it.
 _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
 
+
+def recurring_owner_refusal(cfg: Config) -> str | None:
+    """Why this operator may not launch recurring here, or None if they may.
+
+    Recurring sweeps mutate shared period state (the created period task, the
+    template's `last_serviced_period` high-water mark) and then launch real
+    work, so two *different* operators sweeping the same repo from their own
+    clones race each other. The committed `owner` in `coga.toml` picks one of
+    them: every clone reads the same name, and only the operator whose
+    machine-local `user` matches it may launch.
+
+    A **policy gate, not a lock.** Same-machine overlap is already prevented by
+    the sweep being sequential and foreground; the owner running two clones of
+    their own can still race, and this does not try to stop them. `--force` is
+    gated too — a deliberate takeover is a committed `owner` change, not a
+    flag. A repo with no `owner` set behaves exactly as before.
+    """
+    if not cfg.owner or cfg.current_user == cfg.owner:
+        return None
+    who = (
+        f"this checkout runs as {cfg.current_user!r}"
+        if cfg.current_user
+        else "this checkout has no `user` set in coga.local.toml"
+    )
+    return (
+        f"Recurring launches in this repo belong to {cfg.owner!r} "
+        f"(`owner` in coga.toml); {who}. Recurring is gated to one operator so "
+        "two clones cannot sweep the same repo at once — ask them to run it, "
+        "or change the committed `owner` to take it over."
+    )
+
+
+def _refuse_non_owner(cfg: Config) -> bool:
+    """Print the owner refusal, if any. True when the caller must not launch."""
+    refusal = recurring_owner_refusal(cfg)
+    if refusal is None:
+        return False
+    typer.secho(refusal, fg=typer.colors.RED, err=True)
+    return True
+
+
 def run_recurring_all_repos(
     scan_root: Path,
     *,
@@ -103,11 +144,20 @@ def run_recurring_all_repos(
 
     serviceable: list[Path] = []
     skipped_unconfigured: list[str] = []
+    skipped_not_owner: list[str] = []
     for coga_os in repos:
-        if _has_serviceable_config(coga_os):
-            serviceable.append(coga_os)
-        else:
-            skipped_unconfigured.append(_repo_label(coga_os, root))
+        label = _repo_label(coga_os, root)
+        if not _has_serviceable_config(coga_os):
+            skipped_unconfigured.append(label)
+            continue
+        # Per-repo, before duplicate grouping: a repo this operator does not own
+        # is not a sweep target at all, so it must not be picked as the keeper
+        # for a remote whose other checkout *is* runnable.
+        refusal = _repo_owner_refusal(coga_os)
+        if refusal is not None:
+            skipped_not_owner.append(f"{label} — {refusal}")
+            continue
+        serviceable.append(coga_os)
 
     duplicate_of = _duplicate_remote_checkouts(serviceable)
     failed: list[str] = []
@@ -168,6 +218,7 @@ def run_recurring_all_repos(
         - len(failed)
         - len(skipped_duplicates)
         - len(skipped_unconfigured)
+        - len(skipped_not_owner)
     )
     typer.echo(f"\nSwept {swept} of {len(repos)} Coga repo(s).")
     if skipped_unconfigured:
@@ -175,6 +226,18 @@ def run_recurring_all_repos(
         repo_word = "repo" if count == 1 else "repos"
         typer.secho(
             f"Skipped {count} unconfigured {repo_word}.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+    if skipped_not_owner:
+        count = len(skipped_not_owner)
+        repo_word = "repo" if count == 1 else "repos"
+        # Named individually, not just counted: an operator who owns none of
+        # the repos they scanned would otherwise see an empty sweep with no
+        # clue which name to ask for.
+        listed = "\n".join(f"  {entry}" for entry in skipped_not_owner)
+        typer.secho(
+            f"Skipped {count} {repo_word} owned by someone else:\n{listed}",
             fg=typer.colors.YELLOW,
             err=True,
         )
@@ -221,6 +284,22 @@ def _has_serviceable_config(coga_os: Path) -> bool:
         # guards identify an unconfigured checkout that the parent may skip.
         return True
     return True
+
+
+def _repo_owner_refusal(coga_os: Path) -> str | None:
+    """The owner refusal for a discovered workspace, or None if it may sweep.
+
+    The gate is per-repo under `--all`: each repo names its own `owner`, so an
+    operator sweeping a directory of clones runs the ones they own and skips
+    the rest rather than failing the whole sweep. Config that fails to load
+    here is left to the child process, which is the authoritative loader —
+    exactly as `_configured_remote_identity` does.
+    """
+    try:
+        cfg = load_config(coga_os, require_user=False)
+    except Exception:
+        return None
+    return recurring_owner_refusal(cfg)
 
 
 def _duplicate_remote_checkouts(repos: list[Path]) -> dict[Path, Path]:
@@ -418,7 +497,13 @@ def run_recurring_scan(
     Bare single-repo sweeps retain the established best-effort catch-up.
 
     `coga recurring launch <name>` force-runs one named template now.
+
+    A repo with a committed `owner` refuses this for every other operator —
+    including under `--force` — before anything is scanned or created; see
+    `recurring_owner_refusal`.
     """
+    if _refuse_non_owner(cfg):
+        return 2
     if not _valid_agent_override(cfg, agent_override):
         return 2
 
@@ -660,8 +745,11 @@ def run_recurring_named(
     instantiated task directory.
 
     `agent_override` has the same ephemeral, agent-only semantics as the full
-    recurring sweep.
+    recurring sweep, and the same committed-`owner` gate applies — this is a
+    launch, so a non-owner is refused before the template is created.
     """
+    if _refuse_non_owner(cfg):
+        return 2
     if not _valid_agent_override(cfg, agent_override):
         return 2
 

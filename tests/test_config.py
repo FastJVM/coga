@@ -108,6 +108,47 @@ def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
     assert cfg.default_status == "draft"
 
 
+def test_owner_defaults_to_unset(repo: Path) -> None:
+    """No committed `owner` means recurring stays ungated."""
+    assert load_config(repo).owner == ""
+
+
+def test_owner_read_from_shared_config(repo: Path) -> None:
+    """`owner` is committed repo policy, so it comes from coga.toml — a clone
+    reads the same name as the operator it holds off."""
+    _write(
+        repo / "coga.toml",
+        'owner = "nick"\n' + (repo / "coga.toml").read_text(),
+    )
+    cfg = load_config(repo)
+    assert cfg.owner == "nick"
+    assert cfg.current_user == "marc"
+
+
+def test_owner_must_be_a_string(repo: Path) -> None:
+    (repo / "coga.toml").write_text(
+        "owner = 42\n" + (repo / "coga.toml").read_text()
+    )
+    with pytest.raises(ConfigError, match="`owner` must be a string"):
+        load_config(repo)
+
+
+def test_owner_in_local_config_rejected(repo: Path) -> None:
+    """A machine-local `owner` would say nothing to the other clones the gate
+    exists to hold off, so it is not a local key."""
+    _write(
+        repo / "coga.local.toml",
+        """
+        user = "marc"
+        owner = "marc"
+        """,
+    )
+    with pytest.raises(
+        ConfigError, match=r"coga.local.toml has unknown key\(s\) \['owner'\]"
+    ):
+        load_config(repo)
+
+
 def test_resolve_agent_type(repo: Path) -> None:
     cfg = load_config(repo)
     agent = cfg.agent_type("claude")
@@ -340,6 +381,7 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
         """
         version = 1
         default_status = "draft"
+        owner = "marc"
 
         [agents.claude]
         cli = "claude"

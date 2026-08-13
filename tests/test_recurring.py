@@ -18,6 +18,7 @@ from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import tasks_dir
 from coga.recurring import (
+    DueScan,
     DueTask,
     Template,
     create_named,
@@ -463,6 +464,162 @@ def test_recurring_all_skips_unconfigured_repos_compactly(
     assert "Swept 1 of 5 Coga repo(s)." in result.output
     assert "Skipped 4 unconfigured repos." in result.output
     assert "recurring exited" not in result.output
+
+
+# --- the committed `owner` gate: one operator launches recurring -------------
+
+
+def _set_owner(company: Path, owner: str) -> None:
+    """Name the repo's recurring owner in the committed coga.toml."""
+    path = company / "coga.toml"
+    path.write_text(f'owner = "{owner}"\n' + path.read_text())
+
+
+def test_recurring_ungated_when_no_owner_is_configured(repo: Path) -> None:
+    """A repo that names no owner keeps today's behavior — nothing to opt into."""
+    assert recurring_cmd.recurring_owner_refusal(load_config(repo)) is None
+
+
+def test_recurring_refusal_names_the_configured_owner(repo: Path) -> None:
+    _set_owner(repo, "nick")
+
+    refusal = recurring_cmd.recurring_owner_refusal(load_config(repo))
+
+    assert refusal is not None
+    assert "'nick'" in refusal
+    assert "runs as 'marc'" in refusal
+
+
+def test_recurring_refusal_reports_a_checkout_with_no_user(repo: Path) -> None:
+    """A clone that never set `user` is a non-owner, not a silent owner."""
+    _set_owner(repo, "nick")
+    (repo / "coga.local.toml").unlink()
+
+    refusal = recurring_cmd.recurring_owner_refusal(
+        load_config(repo, require_user=False)
+    )
+
+    assert refusal is not None
+    assert "'nick'" in refusal
+    assert "no `user` set in coga.local.toml" in refusal
+
+
+def test_recurring_scan_refuses_non_owner_before_scanning(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """The gate runs before any period state is read or written."""
+    _set_owner(repo, "nick")
+
+    def unreachable(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("scan_due ran for a non-owner")
+
+    monkeypatch.setattr(recurring_cmd, "scan_due", unreachable)
+
+    assert recurring_cmd.run_recurring_scan(load_config(repo)) == 2
+    assert "belong to 'nick'" in capsys.readouterr().err
+
+
+def test_recurring_scan_force_stays_gated_for_non_owner(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--force` forces the schedule and status filters, not the owner gate."""
+    _set_owner(repo, "nick")
+
+    def unreachable(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("scan_due ran for a non-owner")
+
+    monkeypatch.setattr(recurring_cmd, "scan_due", unreachable)
+
+    assert recurring_cmd.run_recurring_scan(load_config(repo), force=True) == 2
+
+
+def test_recurring_scan_runs_for_the_configured_owner(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_owner(repo, "marc")
+    scanned: list[Path] = []
+
+    def fake_scan(cfg, **kwargs):  # type: ignore[no-untyped-def]
+        scanned.append(cfg.repo_root)
+        return DueScan(tasks=[], errors=[])
+
+    monkeypatch.setattr(recurring_cmd, "scan_due", fake_scan)
+
+    assert recurring_cmd.run_recurring_scan(load_config(repo)) == 0
+    assert scanned == [repo]
+
+
+def test_recurring_launch_refuses_non_owner_before_creating(
+    repo: Path, capsys
+) -> None:
+    _set_owner(repo, "nick")
+
+    code = recurring_cmd.run_recurring_named(load_config(repo), "weekly-check")
+
+    assert code == 2
+    assert not (repo / "tasks" / "recurring").exists()
+    assert "belong to 'nick'" in capsys.readouterr().err
+
+
+def test_recurring_all_skips_repos_owned_by_someone_else(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The gate is per repo: sweep the ones this operator owns, skip the rest."""
+    root = tmp_path / "workspaces"
+    mine = root / "mine" / "coga"
+    theirs = root / "theirs" / "coga"
+    _write(mine / "coga.toml", 'version = 1\nowner = "marc"\n')
+    _write(theirs / "coga.toml", 'version = 1\nowner = "nick"\n')
+    for coga_os in (mine, theirs):
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    seen: list[Path] = []
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_repo_recurring",
+        lambda coga_os, **kwargs: seen.append(coga_os) or 0,
+    )
+
+    result = CliRunner().invoke(app, ["recurring", "--all", str(root)])
+
+    assert result.exit_code == 0, result.output
+    assert seen == [mine]
+    assert "Swept 1 of 2 Coga repo(s)." in result.output
+    assert "Skipped 1 repo owned by someone else:" in result.output
+    assert "theirs — Recurring launches in this repo belong to 'nick'" in result.output
+
+
+def test_recurring_all_owner_skip_cannot_shadow_a_runnable_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A skipped non-owned checkout is never the keeper for its remote."""
+    root = tmp_path / "workspaces"
+    first = root / "alpha" / "coga"
+    second = root / "beta" / "coga"
+    _write(first / "coga.toml", 'version = 1\nowner = "nick"\n')
+    _write(second / "coga.toml", 'version = 1\nowner = "marc"\n')
+    for coga_os in (first, second):
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+
+    monkeypatch.setattr(
+        recurring_cmd, "_git_toplevel", lambda coga_os: coga_os.parent
+    )
+    monkeypatch.setattr(recurring_cmd, "_current_branch", lambda _root: "main")
+
+    def fake_subprocess_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        assert command[-3:] == ["remote", "get-url", "origin"]
+        return SimpleNamespace(returncode=0, stdout="https://example.com/team/repo\n")
+
+    monkeypatch.setattr(recurring_cmd.subprocess, "run", fake_subprocess_run)
+    seen: list[Path] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_repo_recurring",
+        lambda coga_os, **kwargs: seen.append(coga_os) or 0,
+    )
+
+    assert recurring_cmd.run_recurring_all_repos(root) == 0
+    assert seen == [second]
 
 
 def test_recurring_all_services_one_checkout_per_remote(
