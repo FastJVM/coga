@@ -2,8 +2,8 @@
 slug: megalaunch-does-not-set-coga-expected-task
 title: Megalaunch does not set COGA_EXPECTED_TASK
 status: draft
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:

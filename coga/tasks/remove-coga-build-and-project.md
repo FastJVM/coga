@@ -2,8 +2,8 @@
 slug: remove-coga-build-and-project
 title: remove-coga-build-and-project
 status: in_progress
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts: []
