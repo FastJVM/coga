@@ -353,3 +353,31 @@ Generated: 2026-08-13T17:04:59+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated: 2026-08-13T17:15Z (period 2026-W33)
+
+| Phase | Result |
+| --- | --- |
+| 1 validate-drift | reported — 23 issues, all human-needed (0 direct-fix, 0 pr-proposal) |
+| 2 knowledge scan | reported — 8 findings (3 extract, 5 stale) |
+| 3 contract audit | reported — 3 findings (drift, all in the `_template` pair) |
+| 4 retro/done-ticket | pr-opened — 2 knowledge PRs (5 source tickets deleted in-PR), 10 tickets direct-fixed via `coga delete` to origin/main |
+| 5 cleanup-orphan-markers | no-op |
+| 6 disposition | pr-opened — 2 proposal PRs, 1 draft ticket created, 1 draft folded-into, 2 findings deferred to existing artifacts |
+
+Findings routed:
+- F1 (extract) → PR #681 https://github.com/FastJVM/coga/pull/681 — /tmp-checkout durability rule in `dev/code` + packaged twin; deletes 3 source tickets.
+- F2+F3 (extract) → PR #682 https://github.com/FastJVM/coga/pull/682 — fresh-control-checkout rule in `coga/codebase`; deletes 2 source tickets. (F2's "even validating" claim corrected against `src/coga/cli.py:124`.)
+- F4+F9+F10+F11 (stale/drift) → PR #683 https://github.com/FastJVM/coga/pull/683 — `_template` frontmatter refresh, live+packaged byte-identical.
+- F6 (stale) → PR #684 https://github.com/FastJVM/coga/pull/684 — `coga panic` → `coga block` in packaged `docs/with-review`; folds in (deletes) draft `docs-with-review-coga-panic`.
+- F5 (stale) → draft ticket `reconcile-recurring-wrapper-tty-admission-guidance` (design decision: context pty recipe vs template supervisor-owns-TTY; live run blocked on this, blocker 20260813T094004).
+- F7 (stale) → deferred: already owned by active ticket `service-account-scoping-single-vault-rule-conflict`; no parallel PR.
+- F8 (stale) → folded into existing draft `decide-the-fate-of-two-premise-dead-v2-drafts-whos` (scope note appended: v2-wide relay-reference sweep).
+- Hygiene note → 3 untracked `__pycache__` residues deleted from live skill dirs.
+
+Human-needed / review gates:
+- 23 validate-drift issues need owner lifecycle decisions (stuck in_progress ×4, unfrozen workflows ×7, unknown assignee ×5, missing step ×3, unsynthesized draft blackboards ×4) — listed in `## Dream Skill: validate-drift` above.
+- PRs #681–#684 are pr-required: human reviews and merges; Dream never auto-merges.
+- 5 knowledge-bearing ticket files remain on disk until #681/#682 merge (by design; local copies carry no markers).

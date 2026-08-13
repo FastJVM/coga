@@ -83,6 +83,10 @@ these two.
 
 ## Context
 
+### Scope note from Dream 2026-W33
+
+Dream's knowledge scan confirmed the broader half this draft already names: the `coga/tasks/v2/` parking area systematically references pre-rename `relay`/`relay-os` surfaces that no longer resolve (`src/relay/`, `relay-os/contexts/...`, `relay launch`, `mode: script`, `relay panic`, `[secrets]` bulk-inject — e.g. in `document-recurring-template-live-vs-packaged-sync`, `measure-relay-prompt-scope-and-agent-precision`, `wire-recurring-sweep-into-system-cron`, `pass-secrets-to-skills-with-per-skill-scope`). Anyone pulling a v2 draft forward inherits instructions against a repo that no longer exists. Fold the v2-wide relay-reference sweep into this draft's decision rather than opening a separate artifact.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

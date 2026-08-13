@@ -32,7 +32,13 @@ step: 1 (implement)
 
 ## Description
 
+Dream 2026-W33 stale finding (F5): `coga/contexts/coga/recurring/SKILL.md` (Gotchas, ~lines 371-387) and the `coga/recurring/resolve-conflicts/ticket.md` template contradict each other on TTY admission for the delegated agent-backed sweep, and the contradiction broke a live run.
 
+- The context tells the wrapper agent to run the delegated command under a fake pty (`timeout 900 script -qec 'coga resolve-conflicts --agent claude' /dev/null`) and confirm success via `coga/log.md`.
+- The template says the opposite: "Recurring's outer agent supervisor remains responsible for TTY admission."
+- The 2026-W33 resolve-conflicts run followed the template's framing, verified its tool shell has no TTY, judged the pty workaround a design bypass, and terminally blocked (blocker `20260813T094004`); the delegated sweep never ran.
+
+One of the two must win: either the context's pty recipe is the sanctioned pattern (then the template should say so), or the wrapper shape is wrong and the template needs restructuring so the supervisor performs the delegated launch itself. The blocked run's blackboard leans structural. Decide the design, then fix whichever document (and possibly the template's step structure) loses — live and packaged copies both, if a packaged twin exists.
 
 ## Context
 
