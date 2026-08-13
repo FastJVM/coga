@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-scaffold
-    github-ref: refs/tags/v1.2.1
+    github-ref: refs/tags/v1.3.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 73a69bd5a662588df4275f9a61a7a64157e72566
+    github-tree-sha: 2bfbec99c972129f1e8a38ba2b7e3c4d79551639
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.2.1
+    version: 1.3.1
 name: google-agents-cli-scaffold
 ---
 # ADK Project Scaffolding Guide
@@ -35,7 +35,7 @@ Use the `agents-cli` CLI to create new ADK agent projects or enhance existing on
 
 | Choice | CLI flag |
 |--------|----------|
-| RAG (vector or document search) | Not a scaffold flag — clone-and-study `rag-vector-search` / `rag-agent-search` (see `/google-agents-cli-workflow` Phase 1) |
+| Retrieval/RAG, sandboxed execution, cross-session memory, OAuth consent, guardrails, scheduled runs | **No flag** — these come from clone-and-study recipes; see the topic index in `/google-agents-cli-adk-code` → `references/samples.md` |
 | A2A protocol | built into every ADK agent — scaffold normally (`--agent adk`) |
 | Prototype (no deployment) | `--prototype` |
 | Deployment target | `--deployment-target <agent_runtime\|cloud_run\|gke>` |
@@ -48,7 +48,10 @@ Older names → CLI values (`vertexai` SDK package name unchanged):
 
 - Agent Engine / Vertex AI Agent Engine → `--deployment-target agent_runtime`
 - Agent Engine sessions / Agent Platform Sessions → `--session-type agent_platform_sessions`
-- Vertex AI Search / Vertex AI Vector Search / RAG → clone-and-study recipe, not a flag (see `/google-agents-cli-workflow` Phase 1)
+- Vertex AI Search / Vertex AI Vector Search / RAG → clone-and-study recipe, not a flag
+
+> **Removed flags.** `--datastore`, the `agentic_rag` template, and `agents-cli infra datastore` /
+> `agents-cli data-ingestion` no longer exist. If you reach for one, you want a recipe instead.
 
 ---
 
@@ -120,9 +123,9 @@ agents-cli scaffold enhance . --cicd-runner github_actions
 |----------|------------|-------------|
 | `adk` | Agent Runtime, Cloud Run, GKE | Standard ADK agent (default); A2A protocol built in |
 
-> **RAG is a clone-and-study recipe, not a template.** Build it by studying `rag-vector-search` or
-> `rag-agent-search` and adapting the sample into your project — see `/google-agents-cli-workflow`
-> Phase 1.
+> **`adk` is the only template.** Capabilities beyond it — retrieval, sandboxed execution, memory,
+> OAuth, guardrails — are clone-and-study recipes, not templates. See the topic index in
+> `/google-agents-cli-adk-code` → `references/samples.md`.
 
 ---
 
@@ -162,11 +165,9 @@ After scaffolding, immediately load `/google-agents-cli-workflow` — it contain
 **Key files to customize:** `app/agent.py` (instruction, tools, model), `app/tools.py` (custom tool functions), `.env` (project ID, location, API keys).
 **Files to preserve:** `agents-cli-manifest.yaml` (CLI reads this), deployment configs under `deployment/`, `Makefile`, `app/__init__.py` (the `App(name=...)` must match the directory name — default `app`), and the generated runtime/A2A infra (`app/fast_api_app.py`, `app/app_utils/a2a.py`, `app/app_utils/services.py`, `Dockerfile`) — these wire up serving, sessions, and the built-in A2A surface; don't hand-edit them.
 
-**RAG projects — clone-and-study, not a template:**
-RAG isn't a scaffold option. Build it by studying `rag-vector-search` or `rag-agent-search` (see
-`/google-agents-cli-workflow` Phase 1) and adapting the sample's `app/`, `infra/terraform/`, and
-ingestion into your project. Provisioning and ingestion run from the sample's own `Makefile`
-(`make setup-infra`, `make data-ingestion`).
+**Adapting a recipe:** copy its `app/`, `infra/terraform/`, and any ingestion or provisioning into
+your scaffolded project, then run provisioning from the recipe's own `Makefile` (e.g.
+`make setup-infra`). Start from its `AGENTS.md`.
 
 **Verifying your agent works:** Use `agents-cli run "test prompt"` for quick smoke tests, then `agents-cli eval generate` and `agents-cli eval grade` for systematic validation. Do NOT write pytest tests that assert on LLM response content — that belongs in eval.
 

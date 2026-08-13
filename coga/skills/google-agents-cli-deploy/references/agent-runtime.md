@@ -125,7 +125,7 @@ Environment variables set during deployment come from `agents-cli deploy` (the C
 
 ### Memory Bank
 
-To enable cross-session memory on Agent Runtime, configure `memory_bank_config` via `context_spec`. See the [`memory-bank` sample](https://github.com/google/adk-samples/tree/main/python/agents/memory-bank) for the full pattern.
+To enable cross-session memory on Agent Runtime, configure `memory_bank_config` via `context_spec`. See the [`cross-session-memory` recipe](https://github.com/google/adk-samples/tree/main/core/python/cross-session-memory) for the full pattern.
 
 ## Networking (PSC Interface)
 
