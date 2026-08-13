@@ -1,7 +1,7 @@
 ---
 slug: v2/document-parent-orchestrates-child-script-tasks-pa
 title: Document parent-orchestrates-child-script-tasks pattern in coga/patterns
-status: draft
+status: canceled
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -25,7 +25,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
