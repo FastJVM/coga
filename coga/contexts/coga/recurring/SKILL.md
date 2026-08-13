@@ -141,6 +141,20 @@ sweep, `--force`, `coga run recurring-scan`, and `coga recurring launch <name>`
 `owner` unset and recurring is ungated, exactly as before, so a repo opts in by
 naming someone.
 
+Authorization does not trust the config object loaded when the command started
+or an uncommitted working-tree edit. It fetches the configured control branch
+through a command-scoped ref and reads `owner` directly from that exact commit's
+`coga.toml`, including when the launch runs on a feature branch; checkout-wide
+`FETCH_HEAD` is never an authorization source. The `--all` parent uses the same
+control-tip value before duplicate-checkout selection; if it cannot confirm the
+value, it dispatches the child, whose existing mandatory freshness gate fails
+before any period state is touched. An owner addition or transfer therefore
+takes effect on the next reachable sweep instead of a stale clone continuing
+under the old name. A locally owner-less repo keeps the pre-gate best-effort
+behavior while its remote is unavailable; once the local config has opted in,
+an apparent owner cannot launch offline because a transfer could be waiting
+upstream.
+
 Why: a sweep mutates shared period state (the created period task, the
 template's `last_serviced_period` high-water mark) and then launches real work.
 Two *different* operators sweeping the same repo from their own clones race

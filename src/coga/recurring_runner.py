@@ -9,6 +9,7 @@ import os
 import subprocess
 import shutil
 import sys
+import tomllib
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -24,6 +25,7 @@ from coga.config import (
     SecretError,
     build_launch_env,
     load_config,
+    parse_owner,
 )
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, ref_tag_for_path, task_log_lines
@@ -83,7 +85,12 @@ def recurring_owner_refusal(cfg: Config) -> str | None:
     gated too — a deliberate takeover is a committed `owner` change, not a
     flag. A repo with no `owner` set behaves exactly as before.
     """
-    if not cfg.owner or cfg.current_user == cfg.owner:
+    return _recurring_owner_refusal(cfg, cfg.owner)
+
+
+def _recurring_owner_refusal(cfg: Config, owner: str) -> str | None:
+    """Apply the owner policy using an explicitly resolved committed value."""
+    if not owner or cfg.current_user == owner:
         return None
     who = (
         f"this checkout runs as {cfg.current_user!r}"
@@ -91,7 +98,7 @@ def recurring_owner_refusal(cfg: Config) -> str | None:
         else "this checkout has no `user` set in coga.local.toml"
     )
     return (
-        f"Recurring launches in this repo belong to {cfg.owner!r} "
+        f"Recurring launches in this repo belong to {owner!r} "
         f"(`owner` in coga.toml); {who}. Recurring is gated to one operator so "
         "two clones cannot sweep the same repo at once — ask them to run it, "
         "or change the committed `owner` to take it over."
@@ -99,12 +106,111 @@ def recurring_owner_refusal(cfg: Config) -> str | None:
 
 
 def _refuse_non_owner(cfg: Config) -> bool:
-    """Print the owner refusal, if any. True when the caller must not launch."""
-    refusal = recurring_owner_refusal(cfg)
+    """Authorize from the control tip and print any refusal."""
+    refusal = _launch_owner_refusal(cfg)
     if refusal is None:
         return False
     typer.secho(refusal, fg=typer.colors.RED, err=True)
     return True
+
+
+def _launch_owner_refusal(cfg: Config) -> str | None:
+    """Resolve recurring authorization from the latest reachable control tip.
+
+    A feature branch may predate an owner addition or transfer, and the working
+    tree may contain an uncommitted owner edit. Neither is authoritative: read
+    the shared config blob from the fetched control commit instead.
+
+    Fetch failure retains compatibility for repos whose local committed config
+    has never opted into an owner. Once an owner is present locally, however,
+    an apparent owner may not launch until the latest value can be confirmed;
+    otherwise an offline stale clone could bypass an owner transfer.
+    """
+    owner, error, control_reached = _control_tip_owner(cfg)
+    if owner is not None:
+        return _recurring_owner_refusal(cfg, owner)
+
+    local_owner, local_error = _local_committed_owner(cfg)
+    if local_owner is None:
+        return (
+            "Recurring launch refused: could not read the committed local "
+            f"`owner` after control-tip lookup failed ({error}): {local_error}."
+        )
+    local_refusal = _recurring_owner_refusal(cfg, local_owner)
+    if local_refusal is not None:
+        return local_refusal
+    if not local_owner and not control_reached:
+        # No local opt-in: preserve the pre-owner best-effort behavior when the
+        # configured remote is unavailable.
+        return None
+
+    local_note = (
+        f" The local commit names {local_owner!r}, but that value may be stale."
+        if local_owner
+        else ""
+    )
+    return (
+        "Recurring launch refused: could not confirm the latest committed "
+        f"`owner` from {cfg.git_remote}/{cfg.git_control_branch}: {error}."
+        f"{local_note} Retry when the control branch is reachable; `--force` "
+        "does not override the owner gate."
+    )
+
+
+def _control_tip_owner(cfg: Config) -> tuple[str | None, str, bool]:
+    """Return (owner, error, control_reached) for committed control config.
+
+    ``owner`` is ``""`` when the fetched config deliberately leaves the gate
+    unset and ``None`` only when it could not be resolved. ``control_reached``
+    distinguishes an unavailable remote from a fetched but unreadable/invalid
+    config, which must fail closed even for a locally owner-less checkout.
+    """
+    root = _git_toplevel(cfg.repo_root)
+    if root is None:
+        # A non-git local repo has no distinct control tip; its shared config is
+        # the only committed-policy source available.
+        return cfg.owner, "", True
+
+    if not cfg.git_enabled:
+        try:
+            return _owner_at_ref(cfg, root, "HEAD"), "", True
+        except (ConfigError, git.GitError, tomllib.TOMLDecodeError) as exc:
+            return None, str(exc), True
+
+    reached = False
+    try:
+        # FETCH_HEAD is checkout-wide and another Coga/git process may replace
+        # it between fetch and read. The shared git primitive fetches through a
+        # UUID-scoped ref and returns the exact command-owned commit instead.
+        target = git._fetch_branch_oid(
+            root, cfg.git_remote, cfg.git_control_branch
+        )
+        reached = True
+        return _owner_at_ref(cfg, root, target), "", True
+    except (ConfigError, git.GitError, tomllib.TOMLDecodeError) as exc:
+        return None, str(exc), reached
+
+
+def _local_committed_owner(cfg: Config) -> tuple[str | None, str]:
+    """Read owner from HEAD, falling back to config only outside git."""
+    root = _git_toplevel(cfg.repo_root)
+    if root is None:
+        return cfg.owner, ""
+    try:
+        return _owner_at_ref(cfg, root, "HEAD"), ""
+    except (ConfigError, git.GitError, tomllib.TOMLDecodeError) as exc:
+        return None, str(exc)
+
+
+def _owner_at_ref(cfg: Config, root: Path, ref: str) -> str:
+    """Parse the shared recurring owner from one exact committed config."""
+    target = _rev_parse(root, ref)
+    config_rel = _relative_to_root(root, cfg.repo_root / "coga.toml")
+    shared_text = _show_path(root, target, config_rel)
+    if not shared_text:
+        raise ConfigError(f"commit {target} has no readable {config_rel}")
+    shared = tomllib.loads(shared_text)
+    return parse_owner(shared.get("owner"))
 
 
 def run_recurring_all_repos(
@@ -297,9 +403,15 @@ def _repo_owner_refusal(coga_os: Path) -> str | None:
     """
     try:
         cfg = load_config(coga_os, require_user=False)
+        owner, _reason, _control_reached = _control_tip_owner(cfg)
+        if owner is None:
+            # Never pre-skip on an unconfirmed value. The selected child is the
+            # authoritative freshness gate and fails before scanning if the
+            # control tip cannot be integrated.
+            return None
     except Exception:
         return None
-    return recurring_owner_refusal(cfg)
+    return _recurring_owner_refusal(cfg, owner)
 
 
 def _duplicate_remote_checkouts(repos: list[Path]) -> dict[Path, Path]:
@@ -502,11 +614,6 @@ def run_recurring_scan(
     including under `--force` — before anything is scanned or created; see
     `recurring_owner_refusal`.
     """
-    if _refuse_non_owner(cfg):
-        return 2
-    if not _valid_agent_override(cfg, agent_override):
-        return 2
-
     fresh, freshness_error = _sync_control_checkout_ahead(
         cfg, announce_failure=not require_fresh_control
     )
@@ -523,6 +630,10 @@ def run_recurring_scan(
         # git catch-up instead of re-failing (and re-printing) the same
         # divergence — see `git.STALE_CONTROL_EXIT_CODE`.
         return git.STALE_CONTROL_EXIT_CODE
+    if _refuse_non_owner(cfg):
+        return 2
+    if not _valid_agent_override(cfg, agent_override):
+        return 2
     scan = scan_due(
         cfg, allow_interactive=_interactive_stdio_has_tty(), force=force
     )
@@ -748,12 +859,11 @@ def run_recurring_named(
     recurring sweep, and the same committed-`owner` gate applies — this is a
     launch, so a non-owner is refused before the template is created.
     """
+    fresh, _reason = _sync_control_checkout_ahead(cfg)
     if _refuse_non_owner(cfg):
         return 2
     if not _valid_agent_override(cfg, agent_override):
         return 2
-
-    _sync_control_checkout_ahead(cfg)
     try:
         outcome = create_named(cfg, name)
         recipe = Template.load(recurring_dir(cfg) / name).recipe

@@ -249,7 +249,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     _reject_unknown_sections(shared, local)
 
     default_status = shared.get("default_status", "draft")
-    owner = _parse_owner(shared.get("owner"))
+    owner = parse_owner(shared.get("owner"))
     agents = _parse_agents(shared.get("agents", {}), local.get("agents", {}))
     notification_channels = _resolve_notification_channels(
         shared.get("notification"),
@@ -656,7 +656,7 @@ def _parse_ticket_fields(raw: dict | None) -> dict[str, TicketField]:
     return out
 
 
-def _parse_owner(raw: object) -> str:
+def parse_owner(raw: object) -> str:
     """Parse the shared `owner` key — the repo's recurring owner.
 
     Committed in `coga.toml` (never `coga.local.toml`, where it would say
