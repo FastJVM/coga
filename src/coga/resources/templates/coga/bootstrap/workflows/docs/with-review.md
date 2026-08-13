@@ -47,7 +47,7 @@ peer → author), it relaunches the *next* agent as a fresh process under
 the same supervisor — claude's REPL exits and codex's starts, or vice
 versa. Each step is a clean session with a freshly composed prompt; it
 only returns control to the human at the final `review` step (an
-owner/human handoff), or on a terminal (`done`/`canceled`), `paused`, or panic
+owner/human handoff), or on a terminal (`done`/`canceled`), `paused`, or blocked
 state.
 
 ## implement
@@ -59,7 +59,8 @@ accurate and reachable rather than running tests that cover nothing.
 
 1. **Read the ticket and context.** Confirm this is actually docs-only. If
    the ticket touches real code, write that mismatch to the blackboard and
-   `coga panic` so the task can move to `code/with-review`.
+   escalate per your launch mode — ask the attending human, or `coga block`
+   in a queue run — so the task can move to `code/with-review`.
 2. **Create a feature worktree.** From the primary checkout on `main`,
    create a feature branch in a separate worktree outside the repo
    directory, for example:
@@ -87,7 +88,8 @@ accurate and reachable rather than running tests that cover nothing.
    body. Leave the feature worktree clean.
 7. **Bump from the primary checkout.** Run `coga bump <slug>` only after the
    blackboard is current. If you cannot reach a clean committed state, write
-   the blocker to the blackboard and `coga panic`.
+   the blocker to the blackboard and escalate per your launch mode — ask the
+   attending human, or `coga block` in a queue run.
 
 ## peer-review
 
@@ -114,8 +116,9 @@ From the feature worktree on the recorded branch, apply must-fix findings,
 skip nits, commit (e.g. `peer-review: apply review findings`), then
 `coga bump <slug>` from the primary checkout. If the change reads as wrong
 in premise (documents behavior that doesn't exist, or contradicts a
-canonical context), write to the blackboard and `coga panic` instead of
-patching around it.
+canonical context), write to the blackboard and escalate per your launch mode
+— ask the attending human, or `coga block` in a queue run — instead of patching
+around it.
 
 ## open-pr
 
@@ -142,8 +145,9 @@ If conflict resolution touches code or fixtures, run `python -m pytest`;
 otherwise re-run the docs-specific verification that applies to the changed
 files.
 Only then `coga bump` to hand off to the owner. If a conflict needs a
-judgment call you can't make, write it to the blackboard and `coga panic`
-instead of bumping.
+judgment call you can't make, write it to the blackboard and escalate per your
+launch mode — ask the attending human, or `coga block` in a queue run — instead
+of bumping.
 
 ## review
 
