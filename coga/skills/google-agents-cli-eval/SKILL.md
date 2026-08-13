@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-eval
-    github-ref: refs/tags/v1.2.1
+    github-ref: refs/tags/v1.3.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 7980ebb771d12f88c1a0294e6cb5dcf191a9116c
+    github-tree-sha: a1c12a383b5615c64c3e535856c33d48ac07b07d
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.2.1
+    version: 1.3.1
 name: google-agents-cli-eval
 ---
 # Agent Evaluation Guide
@@ -128,12 +128,17 @@ All `agents-cli eval` subcommands support `--help` for the authoritative flag li
 
 Runs an agent over an evaluation dataset and writes traces to disk.
 
+By default, runs the agent in a local HTTP server (launches the project's `fast_api_app.py` if it exists, or falls back to `adk api_server`) and sends each evaluation case over HTTP. You can generate traces from an already-running agent by passing its HTTP endpoint and app name to `--url` and `--app-name`.
+
 ```bash
 # Basic — uses tests/eval/datasets/, writes to artifacts/traces/
 agents-cli eval generate
 
 # Advanced — custom dataset and output dir
 agents-cli eval generate --dataset tests/eval/datasets/custom.json -o ./custom_traces/
+
+# Against a deployed agent (or one you started manually)
+agents-cli eval generate --url https://my-agent.run.app --app-name app
 ```
 
 ### `eval grade`
@@ -348,10 +353,6 @@ app = App(root_agent=root_agent, name="app")
 app = App(root_agent=root_agent, name="flight_booking_assistant")
 ```
 
-### Cross-session memory can't be tested in eval
-
-Each eval case runs in its own fresh in-memory session (`eval generate` creates a new `InMemorySessionService` and session id per case). Multi-turn *within* a case works via `agent_data.turns`, but behavior that depends on a *separate prior session* — e.g. Memory Bank recall across sessions — can't be exercised by eval. Validate cross-session continuity with pytest integration tests instead.
-
 ### Vertex eval region
 
 `eval grade` and `eval submit` **default to the `global` endpoint** — they don't inherit the manifest `region` (the eval services support only a subset of regions), and `eval analyze` is `global`-only. Override these per run with `--region <REGION>` (e.g. data residency); the service rejects an unsupported one:
@@ -360,7 +361,7 @@ Each eval case runs in its own fresh in-memory session (`eval generate` creates 
 400 FAILED_PRECONDITION: Unsupported region for Vertex Evaluation Service: <region>
 ```
 
-`eval generate` and `eval dataset synthesize` run your agent locally, so they honor the agent's own `.env` — notably `GOOGLE_CLOUD_LOCATION`, which selects the model endpoint **when the agent uses Vertex AI** (`GOOGLE_GENAI_USE_VERTEXAI=true`); it's unused with a `GEMINI_API_KEY` (AI Studio). They take **no** `--region` and never override your `.env` with the manifest `region`; change the model region by editing `.env`. One caveat for `synthesize`: its scenario-generation step is a **server-side** eval call at `GOOGLE_CLOUD_LOCATION`, so keep that an eval-supported region (`global` by default) even though the agent itself could run elsewhere.
+`eval generate` (without the `--url` flag) and `eval dataset synthesize` run your agent locally, so they honor the agent's own `.env` — notably `GOOGLE_CLOUD_LOCATION`, which selects the model endpoint **when the agent uses Vertex AI** (`GOOGLE_GENAI_USE_VERTEXAI=true`); it's unused with a `GEMINI_API_KEY` (AI Studio). They take **no** `--region` and never override your `.env` with the manifest `region`; change the model region by editing `.env`. One caveat for `synthesize`: its scenario-generation step is a **server-side** eval call at `GOOGLE_CLOUD_LOCATION`, so keep that an eval-supported region (`global` by default) even though the agent itself could run elsewhere.
 
 **No eval region fits your data-residency rules?** Fall back to **local custom metrics** — a `custom_metrics` entry with a `custom_function` (`execution: local`, the default) grades in-process with no GCP region required. You lose the managed built-in metrics, but your `custom_function` can still call an LLM judge in a compliant region itself — so LLM-as-judge grading stays available anywhere.
 
