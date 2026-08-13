@@ -303,7 +303,7 @@ def repo(tmp_path: Path):
         """
         version = 1
         default_status = "draft"
-        [slack]
+        [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
@@ -1985,7 +1985,7 @@ def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         version = 1
         default_status = "draft"
 
-        [slack]
+        [notification.slack]
         enabled = false
 
         [agents.claude]

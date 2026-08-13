@@ -472,12 +472,32 @@ def test_unknown_notification_slack_key_rejected(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
-def test_unknown_legacy_slack_key_rejected(repo: Path) -> None:
+def test_removed_slack_table_has_migration_error_shared(repo: Path) -> None:
     (repo / "coga.toml").write_text(
-        (repo / "coga.toml").read_text() + '\n[slack]\nwebhok = "env:NOPE"\n'
+        (repo / "coga.toml").read_text()
+        + '\n[slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
     )
     with pytest.raises(
-        ConfigError, match=r"\[slack\] in coga.toml has unknown key\(s\) \['webhok'\]"
+        ConfigError,
+        match=r"\[slack\] in coga.toml is no longer supported.*"
+        r"\[notification.slack\]",
+    ):
+        load_config(repo)
+
+
+def test_removed_slack_table_has_migration_error_local(repo: Path) -> None:
+    _write(
+        repo / "coga.local.toml",
+        """
+        user = "marc"
+        [slack]
+        enabled = false
+        """,
+    )
+    with pytest.raises(
+        ConfigError,
+        match=r"\[slack\] in coga.local.toml is no longer supported.*"
+        r"\[notification.slack\]",
     ):
         load_config(repo)
 

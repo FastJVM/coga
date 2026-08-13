@@ -55,7 +55,7 @@ def _seed_repo(root: Path) -> Path:
         version = 1
         default_status = "draft"
 
-        [slack]
+        [notification.slack]
         enabled = false
 
         [agents.claude]

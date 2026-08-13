@@ -44,7 +44,7 @@ def repo(tmp_path: Path) -> Path:
         version = 1
         default_status = "draft"
 
-        [slack]
+        [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
@@ -169,7 +169,7 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
         version = 1
         default_status = "draft"
 
-        [slack]
+        [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"

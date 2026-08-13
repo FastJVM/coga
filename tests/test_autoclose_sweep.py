@@ -115,7 +115,7 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
         version = 1
         default_status = "draft"
 
-        [slack]
+        [notification.slack]
         enabled = false
 
         [agents.claude]

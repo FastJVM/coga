@@ -985,7 +985,7 @@ def test_run_check_slack_emits_issue_for_revoked(
     # Add slack webhook to the repo's config.
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text()
-        + '\n[slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
+        + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
     )
     monkeypatch.setattr(
         "coga.validate.requests.post",
@@ -1024,7 +1024,7 @@ def test_run_no_slack_check_by_default(
 ) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text()
-        + '\n[slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
+        + '\n[notification.slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
     )
 
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]

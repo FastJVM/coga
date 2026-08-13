@@ -237,7 +237,7 @@ def test_no_notification_config_and_no_env_resolves_to_no_channels(
 
     This is the first-run posture: a stranger who hasn't set up Slack can run
     commands without a missing-webhook crash. With no `[notification].channels`
-    key, no `[notification.slack]`/`[slack]` table, and no `SLACK_WEBHOOK_URL`,
+    key, no `[notification.slack]` table, and no `SLACK_WEBHOOK_URL`,
     channels resolve to `()` (not the old `("slack",)` default) and `post`
     takes the no-channel branch instead of crashing.
     """
@@ -320,31 +320,6 @@ def test_empty_notification_channels_suppresses_post(
     cfg = load_config(tmp_path)
     post(cfg, "no channel")
     assert "[notification] no channels configured" in capsys.readouterr().err
-
-
-def test_legacy_slack_webhook_still_resolves_with_deprecation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _write(
-        tmp_path / "coga.toml",
-        """
-        version = 1
-        default_status = "draft"
-        [agents.claude]
-        cli = "claude"
-        file = "CLAUDE.md"
-        [slack]
-        webhook = "env:SLACK_WEBHOOK_URL"
-        """,
-    )
-    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
-    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/legacy")
-
-    cfg = load_config(tmp_path)
-
-    assert cfg.slack_webhook == "https://hooks.slack.com/services/legacy"
-    assert cfg.notification_channels == ("slack",)
-    assert any("[slack].webhook" in n for n in cfg.notification_deprecation_notes)
 
 
 def test_bare_env_without_toml_key_is_deprecated_fallback(
@@ -597,121 +572,6 @@ def test_important_webhook_non_string_raises_config_error(tmp_path: Path) -> Non
     )
     _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     with pytest.raises(ConfigError, match=r"\[notification\.slack\]\.important_webhook"):
-        load_config(tmp_path)
-
-
-def test_important_webhook_rejected_in_legacy_slack_table(tmp_path: Path) -> None:
-    """The legacy `[slack]` table has no resolver for the new key, so reject it.
-
-    Accepting it there would silently drop the second channel's URL — the repo
-    would look configured and still post every alert to coga-flow.
-    """
-    from coga.config import ConfigError
-
-    _write(
-        tmp_path / "coga.toml",
-        """
-        version = 1
-        default_status = "draft"
-        [agents.claude]
-        cli = "claude"
-        file = "CLAUDE.md"
-        [slack]
-        webhook = "env:SLACK_WEBHOOK_URL"
-        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
-        """,
-    )
-    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
-    with pytest.raises(ConfigError, match="unknown key"):
-        load_config(tmp_path)
-
-
-# --- important_recipient (the coga-important triage owner) ---------------------
-
-
-def _create_min_with_recipient(tmp_path: Path, recipient: str = '"triage"') -> None:
-    _write(
-        tmp_path / "coga.toml",
-        f"""
-        version = 1
-        default_status = "draft"
-        [agents.claude]
-        cli = "claude"
-        file = "CLAUDE.md"
-        [notification.slack]
-        important_recipient = {recipient}
-        """,
-    )
-    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
-
-
-def test_important_recipient_resolves(tmp_path: Path) -> None:
-    """`important_recipient` is a plain coga name — no `env:` indirection."""
-    _create_min_with_recipient(tmp_path)
-    cfg = load_config(tmp_path)
-    assert cfg.slack_important_recipient == "triage"
-
-
-def test_important_recipient_absent_is_none(tmp_path: Path) -> None:
-    """A repo that never named a triage owner resolves it to None."""
-    _create_min(tmp_path)
-    cfg = load_config(tmp_path)
-    assert cfg.slack_important_recipient is None
-
-
-def test_important_recipient_empty_string_is_none(tmp_path: Path) -> None:
-    """An empty name collapses to None so the ordinary owner mention stands."""
-    _create_min_with_recipient(tmp_path, recipient='""')
-    cfg = load_config(tmp_path)
-    assert cfg.slack_important_recipient is None
-
-
-def test_local_important_recipient_overrides_shared(tmp_path: Path) -> None:
-    _create_min_with_recipient(tmp_path)
-    _write(
-        tmp_path / "coga.local.toml",
-        """
-        user = "marc"
-        [notification.slack]
-        important_recipient = "ada"
-        """,
-    )
-    cfg = load_config(tmp_path)
-    assert cfg.slack_important_recipient == "ada"
-
-
-def test_important_recipient_non_string_raises_config_error(tmp_path: Path) -> None:
-    from coga.config import ConfigError
-
-    _create_min_with_recipient(tmp_path, recipient="123")
-    with pytest.raises(
-        ConfigError, match=r"\[notification\.slack\]\.important_recipient"
-    ):
-        load_config(tmp_path)
-
-
-def test_important_recipient_rejected_in_legacy_slack_table(tmp_path: Path) -> None:
-    """The legacy `[slack]` table has no resolver for the new key, so reject it.
-
-    Accepting it there would silently drop the triage name — every `--important`
-    alert would keep @'ing the ticket owner with no error to explain why.
-    """
-    from coga.config import ConfigError
-
-    _write(
-        tmp_path / "coga.toml",
-        """
-        version = 1
-        default_status = "draft"
-        [agents.claude]
-        cli = "claude"
-        file = "CLAUDE.md"
-        [slack]
-        important_recipient = "triage"
-        """,
-    )
-    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
-    with pytest.raises(ConfigError, match="unknown key"):
         load_config(tmp_path)
 
 

@@ -41,7 +41,7 @@ def repo(tmp_path: Path) -> Path:
         coga_os / "coga.local.toml",
         """
         user = "marc"
-        [slack]
+        [notification.slack]
         enabled = false
         """,
     )
@@ -575,7 +575,7 @@ def test_retire_preserves_checkout_claimed_by_sibling_coga_workspace(
         )
         _write(
             workspace / "coga.local.toml",
-            'user = "marc"\n[slack]\nenabled = false\n',
+            'user = "marc"\n[notification.slack]\nenabled = false\n',
         )
 
     feature = tmp_path / "shared-feature"

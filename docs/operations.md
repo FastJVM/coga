@@ -55,11 +55,9 @@ A few things worth knowing:
 - **Pings need a mapping.** `[notification.slack.users]` maps a Coga name (the
   token in a ticket's `owner`/`watchers`) to a Slack member ID, so that person
   gets a real `<@…>` ping. Without a mapping they're still named, just in plain
-  text. `important_recipient` is **parsed but not yet consumed** — it is
-  intended to name a single triage owner to @ on every `--important` post
-  instead of the ticket owner, but the Slack backend does not substitute it
-  yet, so `--important` still mentions the ticket owner. Do not treat the key
-  as active routing until that wiring lands.
+  text. `--important` uses that same task-owner mention: the owner is the triage
+  point, and can hand the alert to someone else in its Slack thread. There is no
+  separate recipient-routing setting.
 - **Opting out.** For solo, dev, or CI use, set `[notification.slack].enabled =
   false` in `coga.local.toml`.
 - **GIFs, optionally.** `[notification.slack.gifs]` can attach a randomly chosen
