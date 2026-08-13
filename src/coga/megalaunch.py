@@ -162,13 +162,12 @@ def run_megalaunch(
     included), same semantics as `coga status <dir>` — an unknown directory
     raises `UnknownDirectoryError` rather than sweeping nothing silently.
 
-    `agent_override` launches swept tickets with that configured agent type
-    instead of each ticket's `assignee:` — ephemeral, with the same semantics
-    as `coga launch --agent`: the ticket is never rewritten, a human-assigned
-    ticket is not converted into an agent step (still a human gate), and on a
-    chained task the override applies only to the first launched step, so
-    `other-agent` rotation on later steps still lands on the ticket's resolved
-    assignee.
+    `agent_override` launches swept agent-owned tickets with that configured
+    agent type instead of each ticket's `assignee:`. It is ephemeral and
+    applies only to the first launched step, so `other-agent` rotation on later
+    steps still lands on the ticket's resolved assignee. Unlike an explicit
+    `coga launch --agent`, megalaunch keeps its independent human gate:
+    human-assigned tickets still skip.
 
     `selection` (exact `id_slug`s) switches to explicit mode: only the named
     tasks run, any owner's, and the run is staged so every human-in-the-loop

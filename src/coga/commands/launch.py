@@ -8,6 +8,9 @@ so those fail loud with the same remedy `mark active` gives.) An
 already-`in_progress` ticket resumes without another status flip. Terminal
 `done` / `canceled` tickets are refused and left untouched.
 
+Human-owned steps remain unlaunchable by default. An explicit `--agent`
+override starts one visible assist session without rewriting `assignee:`.
+
 Bootstrap tickets are stateless re-entry points (no status, no log of state
 changes) — launch is the only way to run a skill against one.
 """
@@ -23,14 +26,20 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import NamedTuple
+from typing import Callable, NamedTuple, TypeVar
 from uuid import uuid4
 
 import typer
 
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
-from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
+from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
+from coga.blackboard import (
+    blackboard_size_warning,
+    format_bytes,
+    open_blockers,
+    parse_blockers_text,
+)
 from coga.compose import (
     ComposeError,
     PromptComposition,
@@ -49,8 +58,9 @@ from coga.config import (
 from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga import git
+from coga import pr_assist
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.logfile import append_log
+from coga.logfile import append_log, log_path
 from coga.mark import (
     BlackboardNeedsSynthesis,
     RequiredExtensionMissing,
@@ -59,9 +69,15 @@ from coga.mark import (
     mark_active,
     mark_blocked,
     mark_in_progress,
+    prepare_active,
 )
+from coga.notification import preflight_post
 from coga.paths import PackagedResourceMissing, read_packaged_resource
+from coga.open_pr import same_git_checkout
 from coga.repl_supervisor import (
+    ASSIST_AGENT_ENV,
+    ASSIST_BRANCH_ENV,
+    ASSIST_PR_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
     AgentCliNotFound,
@@ -69,6 +85,7 @@ from coga.repl_supervisor import (
 )
 from coga.task_env import apply_task_env
 from coga.step_gate import gate_publishes_current_branch
+from coga.taskfile import split_body
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -76,7 +93,7 @@ from coga.tasks import (
     read_ticket,
     resolve_target,
 )
-from coga.ticket import Ticket
+from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
 from coga.version_skew import warn_if_installed_predates_source
 from coga.workflow import WorkflowError
@@ -87,6 +104,16 @@ DEFAULT_DISCUSSION_TEMPLATES = {
     "claude": "--append-system-prompt {prompt}",
     "codex": "-c developer_instructions={prompt}",
 }
+_ASSIST_ALIGNMENT_ATTEMPTS = 3
+_T = TypeVar("_T")
+
+
+class _AssistPublicationRefused(ComposeError):
+    """A retryable assist write was intentionally left out of the final sweep."""
+
+    def __init__(self, message: str, *, post_session: bool = False):
+        super().__init__(message)
+        self.post_session = post_session
 
 
 def launch(
@@ -99,7 +126,8 @@ def launch(
     agent_override: str | None = typer.Option(
         None,
         "--agent",
-        help="Agent nickname to use for this launch instead of the ticket assignee.",
+        help="Explicit agent override for this launch, including an assist on "
+        "a human-owned step; never rewrites the ticket assignee.",
     ),
     prompt_report: bool = typer.Option(
         False,
@@ -157,19 +185,179 @@ def launch(
         cfg = load_config()
     except ConfigError as exc:
         _bail(str(exc))
-    _refresh_agent_skills_for_launch(cfg.repo_root)
 
     try:
         ref = resolve_target(cfg, task)
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
+    resolved_target_slug = ref.id_slug
     is_bootstrap = isinstance(ref, BootstrapRef)
+
+    # A supported single-checkout assist may be behind its published PR branch.
+    # Align before refreshing the agent-skill view or deriving any launch state:
+    # the fetched commit can change coga.toml, the ticket, or a composed skill.
+    # Reload and repeat after every fast-forward so publication authorization,
+    # secrets, expected step, prompt, and command all come from the final tree.
+    aligned_assist_branch: str | None = None
+    aligned_assist_remote_oid: str | None = None
+    aligned_assist_pr_url: str | None = None
+    assist_setup_started = False
+
+    def setup_bail(message: str) -> None:
+        """Refuse without sweeping once this checkout is an assist candidate."""
+        _bail(
+            message,
+            exit_code=(
+                git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                if assist_setup_started
+                else 2
+            ),
+        )
+
+    def post_alignment_setup_call(action: Callable[[], _T]) -> _T:
+        """Keep every later setup operation inside the assist retry boundary."""
+        try:
+            return action()
+        except BaseException as exc:
+            if not assist_setup_started:
+                raise
+            if (
+                isinstance(exc, SystemExit)
+                and exc.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+            ):
+                raise
+            detail = str(exc).strip() or type(exc).__name__
+            typer.secho(
+                f"Cannot launch {ref.id_slug}: assist setup failed after the "
+                f"recorded checkout was selected ({detail}). Retained state "
+                "was left for an explicit retry.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
+
+    if not prompt_report and agent_override is not None:
+        try:
+            for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
+                alignment_ticket = read_ticket(ref)
+                alignment_is_human_assist = (
+                    not is_bootstrap
+                    and bool(alignment_ticket.assignee)
+                    and alignment_ticket.assignee not in cfg.agents
+                )
+                if (
+                    alignment_is_human_assist
+                    and alignment_ticket.status
+                    in {"draft", "active", "in_progress", "paused", "blocked"}
+                    and not _interactive_stdio_has_tty()
+                ):
+                    _refuse_tty_launch(
+                        ref,
+                        exit_code=(
+                            git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                            if _has_retained_append_only_assist_log(cfg)
+                            else 2
+                        ),
+                    )
+                candidate_assist_branch = (
+                    None
+                    if not alignment_is_human_assist
+                    else _recorded_single_checkout_assist_branch(
+                        cfg, alignment_ticket
+                    )
+                )
+                if candidate_assist_branch is not None:
+                    assist_setup_started = True
+                if (
+                    is_bootstrap
+                    or alignment_ticket.status
+                    not in {"draft", "active", "in_progress", "paused", "blocked"}
+                    or candidate_assist_branch is None
+                ):
+                    break
+                try:
+                    if candidate_assist_branch == cfg.git_control_branch:
+                        raise git.FeaturePublicationError(
+                            f"recorded assist branch {candidate_assist_branch!r} "
+                            "has the same name as the configured control branch; "
+                            "strict assist publication requires a distinct branch"
+                        )
+                    pr_head_oid = _verify_recorded_assist_pr_head(
+                        cfg, alignment_ticket, candidate_assist_branch
+                    )
+                    moved, remote_oid = _align_recorded_assist_checkout(
+                        cfg, alignment_ticket
+                    )
+                    if remote_oid != pr_head_oid:
+                        raise git.FeaturePublicationError(
+                            f"configured remote {cfg.git_remote!r} branch "
+                            f"{candidate_assist_branch!r} is at {remote_oid}, but "
+                            f"the recorded PR head is {pr_head_oid}"
+                        )
+                except git.GitError as exc:
+                    setup_bail(
+                        f"Cannot launch {ref.id_slug}: could not verify and align "
+                        f"the recorded assist checkout before composing the "
+                        f"prompt: {exc}"
+                    )
+                if not moved:
+                    _, alignment_blackboard = split_body(alignment_ticket.body)
+                    aligned_assist_branch = candidate_assist_branch
+                    aligned_assist_remote_oid = remote_oid
+                    aligned_assist_pr_url = parse_pr_url(
+                        alignment_blackboard or ""
+                    )
+                    break
+                try:
+                    cfg = load_config(cfg.repo_root)
+                    ref = resolve_target(cfg, resolved_target_slug)
+                    if ref.id_slug != resolved_target_slug:
+                        raise TaskNotFoundError(
+                            f"Selected task {resolved_target_slug!r} disappeared "
+                            "during assist alignment; refusing to launch the "
+                            f"different prefix match {ref.id_slug!r}."
+                        )
+                except (ConfigError, TaskNotFoundError) as exc:
+                    setup_bail(str(exc))
+                is_bootstrap = isinstance(ref, BootstrapRef)
+            else:
+                setup_bail(
+                    f"Cannot launch {ref.id_slug}: the recorded assist branch "
+                    f"moved during {_ASSIST_ALIGNMENT_ATTEMPTS} consecutive "
+                    "alignment attempts; retry once the PR branch is stable."
+                )
+        except BaseException as exc:
+            if not assist_setup_started:
+                raise
+            if (
+                isinstance(exc, SystemExit)
+                and exc.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+            ):
+                raise
+            detail = str(exc).strip() or type(exc).__name__
+            typer.secho(
+                f"Cannot launch {ref.id_slug}: assist alignment/setup failed "
+                f"after the recorded checkout was selected ({detail}). "
+                "Retained state was left for an explicit retry.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
+
+    # Alignment may fast-forward coga.toml itself. Resolve an explicit override
+    # only after that final tree is authoritative for the launch.
     if agent_override is not None:
         try:
-            cfg.agent_type(agent_override)
+            post_alignment_setup_call(
+                lambda: cfg.agent_type(agent_override)
+            )
         except ConfigError as exc:
-            _bail(str(exc))
+            setup_bail(str(exc))
+
+    post_alignment_setup_call(
+        lambda: _refresh_agent_skills_for_launch(cfg.repo_root)
+    )
 
     def _read(target: TaskRef | BootstrapRef) -> Ticket:
         """Read the ticket, applying the ephemeral `--agent` override."""
@@ -192,12 +380,14 @@ def launch(
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
         return
 
-    ticket = _read(ref)
+    ticket = post_alignment_setup_call(lambda: _read(ref))
 
-    typer.echo(
-        f"Launch: task {ref.id_slug} "
-        f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
-        f"assignee={ticket.assignee or 'unassigned'})",
+    post_alignment_setup_call(
+        lambda: typer.echo(
+            f"Launch: task {ref.id_slug} "
+            f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
+            f"assignee={ticket.assignee or 'unassigned'})",
+        )
     )
 
     # A terminal ticket is closed: launching it must not restart its frozen
@@ -211,7 +401,7 @@ def launch(
         and isinstance(ref, TaskRef)
         and ticket.status in TERMINAL_STATUSES
     ):
-        _bail(
+        setup_bail(
             f"Cannot launch {ref.id_slug}: it is {ticket.status}, a terminal "
             "status; nothing to launch. Launch a different ticket."
         )
@@ -229,21 +419,26 @@ def launch(
     # skipped-unresolved-blocker, and an explicit pick runs the same
     # activate-and-resume through the engine's own launch loop.
     if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "blocked":
-        if _interactive_stdio_has_tty():
-            if not open_blockers(ref.ticket_path):
-                _bail(
+        if post_alignment_setup_call(_interactive_stdio_has_tty):
+            if not post_alignment_setup_call(
+                lambda: open_blockers(ref.ticket_path)
+            ):
+                setup_bail(
                     f"Cannot launch {ref.id_slug}: it is blocked but has no "
                     "open blocker asks to resolve. Record a blocker with "
                     f"`coga block --task {ref.id_slug} --reason \"...\"` or "
                     "repair the task state before launching."
                 )
             blocked_resume = True
-            typer.echo(
-                f"Launch: {ref.id_slug} is blocked — resuming interactively; "
-                "the session's first job is to resolve or re-block the open asks."
+            post_alignment_setup_call(
+                lambda: typer.echo(
+                    f"Launch: {ref.id_slug} is blocked — resuming "
+                    "interactively; the session's first job is to resolve or "
+                    "re-block the open asks."
+                )
             )
         else:
-            _bail(
+            setup_bail(
                 f"Cannot launch {ref.id_slug}: it is blocked, and only an "
                 f"interactive launch from a TTY can resume it to resolve the "
                 f"blocker in-session. Run `coga status --blocked` to read the "
@@ -251,11 +446,88 @@ def launch(
                 f"to resume."
             )
 
-    # Refuse human handoffs up front: a human-owned active/in-progress step
-    # should report the handoff directly, before any status mutation.
+    # Refuse unoverridden human handoffs up front: a human-owned
+    # active/in-progress step should report the handoff directly, before any
+    # status mutation. An explicit override is the on-demand assist path.
     if not is_bootstrap and ticket.status not in {"draft", "paused"}:
-        _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
+        post_alignment_setup_call(
+            lambda: _refuse_human_handoff_launch(
+                cfg,
+                ref,
+                ticket,
+                agent_override,
+            )
+        )
 
+    assignee = ticket.assignee
+    if not assignee:
+        setup_bail(f"Task {ref.id_slug} has no assignee")
+    human_assist = (
+        not is_bootstrap
+        and agent_override is not None
+        and assignee not in cfg.agents
+    )
+    single_checkout_assist_branch = (
+        post_alignment_setup_call(
+            lambda: _recorded_single_checkout_assist_branch(cfg, ticket)
+        )
+        if human_assist and isinstance(ref, TaskRef)
+        else None
+    )
+    if aligned_assist_branch is not None and (
+        single_checkout_assist_branch != aligned_assist_branch
+        or aligned_assist_remote_oid is None
+        or aligned_assist_pr_url is None
+    ):
+        setup_bail(
+            f"Cannot launch {ref.id_slug}: the recorded assist checkout, "
+            "branch, or PR changed after alignment; retry from the recorded "
+            "checkout once the PR is stable."
+        )
+    if single_checkout_assist_branch is not None:
+        try:
+            current_pr_head_oid = post_alignment_setup_call(
+                lambda: _verify_recorded_assist_pr_head(
+                    cfg,
+                    ticket,
+                    single_checkout_assist_branch,
+                    expected_pr_url=aligned_assist_pr_url,
+                )
+            )
+        except git.FeaturePublicationError as exc:
+            setup_bail(f"Cannot launch {ref.id_slug}: {exc}")
+        if current_pr_head_oid != aligned_assist_remote_oid:
+            setup_bail(
+                f"Cannot launch {ref.id_slug}: recorded PR head moved from "
+                f"{aligned_assist_remote_oid} to {current_pr_head_oid} after "
+                "checkout alignment; retry once the PR branch is stable."
+            )
+    assist_publication = (
+        post_alignment_setup_call(
+            lambda: git.FeaturePublicationLease(
+                branch=single_checkout_assist_branch,
+                local_oid=aligned_assist_remote_oid,
+                remote_oid=aligned_assist_remote_oid,
+            )
+        )
+        if single_checkout_assist_branch is not None
+        and aligned_assist_remote_oid is not None
+        else None
+    )
+    assist_pr_guard = (
+        post_alignment_setup_call(
+            lambda: _assist_pr_publication_guard(
+                cfg,
+                ref,
+                single_checkout_assist_branch,
+                expected_pr_url=aligned_assist_pr_url,
+            )
+        )
+        if isinstance(ref, TaskRef)
+        and single_checkout_assist_branch is not None
+        and aligned_assist_pr_url is not None
+        else None
+    )
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
         # is brought to `active` inline rather than refused with a "run
@@ -266,24 +538,21 @@ def launch(
             not is_bootstrap
             and isinstance(ref, TaskRef)
             and ticket.status in {"draft", "paused"}
+            and assist_publication is None
         ):
             _auto_activate(cfg, ref, ticket)
-
-        assignee = ticket.assignee
-        if not assignee:
-            _bail(f"Task {ref.id_slug} has no assignee")
 
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
         if not _interactive_stdio_has_tty():
-            _bail(
-                f"Cannot launch {ref.id_slug!r}: an agent launch requires a TTY "
-                "(stdin and stdout must both be terminals). Run from a real "
-                "shell. Use a registered `coga run` recipe for deterministic "
-                "unattended work."
-            )
+            _refuse_tty_launch(ref)
 
         launch_assignee = agent_override or assignee
+        if human_assist:
+            typer.echo(
+                f"Launch: agent {agent_override} assisting on human-owned step "
+                f"(assignee={assignee}; ticket assignment unchanged)"
+            )
 
         # Resolve the agent type — the ticket's assignee names it directly.
         try:
@@ -324,6 +593,18 @@ def launch(
         except SecretError as exc:
             _bail(str(exc))
 
+        # Strict assist state is published before its start notification. Catch
+        # reproducible notification configuration errors while both branches
+        # and the working tree still hold the pre-launch lifecycle state.
+        if assist_publication is not None and ticket.status != "in_progress":
+            try:
+                preflight_post(cfg)
+            except typer.Exit:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: notification configuration "
+                    "must be valid before assist lifecycle state is published."
+                )
+
         # Refuse to start an agent session when git push access is broken. Coga
         # drives the whole session through git/gh (branch push, `gh pr create`,
         # every `coga bump` syncs ticket state), so a dead remote means an
@@ -340,10 +621,56 @@ def launch(
         # Warn-only, and a silent no-op outside a coga source checkout.
         warn_if_installed_predates_source(cfg.repo_root)
 
-        if blocked_resume and isinstance(ref, TaskRef) and ticket.status == "blocked":
-            _auto_activate(cfg, ref, ticket)
+        if assist_publication is not None:
+            try:
+                current_pr_head_oid = _verify_recorded_assist_pr_head(
+                    cfg,
+                    ticket,
+                    assist_publication.branch,
+                    expected_pr_url=aligned_assist_pr_url,
+                )
+            except git.FeaturePublicationError as exc:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: the recorded PR could not be "
+                    f"re-verified before lifecycle publication. No agent was "
+                    f"started: {exc}"
+                )
+            if current_pr_head_oid != assist_publication.remote_oid:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: the recorded PR head moved "
+                    "during launch preflight; retry so the prompt and lifecycle "
+                    "state use the same tip. No agent was started."
+                )
+            try:
+                fresh_publication = git.feature_publication_lease(
+                    cfg,
+                    ref.path,
+                    assist_publication.branch,
+                )
+            except git.FeaturePublicationError as exc:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: the recorded assist state "
+                    "no longer matches the PR and control branches. No agent "
+                    f"was started: {exc}"
+                )
+            if fresh_publication.remote_oid != current_pr_head_oid:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: the recorded PR branch moved "
+                    "while its control state was being verified. Retry so the "
+                    "prompt and lifecycle state use one exact tip. No agent "
+                    "was started."
+                )
+            assist_publication = fresh_publication
 
-        if isinstance(ref, TaskRef) and ticket.status == "active":
+        if blocked_resume and isinstance(ref, TaskRef) and ticket.status == "blocked":
+            if assist_publication is None:
+                _auto_activate(cfg, ref, ticket)
+
+        if (
+            isinstance(ref, TaskRef)
+            and ticket.status == "active"
+            and assist_publication is None
+        ):
             try:
                 mark_in_progress(
                     cfg,
@@ -356,6 +683,11 @@ def launch(
                         f"\"{ticket.title}\" (assignee: {launch_assignee})"
                     ),
                     echo=f"{ref.id_slug}: in_progress",
+                )
+            except git.FeaturePublicationError as exc:
+                _bail(
+                    "The recorded PR branch moved before lifecycle state could "
+                    f"be published. No agent was started: {exc}"
                 )
             except TaskValidationError as exc:
                 _bail(str(exc))
@@ -380,13 +712,30 @@ def launch(
 
         signal.signal(signal.SIGINT, _on_signal)
         signal.signal(signal.SIGTERM, _on_signal)
-    except BaseException:
-        # Setup can exit after state was already published (the auto-activate
-        # or in_progress flip), so pull that state back into the launch
-        # checkout before surfacing the exit.
+    except SystemExit as exc:
+        if (
+            assist_setup_started
+            and exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+        ):
+            raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
+        if not assist_setup_started:
+            _refresh_launch_checkout(cfg)
+        raise
+    except BaseException as exc:
+        if assist_setup_started:
+            detail = str(exc).strip() or type(exc).__name__
+            typer.secho(
+                f"Cannot launch {ref.id_slug}: assist setup failed before the "
+                f"session started ({detail}). Retained state was left for an "
+                "explicit retry.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
         _refresh_launch_checkout(cfg)
         raise
 
+    suppress_assist_refresh = False
     try:
         first_step = True
         while True:
@@ -395,9 +744,17 @@ def launch(
             # Resolve the agent for THIS step from the ticket's current
             # assignee, so the supervisor can rotate claude <-> codex across
             # the workflow. The `--agent` override applies only to the first
-            # step; chained steps follow the ticket. A step whose assignee is
-            # a human never reaches here — `_harness_stop_reason` returns
-            # control to the caller before we'd relaunch.
+            # step; chained steps follow the ticket. A human-owned first step
+            # reaches here only through that explicit assist. Later human
+            # handoffs stop in `_harness_stop_reason` before a relaunch.
+            assist_session = (
+                first_step
+                and human_assist
+                and ticket.assignee not in cfg.agents
+            )
+            publish_assist_branch = (
+                single_checkout_assist_branch if assist_session else None
+            )
             step_assignee = (
                 (agent_override or ticket.assignee) if first_step else ticket.assignee
             )
@@ -430,15 +787,43 @@ def launch(
             )
 
             _echo_launch_iteration(ref, ticket)
+            spawn_ticket = ticket
+            before_spawn: Callable[[], None] | None = None
+            if publish_assist_branch is not None:
+                if not isinstance(ref, TaskRef) or assist_pr_guard is None:
+                    _bail(
+                        f"Cannot start {ref.id_slug}'s assist: its recorded "
+                        "publication guard is unavailable."
+                    )
+                try:
+                    spawn_ticket = _prospective_assist_ticket(cfg, ref, ticket)
+                except ComposeError as exc:
+                    _bail(str(exc))
+                expected_ticket_bytes = ref.ticket_path.read_bytes()
+
+                def publish_lifecycle(
+                    expected_bytes: bytes = expected_ticket_bytes,
+                ) -> None:
+                    _publish_assist_lifecycle_before_spawn(
+                        cfg,
+                        ref,
+                        expected=ticket,
+                        expected_bytes=expected_bytes,
+                        branch=publish_assist_branch,
+                        launch_assignee=step_assignee or launch_assignee,
+                        publication_guard=assist_pr_guard,
+                    )
+
+                before_spawn = publish_lifecycle
             step_env = dict(env)
             step_env[EXPECTED_TASK_ENV] = str(ref.path.resolve())
-            step_env[EXPECTED_STEP_ENV] = ticket.step or ""
+            step_env[EXPECTED_STEP_ENV] = spawn_ticket.step or ""
 
             try:
                 session = spawn_agent_session(
                     cfg,
                     ref,
-                    ticket,
+                    spawn_ticket,
                     agent,
                     env=step_env,
                     actor=f"human:{cfg.current_user}",
@@ -458,7 +843,43 @@ def launch(
                     max_session=max_session,
                     label="Launch",
                     warn_blackboard=True,
-                    commit_log=is_bootstrap,
+                    # A proven recorded single-checkout assist runs on the PR
+                    # branch itself. Commit the launch audit line before
+                    # spawning so the clean-tree gate does not trip on Coga's
+                    # own log.
+                    commit_log=is_bootstrap or bool(publish_assist_branch),
+                    # Publish generated assist state only from the recorded
+                    # branch and an aligned configured remote.
+                    publish_aligned_branch=publish_assist_branch,
+                    assist_agent=(
+                        (step_assignee or launch_assignee)
+                        if publish_assist_branch is not None
+                        else None
+                    ),
+                    feature_publication_guard=assist_pr_guard,
+                    before_spawn=before_spawn,
+                )
+            except _AssistPublicationRefused as exc:
+                suppress_assist_refresh = True
+                if exc.post_session and blocked_resume:
+                    blocked_resume = False
+                    try:
+                        _reblock_unresolved_resume(
+                            cfg,
+                            ref,
+                            step_assignee or launch_assignee,
+                            feature_branch=publish_assist_branch,
+                            feature_publication_guard=assist_pr_guard,
+                        )
+                    except _AssistPublicationRefused as reblock_exc:
+                        _bail(
+                            f"{exc} Automatic unresolved re-block also "
+                            f"refused: {reblock_exc}",
+                            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+                        )
+                _bail(
+                    str(exc),
+                    exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
                 )
             except ComposeError as exc:
                 _bail(str(exc))
@@ -469,8 +890,21 @@ def launch(
 
             typer.echo(f"Launch: agent exited with code {session.exit_code}")
             if blocked_resume:
-                _reblock_unresolved_resume(cfg, ref, step_assignee or launch_assignee)
                 blocked_resume = False
+                try:
+                    _reblock_unresolved_resume(
+                        cfg,
+                        ref,
+                        step_assignee or launch_assignee,
+                        feature_branch=publish_assist_branch,
+                        feature_publication_guard=assist_pr_guard,
+                    )
+                except _AssistPublicationRefused as exc:
+                    suppress_assist_refresh = True
+                    _bail(
+                        str(exc),
+                        exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+                    )
             if session.termination_kind == "timeout":
                 # A liveness limit (idle / max-session) tore the REPL down — the
                 # agent never signalled done. Don't chain to the next step.
@@ -524,19 +958,343 @@ def launch(
             if stop_reason is not None:
                 typer.echo(stop_reason)
                 break
+    except BaseException as exc:
+        if assist_setup_started:
+            suppress_assist_refresh = True
+            if blocked_resume:
+                blocked_resume = False
+                try:
+                    _reblock_unresolved_resume(
+                        cfg,
+                        ref,
+                        agent_override or launch_assignee,
+                        feature_branch=single_checkout_assist_branch,
+                        feature_publication_guard=assist_pr_guard,
+                    )
+                except BaseException as reblock_exc:
+                    detail = (
+                        str(reblock_exc).strip()
+                        or type(reblock_exc).__name__
+                    )
+                    typer.secho(
+                        f"Cannot continue {ref.id_slug}'s aligned assist and "
+                        "could not restore its unresolved blocked state "
+                        f"({detail}). Retained state was left for an explicit "
+                        "retry.",
+                        fg=typer.colors.RED,
+                        err=True,
+                    )
+                    raise SystemExit(
+                        git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                    ) from reblock_exc
+            if (
+                isinstance(exc, SystemExit)
+                and exc.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+            ):
+                raise
+            detail = str(exc).strip() or type(exc).__name__
+            typer.secho(
+                f"Cannot continue {ref.id_slug}'s aligned assist "
+                f"({detail}). Retained state was left for an explicit retry.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
+        raise
     finally:
         # On every exit path — clean chain completion, `sys.exit` on a
         # non-zero/timeout agent, or an exception — pull the run's published
         # state back into the checkout the operator launched from, so the
         # `coga status` they run next in this terminal shows the world the
         # run just created.
-        _refresh_launch_checkout(cfg)
+        if not suppress_assist_refresh:
+            try:
+                refreshed = _refresh_launch_checkout(
+                    cfg,
+                    expected_assist_branch=single_checkout_assist_branch,
+                    feature_publication_guard=assist_pr_guard,
+                )
+            except BaseException as exc:
+                if single_checkout_assist_branch is None:
+                    raise
+                detail = str(exc).strip() or type(exc).__name__
+                typer.secho(
+                    "The recorded PR branch refresh was interrupted or failed "
+                    f"during assist teardown ({detail}). Generated state was "
+                    "left for an explicit retry and the catch-all sweep has "
+                    "been suppressed.",
+                    fg=typer.colors.RED,
+                    err=True,
+                )
+                raise SystemExit(
+                    git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+                ) from exc
+            if single_checkout_assist_branch is not None and not refreshed:
+                _bail(
+                    "The recorded PR branch could not be safely refreshed "
+                    "during assist teardown. Generated state remains dirty "
+                    "for an explicit retry and the catch-all sweep has been "
+                    "suppressed.",
+                    exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+                )
 
 
 # --- helpers ------------------------------------------------------------------
 
 
-def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+def _prospective_assist_ticket(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+) -> Ticket:
+    """Return the lifecycle view composed for a child that has not started yet."""
+    prospective = Ticket(
+        frontmatter=dict(ticket.frontmatter),
+        body=ticket.body,
+    )
+    if prospective.status in {"draft", "paused", "blocked"}:
+        try:
+            prepare_active(cfg, ref, prospective)
+        except WorkflowMissing as exc:
+            raise ComposeError(
+                f"Cannot launch {ref.id_slug}: it is {ticket.status!r} and has "
+                "no workflow, so there is nothing to activate or advance."
+            ) from exc
+        except WorkflowError as exc:
+            raise ComposeError(
+                f"Cannot launch {ref.id_slug}: its `workflow:` ref could not "
+                f"be frozen — {exc}"
+            ) from exc
+        except RequiredExtensionMissing as exc:
+            names = ", ".join(repr(field) for field in exc.fields)
+            raise ComposeError(
+                f"Cannot launch {ref.id_slug}: required extension field(s) "
+                f"empty: {names}."
+            ) from exc
+        except BlackboardNeedsSynthesis as exc:
+            raise ComposeError(
+                format_blackboard_synthesis_refusal(
+                    ref.id_slug,
+                    action="launch",
+                    reason=exc.reason,
+                )
+            ) from exc
+    if prospective.status == "active":
+        prospective.frontmatter["status"] = "in_progress"
+    if prospective.status != "in_progress":
+        raise ComposeError(
+            f"Cannot launch {ref.id_slug}: assist lifecycle changed to "
+            f"{prospective.status!r} before spawn."
+        )
+    return prospective
+
+
+def _publish_assist_lifecycle_before_spawn(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    expected: Ticket,
+    expected_bytes: bytes | None = None,
+    branch: str,
+    launch_assignee: str,
+    publication_guard: Callable[[str], None],
+) -> None:
+    """Publish lifecycle state at the last boundary before the child process."""
+    initial_bytes = ref.ticket_path.read_bytes()
+    if expected_bytes is not None and initial_bytes != expected_bytes:
+        raise _AssistPublicationRefused(
+            "The ticket bytes changed after assist composition. No agent was "
+            "started; retry so the prompt and lifecycle state come from the "
+            "same ticket revision."
+        )
+    try:
+        current = Ticket.parse(initial_bytes.decode("utf-8"))
+    except (UnicodeError, TicketError) as exc:
+        raise _AssistPublicationRefused(
+            "The exact ticket revision captured after assist composition "
+            f"could not be parsed. No agent was started: {exc}"
+        ) from exc
+    if current.render() != expected.render():
+        raise _AssistPublicationRefused(
+            "The ticket changed after assist composition. No agent was "
+            "started; retry so the prompt and lifecycle state come from the "
+            "same ticket revision."
+        )
+    snapshot = _snapshot_assist_state(
+        cfg,
+        ref,
+        ticket_bytes=initial_bytes,
+    )
+    try:
+        publication = git.feature_publication_lease(cfg, ref.path, branch)
+        publication_guard(publication.remote_oid)
+    except git.FeaturePublicationError as exc:
+        raise _AssistPublicationRefused(
+            "The recorded PR or control state changed after assist "
+            f"composition. No agent was started: {exc}"
+        ) from exc
+
+    # Lease and PR verification can perform network I/O. A peer edit during
+    # that window must not be replaced by the stale Ticket object read above.
+    if ref.ticket_path.read_bytes() != initial_bytes:
+        raise _AssistPublicationRefused(
+            "The ticket changed while the final assist publication lease was "
+            "being acquired. No agent was started; retry from the new bytes."
+        )
+
+    if current.status == "in_progress":
+        return
+
+    lifecycle_published = False
+
+    def record_publication() -> None:
+        nonlocal lifecycle_published
+        lifecycle_published = True
+
+    try:
+        if current.status in {"draft", "paused", "blocked"}:
+            mark_active(
+                cfg,
+                ref,
+                current,
+                actor=f"human:{cfg.current_user}",
+                log_message=(
+                    f"activated ({current.status} → active) — auto on launch"
+                ),
+                echo=f"{ref.id_slug}: active — auto on launch",
+                sync_state=False,
+                mutation_snapshot=snapshot,
+            )
+        if current.status != "active":
+            raise git.FeaturePublicationError(
+                f"assist lifecycle changed to {current.status!r} before spawn"
+            )
+        mark_in_progress(
+            cfg,
+            ref,
+            current,
+            actor=f"human:{cfg.current_user}",
+            log_message="started (active → in_progress) via coga launch",
+            slack_text=(
+                f"▶️ {cfg.current_user} started *{ref.id_slug}* "
+                f"\"{current.title}\" (assignee: {launch_assignee})"
+            ),
+            echo=f"{ref.id_slug}: in_progress",
+            feature_publication=publication,
+            feature_publication_guard=publication_guard,
+            mutation_snapshot=snapshot,
+            after_sync=record_publication,
+        )
+        _revalidate_published_assist_before_spawn(
+            cfg,
+            ref,
+            branch=branch,
+            publication=publication,
+            publication_guard=publication_guard,
+        )
+    except BaseException as exc:
+        if lifecycle_published:
+            raise _AssistPublicationRefused(
+                "The assist lifecycle reached the feature and control "
+                "branches, but launch was interrupted before the agent "
+                "started. The published in_progress state was retained "
+                "consistently; retry the same launch to start the agent.",
+                post_session=True,
+            ) from exc
+        if isinstance(exc, git.UncertainFeaturePublicationError):
+            raise _AssistPublicationRefused(
+                "The assist lifecycle reached the recorded feature branch, "
+                "but control publication could not be determined. Generated "
+                "state was retained for explicit reconciliation; no agent was "
+                f"started: {exc}"
+            ) from exc
+        rollback_note = _restore_assist_state(snapshot)
+        if isinstance(
+            exc,
+            (
+                BlackboardNeedsSynthesis,
+                RequiredExtensionMissing,
+                TaskValidationError,
+                WorkflowError,
+                WorkflowMissing,
+                git.FeaturePublicationError,
+            ),
+        ):
+            raise _AssistPublicationRefused(
+                "The assist lifecycle could not be published at the final "
+                f"spawn gate. No agent was started: {exc}{rollback_note}"
+            ) from exc
+        raise
+
+
+def _revalidate_published_assist_before_spawn(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    branch: str,
+    publication: git.FeaturePublicationLease,
+    publication_guard: Callable[[str], None],
+) -> None:
+    """Re-prove the generated branch/control pair immediately before spawn."""
+    try:
+        published = git.feature_publication_lease(cfg, ref.path, branch)
+        if (
+            publication.push_url is not None
+            and published.push_url != publication.push_url
+        ):
+            raise git.FeaturePublicationError(
+                "the configured assist push destination changed during "
+                "lifecycle publication"
+            )
+        publication_guard(published.remote_oid)
+    except git.FeaturePublicationError as exc:
+        raise _AssistPublicationRefused(
+            "The generated assist lifecycle could not be re-verified on the "
+            "recorded checkout, PR branch, and control branch immediately "
+            f"before spawn: {exc}"
+        ) from exc
+
+
+def _snapshot_assist_state(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    ticket_bytes: bytes | None = None,
+) -> git.FileMutationRollback:
+    """Capture the two files launch may mutate before a child actually starts."""
+    log_file = log_path(cfg)
+    return git.FileMutationRollback(
+        originals={
+            ref.ticket_path: (
+                ticket_bytes
+                if ticket_bytes is not None
+                else (
+                    ref.ticket_path.read_bytes()
+                    if ref.ticket_path.is_file()
+                    else None
+                )
+            ),
+            log_file: log_file.read_bytes() if log_file.is_file() else None,
+        },
+        union_paths=frozenset((log_file,)),
+    )
+
+
+def _restore_assist_state(snapshot: git.FileMutationRollback) -> str:
+    """Conditionally restore refused assist state; report retained peer edits."""
+    refused = snapshot.restore()
+    if not refused:
+        return ""
+    names = ", ".join(str(path) for path in refused)
+    return (
+        "; concurrent edits were retained instead of being overwritten at "
+        f"{names}"
+    )
+
+
+def _auto_activate(
+    cfg: Config, ref: TaskRef, ticket: Ticket, *, sync_state: bool = True
+) -> None:
     """Bring a draft / paused / resumable blocked ticket to `active` inline.
 
     `coga launch` used to refuse any status but `active`/`in_progress` and
@@ -563,6 +1321,7 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
             actor=f"human:{cfg.current_user}",
             log_message=f"activated ({prior} → active){suffix}",
             echo=f"{ref.id_slug}: active{suffix}",
+            sync_state=sync_state,
         )
     except WorkflowMissing:
         _bail(
@@ -593,7 +1352,12 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
 
 
 def _reblock_unresolved_resume(
-    cfg: Config, ref: TaskRef | BootstrapRef, blocker: str | None
+    cfg: Config,
+    ref: TaskRef | BootstrapRef,
+    blocker: str | None,
+    *,
+    feature_branch: str | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
 ) -> None:
     """Return an unresolved blocked-ticket resume to the blocked queue.
 
@@ -604,15 +1368,57 @@ def _reblock_unresolved_resume(
     """
     if not isinstance(ref, TaskRef) or not ref.ticket_path.exists():
         return
-    blockers = open_blockers(ref.ticket_path)
+    # The automatic reblock's Ticket object and rollback baseline must predate
+    # its network lease. Parse both lifecycle and blockers from that one exact
+    # revision so a peer edit during lease acquisition is rejected by
+    # ``mark_blocked`` rather than adopted or overwritten.
+    rollback = (
+        _snapshot_assist_state(cfg, ref)
+        if feature_branch is not None
+        else None
+    )
+    if rollback is not None:
+        ticket_bytes = rollback.originals[ref.ticket_path]
+        assert ticket_bytes is not None
+        ticket = Ticket.parse(ticket_bytes.decode("utf-8"))
+        _, blackboard = split_body(ticket.body)
+        blockers = [
+            blocker
+            for blocker in parse_blockers_text(blackboard or "")
+            if not blocker.resolved
+        ]
+    else:
+        blockers = open_blockers(ref.ticket_path)
+        ticket = read_ticket(ref)
     if not blockers:
         return
-    ticket = read_ticket(ref)
     if ticket.status != "in_progress":
         return
 
     owner = ticket.owner or cfg.current_user
     detail = "; ".join(b.reason for b in blockers)
+    feature_publication = None
+    if feature_branch is not None:
+        try:
+            feature_publication = git.feature_publication_lease(
+                cfg,
+                ref.path,
+                feature_branch,
+                allow_append_only_log=True,
+            )
+        except git.FeaturePublicationError as exc:
+            raise _AssistPublicationRefused(
+                f"Could not return {ref.id_slug} to blocked on the recorded "
+                f"assist branch after the unresolved session: {exc}"
+            ) from exc
+    if feature_publication is None:
+        rollback = None
+    publication_succeeded = False
+
+    def record_publication() -> None:
+        nonlocal publication_succeeded
+        publication_succeeded = True
+
     try:
         mark_blocked(
             cfg,
@@ -630,9 +1436,59 @@ def _reblock_unresolved_resume(
                 f"{ref.id_slug}: blocked (unresolved blocker still open; "
                 f"owner {owner} needs to answer)"
             ),
+            feature_publication=feature_publication,
+            feature_publication_guard=feature_publication_guard,
+            mutation_snapshot=rollback,
+            after_sync=record_publication if rollback is not None else None,
         )
+    except git.FeaturePublicationError as exc:
+        rollback_note = ""
+        if (
+            publication_succeeded
+            or isinstance(exc, git.UncertainFeaturePublicationError)
+        ):
+            rollback_note = (
+                "; generated state was retained because publication succeeded "
+                "or could not be determined"
+            )
+        elif rollback is not None:
+            rollback_note = _restore_assist_state(rollback)
+        message = (
+            f"Could not publish {ref.id_slug}'s unresolved blocked state to "
+            f"the recorded assist branch: {exc}{rollback_note}"
+        )
+        if feature_branch is not None:
+            raise _AssistPublicationRefused(
+                message,
+                post_session=True,
+            ) from exc
+        _bail(message)
     except TaskValidationError as exc:
-        _bail(str(exc))
+        rollback_note = ""
+        if rollback is not None:
+            rollback_note = _restore_assist_state(rollback)
+        if feature_branch is not None:
+            raise _AssistPublicationRefused(
+                f"{exc}{rollback_note}",
+                post_session=True,
+            ) from exc
+        _bail(f"{exc}{rollback_note}")
+    except BaseException as exc:
+        if rollback is None:
+            raise
+        if publication_succeeded:
+            rollback_note = (
+                "; generated state was retained because feature and control "
+                "publication already succeeded"
+            )
+        else:
+            rollback_note = _restore_assist_state(rollback)
+        detail = str(exc).strip() or type(exc).__name__
+        raise _AssistPublicationRefused(
+            f"Could not complete {ref.id_slug}'s automatic unresolved re-block "
+            f"after {type(exc).__name__}: {detail}{rollback_note}",
+            post_session=True,
+        ) from exc
 
 
 def _preflight_push_auth(
@@ -669,18 +1525,186 @@ def _preflight_push_auth(
         )
 
 
-def _refresh_launch_checkout(cfg: Config) -> None:
+def _refresh_launch_checkout(
+    cfg: Config,
+    *,
+    expected_assist_branch: str | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
+) -> bool:
     """Pull the control branch's task state back into the launch checkout.
 
     Runs once on every exit path the supervisor sees, so the operator's
-    checkout never stays stale until a manual pull. Non-fatal by
-    construction: `refresh_coga_state_from_control` surfaces git failures on
-    stderr + the log and never raises, so a refresh miss cannot mask the
-    launch's real outcome.
+    checkout never stays stale until a manual pull. The git layer reports
+    failures on stderr + the log and returns a safety result. Ordinary launches
+    keep that advisory; a recorded assist treats False as a no-sweep retry so a
+    retained audit/refresh write cannot be committed by the CLI catch-all. A
+    proven recorded single-checkout assist also asks the refresh layer to keep
+    generated state aligned with the feature remote, pinned to the branch the
+    session started on. If the agent changed branches, teardown leaves that
+    checkout alone. Unproven checkouts retain ordinary local-only behavior.
     """
-    git.refresh_coga_state_from_control(
-        cfg, message="Refresh coga state after launch"
+    return git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh coga state after launch",
+        publish_if_remote_aligned=expected_assist_branch is not None,
+        expected_feature_branch=expected_assist_branch,
+        feature_publication_guard=feature_publication_guard,
     )
+
+
+def _recorded_single_checkout_assist_branch(
+    cfg: Config, ticket: Ticket
+) -> str | None:
+    """The recorded PR branch when launch runs in its exact recorded checkout.
+
+    Human ownership plus an explicit override authorizes the assist, but it
+    does not prove that the checkout running `coga launch` owns the recorded
+    branch. The current checkout must equal `worktree:`, be on `branch:`, and
+    carry a recorded `pr:` link before launch may even attempt the live PR-head
+    verification that authorizes publication. A different checkout, a missing
+    `## Dev` field, or a different current branch returns None and retains
+    ordinary local-only log handling. Linked worktrees and independent fallback
+    clones are supported when they are themselves the exact recorded checkout.
+    """
+    if not cfg.git_enabled:
+        return None
+    _, blackboard = split_body(ticket.body)
+    branch = parse_branch_name(blackboard or "")
+    worktree = parse_worktree_path(blackboard or "")
+    pr_url = parse_pr_url(blackboard or "")
+    if not branch or not worktree or not pr_url:
+        return None
+    try:
+        root = git._toplevel(cfg.repo_root)
+        matches = bool(
+            root is not None
+            and same_git_checkout(cfg.repo_root, worktree)
+            and git._current_branch(root) == branch
+        )
+        return branch if matches else None
+    except git.GitError:
+        return None
+
+
+def _has_retained_append_only_assist_log(cfg: Config) -> bool:
+    """Whether the sole checkout change is one unstaged audit-log append.
+
+    TTY refusal deliberately precedes recorded-checkout and remote validation,
+    but a prior strict-assist publication failure may have left its audit
+    append dirty for a safe retry. Recognize only that local shape so the
+    refusal can suppress the CLI catch-all sweep without weakening the normal
+    exit-2 contract for clean launches or arbitrary dirt.
+    """
+    if not cfg.git_enabled:
+        return False
+    try:
+        root = git._toplevel(cfg.repo_root)
+        if root is None:
+            return False
+        log_rel = git._relative_worktree_file_to_root(root, log_path(cfg))
+        if set(git._changed_paths_under(root, ".")) != {log_rel}:
+            return False
+        if git._has_staged_changes(root, [log_rel]):
+            return False
+        working_mode = git._regular_worktree_mode(root, log_rel)
+        committed_mode = git._tree_entry_mode(root, "HEAD", log_rel)
+        working = git._working_tree_bytes(root, log_rel)
+        committed = git._tree_bytes(root, "HEAD", log_rel)
+    except (git.GitError, OSError):
+        return False
+    return (
+        working is not None
+        and committed is not None
+        and committed_mode in {"100644", "100755"}
+        and working_mode == committed_mode
+        and len(working) > len(committed)
+        and working.startswith(committed)
+    )
+
+
+def _verify_recorded_assist_pr_head(
+    cfg: Config,
+    ticket: Ticket,
+    branch: str,
+    *,
+    expected_pr_url: str | None = None,
+) -> str:
+    """Compatibility seam around the shared PR-assist verifier."""
+    return pr_assist.verify_recorded_assist_pr_head(
+        cfg,
+        ticket,
+        branch,
+        expected_pr_url=expected_pr_url,
+    )
+
+
+def _assist_pr_publication_guard(
+    cfg: Config,
+    ref: TaskRef,
+    branch: str,
+    *,
+    expected_pr_url: str,
+) -> Callable[[str], None]:
+    """Re-prove an open recorded PR immediately before a generated push."""
+
+    def guard(expected_remote_oid: str) -> None:
+        try:
+            current = read_ticket(ref)
+        except Exception as exc:
+            raise git.FeaturePublicationError(
+                "could not re-read the recorded assist ticket"
+            ) from exc
+        _, blackboard = split_body(current.body)
+        recorded_branch = parse_branch_name(blackboard or "")
+        if recorded_branch != branch:
+            raise git.FeaturePublicationError(
+                f"recorded assist branch changed from {branch!r} to "
+                f"{recorded_branch!r}"
+            )
+        live_pr_oid = _verify_recorded_assist_pr_head(
+            cfg,
+            current,
+            branch,
+            expected_pr_url=expected_pr_url,
+        )
+        if live_pr_oid != expected_remote_oid:
+            raise git.FeaturePublicationError(
+                f"recorded PR head moved from expected {expected_remote_oid} "
+                f"to {live_pr_oid}"
+            )
+
+    return guard
+
+
+def _align_recorded_assist_checkout(
+    cfg: Config, ticket: Ticket
+) -> tuple[bool, str]:
+    """Fast-forward a verified recorded assist checkout before launch derivation.
+
+    Returns whether HEAD moved plus the exact fetched remote OID. A
+    merely-behind checkout with unrelated dirt, a missing remote branch, or an
+    ahead/diverged tip raises instead of composing from stale files. The
+    union-safe audit log is the sole permitted dirty path so a prior interrupted
+    launch can recover on retry without losing its append.
+    """
+    _, blackboard = split_body(ticket.body)
+    branch = parse_branch_name(blackboard or "")
+    root = git._toplevel(cfg.repo_root)
+    if root is None or not branch or not git._remote_configured(root, cfg.git_remote):
+        raise git.GitError("the recorded assist checkout has no configured remote")
+    before = git._run_git(root, "rev-parse", "HEAD").strip()
+    log_rel = git._relative_worktree_file_to_root(root, log_path(cfg))
+    publication = git._prepare_feature_branch_publication(
+        root,
+        cfg.git_remote,
+        branch,
+        preserve_union_rel=log_rel,
+        require_single_push_url=True,
+    )
+    if not publication.aligned or publication.remote_oid is None:
+        raise git.GitError(publication.detail)
+    after = git._run_git(root, "rev-parse", "HEAD").strip()
+    return before != after, publication.remote_oid
 
 
 def _queue_prompt_suffix() -> str:
@@ -839,6 +1863,10 @@ def spawn_agent_session(
     label: str = "Launch",
     warn_blackboard: bool = False,
     commit_log: bool = False,
+    publish_aligned_branch: str | None = None,
+    assist_agent: str | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
+    before_spawn: Callable[[], None] | None = None,
     secrets_are_scoped: bool = True,
     stateless_identity: tuple[str, str] | None = None,
     include_blocker_preamble: bool = True,
@@ -863,16 +1891,26 @@ def spawn_agent_session(
     The launch supervisor loop and step chaining deliberately stay outside.
 
     `commit_log` immediately commits the `log.md` launch append (via
-    `sync_log`) instead of leaving it dirty. Callers set it only when no later
-    sync will carry the log: a stateless bootstrap-ticket launch has no
-    subsequent bump/`sync_paths`, so without this its append blocks the next
-    `git pull` at the checkout gate (the append is committed before the REPL
-    starts, so even an in-session `git pull` is unblocked). `coga ticket`
-    leaves it False because its post-session record is committed by the shared
-    teardown sync. `secrets_are_scoped` is False only when the caller passes an
-    ambient environment instead of `build_launch_env`; that distinction keeps
-    redaction from mistaking an unrelated same-named variable for a configured
-    secret value.
+    `sync_log`) instead of leaving it dirty. Stateless bootstrap launches use
+    it because no later task-state sync will carry the log. An explicit assist
+    on a human-owned step also uses it only after proving the launch checkout is
+    the recorded primary PR worktree on the recorded branch.
+    `publish_aligned_branch` is that assist's narrower publication rule: a
+    merely-behind branch is fast-forwarded while preserving the pending
+    union-log append, then pre-session and teardown log-only commits reach the
+    feature remote only from an aligned tip on the exact recorded branch, so a
+    branch switch or unrelated unpushed work never rides along. `assist_agent`
+    carries the configured agent selected for that ephemeral assist, so
+    in-session blocker attribution does not fall back to the human ticket
+    assignee. `coga ticket`
+    leaves both publication arguments unset because its post-session record is
+    committed by the shared teardown sync. `secrets_are_scoped` is False only
+    when the caller passes an ambient environment instead of
+    `build_launch_env`; that distinction keeps redaction from mistaking an
+    unrelated same-named variable for a configured secret value.
+    ``before_spawn`` runs after prompt, argv, and pre-session audit publication
+    have all succeeded. The human-assist path uses that final boundary to
+    publish lifecycle state immediately before entering the PTY supervisor.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the
@@ -883,6 +1921,26 @@ def spawn_agent_session(
     # bootstrap ticket's absent `COGA_TASK_BLACKBOARD`) cannot survive by
     # inheritance.
     env = apply_task_env(env, cfg, ref)
+    # Never inherit a parent assist capability into a nested ordinary launch.
+    # Re-mint it only for the exact recorded branch/PR this spawn already
+    # proved.
+    env.pop(ASSIST_AGENT_ENV, None)
+    env.pop(ASSIST_BRANCH_ENV, None)
+    env.pop(ASSIST_PR_ENV, None)
+    if publish_aligned_branch is not None:
+        if not assist_agent:
+            raise ComposeError(
+                "recorded assist checkout has no effective launch agent"
+            )
+        _, blackboard = split_body(ticket.body)
+        assist_pr_url = parse_pr_url(blackboard or "")
+        if not assist_pr_url:
+            raise ComposeError(
+                "recorded assist checkout has no `pr:` link under `## Dev`"
+            )
+        env[ASSIST_AGENT_ENV] = assist_agent
+        env[ASSIST_BRANCH_ENV] = publish_aligned_branch
+        env[ASSIST_PR_ENV] = assist_pr_url
 
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
@@ -929,6 +1987,7 @@ def spawn_agent_session(
     usage_window_start = datetime.now(timezone.utc)
     spawn_started = False
     publish_session_log = False
+    assist_log_refusal: str | None = None
     outcome_status: usage_tracking.OutcomeStatus = "unknown"
 
     try:
@@ -948,17 +2007,36 @@ def spawn_agent_session(
 
         append_log(cfg, ref.id_slug, actor, log_message)
         if commit_log:
-            # Commit the launch line now so it never lingers uncommitted in the
-            # working tree. A bootstrap-ticket launch has no later sync to carry
-            # the log, so without this its append blocks the next `git pull` at
-            # the checkout gate (merge=union only saves committed content).
+            # Commit the launch line before spawning. A bootstrap target has no
+            # later task-state sync to carry it; a human-step assist may share
+            # the PR checkout whose clean-tree gate the agent is about to run.
             # Non-fatal on any git failure.
-            git.sync_log(cfg, message=f"Log: {ref.id_slug}")
+            log_synced = git.sync_log(
+                cfg,
+                message=f"Log: {ref.id_slug}",
+                publish_if_remote_aligned=publish_aligned_branch is not None,
+                expected_feature_branch=publish_aligned_branch,
+                # A recorded assist was aligned before ticket/config/prompt
+                # derivation. If its remote moves now, refuse to spawn instead
+                # of fast-forwarding underneath already-composed state.
+                allow_feature_fast_forward=publish_aligned_branch is None,
+                feature_publication_guard=feature_publication_guard,
+            )
+            if publish_aligned_branch is not None and not log_synced:
+                raise _AssistPublicationRefused(
+                    "The recorded PR branch moved or could not be verified "
+                    "after launch composition. No agent was started; retry "
+                    "the launch so its prompt is composed from the new tip. "
+                    "The launch audit append remains dirty and the catch-all "
+                    "state sweep has been suppressed."
+                )
 
         if name and sys.stdout.isatty():
             sys.stdout.write(f"\033]2;{name}\007")
             sys.stdout.flush()
 
+        if before_spawn is not None:
+            before_spawn()
         spawn_started = True
         # Agent CLIs (`claude`, `codex`) don't exit on their own. Run through a
         # PTY watcher so an agent that writes the session-done sentinel after
@@ -1031,15 +2109,33 @@ def spawn_agent_session(
             # this trailing commit there too so the local and PR tips stay in
             # lockstep. Non-fatal.
             if isinstance(cfg, Config):
-                git.sync_log(
+                trailing_log_synced = git.sync_log(
                     cfg,
                     message=f"Log: {session_slug}",
                     publish_current_branch=publish_session_log,
+                    publish_if_remote_aligned=publish_aligned_branch is not None,
+                    expected_feature_branch=publish_aligned_branch,
+                    feature_publication_guard=feature_publication_guard,
                 )
+                if (
+                    publish_aligned_branch is not None
+                    and not trailing_log_synced
+                ):
+                    assist_log_refusal = (
+                        "The recorded PR branch changed or could not publish "
+                        "the trailing assist audit record. The record remains "
+                        "dirty for an explicit retry and the catch-all state "
+                        "sweep has been suppressed."
+                    )
         try:
             prompt_file.unlink()
         except FileNotFoundError:
             pass
+        if assist_log_refusal is not None:
+            raise _AssistPublicationRefused(
+                assist_log_refusal,
+                post_session=True,
+            )
 
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
@@ -1252,13 +2348,11 @@ def _refuse_human_handoff_launch(
         isinstance(ref, BootstrapRef)
         or not assignee
         or assignee in cfg.agents
+        or agent_override is not None
     ):
         return
-    override = (
-        f" with --agent {agent_override!r}" if agent_override is not None else ""
-    )
     _bail(
-        f"Cannot launch {ref.id_slug}{override}: assignee {assignee!r} "
+        f"Cannot launch {ref.id_slug}: assignee {assignee!r} "
         "is not a configured agent type. This is a human handoff; "
         "reassign the task to an agent type before launching an agent."
     )
@@ -1266,6 +2360,20 @@ def _refuse_human_handoff_launch(
 
 def _interactive_stdio_has_tty() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _refuse_tty_launch(
+    ref: TaskRef | BootstrapRef,
+    *,
+    exit_code: int = 2,
+) -> None:
+    _bail(
+        f"Cannot launch {ref.id_slug!r}: an agent launch requires a TTY "
+        "(stdin and stdout must both be terminals). Run from a real "
+        "shell. Use a registered `coga run` recipe for deterministic "
+        "unattended work.",
+        exit_code=exit_code,
+    )
 
 
 def _refresh_agent_skills_for_launch(coga_os: Path) -> None:
@@ -1288,6 +2396,6 @@ def _refresh_agent_skills_for_launch(coga_os: Path) -> None:
         )
 
 
-def _bail(msg: str) -> None:
+def _bail(msg: str, *, exit_code: int = 2) -> None:
     typer.secho(msg, fg=typer.colors.RED, err=True)
-    sys.exit(2)
+    sys.exit(exit_code)

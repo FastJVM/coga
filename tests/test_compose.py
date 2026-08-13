@@ -204,6 +204,51 @@ def test_compose_agent_prompt_attended_ask_and_wait(repo: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    "workflow_name",
+    [
+        "code/with-review",
+        "code/with-self-review",
+        "code/design-then-implement",
+    ],
+)
+def test_bundled_code_review_step_composes_address_pr_comments_skill(
+    repo: Path,
+    workflow_name: str,
+) -> None:
+    (repo / "workflows" / "code" / "with-review.md").unlink(missing_ok=True)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title=f"Assist {workflow_name}",
+        workflow_name=workflow_name,
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    steps = ticket.workflow["steps"]
+    review_index = next(
+        index for index, step in enumerate(steps, start=1)
+        if step["name"] == "review"
+    )
+    review_step = steps[review_index - 1]
+
+    assert review_step["skills"] == ["code/address-pr-comments"]
+
+    ticket.frontmatter["step"] = f"{review_index} (review)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ref.ticket_path)
+    prompt = compose_prompt(cfg, ref, read_ticket(ref))
+
+    assert "Current step: review (skill: code/address-pr-comments)" in prompt
+    assert "Address PR review comments" in prompt
+    assert "Do not run `coga bump`" in prompt
+
+
+@pytest.mark.parametrize(
     ("workflow_name", "step", "heading", "legacy_direction"),
     [
         (

@@ -82,17 +82,22 @@ binding, just `subprocess.run` with `check=False` and explicit error handling.
 from __future__ import annotations
 
 import os
+import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterable
+from collections import Counter
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 from coga.config import Config
+from coga.github_source import redacted_git_source
 from coga.logfile import append_log, ref_tag_for_path
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.paths import log_path, tasks_dir
@@ -103,16 +108,19 @@ from coga.ticket import Ticket, TicketError
 # rebuild + repush, so a small ceiling is plenty under realistic contention
 # (the coga launch auto-chain, manual commands).
 _MAX_SYNC_ATTEMPTS = 5
+_ANY_WORKTREE_BYTES = object()
 
-# Process exit code meaning "refused because the control checkout could not
-# integrate the latest control tip; nothing was mutated". The recurring-scan
-# freshness gate exits with it, and the layers wrapping a launch key off it to
-# skip their post-run git catch-up. On a checkout already known to be diverged
-# those attempts are guaranteed to fail—re-dumping the same conflict—and the
-# end-of-command sweep would stack a new local commit per failed run, deepening
-# the divergence a human must eventually resolve. 75 is BSD's EX_TEMPFAIL
-# ("temporary failure, retry later").
-STALE_CONTROL_EXIT_CODE = 75
+# Process exit code meaning "the command deliberately retained retryable local
+# state; do not run the catch-all end-of-command state sweep". The
+# recurring-scan freshness gate uses it when the control checkout is stale, and
+# a recorded PR assist uses it when a leased log publication is refused. In
+# both cases the ordinary sweep would destroy the refusal's safety property by
+# committing exactly the bytes the narrow publisher intentionally left dirty.
+# 75 is BSD's EX_TEMPFAIL ("temporary failure, retry later").
+RETRY_WITHOUT_SWEEP_EXIT_CODE = 75
+
+# Backward-compatible, domain-specific spelling used by recurring callers.
+STALE_CONTROL_EXIT_CODE = RETRY_WITHOUT_SWEEP_EXIT_CODE
 
 _ROOT_LAYOUT_COGA_PATHS = (
     "coga.toml",
@@ -134,6 +142,8 @@ _STATUS_PROGRESS = {
 }
 
 _StateGuard = Callable[[str], None]
+_FeaturePublicationGuard = Callable[[str], None]
+_URL_IN_DIAGNOSTIC_RE = re.compile(r"https?://[^\s'\"<>]+")
 
 
 class GitError(Exception):
@@ -146,6 +156,172 @@ class GitError(Exception):
 
 class StateRegressionError(GitError):
     """Raised when catch-all Coga-state sync would commit stale task state."""
+
+
+class FeaturePublicationError(GitError):
+    """A strict generated feature-branch publication could not complete safely."""
+
+
+class UncertainFeaturePublicationError(FeaturePublicationError):
+    """A generated feature update landed but its paired outcome is unknown.
+
+    Callers must retain their generated local bytes: rolling them back could
+    create or deepen a split with a remote ref that accepted the update before
+    its acknowledgement or follow-up probe failed.
+    """
+
+
+@dataclass(frozen=True)
+class FeaturePublicationLease:
+    """Exact branch/control state authorizing one generated publication.
+
+    ``control_ticket_state`` is the exact ``(status, step, assignee)`` tuple
+    shared by the verified feature and control tips before the state command
+    mutates its working-tree copy. ``control_task_oid`` pins the complete
+    control-side task object at that same boundary (the ticket blob for a
+    file-form task, or the task tree including attachments for directory form).
+    Strict publication rechecks both against every candidate control tip.
+    Ticket prose may legitimately differ on the PR branch at lease time, but a
+    later control-side edit must force a retry rather than be overlaid.
+    """
+
+    branch: str
+    local_oid: str
+    remote_oid: str
+    push_url: str | None = None
+    control_ticket_state: tuple[str | None, str | None, str | None] | None = None
+    control_task_oid: str | None = None
+
+
+@dataclass
+class FileMutationRollback:
+    """Conditionally undo generated file bytes without erasing peer writes.
+
+    Call ``arm`` with the exact bytes a command constructed after writing its
+    generated ticket/log state and immediately before strict publication.
+    ``restore`` rewinds an ordinary path only while its bytes still equal that
+    generated snapshot. Append-only union paths instead remove just the
+    generated lines, retaining additions a concurrent command made before
+    publication failed.
+    """
+
+    originals: dict[Path, bytes | None]
+    union_paths: frozenset[Path]
+    generated: dict[Path, bytes | None] | None = None
+
+    @classmethod
+    def capture(
+        cls,
+        paths: Iterable[Path],
+        *,
+        union_paths: Iterable[Path] = (),
+    ) -> FileMutationRollback:
+        originals = {
+            path: path.read_bytes() if path.is_file() else None
+            for path in paths
+        }
+        return cls(
+            originals=originals,
+            union_paths=frozenset(union_paths),
+        )
+
+    def arm(self, updates: Mapping[Path, bytes | None]) -> None:
+        """Record exact caller-constructed bytes without resampling live files."""
+        unknown = set(updates) - set(self.originals)
+        if unknown:
+            names = ", ".join(str(path) for path in sorted(unknown, key=str))
+            raise FeaturePublicationError(
+                f"strict mutation snapshot does not cover {names}"
+            )
+        generated = dict(
+            self.generated if self.generated is not None else self.originals
+        )
+        generated.update(updates)
+        self.generated = generated
+
+    def arm_append(self, path: Path, appended: bytes) -> None:
+        """Record one exact append relative to the last owned path revision."""
+        if path not in self.originals:
+            raise FeaturePublicationError(
+                f"strict mutation snapshot does not cover {path}"
+            )
+        source = self.generated if self.generated is not None else self.originals
+        prior = source[path] or b""
+        self.arm({path: prior + appended})
+
+    def require_unchanged(self, path: Path) -> None:
+        """Refuse a strict write when its captured input changed underneath it.
+
+        Before the first generated mutation, ``originals`` is the expected
+        revision. A multi-write state command may arm after an earlier generated
+        edit (for example, appending a blocker before changing ``status``); in
+        that case the latest armed snapshot is the only revision the next write
+        may replace.
+        """
+        expected_by_path = (
+            self.generated if self.generated is not None else self.originals
+        )
+        if path not in expected_by_path:
+            raise FeaturePublicationError(
+                f"strict mutation snapshot does not cover {path}"
+            )
+        expected = expected_by_path[path]
+        current = path.read_bytes() if path.is_file() else None
+        if current != expected:
+            raise FeaturePublicationError(
+                f"strict mutation input changed before writing {path}"
+            )
+
+    def restore(self) -> tuple[Path, ...]:
+        """Undo generated bytes and return ordinary paths changed by a peer."""
+        # Without an armed generated snapshot, current bytes might belong to a
+        # peer that wrote after capture. Refuse every path rather than guessing
+        # that those bytes are ours and erasing concurrent work.
+        if self.generated is None:
+            return tuple(self.originals)
+
+        refused: list[Path] = []
+        for path, prior in self.originals.items():
+            current = path.read_bytes() if path.is_file() else None
+            generated = self.generated[path]
+            if current == prior:
+                # A lower layer may already have restored this exact path
+                # (notably a locally fast-forwarded compensation commit).
+                continue
+            if current == generated:
+                _restore_file_bytes(path, prior)
+                continue
+            if (
+                path in self.union_paths
+                and current is not None
+                and generated is not None
+            ):
+                try:
+                    restored = _remove_generated_union_lines(
+                        current=current,
+                        prior=prior or b"",
+                        generated=generated,
+                        rel=str(path),
+                    )
+                except GitError:
+                    refused.append(path)
+                else:
+                    if prior is None and not restored:
+                        _restore_file_bytes(path, None)
+                    else:
+                        _restore_file_bytes(path, restored)
+                continue
+            refused.append(path)
+        return tuple(refused)
+
+
+def _restore_file_bytes(path: Path, data: bytes | None) -> None:
+    if data is None:
+        if path.is_file():
+            path.unlink()
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
 
 
 def summarize_git_failure(output: str) -> str:
@@ -182,6 +358,19 @@ def summarize_git_failure(output: str) -> str:
     return "; ".join(keep)
 
 
+def _redact_git_command_text(text: str, args: Iterable[str]) -> str:
+    """Remove credential-bearing URL userinfo from Git diagnostics."""
+    safe = text
+    for arg in args:
+        redacted = redacted_git_source(arg)
+        if redacted != arg:
+            safe = safe.replace(arg, redacted)
+    return _URL_IN_DIAGNOSTIC_RE.sub(
+        lambda match: redacted_git_source(match.group(0)),
+        safe,
+    )
+
+
 @dataclass(frozen=True)
 class _TicketState:
     status: str | None
@@ -197,6 +386,13 @@ def sync_task_state(
     message: str,
     guard: _StateGuard | None = None,
     publish_current_branch: bool = False,
+    expected_current_branch: str | None = None,
+    expected_current_branch_oid: str | None = None,
+    expected_remote_branch_oid: str | None = None,
+    feature_publication: FeaturePublicationLease | None = None,
+    feature_publication_guard: _FeaturePublicationGuard | None = None,
+    after_strict_publication: Callable[[], None] | None = None,
+    generated_paths: Mapping[Path, bytes | None] | None = None,
 ) -> None:
     """Commit the task directory's files and push to the control branch.
 
@@ -226,8 +422,34 @@ def sync_task_state(
 
     `guard` is forwarded to `sync_paths`; status-transition callers pass
     `guard_ticket_state` so a stale checkout cannot overlay its ticket onto a
-    newer control tip.
+    newer control tip. `expected_current_branch` pins an explicitly requested
+    feature publication to the branch the caller already verified; switching
+    checkouts between verification and sync fails before any commit or push.
+    `expected_current_branch_oid` proves no unrelated local commit appeared
+    after verification. `expected_remote_branch_oid` leases the remote update,
+    refusing a deleted or rewritten branch instead of restoring it.
+    `feature_publication` supplies all three values as one strict capability:
+    the generated commit is pushed first, by captured OID, and every later
+    publication failure is raised so its caller can restore the pre-transition
+    files. If the control landing fails after the feature push, a leased
+    compensating commit restores the feature branch's prior tree before the
+    error escapes. ``generated_paths`` supplies the state writer's armed
+    byte snapshot; strict commits overlay only those exact leaves on the leased
+    feature tree, so later worktree edits and unchanged attachments cannot be
+    swept into the transaction.
     """
+    if feature_publication is not None:
+        publish_current_branch = True
+        expected_current_branch = feature_publication.branch
+        expected_current_branch_oid = feature_publication.local_oid
+        expected_remote_branch_oid = feature_publication.remote_oid
+        if feature_publication.control_ticket_state is not None:
+            guard = _assist_control_ticket_guard(
+                task_path,
+                feature_publication.control_ticket_state,
+                expected_task_oid=feature_publication.control_task_oid,
+                fallback=guard,
+            )
     sync_paths(
         cfg,
         task_path,
@@ -235,6 +457,18 @@ def sync_task_state(
         message=message,
         guard=guard,
         publish_current_branch=publish_current_branch,
+        expected_current_branch=expected_current_branch,
+        expected_current_branch_oid=expected_current_branch_oid,
+        expected_remote_branch_oid=expected_remote_branch_oid,
+        strict_feature_publication=feature_publication is not None,
+        strict_push_url=(
+            feature_publication.push_url
+            if feature_publication is not None
+            else None
+        ),
+        feature_publication_guard=feature_publication_guard,
+        after_strict_publication=after_strict_publication,
+        generated_paths=generated_paths,
     )
 
 
@@ -297,9 +531,36 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
         return []
 
 
+@dataclass(frozen=True)
+class _FeaturePublicationState:
+    """Safety result for publishing a generated feature-branch commit."""
+
+    aligned: bool
+    may_commit: bool
+    detail: str
+    remote_oid: str | None
+
+
+@dataclass(frozen=True)
+class _RefreshCommit:
+    """Generated refresh paths plus their before/after working-tree bytes."""
+
+    paths: tuple[str, ...]
+    originals: dict[str, bytes | None]
+    generated: dict[str, bytes | None]
+    oid: str
+
+
 def sync_log(
-    cfg: Config, *, message: str, publish_current_branch: bool = False
-) -> None:
+    cfg: Config,
+    *,
+    message: str,
+    publish_current_branch: bool = False,
+    publish_if_remote_aligned: bool = False,
+    allow_feature_fast_forward: bool = True,
+    expected_feature_branch: str | None = None,
+    feature_publication_guard: _FeaturePublicationGuard | None = None,
+) -> bool:
     """Commit the repo-global `log.md` alone, and publish when required.
 
     For the union-safe audit log to survive a `git pull`, its appended lines
@@ -321,33 +582,71 @@ def sync_log(
         cross-branch overlay, which replaces the file wholesale and would drop
         lines another branch appended. A successful artifact-gated handoff may
         set `publish_current_branch` so the final session-usage commit also
-        reaches the already-open PR branch.
+        reaches the already-open PR branch. An explicit human-step assist uses
+        the narrower `publish_if_remote_aligned`: publish the log-only commit
+        only from an aligned live configured remote tip. By default, a
+        merely-behind branch is fast-forwarded first while its one dirty
+        union-log append is preserved; a behind checkout with other dirt is
+        left untouched rather than made divergent. A launch that already
+        aligned before composing may set `allow_feature_fast_forward=False`:
+        if the remote moved after composition, leave the log uncommitted and
+        report failure so the caller can refuse to spawn with stale state.
+        `expected_feature_branch` additionally pins an assist's pre-session
+        and teardown commits to its recorded branch. If the agent changes
+        branches, the audit append stays dirty for explicit recovery instead
+        of being committed or pushed to the newly checked-out branch. A pinned
+        call also requires an exact live remote tip and a branch name distinct
+        from the control branch; it never falls back to a local-only generated
+        commit. These rules keep an already-published PR branch aligned without
+        accidentally publishing unrelated local commits.
       - Detached HEAD: skip (the commit would be orphaned); the line stays
         dirty, reported to stderr.
+
+    Returns whether the log reached a safe terminal state. Most callers retain
+    the non-fatal contract and ignore the result; the assist launcher checks it
+    so a late remote move stops before the child starts.
 
     Same non-fatal failure model as `sync_paths` (stderr, never a crash) with
     one deliberate difference: it does **not** `append_log` on failure. That
     would re-dirty the very file it just failed to commit, recreating the
     dangling-line problem instead of closing it.
     """
+    strict_assist = expected_feature_branch is not None
     if not cfg.git_enabled:
         sys.stderr.write(f"[git] disabled (log sync suppressed): {message}\n")
-        return
+        return False
     log_file = log_path(cfg)
     if not log_file.exists():
-        return
+        return True
     try:
         root = _toplevel(log_file)
         if root is None:
             sys.stderr.write(f"[git] not a git repo (log sync skipped): {message}\n")
-            return
+            return False
         if not _control_branch_present(root, cfg.git_control_branch, cfg.git_remote):
             sys.stderr.write(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
-            return
-        log_rel = _relative_to_root(root, log_file)
+            return False
+        log_rel = _relative_worktree_file_to_root(root, log_file)
         branch = _current_branch(root)
+        if (
+            expected_feature_branch is not None
+            and branch != expected_feature_branch
+        ):
+            sys.stderr.write(
+                f"[git] expected feature branch {expected_feature_branch!r}, "
+                f"but the checkout is on {branch!r} — log left uncommitted. "
+                f"({message})\n"
+            )
+            return False
+        if strict_assist and branch == cfg.git_control_branch:
+            sys.stderr.write(
+                f"[git] strict assist branch {branch!r} is also the configured "
+                "control branch — log left uncommitted. "
+                f"({message})\n"
+            )
+            return False
         # A commit is always local and never touches the remote, so it proceeds
         # even with no remote configured; only the *push* is soft-skipped in
         # that case (calm notice, no raw fatal). Every other push failure stays
@@ -363,20 +662,159 @@ def sync_log(
             sys.stderr.write(
                 f"[git] detached HEAD — log append not committed locally. ({message})\n"
             )
+            return False
         else:
-            _commit_paths(root, [log_rel], message)
-            if publish_current_branch:
+            publication = _FeaturePublicationState(
+                aligned=False,
+                may_commit=True,
+                detail=f"remote {cfg.git_remote!r} is not configured",
+                remote_oid=None,
+            )
+            assist_push_url = (
+                _single_assist_push_url(root, cfg.git_remote)
+                if strict_assist
+                else None
+            )
+            if publish_if_remote_aligned and remote_ok and (
+                strict_assist or not publish_current_branch
+            ):
+                publication = _prepare_feature_branch_publication(
+                    root,
+                    cfg.git_remote,
+                    branch,
+                    preserve_union_rel=log_rel,
+                    fast_forward_if_behind=allow_feature_fast_forward,
+                    require_single_push_url=True,
+                    push_url=assist_push_url,
+                )
+            if strict_assist and not publication.aligned:
+                sys.stderr.write(
+                    f"[git] strict assist branch {branch!r} was not at an exact "
+                    f"remote tip ({publication.detail}) — log left uncommitted. "
+                    f"({message})\n"
+                )
+                return False
+            if (
+                not strict_assist
+                and publish_if_remote_aligned
+                and not publication.may_commit
+            ):
+                sys.stderr.write(
+                    f"[git] feature branch {branch!r} was not ready for aligned "
+                    f"log publication ({publication.detail}) — log left "
+                    f"uncommitted. ({message})\n"
+                )
+                return False
+            before = (
+                _run_git(root, "rev-parse", "HEAD").strip()
+                if publication.aligned
+                else None
+            )
+            if publication.aligned and before != publication.remote_oid:
+                sys.stderr.write(
+                    f"[git] feature branch {branch!r} moved locally after "
+                    f"alignment — log left uncommitted. ({message})\n"
+                )
+                return False
+            if publication.aligned and before is not None:
+                captured_log = _working_tree_bytes(root, log_rel)
+                committed, generated_oid = _commit_paths_at_expected_head(
+                    root,
+                    [log_rel],
+                    message,
+                    branch=branch,
+                    expected_oid=before,
+                    source_bytes={log_rel: captured_log},
+                )
+            else:
+                committed = _commit_paths(root, [log_rel], message)
+                generated_oid = _run_git(root, "rev-parse", "HEAD").strip()
+            if publish_current_branch or publication.aligned:
                 if not remote_ok:
                     sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
-                    return
-                result = _push_ref(root, cfg.git_remote, branch)
-                if result is not None:
-                    raise GitError(
-                        f"`git push {cfg.git_remote} {branch}` failed while "
-                        f"publishing the session log: {result}"
+                    return False
+                push_started = False
+                try:
+                    if (
+                        publication.aligned
+                        and publication.remote_oid is not None
+                        and feature_publication_guard is not None
+                    ):
+                        feature_publication_guard(publication.remote_oid)
+                    push_started = True
+                    result = _push_ref(
+                        root,
+                        assist_push_url or cfg.git_remote,
+                        f"{generated_oid}:refs/heads/{branch}",
+                        force_with_lease=(
+                            (f"refs/heads/{branch}", publication.remote_oid)
+                            if publication.aligned
+                            and publication.remote_oid is not None
+                            else None
+                        ),
                     )
+                    if result is not None:
+                        raise GitError(
+                            f"`git push {cfg.git_remote} {branch}` failed while "
+                            f"publishing the session log: {result}"
+                        )
+                except BaseException as exc:
+                    if not publication.aligned:
+                        raise
+                    if not push_started:
+                        if committed and before is not None:
+                            _restore_generated_feature_commit(
+                                root,
+                                branch,
+                                before=before,
+                                generated_oid=generated_oid,
+                                rels=[log_rel],
+                            )
+                        raise
+                    try:
+                        published = _remote_contains_generated_commit(
+                            root,
+                            cfg.git_remote,
+                            branch,
+                            generated_oid,
+                            push_url=assist_push_url,
+                        )
+                    except GitError as probe_exc:
+                        raise UncertainFeaturePublicationError(
+                            "could not determine whether the generated assist "
+                            f"log reached {branch!r} after "
+                            f"{type(exc).__name__}: {probe_exc}; retained the "
+                            "generated local commit for reconciliation"
+                        ) from exc
+                    if published:
+                        # A reported Git failure after server acceptance is a
+                        # successful publication. Real interrupts still
+                        # propagate, but retain the now-durable local commit.
+                        if not isinstance(exc, GitError):
+                            raise
+                    else:
+                        # The exact destination proves the generated commit did
+                        # not land, so the local CAS can be safely unwound.
+                        if committed and before is not None:
+                            _restore_generated_feature_commit(
+                                root,
+                                branch,
+                                before=before,
+                                generated_oid=generated_oid,
+                                rels=[log_rel],
+                            )
+                        raise
+            elif publish_if_remote_aligned and committed:
+                target = f"{cfg.git_remote}/{branch}" if remote_ok else cfg.git_remote
+                sys.stderr.write(
+                    f"[git] feature branch {branch!r} did not match {target!r} "
+                    "before the log commit — log committed locally but not "
+                    f"published ({publication.detail}). ({message})\n"
+                )
+        return True
     except GitError as exc:
         sys.stderr.write(f"[git] log sync failed: {exc}. Message was: {message}\n")
+        return False
 
 
 def sync_paths(
@@ -389,6 +827,14 @@ def sync_paths(
     land_union_files_to_control: bool = False,
     guard: _StateGuard | None = None,
     publish_current_branch: bool = False,
+    expected_current_branch: str | None = None,
+    expected_current_branch_oid: str | None = None,
+    expected_remote_branch_oid: str | None = None,
+    strict_feature_publication: bool = False,
+    strict_push_url: str | None = None,
+    feature_publication_guard: _FeaturePublicationGuard | None = None,
+    after_strict_publication: Callable[[], None] | None = None,
+    generated_paths: Mapping[Path, bytes | None] | None = None,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -406,7 +852,17 @@ def sync_paths(
     intentionally never merge. `publish_current_branch` is the narrower
     post-artifact path: after committing locally and landing the selected
     state on control, also fast-forward the current feature branch on the
-    configured remote.
+    configured remote. `expected_current_branch` pins that generated
+    publication to a branch the caller already verified.
+    `expected_current_branch_oid` additionally proves the checkout has not
+    acquired another local commit since verification.
+    `expected_remote_branch_oid` leases the push to the exact remote tip that
+    caller verified, so a deleted or force-reset PR branch cannot be recreated
+    from stale local history. `strict_feature_publication` is the assist-only
+    transactional form: publish the captured generated commit before landing
+    control state, compensate that feature update if the control landing then
+    fails, and re-raise every publication failure so the state writer can
+    restore its pre-transition files.
 
     `guard` is called with each candidate control-branch base before the
     overlay is built — including the base refetched after a non-fast-forward
@@ -420,34 +876,70 @@ def sync_paths(
         return
 
     if not cfg.git_enabled:
+        if strict_feature_publication:
+            raise FeaturePublicationError(
+                "strict feature publication requires git sync"
+            )
         sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
         return
 
     try:
         root = _toplevel(anchor_path)
         if root is None:
+            if strict_feature_publication:
+                raise FeaturePublicationError(
+                    "strict feature publication requires a git checkout"
+                )
             sys.stderr.write(
                 f"[git] not a git repo (sync skipped): {message}\n"
             )
             return
 
-        if not _control_branch_present(root, cfg.git_control_branch, cfg.git_remote):
+        try:
+            control_branch_present = _control_branch_present(
+                root, cfg.git_control_branch, cfg.git_remote
+            )
+        except GitError as exc:
+            if strict_feature_publication:
+                raise FeaturePublicationError(
+                    f"could not verify control branch "
+                    f"{cfg.git_control_branch!r}: {exc}"
+                ) from exc
+            raise
+        if not control_branch_present:
+            if strict_feature_publication:
+                raise FeaturePublicationError(
+                    _control_branch_mismatch_message(cfg, root)
+                )
             sys.stderr.write(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
             return
 
         rels = [_relative_to_root(root, path) for path in selected]
-
+        generated_rels = (
+            {
+                _relative_to_root(root, path): data
+                for path, data in generated_paths.items()
+            }
+            if generated_paths is not None
+            else None
+        )
         # Merge=union files must NOT ride the cross-branch overlay — an overlay
         # replaces a file wholesale on the control tip, dropping lines another
         # branch appended concurrently. Instead they are folded into the local
         # commit and ordinarily reach control through a same-branch push or the
         # feature PR. Cancellation is the exception: its branch may never merge,
         # so the caller asks us to union-land the audit/digest evidence now.
-        log_rel = _relative_to_root(root, log_path(cfg))
+        log_rel = _relative_worktree_file_to_root(root, log_path(cfg))
         local_rels = rels + [log_rel] if log_path(cfg).exists() else rels
         local_rels = list(dict.fromkeys(local_rels))
+        if strict_feature_publication and generated_rels is None:
+            # Direct internal callers that do not own a FileMutationRollback
+            # still get one exact pre-publication sample. Lifecycle commands
+            # pass their earlier armed snapshot so peer writes between mutation
+            # and sync are not mistaken for generated state.
+            generated_rels = _snapshot_worktree_paths(root, local_rels)
         union_rels = _union_merge_paths(root, local_rels)
         overlay_rels = [rel for rel in rels if rel not in union_rels]
         control_union_rels = (
@@ -466,8 +958,26 @@ def sync_paths(
             guard=guard,
             update_local_control_ref=update_local_control_ref,
             publish_current_branch=publish_current_branch,
+            expected_current_branch=expected_current_branch,
+            expected_current_branch_oid=expected_current_branch_oid,
+            expected_remote_branch_oid=expected_remote_branch_oid,
+            strict_feature_publication=strict_feature_publication,
+            strict_push_url=strict_push_url,
+            feature_publication_guard=feature_publication_guard,
+            after_strict_publication=after_strict_publication,
+            generated_paths=generated_rels,
         )
+    except FeaturePublicationError as exc:
+        sys.stderr.write(
+            f"[git] feature publication refused: {exc}. Message was: {message}\n"
+        )
+        if strict_feature_publication:
+            raise
     except StateRegressionError as exc:
+        if strict_feature_publication:
+            raise FeaturePublicationError(
+                f"strict feature publication refused stale state: {exc}"
+            ) from exc
         # A refusal is not a failure to reach git — it is git refusing to bury
         # newer state, so it gets its own line and no `sync failed` log entry
         # (the guard already recorded the reason against the task). The local
@@ -475,6 +985,10 @@ def sync_paths(
         # `stale_coga_task_rels` keeps surfacing that divergence in views.
         sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
     except GitError as exc:
+        if strict_feature_publication:
+            raise FeaturePublicationError(
+                f"strict feature publication failed: {exc}"
+            ) from exc
         # Non-fatal: surface loudly (stderr + log.md) but do NOT abort the
         # command. The task's markdown on disk is the source of truth; git is
         # only the sync layer. A push that can't reach the control branch
@@ -572,8 +1086,13 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
 
 
 def refresh_coga_state_from_control(
-    cfg: Config, *, message: str = "Refresh coga state from control"
-) -> None:
+    cfg: Config,
+    *,
+    message: str = "Refresh coga state from control",
+    publish_if_remote_aligned: bool = False,
+    expected_feature_branch: str | None = None,
+    feature_publication_guard: _FeaturePublicationGuard | None = None,
+) -> bool:
     """Pull the control branch's task state back into this checkout.
 
     The pull-back half of the always-on sync contract, run by `coga launch`
@@ -604,83 +1123,405 @@ def refresh_coga_state_from_control(
         and a ticket whose local state is *ahead* of the control copy is skipped
         (`_guard_coga_state_regressions`'s rule pointed the other way — a
         refresh must never move local state backward).
+        A proven single-checkout assist may set
+        `publish_if_remote_aligned`: the refresh first fast-forwards a merely
+        behind clean checkout, then publishes only when its pre-refresh tip
+        matched the live feature remote. An ahead/diverged checkout retains
+        ordinary local-only refresh behavior, while a behind dirty checkout is
+        left untouched rather than turned into a divergence.
+        `expected_feature_branch` pins the whole refresh to the branch the
+        assist started on. If the agent switched branches, teardown skips
+        before fetching, committing, or pushing anything in that checkout.
+        A pinned refresh likewise requires an exact live remote tip and never
+        creates a local-only refresh commit when that branch disappeared.
+        Its control fetch comes from the same single verified push destination
+        as the PR branch, which keeps a fork's assist state out of the base
+        repository's potentially different control plane.
       - Detached HEAD → skip with a stderr note; the refresh commit would be
         orphaned. Launch runs this against the checkout it was invoked from.
 
-    Same non-fatal failure model as `sync_paths` (stderr + `coga/log.md`,
-    never a crash): a checkout that cannot refresh is exactly as stale as it
-    already was, and surfacing the run's real outcome matters more.
+    Returns whether the requested refresh was safe and complete. Failures keep
+    the same non-raising model as `sync_paths` (stderr + `coga/log.md`).
+    Ordinary launch callers treat a miss as advisory; a pinned assist uses the
+    False result to suppress the catch-all sweep and request an explicit retry.
     """
+    strict_assist = expected_feature_branch is not None
     if not cfg.git_enabled:
         sys.stderr.write(f"[git] disabled (refresh suppressed): {message}\n")
-        return
+        return not strict_assist
     try:
         root = _toplevel(cfg.repo_root)
         if root is None:
             sys.stderr.write(f"[git] not a git repo (refresh skipped): {message}\n")
-            return
+            return not strict_assist
         if not _control_branch_present(root, cfg.git_control_branch, cfg.git_remote):
             sys.stderr.write(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
-            return
+            return not strict_assist
         if not _remote_configured(root, cfg.git_remote):
             sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
-            return
+            return not strict_assist
         branch = _current_branch(root)
+        if (
+            expected_feature_branch is not None
+            and branch != expected_feature_branch
+        ):
+            sys.stderr.write(
+                f"[git] expected feature branch {expected_feature_branch!r}, "
+                f"but the checkout is on {branch!r} — coga state refresh "
+                f"skipped. ({message})\n"
+            )
+            return False
+        if strict_assist and branch == cfg.git_control_branch:
+            sys.stderr.write(
+                f"[git] strict assist branch {branch!r} is also the configured "
+                "control branch — coga state refresh skipped. "
+                f"({message})\n"
+            )
+            return False
         if branch == "HEAD":
             sys.stderr.write(
                 f"[git] detached HEAD — coga state not refreshed. ({message})\n"
             )
-            return
-        _run_git(root, "fetch", cfg.git_remote, cfg.git_control_branch)
-        tip = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+            return not strict_assist
+        publication = _FeaturePublicationState(
+            aligned=False,
+            may_commit=True,
+            detail="aligned publication was not requested",
+            remote_oid=None,
+        )
+        assist_push_url: str | None = None
+        if branch != cfg.git_control_branch and publish_if_remote_aligned:
+            assist_push_url = _single_assist_push_url(root, cfg.git_remote)
+            publication = _prepare_feature_branch_publication(
+                root,
+                cfg.git_remote,
+                branch,
+                preserve_union_rel=_relative_worktree_file_to_root(
+                    root,
+                    log_path(cfg),
+                ),
+                require_single_push_url=True,
+                push_url=assist_push_url,
+            )
+            if strict_assist and not publication.aligned:
+                sys.stderr.write(
+                    f"[git] strict assist branch {branch!r} was not at an exact "
+                    f"remote tip ({publication.detail}) — refresh skipped. "
+                    f"({message})\n"
+                )
+                return False
+            if not strict_assist and not publication.may_commit:
+                sys.stderr.write(
+                    f"[git] feature branch {branch!r} was not ready for an "
+                    f"aligned control-state refresh ({publication.detail}) — "
+                    f"refresh skipped. ({message})\n"
+                )
+                return False
+        control_source = assist_push_url or cfg.git_remote
+        tip = _fetch_branch_oid(root, control_source, cfg.git_control_branch)
         if branch == cfg.git_control_branch:
             _run_git(root, "merge", "--ff-only", "--quiet", tip)
-            return
-        _refresh_branch_from_control(cfg, root, tip, message)
+            return True
+        refresh = _refresh_branch_from_control(
+            cfg,
+            root,
+            tip,
+            message,
+            expected_head=publication.remote_oid if publication.aligned else None,
+            expected_branch=branch if publication.aligned else None,
+        )
+        if publication.aligned:
+            result: str | None = None
+            push_started = False
+            try:
+                if (
+                    publication.remote_oid is not None
+                    and feature_publication_guard is not None
+                ):
+                    feature_publication_guard(publication.remote_oid)
+                push_started = True
+                result = _push_ref(
+                    root,
+                    assist_push_url or cfg.git_remote,
+                    f"{refresh.oid}:refs/heads/{branch}",
+                    force_with_lease=(
+                        (f"refs/heads/{branch}", publication.remote_oid)
+                        if publication.remote_oid is not None
+                        else None
+                    ),
+                )
+                if result is not None:
+                    raise GitError(
+                        f"`git push {cfg.git_remote} {branch}` failed while "
+                        f"publishing the assist refresh: {result}"
+                    )
+            except BaseException as exc:
+                if not push_started:
+                    if refresh.paths:
+                        _restore_generated_refresh(
+                            root,
+                            publication.remote_oid,
+                            refresh,
+                            branch=branch,
+                        )
+                    raise
+                try:
+                    published = _remote_contains_generated_commit(
+                        root,
+                        cfg.git_remote,
+                        branch,
+                        refresh.oid,
+                        push_url=assist_push_url,
+                    )
+                except GitError as probe_exc:
+                    raise UncertainFeaturePublicationError(
+                        "could not determine whether the generated assist "
+                        f"refresh reached {branch!r} after "
+                        f"{type(exc).__name__}: {probe_exc}; retained the "
+                        "generated local refresh for reconciliation"
+                    ) from exc
+                if published:
+                    if not isinstance(exc, GitError):
+                        raise
+                else:
+                    if refresh.paths:
+                        _restore_generated_refresh(
+                            root,
+                            publication.remote_oid,
+                            refresh,
+                            branch=branch,
+                        )
+                    raise
+        elif publish_if_remote_aligned:
+            sys.stderr.write(
+                f"[git] feature branch {branch!r} refreshed locally but was not "
+                f"published ({publication.detail}). ({message})\n"
+            )
+            return False
+        return True
     except GitError as exc:
         sys.stderr.write(f"[git] refresh failed: {exc}. Message was: {message}\n")
-        append_log(
-            cfg, ref_tag_for_path(cfg, cfg.repo_root), "git", f"refresh failed: {exc}"
-        )
+        if not strict_assist:
+            append_log(
+                cfg,
+                ref_tag_for_path(cfg, cfg.repo_root),
+                "git",
+                f"refresh failed: {exc}",
+            )
+        return False
 
 
 def _refresh_branch_from_control(
-    cfg: Config, root: Path, tip: str, message: str
-) -> None:
+    cfg: Config,
+    root: Path,
+    tip: str,
+    message: str,
+    *,
+    expected_head: str | None = None,
+    expected_branch: str | None = None,
+) -> _RefreshCommit:
     """Overlay the control tip's newer task paths onto a feature checkout."""
+    if expected_head is not None and expected_branch is not None:
+        _require_checkout_tip(
+            root,
+            expected_branch,
+            expected_head,
+            action="start an assist refresh",
+        )
     tasks_rel = _relative_to_root(root, cfg.repo_root / "tasks")
-    ancestor = _run_git(root, "merge-base", "HEAD", tip).strip()
+    source_head = expected_head or "HEAD"
+    ancestor = _run_git(root, "merge-base", source_head, tip).strip()
     out = _run_git(
         root, "diff", "-z", "--name-only", ancestor, tip, "--", tasks_rel
     )
     candidates = [rel for rel in out.split("\x00") if rel]
     dirty = set(_changed_paths_under(root, [tasks_rel]))
+    sampled = {
+        rel: _working_tree_bytes(root, rel)
+        for rel in candidates
+        if rel not in dirty
+    }
     updated: list[str] = []
-    for rel in candidates:
-        if rel in dirty:
-            sys.stderr.write(
-                f"[git] refresh: leaving {rel} untouched — it has uncommitted "
-                "local changes (the next command's state sweep owns them).\n"
+    originals: dict[str, bytes | None] = {}
+    generated: dict[str, bytes | None] = {}
+    try:
+        # The rollback boundary begins before the first worktree write. Track a
+        # path only after its guarded write succeeds, so cleanup never guesses
+        # that a failed or peer-raced write belongs to this refresh.
+        for rel in candidates:
+            if rel in dirty:
+                sys.stderr.write(
+                    f"[git] refresh: leaving {rel} untouched — it has "
+                    "uncommitted local changes (the next command's state sweep "
+                    "owns them).\n"
+                )
+                continue
+            control = _tree_bytes(root, tip, rel)
+            reason = _refresh_regression_reason(cfg, root, rel, control)
+            if reason is not None:
+                sys.stderr.write(
+                    f"[git] refresh: leaving {rel} untouched — {reason}.\n"
+                )
+                continue
+            reason = _refresh_committed_divergence_reason(
+                root, rel, control, ancestor, tip
             )
-            continue
-        control = _tree_bytes(root, tip, rel)
-        reason = _refresh_regression_reason(cfg, root, rel, control)
-        if reason is not None:
-            sys.stderr.write(f"[git] refresh: leaving {rel} untouched — {reason}.\n")
-            continue
-        reason = _refresh_committed_divergence_reason(
-            root, rel, control, ancestor, tip
+            if reason is not None:
+                sys.stderr.write(
+                    f"[git] refresh: leaving {rel} untouched — {reason}.\n"
+                )
+                continue
+            if expected_head is not None and expected_branch is not None:
+                _require_checkout_tip(
+                    root,
+                    expected_branch,
+                    expected_head,
+                    action=f"refresh {rel}",
+                )
+            if _changed_paths_under(root, [rel]):
+                sys.stderr.write(
+                    f"[git] refresh: leaving {rel} untouched — it became "
+                    "dirty after the refresh scan.\n"
+                )
+                continue
+            prior = sampled[rel]
+            _write_worktree_bytes(
+                root,
+                rel,
+                control,
+                expected=prior,
+                expected_branch=expected_branch,
+                expected_oid=expected_head,
+            )
+            originals[rel] = prior
+            generated[rel] = control
+            updated.append(rel)
+
+        log_update = _refresh_log_from_control(
+            cfg,
+            root,
+            tip,
+            expected_head=expected_head,
+            expected_branch=expected_branch,
         )
-        if reason is not None:
-            sys.stderr.write(f"[git] refresh: leaving {rel} untouched — {reason}.\n")
-            continue
-        _write_worktree_bytes(root, rel, control)
-        updated.append(rel)
-    updated.extend(_refresh_log_from_control(cfg, root, tip))
-    if updated:
-        _commit_paths(root, updated, message)
+        if log_update is not None:
+            log_rel, log_before, log_after = log_update
+            originals[log_rel] = log_before
+            generated[log_rel] = log_after
+            updated.append(log_rel)
+
+        if expected_head is not None and expected_branch is not None:
+            _committed, generated_oid = _commit_paths_at_expected_head(
+                root,
+                updated,
+                message,
+                branch=expected_branch,
+                expected_oid=expected_head,
+                source_bytes=generated,
+            )
+        elif updated:
+            _commit_paths(root, updated, message)
+            generated_oid = _run_git(root, "rev-parse", "HEAD").strip()
+        else:
+            generated_oid = _run_git(root, "rev-parse", "HEAD").strip()
+    except UncertainFeaturePublicationError:
+        # The local ref may still name a generated commit. Its matching bytes
+        # are evidence needed for explicit reconciliation, never rollback input.
+        raise
+    except BaseException as exc:
+        if expected_head is not None and expected_branch is not None:
+            _require_checkout_tip(
+                root,
+                expected_branch,
+                expected_head,
+                action="restore a failed assist refresh",
+            )
+            _restore_refresh_worktree(
+                root,
+                originals=originals,
+                generated=generated,
+                expected_branch=expected_branch,
+                expected_oid=expected_head,
+            )
+        elif isinstance(exc, GitError):
+            _restore_refresh_worktree(
+                root,
+                originals=originals,
+                generated=generated,
+            )
+        raise
+    return _RefreshCommit(
+        paths=tuple(updated),
+        originals=originals,
+        generated=generated,
+        oid=generated_oid,
+    )
+
+
+def _restore_generated_refresh(
+    root: Path,
+    before: str | None,
+    refresh: _RefreshCommit,
+    *,
+    branch: str,
+) -> None:
+    """Undo one failed generated refresh while preserving prior dirty bytes."""
+    if before is None:
+        return
+    _restore_generated_feature_commit(
+        root,
+        branch,
+        before=before,
+        generated_oid=refresh.oid,
+        rels=list(refresh.paths),
+    )
+    _require_checkout_tip(
+        root,
+        branch,
+        before,
+        action="restore assist refresh working-tree bytes",
+    )
+    _restore_refresh_worktree(
+        root,
+        originals=refresh.originals,
+        generated=refresh.generated,
+        expected_branch=branch,
+        expected_oid=before,
+    )
+
+
+def _restore_refresh_worktree(
+    root: Path,
+    *,
+    originals: dict[str, bytes | None],
+    generated: dict[str, bytes | None],
+    expected_branch: str | None = None,
+    expected_oid: str | None = None,
+) -> None:
+    """Undo only refresh bytes still attributable to this generated update."""
+    union_rels = _union_merge_paths(root, list(originals))
+    paths = {rel: root / rel for rel in originals}
+    rollback = FileMutationRollback(
+        originals={paths[rel]: data for rel, data in originals.items()},
+        union_paths=frozenset(paths[rel] for rel in union_rels),
+        generated={paths[rel]: generated[rel] for rel in originals},
+    )
+    if expected_branch is not None and expected_oid is not None:
+        _require_checkout_tip(
+            root,
+            expected_branch,
+            expected_oid,
+            action="restore assist refresh bytes",
+        )
+    refused = rollback.restore()
+    if refused:
+        names = ", ".join(str(path.relative_to(root)) for path in refused)
+        raise GitError(
+            "refresh cleanup retained concurrent working-tree edits at "
+            f"{names}"
+        )
 
 
 def _refresh_regression_reason(
@@ -744,38 +1585,114 @@ def _refresh_committed_divergence_reason(
     return "it has committed local changes not superseded by newer control state"
 
 
-def _refresh_log_from_control(cfg: Config, root: Path, tip: str) -> list[str]:
+def _refresh_log_from_control(
+    cfg: Config,
+    root: Path,
+    tip: str,
+    *,
+    expected_head: str | None = None,
+    expected_branch: str | None = None,
+) -> tuple[str, bytes | None, bytes] | None:
     """Union-merge the control tip's `log.md` into the working tree.
 
-    Returns `[log_rel]` when the merge changed the local copy, else `[]`.
-    Direction matters: `current` is the local working copy (committed or
-    still dirty), so lines only this checkout has survive while the control
-    branch's lines fold in — the same union contract the publish paths honor
-    in the opposite direction.
+    Returns ``(rel, before, generated)`` when the merge changed the local copy,
+    else ``None``. Direction matters: `current` is the local working copy
+    (committed or still dirty), so lines only this checkout has survive while
+    the control branch's lines fold in — the same union contract the publish
+    paths honor in the opposite direction.
     """
-    log_rel = _relative_to_root(root, log_path(cfg))
+    log_rel = _relative_worktree_file_to_root(root, log_path(cfg))
     control = _tree_bytes(root, tip, log_rel)
     if control is None:
-        return []
-    local = _working_tree_bytes(root, log_rel) or b""
+        return None
+    local_snapshot = _working_tree_bytes(root, log_rel)
+    local = local_snapshot or b""
     ancestor = _run_git(root, "merge-base", "HEAD", tip).strip()
     base = _tree_bytes(root, ancestor, log_rel) or b""
     merged = _merge_union_bytes(current=local, base=base, other=control)
     if merged == local:
-        return []
-    _write_worktree_bytes(root, log_rel, merged)
-    return [log_rel]
+        return None
+    if expected_head is not None and expected_branch is not None:
+        _require_checkout_tip(
+            root,
+            expected_branch,
+            expected_head,
+            action=f"refresh {log_rel}",
+        )
+    _write_worktree_bytes(
+        root,
+        log_rel,
+        merged,
+        expected=local_snapshot,
+        expected_branch=expected_branch,
+        expected_oid=expected_head,
+    )
+    return log_rel, local_snapshot, merged
 
 
-def _write_worktree_bytes(root: Path, rel: str, data: bytes | None) -> None:
+def _write_worktree_bytes(
+    root: Path,
+    rel: str,
+    data: bytes | None,
+    *,
+    expected: bytes | None | object = _ANY_WORKTREE_BYTES,
+    expected_branch: str | None = None,
+    expected_oid: str | None = None,
+) -> None:
     """Write (or remove, for None) one repo-relative file in the working tree."""
+    if expected_branch is not None and expected_oid is not None:
+        _require_checkout_tip(
+            root,
+            expected_branch,
+            expected_oid,
+            action=f"write {rel}",
+        )
     path = root / rel
+    if expected is not _ANY_WORKTREE_BYTES:
+        current = path.read_bytes() if path.is_file() else None
+        if current != expected:
+            raise GitError(
+                f"working-tree path {rel!r} changed before its guarded write"
+            )
     if data is None:
         if path.is_file():
             path.unlink()
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
+
+
+def _append_missing_union_bytes(
+    root: Path,
+    rel: str,
+    desired: bytes,
+    *,
+    expected_branch: str | None = None,
+    expected_oid: str | None = None,
+) -> None:
+    """Add desired union lines without replacing concurrent appends."""
+    if expected_branch is not None and expected_oid is not None:
+        _require_checkout_tip(
+            root,
+            expected_branch,
+            expected_oid,
+            action=f"restore union path {rel}",
+        )
+    path = root / rel
+    current = path.read_bytes() if path.is_file() else b""
+    pending = Counter(desired.splitlines(keepends=True)) - Counter(
+        current.splitlines(keepends=True)
+    )
+    if not any(pending.values()):
+        return
+    addition: list[bytes] = []
+    for line in desired.splitlines(keepends=True):
+        if pending[line]:
+            pending[line] -= 1
+            addition.append(line)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("ab") as handle:
+        handle.write(b"".join(addition))
 
 
 def stale_coga_task_rels(cfg: Config) -> list[str]:
@@ -850,6 +1767,14 @@ def _dispatch_branch_sync(
     guard: _StateGuard | None = None,
     update_local_control_ref: bool = True,
     publish_current_branch: bool = False,
+    expected_current_branch: str | None = None,
+    expected_current_branch_oid: str | None = None,
+    expected_remote_branch_oid: str | None = None,
+    strict_feature_publication: bool = False,
+    strict_push_url: str | None = None,
+    feature_publication_guard: _FeaturePublicationGuard | None = None,
+    after_strict_publication: Callable[[], None] | None = None,
+    generated_paths: Mapping[str, bytes | None] | None = None,
 ) -> None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
@@ -867,13 +1792,32 @@ def _dispatch_branch_sync(
         `overlay_rels` on the control branch.
     """
     control_union_rels = control_union_rels or []
-    branch = _current_branch(root)
+    try:
+        branch = _current_branch(root)
+    except GitError as exc:
+        if strict_feature_publication:
+            raise FeaturePublicationError(
+                f"could not verify the current feature branch: {exc}"
+            ) from exc
+        raise
+    if expected_current_branch is not None and branch != expected_current_branch:
+        error_type = (
+            FeaturePublicationError if strict_feature_publication else GitError
+        )
+        raise error_type(
+            f"expected current branch {expected_current_branch!r}, "
+            f"but the checkout is on {branch!r}"
+        )
     # The local commit never touches the remote, so it proceeds even with no
     # remote configured; only the control-branch *landing/push* is soft-skipped
     # in that case (calm notice, no raw fatal). Every other push failure stays
     # loud via the caller's `except GitError`.
     remote_ok = _remote_configured(root, cfg.git_remote)
     if branch == cfg.git_control_branch:
+        if strict_feature_publication:
+            raise FeaturePublicationError(
+                "strict feature publication requires a non-control branch"
+            )
         committed = _sync_paths_on_control_branch(
             cfg, root, local_rels, message=message, guard=guard, push=remote_ok
         )
@@ -911,13 +1855,208 @@ def _dispatch_branch_sync(
         )
         return
     else:
-        before = _run_git(root, "rev-parse", "HEAD").strip() if guard else None
-        _commit_paths(root, local_rels, message)
+        strict_control_tip: str | None = None
+        assist_push_url: str | None = None
+        if strict_feature_publication:
+            assist_push_url = (
+                strict_push_url
+                or _single_assist_push_url(root, cfg.git_remote)
+            )
+        if strict_feature_publication:
+            try:
+                # The feature update happens before the control landing, so
+                # capture a fresh control tip before publishing anything to
+                # the PR branch. A state guard, when supplied, rejects a
+                # stale/terminal or otherwise changed task against that tip.
+                strict_control_tip = _control_base_for_attempt(
+                    root,
+                    cfg.git_remote,
+                    cfg.git_control_branch,
+                    1,
+                    push_url=assist_push_url,
+                )
+                if guard is not None:
+                    guard(strict_control_tip)
+            except StateRegressionError as exc:
+                raise FeaturePublicationError(
+                    f"control state refused the assist transition: {exc}"
+                ) from exc
+            except GitError as exc:
+                raise FeaturePublicationError(
+                    f"could not verify control state before assist publication: "
+                    f"{exc}"
+                ) from exc
+        try:
+            current_oid = _run_git(root, "rev-parse", "HEAD").strip()
+        except GitError as exc:
+            if strict_feature_publication:
+                raise FeaturePublicationError(
+                    f"could not verify local {branch!r} tip: {exc}"
+                ) from exc
+            raise
+        if (
+            expected_current_branch_oid is not None
+            and current_oid != expected_current_branch_oid
+        ):
+            error_type = (
+                FeaturePublicationError if strict_feature_publication else GitError
+            )
+            raise error_type(
+                f"local {branch!r} moved from verified tip "
+                f"{expected_current_branch_oid} to {current_oid}"
+            )
+        before = current_oid if guard or strict_feature_publication else None
+        try:
+            if strict_feature_publication:
+                committed, generated_oid = _commit_paths_at_expected_head(
+                    root,
+                    local_rels,
+                    message,
+                    branch=branch,
+                    expected_oid=current_oid,
+                    source_bytes=generated_paths,
+                )
+            else:
+                committed = _commit_paths(root, local_rels, message)
+                generated_oid = _run_git(root, "rev-parse", "HEAD").strip()
+        except UncertainFeaturePublicationError:
+            raise
+        except GitError as exc:
+            if strict_feature_publication:
+                raise FeaturePublicationError(
+                    f"could not create the generated {branch!r} state commit: "
+                    f"{exc}"
+                ) from exc
+            raise
     if not remote_ok:
         # The feature-branch commit above already reflects OS state locally; the
         # control-branch landing is the only remote step, so soft-skip it.
+        if strict_feature_publication:
+            if committed and before is not None:
+                _restore_generated_feature_commit(
+                    root,
+                    branch,
+                    before=before,
+                    generated_oid=generated_oid,
+                    rels=local_rels,
+                )
+            raise FeaturePublicationError(
+                f"remote {cfg.git_remote!r} is not configured"
+            )
         sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
         return
+    if strict_feature_publication:
+        if not publish_current_branch or expected_remote_branch_oid is None:
+            if committed and before is not None:
+                _restore_generated_feature_commit(
+                    root,
+                    branch,
+                    before=before,
+                    generated_oid=generated_oid,
+                    rels=local_rels,
+                )
+            raise FeaturePublicationError(
+                "strict publication requires a branch and exact remote tip"
+            )
+        push_started = False
+        try:
+            if feature_publication_guard is not None:
+                feature_publication_guard(expected_remote_branch_oid)
+            push_started = True
+            result = _push_ref(
+                root,
+                assist_push_url,
+                f"{generated_oid}:refs/heads/{branch}",
+                force_with_lease=(
+                    f"refs/heads/{branch}",
+                    expected_remote_branch_oid,
+                ),
+            )
+            if result is not None:
+                raise GitError(
+                    f"`git push {cfg.git_remote} "
+                    f"{generated_oid}:refs/heads/{branch}` failed: {result}"
+                )
+        except BaseException as exc:
+            # A signal handler raises SystemExit asynchronously. If it lands
+            # after Git accepted the push but before `_push_ref` returns, this
+            # stack has no successful return value even though the PR branch
+            # already contains the generated state. Probe the exact push
+            # destination before deciding whether local-only cleanup is safe.
+            if not push_started:
+                if committed and before is not None:
+                    _restore_generated_feature_commit(
+                        root,
+                        branch,
+                        before=before,
+                        generated_oid=generated_oid,
+                        rels=local_rels,
+                    )
+                if isinstance(exc, GitError):
+                    raise FeaturePublicationError(
+                        f"could not authorize generated state publication to "
+                        f"{branch!r}: {exc}"
+                    ) from exc
+                raise
+            assert assist_push_url is not None
+            try:
+                remote_after_failure = _remote_branch_oid(
+                    root,
+                    cfg.git_remote,
+                    branch,
+                    push_urls=[assist_push_url],
+                )
+            except GitError as probe_exc:
+                raise UncertainFeaturePublicationError(
+                    f"could not determine whether generated state reached "
+                    f"{branch!r} after {type(exc).__name__}: {probe_exc}; "
+                    "retained the generated local state for reconciliation"
+                ) from exc
+            feature_was_published = (
+                remote_after_failure == generated_oid
+                or (
+                    remote_after_failure is not None
+                    and _remote_branch_descends_from(
+                        root,
+                        assist_push_url,
+                        branch,
+                        generated_oid,
+                    )
+                )
+            )
+            if feature_was_published:
+                _raise_strict_control_landing_failure(
+                    root,
+                    cfg.git_remote,
+                    assist_push_url,
+                    branch,
+                    before=before,
+                    generated_oid=generated_oid,
+                    local_rels=local_rels,
+                    message=message,
+                    failure=exc,
+                    committed=committed,
+                )
+            if committed and before is not None:
+                try:
+                    _restore_generated_feature_commit(
+                        root,
+                        branch,
+                        before=before,
+                        generated_oid=generated_oid,
+                        rels=local_rels,
+                    )
+                except GitError as restore_exc:
+                    raise FeaturePublicationError(
+                        f"could not publish generated state to {branch!r}: "
+                        f"{exc}; local generated commit cleanup also refused: "
+                        f"{restore_exc}"
+                    ) from exc
+            if isinstance(exc, GitError):
+                raise FeaturePublicationError(
+                    f"could not publish generated state to {branch!r}: {exc}"
+                ) from exc
+            raise
     try:
         _land_paths_on_control_branch(
             cfg,
@@ -927,16 +2066,77 @@ def _dispatch_branch_sync(
             message=message,
             guard=guard,
             update_local_control_ref=update_local_control_ref,
+            initial_base=strict_control_tip,
+            source_rev=generated_oid if strict_feature_publication else None,
+            push_url=(
+                assist_push_url
+                if strict_feature_publication
+                else None
+            ),
+            exact_base_lease=strict_feature_publication,
         )
-        if publish_current_branch:
-            result = _push_ref(root, cfg.git_remote, branch)
+        if strict_feature_publication and after_strict_publication is not None:
+            after_strict_publication()
+        if publish_current_branch and not strict_feature_publication:
+            result = _push_ref(
+                root,
+                cfg.git_remote,
+                f"{generated_oid}:refs/heads/{branch}",
+                force_with_lease=(
+                    (f"refs/heads/{branch}", expected_remote_branch_oid)
+                    if expected_remote_branch_oid is not None
+                    else None
+                ),
+            )
             if result is not None:
                 raise GitError(
                     f"`git push {cfg.git_remote} {branch}` failed while "
                     f"publishing gated task state: {result}"
                 )
-    except StateRegressionError:
-        if before is not None:
+    except BaseException as exc:
+        if strict_feature_publication:
+            assert strict_control_tip is not None
+            try:
+                control_contains_generated = (
+                    _control_history_contains_generated_paths(
+                        root,
+                        cfg.git_remote,
+                        cfg.git_control_branch,
+                        push_url=assist_push_url,
+                        initial_tip=strict_control_tip,
+                        generated_oid=generated_oid,
+                        rels=overlay_rels,
+                    )
+                )
+            except GitError as probe_exc:
+                raise UncertainFeaturePublicationError(
+                    "could not determine whether the control branch accepted "
+                    f"generated assist state after {type(exc).__name__}: "
+                    f"{probe_exc}"
+                    "; generated feature state was retained for explicit "
+                    "reconciliation"
+                ) from exc
+            if control_contains_generated:
+                # The signal/exception arrived only after both durable halves
+                # accepted the same generated paths. Publish that boundary to
+                # the caller before propagating so it retains the consistent
+                # state instead of restoring local pre-transition bytes.
+                if after_strict_publication is not None:
+                    after_strict_publication()
+                raise
+            _raise_strict_control_landing_failure(
+                root,
+                cfg.git_remote,
+                assist_push_url,
+                branch,
+                before=before,
+                generated_oid=generated_oid,
+                local_rels=local_rels,
+                message=message,
+                failure=exc,
+                committed=committed,
+            )
+        if isinstance(exc, StateRegressionError) and before is not None:
             _restore_unpushed_sync_commit(root, before, local_rels)
         raise
 
@@ -1066,6 +2266,87 @@ def ticket_state_guard(
         )
 
     return guard
+
+
+def _assist_control_ticket_guard(
+    task_path: Path,
+    expected: tuple[str | None, str | None, str | None],
+    *,
+    expected_task_oid: str | None,
+    fallback: _StateGuard | None,
+) -> _StateGuard:
+    """Require an assist's exact leased control task on every candidate tip."""
+    root = _toplevel(task_path)
+    if root is None:
+        raise FeaturePublicationError(
+            "assist control-state verification requires a git checkout"
+        )
+    ticket_path = _ticket_path_for_task_path(task_path)
+    rel = _relative_to_root(root, ticket_path)
+    task_rel = _relative_to_root(root, task_path)
+
+    def guard(base: str) -> None:
+        actual_task_oid = _tree_entry_oid(root, base, task_rel)
+        if (
+            expected_task_oid is not None
+            and actual_task_oid != expected_task_oid
+        ):
+            raise StateRegressionError(
+                f"{task_rel}: control task changed after the assist lease "
+                f"(expected object {expected_task_oid}; "
+                f"found {actual_task_oid or 'missing'})"
+            )
+        actual_bytes = _tree_bytes(root, base, rel)
+        actual = _ticket_lifecycle_state(actual_bytes)
+        if actual != expected:
+            raise StateRegressionError(
+                f"{rel}: control ticket changed after the assist lease "
+                f"(expected {_lifecycle_state_summary(expected)}; "
+                f"found {_ticket_state_summary(actual_bytes)})"
+            )
+        if fallback is not None:
+            fallback(base)
+
+    return guard
+
+
+def _ticket_path_for_task_path(task_path: Path) -> Path:
+    """Resolve a file- or directory-form task path to its ticket markdown."""
+    directory_ticket = task_path / "ticket.md"
+    return directory_ticket if task_path.is_dir() else task_path
+
+
+def _ticket_state_summary(data: bytes | None) -> str:
+    """Compact lifecycle identity for an exact-ticket mismatch message."""
+    if data is None:
+        return "a missing ticket"
+    try:
+        ticket = Ticket.parse(data.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError):
+        return "an unreadable ticket"
+    return (
+        f"status={ticket.status!r}, step={ticket.step!r}, "
+        f"assignee={ticket.assignee!r}"
+    )
+
+
+def _ticket_lifecycle_state(
+    data: bytes | None,
+) -> tuple[str | None, str | None, str | None] | None:
+    if data is None:
+        return None
+    try:
+        ticket = Ticket.parse(data.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError):
+        return None
+    return ticket.status, ticket.step, ticket.assignee
+
+
+def _lifecycle_state_summary(
+    state: tuple[str | None, str | None, str | None],
+) -> str:
+    status, step, assignee = state
+    return f"status={status!r}, step={step!r}, assignee={assignee!r}"
 
 
 def _guard_coga_state_regressions(
@@ -1285,6 +2566,447 @@ def _restore_unpushed_sync_commit(root: Path, before: str, rels: list[str]) -> N
     _run_git(root, "reset", before, "--", *rels)
 
 
+def _raise_strict_control_landing_failure(
+    root: Path,
+    remote: str,
+    push_url: str,
+    branch: str,
+    *,
+    before: str | None,
+    generated_oid: str,
+    local_rels: list[str],
+    message: str,
+    failure: BaseException,
+    committed: bool,
+) -> None:
+    """Compensate a strict feature push whose control landing then failed.
+
+    The feature push intentionally happens first: an assist may not announce or
+    spawn against lifecycle state that never reached the PR branch. That leaves
+    one failure window — control can reject the same transition after the
+    feature update. Restore the prior feature *tree* with a fast-forward
+    compensating commit, leased to the generated OID, rather than rewriting
+    published history. The caller then restores its pre-transition working-tree
+    bytes after this helper raises.
+    """
+    detail = f"control landing failed after feature publication: {failure}"
+    if not committed or before is None:
+        raise FeaturePublicationError(detail) from failure
+
+    try:
+        generated_output = _run_git(
+            root,
+            "diff",
+            "--name-only",
+            "-z",
+            before,
+            generated_oid,
+            "--",
+            *local_rels,
+        )
+        generated_rels = [
+            rel for rel in generated_output.split("\x00") if rel
+        ]
+        if not generated_rels:
+            raise GitError(
+                "generated feature commit has no compensable state paths"
+            )
+        compensation_oid = ""
+        compensated_parent = ""
+        for _attempt in range(_MAX_SYNC_ATTEMPTS):
+            compensated_parent = _fetch_branch_oid(root, push_url, branch)
+            ancestor = _run_git(
+                root, "merge-base", generated_oid, compensated_parent
+            ).strip()
+            if ancestor != generated_oid:
+                raise GitError(
+                    f"live {remote}/{branch} no longer descends from the "
+                    f"generated state commit {generated_oid}"
+                )
+            tree = _build_feature_compensation_tree(
+                root,
+                current_tip=compensated_parent,
+                before=before,
+                generated_oid=generated_oid,
+                rels=generated_rels,
+            )
+            compensation_oid = _run_git(
+                root,
+                "commit-tree",
+                tree,
+                "-p",
+                compensated_parent,
+                "-m",
+                f"{message} (compensate failed control landing)",
+            ).strip()
+            push_failure: BaseException | None = None
+            try:
+                result = _push_ref(
+                    root,
+                    push_url,
+                    f"{compensation_oid}:refs/heads/{branch}",
+                    force_with_lease=(
+                        f"refs/heads/{branch}",
+                        compensated_parent,
+                    ),
+                )
+            except BaseException as exc:
+                push_failure = exc
+            else:
+                if result is None:
+                    break
+                if _is_non_fast_forward(result):
+                    continue
+                push_failure = GitError(
+                    f"`git push {remote} "
+                    f"{compensation_oid}:refs/heads/{branch}` failed: {result}"
+                )
+
+            # A transport failure or signal can arrive after the remote accepts
+            # the compensating commit. Probe the sole push destination before
+            # deciding whether local generated bytes may be rolled back.
+            assert push_failure is not None
+            try:
+                compensation_landed = _remote_contains_generated_commit(
+                    root,
+                    remote,
+                    branch,
+                    compensation_oid,
+                    push_url=push_url,
+                )
+            except BaseException as probe_error:
+                raise UncertainFeaturePublicationError(
+                    f"{detail}; could not determine whether compensating "
+                    f"commit {compensation_oid} reached {remote}/{branch} "
+                    f"after {type(push_failure).__name__}: {probe_error}; "
+                    "retained the generated local state for explicit "
+                    "reconciliation"
+                ) from push_failure
+            if compensation_landed:
+                break
+            raise UncertainFeaturePublicationError(
+                f"{detail}; compensating commit {compensation_oid} did not "
+                f"reach {remote}/{branch} after "
+                f"{type(push_failure).__name__}; retained the generated local "
+                "state for explicit reconciliation"
+            ) from push_failure
+        else:
+            raise GitError(
+                f"could not compensate {remote}/{branch} after "
+                f"{_MAX_SYNC_ATTEMPTS} concurrent updates"
+            )
+
+        # Incorporate the same freshly fetched descendant locally when the
+        # branch still points at either our generated commit or the exact
+        # remote parent we compensated. A real fast-forward updates peer paths
+        # in the worktree too. Keep those compensated bytes intact: rewriting
+        # the pre-merge generated working copy here would hide same-path peer
+        # edits that the reverse three-way merge deliberately preserved.
+        ref = f"refs/heads/{branch}"
+        try:
+            local_tip = _run_git(root, "rev-parse", ref).strip()
+            checkout_branch = _current_branch(root)
+            checkout_tip = _run_git(root, "rev-parse", "HEAD").strip()
+        except GitError:
+            local_note = (
+                f"; local {branch!r} checkout state could not be verified, so "
+                "its ref was preserved"
+            )
+        else:
+            if checkout_branch != branch or checkout_tip != local_tip:
+                local_note = (
+                    f"; checkout moved to {checkout_branch!r} at "
+                    f"{checkout_tip}, so local {branch!r} was preserved"
+                )
+            elif local_tip in {generated_oid, compensated_parent}:
+                try:
+                    # Recheck immediately before merge: a concurrent checkout
+                    # switch must not redirect compensation onto another
+                    # branch after the feature ref inspection above.
+                    if (
+                        _current_branch(root) != branch
+                        or _run_git(root, "rev-parse", "HEAD").strip()
+                        != local_tip
+                    ):
+                        raise GitError(
+                            "checkout changed before local compensation"
+                        )
+                    _run_git(
+                        root,
+                        "merge",
+                        "--ff-only",
+                        "--quiet",
+                        compensation_oid,
+                    )
+                except GitError:
+                    local_note = (
+                        f"; local {branch!r} could not safely fast-forward "
+                        "without changing another checkout or overwriting "
+                        "concurrent working-tree state, so its ref was preserved"
+                    )
+                else:
+                    local_note = ""
+            else:
+                local_note = (
+                    f"; local {branch!r} moved independently to {local_tip}, "
+                    "so its ref was preserved"
+                )
+    except UncertainFeaturePublicationError:
+        raise
+    except GitError as compensation_error:
+        raise FeaturePublicationError(
+            f"{detail}; compensating the feature branch also failed: "
+            f"{compensation_error}"
+        ) from failure
+
+    raise FeaturePublicationError(
+        f"{detail}; restored {remote}/{branch} with compensating commit "
+        f"{compensation_oid}{local_note}"
+    ) from failure
+
+
+def _build_feature_compensation_tree(
+    root: Path,
+    *,
+    current_tip: str,
+    before: str,
+    generated_oid: str,
+    rels: list[str],
+) -> str:
+    """Revert generated state atop a live descendant without dropping its work.
+
+    Ordinary paths use a reverse three-way merge: ``generated_oid`` is the
+    base, the live descendant is current, and ``before`` is the inverse change
+    being applied. A peer edit to the same file is therefore preserved when it
+    does not overlap the generated transition, and compensation refuses rather
+    than replacing the whole file when it does overlap.
+    """
+    union_rels = _union_merge_paths(root, rels)
+    ordinary_rels = [rel for rel in rels if rel not in union_rels]
+
+    fd, tmp_index = tempfile.mkstemp(prefix="coga-compensation-index-")
+    os.close(fd)
+    try:
+        os.unlink(tmp_index)
+        env = {"GIT_INDEX_FILE": tmp_index}
+        _run_git(root, "read-tree", current_tip, env=env)
+        for rel in ordinary_rels:
+            current = _tree_bytes(root, current_tip, rel)
+            prior = _tree_bytes(root, before, rel)
+            generated = _tree_bytes(root, generated_oid, rel)
+            compensated = _inverse_compensated_bytes(
+                current=current,
+                prior=prior,
+                generated=generated,
+                rel=rel,
+            )
+            _update_compensation_index(
+                root,
+                env,
+                rel,
+                data=compensated,
+                mode=(
+                    _tree_entry_mode(root, current_tip, rel)
+                    or _tree_entry_mode(root, before, rel)
+                    or "100644"
+                ),
+            )
+        for rel in union_rels:
+            current = _tree_bytes(root, current_tip, rel)
+            prior = _tree_bytes(root, before, rel)
+            generated = _tree_bytes(root, generated_oid, rel)
+            if current is None or generated is None:
+                raise GitError(
+                    f"cannot compensate removed merge=union path {rel!r}"
+                )
+            compensated = _remove_generated_union_lines(
+                current=current,
+                prior=prior or b"",
+                generated=generated,
+                rel=rel,
+            )
+            _update_compensation_index(
+                root,
+                env,
+                rel,
+                data=None if prior is None and not compensated else compensated,
+                mode=(
+                    _tree_entry_mode(root, current_tip, rel)
+                    or _tree_entry_mode(root, before, rel)
+                    or "100644"
+                ),
+            )
+        return _run_git(root, "write-tree", env=env).strip()
+    finally:
+        try:
+            os.unlink(tmp_index)
+        except FileNotFoundError:
+            pass
+
+
+def _inverse_compensated_bytes(
+    *,
+    current: bytes | None,
+    prior: bytes | None,
+    generated: bytes | None,
+    rel: str,
+) -> bytes | None:
+    """Apply ``generated -> prior`` to a live descendant's path bytes."""
+    if prior == generated:
+        return current
+    if current == generated:
+        return prior
+    if prior is None:
+        if current is None:
+            return None
+        raise GitError(
+            f"cannot compensate peer edits to generated path {rel!r}"
+        )
+    if generated is None:
+        if current is None:
+            return prior
+        raise GitError(
+            f"cannot compensate peer replacement of deleted path {rel!r}"
+        )
+    if current is None:
+        raise GitError(
+            f"cannot compensate peer deletion of generated path {rel!r}"
+        )
+    return _merge_inverse_bytes(
+        current=current,
+        generated=generated,
+        prior=prior,
+        rel=rel,
+    )
+
+
+def _merge_inverse_bytes(
+    *,
+    current: bytes,
+    generated: bytes,
+    prior: bytes,
+    rel: str,
+) -> bytes:
+    """Three-way apply the inverse transition, refusing overlapping edits."""
+    with tempfile.TemporaryDirectory(prefix="coga-inverse-merge-") as tmp:
+        tmpdir = Path(tmp)
+        current_path = tmpdir / "current"
+        generated_path = tmpdir / "generated"
+        prior_path = tmpdir / "prior"
+        current_path.write_bytes(current)
+        generated_path.write_bytes(generated)
+        prior_path.write_bytes(prior)
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "merge-file",
+                    str(current_path),
+                    str(generated_path),
+                    str(prior_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env={**os.environ, **_noninteractive_git_env()},
+            )
+        except FileNotFoundError as exc:
+            raise GitError("`git` not found on PATH") from exc
+        if result.returncode != 0:
+            raise GitError(
+                f"cannot compensate overlapping peer edits to {rel!r}"
+            )
+        return current_path.read_bytes()
+
+
+def _tree_entry_mode(root: Path, rev: str, rel: str) -> str | None:
+    output = _run_git(root, "ls-tree", "-z", rev, "--", rel)
+    for entry in output.split("\x00"):
+        if not entry:
+            continue
+        metadata, path = entry.split("\t", 1)
+        if path == rel:
+            mode, _kind, _oid = metadata.split(" ", 2)
+            return mode
+    return None
+
+
+def _tree_entry_oid(root: Path, rev: str, rel: str) -> str | None:
+    """Return the exact blob/tree object named by ``rel`` at ``rev``."""
+    output = _run_git(root, "ls-tree", "-z", rev, "--", rel)
+    for entry in output.split("\x00"):
+        if not entry:
+            continue
+        metadata, path = entry.split("\t", 1)
+        if path == rel:
+            _mode, _kind, oid = metadata.split(" ", 2)
+            return oid
+    return None
+
+
+def _update_compensation_index(
+    root: Path,
+    env: dict[str, str],
+    rel: str,
+    *,
+    data: bytes | None,
+    mode: str,
+) -> None:
+    _run_git(
+        root,
+        "rm",
+        "-f",
+        "--cached",
+        "--ignore-unmatch",
+        "--",
+        rel,
+        env=env,
+    )
+    if data is None:
+        return
+    blob = _hash_blob(root, data)
+    _run_git(
+        root,
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        mode,
+        blob,
+        rel,
+        env=env,
+    )
+
+
+def _remove_generated_union_lines(
+    *,
+    current: bytes,
+    prior: bytes,
+    generated: bytes,
+    rel: str,
+) -> bytes:
+    """Remove only this transition's append-only union delta."""
+    prior_lines = prior.splitlines(keepends=True)
+    generated_lines = generated.splitlines(keepends=True)
+    removed_by_generation = Counter(prior_lines) - Counter(generated_lines)
+    if removed_by_generation:
+        raise GitError(
+            f"cannot compensate non-append change to merge=union path {rel!r}"
+        )
+    pending = Counter(generated_lines) - Counter(prior_lines)
+    out: list[bytes] = []
+    for line in current.splitlines(keepends=True):
+        if pending[line]:
+            pending[line] -= 1
+        else:
+            out.append(line)
+    if any(pending.values()):
+        raise GitError(
+            f"live merge=union path {rel!r} no longer contains the generated "
+            "append being compensated"
+        )
+    return b"".join(out)
+
+
 def _push_control_branch(
     cfg: Config, root: Path, *, guard: _StateGuard | None = None
 ) -> None:
@@ -1343,14 +3065,14 @@ def _rebase_onto_remote(
     The caller surfaces the raised `GitError` as a non-fatal sync miss (stderr +
     log), never a crash: the on-disk markdown is still the source of truth.
     """
-    _run_git(root, "fetch", remote, branch)
+    fetched_tip = _fetch_branch_oid(root, remote, branch)
     if guard is not None:
-        guard(_run_git(root, "rev-parse", "FETCH_HEAD").strip())
+        guard(fetched_tip)
     orig = _run_git(root, "rev-parse", "HEAD").strip()
     stashed = _stash_if_dirty(root)
 
     rebase = subprocess.run(
-        ["git", "-C", str(root), "rebase", "FETCH_HEAD"],
+        ["git", "-C", str(root), "rebase", fetched_tip],
         capture_output=True,
         text=True,
         check=False,
@@ -1465,6 +3187,203 @@ def _commit_paths(root: Path, rels: list[str], message: str) -> bool:
     return True
 
 
+def _commit_paths_at_expected_head(
+    root: Path,
+    rels: list[str],
+    message: str,
+    *,
+    branch: str,
+    expected_oid: str,
+    source_bytes: Mapping[str, bytes | None] | None = None,
+) -> tuple[bool, str]:
+    """Create one generated commit only atop ``expected_oid``.
+
+    Assist publishers verify a local tip before deriving lifecycle or audit
+    state. An ordinary ``git commit`` would re-read ``HEAD`` internally and can
+    silently parent the generated commit on a concurrent local commit. Build
+    the exact selected-path tree in a temporary index, then move the branch
+    with ``update-ref <new> <expected>`` so that parent selection and ref
+    publication form one compare-and-swap.
+
+    The real index is updated only after the ref CAS succeeds, and only for the
+    selected paths, preserving unrelated staged work just like
+    :func:`_commit_paths`.
+    """
+    ref = f"refs/heads/{branch}"
+    tree = _build_overlay_tree(
+        root,
+        expected_oid,
+        rels,
+        source_bytes=source_bytes,
+    )
+    finalized_rels = list(source_bytes) if source_bytes is not None else rels
+    prior_tree = _run_git(root, "rev-parse", f"{expected_oid}^{{tree}}").strip()
+    if tree == prior_tree:
+        # A no-op still verifies that the branch did not move while the tree was
+        # derived. ``update-ref old old`` acquires the ref lock and performs the
+        # same expected-value check without creating a commit.
+        try:
+            _run_git(root, "update-ref", ref, expected_oid, expected_oid)
+        except GitError as exc:
+            raise GitError(
+                f"local {branch!r} moved while generated state was being built"
+            ) from exc
+        _require_checkout_tip(
+            root,
+            branch,
+            expected_oid,
+            action="finalize a no-op generated state commit",
+        )
+        return False, expected_oid
+
+    generated_oid = _run_git(
+        root,
+        "commit-tree",
+        tree,
+        "-p",
+        expected_oid,
+        "-m",
+        message,
+    ).strip()
+    try:
+        _run_git(root, "update-ref", ref, generated_oid, expected_oid)
+    except BaseException as exc:
+        # A signal can arrive after `update-ref` performed the CAS but before
+        # its subprocess result reached Python. Undo only our exact ref update;
+        # never strand an unpushed generated commit or move over a follower.
+        _run_git_quiet(
+            root,
+            "update-ref",
+            ref,
+            expected_oid,
+            generated_oid,
+        )
+        try:
+            live_ref = _run_git(root, "rev-parse", ref).strip()
+        except GitError as probe_exc:
+            raise UncertainFeaturePublicationError(
+                f"could not verify cleanup of interrupted local {branch!r} "
+                f"commit {generated_oid}: {probe_exc}"
+            ) from exc
+        if live_ref == generated_oid:
+            raise UncertainFeaturePublicationError(
+                f"interrupted local {branch!r} commit {generated_oid} could "
+                "not be rolled back; generated bytes must be retained"
+            ) from exc
+        if isinstance(exc, GitError):
+            raise GitError(
+                f"local {branch!r} moved from verified tip {expected_oid} "
+                "while generated state was being committed"
+            ) from exc
+        raise
+
+    try:
+        _require_checkout_tip(
+            root,
+            branch,
+            generated_oid,
+            action="finalize a generated state commit",
+        )
+        if finalized_rels:
+            _run_git(root, "reset", generated_oid, "--", *finalized_rels)
+    except BaseException as exc:
+        # Best-effort ref rollback is itself compare-and-swap guarded: never
+        # move over a concurrent commit that followed our generated one.
+        _run_git_quiet(
+            root,
+            "update-ref",
+            ref,
+            expected_oid,
+            generated_oid,
+        )
+        try:
+            live_ref = _run_git(root, "rev-parse", ref).strip()
+        except GitError as probe_exc:
+            raise UncertainFeaturePublicationError(
+                f"could not verify cleanup after finalizing local {branch!r} "
+                f"commit {generated_oid}: {probe_exc}"
+            ) from exc
+        if live_ref == generated_oid:
+            raise UncertainFeaturePublicationError(
+                f"local {branch!r} retained interrupted generated commit "
+                f"{generated_oid}; generated bytes must be retained"
+            ) from exc
+        try:
+            checkout_branch = _current_branch(root)
+            checkout_oid = _run_git(root, "rev-parse", "HEAD").strip()
+        except GitError:
+            checkout_branch = ""
+            checkout_oid = ""
+        if (
+            live_ref == expected_oid
+            and checkout_branch == branch
+            and checkout_oid == expected_oid
+            and finalized_rels
+        ):
+            _run_git_quiet(
+                root,
+                "reset",
+                expected_oid,
+                "--",
+                *finalized_rels,
+            )
+        if isinstance(exc, GitError):
+            raise GitError(
+                f"could not finalize generated state on local {branch!r}: {exc}"
+            ) from exc
+        raise
+    return True, generated_oid
+
+
+def _restore_generated_feature_commit(
+    root: Path,
+    branch: str,
+    *,
+    before: str,
+    generated_oid: str,
+    rels: list[str],
+) -> None:
+    """Undo one unpushed generated commit without moving over newer work."""
+    ref = f"refs/heads/{branch}"
+    _require_checkout_tip(
+        root,
+        branch,
+        generated_oid,
+        action="restore a generated feature commit",
+    )
+    try:
+        _run_git(root, "update-ref", ref, before, generated_oid)
+    except GitError as exc:
+        raise GitError(
+            f"local {branch!r} moved after generated commit {generated_oid}; "
+            "refusing to reset over the newer commit"
+        ) from exc
+    _require_checkout_tip(
+        root,
+        branch,
+        before,
+        action="reset generated feature paths",
+    )
+    _run_git(root, "reset", before, "--", *rels)
+
+
+def _require_checkout_tip(
+    root: Path,
+    branch: str,
+    expected_oid: str,
+    *,
+    action: str,
+) -> None:
+    """Fail if a worktree-changing operation was redirected after sampling."""
+    current_branch = _current_branch(root)
+    current_oid = _run_git(root, "rev-parse", "HEAD").strip()
+    if current_branch != branch or current_oid != expected_oid:
+        raise GitError(
+            f"cannot {action}: expected checkout {branch!r} at "
+            f"{expected_oid}, found {current_branch!r} at {current_oid}"
+        )
+
+
 def _land_on_control_branch(
     cfg: Config, root: Path, rel: str, *, message: str
 ) -> None:
@@ -1519,23 +3438,65 @@ def _land_paths_on_control_branch(
     message: str,
     guard: _StateGuard | None = None,
     update_local_control_ref: bool = True,
+    initial_base: str | None = None,
+    source_rev: str | None = None,
+    push_url: str | None = None,
+    exact_base_lease: bool = False,
 ) -> None:
-    """Land selected pathspecs on the control branch from any branch."""
+    """Land selected pathspecs on the control branch from any branch.
+
+    ``source_rev`` pins the overlay to an already-created generated commit.
+    Ordinary callers overlay current working-tree bytes; strict assist
+    publication uses the captured commit so a concurrent worktree edit cannot
+    make control receive different state than the PR branch. When
+    ``exact_base_lease`` is set, each candidate control push is leased to the
+    exact base just guarded; a deletion or force-rewind loses that attempt
+    instead of letting the stale candidate recreate the ref.
+    """
     remote = cfg.git_remote
     branch = cfg.git_control_branch
+    push_destination = push_url or remote
     union_rels = union_rels or []
 
     for attempt in range(_MAX_SYNC_ATTEMPTS):
-        base = _control_base_for_attempt(root, remote, branch, attempt)
+        base = (
+            initial_base
+            if attempt == 0 and initial_base is not None
+            else _control_base_for_attempt(
+                root,
+                remote,
+                branch,
+                attempt,
+                push_url=push_url,
+            )
+        )
         if guard is not None:
             guard(base)
 
-        tree = _build_overlay_tree(root, base, rels, union_rels=union_rels)
+        tree = _build_overlay_tree(
+            root,
+            base,
+            rels,
+            union_rels=union_rels,
+            source_rev=source_rev,
+        )
         if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():
             return
 
         new = _run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
-        result = _push_ref(root, remote, f"{new}:refs/heads/{branch}")
+        if exact_base_lease:
+            result = _push_ref(
+                root,
+                push_destination,
+                f"{new}:refs/heads/{branch}",
+                force_with_lease=(f"refs/heads/{branch}", base),
+            )
+        else:
+            result = _push_ref(
+                root,
+                push_destination,
+                f"{new}:refs/heads/{branch}",
+            )
         if result is None:
             if update_local_control_ref:
                 _try_update_local_ref(root, branch, new)
@@ -1551,15 +3512,65 @@ def _land_paths_on_control_branch(
     )
 
 
+def _control_history_contains_generated_paths(
+    root: Path,
+    remote: str,
+    branch: str,
+    *,
+    push_url: str | None = None,
+    initial_tip: str,
+    generated_oid: str,
+    rels: list[str],
+) -> bool:
+    """Whether control durably absorbed one strict generated path snapshot.
+
+    A signal can arrive after the control push succeeds but before the plumbing
+    helper returns. Inspect the freshly fetched control history, not only its
+    current tree: a concurrent descendant may already have edited the task
+    again while still preserving the publication commit in history.
+    """
+    current_tip = _control_base_for_attempt(
+        root,
+        remote,
+        branch,
+        1,
+        push_url=push_url,
+    )
+    generated = {
+        rel: _tree_entry_oid(root, generated_oid, rel)
+        for rel in rels
+    }
+    if not generated:
+        return True
+    history = _run_git(
+        root,
+        "rev-list",
+        f"{initial_tip}..{current_tip}",
+    ).splitlines()
+    candidates = list(dict.fromkeys([current_tip, *history]))
+    return any(
+        all(
+            _tree_entry_oid(root, commit, rel) == expected_oid
+            for rel, expected_oid in generated.items()
+        )
+        for commit in candidates
+    )
+
+
 def _control_base_for_attempt(
-    root: Path, remote: str, branch: str, attempt: int
+    root: Path,
+    remote: str,
+    branch: str,
+    attempt: int,
+    *,
+    push_url: str | None = None,
 ) -> str:
     if attempt == 0:
         local = _local_control_base(root, remote, branch)
         if local is not None:
             return local
-    _run_git(root, "fetch", remote, branch)
-    return _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+    source = push_url or _remote_push_urls(root, remote)[0]
+    return _fetch_branch_oid(root, source, branch)
 
 
 def _local_control_base(root: Path, remote: str, branch: str) -> str | None:
@@ -1570,15 +3581,22 @@ def _local_control_base(root: Path, remote: str, branch: str) -> str | None:
 
 
 def _build_overlay_tree(
-    root: Path, base: str, rels: list[str], *, union_rels: list[str] | None = None
+    root: Path,
+    base: str,
+    rels: list[str],
+    *,
+    union_rels: list[str] | None = None,
+    source_rev: str | None = None,
+    source_bytes: Mapping[str, bytes | None] | None = None,
 ) -> str:
     """Build a tree = `base`'s tree with selected pathspecs overlaid.
 
     Runs entirely against a throwaway temporary index (`GIT_INDEX_FILE`), so
     neither the real index nor the working tree is disturbed. Seeds the temp
     index from `base`, drops stale content for every selected path, re-adds the
-    current working-tree content for paths that still exist, union-merges any
-    detached-head `merge=union` files, and writes the resulting tree object.
+    current working-tree content for paths that still exist (or the exact
+    ``source_rev`` content when supplied), union-merges any detached-head
+    `merge=union` files, and writes the resulting tree object.
     """
     union_rels = union_rels or []
     fd, tmp_index = tempfile.mkstemp(prefix="coga-git-index-")
@@ -1587,14 +3605,59 @@ def _build_overlay_tree(
         os.unlink(tmp_index)  # read-tree wants to create it fresh
         env = {"GIT_INDEX_FILE": tmp_index}
         _run_git(root, "read-tree", base, env=env)
-        _overlay_paths(root, env, rels)
-        _overlay_union_paths(root, env, base, union_rels)
+        if source_bytes is not None:
+            _overlay_paths_from_bytes(root, env, base, source_bytes)
+        elif source_rev is None:
+            _overlay_paths(root, env, rels)
+        else:
+            _overlay_paths_from_revision(root, env, source_rev, rels)
+        _overlay_union_paths(
+            root,
+            env,
+            base,
+            union_rels,
+            source_rev=source_rev,
+        )
         return _run_git(root, "write-tree", env=env).strip()
     finally:
         try:
             os.unlink(tmp_index)
         except FileNotFoundError:
             pass
+
+
+def _overlay_paths_from_bytes(
+    root: Path,
+    env: dict[str, str],
+    base: str,
+    paths: Mapping[str, bytes | None],
+) -> None:
+    """Replace exact temp-index leaves with one captured byte snapshot."""
+    for rel, data in paths.items():
+        _run_git(
+            root,
+            "rm",
+            "-f",
+            "--cached",
+            "--ignore-unmatch",
+            "--",
+            rel,
+            env=env,
+        )
+        if data is None:
+            continue
+        blob = _hash_blob(root, data)
+        mode = _tree_entry_mode(root, base, rel) or "100644"
+        _run_git(
+            root,
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            mode,
+            blob,
+            rel,
+            env=env,
+        )
 
 
 def _overlay_paths(root: Path, env: dict[str, str], rels: list[str]) -> None:
@@ -1612,15 +3675,69 @@ def _overlay_paths(root: Path, env: dict[str, str], rels: list[str]) -> None:
             _run_git(root, "add", "--", rel, env=env)
 
 
+def _overlay_paths_from_revision(
+    root: Path,
+    env: dict[str, str],
+    source_rev: str,
+    rels: list[str],
+) -> None:
+    """Replace selected temp-index paths with their exact ``source_rev`` tree."""
+    for rel in rels:
+        _run_git(
+            root,
+            "rm",
+            "-rf",
+            "--cached",
+            "--ignore-unmatch",
+            "--",
+            rel,
+            env=env,
+        )
+    output = _run_git(
+        root,
+        "ls-tree",
+        "-r",
+        "-z",
+        source_rev,
+        "--",
+        *rels,
+    )
+    for entry in output.split("\x00"):
+        if not entry:
+            continue
+        metadata, path = entry.split("\t", 1)
+        mode, _kind, oid = metadata.split(" ", 2)
+        _run_git(
+            root,
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            mode,
+            oid,
+            path,
+            env=env,
+        )
+
+
 def _overlay_union_paths(
-    root: Path, env: dict[str, str], base: str, rels: list[str]
+    root: Path,
+    env: dict[str, str],
+    base: str,
+    rels: list[str],
+    *,
+    source_rev: str | None = None,
 ) -> None:
     if not rels:
         return
-    ancestor = _run_git(root, "merge-base", "HEAD", base).strip()
+    source = source_rev or "HEAD"
+    ancestor = _run_git(root, "merge-base", source, base).strip()
     for rel in rels:
         merged = _merge_union_path(
-            root, current_rev=base, base_rev=ancestor, rel=rel
+            root,
+            current_rev=base,
+            base_rev=ancestor,
+            rel=rel,
+            other_rev=source_rev,
         )
         blob = _hash_blob(root, merged)
         _run_git(
@@ -1636,7 +3753,12 @@ def _overlay_union_paths(
 
 
 def _merge_union_path(
-    root: Path, *, current_rev: str, base_rev: str, rel: str
+    root: Path,
+    *,
+    current_rev: str,
+    base_rev: str,
+    rel: str,
+    other_rev: str | None = None,
 ) -> bytes:
     """Three-way union-merge a working-tree file into `current_rev`.
 
@@ -1645,7 +3767,11 @@ def _merge_union_path(
     checkouts, where there is no durable local branch commit for `log.md`
     / `spool.md` appends to ride.
     """
-    working = _working_tree_bytes(root, rel)
+    working = (
+        _tree_bytes(root, other_rev, rel)
+        if other_rev is not None
+        else _working_tree_bytes(root, rel)
+    )
     if working is None:
         raise GitError(
             "cannot safely land deleted merge=union path "
@@ -1731,6 +3857,40 @@ def _working_tree_bytes(root: Path, rel: str) -> bytes | None:
     return path.read_bytes()
 
 
+def _regular_worktree_mode(root: Path, rel: str) -> str | None:
+    """Return a Git regular-file mode without following worktree symlinks."""
+    path = Path(rel)
+    if not path.is_absolute():
+        path = root / path
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(mode):
+        return None
+    return "100755" if mode & 0o111 else "100644"
+
+
+def _snapshot_worktree_paths(
+    root: Path,
+    rels: Iterable[str],
+) -> dict[str, bytes | None]:
+    """Capture exact file leaves beneath selected worktree pathspecs."""
+    captured: dict[str, bytes | None] = {}
+    for rel in rels:
+        path = root / rel
+        if path.is_file():
+            captured[rel] = path.read_bytes()
+            continue
+        if path.is_dir():
+            for child in sorted(path.rglob("*")):
+                if child.is_file():
+                    captured[str(child.relative_to(root))] = child.read_bytes()
+            continue
+        captured[rel] = None
+    return captured
+
+
 def _hash_blob(root: Path, data: bytes) -> str:
     try:
         result = subprocess.run(
@@ -1752,15 +3912,40 @@ def _hash_blob(root: Path, data: bytes) -> str:
     return result.stdout.decode().strip()
 
 
-def _push_ref(root: Path, remote: str, refspec: str) -> str | None:
+def _push_ref(
+    root: Path,
+    remote: str,
+    refspec: str,
+    *,
+    force_with_lease: tuple[str, str] | None = None,
+) -> str | None:
     """Push `refspec` to `remote`. Return None on success, else stderr+stdout.
 
     Unlike `_run_git`, a non-zero exit is returned (not raised) so the caller
-    can distinguish a recoverable non-fast-forward from a hard failure.
+    can distinguish a recoverable non-fast-forward from a hard failure. An
+    exact-tip lease is additionally constrained to a source that descends from
+    the expected OID; the lease may authorize the race-safe update, never a
+    history rewrite.
     """
     try:
+        command = ["git", "-C", str(root), "push"]
+        if force_with_lease is not None:
+            ref, expected_oid = force_with_lease
+            source = refspec.split(":", 1)[0]
+            source_oid = _run_git(root, "rev-parse", source).strip()
+            merge_base = _run_git(
+                root, "merge-base", expected_oid, source_oid
+            ).strip()
+            if merge_base != expected_oid:
+                return (
+                    "refusing exact-tip leased push: source "
+                    f"{source_oid} does not descend from expected remote "
+                    f"tip {expected_oid}"
+                )
+            command.append(f"--force-with-lease={ref}:{expected_oid}")
+        command.extend([remote, refspec])
         result = subprocess.run(
-            ["git", "-C", str(root), "push", remote, refspec],
+            command,
             capture_output=True,
             text=True,
             check=False,
@@ -1770,7 +3955,10 @@ def _push_ref(root: Path, remote: str, refspec: str) -> str | None:
         raise GitError("`git` not found on PATH") from exc
     if result.returncode == 0:
         return None
-    return (result.stderr + result.stdout).strip()
+    return _redact_git_command_text(
+        (result.stderr + result.stdout).strip(),
+        (remote, refspec),
+    )
 
 
 def _is_non_fast_forward(push_output: str) -> bool:
@@ -1898,9 +4086,12 @@ def _run_git(root: Path, *args: str, env: dict[str, str] | None = None) -> str:
     except FileNotFoundError as exc:
         raise GitError("`git` not found on PATH") from exc
     if result.returncode != 0:
+        safe_args = [redacted_git_source(arg) for arg in args]
+        stderr = _redact_git_command_text(result.stderr, args)
+        stdout = _redact_git_command_text(result.stdout, args)
         raise GitError(
-            f"`git {' '.join(args)}` failed (exit {result.returncode}): "
-            f"{summarize_git_failure(result.stderr) or summarize_git_failure(result.stdout)}"
+            f"`git {' '.join(safe_args)}` failed (exit {result.returncode}): "
+            f"{summarize_git_failure(stderr) or summarize_git_failure(stdout)}"
         )
     return result.stdout
 
@@ -2074,34 +4265,592 @@ def _remote_configured(root: Path, remote: str) -> bool:
     return result.returncode == 0
 
 
+def _remote_push_urls(root: Path, remote: str) -> list[str]:
+    """Return every destination affected by ``git push <remote>``."""
+    output = _run_git(
+        root,
+        "remote",
+        "get-url",
+        "--push",
+        "--all",
+        remote,
+    )
+    urls = [line.strip() for line in output.splitlines() if line.strip()]
+    if not urls:
+        raise GitError(f"remote {remote!r} has no effective push URL")
+    return urls
+
+
+def _single_assist_push_url(
+    root: Path,
+    remote: str,
+    *,
+    push_urls: list[str] | None = None,
+) -> str:
+    """Return the sole assist destination; reject Git's non-atomic multi-push."""
+    urls = push_urls or _remote_push_urls(root, remote)
+    if len(urls) != 1:
+        raise FeaturePublicationError(
+            f"assist publication requires exactly one effective push URL for "
+            f"remote {remote!r}; found {len(urls)}. Git can partially update a "
+            "multi-push remote, so it cannot provide the assist's exact-tip "
+            "transaction."
+        )
+    return urls[0]
+
+
+def _remote_branch_oid(
+    root: Path,
+    remote: str,
+    branch: str,
+    *,
+    push_urls: list[str] | None = None,
+) -> str | None:
+    """Return one OID shared by every effective push destination.
+
+    Git reads a remote's fetch URL for ``ls-remote <name>`` but writes its
+    ``pushurl`` values for ``push <name>``. Publication leases must inspect the
+    destinations they actually update. Multiple push URLs are supported only
+    while the named branch has the same presence and OID on all of them.
+    """
+    observed: list[str | None] = []
+    for push_url in push_urls or _remote_push_urls(root, remote):
+        output = _run_git(
+            root,
+            "ls-remote",
+            "--heads",
+            push_url,
+            f"refs/heads/{branch}",
+        )
+        line = next((line for line in output.splitlines() if line.strip()), "")
+        observed.append(line.split(maxsplit=1)[0] if line else None)
+    if len(set(observed)) != 1:
+        raise GitError(
+            f"effective push destinations for {remote!r}/{branch} disagree "
+            "about the branch tip"
+        )
+    return observed[0]
+
+
+def _fetch_branch_oid(root: Path, source: str, branch: str) -> str:
+    """Fetch one branch into a private ref and return its exact object ID.
+
+    ``FETCH_HEAD`` is shared by every fetch in a checkout. Coga deliberately
+    permits concurrent local processes, so reading it in a later subprocess
+    can consume an unrelated fetch result. A UUID-scoped ref makes the fetch
+    result command-owned; ``--no-write-fetch-head`` also leaves the shared
+    pseudo-ref untouched.
+    """
+    fetched_ref = f"refs/coga/fetch/{uuid4().hex}"
+    try:
+        _run_git(
+            root,
+            "fetch",
+            "--no-write-fetch-head",
+            source,
+            f"refs/heads/{branch}:{fetched_ref}",
+        )
+        return _run_git(root, "rev-parse", fetched_ref).strip()
+    finally:
+        _run_git_quiet(root, "update-ref", "-d", fetched_ref)
+
+
+def _remote_branch_descends_from(
+    root: Path,
+    push_url: str,
+    branch: str,
+    ancestor: str,
+) -> bool:
+    """Whether the live push destination contains ``ancestor`` in its history."""
+    fetched_tip = _fetch_branch_oid(root, push_url, branch)
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "merge-base",
+                "--is-ancestor",
+                ancestor,
+                fetched_tip,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, **_noninteractive_git_env()},
+        )
+    except FileNotFoundError as exc:
+        raise GitError("`git` not found on PATH") from exc
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    raise GitError(
+        "`git merge-base --is-ancestor` failed "
+        f"(exit {result.returncode}): "
+        f"{result.stderr.strip() or result.stdout.strip()}"
+    )
+
+
+def _remote_contains_generated_commit(
+    root: Path,
+    remote: str,
+    branch: str,
+    generated_oid: str,
+    *,
+    push_url: str | None = None,
+) -> bool:
+    """Whether the sole assist push destination accepted a generated commit."""
+    push_url = push_url or _single_assist_push_url(root, remote)
+    remote_oid = _remote_branch_oid(
+        root,
+        remote,
+        branch,
+        push_urls=[push_url],
+    )
+    return bool(
+        remote_oid == generated_oid
+        or (
+            remote_oid is not None
+            and _remote_branch_descends_from(
+                root,
+                push_url,
+                branch,
+                generated_oid,
+            )
+        )
+    )
+
+
+def _prepare_feature_branch_publication(
+    root: Path,
+    remote: str,
+    branch: str,
+    *,
+    preserve_union_rel: str | None = None,
+    fast_forward_if_behind: bool = True,
+    require_single_push_url: bool = False,
+    push_url: str | None = None,
+) -> _FeaturePublicationState:
+    """Align a merely-behind feature checkout before a generated commit.
+
+    Exact alignment is immediately publishable. By default, a local tip that
+    is ahead or diverged remains eligible for an ordinary local-only generated
+    commit, but is never pushed. A merely-behind checkout is fast-forwarded
+    first so Coga does not turn a recoverable state into a divergence.
+    Fast-forwarding needs a clean checkout, except that `sync_log` may name its
+    one dirty union path; that append is three-way unioned over the fetched tip
+    and restored after the fast-forward.
+
+    `may_commit=False` means the branch is behind but cannot be safely
+    fast-forwarded, or the caller explicitly required the exact
+    post-composition tip and found any mismatch. Callers must skip their
+    generated commit in that case.
+    """
+    push_urls = [push_url] if push_url is not None else _remote_push_urls(root, remote)
+    if require_single_push_url:
+        _single_assist_push_url(root, remote, push_urls=push_urls)
+    remote_tip = _remote_branch_oid(
+        root,
+        remote,
+        branch,
+        push_urls=push_urls,
+    )
+    if remote_tip is None:
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=fast_forward_if_behind,
+            detail=(
+                f"{remote}/{branch} does not exist"
+                + (
+                    ""
+                    if fast_forward_if_behind
+                    else " after launch composition"
+                )
+            ),
+            remote_oid=None,
+        )
+
+    # Fetch the exact branch after advertising it. The command-scoped ref is
+    # the authority for both ancestry and the fast-forward if the branch moved
+    # between the two network calls; a concurrent fetch cannot replace it.
+    remote_tip = _fetch_branch_oid(root, push_urls[0], branch)
+    local_tip = _run_git(root, "rev-parse", "HEAD").strip()
+    strict_changed: set[str] | None = None
+    if require_single_push_url:
+        # An assist lease authorizes a generated state commit, never ambient
+        # product/config/ticket dirt. Check this even at the exact remote tip;
+        # returning early here used to let dirty bytes enter prompt composition
+        # and the later scoped commit.
+        strict_changed = set(_changed_paths_under(root, "."))
+        permitted = {preserve_union_rel} if preserve_union_rel else set()
+        unexpected = sorted(strict_changed - permitted)
+        if unexpected:
+            return _FeaturePublicationState(
+                aligned=False,
+                may_commit=False,
+                detail=(
+                    f"checkout at {remote}/{branch} has other changes: "
+                    f"{', '.join(unexpected)}"
+                ),
+                remote_oid=remote_tip,
+            )
+        if preserve_union_rel and _has_staged_changes(root, [preserve_union_rel]):
+            return _FeaturePublicationState(
+                aligned=False,
+                may_commit=False,
+                detail=f"{preserve_union_rel} has staged changes",
+                remote_oid=remote_tip,
+            )
+        if (
+            preserve_union_rel
+            and preserve_union_rel in strict_changed
+        ):
+            committed_mode = _tree_entry_mode(
+                root,
+                local_tip,
+                preserve_union_rel,
+            )
+            working_mode = _regular_worktree_mode(root, preserve_union_rel)
+            if (
+                (
+                    committed_mode is not None
+                    and committed_mode not in {"100644", "100755"}
+                )
+                or working_mode != (committed_mode or "100644")
+            ):
+                return _FeaturePublicationState(
+                    aligned=False,
+                    may_commit=False,
+                    detail=(
+                        f"{preserve_union_rel} changed file type or mode; "
+                        "the append-only exception requires the same regular "
+                        "file mode"
+                    ),
+                    remote_oid=remote_tip,
+                )
+            working = _working_tree_bytes(root, preserve_union_rel)
+            if working is None:
+                return _FeaturePublicationState(
+                    aligned=False,
+                    may_commit=False,
+                    detail=f"{preserve_union_rel} was deleted",
+                    remote_oid=remote_tip,
+                )
+            committed = _tree_bytes(root, local_tip, preserve_union_rel) or b""
+            if (
+                len(working) <= len(committed)
+                or not working.startswith(committed)
+            ):
+                return _FeaturePublicationState(
+                    aligned=False,
+                    may_commit=False,
+                    detail=(
+                        f"{preserve_union_rel} is not an append-only change"
+                    ),
+                    remote_oid=remote_tip,
+                )
+    if local_tip == remote_tip:
+        return _FeaturePublicationState(
+            aligned=True,
+            may_commit=True,
+            detail=f"matched {remote}/{branch}",
+            remote_oid=remote_tip,
+        )
+
+    merge_base = _run_git(root, "merge-base", local_tip, remote_tip).strip()
+    relation = (
+        "behind"
+        if merge_base == local_tip
+        else "ahead"
+        if merge_base == remote_tip
+        else "diverged"
+    )
+    if not fast_forward_if_behind:
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=False,
+            detail=(
+                f"local tip moved {relation} relative to {remote}/{branch} "
+                "after launch composition"
+            ),
+            remote_oid=remote_tip,
+        )
+    if relation != "behind":
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=True,
+            detail=f"local tip is {relation} relative to {remote}/{branch}",
+            remote_oid=remote_tip,
+        )
+
+    changed = (
+        strict_changed
+        if strict_changed is not None
+        else set(_changed_paths_under(root, "."))
+    )
+    permitted = {preserve_union_rel} if preserve_union_rel else set()
+    unexpected = sorted(changed - permitted)
+    if unexpected:
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=False,
+            detail=(
+                f"local tip is behind {remote}/{branch} and the checkout has "
+                f"other changes: {', '.join(unexpected)}"
+            ),
+            remote_oid=remote_tip,
+        )
+
+    if preserve_union_rel and _has_staged_changes(root, [preserve_union_rel]):
+        return _FeaturePublicationState(
+            aligned=False,
+            may_commit=False,
+            detail=(
+                f"local tip is behind {remote}/{branch} and "
+                f"{preserve_union_rel} has staged changes"
+            ),
+            remote_oid=remote_tip,
+        )
+
+    if preserve_union_rel and preserve_union_rel in changed:
+        working = _working_tree_bytes(root, preserve_union_rel)
+        if working is None:
+            return _FeaturePublicationState(
+                aligned=False,
+                may_commit=False,
+                detail=(
+                    f"local tip is behind {remote}/{branch} and "
+                    f"{preserve_union_rel} was deleted"
+                ),
+                remote_oid=remote_tip,
+            )
+        base = _tree_bytes(root, local_tip, preserve_union_rel)
+        fetched = _tree_bytes(root, remote_tip, preserve_union_rel)
+        merged = _merge_union_bytes(
+            current=fetched or b"",
+            base=base or b"",
+            other=working,
+        )
+        _require_checkout_tip(
+            root,
+            branch,
+            local_tip,
+            action=f"fast-forward {remote}/{branch}",
+        )
+        try:
+            _write_worktree_bytes(
+                root,
+                preserve_union_rel,
+                base,
+                expected=working,
+                expected_branch=branch,
+                expected_oid=local_tip,
+            )
+            _require_checkout_tip(
+                root,
+                branch,
+                local_tip,
+                action=f"fast-forward {remote}/{branch}",
+            )
+            _run_git(root, "merge", "--ff-only", "--quiet", remote_tip)
+            # Never replace the fetched file with the stale pre-merge sample:
+            # another Coga process may have appended after our sample. Add only
+            # the union lines still missing from the live file.
+            _append_missing_union_bytes(
+                root,
+                preserve_union_rel,
+                merged,
+                expected_branch=branch,
+                expected_oid=remote_tip,
+            )
+        except BaseException as exc:
+            # The dirty audit append was temporarily hidden so `git merge`
+            # could fast-forward. A signal can arrive before or after that
+            # merge updates HEAD, and the post-merge union append can fail too.
+            # Restore the pending lines against either exact owned tip before
+            # propagating; never write them onto a switched checkout.
+            try:
+                checkout_branch = _current_branch(root)
+                checkout_oid = _run_git(root, "rev-parse", "HEAD").strip()
+                if (
+                    checkout_branch != branch
+                    or checkout_oid not in {local_tip, remote_tip}
+                ):
+                    raise GitError(
+                        "checkout changed while restoring the pending audit "
+                        "append after assist alignment"
+                    )
+                _append_missing_union_bytes(
+                    root,
+                    preserve_union_rel,
+                    working,
+                    expected_branch=branch,
+                    expected_oid=checkout_oid,
+                )
+            except BaseException as restore_exc:
+                raise UncertainFeaturePublicationError(
+                    "could not restore the pending audit append after assist "
+                    f"alignment failed: {restore_exc}"
+                ) from exc
+            raise
+    else:
+        _require_checkout_tip(
+            root,
+            branch,
+            local_tip,
+            action=f"fast-forward {remote}/{branch}",
+        )
+        _run_git(root, "merge", "--ff-only", "--quiet", remote_tip)
+
+    return _FeaturePublicationState(
+        aligned=True,
+        may_commit=True,
+        detail=f"fast-forwarded to {remote}/{branch}",
+        remote_oid=remote_tip,
+    )
+
+
+def feature_publication_lease(
+    cfg: Config,
+    task_path: Path,
+    branch: str,
+    *,
+    allow_append_only_log: bool = False,
+) -> FeaturePublicationLease:
+    """Normalize every lower-level lease probe into a fail-closed refusal."""
+    try:
+        return _feature_publication_lease(
+            cfg,
+            task_path,
+            branch,
+            allow_append_only_log=allow_append_only_log,
+        )
+    except FeaturePublicationError:
+        raise
+    except GitError as exc:
+        raise FeaturePublicationError(
+            f"could not verify assist publication lease: {exc}"
+        ) from exc
+
+
+def _feature_publication_lease(
+    cfg: Config,
+    task_path: Path,
+    branch: str,
+    *,
+    allow_append_only_log: bool = False,
+) -> FeaturePublicationLease:
+    """Verify and lease one exact aligned feature/control state.
+
+    Both the child-facing environment reader and launch's post-session
+    blocked-resume reblock use this primitive. It never fast-forwards: once a
+    prompt has run, a moved branch requires a fresh launch rather than silently
+    changing the state the agent worked against. The feature tip's committed
+    lifecycle tuple must also exactly match a freshly fetched control copy; the
+    returned lease rechecks that pre-transition tuple during publication.
+    Automatic post-session re-blocking may retain one uncommitted usage-log
+    append; its caller opts into that sole append-only exception explicitly.
+    """
+    if not cfg.git_enabled:
+        raise FeaturePublicationError("assist publication requires git sync")
+    if branch == cfg.git_control_branch:
+        raise FeaturePublicationError(
+            f"assist branch {branch!r} is also the configured control branch; "
+            "strict assist publication requires a distinct branch"
+        )
+    root = _toplevel(task_path)
+    if root is None:
+        raise FeaturePublicationError(
+            "assist publication requires a git checkout"
+        )
+    current_branch = _current_branch(root)
+    if current_branch != branch:
+        raise FeaturePublicationError(
+            f"expected assist branch {branch!r}, but the checkout changed to "
+            f"{current_branch!r}"
+        )
+    if not _remote_configured(root, cfg.git_remote):
+        raise FeaturePublicationError(
+            f"assist publication requires configured remote {cfg.git_remote!r}"
+        )
+    preserve_union_rel = (
+        _relative_worktree_file_to_root(root, log_path(cfg))
+        if allow_append_only_log
+        else None
+    )
+    push_url = _single_assist_push_url(root, cfg.git_remote)
+    publication = _prepare_feature_branch_publication(
+        root,
+        cfg.git_remote,
+        branch,
+        preserve_union_rel=preserve_union_rel,
+        fast_forward_if_behind=False,
+        require_single_push_url=True,
+        push_url=push_url,
+    )
+    local_oid = _run_git(root, "rev-parse", "HEAD").strip()
+    if (
+        not publication.aligned
+        or publication.remote_oid is None
+        or local_oid != publication.remote_oid
+    ):
+        raise FeaturePublicationError(publication.detail)
+
+    ticket_path = _ticket_path_for_task_path(task_path)
+    ticket_rel = _relative_to_root(root, ticket_path)
+    task_rel = _relative_to_root(root, task_path)
+    feature_ticket = _tree_bytes(root, local_oid, ticket_rel)
+    try:
+        control_tip = _control_base_for_attempt(
+            root,
+            cfg.git_remote,
+            cfg.git_control_branch,
+            1,
+            push_url=push_url,
+        )
+        control_ticket = _tree_bytes(root, control_tip, ticket_rel)
+        control_task_oid = _tree_entry_oid(root, control_tip, task_rel)
+    except GitError as exc:
+        raise FeaturePublicationError(
+            f"could not verify the assist ticket on control branch "
+            f"{cfg.git_control_branch!r}: {exc}"
+        ) from exc
+    if feature_ticket is None:
+        raise FeaturePublicationError(
+            f"assist feature tip has no ticket at {ticket_rel}"
+        )
+    if control_task_oid is None:
+        raise FeaturePublicationError(
+            f"assist control tip has no task at {task_rel}"
+        )
+    feature_state = _ticket_lifecycle_state(feature_ticket)
+    control_state = _ticket_lifecycle_state(control_ticket)
+    if feature_state is None:
+        raise FeaturePublicationError(
+            f"assist feature tip has an unreadable ticket at {ticket_rel}"
+        )
+    if control_state != feature_state:
+        raise FeaturePublicationError(
+            f"assist ticket does not match fresh control state "
+            f"(feature {_ticket_state_summary(feature_ticket)}; "
+            f"control {_ticket_state_summary(control_ticket)})"
+        )
+    return FeaturePublicationLease(
+        branch=branch,
+        local_oid=local_oid,
+        remote_oid=publication.remote_oid,
+        push_url=push_url,
+        control_ticket_state=feature_state,
+        control_task_oid=control_task_oid,
+    )
+
+
 def _remote_branch_present(root: Path, remote: str, branch: str) -> bool:
     """True when the configured remote has `refs/heads/<branch>`."""
     if not _remote_configured(root, remote):
         return False
-
-    result = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "ls-remote",
-            "--exit-code",
-            "--heads",
-            remote,
-            branch,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode == 0:
-        return True
-    if result.returncode == 2:
-        return False
-    raise GitError(
-        f"`git ls-remote --heads {remote} {branch}` failed "
-        f"(exit {result.returncode}): {result.stderr.strip()}"
-    )
+    return _remote_branch_oid(root, remote, branch) is not None
 
 
 def _control_branch_present(root: Path, branch: str, remote: str) -> bool:
@@ -2208,6 +4957,15 @@ def _relative_to_root(root: Path, task_path: Path) -> str:
         return str(task_path.resolve())
 
 
+def _relative_worktree_file_to_root(root: Path, path: Path) -> str:
+    """Return a worktree leaf path without following that leaf if it is a link."""
+    lexical = path.parent.resolve() / path.name
+    try:
+        return str(lexical.relative_to(root.resolve()))
+    except ValueError:
+        return str(lexical)
+
+
 def _dedupe_paths(paths: Iterable[Path]) -> list[Path]:
     out: list[Path] = []
     seen: set[Path] = set()
@@ -2228,8 +4986,12 @@ def _path_exists(root: Path, rel: str) -> bool:
 
 
 __all__ = [
+    "FileMutationRollback",
+    "FeaturePublicationError",
+    "FeaturePublicationLease",
     "GitError",
     "StateRegressionError",
+    "feature_publication_lease",
     "guard_ticket_state",
     "is_linked_worktree",
     "refresh_coga_state_from_control",
@@ -2239,4 +5001,5 @@ __all__ = [
     "sync_paths",
     "sync_task_state",
     "ticket_state_guard",
+    "UncertainFeaturePublicationError",
 ]

@@ -128,6 +128,13 @@ not decide whether a session ends, and "fail loud" means surface the miss, not
 crash. Misconfiguration (an unresolved webhook) still crashes on both paths —
 a rerun reproduces it identically, so the crash is the fix.
 
+The strict single-checkout assist path has one narrower exception after it has
+published lifecycle state under an exact feature lease: a live delivery failure
+still reports on stderr, but does not append its audit line. That lease is
+already consumed, and leaving a new line dirty would either block the child on
+its clean-checkout gate or let CLI teardown sweep unleased bytes. Ordinary
+transitions retain the audit append described above.
+
 Why crash instead of degrading to stderr-only? Because a silent FYI
 becomes a stale mental model on the human side, and that's worse than a
 noisy retry. Loud failures force resolution; quiet ones rot. That bargain
@@ -473,6 +480,13 @@ Concurrent local or cross-machine processes each fetch→build→push; exactly o
 fast-forwards per round and the losers retry, so nothing on the control branch
 is clobbered.
 
+Fetch results used by strict assist alignment and publication are isolated too.
+Each requested branch tip is written to a UUID-scoped command-owned ref with
+`--no-write-fetch-head`, resolved from that ref, and cleaned up afterward.
+`FETCH_HEAD` is checkout-wide mutable state, so a concurrent local fetch may
+replace it between subprocesses and must never be an authority for a strict
+feature or control operation.
+
 After a cross-branch landing wins that push, Coga fast-forwards the local
 control-branch ref best-effort. When no worktree has the branch checked out, a
 bare `update-ref` moves it. When one does — the primary checkout sitting on
@@ -716,10 +730,24 @@ Failure model:
   The refusal is reported exactly once, distilled to the `error:`/`CONFLICT`
   lines plus the resolve command (`summarize_git_failure` strips rebase
   progress and hint noise), and the child exits with
-  `git.STALE_CONTROL_EXIT_CODE` (75, EX_TEMPFAIL). That code tells wrapping
-  layers the checkout is already known diverged and nothing was mutated, so
-  the CLI end-of-command state sweep stands down instead of re-failing against
-  the same divergence.
+  `git.STALE_CONTROL_EXIT_CODE` (75, EX_TEMPFAIL). It aliases the generic
+  `git.RETRY_WITHOUT_SWEEP_EXIT_CODE`: a narrow publisher can use the same
+  code when it deliberately retains retryable dirty state (for example, an
+  assist log whose exact PR-tip lease was lost, any aligned-assist setup
+  refusal that may inherit such a log, or a failed leased `block`/`unblock`
+  mutation, including lease acquisition before either command writes).
+  Strict `block`, `unblock`, and automatic unresolved re-block capture their
+  exact ticket revision before that lease (and before notification preflight),
+  parse from those bytes, and byte-CAS their first write, so a peer edit during
+  network work remains local and cannot become generated rollback state.
+  Once assist alignment starts, that retry-only boundary covers every later
+  setup operation and session-side exception, including agent-skill refresh,
+  override validation, an unreadable ticket on a subsequent read, and signals;
+  no post-alignment failure may fall back to the broad sweep.
+  An `unblock --all` walk aborts rather than swallowing this code.
+  It tells wrapping layers the CLI end-of-command state sweep must stand down
+  instead of re-failing against a stale control checkout or committing bytes
+  the narrow publisher intentionally left dirty.
   Mid-workflow syncs (`coga bump`, `mark`, the catch-all state sweep, and
   recurring task-state writes after entry) remain non-fatal.
 
@@ -747,7 +775,11 @@ base are overlaid and committed on the current branch — the same local-commit
 shape the mid-run sync uses — so the branch's product tree is never touched;
 `coga/log.md` is three-way union-merged so locally appended lines survive.
 Working-tree-dirty paths are skipped (they belong to the catch-all sweep and
-its regression guard, not a blind overwrite). Committed changes on both sides
+its regression guard, not a blind overwrite). The refresh retains the bytes
+sampled for each initially clean candidate, rechecks that candidate's dirt
+immediately before writing, and conditions the write on the sample; a peer edit
+after the first status scan is therefore skipped or refused rather than
+overwritten. Committed changes on both sides
 are preserved locally unless the control path's history proves it already
 absorbed that exact local version, and a ticket whose local copy is ahead of
 the control tip is left alone — a refresh must never move state backward.

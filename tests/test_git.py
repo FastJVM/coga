@@ -206,6 +206,44 @@ def test_sync_lands_on_main_from_feature_branch(git_repo):
     assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
 
 
+def test_strict_feature_publication_surfaces_local_commit_failure(
+    git_repo, monkeypatch
+):
+    """An assist cannot start when its generated state commit was not created."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    task = _task_dir(git_repo.coga_os)
+
+    def refuse_commit(root, rels, message, **kwargs):  # type: ignore[no-untyped-def]
+        raise git.GitError("simulated commit failure")
+
+    monkeypatch.setattr(git, "_commit_paths_at_expected_head", refuse_commit)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="could not create the generated 'feature/x' state commit",
+    ):
+        git.sync_task_state(
+            cfg,
+            task,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/x",
+                local_oid=before,
+                remote_oid=before,
+            ),
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip() == before
+    assert (task / "ticket.md").is_file()
+    assert "coga/tasks/" in git_repo.git("status", "--porcelain")
+
+
 # --- sync_log branches ---------------------------------------------------------
 
 
@@ -273,6 +311,402 @@ def test_sync_log_can_publish_feature_branch_after_shared_artifact(git_repo):
     assert '{"tokens": 1}' in git_repo.git(
         "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
     )
+
+
+def test_sync_log_publishes_aligned_feature_branch_for_agent_assist(git_repo):
+    """An assist can publish its log-only commit when the PR tip was aligned."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+
+    git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+    )
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    assert "launched assist" in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+
+
+def test_sync_log_rolls_back_generated_commit_when_assist_push_races(
+    git_repo, monkeypatch, capsys
+):
+    """A lost exact-tip lease leaves the append dirty and retryable."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    local_before = git_repo.git("rev-parse", "HEAD").strip()
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+
+    real_push = git._push_ref
+    raced = False
+
+    def race_push(
+        root,
+        remote,
+        refspec,
+        *,
+        force_with_lease=None,
+    ):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if not raced:
+            raced = True
+            peer = git_repo.origin.parent / "peer-log-push-race"
+            git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+            git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+            git_repo.git("config", "user.name", "Peer", cwd=peer)
+            git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+            git_repo.git(
+                "checkout",
+                "-B",
+                "feature/x",
+                "origin/feature/x",
+                cwd=peer,
+            )
+            (peer / "peer.txt").write_text("won publication race\n")
+            git_repo.git("add", "peer.txt", cwd=peer)
+            git_repo.git("commit", "-m", "review: concurrent push", cwd=peer)
+            git_repo.git("push", "origin", "feature/x", cwd=peer)
+        return real_push(
+            root,
+            remote,
+            refspec,
+            force_with_lease=force_with_lease,
+        )
+
+    monkeypatch.setattr(git, "_push_ref", race_push)
+
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+        allow_feature_fast_forward=False,
+        expected_feature_branch="feature/x",
+    )
+
+    assert synced is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == local_before
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "won publication race" in git_repo.git(
+        "show", "refs/heads/feature/x:peer.txt", cwd=git_repo.origin
+    )
+    assert "log sync failed" in capsys.readouterr().err
+
+    assert git.sync_log(
+        cfg,
+        message="Log: ship-it retry",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    assert "launched assist" in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+
+
+@pytest.mark.parametrize("push_lands", [False, True])
+def test_sync_log_reconciles_interrupt_during_strict_push(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    push_lands: bool,
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    branch = "feature/interrupted-log-push"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+    real_push = git._push_ref
+
+    def interrupt_push(*args, **kwargs):  # type: ignore[no-untyped-def]
+        if push_lands:
+            real_push(*args, **kwargs)
+        raise SystemExit(130)
+
+    monkeypatch.setattr(git, "_push_ref", interrupt_push)
+
+    with pytest.raises(SystemExit) as excinfo:
+        git.sync_log(
+            cfg,
+            message="Log: ship-it",
+            publish_if_remote_aligned=True,
+            expected_feature_branch=branch,
+        )
+
+    assert excinfo.value.code == 130
+    local = git_repo.git("rev-parse", "HEAD").strip()
+    remote = git_repo.git(
+        "rev-parse", f"refs/heads/{branch}", cwd=git_repo.origin
+    ).strip()
+    if push_lands:
+        assert local == remote
+        assert local != before
+        assert git_repo.git("status", "--porcelain").strip() == ""
+        assert "launched assist" in git_repo.git(
+            "show", f"refs/heads/{branch}:coga/log.md", cwd=git_repo.origin
+        )
+    else:
+        assert local == remote == before
+        assert "coga/log.md" in git_repo.git("status", "--porcelain")
+
+
+def test_sync_log_fast_forwards_behind_assist_branch_before_publishing(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A remote-only review update stays a fast-forward, not a divergence."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+
+    peer = git_repo.origin.parent / "peer-feature"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/x", "origin/feature/x", cwd=peer)
+    (peer / "remote-review.txt").write_text("remote review update\n")
+    (peer / "coga" / "log.md").write_text("remote audit line\n")
+    git_repo.git("add", "remote-review.txt", "coga/log.md", cwd=peer)
+    git_repo.git("commit", "-m", "review: remote update", cwd=peer)
+    git_repo.git("push", "origin", "feature/x", cwd=peer)
+
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+    real_append_union = git._append_missing_union_bytes
+    concurrent_line = b"concurrent audit append\n"
+    injected = False
+
+    def append_concurrently(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal injected
+        if not injected:
+            injected = True
+            with (git_repo.coga_os / "log.md").open("ab") as handle:
+                handle.write(concurrent_line)
+        return real_append_union(*args, **kwargs)
+
+    monkeypatch.setattr(git, "_append_missing_union_bytes", append_concurrently)
+    git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+    )
+
+    local = git_repo.git("rev-parse", "HEAD").strip()
+    remote = git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    assert local == remote
+    assert (git_repo.root / "remote-review.txt").read_text() == "remote review update\n"
+    assert "launched assist" in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+    assert "remote audit line" in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+    assert concurrent_line.decode().strip() in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+
+
+def test_sync_log_refuses_late_assist_fast_forward_after_composition(
+    git_repo, capsys
+):
+    """A remote move after prompt composition stops instead of changing its tree."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    local_before = git_repo.git("rev-parse", "HEAD").strip()
+
+    peer = git_repo.origin.parent / "peer-feature"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/x", "origin/feature/x", cwd=peer)
+    (peer / "remote-review.txt").write_text("moved after composition\n")
+    git_repo.git("add", "remote-review.txt", cwd=peer)
+    git_repo.git("commit", "-m", "review: concurrent update", cwd=peer)
+    git_repo.git("push", "origin", "feature/x", cwd=peer)
+
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+        allow_feature_fast_forward=False,
+    )
+
+    assert synced is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == local_before
+    assert not (git_repo.root / "remote-review.txt").exists()
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "moved behind" in capsys.readouterr().err
+
+
+def test_sync_log_refuses_diverged_assist_tip_after_composition(
+    git_repo, capsys
+):
+    """A force-pushed PR tip invalidates the already-composed launch state."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "local-review.txt").write_text("old PR tip\n")
+    git_repo.git("add", "local-review.txt")
+    git_repo.git("commit", "-m", "feature: old review tip")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    local_before = git_repo.git("rev-parse", "HEAD").strip()
+
+    peer = git_repo.origin.parent / "peer-rewrite"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", "feature/x", "origin/main", cwd=peer)
+    (peer / "rewritten-review.txt").write_text("rewritten PR tip\n")
+    git_repo.git("add", "rewritten-review.txt", cwd=peer)
+    git_repo.git("commit", "-m", "feature: rewritten review tip", cwd=peer)
+    git_repo.git("push", "--force", "origin", "feature/x", cwd=peer)
+
+    append_log(cfg, "ship-it", "human:marc", "launched assist")
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+        allow_feature_fast_forward=False,
+        expected_feature_branch="feature/x",
+    )
+
+    assert synced is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == local_before
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "moved diverged" in capsys.readouterr().err
+
+
+def test_sync_log_refuses_assist_publication_after_branch_switch(
+    git_repo, capsys
+):
+    """Teardown cannot redirect an assist's audit commit to another branch."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/review")
+    git_repo.git("push", "-u", "origin", "feature/review")
+    git_repo.checkout_branch("feature/other")
+    git_repo.git("push", "-u", "origin", "feature/other")
+    remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip()
+    append_log(cfg, "ship-it", "system", '{"tokens": 1}')
+
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/review",
+    )
+
+    assert synced is False
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip() == remote_before
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "expected feature branch 'feature/review'" in capsys.readouterr().err
+
+
+def test_sync_log_strict_assist_leaves_log_dirty_when_remote_branch_disappears(
+    git_repo, capsys
+) -> None:
+    """A deleted PR head cannot turn teardown into a local-only log commit."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    append_log(cfg, "ship-it", "human:marc", "pending assist audit")
+    git_repo.git("push", "origin", "--delete", "feature/x")
+
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+
+    assert synced is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "not at an exact remote tip" in capsys.readouterr().err
+
+
+def test_sync_log_strict_assist_gate_wins_over_generic_publish_flag(
+    git_repo,
+) -> None:
+    """A generic publish request cannot bypass the pinned assist PR guard."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    append_log(cfg, "ship-it", "human:marc", "pending assist audit")
+    guard_calls: list[str] = []
+
+    def refuse_closed_pr(oid: str) -> None:
+        guard_calls.append(oid)
+        raise git.FeaturePublicationError("recorded PR closed")
+
+    synced = git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_current_branch=True,
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+        feature_publication_guard=refuse_closed_pr,
+    )
+
+    assert synced is False
+    assert guard_calls == [remote_before]
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip() == remote_before
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+
+
+def test_sync_log_does_not_publish_unaligned_feature_work(git_repo, capsys):
+    """The assist guard commits its log but never sweeps an unpushed change."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+
+    (git_repo.root / "UNPUSHED.txt").write_text("keep local\n")
+    git_repo.git("add", "UNPUSHED.txt")
+    git_repo.git("commit", "-m", "local only")
+    append_log(cfg, "ship-it", "system", '{"tokens": 1}')
+
+    git.sync_log(
+        cfg,
+        message="Log: ship-it",
+        publish_if_remote_aligned=True,
+    )
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip() == remote_before
+    assert "UNPUSHED.txt" not in git_repo.git(
+        "ls-tree", "-r", "--name-only", "refs/heads/feature/x",
+        cwd=git_repo.origin,
+    )
+    assert "committed locally but not published" in capsys.readouterr().err
 
 
 def test_sync_log_failure_does_not_redirty_the_log(git_repo, capsys):
@@ -1497,10 +1931,59 @@ def test_run_git_overlay_preserves_caller_env(monkeypatch, tmp_path):
     assert envs[0]["GIT_INDEX_FILE"] == "/tmp/idx"
 
 
+def test_run_git_redacts_credentialed_url_from_command_and_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    credentialed = "https://agent:TOP-SECRET@github.com/acme/repo.git"
+
+    def fail(*args, **kwargs):  # type: ignore[no-untyped-def]
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=128,
+            stdout="",
+            stderr=f"fatal: unable to access {credentialed}: denied\n",
+        )
+
+    monkeypatch.setattr(git.subprocess, "run", fail)
+
+    with pytest.raises(git.GitError) as excinfo:
+        git._run_git(tmp_path, "fetch", credentialed, "main")
+
+    detail = str(excinfo.value)
+    assert "TOP-SECRET" not in detail
+    assert "agent@" not in detail
+    assert "https://github.com/acme/repo.git" in detail
+
+
 def test_push_ref_runs_non_interactively(monkeypatch, tmp_path):
     envs = _capture_run(monkeypatch)
     assert git._push_ref(tmp_path, "origin", "main") is None
     assert envs[0]["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_push_ref_redacts_credentialed_url_from_git_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    credentialed = "https://agent:TOP-SECRET@github.com/acme/repo.git"
+    monkeypatch.setattr(
+        git.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout="",
+            stderr=f"fatal: unable to access {credentialed}: denied\n",
+        ),
+    )
+
+    detail = git._push_ref(tmp_path, "origin", "main")
+
+    assert detail is not None
+    assert "TOP-SECRET" not in detail
+    assert "agent@" not in detail
+    assert "https://github.com/acme/repo.git" in detail
 
 
 # --- sync_coga_state: the catch-all subtree sweep ------------------------------
@@ -1871,6 +2354,1519 @@ def test_sync_paths_guard_refuses_stale_overwrite_of_terminal_control_copy(
     assert git_repo.git("rev-parse", "HEAD").strip() == before_head
     assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
     assert "status: in_progress" in ticket.read_text()
+
+
+def test_strict_feature_publication_checks_fresh_control_state_before_push(
+    git_repo,
+):
+    """A stale assist cannot publish in_progress after control closed the task."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/stale-assist")
+    git_repo.git("push", "-u", "origin", "feature/stale-assist")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(
+            step="1 (implement)", status="done", blackboard="finished\n"
+        ),
+    )
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="stale\n"
+        )
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control state refused the assist transition",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=git.ticket_state_guard(cfg, ticket),
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/stale-assist",
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == feature_before
+    remote_feature_ticket = git_repo.git(
+        "show",
+        "refs/heads/feature/stale-assist:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in remote_feature_ticket
+    assert "status: done" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+
+
+def test_feature_publication_lease_reads_separate_pushurl(
+    git_repo,
+    tmp_path: Path,
+) -> None:
+    """Lease reads follow the destination that `git push <remote>` updates."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/pushurl-assist")
+    git_repo.git("push", "-u", "origin", "feature/pushurl-assist")
+    expected = git_repo.git("rev-parse", "HEAD").strip()
+
+    fetch_only = tmp_path / "fetch-only.git"
+    git_repo.git("init", "--bare", str(fetch_only), cwd=tmp_path)
+    git_repo.git("remote", "set-url", "origin", str(fetch_only))
+    git_repo.git(
+        "remote",
+        "set-url",
+        "--push",
+        "origin",
+        str(git_repo.origin),
+    )
+
+    lease = git.feature_publication_lease(
+        cfg,
+        ticket.parent,
+        "feature/pushurl-assist",
+    )
+
+    assert lease.local_oid == expected
+    assert lease.remote_oid == expected
+    assert lease.control_ticket_state == ("active", "1 (implement)", "claude")
+
+
+def test_feature_publication_lease_rejects_multiple_pushurls(
+    git_repo,
+) -> None:
+    """Git multi-push can partially succeed, so it cannot back an assist lease."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/multi-push-assist")
+    git_repo.git("push", "-u", "origin", "feature/multi-push-assist")
+    git_repo.git(
+        "remote",
+        "set-url",
+        "--add",
+        "--push",
+        "origin",
+        str(git_repo.origin),
+    )
+    git_repo.git(
+        "remote",
+        "set-url",
+        "--add",
+        "--push",
+        "origin",
+        str(git_repo.origin),
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="requires exactly one effective push URL.*found 2",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            "feature/multi-push-assist",
+        )
+
+
+def test_feature_publication_lease_rejects_dirty_exact_tip(
+    git_repo,
+) -> None:
+    """An exact remote tip does not authorize ambient checkout bytes."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/dirty-assist")
+    git_repo.git("push", "-u", "origin", "feature/dirty-assist")
+    (git_repo.root / "untracked-review-output.txt").write_text("do not publish\n")
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="has other changes: untracked-review-output.txt",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            "feature/dirty-assist",
+        )
+
+
+def test_feature_publication_lease_allows_only_explicit_append_only_log(
+    git_repo,
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    log = git_repo.coga_os / "log.md"
+    log.write_bytes(b"prior audit\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed audit log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/log-append-assist")
+    git_repo.git("push", "-u", "origin", "feature/log-append-assist")
+    committed = log.read_bytes()
+    log.write_bytes(committed + b"post-session usage append\n")
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="has other changes: coga/log.md",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            "feature/log-append-assist",
+        )
+
+    lease = git.feature_publication_lease(
+        cfg,
+        ticket.parent,
+        "feature/log-append-assist",
+        allow_append_only_log=True,
+    )
+    assert lease.branch == "feature/log-append-assist"
+
+    log.write_bytes(b"rewritten audit history\n")
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="coga/log.md is not an append-only change",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            "feature/log-append-assist",
+            allow_append_only_log=True,
+        )
+
+
+@pytest.mark.parametrize("mutation", ["chmod", "symlink"])
+def test_feature_publication_lease_rejects_audit_log_type_or_mode_change(
+    git_repo,
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    """The append-only exception covers bytes, not metadata or indirection."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    log = git_repo.coga_os / "log.md"
+    log.write_bytes(b"prior audit\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed regular audit log")
+    git_repo.git("push", "origin", "main")
+    branch = f"feature/log-{mutation}-assist"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    if mutation == "chmod":
+        log.chmod(0o755)
+    else:
+        target = tmp_path / "redirected-log.md"
+        target.write_bytes(log.read_bytes() + b"redirected append\n")
+        log.unlink()
+        log.symlink_to(target)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="changed file type or mode",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            branch,
+            allow_append_only_log=True,
+        )
+
+
+def test_feature_publication_lease_normalizes_lower_level_probe_failure(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/probe-failure-assist")
+    git_repo.git("push", "-u", "origin", "feature/probe-failure-assist")
+    monkeypatch.setattr(
+        git,
+        "_prepare_feature_branch_publication",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            git.GitError("ls-remote failed")
+        ),
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="could not verify assist publication lease: ls-remote failed",
+    ):
+        git.feature_publication_lease(
+            cfg,
+            ticket.parent,
+            "feature/probe-failure-assist",
+        )
+
+
+def test_strict_feature_publication_reraises_generic_git_failure(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Strict publication cannot fall through the ordinary soft-failure path."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/strict-probe-assist")
+    git_repo.git("push", "-u", "origin", "feature/strict-probe-assist")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    monkeypatch.setattr(
+        git,
+        "_union_merge_paths",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            git.GitError("check-attr failed")
+        ),
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="strict feature publication failed: check-attr failed",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/strict-probe-assist",
+                local_oid=before,
+                remote_oid=before,
+            ),
+        )
+
+
+def test_strict_publication_keeps_verified_push_url_after_config_change(
+    git_repo,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A late remote rewrite cannot redirect either half of the transaction."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/pinned-push-url"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    lease = git.feature_publication_lease(cfg, ticket.parent, branch)
+    assert lease.push_url is not None
+    alternate = tmp_path / "alternate.git"
+    git_repo.git("init", "--bare", str(alternate), cwd=tmp_path)
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    real_push = git._push_ref
+    destinations: list[str] = []
+
+    def record_push(root, remote, refspec, **kwargs):  # type: ignore[no-untyped-def]
+        destinations.append(remote)
+        return real_push(root, remote, refspec, **kwargs)
+
+    def rewrite_config(_expected_oid: str) -> None:
+        git_repo.git(
+            "remote",
+            "set-url",
+            "--push",
+            "origin",
+            str(alternate),
+        )
+
+    monkeypatch.setattr(git, "_push_ref", record_push)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — in_progress",
+        feature_publication=lease,
+        feature_publication_guard=rewrite_config,
+    )
+
+    assert destinations
+    assert set(destinations) == {lease.push_url}
+    rel = str(ticket.relative_to(git_repo.root))
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/{branch}:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git(
+        "for-each-ref",
+        "--format=%(refname)",
+        "refs/heads",
+        cwd=alternate,
+    ).strip() == ""
+
+
+def test_file_mutation_rollback_preserves_peer_ticket_and_log_edits(
+    tmp_path: Path,
+) -> None:
+    ticket = tmp_path / "ticket.md"
+    log = tmp_path / "log.md"
+    ticket.write_text("status: active\n")
+    log.write_text("prior audit\n")
+    rollback = git.FileMutationRollback.capture(
+        (ticket, log),
+        union_paths=(log,),
+    )
+    ticket.write_text("status: in_progress\n")
+    log.write_text("prior audit\ngenerated transition\n")
+    rollback.arm(
+        {
+            ticket: b"status: in_progress\n",
+            log: b"prior audit\ngenerated transition\n",
+        }
+    )
+
+    peer_ticket = "status: in_progress\npeer annotation\n"
+    ticket.write_text(peer_ticket)
+    log.write_text(
+        "prior audit\ngenerated transition\nconcurrent audit\n"
+    )
+
+    refused = rollback.restore()
+
+    assert refused == (ticket,)
+    assert ticket.read_text() == peer_ticket
+    assert log.read_text() == "prior audit\nconcurrent audit\n"
+
+
+def test_file_mutation_rollback_does_not_adopt_peer_edit_before_arm(
+    tmp_path: Path,
+) -> None:
+    ticket = tmp_path / "ticket.md"
+    ticket.write_text("status: active\n")
+    rollback = git.FileMutationRollback.capture((ticket,))
+    generated = b"status: in_progress\n"
+    ticket.write_bytes(generated)
+    peer = generated + b"peer annotation\n"
+    ticket.write_bytes(peer)
+
+    rollback.arm({ticket: generated})
+    refused = rollback.restore()
+
+    assert rollback.generated == {ticket: generated}
+    assert refused == (ticket,)
+    assert ticket.read_bytes() == peer
+
+
+def test_file_mutation_rollback_refuses_unarmed_restore(
+    tmp_path: Path,
+) -> None:
+    ticket = tmp_path / "ticket.md"
+    log = tmp_path / "log.md"
+    ticket.write_text("status: active\n")
+    log.write_text("prior audit\n")
+    rollback = git.FileMutationRollback.capture(
+        (ticket, log),
+        union_paths=(log,),
+    )
+    ticket.write_text("status: blocked\npeer annotation\n")
+    log.write_text("prior audit\npeer audit\n")
+
+    refused = rollback.restore()
+
+    assert refused == (ticket, log)
+    assert ticket.read_text() == "status: blocked\npeer annotation\n"
+    assert log.read_text() == "prior audit\npeer audit\n"
+
+
+def test_strict_feature_publication_cas_preserves_concurrent_local_commit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A generated assist commit may not adopt or reset over a local race."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/local-cas-assist")
+    git_repo.git("push", "-u", "origin", "feature/local-cas-assist")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+
+    real_build = git._build_overlay_tree
+    raced = False
+
+    def race_after_tree(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        tree = real_build(*args, **kwargs)
+        if not raced:
+            raced = True
+            race = git_repo.root / "RACE.txt"
+            race.write_text("concurrent local work\n")
+            git_repo.git("add", "RACE.txt")
+            git_repo.git(
+                "commit",
+                "--only",
+                "-m",
+                "concurrent local work",
+                "--",
+                "RACE.txt",
+            )
+        return tree
+
+    monkeypatch.setattr(git, "_build_overlay_tree", race_after_tree)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="moved from verified tip",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/local-cas-assist",
+                local_oid=before,
+                remote_oid=before,
+            ),
+        )
+
+    assert git_repo.git("log", "-1", "--format=%s").strip() == "concurrent local work"
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/local-cas-assist",
+        cwd=git_repo.origin,
+    ).strip() == before
+    assert "RACE.txt" not in git_repo.git(
+        "ls-tree",
+        "-r",
+        "--name-only",
+        "refs/heads/feature/local-cas-assist",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        "main:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
+
+
+def test_strict_feature_publication_lands_captured_commit_not_late_worktree(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Feature and control receive one state even if the worktree changes later."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/captured-state-assist")
+    git_repo.git("push", "-u", "origin", "feature/captured-state-assist")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="published transition\n",
+        )
+    )
+    real_push = git._push_ref
+    mutated = False
+
+    def mutate_after_feature_push(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal mutated
+        result = real_push(*args, **kwargs)
+        if not mutated:
+            mutated = True
+            ticket.write_text(
+                _step_ticket_text(
+                    step="1 (implement)",
+                    status="blocked",
+                    blackboard="late working-tree edit\n",
+                )
+            )
+        return result
+
+    monkeypatch.setattr(git, "_push_ref", mutate_after_feature_push)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — in_progress",
+        feature_publication=git.FeaturePublicationLease(
+            branch="feature/captured-state-assist",
+            local_oid=before,
+            remote_oid=before,
+        ),
+    )
+
+    rel = "coga/tasks/demo/ticket.md"
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/feature/captured-state-assist:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"main:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: blocked" in ticket.read_text()
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+def test_strict_feature_publication_leases_exact_control_lifecycle(
+    git_repo,
+) -> None:
+    """A concurrent park cannot be overwritten after the lease is minted."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/exact-control-assist")
+    git_repo.git("push", "-u", "origin", "feature/exact-control-assist")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    lease = git.feature_publication_lease(
+        cfg,
+        ticket.parent,
+        "feature/exact-control-assist",
+    )
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(
+            step="1 (implement)",
+            status="blocked",
+            blackboard="owner parked this work\n",
+        ),
+    )
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="agent started from the old prompt\n",
+        )
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control task changed after the assist lease",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=git.ticket_state_guard(cfg, ticket),
+            feature_publication=lease,
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == feature_before
+    assert "status: active" in git_repo.git(
+        "show",
+        "refs/heads/feature/exact-control-assist:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: blocked" in git_repo.git(
+        "show",
+        "main:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in ticket.read_text()
+    assert "coga/tasks/demo/ticket.md" in git_repo.git(
+        "status",
+        "--porcelain",
+    )
+
+
+def test_strict_control_push_leases_guarded_base_across_force_rewind(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale candidate cannot silently restore a force-rewound control tip."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    marker = git_repo.root / "CONTROL-MARKER.txt"
+    marker.write_text("control commit intentionally rewound by peer\n")
+    git_repo.git("add", "CONTROL-MARKER.txt")
+    git_repo.git("commit", "-m", "seed control-only marker")
+    git_repo.git("push", "origin", "main")
+    guarded_tip = git_repo.git(
+        "rev-parse", "refs/heads/main", cwd=git_repo.origin
+    ).strip()
+    rewound_tip = git_repo.git(
+        "rev-parse", f"{guarded_tip}^", cwd=git_repo.origin
+    ).strip()
+
+    branch = "feature/control-force-rewind"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    lease = git.feature_publication_lease(cfg, ticket.parent, branch)
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="generated after guarded control read\n",
+        )
+    )
+
+    real_push = git._push_ref
+    control_leases: list[tuple[str, str] | None] = []
+    raced = False
+
+    def rewind_before_control_push(
+        root,
+        remote,
+        refspec,
+        *,
+        force_with_lease=None,
+    ):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if refspec.endswith(":refs/heads/main"):
+            control_leases.append(force_with_lease)
+            if not raced:
+                raced = True
+                git_repo.git(
+                    "update-ref",
+                    "refs/heads/main",
+                    rewound_tip,
+                    cwd=git_repo.origin,
+                )
+        return real_push(
+            root,
+            remote,
+            refspec,
+            force_with_lease=force_with_lease,
+        )
+
+    monkeypatch.setattr(git, "_push_ref", rewind_before_control_push)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — in_progress",
+        feature_publication=lease,
+    )
+
+    assert control_leases[0] == ("refs/heads/main", guarded_tip)
+    assert all(item is not None for item in control_leases)
+    assert "status: in_progress" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert "CONTROL-MARKER.txt" not in git_repo.git(
+        "ls-tree", "-r", "--name-only", "main", cwd=git_repo.origin
+    )
+
+
+@pytest.mark.parametrize(
+    ("changed_rel", "changed_text"),
+    [
+        (
+            "coga/tasks/demo/ticket.md",
+            _step_ticket_text(
+                step="1 (implement)",
+                status="active",
+                blackboard="owner added a control-only note\n",
+            ),
+        ),
+        (
+            "coga/tasks/demo/owner-notes.md",
+            "owner added a control-only attachment\n",
+        ),
+    ],
+    ids=["ticket-prose", "task-attachment"],
+)
+def test_strict_feature_publication_leases_exact_control_task_object(
+    git_repo,
+    changed_rel: str,
+    changed_text: str,
+) -> None:
+    """Same-lifecycle control edits force a retry instead of being overlaid."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/exact-control-task-assist")
+    git_repo.git("push", "-u", "origin", "feature/exact-control-task-assist")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    lease = git.feature_publication_lease(
+        cfg,
+        ticket.parent,
+        "feature/exact-control-task-assist",
+    )
+    assert lease.control_task_oid is not None
+
+    git_repo.push_competing_commit(changed_rel, changed_text)
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="agent started from the leased prompt\n",
+        )
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control task changed after the assist lease",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=git.ticket_state_guard(cfg, ticket),
+            feature_publication=lease,
+        )
+
+    assert git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/exact-control-task-assist",
+        cwd=git_repo.origin,
+    ).strip() == feature_before
+    assert git_repo.git(
+        "show",
+        f"main:{changed_rel}",
+        cwd=git_repo.origin,
+    ) == changed_text
+    assert "status: in_progress" in ticket.read_text()
+    assert "coga/tasks/demo/ticket.md" in git_repo.git(
+        "status",
+        "--porcelain",
+    )
+
+
+@pytest.mark.parametrize(
+    "landing_error",
+    [
+        git.StateRegressionError("terminal control state won the race"),
+        git.GitError("control push failed"),
+    ],
+    ids=["state-regression", "git-failure"],
+)
+def test_strict_feature_publication_compensates_failed_control_landing(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    landing_error: git.GitError,
+) -> None:
+    """No child may start with lifecycle state rejected by the control branch."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/transactional-assist")
+    git_repo.git("push", "-u", "origin", "feature/transactional-assist")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="working\n"
+        )
+    )
+
+    def refuse_control_landing(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise landing_error
+
+    monkeypatch.setattr(
+        git, "_land_paths_on_control_branch", refuse_control_landing
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control landing failed after feature publication",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=git.ticket_state_guard(cfg, ticket),
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/transactional-assist",
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+        )
+
+    remote_feature = git_repo.git(
+        "show",
+        "refs/heads/feature/transactional-assist:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in remote_feature
+    assert "status: active" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse",
+        "refs/heads/feature/transactional-assist",
+        cwd=git_repo.origin,
+    ).strip()
+    assert "status: active" in ticket.read_text()
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_strict_feature_publication_compensates_interrupt_after_feature_push(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SIGINT after Git accepts the first push cannot split feature/control."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/interrupted-feature-push-assist"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    real_push = git._push_ref
+    interrupted = False
+
+    def push_then_interrupt(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal interrupted
+        result = real_push(*args, **kwargs)
+        if not interrupted:
+            interrupted = True
+            raise SystemExit(130)
+        return result
+
+    monkeypatch.setattr(git, "_push_ref", push_then_interrupt)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control landing failed after feature publication",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch=branch,
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+        )
+
+    assert "status: active" in git_repo.git(
+        "show",
+        f"refs/heads/{branch}:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        "main:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse",
+        f"refs/heads/{branch}",
+        cwd=git_repo.origin,
+    ).strip()
+    assert "status: active" in ticket.read_text()
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_strict_compensation_probes_interrupt_after_remote_acceptance(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lost compensation acknowledgement is reconciled from the remote tip."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/interrupted-compensation"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    real_push = git._push_ref
+    pushes = 0
+
+    def interrupt_compensation(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal pushes
+        result = real_push(*args, **kwargs)
+        pushes += 1
+        if pushes == 2:
+            raise SystemExit(130)
+        return result
+
+    monkeypatch.setattr(git, "_push_ref", interrupt_compensation)
+    monkeypatch.setattr(
+        git,
+        "_land_paths_on_control_branch",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            git.GitError("control landing refused")
+        ),
+    )
+
+    with pytest.raises(git.FeaturePublicationError) as excinfo:
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch=branch,
+                local_oid=before,
+                remote_oid=before,
+            ),
+        )
+
+    assert not isinstance(excinfo.value, git.UncertainFeaturePublicationError)
+    assert "restored origin/feature/interrupted-compensation" in str(excinfo.value)
+    rel = "coga/tasks/demo/ticket.md"
+    assert "status: active" in git_repo.git(
+        "show",
+        f"refs/heads/{branch}:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in ticket.read_text()
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse",
+        f"refs/heads/{branch}",
+        cwd=git_repo.origin,
+    ).strip()
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_strict_compensation_retains_generated_state_when_probe_fails(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An inconclusive compensation probe never licenses local rollback."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/unknown-compensation"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    real_push = git._push_ref
+    pushes = 0
+
+    def interrupt_compensation(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal pushes
+        result = real_push(*args, **kwargs)
+        pushes += 1
+        if pushes == 2:
+            raise SystemExit(130)
+        return result
+
+    monkeypatch.setattr(git, "_push_ref", interrupt_compensation)
+    monkeypatch.setattr(
+        git,
+        "_land_paths_on_control_branch",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            git.GitError("control landing refused")
+        ),
+    )
+    monkeypatch.setattr(
+        git,
+        "_remote_contains_generated_commit",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            git.GitError("compensation probe unavailable")
+        ),
+    )
+
+    with pytest.raises(
+        git.UncertainFeaturePublicationError,
+        match="retained the generated local state",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch=branch,
+                local_oid=before,
+                remote_oid=before,
+            ),
+        )
+
+    rel = "coga/tasks/demo/ticket.md"
+    assert "status: active" in git_repo.git(
+        "show",
+        f"refs/heads/{branch}:{rel}",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in ticket.read_text()
+    assert git_repo.git("rev-parse", "HEAD").strip() != git_repo.git(
+        "rev-parse",
+        f"refs/heads/{branch}",
+        cwd=git_repo.origin,
+    ).strip()
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_strict_feature_publication_records_interrupt_after_control_push(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A post-control SIGINT reports the already-complete durable boundary."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/interrupted-control-push-assist"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    real_push = git._push_ref
+    push_count = 0
+    published = False
+
+    def interrupt_second_push(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal push_count
+        result = real_push(*args, **kwargs)
+        push_count += 1
+        if push_count == 2:
+            raise SystemExit(130)
+        return result
+
+    def record_publication() -> None:
+        nonlocal published
+        published = True
+
+    monkeypatch.setattr(git, "_push_ref", interrupt_second_push)
+
+    with pytest.raises(SystemExit) as excinfo:
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch=branch,
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+            after_strict_publication=record_publication,
+        )
+
+    assert excinfo.value.code == 130
+    assert published is True
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        f"refs/heads/{branch}:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in git_repo.git(
+        "show",
+        "main:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+
+
+def test_strict_publication_retains_feature_when_control_probe_is_unknown(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An inconclusive post-control probe must not compensate one durable half."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/unknown-control-probe"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    real_land = git._land_paths_on_control_branch
+
+    def land_then_interrupt(*args, **kwargs):  # type: ignore[no-untyped-def]
+        real_land(*args, **kwargs)
+        raise SystemExit(130)
+
+    monkeypatch.setattr(git, "_land_paths_on_control_branch", land_then_interrupt)
+    monkeypatch.setattr(
+        git,
+        "_control_history_contains_generated_paths",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            git.GitError("control probe unavailable")
+        ),
+    )
+
+    with pytest.raises(
+        git.UncertainFeaturePublicationError,
+        match="retained for explicit reconciliation",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch=branch,
+                local_oid=before,
+                remote_oid=before,
+            ),
+        )
+
+    rel = "coga/tasks/demo/ticket.md"
+    assert "status: in_progress" in git_repo.git(
+        "show", f"refs/heads/{branch}:{rel}", cwd=git_repo.origin
+    )
+    assert "status: in_progress" in git_repo.git(
+        "show", f"main:{rel}", cwd=git_repo.origin
+    )
+
+
+def test_strict_publication_uses_armed_generated_bytes(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A worktree edit after rollback arming is not adopted by either ref."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/captured-generated-bytes"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    rollback = git.FileMutationRollback.capture((ticket,))
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    rollback.arm({ticket: ticket.read_bytes()})
+    real_build = git._build_overlay_tree
+    raced = False
+
+    def edit_after_arm(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if not raced:
+            raced = True
+            ticket.write_text(
+                ticket.read_text().replace(
+                    "## Description\n\nDemo.",
+                    "## Description\n\nCONCURRENT LOCAL EDIT\n\nDemo.",
+                )
+            )
+        return real_build(*args, **kwargs)
+
+    monkeypatch.setattr(git, "_build_overlay_tree", edit_after_arm)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — in_progress",
+        feature_publication=git.FeaturePublicationLease(
+            branch=branch,
+            local_oid=before,
+            remote_oid=before,
+        ),
+        generated_paths=rollback.generated,
+    )
+
+    rel = "coga/tasks/demo/ticket.md"
+    assert "CONCURRENT LOCAL EDIT" in ticket.read_text()
+    assert "CONCURRENT LOCAL EDIT" not in git_repo.git(
+        "show", f"refs/heads/{branch}:{rel}", cwd=git_repo.origin
+    )
+    assert "CONCURRENT LOCAL EDIT" not in git_repo.git(
+        "show", f"main:{rel}", cwd=git_repo.origin
+    )
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+def test_strict_commit_interrupt_rolls_back_local_ref(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A signal after the local ref CAS cannot strand the generated commit."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/interrupted-local-cas"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    real_run = git._run_git
+    interrupted = False
+
+    def interrupt_after_update_ref(
+        root, *args, **kwargs  # type: ignore[no-untyped-def]
+    ):
+        nonlocal interrupted
+        result = real_run(root, *args, **kwargs)
+        if args and args[0] == "update-ref" and not interrupted:
+            interrupted = True
+            raise SystemExit(130)
+        return result
+
+    monkeypatch.setattr(git, "_run_git", interrupt_after_update_ref)
+
+    with pytest.raises(SystemExit) as excinfo:
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch=branch,
+                local_oid=before,
+                remote_oid=before,
+            ),
+        )
+
+    assert excinfo.value.code == 130
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert git_repo.git(
+        "rev-parse", f"refs/heads/{branch}", cwd=git_repo.origin
+    ).strip() == before
+    assert "status: in_progress" in ticket.read_text()
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
+
+
+@pytest.mark.parametrize("generated_change", [False, True])
+def test_strict_commit_rejects_same_oid_checkout_switch(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_change: bool,
+) -> None:
+    """A branch-name switch is a race even when both refs resolve alike."""
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/same-oid-owner"
+    other = "feature/same-oid-other"
+    git_repo.checkout_branch(branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.git("branch", other, before)
+    rel = str(ticket.relative_to(git_repo.root))
+    if generated_change:
+        ticket.write_text(
+            _step_ticket_text(
+                step="1 (implement)",
+                status="in_progress",
+                blackboard="working\n",
+            )
+        )
+    real_run = git._run_git
+    switched = False
+
+    def switch_after_ref_cas(
+        root, *args, **kwargs  # type: ignore[no-untyped-def]
+    ):
+        nonlocal switched
+        result = real_run(root, *args, **kwargs)
+        if (
+            args[:2] == ("update-ref", f"refs/heads/{branch}")
+            and not switched
+        ):
+            switched = True
+            git_repo.git("symbolic-ref", "HEAD", f"refs/heads/{other}")
+        return result
+
+    monkeypatch.setattr(git, "_run_git", switch_after_ref_cas)
+
+    with pytest.raises(git.GitError, match="expected checkout"):
+        git._commit_paths_at_expected_head(
+            git_repo.root,
+            [rel],
+            "Ticket: demo — generated",
+            branch=branch,
+            expected_oid=before,
+        )
+
+    assert git_repo.git("branch", "--show-current").strip() == other
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert git_repo.git("rev-parse", branch).strip() == before
+    assert git_repo.git("rev-parse", other).strip() == before
+    if generated_change:
+        assert rel in git_repo.git("status", "--porcelain")
+    else:
+        assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_strict_feature_compensation_does_not_merge_after_checkout_switch(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    main_before = git_repo.git("rev-parse", "main").strip()
+    git_repo.checkout_branch("feature/switched-compensation-assist")
+    git_repo.git(
+        "push",
+        "-u",
+        "origin",
+        "feature/switched-compensation-assist",
+    )
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+
+    def switch_then_refuse(*args, **kwargs):  # type: ignore[no-untyped-def]
+        git_repo.git("checkout", "main")
+        raise git.GitError("control landing refused after checkout switch")
+
+    monkeypatch.setattr(
+        git,
+        "_land_paths_on_control_branch",
+        switch_then_refuse,
+    )
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control landing failed after feature publication",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/switched-compensation-assist",
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+        )
+
+    assert git_repo.git("branch", "--show-current").strip() == "main"
+    assert git_repo.git("rev-parse", "HEAD").strip() == main_before
+    assert "status: active" in git_repo.git(
+        "show",
+        "HEAD:coga/tasks/demo/ticket.md",
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        "refs/heads/feature/switched-compensation-assist:"
+        "coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+
+
+def test_strict_feature_compensation_preserves_concurrent_descendant(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Compensation reverts only generated state atop a peer's newer tip."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    git_repo.checkout_branch("feature/descendant-assist")
+    git_repo.git("push", "-u", "origin", "feature/descendant-assist")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+
+    def peer_then_refuse(*args, **kwargs):  # type: ignore[no-untyped-def]
+        peer = git_repo.origin.parent / "peer-compensation-descendant"
+        git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+        git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+        git_repo.git("config", "user.name", "Peer", cwd=peer)
+        git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+        git_repo.git(
+            "checkout",
+            "-B",
+            "feature/descendant-assist",
+            "origin/feature/descendant-assist",
+            cwd=peer,
+        )
+        peer_note = peer / "coga" / "tasks" / "demo" / "peer-notes.md"
+        peer_note.write_text("peer survives compensation\n")
+        peer_ticket = peer / "coga" / "tasks" / "demo" / "ticket.md"
+        peer_ticket.write_text(
+            peer_ticket.read_text().replace(
+                "## Description\n\nDemo.",
+                "## Description\n\nPeer review note survives.\n\nDemo.",
+            )
+        )
+        git_repo.git(
+            "add",
+            "coga/tasks/demo/peer-notes.md",
+            "coga/tasks/demo/ticket.md",
+            cwd=peer,
+        )
+        git_repo.git("commit", "-m", "review: concurrent peer fix", cwd=peer)
+        git_repo.git("push", "origin", "feature/descendant-assist", cwd=peer)
+        raise git.GitError("control push failed")
+
+    monkeypatch.setattr(git, "_land_paths_on_control_branch", peer_then_refuse)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="restored origin/feature/descendant-assist",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=git.ticket_state_guard(cfg, ticket),
+            feature_publication=git.FeaturePublicationLease(
+                branch="feature/descendant-assist",
+                local_oid=feature_before,
+                remote_oid=feature_before,
+            ),
+        )
+
+    remote = "refs/heads/feature/descendant-assist"
+    assert "peer survives compensation" in git_repo.git(
+        "show",
+        f"{remote}:coga/tasks/demo/peer-notes.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: active" in git_repo.git(
+        "show",
+        f"{remote}:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "Peer review note survives." in git_repo.git(
+        "show",
+        f"{remote}:coga/tasks/demo/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert (
+        git_repo.root / "coga" / "tasks" / "demo" / "peer-notes.md"
+    ).read_text() == (
+        "peer survives compensation\n"
+    )
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse",
+        remote,
+        cwd=git_repo.origin,
+    ).strip()
+    assert "status: active" in ticket.read_text()
+    assert "Peer review note survives." in ticket.read_text()
+    assert git_repo.git("status", "--porcelain").strip() == ""
 
 
 def test_sync_paths_guard_allows_forward_transition(git_repo):
@@ -2350,6 +4346,738 @@ def test_refresh_pulls_newer_control_ticket_into_feature_checkout(git_repo):
     assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
 
 
+def test_refresh_publishes_generated_state_for_aligned_assist_branch(git_repo):
+    """The launch-end pull-back does not leave an assist branch locally ahead."""
+    cfg = load_config(git_repo.coga_os)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+
+    git_repo.push_competing_commit("coga/log.md", "base\ncontrol update\n")
+    git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh after assist",
+        publish_if_remote_aligned=True,
+    )
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()
+    assert "control update" in git_repo.git(
+        "show", "refs/heads/feature/x:coga/log.md", cwd=git_repo.origin
+    )
+
+
+def test_assist_alignment_rechecks_checkout_before_fast_forward(
+    git_repo, monkeypatch
+) -> None:
+    """A concurrent checkout switch cannot redirect the PR fast-forward."""
+    git_repo.checkout_branch("feature/review")
+    git_repo.git("push", "-u", "origin", "feature/review")
+    peer = git_repo.origin.parent / "peer-alignment-race"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git(
+        "checkout", "-B", "feature/review", "origin/feature/review", cwd=peer
+    )
+    (peer / "review.txt").write_text("remote review update\n")
+    git_repo.git("add", "review.txt", cwd=peer)
+    git_repo.git("commit", "-m", "review: advance branch", cwd=peer)
+    git_repo.git("push", "origin", "feature/review", cwd=peer)
+    main_before = git_repo.git("rev-parse", "main").strip()
+
+    real_changed = git._changed_paths_under
+    switched = False
+
+    def switch_after_status(root, pathspecs):  # type: ignore[no-untyped-def]
+        nonlocal switched
+        changed = real_changed(root, pathspecs)
+        if not switched:
+            switched = True
+            git_repo.git("checkout", "main")
+        return changed
+
+    monkeypatch.setattr(git, "_changed_paths_under", switch_after_status)
+
+    with pytest.raises(git.GitError, match="expected checkout 'feature/review'"):
+        git._prepare_feature_branch_publication(
+            git_repo.root,
+            "origin",
+            "feature/review",
+            require_single_push_url=True,
+        )
+
+    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
+    assert git_repo.git("rev-parse", "HEAD").strip() == main_before
+    assert not (git_repo.root / "review.txt").exists()
+
+
+def test_assist_alignment_ignores_concurrent_fetch_head_update(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A concurrent fetch cannot substitute its tip for the feature tip."""
+    branch = "feature/fetch-head-race"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+
+    peer = git_repo.origin.parent / "peer-fetch-head-race"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", branch, f"origin/{branch}", cwd=peer)
+    (peer / "feature.txt").write_text("feature update\n")
+    git_repo.git("add", "feature.txt", cwd=peer)
+    git_repo.git("commit", "-m", "feature: advance review", cwd=peer)
+    git_repo.git("push", "origin", branch, cwd=peer)
+    feature_tip = git_repo.git(
+        "rev-parse", f"refs/heads/{branch}", cwd=git_repo.origin
+    ).strip()
+
+    git_repo.git("checkout", "-B", "main", "origin/main", cwd=peer)
+    (peer / "main.txt").write_text("unrelated control update\n")
+    git_repo.git("add", "main.txt", cwd=peer)
+    git_repo.git("commit", "-m", "main: unrelated update", cwd=peer)
+    git_repo.git("push", "origin", "main", cwd=peer)
+    main_tip = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+
+    real_run_git = git._run_git
+    injected = False
+
+    def overwrite_fetch_head_before_read(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal injected
+        if (
+            not injected
+            and args[0] == "rev-parse"
+            and (
+                args[1] == "FETCH_HEAD"
+                or args[1].startswith("refs/coga/fetch/")
+            )
+        ):
+            injected = True
+            real_run_git(root, "fetch", "origin", "main")
+        return real_run_git(root, *args, **kwargs)
+
+    monkeypatch.setattr(git, "_run_git", overwrite_fetch_head_before_read)
+
+    state = git._prepare_feature_branch_publication(
+        git_repo.root,
+        "origin",
+        branch,
+        require_single_push_url=True,
+    )
+
+    assert injected
+    assert state.remote_oid == feature_tip
+    assert git_repo.git("rev-parse", "HEAD").strip() == feature_tip
+    assert feature_tip != main_tip
+    assert (
+        git_repo.git(
+            "for-each-ref", "--format=%(refname)", "refs/coga/fetch"
+        ).strip()
+        == ""
+    )
+
+
+@pytest.mark.parametrize(
+    "interrupt_stage",
+    ["after-hide", "before-merge", "after-merge"],
+)
+def test_assist_alignment_restores_pending_audit_on_interrupt(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    interrupt_stage: str,
+) -> None:
+    """Every signal window around the fast-forward retains the dirty audit line."""
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed alignment audit")
+    git_repo.git("push", "origin", "main")
+    branch = "feature/interrupted-alignment"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    local_tip = git_repo.git("rev-parse", "HEAD").strip()
+
+    peer = git_repo.origin.parent / f"peer-alignment-{interrupt_stage}"
+    git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+    git_repo.git("config", "user.name", "Peer", cwd=peer)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+    git_repo.git("checkout", "-B", branch, f"origin/{branch}", cwd=peer)
+    (peer / "coga" / "log.md").write_text("base\nremote audit\n")
+    git_repo.git("add", "coga/log.md", cwd=peer)
+    git_repo.git("commit", "-m", "review: append remote audit", cwd=peer)
+    git_repo.git("push", "origin", branch, cwd=peer)
+    remote_tip = git_repo.git(
+        "rev-parse",
+        f"refs/heads/{branch}",
+        cwd=git_repo.origin,
+    ).strip()
+    log.write_text("base\npending local audit\n")
+    real_run = git._run_git
+    real_write = git._write_worktree_bytes
+    interrupted = False
+
+    def interrupt_after_hiding(
+        root, rel, data, **kwargs  # type: ignore[no-untyped-def]
+    ):
+        nonlocal interrupted
+        result = real_write(root, rel, data, **kwargs)
+        if (
+            interrupt_stage == "after-hide"
+            and rel == "coga/log.md"
+            and not interrupted
+        ):
+            interrupted = True
+            raise SystemExit(130)
+        return result
+
+    def interrupt_fast_forward(
+        root, *args, **kwargs  # type: ignore[no-untyped-def]
+    ):
+        nonlocal interrupted
+        if args[:3] == ("merge", "--ff-only", "--quiet") and not interrupted:
+            interrupted = True
+            if interrupt_stage == "after-merge":
+                real_run(root, *args, **kwargs)
+            raise SystemExit(130)
+        return real_run(root, *args, **kwargs)
+
+    monkeypatch.setattr(git, "_write_worktree_bytes", interrupt_after_hiding)
+    monkeypatch.setattr(git, "_run_git", interrupt_fast_forward)
+
+    with pytest.raises(SystemExit) as excinfo:
+        git._prepare_feature_branch_publication(
+            git_repo.root,
+            "origin",
+            branch,
+            preserve_union_rel="coga/log.md",
+            require_single_push_url=True,
+        )
+
+    assert excinfo.value.code == 130
+    assert "pending local audit" in log.read_text()
+    expected_tip = remote_tip if interrupt_stage == "after-merge" else local_tip
+    assert git_repo.git("rev-parse", "HEAD").strip() == expected_tip
+    if interrupt_stage == "after-merge":
+        assert "remote audit" in log.read_text()
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+
+
+def test_assist_refresh_reads_control_from_verified_push_destination(
+    git_repo,
+    tmp_path: Path,
+) -> None:
+    """A fork assist must not import control state from its base fetch URL."""
+    cfg = load_config(git_repo.coga_os)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed fork log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/fork-assist")
+    git_repo.git("push", "-u", "origin", "feature/fork-assist")
+
+    base_fetch = tmp_path / "base-fetch.git"
+    git_repo.git(
+        "clone",
+        "--bare",
+        str(git_repo.origin),
+        str(base_fetch),
+        cwd=tmp_path,
+    )
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        "base\nfork control update\n",
+    )
+    git_repo.git("remote", "set-url", "origin", str(base_fetch))
+    git_repo.git(
+        "remote",
+        "set-url",
+        "--push",
+        "origin",
+        str(git_repo.origin),
+    )
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh fork assist",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/fork-assist",
+    )
+
+    assert refreshed is True
+    assert "fork control update" in log.read_text()
+    assert "fork control update" in git_repo.git(
+        "show",
+        "refs/heads/feature/fork-assist:coga/log.md",
+        cwd=git_repo.origin,
+    )
+
+
+def test_refresh_rolls_back_generated_commit_when_assist_push_races(
+    git_repo, monkeypatch
+):
+    """A lost teardown lease restores the prior tip and dirty usage append."""
+    cfg = load_config(git_repo.coga_os)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+
+    git_repo.push_competing_commit("coga/log.md", "base\ncontrol update\n")
+    log.write_text("base\npending usage\n")
+    real_push = git._push_ref
+    raced = False
+
+    def race_push(
+        root,
+        remote,
+        refspec,
+        *,
+        force_with_lease=None,
+    ):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if force_with_lease is not None and not raced:
+            raced = True
+            peer = git_repo.origin.parent / "peer-refresh-race"
+            git_repo.git("clone", str(git_repo.origin), str(peer), cwd=peer.parent)
+            git_repo.git("config", "user.email", "peer@example.com", cwd=peer)
+            git_repo.git("config", "user.name", "Peer", cwd=peer)
+            git_repo.git("config", "commit.gpgsign", "false", cwd=peer)
+            git_repo.git(
+                "checkout", "-B", "feature/x", "origin/feature/x", cwd=peer
+            )
+            (peer / "peer.txt").write_text("won refresh race\n")
+            git_repo.git("add", "peer.txt", cwd=peer)
+            git_repo.git("commit", "-m", "review: concurrent refresh", cwd=peer)
+            git_repo.git("push", "origin", "feature/x", cwd=peer)
+        return real_push(
+            root,
+            remote,
+            refspec,
+            force_with_lease=force_with_lease,
+        )
+
+    monkeypatch.setattr(git, "_push_ref", race_push)
+
+    git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh after assist",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == feature_before
+    restored_log = log.read_text()
+    assert restored_log.startswith("base\npending usage\n")
+    assert "control update" not in restored_log
+    assert "refresh failed" not in restored_log
+    assert "coga/log.md" in git_repo.git("status", "--porcelain")
+    assert "won refresh race" in git_repo.git(
+        "show", "refs/heads/feature/x:peer.txt", cwd=git_repo.origin
+    )
+
+
+def test_strict_refresh_rechecks_checkout_before_writing(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A branch switch after fetch cannot receive control-state worktree bytes."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    rel = str(ticket.relative_to(git_repo.root))
+    original = ticket.read_bytes()
+    branch = "feature/refresh-owner"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    git_repo.git("branch", "feature/other")
+    git_repo.push_competing_commit(
+        rel,
+        _step_ticket_text(step="2 (review)"),
+    )
+    real_refresh = git._refresh_branch_from_control
+
+    def switch_then_refresh(*args, **kwargs):  # type: ignore[no-untyped-def]
+        git_repo.git("checkout", "feature/other")
+        return real_refresh(*args, **kwargs)
+
+    monkeypatch.setattr(git, "_refresh_branch_from_control", switch_then_refresh)
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh pinned branch",
+        publish_if_remote_aligned=True,
+        expected_feature_branch=branch,
+    )
+
+    assert refreshed is False
+    assert git_repo.git("branch", "--show-current").strip() == "feature/other"
+    assert ticket.read_bytes() == original
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_strict_refresh_guard_retains_peer_edit_before_write(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A late worktree edit wins over the refresh's sampled stale bytes."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    rel = str(ticket.relative_to(git_repo.root))
+    branch = "feature/guarded-refresh"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit(rel, _step_ticket_text(step="2 (review)"))
+    real_write = git._write_worktree_bytes
+    raced = False
+
+    def edit_before_guarded_write(
+        root, target_rel, data, **kwargs  # type: ignore[no-untyped-def]
+    ):
+        nonlocal raced
+        if target_rel == rel and not raced:
+            raced = True
+            ticket.write_text("same-checkout peer edit\n")
+        return real_write(root, target_rel, data, **kwargs)
+
+    monkeypatch.setattr(git, "_write_worktree_bytes", edit_before_guarded_write)
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Guard a raced refresh write",
+        publish_if_remote_aligned=True,
+        expected_feature_branch=branch,
+    )
+
+    assert refreshed is False
+    assert ticket.read_text() == "same-checkout peer edit\n"
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert git_repo.git(
+        "rev-parse",
+        f"refs/heads/{branch}",
+        cwd=git_repo.origin,
+    ).strip() == before
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+def test_strict_refresh_rescans_path_dirt_before_write(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An edit after the initial dirty scan is skipped, never adopted."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    rel = str(ticket.relative_to(git_repo.root))
+    branch = "feature/refresh-rescan"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit(rel, _step_ticket_text(step="2 (review)"))
+    real_reason = git._refresh_regression_reason
+    raced = False
+
+    def edit_during_analysis(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if not raced:
+            raced = True
+            ticket.write_text(
+                ticket.read_text().replace(
+                    "## Description\n\nDemo.",
+                    "## Description\n\nPEER EDIT AFTER DIRTY SCAN\n\nDemo.",
+                )
+            )
+        return real_reason(*args, **kwargs)
+
+    monkeypatch.setattr(git, "_refresh_regression_reason", edit_during_analysis)
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Rescan a refresh candidate",
+        publish_if_remote_aligned=True,
+        expected_feature_branch=branch,
+    )
+
+    assert refreshed is True
+    assert "PEER EDIT AFTER DIRTY SCAN" in ticket.read_text()
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert git_repo.git(
+        "rev-parse",
+        f"refs/heads/{branch}",
+        cwd=git_repo.origin,
+    ).strip() == before
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+def test_strict_refresh_rolls_back_first_write_when_later_write_fails(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The rollback boundary covers every worktree write, not only commit."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed refresh rollback log")
+    git_repo.git("push", "origin", "main")
+    branch = "feature/multi-write-refresh"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    ticket_before = ticket.read_bytes()
+    log_before = log.read_bytes()
+    ticket_rel = str(ticket.relative_to(git_repo.root))
+    git_repo.push_competing_commit(
+        ticket_rel,
+        _step_ticket_text(step="2 (review)"),
+    )
+    git_repo.push_competing_commit("coga/log.md", "base\ncontrol audit\n")
+    real_write = git._write_worktree_bytes
+    refused_log = False
+
+    def fail_log_write(
+        root, rel, data, **kwargs  # type: ignore[no-untyped-def]
+    ):
+        nonlocal refused_log
+        if rel == "coga/log.md" and not refused_log:
+            refused_log = True
+            raise git.GitError("simulated later refresh write failure")
+        return real_write(root, rel, data, **kwargs)
+
+    monkeypatch.setattr(git, "_write_worktree_bytes", fail_log_write)
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Roll back a partial refresh",
+        publish_if_remote_aligned=True,
+        expected_feature_branch=branch,
+    )
+
+    assert refreshed is False
+    assert ticket.read_bytes() == ticket_before
+    assert log.read_bytes() == log_before
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+@pytest.mark.parametrize("push_lands", [False, True])
+def test_strict_refresh_reconciles_interrupt_during_push(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    push_lands: bool,
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed refresh log")
+    git_repo.git("push", "origin", "main")
+    branch = "feature/interrupted-refresh"
+    git_repo.checkout_branch(branch)
+    git_repo.git("push", "-u", "origin", branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        "base\ncontrol refresh\n",
+    )
+    real_push = git._push_ref
+
+    def interrupt_push(*args, **kwargs):  # type: ignore[no-untyped-def]
+        if push_lands:
+            real_push(*args, **kwargs)
+        raise SystemExit(130)
+
+    monkeypatch.setattr(git, "_push_ref", interrupt_push)
+
+    with pytest.raises(SystemExit) as excinfo:
+        git.refresh_coga_state_from_control(
+            cfg,
+            message="Refresh interrupted assist",
+            publish_if_remote_aligned=True,
+            expected_feature_branch=branch,
+        )
+
+    assert excinfo.value.code == 130
+    local = git_repo.git("rev-parse", "HEAD").strip()
+    remote = git_repo.git(
+        "rev-parse", f"refs/heads/{branch}", cwd=git_repo.origin
+    ).strip()
+    if push_lands:
+        assert local == remote
+        assert local != before
+        assert "control refresh" in log.read_text()
+        assert git_repo.git("status", "--porcelain").strip() == ""
+    else:
+        assert local == remote == before
+        assert log.read_text() == "base\n"
+        assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_refresh_cleanup_preserves_same_branch_peer_edit(
+    git_repo, monkeypatch
+) -> None:
+    """A failed refresh removes only bytes still owned by that refresh."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    rel = str(ticket.relative_to(git_repo.root))
+    original = ticket.read_text()
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    feature_before = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit(
+        rel, _step_ticket_text(step="2 (review)")
+    )
+
+    def refuse_after_peer_edit(
+        root,
+        remote,
+        refspec,
+        *,
+        force_with_lease=None,
+    ):  # type: ignore[no-untyped-def]
+        assert force_with_lease is not None
+        ticket.write_text("same-branch peer edit\n")
+        return "simulated refresh push refusal"
+
+    monkeypatch.setattr(git, "_push_ref", refuse_after_peer_edit)
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh after peer edit",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+
+    assert refreshed is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == feature_before
+    assert ticket.read_text() == "same-branch peer edit\n"
+    assert git_repo.git("show", f":{rel}") == original
+    assert rel in git_repo.git("status", "--porcelain")
+
+
+def test_refresh_cleanup_does_not_reset_switched_checkout(
+    git_repo, monkeypatch
+) -> None:
+    """A failed refresh leaves another branch's index and bytes untouched."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket_on_main(git_repo)
+    rel = str(ticket.relative_to(git_repo.root))
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    git_repo.git("checkout", "main")
+    git_repo.checkout_branch("feature/other")
+    ticket.write_text("committed other-branch state\n")
+    git_repo.git("add", rel)
+    git_repo.git("commit", "-m", "other: keep branch state")
+    other_tip = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.git("checkout", "feature/x")
+    git_repo.push_competing_commit(
+        rel, _step_ticket_text(step="2 (review)")
+    )
+
+    def refuse_after_switch(
+        root,
+        remote,
+        refspec,
+        *,
+        force_with_lease=None,
+    ):  # type: ignore[no-untyped-def]
+        assert force_with_lease is not None
+        git_repo.git("checkout", "feature/other")
+        ticket.write_text("uncommitted other-branch peer edit\n")
+        return "simulated refresh push refusal"
+
+    monkeypatch.setattr(git, "_push_ref", refuse_after_switch)
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh across checkout switch",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+
+    assert refreshed is False
+    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == (
+        "feature/other"
+    )
+    assert git_repo.git("rev-parse", "HEAD").strip() == other_tip
+    assert ticket.read_text() == "uncommitted other-branch peer edit\n"
+    assert git_repo.git("show", f":{rel}") == "committed other-branch state\n"
+
+
+def test_refresh_refuses_assist_state_after_branch_switch(git_repo, capsys):
+    """Launch teardown leaves an unrelated checkout branch untouched."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/review")
+    git_repo.git("push", "-u", "origin", "feature/review")
+    git_repo.checkout_branch("feature/other")
+    git_repo.git("push", "-u", "origin", "feature/other")
+    remote_before = git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip()
+    git_repo.push_competing_commit(
+        "coga/tasks/remote/ticket.md",
+        _step_ticket_text(step="1 (implement)"),
+    )
+
+    git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh after assist",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/review",
+    )
+
+    assert not (git_repo.coga_os / "tasks" / "remote").exists()
+    assert git_repo.git(
+        "rev-parse", "refs/heads/feature/other", cwd=git_repo.origin
+    ).strip() == remote_before
+    assert "expected feature branch 'feature/review'" in capsys.readouterr().err
+
+
+def test_refresh_strict_assist_does_not_commit_after_remote_branch_deletion(
+    git_repo, capsys
+) -> None:
+    """A disappeared PR head leaves control refresh state entirely untouched."""
+    cfg = load_config(git_repo.coga_os)
+    log = git_repo.coga_os / "log.md"
+    log.write_text("base\n")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed strict refresh log")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("push", "-u", "origin", "feature/x")
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit("coga/log.md", "base\ncontrol update\n")
+    git_repo.git("push", "origin", "--delete", "feature/x")
+
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message="Refresh after deleted assist",
+        publish_if_remote_aligned=True,
+        expected_feature_branch="feature/x",
+    )
+
+    assert refreshed is False
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert log.read_text() == "base\n"
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert "not at an exact remote tip" in capsys.readouterr().err
+
+
 def test_refresh_adds_control_only_ticket_and_leaves_product_tree_alone(git_repo):
     """A brand-new ticket on the control branch appears locally; product files
     that also moved on origin/main are never touched."""
@@ -2646,11 +5374,12 @@ def test_summarize_git_failure_falls_back_to_last_line():
     assert git.summarize_git_failure("") == ""
 
 
-def test_cli_main_skips_end_of_command_sweep_on_stale_control_exit(monkeypatch):
-    """A stale-control refusal must not be chased by the end-of-command state
-    sweep: its rebase onto the control tip would re-fail against the same
-    divergence and its local commit would deepen it by one per failed run.
-    Every other exit keeps the sweep."""
+def test_cli_main_skips_end_of_command_sweep_on_retryable_state_exit(monkeypatch):
+    """A narrow publisher's retained retry state must outlive CLI teardown.
+
+    This covers both stale-control refusals and assist log lease losses; every
+    other exit keeps the catch-all sweep.
+    """
     from types import SimpleNamespace
 
     from coga import cli
@@ -2669,7 +5398,7 @@ def test_cli_main_skips_end_of_command_sweep_on_stale_control_exit(monkeypatch):
     monkeypatch.setattr(cli, "app", refuse_stale)
     with pytest.raises(SystemExit) as excinfo:
         cli.main()
-    assert excinfo.value.code == git.STALE_CONTROL_EXIT_CODE
+    assert excinfo.value.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert calls == []
 
     def ordinary_failure() -> None:

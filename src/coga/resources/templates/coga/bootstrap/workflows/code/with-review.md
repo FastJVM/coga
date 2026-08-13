@@ -15,6 +15,8 @@ steps:
       - code/open-pr
   - name: review
     assignee: owner
+    skills:
+      - code/address-pr-comments
 ---
 
 ## Peer review by the other agent
