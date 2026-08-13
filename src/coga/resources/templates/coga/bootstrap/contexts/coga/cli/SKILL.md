@@ -683,9 +683,12 @@ rules that keep it from reshuffling work that didn't ask for it:
   sorts after `9-`), then any unnumbered siblings by age. `2fa-login` is not
   numbered — the digits must be the whole first segment.
 
-The `--pick` list is printed in the same order, so a numbered pipeline reads
-`1-`, `2-`, `3-` down the picker and runs in that order once confirmed.
-`coga status --order-by created` shows the identical order.
+`coga status --order-by created` shows the identical order. The `--pick`
+list is instead *displayed* like the default `coga status` view — last
+updated, newest first, tasks with no recorded activity last — so the picker
+and the triage view read as one list; a confirmed selection still launches
+in drain order, so a numbered pipeline runs `1-`, `2-`, `3-` regardless of
+how its rows were displayed.
 
 `coga validate` warns (`duplicate-task-number`) when two tasks in one
 directory claim the same position — the one case where the order you wrote

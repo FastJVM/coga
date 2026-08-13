@@ -157,6 +157,29 @@ def _git_updated_by_slug(
     return out
 
 
+def last_updated_map(cfg: Config, refs: list[TaskRef]) -> dict[str, datetime]:
+    """Each task's last-activity timestamp — the `Updated` column's source.
+
+    The primary source is the repo-global log (one pass builds every task's
+    last-activity stamp). The log only knows a task by its ref, so it goes
+    silent when a task directory is moved (append-only lines keep the old ref)
+    or when a ticket reached disk without passing through a logging command;
+    git saw both, so one `git log` pass backstops the blanks — see
+    `last_commit_times`. Tasks with no stamp from either source are absent.
+
+    Shared by `coga status` and the megalaunch picker so both views read one
+    clock.
+    """
+    activity = last_activity_map(cfg)
+    git_updated = _git_updated_by_slug(refs, last_commit_times(cfg))
+    out: dict[str, datetime] = {}
+    for ref in refs:
+        stamp = activity.get(ref.id_slug) or git_updated.get(ref.id_slug)
+        if stamp is not None:
+            out[ref.id_slug] = stamp
+    return out
+
+
 def render_status(
     cfg: Config,
     *,
@@ -195,14 +218,7 @@ def render_status(
         console = Console()
     narrow = console.width < NARROW_WIDTH
 
-    # One pass over the global log builds every task's last-activity timestamp,
-    # instead of re-scanning a per-task log file for each row.
-    activity = last_activity_map(cfg)
-    # The log only knows a task by its ref, so it goes silent when a task
-    # directory is moved (append-only lines keep the old ref) or when a ticket
-    # reached disk without passing through a logging command. Git saw both, so
-    # one `git log` pass backstops the blanks — see `last_commit_times`.
-    git_updated = _git_updated_by_slug(refs, last_commit_times(cfg))
+    updated = last_updated_map(cfg, refs)
     # Creation timestamps (earliest log line per ref) — the exact order the
     # megalaunch drain services tickets in. Only needed for this sort column.
     created = first_activity_map(cfg) if order_by == "created" else {}
@@ -237,7 +253,7 @@ def render_status(
             "owner": ticket.owner or "-",
             "assignee": ticket.assignee or "-",
             "step": ticket.step or "-",
-            "updated_ts": activity.get(ref.id_slug) or git_updated.get(ref.id_slug),
+            "updated_ts": updated.get(ref.id_slug),
             "created_ts": created.get(ref.id_slug),
         })
 
