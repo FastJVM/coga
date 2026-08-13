@@ -120,7 +120,7 @@ def repo(tmp_path: Path) -> Path:
         """
         version = 1
         default_status = "draft"
-        [slack]
+        [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"

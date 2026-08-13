@@ -207,8 +207,8 @@ prompt by virtue of being on the ticket.
 
 `load_config` validates `coga.toml` **and** `coga.local.toml` against a fixed
 schema. Any unrecognized key, at **any level of a fixed-schema table** —
-top-level sections, `[notification]`, `[notification.slack]` / legacy `[slack]`,
-`[git]`, `[launch]`, `[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
+top-level sections, `[notification]`, `[notification.slack]`, `[git]`, `[launch]`,
+`[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
 the offending key and listing the valid ones, in either file. This generalizes
 the enforcement `[ticket.fields.*]` already had: a misspelled `[notification.slak]`
 no longer silently resolves to "no webhook" and takes Slack dark. Adding a new
@@ -222,11 +222,12 @@ Two carve-outs keep it honest:
   names to values, so their *keys* are data, not schema — they are never
   rejected.
 - **Deprecated / known-but-rejected keys run their dedicated migration errors
-  *first*.** A top-level `[assignees]`, a `[secrets]` table in coga.local.toml,
-  and the removed `[agents.<name>]` keys (`auto`, `skip_permissions`,
-  `skip_permissions_argv` — the 0.2.0 scaffold wrote `auto`) each raise their
-  tailored guidance before the generic unknown-key check, so the friendlier
-  message survives rather than being swallowed by a generic "unknown key".
+  *first*.** Top-level `[assignees]` and `[slack]` tables, a `[secrets]` table in
+  coga.local.toml, and the removed `[agents.<name>]` keys (`auto`,
+  `skip_permissions`, `skip_permissions_argv` — the 0.2.0 scaffold wrote `auto`)
+  each raise their tailored guidance before the generic unknown-key check, so
+  the friendlier message survives rather than being swallowed by a generic
+  "unknown key".
 
 ## Workflow gated at activation, not draft time
 

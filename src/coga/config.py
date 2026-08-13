@@ -77,9 +77,9 @@ class Config:
     current_user: str
     default_status: str
     agents: dict[str, AgentType]
-    # Slack remains as the first notification backend. These compatibility
-    # fields hold the effective Slack-channel config resolved from
-    # `[notification.slack]`, legacy `[slack]`, or deprecated env fallback.
+    # Slack remains as the first notification backend. These fields hold the
+    # effective Slack-channel config resolved from `[notification.slack]` or
+    # the deprecated bare-env fallback.
     slack_webhook: str | None
     slack_enabled: bool
     # Second webhook, pointing at the coga-important channel. Alerts that need a
@@ -233,6 +233,13 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
             "Move each key into the tickets that need it and delete the "
             "[secrets] table."
         )
+    for source, table in (("coga.toml", shared), ("coga.local.toml", local)):
+        if "slack" in table:
+            raise ConfigError(
+                f"[slack] in {source} is no longer supported. Move its keys "
+                "under [notification.slack] (including [notification.slack.gifs] "
+                "and [notification.slack.users]) and delete the [slack] table."
+            )
     _reject_unknown_sections(shared, local)
 
     default_status = shared.get("default_status", "draft")
@@ -240,8 +247,6 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     notification_channels = _resolve_notification_channels(
         shared.get("notification"),
         local.get("notification"),
-        shared.get("slack"),
-        local.get("slack"),
     )
     (
         slack_webhook,
@@ -253,8 +258,6 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     ) = _parse_slack_notification(
         shared.get("notification"),
         local.get("notification"),
-        shared.get("slack"),
-        local.get("slack"),
     )
     aliases = _parse_aliases(shared.get("aliases", {}))
     extensions = _parse_extensions(shared.get("extensions", {}))
@@ -361,7 +364,6 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "default_status",
     "agents",
     "notification",
-    "slack",
     "git",
     "launch",
     "ticket",
@@ -372,7 +374,6 @@ _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "user",
     "agents",
     "notification",
-    "slack",
     "git",
 })
 _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
@@ -384,20 +385,13 @@ _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
     "discussion",
 })
 _ALLOWED_NOTIFICATION_KEYS: frozenset[str] = frozenset({"channels", "slack"})
-_ALLOWED_LEGACY_SLACK_KEYS: frozenset[str] = frozenset({
+_ALLOWED_SLACK_KEYS: frozenset[str] = frozenset({
     "webhook",
+    "important_webhook",
     "enabled",
     "gifs",
     "users",
 })
-# `[notification.slack]` takes everything the legacy `[slack]` table does, plus the
-# keys added after `[slack]` was deprecated. Keeping the two sets distinct is what
-# stops the post-deprecation key (`important_webhook`) from being accepted in
-# `[slack]` and then silently ignored — no legacy resolver reads it, so a repo
-# would post its alerts to the wrong channel with no error to explain why.
-_ALLOWED_SLACK_KEYS: frozenset[str] = _ALLOWED_LEGACY_SLACK_KEYS | {
-    "important_webhook",
-}
 _ALLOWED_SHARED_GIT_KEYS: frozenset[str] = frozenset({
     "enabled",
     "remote",
@@ -417,8 +411,8 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
 
     Covers what isn't validated inside a single dedicated parser: the top-level
     sections of both files, plus the `[notification]` / `[notification.slack]` /
-    legacy `[slack]` / `[git]` tables, each of which may appear in *both*
-    `coga.toml` and `coga.local.toml`. The per-table parsers
+    `[git]` tables, each of which may appear in *both* `coga.toml` and
+    `coga.local.toml`. The per-table parsers
     (`_parse_agents`, `_parse_launch`, `_parse_ticket_fields`) reject their own
     nested keys, so they aren't repeated here.
 
@@ -437,9 +431,6 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
             _notification_slack_table(notification, f"[notification] in {source}"),
             _ALLOWED_SLACK_KEYS,
             f"[notification.slack] in {source}",
-        )
-        _reject_unknown_keys(
-            table.get("slack"), _ALLOWED_LEGACY_SLACK_KEYS, f"[slack] in {source}"
         )
     _reject_unknown_keys(
         shared.get("git"), _ALLOWED_SHARED_GIT_KEYS, "[git] in coga.toml"
@@ -672,8 +663,6 @@ _SUPPORTED_NOTIFICATION_CHANNELS: frozenset[str] = frozenset({"slack"})
 def _resolve_notification_channels(
     shared: dict | None,
     local: dict | None,
-    shared_legacy_slack: dict | None,
-    local_legacy_slack: dict | None,
 ) -> tuple[str, ...]:
     """Resolve `[notification].channels` with local overriding shared.
 
@@ -681,8 +670,8 @@ def _resolve_notification_channels(
     fresh repo that names no `channels` key anywhere gets no notification
     channels: Slack is opt-in, not the first-run default. Slack is *inferred*
     only when the absent key is paired with opt-in or compatibility evidence —
-    a `[notification.slack]` table, a legacy `[slack]` table, or a bare
-    `SLACK_WEBHOOK_URL` env var (see `_slack_opt_in_present`).
+    a `[notification.slack]` table or a bare `SLACK_WEBHOOK_URL` env var (see
+    `_slack_opt_in_present`).
     """
     for label, table in (
         ("[notification] in coga.local.toml", local),
@@ -712,7 +701,7 @@ def _resolve_notification_channels(
                 f"{unsupported}; supported: {allowed}"
             )
         return tuple(cleaned)
-    if _slack_opt_in_present(shared, local, shared_legacy_slack, local_legacy_slack):
+    if _slack_opt_in_present(shared, local):
         return ("slack",)
     return ()
 
@@ -720,15 +709,13 @@ def _resolve_notification_channels(
 def _slack_opt_in_present(
     shared_notification: dict | None,
     local_notification: dict | None,
-    shared_legacy_slack: dict | None,
-    local_legacy_slack: dict | None,
 ) -> bool:
-    """True when a repo has opted into Slack via new, legacy, or env config.
+    """True when a repo has opted into Slack via TOML or env config.
 
     Drives channel inference when `[notification].channels` is absent: a
-    `[notification.slack]` table (shared or local), a legacy `[slack]` table,
-    or a bare exported `SLACK_WEBHOOK_URL` each count as opt-in evidence. With
-    none of these a fresh repo selects no channels.
+    `[notification.slack]` table (shared or local) or a bare exported
+    `SLACK_WEBHOOK_URL` each count as opt-in evidence. With neither, a fresh
+    repo selects no channels.
     """
     if (
         _notification_slack_table(shared_notification, "[notification] in coga.toml")
@@ -741,8 +728,6 @@ def _slack_opt_in_present(
         )
         is not None
     ):
-        return True
-    if isinstance(shared_legacy_slack, dict) or isinstance(local_legacy_slack, dict):
         return True
     if os.environ.get("SLACK_WEBHOOK_URL"):
         return True
@@ -767,8 +752,6 @@ def _notification_slack_table(raw: dict | None, label: str) -> dict | None:
 def _parse_slack_notification(
     shared_notification: dict | None,
     local_notification: dict | None,
-    shared_legacy_slack: dict | None,
-    local_legacy_slack: dict | None,
 ) -> tuple[
     str | None,
     str | None,
@@ -779,9 +762,9 @@ def _parse_slack_notification(
 ]:
     """Parse the effective Slack channel config.
 
-    New config lives under `[notification.slack]`. Legacy `[slack]` and a bare
-    `SLACK_WEBHOOK_URL` environment variable remain compatibility fallbacks and
-    are reported through `notification_deprecation_notes`.
+    Config lives under `[notification.slack]`. A bare `SLACK_WEBHOOK_URL`
+    environment variable remains a compatibility fallback and is reported
+    through `notification_deprecation_notes`.
     """
     shared_slack = _notification_slack_table(
         shared_notification, "[notification] in coga.toml"
@@ -794,8 +777,6 @@ def _parse_slack_notification(
     webhook = _resolve_notification_slack_webhook(
         shared_slack,
         local_slack,
-        shared_legacy_slack,
-        local_legacy_slack,
         notes,
     )
     important_webhook = _resolve_notification_slack_important_webhook(
@@ -805,23 +786,14 @@ def _parse_slack_notification(
     enabled = _resolve_notification_slack_enabled(
         shared_slack,
         local_slack,
-        shared_legacy_slack,
-        local_legacy_slack,
-        notes,
     )
     gifs = _parse_notification_slack_gifs(
         shared_slack,
         local_slack,
-        shared_legacy_slack,
-        local_legacy_slack,
-        notes,
     )
     users = _parse_notification_slack_users(
         shared_slack,
         local_slack,
-        shared_legacy_slack,
-        local_legacy_slack,
-        notes,
     )
     return (
         webhook,
@@ -833,17 +805,9 @@ def _parse_slack_notification(
     )
 
 
-def _legacy_note(notes: list[str], key: str) -> None:
-    notes.append(
-        f"`[slack].{key}` is deprecated; move it to `[notification.slack].{key}`."
-    )
-
-
 def _resolve_notification_slack_webhook(
     shared: dict | None,
     local: dict | None,
-    shared_legacy: dict | None,
-    local_legacy: dict | None,
     notes: list[str],
 ) -> str | None:
     """Resolve Slack webhook with local overriding shared."""
@@ -854,15 +818,6 @@ def _resolve_notification_slack_webhook(
                 raise ConfigError(
                     "[notification.slack].webhook must be a string "
                     f"(got {type(value).__name__})"
-                )
-            return _resolve_secret_value(value) or None
-    for table in (local_legacy, shared_legacy):
-        if isinstance(table, dict) and "webhook" in table:
-            _legacy_note(notes, "webhook")
-            value = table["webhook"]
-            if not isinstance(value, str):
-                raise ConfigError(
-                    f"[slack].webhook must be a string (got {type(value).__name__})"
                 )
             return _resolve_secret_value(value) or None
     value = os.environ.get("SLACK_WEBHOOK_URL")
@@ -881,12 +836,11 @@ def _resolve_notification_slack_important_webhook(
 ) -> str | None:
     """Resolve the coga-important webhook, with local overriding shared.
 
-    Unlike `webhook`, this key has no legacy `[slack]` table or bare
-    `SLACK_WEBHOOK_URL` fallback: both exist to keep configs written before
-    `[notification.slack]` working, and nothing was ever written against a key
-    that did not exist. Absent — or an `env:` reference whose var isn't exported
-    — resolves to None, and `SlackChannel.send` crashes an `--important` post
-    rather than rerouting it to the primary webhook.
+    Unlike `webhook`, this key has no bare `SLACK_WEBHOOK_URL` fallback: nothing
+    was ever written against a key that did not exist. Absent — or an `env:`
+    reference whose var isn't exported — resolves to None, and
+    `SlackChannel.send` crashes an `--important` post rather than rerouting it
+    to the primary webhook.
     """
     for table in (local, shared):
         if isinstance(table, dict) and "important_webhook" in table:
@@ -903,9 +857,6 @@ def _resolve_notification_slack_important_webhook(
 def _resolve_notification_slack_enabled(
     shared: dict | None,
     local: dict | None,
-    shared_legacy: dict | None,
-    local_legacy: dict | None,
-    notes: list[str],
 ) -> bool:
     """Resolve Slack channel enabled flag. Default: True."""
     for table in (local, shared):
@@ -917,60 +868,31 @@ def _resolve_notification_slack_enabled(
                     f"(got {type(value).__name__})"
                 )
             return value
-    for table in (local_legacy, shared_legacy):
-        if isinstance(table, dict) and "enabled" in table:
-            _legacy_note(notes, "enabled")
-            value = table["enabled"]
-            if not isinstance(value, bool):
-                raise ConfigError(
-                    f"[slack].enabled must be a boolean (got {type(value).__name__})"
-                )
-            return value
     return True
 
 
 def _parse_notification_slack_gifs(
     shared: dict | None,
     local: dict | None,
-    shared_legacy: dict | None,
-    local_legacy: dict | None,
-    notes: list[str],
 ) -> dict[str, list[str]]:
-    for table, prefix, legacy_key in (
-        (local, "[notification.slack.gifs]", None),
-        (shared, "[notification.slack.gifs]", None),
-        (local_legacy, "[slack.gifs]", "gifs"),
-        (shared_legacy, "[slack.gifs]", "gifs"),
-    ):
+    for table in (local, shared):
         if isinstance(table, dict) and "gifs" in table:
-            if legacy_key:
-                _legacy_note(notes, legacy_key)
-            return _parse_slack_gifs(table, prefix)
+            return _parse_slack_gifs(table)
     return {}
 
 
 def _parse_notification_slack_users(
     shared: dict | None,
     local: dict | None,
-    shared_legacy: dict | None,
-    local_legacy: dict | None,
-    notes: list[str],
 ) -> dict[str, str]:
-    for table, prefix, legacy_key in (
-        (local, "[notification.slack.users]", None),
-        (shared, "[notification.slack.users]", None),
-        (local_legacy, "[slack.users]", "users"),
-        (shared_legacy, "[slack.users]", "users"),
-    ):
+    for table in (local, shared):
         if isinstance(table, dict) and "users" in table:
-            if legacy_key:
-                _legacy_note(notes, legacy_key)
-            return _parse_slack_users(table, prefix)
+            return _parse_slack_users(table)
     return {}
 
 
 def _parse_slack_gifs(
-    shared: dict | None, table_name: str = "[slack.gifs]"
+    shared: dict | None, table_name: str = "[notification.slack.gifs]"
 ) -> dict[str, list[str]]:
     """Parse Slack GIF table — each key maps an event-kind to a list of URLs.
 
@@ -998,7 +920,7 @@ def _parse_slack_gifs(
 
 
 def _parse_slack_users(
-    shared: dict | None, table_name: str = "[slack.users]"
+    shared: dict | None, table_name: str = "[notification.slack.users]"
 ) -> dict[str, str]:
     """Parse Slack user mapping — maps a coga name (the token used in a
     ticket's `owner` / `watchers` fields) to a Slack member ID.
@@ -1114,7 +1036,7 @@ def _resolve_secret_value(value: str) -> str:
     `or None`) correctly means "no webhook configured". Ticket secrets do **not**
     use this — they go through `select_launch_secrets`, which fails loud on an
     unset env var at launch instead of injecting "". The notification layer also
-    keeps a deprecated bare `SLACK_WEBHOOK_URL` fallback for legacy repos.
+    keeps a deprecated bare `SLACK_WEBHOOK_URL` fallback.
     """
     if value.startswith("env:"):
         return os.environ.get(value[len("env:") :], "")

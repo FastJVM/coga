@@ -31,7 +31,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         default_status = "draft"
         [git]
         enabled = false
-        [slack]
+        [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"

@@ -55,7 +55,9 @@ def repo(tmp_path: Path) -> Path:
     coga_os = root / "coga"
     coga_os.mkdir()
     (coga_os / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n')
-    (coga_os / "coga.local.toml").write_text('user = "marc"\n[slack]\nenabled = false\n')
+    (coga_os / "coga.local.toml").write_text(
+        'user = "marc"\n[notification.slack]\nenabled = false\n'
+    )
 
     _commit(root, "base.txt", "base", "base")
     _git(root, "push", "-u", "origin", "main")
