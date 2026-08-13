@@ -1,7 +1,7 @@
 ---
 slug: decide-the-fate-of-two-premise-dead-v2-drafts-whos
 title: Decide the fate of two premise-dead v2 drafts whose subject no longer exists
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
