@@ -3260,3 +3260,21 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-11 09:07 [recurring-last-serviced-period-compares-as-a-strin] [human:zach] created (status=draft)
 2026-08-11 09:09 [service-account-scoping-single-vault-rule-conflict] [human:zach] activated (draft → active)
 2026-08-11 09:09 [recurring-last-serviced-period-compares-as-a-strin] [human:zach] activated (draft → active)
+2026-08-13 09:37 [recurring/autoclose-merged] [system] created (status=active)
+2026-08-13 09:37 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-08-13
+2026-08-13 09:37 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-08-13
+2026-08-13 09:37 [recurring/blocker-reminders] [system] created (status=active)
+2026-08-13 09:37 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-08-12
+2026-08-13 09:37 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-08-12
+2026-08-13 09:37 [recurring/branch-sweep] [system] created (status=active)
+2026-08-13 09:37 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-W33
+2026-08-13 09:37 [recurring/digest] [system] created (status=active)
+2026-08-13 09:37 [recurring/digest] [system] deleted completed prior-period task before 2026-08-13
+2026-08-13 09:37 [recurring/digest] [system] created recurring/digest for 2026-08-13
+2026-08-13 09:37 [recurring/dream] [system] created (status=active)
+2026-08-13 09:37 [recurring/dream] [system] deleted completed prior-period task before 2026-W33
+2026-08-13 09:37 [recurring/dream] [system] created recurring/dream for 2026-W33
+2026-08-13 09:37 [recurring/resolve-conflicts] [system] created (status=active)
+2026-08-13 09:37 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W33
+2026-08-13 09:37 [recurring/skill-update] [system] created (status=active)
+2026-08-13 09:37 [recurring/skill-update] [system] created recurring/skill-update for 2026-W33
