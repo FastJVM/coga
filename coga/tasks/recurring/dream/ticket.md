@@ -334,3 +334,22 @@ The `secrets:` comment teaches "omit or `null` = legacy blanket-inject all secre
 Live copy says "relay.local.toml", "relay.toml", "`relay create` / `relay ticket`"; the packaged counterpart already uses `coga` spellings. All other live/packaged pairs are byte-identical apart from runtime state, so the divergence is undocumented. Source of truth: packaged template + Relay→Coga rename.
 
 Phase 3 note: F9–F11 all target the same `_template` pair as Phase 2's F4 — route as one combined proposal PR. Audit otherwise found the contract surface in good sync (recipe registry, aliases, flags, validator kinds, notification tiers all check out).
+
+## Phase 4 — Retro results
+
+All 15 eligible done tickets processed by one Retro subagent in a caller-created linked worktree (`../coga-retro-2026w33`, temp branch `dream-retro-2026-W33`, based on fresh `origin/main` @ adaebcbb). Isolation proof held; no failures, no gates.
+
+Knowledge PRs (each deletes its source tickets and records their `## Retro` markers in PR history):
+- PR #681 — "Context: a /tmp feature checkout is one reboot from unrecoverable" — https://github.com/FastJVM/coga/pull/681 — adds `### Keep the feature checkout durable` to `coga/contexts/dev/code/SKILL.md` + packaged twin (synced). Sources deleted: `write-real-coga-documentation-command-reference-gu`, `retire-a-finished-ticket-s-linked-worktree-and-mak`, `recurring-bugs/branch-sweep-leaves-worktree-pinned-merged-branche`. (Covers finding F1.)
+- PR #682 — "Context: run coga commands only from a fresh control checkout" — https://github.com/FastJVM/coga/pull/682 — adds `### Which checkout you invoke coga from` to `coga/contexts/coga/codebase/SKILL.md` (no packaged counterpart). Sources deleted: `remove-run-py/port-hard-consumers-onto-the-generic-runner`, `remove-run-py/delete-the-script-seam`. (Covers F2+F3; F2's "even validating" claim was corrected — `src/coga/cli.py:124` excludes status/show/validate/usage from the exit-boundary sweep, so the bullet is scoped to state-changing commands.)
+
+Direct-deleted (no durable knowledge, no PR/marker), landed on origin/main: always-accept-coga-ticket (599f7073), bump-can-mark-done-too (52e8f7f1), document-megalaunch-drain-order (30e10d93), scrub-coga-task-in-the-pytest-autouse-guard-so-fix (bd15657a), recurring-bugs/dream-recipes-write-reports-into-packaged-bootstra (62530cee), recurring/autoclose-merged (4ed4c338), recurring/blocker-reminders (3b98b5f1), recurring/branch-sweep (73060e05), recurring/digest (c0e0ccd4), recurring/skill-update (3ba16130). Recurring templates untouched.
+
+Slack FYIs posted for both PRs. Teardown verified: PR branches match remote, worktree + temp branch removed, copied coga.local.toml removed, evidence snapshot deleted. Note: the 5 knowledge-bearing ticket files remain in the operator checkout until #681/#682 merge (by design); their local copies carry no `## Retro` markers, so Phase 5 should find nothing.
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-08-13T17:04:59+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
