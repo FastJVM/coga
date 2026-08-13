@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -87,12 +87,13 @@ branch: recurring-owner-gate
 worktree: /home/n/Code/claude/coga-recurring-owner-gate
 
 Tests run with `python3.12 -m pytest` (the repo `.venv` has no pytest and the
-default `python` is 3.9): full suite 1729 passed, 1 skipped.
+default `python` is 3.9): post-review, post-rebase full suite 1735 passed, 1
+skipped.
 
 ## What landed (implement step)
 
 - `config.py` — new committed `owner` key on `Config` (`owner: str = ""`),
-  parsed by `_parse_owner` from the shared `coga.toml` only, added to
+  parsed by `parse_owner` from the shared `coga.toml` only, added to
   `_ALLOWED_SHARED_SECTIONS`. Deliberately **not** a local key: an `owner` in
   `coga.local.toml` fails the generic unknown-key check, which is right — a
   machine-local owner says nothing to the clones the gate holds off.
@@ -129,3 +130,39 @@ From the worktree with a temporary `user = "someone-else"`, all four launch
 entry points refuse with exit 2 (`recurring`, `recurring --force`,
 `run recurring-scan`, `recurring launch dream`); `recurring list` still works.
 `coga validate --json` on `example/` is clean.
+
+## Peer review
+
+- `codex review --base main` found a P1: the initial gate authorized before the
+  existing control catch-up, so a stale clone could run under an old owner and
+  `--all` could pre-skip a transferred owner forever. A verification review
+  then caught the remaining feature-branch form of the same bug.
+- Fixed by resolving `owner` from the exact fetched control commit for every
+  launch and the `--all` prefilter. The fetch uses the existing UUID-scoped git
+  primitive, never checkout-wide `FETCH_HEAD`; dirty working-tree takeovers and
+  stale feature branches therefore cannot supply authorization. An opted-in
+  local owner fails closed when the control owner cannot be confirmed, while a
+  locally owner-less repo retains the prior best-effort offline behavior.
+- Added real-git regressions for owner additions/transfers, named launches,
+  feature branches, dirty owner edits, offline confirmation failure, and the
+  command-scoped fetched commit. The recurring/config suites pass 243 tests.
+- Committed as `peer-review: authorize recurring from control tip`, fetched
+  `origin/main`, and rebased cleanly onto `3166e36b`. The feature worktree is
+  clean with two commits ahead of `origin/main`.
+- Post-rebase `python3.12 -m pytest`: 1735 passed, 1 skipped. The targeted task
+  and seeded `example/` validate clean; whole-repo validation still reports
+  unrelated pre-existing errors in old `v2/` drafts.
+
+## PR
+
+Add an optional committed recurring owner and gate every launching surface —
+the bare/forced sweep, registered `recurring-scan` recipe, named launch, and
+each repo under `--all` — while leaving list/promote and owner-unset repos
+unchanged. Authorization reads `owner` from an exact command-scoped fetch of
+the control tip, so stale feature branches, dirty edits, and concurrent
+`FETCH_HEAD` writes cannot bypass an owner addition or transfer. This also sets
+this repo's owner to `nicktoper` and updates the recurring contract, reference
+docs, shipped/example config templates, and regression coverage.
+
+Test plan: `python3.12 -m pytest` (1735 passed, 1 skipped); seeded `example/`
+validation is clean with the rebased source.
