@@ -303,3 +303,10 @@ couldn't write the durable worktree.
 ## Blocker reminders
 
 - e35008b61aae last_reminded: 2026-07-17 14:40
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Context: a /tmp feature checkout is one reboot from unrecoverable

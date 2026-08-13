@@ -217,3 +217,10 @@ landed independently in PR #669, so this change keeps that behavior and
 documents the complete checkout lifecycle instead of duplicating it.
 
 Test plan: `PYTHONPYCACHEPREFIX=/tmp/coga-retire-pycache PYTHONPATH=$PWD/src python3.12 -m pytest -q -p no:cacheprovider` (1556 passed, 1 skipped).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Context: a /tmp feature checkout is one reboot from unrecoverable

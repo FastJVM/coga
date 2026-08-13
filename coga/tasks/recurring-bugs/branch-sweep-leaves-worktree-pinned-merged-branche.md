@@ -188,3 +188,10 @@ branch-sweep contracts, and sync the packaged `code/open-pr` skill to its live
 registered-recipe wording.
 
 Test plan: `python -m pytest -p no:cacheprovider` (1,569 passed, 1 skipped).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Context: a /tmp feature checkout is one reboot from unrecoverable
