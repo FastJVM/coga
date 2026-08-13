@@ -3284,3 +3284,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-13 09:38 [recurring/branch-sweep] [system] completed (recipe branch-sweep exited 0) via coga recurring
 2026-08-13 09:38 [recurring/resolve-conflicts] [human:nicktoper] started (active → in_progress) via coga launch
 2026-08-13 09:38 [recurring/resolve-conflicts] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-08-13 09:40 [recurring/resolve-conflicts] [agent:claude] blocked: Delegated sweep never ran: 'coga resolve-conflicts --agent claude --queue-guidance' exits 2 because the underlying 'coga launch bootstrap/resolve-conflicts' requires stdin/stdout TTYs, and the wrapper agent's shell has neither (verified). Need a human to either run 'coga resolve-conflicts --agent claude' from a real shell for period 2026-W33, or restructure the recurring template so the outer supervisor performs the delegated launch instead of the wrapper agent shelling out to it.
