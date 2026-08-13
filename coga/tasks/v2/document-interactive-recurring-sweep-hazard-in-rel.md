@@ -1,7 +1,7 @@
 ---
 slug: v2/document-interactive-recurring-sweep-hazard-in-rel
 title: Document interactive-recurring sweep hazard in coga/recurring context
-status: draft
+status: canceled
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -25,7 +25,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
