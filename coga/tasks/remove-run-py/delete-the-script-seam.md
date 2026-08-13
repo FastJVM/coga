@@ -286,3 +286,10 @@ No branch or worktree created; no implementation files touched.
 ## Blocker reminders
 
 - 28e5bc0cbdb5 last_reminded: 2026-07-24 14:36
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Context: run coga commands only from a fresh control checkout

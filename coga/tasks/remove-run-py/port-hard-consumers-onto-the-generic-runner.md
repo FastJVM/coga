@@ -250,3 +250,10 @@ not in this diff.
 ## Blocker reminders
 
 - 574c8271398a last_reminded: 2026-07-24 14:36
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Context: run coga commands only from a fresh control checkout

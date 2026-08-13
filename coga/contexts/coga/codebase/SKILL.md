@@ -268,6 +268,35 @@ recurring walls that don't appear on a normal dev machine:
   pre-existing, unrelated drift that isn't yours to fix and drowns the signal.
   `coga validate --task <slug>` is the meaningful per-ticket check.
 
+### Which checkout you invoke coga from
+
+Coga reads and publishes state through the checkout the command runs in, so the
+wrong checkout silently produces wrong results in both directions:
+
+- **A state-changing coga command run from a feature worktree sweeps your
+  in-flight `coga/` edits onto the control branch.** The CLI's exit-boundary
+  sweep (`sync_coga_state`) commits *everything* dirty under `coga/` and lands
+  it on `main` — including the context and skill edits that are the doc half of
+  the PR you have not opened yet. This really happened: `coga run` from a
+  feature worktree pushed five `coga/` context/skill files to `origin/main` as
+  `3779d340` before the PR existed, leaving `main`'s contexts describing
+  behavior `main`'s code did not have, and leaving those files out of the PR
+  diff entirely. Commit in-flight `coga/` edits onto the feature branch before
+  running any state-changing coga command there, or expect them to reach `main`
+  out-of-band. (Read-only commands — `status`, `show`, `validate`, `usage` — are
+  excluded from the sweep and are safe.)
+- **Launch and megalaunch compose prompts from whatever the invoking checkout
+  holds.** Run them only from a control checkout freshly synced to
+  `origin/<control>`. A checkout parked behind `main` builds the prompt from a
+  stale ticket copy and stale source, and will re-dispatch work that already
+  merged — megalaunch re-picked a ticket eight minutes after its PR merged
+  because the invoking checkout sat on a feature branch 75 commits behind
+  `origin/main`, and composed from source that still contained the code the
+  merged PR had deleted. The state-regression guard protects the control branch
+  from the resulting write; it does not protect your session from the wasted
+  run, and a stale `coga/log.md` in that checkout is a live hazard for any sync
+  from it.
+
 ## Gotchas when editing coga's own code
 
 - **Calling a Typer command function in-code passes `OptionInfo` sentinels.**
