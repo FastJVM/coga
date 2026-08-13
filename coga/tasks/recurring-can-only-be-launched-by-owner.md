@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -81,4 +81,51 @@ the local operator (`current_user`) is not that owner. Set `owner =
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: recurring-owner-gate
+worktree: /home/n/Code/claude/coga-recurring-owner-gate
+
+Tests run with `python3.12 -m pytest` (the repo `.venv` has no pytest and the
+default `python` is 3.9): full suite 1729 passed, 1 skipped.
+
+## What landed (implement step)
+
+- `config.py` — new committed `owner` key on `Config` (`owner: str = ""`),
+  parsed by `_parse_owner` from the shared `coga.toml` only, added to
+  `_ALLOWED_SHARED_SECTIONS`. Deliberately **not** a local key: an `owner` in
+  `coga.local.toml` fails the generic unknown-key check, which is right — a
+  machine-local owner says nothing to the clones the gate holds off.
+- `recurring_runner.py` — `recurring_owner_refusal(cfg)` returns the refusal
+  string or None; `_refuse_non_owner` prints it. Gated at the top of
+  `run_recurring_scan` (so bare sweep, `--force`, and `coga run
+  recurring-scan` are all covered) and `run_recurring_named`.
+- `--all` — `_repo_owner_refusal(coga_os)` classifies each discovered repo
+  *before* `_duplicate_remote_checkouts`, so a non-owned checkout can never be
+  picked as the keeper for a remote whose other checkout is runnable. Skipped
+  repos are listed by name with the reason and the sweep continues (exit 0).
+- `coga/coga.toml` — `owner = "nicktoper"`. Commented example in the packaged
+  template and `example/coga/coga.toml`.
+- Docs: new "One operator owns recurring: the `owner` gate" section in
+  `coga/contexts/coga/recurring/SKILL.md`, plus `docs/reference.md` and
+  `docs/operations.md`.
+
+## Decisions
+
+- Refusal names the configured owner and the operator identity, including the
+  "no `user` set" case — a fresh clone is a non-owner, not a silent owner.
+- `--force` stays gated (it forces schedule/status filters, not the gate) and
+  there is no override flag, per the ticket: a takeover is a committed
+  `owner` edit.
+- `--all` skips rather than fails: one non-owned repo in a scanned directory
+  must not make the whole sweep exit non-zero.
+- Config load failures in `_repo_owner_refusal` fall through to "no refusal",
+  matching `_configured_remote_identity` — the child process is the
+  authoritative loader.
+
+## Verified by hand
+
+From the worktree with a temporary `user = "someone-else"`, all four launch
+entry points refuse with exit 2 (`recurring`, `recurring --force`,
+`run recurring-scan`, `recurring launch dream`); `recurring list` still works.
+`coga validate --json` on `example/` is clean.
