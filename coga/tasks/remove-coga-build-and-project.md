@@ -6,8 +6,7 @@ owner: nick
 human: nick
 agent: claude
 assignee: claude
-contexts:
-  - coga/codebase
+contexts: []
 skills: []
 workflow: code/with-review
 secrets: null
