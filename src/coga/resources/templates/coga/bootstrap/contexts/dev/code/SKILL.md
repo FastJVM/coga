@@ -36,6 +36,24 @@ This keeps task-state edits (`ticket.md`, plus the repo-global `coga/log.md`)
 from mixing with source changes on a feature branch. If task-state
 changes need to be committed, commit them separately from the code PR.
 
+### Keep the feature checkout durable
+
+A `/tmp` checkout survives only until the next reboot, and the sandbox fallback
+above puts one there by design. For work that may span sessions, either place
+the feature checkout on a durable sibling path (`../coga-<branch>`) or push the
+branch to the remote before ending the session. **An unpushed branch whose only
+checkout is under `/tmp` is one reboot away from unrecoverable** — the docs
+rewrite lost an entire implement pass exactly this way. The branch existed in no
+local, packed, or remote ref, so the only recovery was a human-decided rewind to
+step 1 and a full redo from current `main`.
+
+A wiped `/tmp` worktree is not harmless once the work itself is safe, either.
+Its registration outlives the directory and keeps pinning its branch until
+`git worktree prune` runs, so merged branches accumulate invisibly — one probe
+of this repo found 18 prunable worktrees, each pinning a branch that
+`branch-sweep` then could not delete. That is why `coga run branch-sweep` prunes
+repo-wide before it enumerates.
+
 ### Who retires the checkout
 
 You do not remove your own feature checkout. `coga retire` does, at the
