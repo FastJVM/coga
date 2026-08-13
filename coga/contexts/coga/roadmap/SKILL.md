@@ -40,6 +40,15 @@ is the authoritative list. Pull a v2 item forward only through an explicit
 ticket decision, then update its location/status instead of duplicating it in
 this context.
 
+That decision starts with a premise check, not with implementation: a parked
+draft is a dated record, and nothing re-validates it while it sits, so its
+subject may already be gone and the surfaces it names may no longer resolve.
+Most of the directory also predates the `relay` → `coga` rename, which was not
+a find-and-replace — some names carried over, some were deleted. Read
+`coga/tasks/v2/README.md` before pulling anything forward; it carries the
+premise check and the known-stale surface table. Cancelling a premise-dead
+draft with a recorded reason is a normal outcome of that check.
+
 Marketing and documentation work may proceed independently when it does not
 change the core task model. Reliability bugs that block installation, launch,
 state sync, or review take precedence over new convenience surfaces.
