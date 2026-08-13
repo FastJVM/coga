@@ -24,9 +24,11 @@ so a fresh repo is never left pointing at a dead command. Do not build a
 replacement onboarding flow here — that is deliberately deferred to
 `v2/onboarding-v2-first-run-experience-after-removing`.
 
-Done looks like: no `build` or `project` spelling anywhere in live code,
-packaged templates, or docs; `pytest` green with `test_project.py` removed
-and alias/init/packaging tests updated; `coga validate --json` clean.
+Done looks like: no references to the `coga build` / `coga project`
+commands, the `coga-build` ticket, or the `bootstrap/project` skill anywhere
+in live code, packaged templates, or docs (the generic words "build" and
+"project" are fine); `pytest` green with `test_project.py` removed and
+alias/init tests updated; `coga validate --json` clean.
 
 ## Context
 
@@ -46,7 +48,10 @@ What each entry point is:
 Known reference inventory (grep for `build`/`project`/`coga-build` to
 confirm; this list was accurate at authoring time): `src/coga/aliases.py`,
 `src/coga/cli.py`, `src/coga/commands/project.py`, `src/coga/commands/init.py`
-(points fresh repos at the removed path), `src/coga/dependencies.py`,
+(init *seeds* the `coga-build` ticket into fresh empty repos — remove the
+seeding machinery too: `_ONBOARDING_TICKET_DIRS`, `_prune_onboarding_tickets`,
+and the onboarding closing messages, then repoint the closing message at
+`coga chat`), `src/coga/dependencies.py`,
 packaged templates under `src/coga/resources/templates/coga/` (`coga.toml`,
 `log.md`, `tasks/coga-build.md`, `bootstrap/project/`, `bootstrap/skills/
 bootstrap/project/`, `bootstrap/contexts/coga/cli/SKILL.md`,
@@ -64,12 +69,23 @@ Watch out for:
   in their own `coga.toml`; the alias table change only affects the packaged
   template and built-in fallbacks, which is fine — don't try to migrate
   existing repos.
-- Overlap: `coga/tasks/v2/cleanup-core-commands/work-orchestration-commands-to-tickets.md`
-  lists `coga project` in its migration scope. This ticket supersedes that
-  part by deleting the command outright; leave a note there rather than
-  migrating.
+- Packaged template dirs ship in the wheel via
+  `[tool.hatch.build.targets.wheel]` in `pyproject.toml`; check the wheel
+  targets when deleting template dirs, and note the wheel-building test in
+  `tests/test_packaging.py` silently skips in some environments, so a broken
+  wheel won't necessarily fail CI.
+- Overlap: two `coga/tasks/v2/cleanup-core-commands/` drafts reference
+  `coga project` — `work-orchestration-commands-to-tickets.md` (in its
+  migration scope) and `launch-decomposition.md` (callers list, acceptance
+  checkboxes). This ticket supersedes those parts by deleting the command
+  outright; leave a short note in each rather than migrating.
 - Out of scope: any new onboarding flow (see the v2 ticket above), and any
   change to `coga chat` / `bootstrap/orient` behavior beyond doc pointers.
+- Accepted tradeoff (owner-confirmed at authoring): `coga init` today seeds
+  the `coga-build` ticket into every fresh repo, so this removal leaves new
+  repos with only a "run `coga chat`" pointer until the onboarding v2 ticket
+  lands. `coga chat` resolves in old repos too — `chat` exists both in the
+  packaged `coga.toml` template and as a built-in alias fallback.
 
 <!-- coga:blackboard -->
 
