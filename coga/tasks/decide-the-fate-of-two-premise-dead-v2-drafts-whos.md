@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -146,7 +146,8 @@ and the Slack record describing a cancellation that did not stick.
 
 ## v2-wide relay sweep (folded in per Dream 2026-W33)
 
-46 of 78 files under `coga/tasks/v2/` mention `relay`. **Decision: warn, do not
+46 of 83 recognized drafts under `coga/tasks/v2/` mention `Relay` or `relay`.
+**Decision: warn, do not
 rename.** A mechanical `relay`→`coga` rewrite would convert dead surfaces into
 live-looking ones (`relay panic` → `coga panic`, which does not exist;
 `relay draft … --mode script`, `[secrets]` bulk-inject, `relay-os/contexts/…`),
@@ -163,6 +164,7 @@ only `_template` and `browser`, and the packaged `tasks/` tree has no `v2/`.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/686
 branch: v2-premise-dead-drafts
 worktree: /home/n/Code/claude/coga-v2-premise-dead-drafts
 
@@ -181,3 +183,51 @@ Verification run in the feature checkout:
 
 No example-fixture update needed: this change is documentation only — no task
 layout, prompt composition, or workflow semantics changed.
+
+## Peer review (2026-08-13)
+
+Required `codex review --base main` completed with two P2 findings, both fixed
+in `coga/tasks/v2/README.md`:
+
+- `relay panic` was incorrectly described as having no replacement. The table
+  now routes blocker-oriented uses to `coga block --task <slug> --reason "…"`
+  and names its state/notification/session effects.
+- The `mode:` row carried forward the already-deleted generic script-launch
+  seam. It now states the current contract: agent work needs a TTY and only a
+  registered recipe can run headlessly.
+
+The review's inventory also clarified the relay count above: 46 is the
+case-insensitive `Relay`/`relay` count across 83 recognized v2 drafts; a
+lowercase-only grep finds 45 and misses `clean-uncommitted-work.md`.
+
+## Final peer-review verification (2026-08-13)
+
+- Committed the review fixes, fetched `origin main`, and rebased onto the
+  fetched head unconditionally. The replay was clean.
+- Final branch commits: `d601b02c` (implementation) and `3181dbde`
+  (peer-review fixes); branch is clean, 0 behind and 2 ahead of `origin/main`.
+- Post-rebase `python3.12 -m pytest` → 1716 passed, 1 skipped. Pytest emitted
+  only its sandbox cache-write warning; the suite exited 0.
+- `PYTHONPATH=$PWD/src python3.12 -m coga validate --json --task
+  decide-the-fate-of-two-premise-dead-v2-drafts-whos` → 1 task OK, no issues.
+- `git diff --check origin/main...HEAD` → clean.
+
+## PR
+
+### Summary
+
+- Document `coga/tasks/v2/` as a parking area of dated artifacts whose premises
+  and named surfaces must be checked against current `main` before pull-forward.
+- Catalog the known pre-rename `Relay` surfaces and their current disposition,
+  warning against a mechanical rename that would turn dead interfaces into
+  plausible-looking instructions.
+- Link the roadmap's deferred-work rule to the new parking-area contract and
+  record premise-dead cancellation as a normal outcome.
+
+The two lifecycle cancellations themselves already synced directly to
+`origin/main` through Coga state transitions; this PR intentionally contains
+only the durable README and roadmap guidance.
+
+### Test plan
+
+`python3.12 -m pytest` (1716 passed, 1 skipped); `PYTHONPATH=$PWD/src python3.12 -m coga validate --json --task decide-the-fate-of-two-premise-dead-v2-drafts-whos` (1 task OK, no issues).
