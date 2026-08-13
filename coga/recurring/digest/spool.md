@@ -26,3 +26,4 @@ context. The git high-water mark lives separately in the digest ticket's
 consumed_through: fd951ba8b086
 {"id":"fd951ba8b086","ts":"2026-08-13T09:41","project":"coga","kind":"done","detail":"→ done (recipe: autoclose)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
 {"id":"9bc506f4be1a","ts":"2026-08-13T09:41","project":"coga","kind":"done","detail":"→ done (recipe: digest)","ticket":"recurring/digest","owner":"nicktoper"}
+{"id":"9dcc3202cdde","ts":"2026-08-13T10:09","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — Dream 2026-W33 complete: 4 PRs opened, 10 tickets direct-deleted, 1 draft ticket, 23 human-needed validation issues reported.","ticket":"recurring/dream","owner":"nicktoper"}
