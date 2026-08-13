@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: codex
-assignee: codex
+assignee: zach
 contexts: []
 skills: []
 workflow:
@@ -26,7 +26,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
