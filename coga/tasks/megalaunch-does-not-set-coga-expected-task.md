@@ -95,6 +95,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/689
 branch: `fix/megalaunch-step-witnesses`
 worktree: `/tmp/coga-megalaunch-step-witnesses`
 
