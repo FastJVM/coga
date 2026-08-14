@@ -1,7 +1,7 @@
 ---
 slug: secrets-instructions-correction
 title: secrets-instructions-correction
-status: active
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -92,3 +92,9 @@ and a raw literal are both rejected.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+
+---
+
+## Blockers
+
+- [ ] [2026-08-13 22:21] [agent:claude] id=20260813T222158 Zach to confirm the ticket's scope before design starts. The premise does not reproduce in this repo: every instruction here already documents the correct '- NAME: <ref>' list form (coga/tasks/_template/ticket.md:12, docs/operations.md:183, coga/contexts/coga/architecture/SKILL.md:156, coga/contexts/coga/secrets/SKILL.md:28, src/coga/config.py:1094), and a repo-wide grep finds no mapping-form example outside this ticket's own body — so there is no instruction here to correct. Which did you actually hit: (a) the wrong instruction lives in another repo (weather-events?) — name the file; (b) the real defect is that coga launch marks the task active BEFORE validating secrets:, so a typo strands the ticket and needs hand-repair — a code fix in src/coga/; or (c) both, as one ticket or split. Contexts are still unset pending that answer.
