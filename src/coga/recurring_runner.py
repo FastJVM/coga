@@ -634,6 +634,13 @@ def run_recurring_scan(
     including under `--force` — before anything is scanned or created; see
     `recurring_owner_refusal`.
     """
+    refusal = _control_branch_refusal(cfg)
+    if refusal is not None:
+        typer.secho(f"Recurring scan skipped: {refusal}", fg=typer.colors.RED, err=True)
+        # Same no-sweep code the freshness refusal uses: nothing was touched,
+        # so a wrapping `--all` dispatch skips its post-run git catch-up
+        # instead of re-failing on the same checkout.
+        return git.STALE_CONTROL_EXIT_CODE
     fresh, freshness_error = _sync_control_checkout_ahead(
         cfg, announce_failure=not require_fresh_control
     )
@@ -879,7 +886,11 @@ def run_recurring_named(
     recurring sweep, and the same committed-`owner` gate applies — this is a
     launch, so a non-owner is refused before the template is created.
     """
-    fresh, _reason = _sync_control_checkout_ahead(cfg)
+    refusal = _control_branch_refusal(cfg)
+    if refusal is not None:
+        typer.secho(f"{name} not launched: {refusal}", fg=typer.colors.RED, err=True)
+        return 2
+    _sync_control_checkout_ahead(cfg)
     if _refuse_non_owner(cfg):
         return 2
     if not _valid_agent_override(cfg, agent_override):
@@ -914,6 +925,43 @@ def run_recurring_named(
         recipe=recipe,
         interactive=interactive,
         agent_override=agent_override,
+    )
+
+
+def _control_branch_refusal(cfg: Config) -> str | None:
+    """Why this checkout may not service recurring work, or None if it may.
+
+    A recurring run writes shared scheduler state — it creates the period
+    task, records the serviced period, posts to Slack, and launches real work.
+    Doing that from a branch nobody will merge strands all of it, which is how
+    a digest came to repost on every invocation from a feature checkout.
+
+    This is deliberately *only* the branch condition, not the freshness one
+    `_sync_control_checkout_ahead` also covers: an offline run from the
+    control branch is fine and must keep working. `--all` layers its stricter
+    freshness requirement on top, because it is unattended.
+
+    Self-skips exactly where the freshness check does — `[git].enabled =
+    false` and workspaces outside a git checkout — so neither becomes newly
+    unusable.
+    """
+    if not cfg.git_enabled:
+        return None
+    root = _git_toplevel(cfg.repo_root)
+    if root is None:
+        return None
+    try:
+        current = _current_branch(root)
+    except git.GitError:
+        return None
+    if current == cfg.git_control_branch:
+        return None
+    where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
+    return (
+        f"recurring writes shared scheduler state, so it runs only from the "
+        f"configured control branch {cfg.git_control_branch!r} — this "
+        f"checkout is on {where}. Switch with `git -C {root} checkout "
+        f"{cfg.git_control_branch}` and re-run."
     )
 
 
