@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/architecture
 - coga/codebase
@@ -29,7 +29,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -92,3 +92,39 @@ substitute for fixing the shared launch contract.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: `fix/megalaunch-step-witnesses`
+worktree: `/tmp/coga-megalaunch-step-witnesses`
+
+## Implementation notes
+
+- Centralize `COGA_SUPERVISED`, `COGA_EXPECTED_TASK`, and
+  `COGA_EXPECTED_STEP` construction beside the launch-wide contract in
+  `repl_supervisor.py`, then use it from both launch supervisors.
+- Exercise the actual `open-pr` ownership predicate and stale-step bump guard
+  from megalaunch's captured child environment.
+- The primary checkout is currently on unrelated branch
+  `drop-important-recipient`; preserve its commits and pending append-only
+  `coga/log.md` line.
+
+## Progress
+
+- Regression-first check: both new megalaunch consumer tests failed because
+  `COGA_EXPECTED_TASK` was absent; the nested environment test passed.
+- Added `build_supervised_step_env` in `repl_supervisor.py` and routed both
+  ordinary launch and megalaunch through it.
+- Focused verification: 4 tests passed, covering megalaunch open-PR ownership,
+  stale-step bump refusal, ordinary launch witnesses, and nested metadata
+  re-derivation without witness retargeting.
+- Broader affected suites: 319 tests passed.
+- Full suite: 1,711 passed, 1 skipped.
+- Updated both live and packaged `coga/architecture` copies to make the shared
+  launch/megalaunch witness contract durable; packaging checks passed (4
+  passed, 1 skipped), and the two copies are byte-identical.
+- Committed as `1a73983c` (`Pin megalaunch step ownership witnesses`).
+- Fetched `origin/main` at `6dc00fe3`; the final rebase reported the feature
+  branch already up to date. The feature worktree is clean.
+- No example fixture update: this changes the child environment contract, not
+  task layout, prompt composition, or workflow semantics.

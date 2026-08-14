@@ -3370,3 +3370,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-13 16:51 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-08-13 16:55 [megalaunch-does-not-set-coga-expected-task] [human:nicktoper] activated (draft → active) — auto on launch
 2026-08-13 16:55 [megalaunch-does-not-set-coga-expected-task] [human:nicktoper] started (active → in_progress) via coga launch
+2026-08-13 16:55 [megalaunch-does-not-set-coga-expected-task] [human:nicktoper] launched (assignee=claude, launch_assignee=codex, agent=codex)
+2026-08-13 17:16 [megalaunch-does-not-set-coga-expected-task] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
