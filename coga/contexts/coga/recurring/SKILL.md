@@ -132,6 +132,30 @@ the example under "Extend recurring with a task-specific workflow").
 - `owner`, `assignee`, `watchers`, `contexts`, `secrets` — passed through to
   the created period task.
 
+## Recurring runs start on the control branch
+
+Every launching entry point requires the configured control branch to be
+checked out before it reads or writes period state: the bare sweep, `--force`,
+`coga run recurring-scan`, and `coga recurring launch <name>` (including
+aliases such as `coga dream`). A refusal names both the current branch and the
+configured control branch and tells the operator to switch branches. There is
+deliberately no override: `--force` bypasses schedule and status filters, not
+the branch gate.
+
+This gate checks only the local branch. A fetch or rebase failure on the
+checked-out control branch remains a warning for the interactive single-repo
+entry points, so an offline operator can still service a period. The
+unattended `coga recurring --all <path>` child keeps its stricter existing
+precondition: it must also fetch and integrate the latest remote control tip
+before scanning. Repos with `[git].enabled = false` and workspaces outside a
+git checkout have no Coga-managed control checkout, so the branch-only gate
+does not apply to them.
+
+The control-landing path for recurring state still handles a create made on a
+feature branch. Normal recurring commands no longer reach that case, but the
+logic remains valid for repos mid-upgrade that already have feature-branch
+state to land; a later cleanup may remove it once that migration case expires.
+
 ## One operator owns recurring: the `owner` gate
 
 A repo may name a recurring owner with a top-level `owner = "<name>"` in the
@@ -145,11 +169,12 @@ naming someone.
 Authorization does not trust the config object loaded when the command started
 or an uncommitted working-tree edit. It fetches the configured control branch
 through a command-scoped ref and reads `owner` directly from that exact commit's
-`coga.toml`, including when the launch runs on a feature branch; checkout-wide
-`FETCH_HEAD` is never an authorization source. It fetches from the remote's
-sole effective **push** URL — the repository `git push <remote>` actually
-writes the period state to, which git distinguishes from the fetch URL — and
-refuses a remote with several push URLs, because state spread across
+`coga.toml`; a stale local control checkout can predate an owner addition or
+transfer, and its working tree can carry an uncommitted takeover. Checkout-wide
+`FETCH_HEAD` is never an authorization source. The lookup fetches from the
+remote's sole effective **push** URL — the repository `git push <remote>`
+actually writes the period state to, which git distinguishes from the fetch URL
+— and refuses a remote with several push URLs, because state spread across
 destinations has no single owning repository to authorize against.
 
 Only a checkout with **no configured remote** falls back to reading `owner`
