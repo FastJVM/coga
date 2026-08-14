@@ -78,9 +78,8 @@ from coga.repl_supervisor import (
     ASSIST_AGENT_ENV,
     ASSIST_BRANCH_ENV,
     ASSIST_PR_ENV,
-    EXPECTED_STEP_ENV,
-    EXPECTED_TASK_ENV,
     AgentCliNotFound,
+    build_supervised_step_env,
     run_with_done_marker,
 )
 from coga.task_env import apply_task_env
@@ -703,9 +702,8 @@ def launch(
         # composed prompt; context flows through the durable files (blackboard,
         # ticket, artifacts), never a carried-over REPL session. The supervisor
         # only stops at human handoffs and terminal states — `_harness_stop_reason`
-        # decides. `COGA_SUPERVISED=1` tells `coga bump` it's running under a
-        # launch supervisor so its chaining hint can fire.
-        env["COGA_SUPERVISED"] = "1"
+        # decides. Each step's launch environment is minted below with the
+        # supervised flag plus the exact task/step ownership witnesses.
 
         def _on_signal(signum, frame):  # type: ignore[no-untyped-def]
             sys.exit(128 + signum)
@@ -815,9 +813,11 @@ def launch(
                     )
 
                 before_spawn = publish_lifecycle
-            step_env = dict(env)
-            step_env[EXPECTED_TASK_ENV] = str(ref.path.resolve())
-            step_env[EXPECTED_STEP_ENV] = spawn_ticket.step or ""
+            step_env = build_supervised_step_env(
+                env,
+                task_path=ref.path,
+                step=spawn_ticket.step,
+            )
 
             try:
                 session = spawn_agent_session(

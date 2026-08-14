@@ -125,6 +125,124 @@ def test_megalaunch_runs_active_agent_task(
     assert Ticket.read(ref["path"]).status == "done"
 
 
+def test_megalaunch_step_env_proves_single_checkout_owns_live_ticket(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The expected-task witness admits the supported single-checkout path."""
+    from coga.open_pr import _checkout_mode
+    from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV
+
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Publish me",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr("coga.open_pr.same_git_checkout", lambda *args: True)
+    monkeypatch.setattr("coga.open_pr.is_linked_worktree", lambda *args: False)
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    captured_env: dict[str, str] = {}
+    ownership: tuple[bool, str | None] | None = None
+
+    def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal ownership
+        captured_env.update(kwargs["env"])
+        with monkeypatch.context() as child:
+            for key, value in captured_env.items():
+                child.setenv(key, value)
+            ownership = _checkout_mode(
+                cfg_,
+                recorded_worktree=str(cfg_.repo_root),
+                task_path=ref_obj.path,
+            )
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["completed"] == 1
+    assert captured_env[EXPECTED_TASK_ENV] == str(Path(ref["path"]).resolve())
+    assert captured_env[EXPECTED_STEP_ENV] == "1 (implement)"
+    assert ownership == (True, None)
+
+
+def test_megalaunch_step_env_refuses_stale_step_bump(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A child cannot advance again after another session moves its step."""
+    from typer.testing import CliRunner
+
+    from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV
+
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Do not double bump",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    class _Session:
+        termination_kind = "natural"
+
+        def __init__(self, exit_code: int) -> None:
+            self.exit_code = exit_code
+
+    captured_env: dict[str, str] = {}
+    bump_results = []
+
+    def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
+        captured_env.update(kwargs["env"])
+        advanced = Ticket.read(ref_obj.ticket_path)
+        advanced.frontmatter["step"] = "2 (review)"
+        advanced.write(ref_obj.ticket_path)
+        result = CliRunner().invoke(
+            app,
+            ["bump", ref_obj.id_slug],
+            env=captured_env,
+        )
+        bump_results.append(result)
+        return _Session(result.exit_code)
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert captured_env[EXPECTED_TASK_ENV] == str(Path(ref["path"]).resolve())
+    assert captured_env[EXPECTED_STEP_ENV] == "1 (implement)"
+    assert len(bump_results) == 1
+    assert bump_results[0].exit_code == 2, bump_results[0].output
+    assert "Refusing to bump" in bump_results[0].output
+    assert "composed for step '1 (implement)'" in bump_results[0].output
+    assert "now on step '2 (review)'" in bump_results[0].output
+    assert Ticket.read(ref["path"]).step == "2 (review)"
+    assert run.counts["failed"] == 1
+
+
 def test_megalaunch_records_cancellation_as_distinct_outcome(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

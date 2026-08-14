@@ -561,11 +561,14 @@ human rewinds (`--to` / `--backward`) are never gated.
 the checkout that owns the live ticket: the primary control checkout when
 `worktree:` is a separate linked checkout, or the primary checkout's recorded
 feature branch when both are the same checkout. It proves live-ticket
-ownership with `COGA_EXPECTED_TASK`, which the agent's own `coga launch` pins
-to that session's task: unlike the `COGA_TASK_*` metadata, nothing downstream
-reassigns it, so it names the *session's* task rather than whatever the
-environment last described. That is what separates a real session from an
-independent fallback clone. The recipe
+ownership with `COGA_EXPECTED_TASK`, which the outer step supervisor (`coga
+launch` or `coga megalaunch`) pins alongside `COGA_EXPECTED_STEP` to the exact
+task and frozen step used for prompt composition. Unlike the `COGA_TASK_*`
+metadata, nested task re-derivation does not reassign either witness, so they
+keep naming the outer session rather than whatever the environment last
+described. The task witness separates a real session from an independent
+fallback clone; the pair also makes `coga bump` refuse a stale supervised
+session after another worker advances the ticket. The recipe
 pushes the recorded feature branch by name, opens or readies the PR, and writes
 `pr:` under `## Dev`; in the single-checkout layout it syncs that generated
 ticket write to the feature branch *and* the control branch, so the branch stays
