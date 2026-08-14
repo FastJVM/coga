@@ -147,3 +147,18 @@ log.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fix/recurring-log-reverse-pass
+worktree: /tmp/coga-recurring-log-reverse-pass
+
+## Implement notes
+
+- PR #688 (`f5543446`) landed the main marker-to-log conversion before this
+  workflow step started. The remaining ticket gaps are the required reverse,
+  bounded ledger read and rollback coverage; source/help prose also still
+  describes the removed blackboard marker.
+- Preserve the exact `created|reused <task-ref> for <period>` contract while
+  making scan/list callers supply the finite recurring refs they need, so one
+  reverse pass can stop as soon as all of them resolve.
