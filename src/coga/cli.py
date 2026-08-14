@@ -311,10 +311,15 @@ def main() -> None:
     try:
         _validate_aliases(aliases)
     except ConfigError as exc:
-        if recurring_all_invoked:
+        if init_invoked or recurring_all_invoked:
+            prefix = (
+                f"Note: ignoring config error so `{sys.argv[1]}` can run"
+                if init_invoked
+                else "Note: ignoring current config error so the cross-repo "
+                "recurring sweep can run"
+            )
             typer.secho(
-                "Note: ignoring current config error so the cross-repo "
-                f"recurring sweep can run — {exc}",
+                f"{prefix} — {exc}",
                 fg=typer.colors.YELLOW,
                 err=True,
             )

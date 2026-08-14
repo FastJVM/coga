@@ -450,6 +450,44 @@ def test_main_lets_init_run_through_broken_config(
     assert "ignoring config error" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["coga", "init"],
+        ["coga", "init", "--help"],
+    ],
+)
+def test_main_lets_init_run_through_invalid_alias(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+) -> None:
+    """Alias validation must not deadlock the config recovery command."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[aliases]\ncreate = "launch bootstrap/ticket"\n'
+    )
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr("sys.argv", argv)
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("coga.cli.app", fake_app)
+
+    main()
+
+    assert captured["argv"] == argv
+    err = capsys.readouterr().err
+    assert "ignoring config error so `init` can run" in err
+    assert "alias 'create' collides with built-in command" in err
+
+
 def test_main_still_exits_on_broken_config_for_non_init(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
