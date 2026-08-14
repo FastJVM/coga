@@ -3407,3 +3407,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-14 10:53 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-08-14
 2026-08-14 10:53 [recurring/digest] [system] created (status=active)
 2026-08-14 10:53 [recurring/digest] [system] created recurring/digest for 2026-08-14
+2026-08-14 10:53 [recurring/resolve-conflicts] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-08-14 10:53 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
