@@ -348,6 +348,38 @@ task, which carries that rule.
 - **Instantiated task ref** is `recurring/<name>`, backed by
   `coga/tasks/recurring/<name>/`. The `recurring/` directory is the
   identity marker. The period is not in the slug.
+- **Recurring runs only from the control branch.** Every entry point — the
+  bare sweep, `coga recurring --force`, `coga recurring launch <name>` (so
+  `coga dream` too), and the `--all` dispatcher — refuses from any other
+  branch or a detached HEAD, before any period state is read or written. A run
+  creates the period task, records the serviced period, posts to Slack, and
+  launches real work; from a branch nobody will merge, all of that is
+  stranded. The refusal names both branches and the `git checkout` that fixes
+  it. It self-skips for `[git].enabled = false` and workspaces outside a git
+  checkout.
+
+  The gate is the *branch*, not freshness: an offline run from the control
+  branch still works, because a laptop with no network should still be able to
+  service a period. `--all` layers its stricter fetch-and-rebase requirement
+  on top, since it is unattended and starting from a stale tip is its own
+  hazard.
+
+  Those two self-skips are the only exemptions. A git checkout whose HEAD
+  cannot be resolved is **refused**, not waved through — "we could not tell
+  which branch this is" is not evidence that it is the control branch. An
+  *unborn* branch (a fresh `git init`, or `git checkout --orphan <name>`
+  before its first commit) is still named by `git symbolic-ref`, so a
+  legitimately unborn control branch keeps working while an orphan feature
+  branch is refused like any other.
+
+  `[git].control_branch` is itself committed shared config, so a `main` →
+  `trunk` migration arrives *through* the pre-scan catch-up — after the gate
+  read the pre-fetch value. A successful catch-up therefore re-reads the
+  committed control branch from `HEAD` and re-applies the gate, so a rename
+  cannot buy one last run on the branch the repo just abandoned. As with
+  `owner`, the committed value is authoritative; an uncommitted working-tree
+  edit is not.
+
 - **The repo-global `coga/log.md` is the period high-water mark.** Each
   serviced period appends one `created|reused <task-ref> for <period>` line
   tagged `recurring/<name>`. The period key buckets the firing: hourly →
