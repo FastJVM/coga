@@ -48,19 +48,24 @@ The rule, as the owner specified it. Two independent questions, three outcomes:
 | no                       | yes                           | agent alone     |
 | yes                      | yes                           | **script, then agent** |
 
-The third row is the point, and it is why this is not a binary switch. A script
-ticket is not necessarily a *replacement* for an agent — the script can run
-first as a deterministic preparation step and the agent run after it, with the
-script's work already done. Most of the value of "tickets can be scripts" comes
-from this row: the deterministic part stops being something an LLM does badly
-and slowly, without giving up the agent for the part that needs judgment.
+**Row one is the point of this ticket.** A script ticket runs with no LLM
+anywhere in the path: `coga launch <slug>` is plain Python that inspects the
+directory, finds the entry point, and subprocesses it. No prompt is composed, no
+agent session is started, no tokens are spent, nothing waits on a model. That is
+the whole objective — the deterministic path must be *deterministic*, not an
+agent that has been instructed to run a script.
 
-There is an existing mechanism for handing the script's output to the agent, and
-the design should use it rather than invent a channel: **the blackboard is
-already a composed prompt layer.** A script that appends its findings to the
-blackboard is automatically feeding the agent that follows it, with no new
-plumbing and with the handoff visible in git. That is the same contract recipes
-already follow (`task_env.py` hands them `COGA_TASK_BLACKBOARD`).
+State that as an explicit non-goal to guard against: an agent must never be the
+thing that launches the script. If the implementation composes a prompt telling
+a model to invoke the entry point, it has failed, however correct the result
+looks.
+
+Row three is a useful consequence, not the motivation: when a ticket does have
+agent work, the deterministic part still runs as code first. The handoff needs
+no new channel — **the blackboard is already a composed prompt layer**, so a
+script that appends its findings is automatically feeding the agent behind it,
+with the handoff visible in git. Recipes already work this way (`task_env.py`
+hands them `COGA_TASK_BLACKBOARD`).
 
 `recipe:` is then not a thing to trim — it is a thing that stops existing once
 the classifier can deduce the same fact. It goes in this ticket; see *"Deleting
@@ -75,23 +80,24 @@ The `design` step writes a spec that states, at minimum:
   easy one — settle the entry-point name, whether the executable bit counts, and
   what happens with more than one candidate or a non-executable `run.py`.
 
-  **"Does this ticket have work for an agent" is the hard one, and it is where
-  deduction can quietly turn back into guessing.** "The body is just context"
-  must be decidable structurally — by `ls`, by section shape, by whether the
-  current workflow step carries agent skills — and never by reading the prose
-  and judging its intent, which would need an LLM to decide whether to launch an
-  LLM. The current workflow step looks like the strongest candidate: a step with
-  `skills:` and `assignee: agent` wants an agent, one without does not, and that
-  is already declared, already frozen, and already validated. Whatever the design
-  picks, state the rule so a human can predict the outcome from the directory
-  without running anything.
+  **"Does this ticket have work for an agent" must be answered structurally.**
+  By `ls`, by section shape, or by whether the current workflow step carries
+  agent skills — never by reading the prose and judging its intent. Judging
+  intent would mean consulting a model to decide whether to consult a model,
+  which defeats the entire purpose. The current workflow step is the strongest
+  candidate: a step with `skills:` and `assignee: agent` wants an agent, one
+  without does not, and that is already declared, already frozen, already
+  validated, and readable with no inference at all. Whatever the design picks, a
+  human must be able to predict the outcome from the directory without running
+  anything.
 
   A wrong guess here is worse than the field this replaces: silently skipping
   the agent half of row three does the deterministic work and then stops, which
   looks like success. Say what makes that loud.
-- **Where the classifier lives** — one function, called by `coga launch` and by
-  the recurring runner, so both paths deduce identically rather than keeping two
-  notions of "what kind of thing is this."
+- **Where the classifier lives** — one ordinary Python function, called by `coga
+  launch` and by the recurring runner, so both paths deduce identically rather
+  than keeping two notions of "what kind of thing is this." It runs before any
+  prompt is composed and decides whether composition happens at all.
 - **Argv/env contract** — what the script receives. Note that `task_env.py`
   still supplies task *identity* (`COGA_TASK_*`, `COGA_REPO_ROOT`) to both agent
   and recipe paths, but the **argument channel is gone**: `apply_arg_env`,
