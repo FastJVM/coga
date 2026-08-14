@@ -1,7 +1,7 @@
 ---
 slug: retire-coga-important-support-second-webhook
 title: Retire coga-important/support-second-webhook
-status: blocked
+status: active
 owner: zach
 human: zach
 agent: codex
