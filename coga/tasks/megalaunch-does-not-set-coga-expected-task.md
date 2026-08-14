@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/architecture
 - coga/codebase
@@ -29,7 +29,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -128,3 +128,20 @@ worktree: `/tmp/coga-megalaunch-step-witnesses`
   branch already up to date. The feature worktree is clean.
 - No example fixture update: this changes the child environment contract, not
   task layout, prompt composition, or workflow semantics.
+- Peer review: `codex review --base main` found no actionable issues and
+  independently passed the then-current full suite (1,711 passed, 1 skipped).
+- Refetched `origin/main` at `4ab373ed` and rebased unconditionally; the commit
+  is now `a149ba76`, the feature worktree is clean and one commit ahead, and the
+  live/packaged architecture copies remain byte-identical.
+- Post-rebase full suite: 1,734 passed, 1 skipped.
+
+## PR
+
+Centralize the supervised-step child environment so both `coga launch` and
+`coga megalaunch` pin `COGA_SUPERVISED`, `COGA_EXPECTED_TASK`, and
+`COGA_EXPECTED_STEP` to the task and frozen step that composed each session.
+Add regressions for megalaunch's single-checkout open-PR ownership proof,
+stale-step bump refusal, and nested metadata isolation, and document the shared
+contract in both shipped architecture copies.
+
+Test plan: `python -m pytest` (1,734 passed, 1 skipped).
