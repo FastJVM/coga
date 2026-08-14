@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -106,3 +106,59 @@ from a normal run, so a later cleanup can consider removing it.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fix/recurring-control-branch-gate
+worktree: /tmp/coga-recurring-control-branch-gate
+
+## Implementation notes
+
+- Keep `--all` on its existing strict fetch/rebase gate.
+- Add a separate local branch-only precondition shared by scheduled scans and
+  named launches. It must skip git-disabled and non-git workspaces, reject a
+  named/detached non-control checkout before recurring state is consulted, and
+  provide no override (including `--force`).
+
+## Result
+
+- Rebased commit `527a3d9a` (`Require control branch for recurring runs`) adds the
+  branch-only precondition to bare/forced scans and named launches before
+  catch-up, owner resolution, period discovery, creation, Slack, or launch.
+- The refusal names the current and configured control branches, recommends
+  `git switch <control>`, and states that `--force` is not an override.
+- `--all` retains its stricter freshness gate and temporary-failure exit path;
+  control-branch fetch failures remain warn-only for single-repo runs.
+- Git-disabled and non-git workspaces remain ungated. The low-level
+  feature-branch state-landing logic and its tests remain for mid-upgrade repos,
+  while the recurring context now documents that normal runs cannot reach it.
+- Peer review found two branch-probe edge cases. Rebased commit `a85255d3`
+  (`peer-review: apply review findings`) now fails closed when Git inspection
+  itself fails and uses the unambiguous `git branch --show-current` identity so
+  a same-named tag cannot disguise the checked-out control branch.
+
+## Verification
+
+- Post-review `python -m pytest tests/test_recurring.py -q` — 176 passed.
+- Post-rebase `python -m pytest` — 1747 passed, 1 skipped.
+- `PYTHONPATH=$PWD/src python -m coga.cli validate --json --task
+  refuse-recurring-runs-from-a-non-control-branch`
+  — task valid; expected warning only because the isolated worktree has no
+  gitignored `coga.local.toml`.
+- Final `git fetch origin main && git rebase FETCH_HEAD` — clean rebase; branch
+  is clean and two commits ahead of `origin/main`.
+
+## PR
+
+Require every mutating recurring entry point—the bare and forced sweep, the
+registered `recurring-scan` recipe, named launches, and aliases such as
+`coga dream`—to start on the configured control branch before consulting or
+changing period state. The gate has no override, but remains branch-only for
+single-repo runs so an offline control checkout can proceed; `--all` keeps its
+stricter freshness requirement, while git-disabled and confirmed non-git
+workspaces remain unaffected. Git inspection failures now fail closed, and
+branch identity remains correct even when a tag shadows the control-branch
+name. The recurring contract and real-git regression coverage are updated with
+the behavior.
+
+Test plan: `python -m pytest` (1747 passed, 1 skipped).
