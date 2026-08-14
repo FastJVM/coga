@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -77,6 +77,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/694
 branch: autoclose-retire-hint
 worktree: /home/n/Code/claude/coga-autoclose-retire-hint
 
@@ -118,14 +119,16 @@ summary is none of those), so it arrives at the 8am sweep rather than in the
 
 ## What landed
 
-Commit `6dc68c9e` on `autoclose-retire-hint`, all five plan items as written.
+Implementation commit `d5544542` on `autoclose-retire-hint`, followed by peer
+review commit `672236e3`.
 
 - `src/coga/autoclose.py`: `ClosedTicket` / `AutocloseResult`, `sweep_merged`
   returns the latter, `_try_bump_one` reads the blackboard once and returns the
   closed ticket, `render_retire_report` / `render_retire_summary` /
   `_report_retire_followups`, wired into `run_autoclose_recipe`.
-- `src/coga/task_env.py`: `append_blackboard_report`, next to
-  `blackboard_from_env` which already resolves *where* a recipe's report goes.
+- `src/coga/autoclose.py`: a recipe-local atomic report append built on the
+  shared task blackboard CAS primitive; `task_env.blackboard_from_env` still
+  resolves *where* the recipe's report goes.
 - Docs kept in step with behavior (live + packaged copies both): the
   `coga/autoclose/sweep` skill, the `autoclose-merged` recurring template and
   workflow, and the `dev/code` context's list of `## Dev` consumers.
@@ -143,13 +146,14 @@ template: upstream removed `last_serviced_period:` (the serviced period is now
 read from the repo-global log), my commit added a blackboard paragraph just
 above it. Resolved by keeping both sides' intent — their removal, my paragraph.
 
-## Adjacent, not fixed here
+## Peer-review scope correction
 
-`append_report` exists as three byte-identical private copies in
+`append_report` still exists as three byte-identical private copies in
 `dream_validate_drift.py`, `dream_cleanup_orphan_markers.py`, and
-`skill_update.py`. Rather than add a fourth, the shared one now lives in
-`task_env.py` and those three are noted in its docstring. Collapsing them onto
-it is a mechanical follow-up ticket — deliberately out of scope here.
+`skill_update.py`. Peer review rejected moving a fourth single-consumer helper
+into shared `task_env` infra while those real consumers remained unmigrated.
+Autoclose therefore keeps its atomic append beside its recipe; consolidating
+the older writers remains outside this ticket.
 
 ## Notes for review
 
@@ -161,3 +165,84 @@ it is a mechanical follow-up ticket — deliberately out of scope here.
   file without bound.
 - The trailing Slack summary carries no owner mention — it is sweep-level, and
   the closed tickets may have different owners.
+
+## Peer review — design gate
+
+`codex review --base main` completed cleanly on the retry. It found one P1
+lifecycle conflict that needs an owner decision before implementation:
+
+- The recurring sweep runs autoclose before Dream. Autoclose closes the source
+  ticket and names `coga retire <slug>`, then Dream's current Phase 4 contract
+  directly deletes every done ticket. That can delete both the source ticket's
+  `## Dev` evidence and the period task holding the report in the same sweep.
+  The advertised command then immediately fails to resolve the slug while the
+  checkout debt remains.
+- Recommended resolution: make done tickets with a recorded `branch:` or
+  `worktree:` ineligible for Dream deletion. They remain deliberately visible
+  until a human runs `coga retire`, whose existing safety checks and Retro path
+  own checkout cleanup and ticket deletion. Tradeoff: Dream no longer deletes
+  every done ticket immediately; checkout-bearing done tickets are retained as
+  explicit operational debt.
+- Rejected as broader alternatives: teach Dream to duplicate/drive retire's
+  safety machinery, or recover already-deleted ticket evidence from git
+  history. Both blur the intentionally human-typed retirement boundary.
+
+The review also found implementation-level must-fixes to apply after that
+decision: retain and report successful earlier closures when a later ticket
+errors; preflight the live Slack summary before mutating tickets; give failed
+summary delivery a durable task log; replace the whole-file report rewrite
+with the atomic ticket blackboard primitive; and keep the new report helper at
+its sole consumer rather than adding single-consumer code to core infra.
+
+Owner approved the recommended Dream eligibility guard in the launch REPL.
+
+## Peer review — fixes applied
+
+- Dream now excludes any done ticket with a real `branch:` or `worktree:` under
+  `## Dev`, leaves its evidence in place for the human-typed retire command,
+  and records it as deferred retirement debt. Live and packaged Dream
+  templates match; the recurring and current-direction contexts carry the
+  durable rationale.
+- The recipe owns its running `AutocloseResult`, so a later GitHub/validation
+  failure still reports earlier committed closures. A failure after
+  `mark_done` writes `done` is detected from both the mutated object and disk
+  and reported before the original exception continues.
+- Any live notification required by a candidate is preflighted before the
+  terminal write. A transient summary delivery miss is nonfatal only after the
+  report exists and is logged against the validated host task.
+- Report append is local to `autoclose.py` and uses the atomic blackboard
+  read/replace CAS primitive, preserving CRLF and refusing concurrent changes;
+  the proposed single-consumer `task_env` helper is gone from the branch.
+
+Focused verification: `python -m pytest tests/test_autoclose.py
+tests/test_dream_worker_templates.py` — 55 passed. `git diff --check` clean;
+all four changed live/packaged template pairs compare byte-identical.
+
+## Final peer-review verification
+
+- Committed review findings as `672236e3` after a full green run.
+- Unconditionally fetched `origin/main` and rebased both feature commits onto
+  `bcf82368`; the rebase completed without conflicts.
+- Re-ran `python -m pytest` after the rebase: 1755 passed, 1 skipped.
+- `git diff --check origin/main...HEAD` is clean; the feature worktree is clean,
+  its merge base is exactly `origin/main`, and the branch has two commits ahead.
+- `coga validate --json` reports 112 OK plus existing config/task issues only;
+  every reported issue is in state outside this branch diff.
+
+## PR
+
+### Summary
+
+- Capture checkout metadata while autoclose still has the source ticket, then
+  report each exact `coga retire <slug>` follow-up on the run blackboard/stdout
+  and in one trailing Slack summary without deleting anything.
+- Preserve already-committed closures across later sweep failures, preflight
+  required live notification configuration before mutation, append reports
+  atomically, and durably log transient summary delivery failures.
+- Keep checkout-bearing done tickets out of Dream so their slug and `## Dev`
+  evidence remain available until a human runs the named retire command; keep
+  the live and packaged contracts in sync.
+
+### Test plan
+
+`python -m pytest` (1755 passed, 1 skipped); `coga validate --json` (112 OK; only existing config/task issues outside this diff).
