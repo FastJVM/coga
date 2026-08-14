@@ -1,7 +1,7 @@
 ---
 slug: unblock-rewind
 title: unblock-rewind
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -281,3 +281,52 @@ Behavior described in prose, so updated in the same commit:
 
 Committed as `d84bc680` on `rewind-status-gate`, rebased on current
 `origin/main`. Not pushed — that's the `open-pr` step.
+
+## Peer review — blocked on sync-guard design
+
+`codex review --base main` found a must-fix race and confirmed it with a
+real-git reproduction:
+
+1. A feature checkout holds `status: paused`, step 2, and stale blackboard
+   text.
+2. Another checkout resumes the control ticket to `status: in_progress`, moves
+   it to step 3, and adds newer blackboard text (the same hole also permits a
+   stale `active` copy to overwrite a newly `blocked` control ticket and erase
+   its blocker).
+3. The stale checkout runs `coga bump <id> --to 1`.
+4. The new local status gate accepts `paused`. `advance_step(rewind=True)`
+   disables the step-regression rule as intended, but `_STATUS_PROGRESS` has no
+   entry for `paused` or `blocked`, so the remaining sync rules see no status
+   regression. The control ticket is overwritten with stale `status: paused`,
+   step 1, and the stale blackboard.
+
+This disproves the ticket premise that leaving the local status untouched is
+enough to keep the sync guard's status protections armed. The robust narrow
+shape appears to be extending the rewind publication guard in `src/coga/git.py`
+to require exact equality between the control and working statuses while still
+allowing the deliberate step rewind. That is deliberately outside the approved
+implementation scope: the ticket says a reason to edit `git.py` is a design
+decision to escalate, not paper over.
+
+Owner decision needed: approve the narrow `git.py` scope expansion (exact
+control/local status equality for rewind publication), or choose a different
+policy for stale `active` / `paused` rewinds.
+
+Two documentation corrections are also required once the design is resolved:
+
+- `architecture` and `docs/reference.md` say a rewind writes `step:` alone,
+  but the established path also re-resolves and may rewrite `assignee:`.
+- `coga/current-direction` still says rewinds/step movement only run while
+  `in_progress`; update that live contract to the chosen behavior.
+
+Review verification: targeted `tests/test_commands.py` **93 passed**; full
+suite **1743 passed, 1 skipped**. Repo-wide `coga validate --json` reported
+only the already-recorded unrelated task/config issues. The feature branch is
+clean; no review fixes were committed and the required final rebase/open-PR
+handoff were intentionally not performed while this design finding is open.
+
+---
+
+## Blockers
+
+- [ ] [2026-08-13 22:51] [agent:codex] id=20260813T225158 Peer review reproduced a stale-state race: an active/paused rewind can overwrite a newer blocked/in_progress control ticket because rewind disables the step guard without requiring status equality. Please approve the narrow src/coga/git.py expansion to require exact control/local status equality for rewind publication, or choose a different stale-rewind policy.
