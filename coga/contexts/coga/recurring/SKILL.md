@@ -149,7 +149,9 @@ unattended `coga recurring --all <path>` child keeps its stricter existing
 precondition: it must also fetch and integrate the latest remote control tip
 before scanning. Repos with `[git].enabled = false` and workspaces outside a
 git checkout have no Coga-managed control checkout, so the branch-only gate
-does not apply to them.
+does not apply to them. Only a confirmed non-git workspace self-skips: a Git
+inspection failure refuses rather than silently treating the checkout as
+unmanaged.
 
 The control-landing path for recurring state still handles a create made on a
 feature branch. Normal recurring commands no longer reach that case, but the

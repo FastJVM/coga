@@ -124,16 +124,21 @@ def _refuse_non_control_branch(cfg: Config) -> bool:
     """
     if not cfg.git_enabled:
         return False
-    root = _git_toplevel(cfg.repo_root)
-    if root is None:
-        return False
 
+    location = cfg.repo_root
     try:
+        # Only a confirmed non-git workspace is exempt. The best-effort local
+        # helper used by discovery collapses every probe failure to ``None``;
+        # this mutation gate must preserve inspection errors and fail closed.
+        root = git._toplevel(cfg.repo_root)
+        if root is None:
+            return False
+        location = root
         current = _current_branch(root)
     except git.GitError as exc:
         typer.secho(
             "Recurring launch refused: could not determine the current branch "
-            f"in {root}: {exc}. Check out the configured control branch "
+            f"in {location}: {exc}. Check out the configured control branch "
             f"{cfg.git_control_branch!r} with `git switch "
             f"{cfg.git_control_branch}` and retry.",
             fg=typer.colors.RED,
@@ -1973,7 +1978,10 @@ def _rev_parse(root: Path, ref: str) -> str:
 
 
 def _current_branch(root: Path) -> str:
-    return git._run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    # `rev-parse --abbrev-ref HEAD` returns `heads/<name>` when a tag shadows
+    # the branch. `branch --show-current` is unambiguous and empty when detached.
+    current = git._run_git(root, "branch", "--show-current").strip()
+    return current or "HEAD"
 
 
 def _relative_to_root(root: Path, path: Path) -> str:

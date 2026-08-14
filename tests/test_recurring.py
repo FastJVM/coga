@@ -699,6 +699,56 @@ def test_recurring_scan_refuses_detached_head_before_scanning(
     assert "control branch 'main'" in error
 
 
+def test_recurring_branch_gate_accepts_control_branch_shadowed_by_tag(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A same-named tag cannot disguise the checked-out control branch."""
+    git_repo.git("tag", "main")
+    scanned: list[Path] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(recurring_cmd, "_refuse_non_owner", lambda *args: False)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda task_cfg, **kwargs: scanned.append(task_cfg.repo_root)
+        or DueScan(tasks=[], errors=[]),
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 0
+    assert scanned == [git_repo.coga_os]
+
+
+def test_recurring_branch_gate_refuses_git_inspection_failure(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A broken Git probe cannot masquerade as an exempt non-git workspace."""
+
+    def fail_toplevel(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise coga_git.GitError("simulated dubious ownership")
+
+    monkeypatch.setattr(recurring_cmd.git, "_toplevel", fail_toplevel)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: pytest.fail("inspection refusal reached catch-up"),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("inspection refusal reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(repo)) == 2
+    error = capsys.readouterr().err
+    assert "could not determine the current branch" in error
+    assert "simulated dubious ownership" in error
+    assert "control branch 'main'" in error
+
+
 def test_recurring_branch_gate_skips_git_disabled_checkout(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
