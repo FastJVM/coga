@@ -3441,3 +3441,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-14 10:59 [recurring/blocker-reminders] [system] recipe blocker-reminders exited with code 0
 2026-08-14 10:59 [recurring/blocker-reminders] [system] completed (recipe blocker-reminders exited 0) via coga recurring
 2026-08-14 11:15 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
+2026-08-14 11:00 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
