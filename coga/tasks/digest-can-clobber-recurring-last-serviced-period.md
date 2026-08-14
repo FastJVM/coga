@@ -54,6 +54,33 @@ line by hand, but the same layout is reproducible from the packaged template:
 the template starts without a serviced-period line and the first recurring
 create appends it after `### Digest State`.
 
+It recurred in Magicator on 2026-08-13, this time as an unbounded loop rather
+than a one-off: three consecutive `coga recurring` invocations each reported
+`digest ... → launch` / `Replaced completed recurring/digest` and posted a
+separate Slack digest (7, then 2, then 8 items). The template's git history
+shows the two writers alternating on every cycle — a `recurring create` commit
+adding `last_serviced_period: 2026-08-13` and the following digest `Sync coga
+state` commit removing it. Each erasure sends `create_template` down the
+prior-period branch (`recurring.py`: `done` and `not
+_period_already_serviced`), which deletes the completed period task, recreates
+it, and reruns the recipe. So the defect is not only a lost high-water mark: on
+a template whose serviced-period line lands inside `### Digest State`, *every*
+`coga recurring` reposts the digest.
+
+Two consequences worth covering in the fix:
+
+- The loop is silent. The scan table prints `ready` / `→ launch`, which is
+  indistinguishable from a legitimate first firing, so nothing surfaces that
+  the same period is being serviced repeatedly.
+- The repeated same-period rewrites of the template blackboard are what the
+  2026-08-13 run's committed conflict markers landed in (a single-parent
+  `Sync coga state` commit carrying `<<<<<<<` / `=======` / `>>>>>>>` into
+  `coga/recurring/digest/ticket.md`). With markers present, `_read_last_commit`
+  returns the first `last_commit:` in the region — the older side — so the
+  digest also re-reports an already-posted commit range. Whether the sync path
+  should have refused to commit a conflicted tree is a separate defect; note it
+  here so the two are not conflated.
+
 ### Scope
 
 - Make the digest state writer preserve every blackboard line it does not own,
