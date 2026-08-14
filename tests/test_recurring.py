@@ -6122,3 +6122,137 @@ def test_recurring_still_runs_offline_on_the_control_branch(
 def test_recurring_gate_skips_non_git_and_git_disabled_workspaces(repo: Path) -> None:
     """Neither a git-less workspace nor `[git].enabled = false` is newly broken."""
     assert recurring_cmd._control_branch_refusal(load_config(repo)) is None
+
+
+def _migrate_control_branch_on_catch_up(git_repo, monkeypatch, to: str) -> None:
+    """Land a committed `[git].control_branch` rename inside the pre-scan catch-up.
+
+    The migration is committed shared config, so it reaches this checkout the
+    same way any other control-branch change does: through the fetch/rebase
+    that runs *after* the gate has already read the pre-fetch value.
+    """
+    config = git_repo.coga_os / "coga.toml"
+
+    def catch_up(cfg, **kwargs):
+        config.write_text(
+            config.read_text() + f'\n[git]\ncontrol_branch = "{to}"\n'
+        )
+        git_repo.git("commit", "-am", f"migrate control branch to {to}")
+        return True, ""
+
+    monkeypatch.setattr(recurring_cmd, "_sync_control_checkout_ahead", catch_up)
+
+
+def test_recurring_refuses_a_control_branch_migrated_by_the_catch_up(
+    git_repo, monkeypatch, capsys
+) -> None:
+    """A `main` → `trunk` rename arrives *through* the catch-up, after the gate.
+
+    Servicing the period on `main` anyway would strand it on the branch the
+    repo just stopped using — the exact failure the gate exists to prevent, so
+    the branch is re-read once the fetched config is on disk.
+    """
+    coga_os = git_repo.coga_os
+    _template_for_gate(coga_os)
+    _migrate_control_branch_on_catch_up(git_repo, monkeypatch, to="trunk")
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *a, **k: pytest.fail("scanned from the superseded control branch"),
+    )
+
+    code = recurring_cmd.run_recurring_scan(load_config(coga_os))
+
+    assert code == git.STALE_CONTROL_EXIT_CODE
+    err = capsys.readouterr().err
+    assert "control branch 'trunk'" in err
+    assert "moved it from 'main'" in err
+    assert list_tasks(load_config(coga_os)) == []
+
+
+def test_recurring_launch_refuses_a_control_branch_migrated_by_the_catch_up(
+    git_repo, monkeypatch, capsys
+) -> None:
+    """`coga recurring launch <name>` / `coga dream` recheck the same way."""
+    coga_os = git_repo.coga_os
+    _template_for_gate(coga_os)
+    _migrate_control_branch_on_catch_up(git_repo, monkeypatch, to="trunk")
+    monkeypatch.setattr(
+        recurring_cmd,
+        "create_named",
+        lambda *a, **k: pytest.fail("created from the superseded control branch"),
+    )
+
+    code = recurring_cmd.run_recurring_named(load_config(coga_os), "weekly-check")
+
+    assert code == 2
+    assert "control branch 'trunk'" in capsys.readouterr().err
+
+
+def test_recurring_allows_an_unchanged_control_branch_after_the_catch_up(
+    git_repo, monkeypatch
+) -> None:
+    """The recheck is a migration guard, not a second hurdle for ordinary runs."""
+    coga_os = git_repo.coga_os
+    _template_for_gate(coga_os)
+    _seed_global_log(git_repo)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))
+    _allow_interactive_recurring(monkeypatch)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
+
+    assert recurring_cmd.run_recurring_scan(load_config(coga_os)) == 0
+    assert [ref.id_slug for ref in list_tasks(load_config(coga_os))] == [
+        "recurring/weekly-check"
+    ]
+
+
+def test_recurring_refuses_an_unborn_orphan_branch(
+    git_repo, monkeypatch, capsys
+) -> None:
+    """`rev-parse --abbrev-ref HEAD` fails on an unborn branch — don't read that
+    as "no branch condition to check".
+
+    `git checkout --orphan <name>` leaves a real, populated checkout whose
+    HEAD is unborn. Treating the lookup failure as an exemption let recurring
+    create, log, notify, and launch from exactly the kind of branch the gate
+    refuses.
+    """
+    coga_os = git_repo.coga_os
+    _template_for_gate(coga_os)
+    git_repo.git("checkout", "--orphan", "feature/orphan")
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *a, **k: pytest.fail("scanned from an unborn orphan branch"),
+    )
+
+    code = recurring_cmd.run_recurring_scan(load_config(coga_os))
+
+    assert code == git.STALE_CONTROL_EXIT_CODE
+    err = capsys.readouterr().err
+    assert "feature/orphan" in err
+    assert list_tasks(load_config(coga_os)) == []
+
+
+def test_recurring_gate_fails_closed_when_head_cannot_be_resolved(
+    git_repo, monkeypatch
+) -> None:
+    """A git checkout Coga cannot read at all is refused, not exempted.
+
+    Only `[git].enabled = false` and a non-git workspace self-skip; "we could
+    not tell which branch this is" is not evidence that it is the control one.
+    """
+    _template_for_gate(git_repo.coga_os)
+    monkeypatch.setattr(recurring_cmd, "_head_branch", lambda root: None)
+
+    refusal = recurring_cmd._control_branch_refusal(load_config(git_repo.coga_os))
+
+    assert refusal is not None
+    assert "could not be resolved" in refusal
+
+
+def test_head_branch_names_an_unborn_control_branch(git_repo) -> None:
+    """The `symbolic-ref` fallback keeps a legitimately unborn branch usable."""
+    git_repo.git("checkout", "--orphan", "main-unborn")
+
+    assert recurring_cmd._head_branch(git_repo.root) == "main-unborn"

@@ -364,6 +364,22 @@ task, which carries that rule.
   on top, since it is unattended and starting from a stale tip is its own
   hazard.
 
+  Those two self-skips are the only exemptions. A git checkout whose HEAD
+  cannot be resolved is **refused**, not waved through — "we could not tell
+  which branch this is" is not evidence that it is the control branch. An
+  *unborn* branch (a fresh `git init`, or `git checkout --orphan <name>`
+  before its first commit) is still named by `git symbolic-ref`, so a
+  legitimately unborn control branch keeps working while an orphan feature
+  branch is refused like any other.
+
+  `[git].control_branch` is itself committed shared config, so a `main` →
+  `trunk` migration arrives *through* the pre-scan catch-up — after the gate
+  read the pre-fetch value. A successful catch-up therefore re-reads the
+  committed control branch from `HEAD` and re-applies the gate, so a rename
+  cannot buy one last run on the branch the repo just abandoned. As with
+  `owner`, the committed value is authoritative; an uncommitted working-tree
+  edit is not.
+
 - **The repo-global `coga/log.md` is the period high-water mark.** Each
   serviced period appends one `created|reused <task-ref> for <period>` line
   tagged `recurring/<name>`. The period key buckets the firing: hourly →

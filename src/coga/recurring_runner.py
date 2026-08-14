@@ -24,6 +24,7 @@ from coga.config import (
     Config,
     ConfigError,
     SecretError,
+    _parse_git,
     build_launch_env,
     load_config,
     parse_owner,
@@ -657,6 +658,13 @@ def run_recurring_scan(
         # git catch-up instead of re-failing (and re-printing) the same
         # divergence — see `git.STALE_CONTROL_EXIT_CODE`.
         return git.STALE_CONTROL_EXIT_CODE
+    if fresh:
+        refusal = _control_branch_migration_refusal(cfg)
+        if refusal is not None:
+            typer.secho(
+                f"Recurring scan skipped: {refusal}", fg=typer.colors.RED, err=True
+            )
+            return git.STALE_CONTROL_EXIT_CODE
     if _refuse_non_owner(cfg):
         return 2
     if not _valid_agent_override(cfg, agent_override):
@@ -890,7 +898,14 @@ def run_recurring_named(
     if refusal is not None:
         typer.secho(f"{name} not launched: {refusal}", fg=typer.colors.RED, err=True)
         return 2
-    _sync_control_checkout_ahead(cfg)
+    fresh, _reason = _sync_control_checkout_ahead(cfg)
+    if fresh:
+        refusal = _control_branch_migration_refusal(cfg)
+        if refusal is not None:
+            typer.secho(
+                f"{name} not launched: {refusal}", fg=typer.colors.RED, err=True
+            )
+            return 2
     if _refuse_non_owner(cfg):
         return 2
     if not _valid_agent_override(cfg, agent_override):
@@ -943,7 +958,33 @@ def _control_branch_refusal(cfg: Config) -> str | None:
 
     Self-skips exactly where the freshness check does — `[git].enabled =
     false` and workspaces outside a git checkout — so neither becomes newly
-    unusable.
+    unusable. Those two are the *only* exemptions: a git checkout whose HEAD
+    cannot be resolved at all fails closed, because "we could not tell which
+    branch this is" is not evidence that it is the control branch.
+    """
+    if not cfg.git_enabled:
+        return None
+    root = _git_toplevel(cfg.repo_root)
+    if root is None:
+        return None
+    return _branch_refusal(cfg, root, cfg.git_control_branch)
+
+
+def _control_branch_migration_refusal(cfg: Config) -> str | None:
+    """Re-apply the branch gate against the control branch just fetched.
+
+    `[git].control_branch` is committed shared config, so a `main` → `trunk`
+    migration arrives *through* the pre-scan catch-up: the gate above passed
+    against the pre-fetch value, and the rebase then landed a `coga.toml` that
+    names a different branch. Without this second read the scan would service
+    the period on the branch the repo just stopped using — stranding exactly
+    the state this gate exists to protect.
+
+    Reads the committed value from `HEAD` rather than the working tree, for
+    the reason `_launch_owner_refusal` gives about `owner`: shared policy is
+    what the repo agreed to, not what someone edited locally and has not
+    committed. Only worth running after a successful catch-up — a failed one
+    brought no new config in.
     """
     if not cfg.git_enabled:
         return None
@@ -951,18 +992,53 @@ def _control_branch_refusal(cfg: Config) -> str | None:
     if root is None:
         return None
     try:
-        current = _current_branch(root)
-    except git.GitError:
+        control = _control_branch_at_ref(cfg, root, "HEAD")
+    except (ConfigError, git.GitError, tomllib.TOMLDecodeError) as exc:
+        return (
+            "could not read the committed `[git].control_branch` after the "
+            f"pre-scan catch-up, so the branch it belongs on is unknown: {exc}"
+        )
+    if control == cfg.git_control_branch:
         return None
-    if current == cfg.git_control_branch:
+    return _branch_refusal(cfg, root, control)
+
+
+def _branch_refusal(cfg: Config, root: Path, control_branch: str) -> str | None:
+    """The branch gate itself, against one resolved control-branch value."""
+    current = _head_branch(root)
+    if current == control_branch:
         return None
-    where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
+    if current is None:
+        where = "a checkout whose HEAD branch could not be resolved"
+    elif current == "HEAD":
+        where = "detached HEAD"
+    else:
+        where = f"branch {current!r}"
+    moved = (
+        ""
+        if control_branch == cfg.git_control_branch
+        else (
+            f" (the fetched control tip moved it from "
+            f"{cfg.git_control_branch!r})"
+        )
+    )
     return (
         f"recurring writes shared scheduler state, so it runs only from the "
-        f"configured control branch {cfg.git_control_branch!r} — this "
+        f"configured control branch {control_branch!r}{moved} — this "
         f"checkout is on {where}. Switch with `git -C {root} checkout "
-        f"{cfg.git_control_branch}` and re-run."
+        f"{control_branch}` and re-run."
     )
+
+
+def _control_branch_at_ref(cfg: Config, root: Path, ref: str) -> str:
+    """Parse `[git].control_branch` from one exact committed config."""
+    target = _rev_parse(root, ref)
+    config_rel = _relative_to_root(root, cfg.repo_root / "coga.toml")
+    shared_text = _show_path(root, target, config_rel)
+    if not shared_text:
+        raise ConfigError(f"commit {target} has no readable {config_rel}")
+    _, control_branch = _parse_git(tomllib.loads(shared_text).get("git"))
+    return control_branch
 
 
 def _sync_control_checkout_ahead(
@@ -1967,6 +2043,27 @@ def _rev_parse(root: Path, ref: str) -> str:
 
 def _current_branch(root: Path) -> str:
     return git._run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+
+
+def _head_branch(root: Path) -> str | None:
+    """The checked-out branch name, or None when HEAD cannot be resolved.
+
+    `rev-parse --abbrev-ref HEAD` fails on an **unborn** branch — a fresh
+    `git init`, or a `git checkout --orphan <name>` whose first commit has not
+    landed — even though the checkout is perfectly real and `git symbolic-ref`
+    still names the branch. Falling back keeps a legitimately unborn *control*
+    branch usable, and returning None only when both fail lets a caller fail
+    closed rather than read an unresolvable HEAD as "no branch condition to
+    check".
+    """
+    try:
+        return _current_branch(root)
+    except git.GitError:
+        pass
+    try:
+        return git._run_git(root, "symbolic-ref", "--short", "HEAD").strip()
+    except git.GitError:
+        return None
 
 
 def _relative_to_root(root: Path, path: Path) -> str:
