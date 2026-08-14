@@ -5919,3 +5919,97 @@ def test_serviced_periods_ignores_other_log_lines(repo: Path) -> None:
 
     assert "recurring/weekly-check" not in serviced
     assert "some-task" not in serviced  # not a recurring ref
+
+
+def test_feature_branch_create_lands_the_ledger_on_control(
+    git_repo, monkeypatch
+) -> None:
+    """A create from a feature branch records the period on control *now*.
+
+    The period task lands on control immediately, so the record that says the
+    period ran has to land with it. Waiting for this branch's PR to merge is
+    not enough: Dream's retro pass deletes completed period tickets, so a
+    control checkout would see neither the task nor the record and fire the
+    same period again — and a branch that never merges never delivers it.
+
+    The log is `merge=union`, so it must reach control three-way merged rather
+    than through the wholesale-replacement overlay.
+    """
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_template_blackboard(coga_os, "weekly-check", "cursor: old\n")
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/never-merges")
+
+    cfg = load_config(coga_os)
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
+
+    # Control has the task and the record, without this branch ever merging.
+    assert git_repo.origin_tracks(f"coga/tasks/{outcome.ref.id_slug}/ticket.md")
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W24"
+
+    # Dream reaps the completed task from control; the record must outlive it.
+    git_repo.push_competing_commit("notes.md", "reaped\n")
+    control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert "created recurring/weekly-check for 2026-W24" in control_log
+
+
+def test_control_ledger_landing_preserves_a_peer_append(git_repo, monkeypatch) -> None:
+    """The union landing must fold in, not overwrite, another checkout's lines."""
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/peer-append")
+
+    cfg = load_config(coga_os)
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    # Another checkout appends its own audit line to control first.
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        "2026-06-08 09:00 [some-other-task] [system] peer line\n",
+    )
+
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
+
+    control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert "peer line" in control_log
+    assert "created recurring/weekly-check for 2026-W24" in control_log

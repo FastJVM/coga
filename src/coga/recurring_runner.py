@@ -1463,7 +1463,22 @@ def _land_recurring_create_on_control_branch(
         )
         control_rels = _control_create_rels(root, base, rels, ticket_rel)
 
-        tree = git._build_overlay_tree(root, base, control_rels)
+        # The serviced-period record must reach control with the task it
+        # describes. It lives in the repo-global `coga/log.md`, which is
+        # `merge=union` and so must never ride the overlay (that replaces
+        # files wholesale and would drop a peer's concurrent appends) — it
+        # is three-way unioned into the control tree instead.
+        #
+        # Waiting for this branch's PR to merge is not good enough: the task
+        # lands on control now, and if Dream reaps it before the merge — or
+        # the branch never merges — control would hold neither the task nor
+        # its record, and the period would fire again.
+        tree = git._build_overlay_tree(
+            root,
+            base,
+            control_rels,
+            union_rels=_control_ledger_rels(cfg, root),
+        )
         if tree == _rev_parse(root, f"{base}^{{tree}}"):
             return base, False
 
@@ -1550,6 +1565,14 @@ def _sync_recurring_create_on_checked_out_control_branch(
         _control_template_or_local(root, "HEAD", ticket_rel, original_ticket),
         True,
     )
+
+
+def _control_ledger_rels(cfg: Config, root: Path) -> list[str]:
+    """The repo-global log, as a union-merged path for a control-tree build."""
+    log_file = log_path(cfg)
+    if not log_file.exists():
+        return []
+    return [_relative_to_root(root, log_file)]
 
 
 def _control_create_rels(
