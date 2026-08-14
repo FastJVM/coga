@@ -25,6 +25,36 @@ class AssigneeResolutionError(Exception):
     """Raised when a workflow step's role token can't resolve against the ticket."""
 
 
+REWINDABLE_STATUSES: frozenset[str] = frozenset({"active", "in_progress", "paused"})
+"""Statuses a human rewind (`coga bump --to/--backward`) may move the step of.
+
+A rewind is reposition-only: it writes `step:` and never touches `status:`, so
+every status here must be one `coga launch` already accepts. `active` and
+`paused` tickets used to need a launch-then-exit dance purely to reach
+`in_progress`; the step move itself was always safe. `draft` has no step yet,
+`blocked` belongs to `coga unblock`, and the terminal statuses have no `step:`
+at all (`mark_done` pops it).
+"""
+
+
+def rewind_status_error(id_slug: str, status: str) -> str | None:
+    """Return why `status` can't be rewound, or None when it can."""
+    if status in REWINDABLE_STATUSES:
+        return None
+    if status == "blocked":
+        # `coga unblock` owns blocker resolution; rewinding a blocked ticket
+        # would reposition it while leaving the open ask unresolved.
+        return (
+            f"Task {id_slug} is blocked. "
+            f"Run `coga unblock {id_slug}` first, then rewind."
+        )
+    return (
+        f"Task {id_slug} is {status!r}. Cannot rewind. Rewindable statuses: "
+        + ", ".join(sorted(REWINDABLE_STATUSES))
+        + "."
+    )
+
+
 def resolve_other_agent(cfg: Config, agent: str | None) -> str:
     """Resolve the `other-agent` role token to the peer agent's nickname.
 
@@ -214,5 +244,7 @@ __all__ = [
     "advance_step",
     "resolve_step_assignee",
     "resolve_other_agent",
+    "rewind_status_error",
     "AssigneeResolutionError",
+    "REWINDABLE_STATUSES",
 ]

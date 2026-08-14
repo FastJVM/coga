@@ -12,6 +12,7 @@ from coga.bump import (
     AssigneeResolutionError,
     advance_step,
     resolve_step_assignee,
+    rewind_status_error,
 )
 from coga.config import ConfigError, load_config
 from coga.logfile import log_path
@@ -114,7 +115,15 @@ def bump(
         _bail(f"Task {ref.id_slug} has no ticket.md. Cannot advance.")
     ticket = Ticket.parse(ticket_bytes.decode("utf-8"))
 
-    if ticket.status != "in_progress":
+    # A forward bump finishes work, so it requires a ticket that is being
+    # worked on. A rewind only repositions `step:` and never touches `status:`,
+    # so it also accepts the statuses a human can rewind from without first
+    # launching the ticket just to flip it to `in_progress`.
+    if rewind:
+        reason = rewind_status_error(ref.id_slug, ticket.status)
+        if reason:
+            _bail(reason)
+    elif ticket.status != "in_progress":
         _bail(f"Task {ref.id_slug} is {ticket.status!r}. Cannot advance.")
 
     _assert_supervised_step_is_current(ref, ticket.step)

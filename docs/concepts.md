@@ -166,9 +166,10 @@ Every ticket tracks two independent things, and different commands own each:
   Cancellation accepts every non-terminal state, requires a reason, and has no
   transition back to active.
 - **Step — *where* in the workflow.** Format `N (step-name)`. Owned entirely by
-  `coga bump`, and only moves while status is `in_progress`. A bare `coga bump`
-  advances one step; a human (outside a supervised launch) can rewind with
-  `--to` or `--backward`.
+  `coga bump`. A bare `coga bump` advances one step, and only while status is
+  `in_progress`; a human (outside a supervised launch) can rewind with `--to`
+  or `--backward` from `active`, `in_progress`, or `paused` — a rewind moves
+  the step and leaves the status alone.
 
 Keeping them separate is what lets you pause a task without losing its place, or
 resume a blocked task at the exact step it stopped on. Tickets with no workflow

@@ -249,6 +249,81 @@ def test_bump_rewind_refuses_supervised_agent(repo: Path) -> None:
     assert t.step == "2 (pr)"
 
 
+def _advance_then_set_status(repo: Path, status: str) -> tuple[str, Path]:
+    """A task parked on step 2 with `status`, the shape a rewind lands on."""
+    slug, task_path = _make_task(repo)
+    CliRunner().invoke(app, ["bump", slug])
+    t = Ticket.read(task_path)
+    t.frontmatter["status"] = status
+    t.write(task_path)
+    return slug, task_path
+
+
+@pytest.mark.parametrize("status", ["active", "in_progress", "paused"])
+def test_bump_rewinds_from_rewindable_status(repo: Path, status: str) -> None:
+    # A rewind repositions `step:` only: an `active` or `paused` ticket no
+    # longer needs a launch-then-exit dance just to reach `in_progress`, and
+    # its status is left for `coga launch` to move.
+    slug, task_path = _advance_then_set_status(repo, status)
+
+    result = CliRunner().invoke(app, ["bump", slug, "--backward"])
+
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path)
+    assert t.step == "1 (implement)"
+    assert t.status == status
+    assert "rewound to step 1 (implement)" in _log_text(repo, slug)
+
+
+def test_bump_rewind_to_number_from_paused(repo: Path) -> None:
+    slug, task_path = _advance_then_set_status(repo, "paused")
+
+    result = CliRunner().invoke(app, ["bump", slug, "--to", "1"])
+
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path)
+    assert t.step == "1 (implement)"
+    assert t.status == "paused"
+
+
+def test_bump_rewind_refuses_blocked_and_points_at_unblock(repo: Path) -> None:
+    slug, task_path = _advance_then_set_status(repo, "blocked")
+    append_blocker(task_path, "agent:claude", "which retry ceiling?")
+
+    result = CliRunner().invoke(app, ["bump", slug, "--backward"])
+
+    assert result.exit_code == 2, result.output
+    assert f"coga unblock {slug}" in result.output
+    t = Ticket.read(task_path)
+    assert t.step == "2 (pr)"
+    assert t.status == "blocked"
+
+
+@pytest.mark.parametrize("status", ["done", "canceled", "draft"])
+def test_bump_rewind_refuses_non_rewindable_status(repo: Path, status: str) -> None:
+    slug, task_path = _advance_then_set_status(repo, status)
+
+    result = CliRunner().invoke(app, ["bump", slug, "--backward"])
+
+    assert result.exit_code == 2, result.output
+    assert "Cannot rewind" in result.output
+    assert "coga unblock" not in result.output
+    t = Ticket.read(task_path)
+    assert t.step == "2 (pr)"
+    assert t.status == status
+
+
+def test_bump_backward_from_first_step_errors(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+
+    result = CliRunner().invoke(app, ["bump", slug, "--backward"])
+
+    assert result.exit_code == 2, result.output
+    assert "is on the first step. Cannot rewind." in result.output
+    t = Ticket.read(task_path)
+    assert t.step == "1 (implement)"
+
+
 def test_bump_supervised_prints_handoff_hint_when_assignee_changes(repo: Path) -> None:
     # Next step carries `assignee: owner`, so on bump the assignee rewrites
     # away from the current agent — the hint should say handoff.
