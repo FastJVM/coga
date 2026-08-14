@@ -1,15 +1,38 @@
 ---
 slug: retire-never-removes-a-worktree-that-ran-the-tests
 title: Retire never removes a worktree that ran the tests
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: code/design-then-implement
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+  - name: review-design
+    skills: []
+    assignee: owner
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
 secrets: null
+step: 1 (design)
 ---
 
 ## Description
