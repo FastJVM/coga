@@ -84,4 +84,5 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Blockers
 
-- [ ] [2026-08-13 11:06] [agent:codex] id=20260813T110630 Source task coga-important/support-second-webhook is missing from the current control checkout; commit bc94a150 says it was already direct-deleted while this retire shell remained in_progress. Please decide whether to close/cancel this shell as already satisfied or restore the source for a fresh Retro run.
+- [x] [2026-08-13 11:06] [agent:codex] id=20260813T110630 Source task coga-important/support-second-webhook is missing from the current control checkout; commit bc94a150 says it was already direct-deleted while this retire shell remained in_progress. Please decide whether to close/cancel this shell as already satisfied or restore the source for a fresh Retro run.
+  resolved: [2026-08-14 10:55] [human:nicktoper] Owner confirmed the prior direct deletion in commit bc94a150 already satisfied retirement; do not restore the source or rerun Retro. Close this retire shell as already satisfied.

@@ -3414,3 +3414,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-14 10:55 [read-the-recurring-serviced-period-from-the-log-dr] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-14 10:55 [refuse-recurring-runs-from-a-non-control-branch] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-14 10:55 [retire-coga-important-support-second-webhook] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-08-14 10:55 [retire-coga-important-support-second-webhook] [megalaunch] launched via coga megalaunch
+2026-08-14 10:55 [retire-coga-important-support-second-webhook] [human:nicktoper] unblocked (asks resolved, still in_progress): Owner confirmed the prior direct deletion in commit bc94a150 already satisfied retirement; do not restore the source or rerun Retro. Close this retire shell as already satisfied.
