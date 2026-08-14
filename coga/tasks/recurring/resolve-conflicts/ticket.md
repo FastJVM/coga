@@ -82,6 +82,29 @@ The blackboard is a notepad to be written to often as the human and agent works 
   supervisor performs the delegated launch directly instead of asking the
   wrapper agent to shell out to it.
 
+## 2026-08-14 — resumed, blocker resolved from the repo's own contract
+
+- **The prior run's blocker premise was wrong.** It judged a pty a "design
+  bypass" without consulting `coga/contexts/coga/recurring/SKILL.md`
+  (Gotchas, ~L428-441). That canonical context anticipates this exact failure
+  verbatim — "running the delegation straight from a tool call is *refused*,
+  not merely degraded" — and prescribes the pty as the sanctioned fix:
+  `timeout 900 script -qec 'coga resolve-conflicts --agent claude' /dev/null`.
+  No human decision was needed; `coga unblock` ran on that basis.
+- Empirical backing: the 2026-07-27 period run (log L2984) used this same
+  pattern and completed successfully.
+- Same context section forbids reading success from the captured pty stream
+  (ANSI noise + teardown race). Success is confirmed via the
+  `bootstrap/resolve-conflicts` `slack:` line in `coga/log.md`. High-water
+  mark before this run: last such line is L3102 (2026-07-29); log is 3412
+  lines.
+- Blast radius this period: 2 open PRs — #688 (base `main`, mergeable
+  UNKNOWN) and #690 (base `recurring-ledger-from-log`, i.e. not `main`, so
+  the command ticket requires reporting it as `conflict` untouched).
+- The template-vs-context wording contradiction is already ticketed as
+  `reconcile-recurring-wrapper-tty-admission-guidance`; not fixed here, since
+  `direct/body` must not land product code.
+
 ---
 
 ## Blockers
