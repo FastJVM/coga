@@ -1,7 +1,7 @@
 ---
 slug: secrets-instructions-correction
 title: secrets-instructions-correction
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
