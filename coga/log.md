@@ -3422,3 +3422,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-14 10:57 [important-alerts-the-task-owner-drop-important-rec] [human:nicktoper] auto-bumped on merge of PR #685 → done
 2026-08-14 10:57 [megalaunch-does-not-set-coga-expected-task] [human:nicktoper] auto-bumped on merge of PR #689 → done
 2026-08-14 10:57 [process-pr-comments-during-review] [human:nicktoper] auto-bumped on merge of PR #677 → done
+2026-08-14 10:57 [recurring-can-only-be-launched-by-owner] [human:nicktoper] auto-bumped on merge of PR #687 → done
