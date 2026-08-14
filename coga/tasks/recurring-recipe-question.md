@@ -18,8 +18,9 @@ secrets: null
 ## Description
 
 Make it possible for an ordinary ticket to execute as a script — deterministic
-code, no LLM in the loop — rather than always composing a prompt and launching
-an agent.
+code, no LLM required — instead of every ticket composing a prompt and launching
+an agent. Not either/or: a ticket may be script-only, agent-only, or a script
+that runs first and hands off to an agent.
 
 This is a microkernel enabler, not a convenience. Be precise about the gap:
 deterministic code at the edge is already allowed — `CLAUDE.md` permits a
@@ -39,11 +40,27 @@ ticket is already either a script or an agent prompt, and that is obvious from
 what is sitting next to it. The one piece of code this ticket needs is a
 classifier at launch that decides which, and dispatches.
 
-The leading candidate is **file presence**: a directory-form ticket
-(`tasks/<slug>/`) with an executable entry point beside `ticket.md` is a script
-ticket; without one it composes a prompt and launches an agent. The design
-confirms or replaces that signal, but the no-new-field constraint holds either
-way.
+The rule, as the owner specified it. Two independent questions, three outcomes:
+
+| script in the directory? | ticket has work for an agent? | launch          |
+| ------------------------ | ----------------------------- | --------------- |
+| yes                      | no — body is only context     | script alone    |
+| no                       | yes                           | agent alone     |
+| yes                      | yes                           | **script, then agent** |
+
+The third row is the point, and it is why this is not a binary switch. A script
+ticket is not necessarily a *replacement* for an agent — the script can run
+first as a deterministic preparation step and the agent run after it, with the
+script's work already done. Most of the value of "tickets can be scripts" comes
+from this row: the deterministic part stops being something an LLM does badly
+and slowly, without giving up the agent for the part that needs judgment.
+
+There is an existing mechanism for handing the script's output to the agent, and
+the design should use it rather than invent a channel: **the blackboard is
+already a composed prompt layer.** A script that appends its findings to the
+blackboard is automatically feeding the agent that follows it, with no new
+plumbing and with the handoff visible in git. That is the same contract recipes
+already follow (`task_env.py` hands them `COGA_TASK_BLACKBOARD`).
 
 `recipe:` is then not a thing to trim — it is a thing that stops existing once
 the classifier can deduce the same fact. It goes in this ticket; see *"Deleting
@@ -54,12 +71,24 @@ no implementation moves.
 
 The `design` step writes a spec that states, at minimum:
 
-- **The deduction rule** — the exact signal the classifier reads, in priority
-  order, and what it does when signals conflict or are ambiguous (an executable
-  beside a ticket whose body also reads like a prompt; a non-executable
-  `run.py`; more than one candidate entry point). Deduction that guesses wrong
-  silently is worse than a field; the rule must be decidable by `ls` and by a
-  human reading the directory.
+- **The two signals, and how each is read.** "Is there a script here" is the
+  easy one — settle the entry-point name, whether the executable bit counts, and
+  what happens with more than one candidate or a non-executable `run.py`.
+
+  **"Does this ticket have work for an agent" is the hard one, and it is where
+  deduction can quietly turn back into guessing.** "The body is just context"
+  must be decidable structurally — by `ls`, by section shape, by whether the
+  current workflow step carries agent skills — and never by reading the prose
+  and judging its intent, which would need an LLM to decide whether to launch an
+  LLM. The current workflow step looks like the strongest candidate: a step with
+  `skills:` and `assignee: agent` wants an agent, one without does not, and that
+  is already declared, already frozen, and already validated. Whatever the design
+  picks, state the rule so a human can predict the outcome from the directory
+  without running anything.
+
+  A wrong guess here is worse than the field this replaces: silently skipping
+  the agent half of row three does the deterministic work and then stops, which
+  looks like success. Say what makes that loud.
 - **Where the classifier lives** — one function, called by `coga launch` and by
   the recurring runner, so both paths deduce identically rather than keeping two
   notions of "what kind of thing is this."
@@ -69,9 +98,18 @@ The `design` step writes a spec that states, at minimum:
   `COGA_ARG_1..N`, and `COGA_ARGC` lived in the deleted `launch_script.py` and
   have no replacement. If the shape takes arguments, that is new work.
 - **Execution model** — headless vs TTY, and how `coga recurring`, `coga
-  launch`, and the REPL supervisor each treat a script-backed ticket.
+  launch`, and the REPL supervisor each treat a script-backed ticket. Row three
+  is mixed: the script half is headless, the agent half may need a TTY. Say what
+  a TTY-less environment does with a row-three ticket — run the script and skip
+  the agent with a warning, as recurring already does for agent templates, or
+  refuse the whole thing.
+- **Failure semantics for row three** — what a non-zero script exit means for
+  the agent that was going to follow. Halting is the obvious default; say so and
+  say how the ticket reports it, rather than leaving it to the implementation.
 - **Lifecycle** — what `bump`, `block`, and blackboard writes mean when no agent
-  is present to perform them.
+  is present to perform them. In row three, which half is responsible for the
+  bump — almost certainly the agent, since the script is a preparation step and
+  not the end of the work.
 - **Contract deltas** — the exact prose changes to `CLAUDE.md`, `AGENTS.md`, and
   the `coga/extension-model`, `coga/codebase`, `coga/architecture`, and
   `coga/recurring` contexts.
