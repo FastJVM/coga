@@ -387,6 +387,39 @@ def test_main_allows_cross_repo_sweep_from_broken_current_repo(
     assert "ignoring current config error" in capsys.readouterr().err
 
 
+def test_main_allows_cross_repo_sweep_from_invalid_current_alias(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Alias errors also belong to the child checkout, not parent dispatch."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[aliases]\ncreate = "launch bootstrap/ticket"\n'
+    )
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "sys.argv", ["coga", "recurring", "--all", str(tmp_path)]
+    )
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("coga.cli.app", fake_app)
+
+    main()
+
+    assert captured["argv"] == ["coga", "recurring", "--all", str(tmp_path)]
+    err = capsys.readouterr().err
+    assert "ignoring current config error" in err
+    assert "alias 'create' collides with built-in command" in err
+
+
 def test_default_aliases_pass_validation() -> None:
     """The hardcoded defaults must satisfy `_validate_aliases` themselves."""
     _validate_aliases(_DEFAULT_ALIASES)
