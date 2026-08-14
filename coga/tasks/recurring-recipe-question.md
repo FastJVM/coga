@@ -1,7 +1,7 @@
 ---
 slug: recurring-recipe-question
 title: Deduce whether a ticket is a script or an agent prompt
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude

@@ -3384,3 +3384,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-13 22:22 [recurring-recipe-question] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-13 22:22 [unblock-rewind] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-13 22:22 [secrets-instructions-correction] [megalaunch] activated (blocked → active) — explicit megalaunch pick
+2026-08-13 22:22 [recurring-recipe-question] [megalaunch] started (active → in_progress) via coga megalaunch
