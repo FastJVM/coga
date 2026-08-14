@@ -3371,3 +3371,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-13 17:19 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-08-13 17:21 [read-the-recurring-serviced-period-from-the-log-dr] [human:nick] created (status=draft)
 2026-08-13 17:22 [digest-can-clobber-recurring-last-serviced-period] [human:nick] canceled (draft → canceled): Superseded by read-the-recurring-serviced-period-from-the-log-dr: the marker is being deleted rather than protected, so this ticket's scope (preserve last_serviced_period across digest writes) no longer describes the work.
+2026-08-13 22:01 [refuse-recurring-runs-from-a-non-control-branch] [human:nick] created (status=draft)
