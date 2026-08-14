@@ -8,6 +8,8 @@ agent: claude
 assignee: claude
 contexts:
   - coga/extension-model
+  - coga/principles
+  - coga/codebase
 skills: []
 workflow: code/design-then-implement
 secrets: null
@@ -19,51 +21,66 @@ Make it possible for an ordinary ticket to execute as a script — deterministic
 code, no LLM in the loop — rather than always composing a prompt and launching
 an agent.
 
-This is a microkernel enabler, not a convenience. Today the only home for
-deterministic Coga behavior is `runner.RECIPES` inside `src/coga/`, so every new
-deterministic feature makes the kernel bigger. If a ticket can be a script, most
-features can live as tickets at the edge and the kernel can shrink to genuine
-shared infra. That is the goal to design against; the `recipe:` field below is
-the symptom that surfaced it.
+This is a microkernel enabler, not a convenience. Be precise about the gap:
+deterministic code at the edge is already allowed — `CLAUDE.md` permits a
+single-consumer helper to "live beside the ticket or skill that uses it […] and
+be invoked explicitly by agent instructions." What does not exist is a way to
+**execute** that code headlessly as a ticket, with no agent in the loop. Every
+deterministic feature that needs a stable headless contract therefore has to
+become a `runner.RECIPES` entry inside `src/coga/`. Close that gap and most
+features can live as tickets at the edge; leave it open and the kernel only
+grows. The `recipe:` field is the symptom that surfaced this, not the subject.
 
-Design the shape first (this ticket's `design` step), get owner sign-off at
-`review-design`, then implement. The design must take a position on the
-reversal described under Context — it is not free to assume the current
-contract.
+### What the design step must deliver
+
+The `design` step writes a spec that states, at minimum:
+
+- **Declaration surface** — frontmatter field, a step `assignee: script`, or
+  something else. Per-ticket or per-step, and whether it may appear mid-workflow
+  alongside agent steps.
+- **Argv/env contract** — what the script receives. Note that `task_env.py`
+  still supplies task *identity* (`COGA_TASK_*`, `COGA_REPO_ROOT`) to both agent
+  and recipe paths, but the **argument channel is gone**: `apply_arg_env`,
+  `COGA_ARG_1..N`, and `COGA_ARGC` lived in the deleted `launch_script.py` and
+  have no replacement. If the shape takes arguments, that is new work.
+- **Execution model** — headless vs TTY, and how `coga recurring`, `coga
+  launch`, and the REPL supervisor each treat a script-backed ticket.
+- **Lifecycle** — what `bump`, `block`, and blackboard writes mean when no agent
+  is present to perform them.
+- **Contract deltas** — the exact prose changes to `CLAUDE.md`, `AGENTS.md`, and
+  the `coga/extension-model`, `coga/codebase`, `coga/architecture`, and
+  `coga/recurring` contexts.
+- **A quantified microkernel claim** — how many lines actually leave `src/coga/`
+  under the proposal. Ten `RECIPES` entries are ten lines in a dict; the real
+  code sits in `autoclose.py`, the digest module, and friends, much of which may
+  be shared infra that stays either way. Without a number the argument is
+  rhetorical and a defender of #670 will say moving dict entries shrinks nothing.
+
+**A design that concludes the current contract should stand is an acceptable
+outcome.** Say so plainly in the spec and stop at `review-design`; do not
+manufacture a reversal to satisfy the ticket.
 
 ## Context
 
-### The `recipe:` observation that started this
+### Where this came from — `recipe:` (tracked separately, do not design it here)
 
 `recipe:` on a recurring template is the script-vs-agent mode switch. A known
 `recipe:` runs headlessly via `coga run <name>` as a subprocess
-(`recurring_runner.py:698`); without one the task is agent-backed and needs a
-TTY under the REPL supervisor. `coga/contexts/coga/recurring/SKILL.md` states it
-directly: *"there is no `mode` field. A known `recipe:` selects deterministic
-recipe execution."* Validation checks the name against the fixed registry
-(`recurring.py:76-95`).
+(`recurring_runner.py:698` branches, `:794` spawns); without one the task is
+agent-backed and needs a TTY under the REPL supervisor.
+`coga/contexts/coga/recurring/SKILL.md:120-122` states it directly: *"there is
+no `mode` field. A known `recipe:` selects deterministic recipe execution."*
+`Template.load` checks the name against the fixed registry
+(`recurring.py:76-87`).
 
-The field is arguably redundant, and the duplication is real but not where it
-first appears. `coga/recurring/autoclose-merged/ticket.md` declares the same
-fact three times: `recipe: autoclose`; `workflow: autoclose-merged/sweep`, a
-one-step workflow whose only purpose is to name the skill `coga/autoclose/sweep`;
-and that step's `assignee: agent`, which is false — no agent runs it. All four
-recipe-backed templates carry the same comment conceding the point: *"The
-one-step workflow keeps the period task's lifecycle and skill contract
-legible."*
+The field looks redundant against the one-step workflow each template also
+carries, and that duplication is worth trimming — but it is a standalone
+refactor of existing plumbing, decidable and shippable without this ticket. It
+is **out of scope here**; see Out of Scope below.
 
-Two opposite trims are available and the design should say which it takes, or
-that neither matters once tickets can be scripts:
-
-1. Drop `recipe:` and deduce it — from the template directory name (needs
-   renaming `autoclose-merged` → `autoclose`) or from the workflow step's skill
-   ref. Both trade an explicit field for an implicit convention coupling a
-   template name to the Python registry.
-2. Drop the one-step workflow instead and keep `recipe:` as the single honest
-   declaration. Removes four workflow files and the false `assignee: agent`.
-
-Either way, `recipe:` exists **only on recurring templates**. An ordinary ticket
-cannot be a script at all. That gap is this ticket.
+The part that matters for *this* ticket is the boundary: `recipe:` exists only
+on recurring templates. An ordinary ticket cannot execute as a script at all.
+That gap is the subject.
 
 ### This reverses a recently merged decision — read before designing
 
@@ -86,35 +103,62 @@ code legible and reviewable; installed skills are process contracts, not
 executable plugins."*
 
 **Do not treat that as settled.** The owner's position is that #670 got the
-microkernel backwards: it moved deterministic logic *into* core — ten entries in
-`runner.RECIPES` — and closed the only door out, which grows the kernel rather
-than shrinking it. The design step must engage the stated reasons for #670
-(legibility, reviewability, no plugin host, no recursive discovery) and either
-rebut them or show how the new shape preserves what they were protecting. Read
-`git show 755e60de` for the full scope of what was scrubbed; it touched contexts,
-templates, README, vision, and the market thesis, so a reversal is a large
-prose surface as well as a code change.
+microkernel backwards: it closed the only door out of core, so deterministic
+behavior needing a headless contract can now only grow the kernel. The design
+must engage #670's stated reasons — legibility, reviewability, no plugin host,
+no recursive discovery — and either rebut them or show how the new shape
+preserves what they protected. The strongest statement of the counter-case is
+`coga/contexts/coga/architecture/SKILL.md:764-765`; read the surrounding section,
+which is not attached to this ticket. `git show 755e60de` shows the full scrub:
+25+ files across contexts, templates, README, `docs/vision.md`,
+`docs/market-thesis.md`, `docs/concepts.md`, and `docs/reference.md`. A reversal
+is at least as large a prose surface as a code change.
 
-### Constraints from the current contract
+**Consider a middle path before treating this as binary.** One shape the owner
+has not ruled on: keep `runner.RECIPES` as the explicit *dispatch* surface, but
+let a recipe's implementation live beside its ticket through declarative
+registration — no plugin host, no recursive discovery. That could satisfy every
+stated reason for #670 *and* the microkernel goal without restoring `script:`.
+If the design presents only reverse-or-don't, `review-design` degrades into a
+yes/no vote.
 
-- `CLAUDE.md`'s microkernel rule currently says the opposite of this ticket:
+### Current state of the ground — verified, and not what the log suggests
+
+- **Nothing declares `script:` today.** The `coga/show` and `coga/ticket/finalize`
+  twins were scrubbed in `755e60de` along with everything else. Blocker messages
+  in `coga/log.md` naming them as survivors predate the merge and are stale. Do
+  not go looking for a surviving example to model on.
+- **`validate.py` is not an obstacle.** It has no `script` handling at all. The
+  coverage added by #670 is `tests/test_validate.py:339`,
+  `test_validate_tolerates_legacy_non_null_script_key`, which asserts *tolerance*
+  — a leftover key degrades to a warning, not a failure. Roughly 20 legacy
+  tickets still carry an inert `script: null` that `Ticket.parse` strips
+  (`src/coga/ticket.py:72-78`). Making `script` meaningful again is mostly adding
+  it to `CANONICAL_TICKET_KEYS` and dropping that migration pop.
+- **`CLAUDE.md`'s microkernel rule says the opposite of this ticket:**
   *"Deterministic behavior that needs a stable headless command contract must be
   a fixed name in `runner.RECIPES`"* and *"core must never import from a ticket
-  or skill directory."* If this lands, that rule and the matching contexts
-  change in the same PR — the repo rule is that behavior changes update their
-  context.
-- Two vestigial `script:` declarers survived the scrub as twins: `coga/show` and
-  `coga/ticket/finalize`. `validate.py` gained coverage rejecting a leftover
-  non-null `script:` key — that check is a direct obstacle and will need
-  revisiting.
-- `task_env.py` already builds the shared `COGA_TASK_*` contract for both agent
-  launches and recipe subprocesses, so the env-passing half of this likely
-  exists already.
+  or skill directory."* If this lands, that rule and the matching contexts change
+  in the same PR — the repo rule is that behavior changes update their context.
+- **Packaged/live copies are out of sync for `digest`.** Five recurring
+  templates are recipe-backed, but only four have a live `coga/workflows/`
+  directory; `digest/post` exists solely at
+  `src/coga/resources/templates/coga/bootstrap/workflows/digest/post.md`.
+  CLAUDE.md requires keeping both copies in sync, so expect to touch both trees.
 
 ### Out of scope
 
-Migrating the ten existing `runner.RECIPES` entries out of core. Land the
-capability and the contract change first; moving live jobs is follow-up work.
+- The `recipe:`/one-step-workflow duplication on recurring templates. It is a
+  standalone refactor; give it its own ticket.
+- Migrating the ten existing `runner.RECIPES` entries out of core. Land the
+  capability and the contract change first.
+
+### Sizing
+
+`755e60de` — the mirror image of this change — was 25+ files. If the design
+expects comparable reach, have it propose a split (capability plus tests first,
+prose-contract sweep second) rather than putting 25 files behind one owner
+review at the final `review` gate.
 
 <!-- coga:blackboard -->
 
