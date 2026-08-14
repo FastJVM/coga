@@ -3443,3 +3443,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-14 11:15 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
 2026-08-14 11:00 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-08-14 11:18 [autoclose-should-name-the-retire-follow-up] [human:nicktoper] created (status=draft)
+2026-08-14 11:22 [retire-never-removes-a-worktree-that-ran-the-tests] [human:nicktoper] created (status=draft)
