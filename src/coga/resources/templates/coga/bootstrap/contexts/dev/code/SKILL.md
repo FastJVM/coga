@@ -145,8 +145,9 @@ job).
 YAML frontmatter is reserved for canonical task state (`status`, `step`,
 `assignee`, `workflow`). Branch and PR linkage remains legible working state
 under `## Dev`. Several focused Coga consumers deliberately parse those lines:
-the `code/open-pr` runner writes `pr:`, autoclose reads PR linkage, and branch
-sweep protects recorded branches. That does not make them frontmatter fields or
+the `code/open-pr` runner writes `pr:`, autoclose reads PR linkage and reports
+the `coga retire` follow-up for the `branch:` / `worktree:` a closed ticket
+leaves behind, and branch sweep protects recorded branches. That does not make them frontmatter fields or
 general config; each consumer reads the narrow blackboard convention it needs.
 
 ## Multi-ticket PRs

@@ -91,10 +91,13 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _make_task(
     repo: Path,
     *,
+    title: str = "Work",
     workflow: str | None = "code",
     status: str = "active",
     on_final: bool = False,
     pr_url: str | None = None,
+    branch: str | None = "foo",
+    worktree: str | None = None,
 ) -> tuple[str, Path]:
     cfg = load_config(repo)
     if workflow is None and status != "draft":
@@ -106,7 +109,7 @@ def _make_task(
         ticket = path / "ticket.md"
     else:
         ref = create_task(
-            cfg=cfg, title="Work", workflow_name=workflow,
+            cfg=cfg, title=title, workflow_name=workflow,
             contexts=[], owner="marc", assignee="claude",
             watchers=[], status=status,
         )
@@ -121,10 +124,14 @@ def _make_task(
     if pr_url is not None:
         from coga.taskfile import read_blackboard, replace_blackboard
 
+        dev = ["## Dev", ""]
+        if branch is not None:
+            dev.append(f"branch: {branch}")
+        if worktree is not None:
+            dev.append(f"worktree: {worktree}")
+        dev.append(f"pr: {pr_url}")
         bb = read_blackboard(ticket, blackboard_required=False).rstrip()
-        replace_blackboard(
-            ticket, bb + f"\n\n## Dev\n\nbranch: foo\npr: {pr_url}\n"
-        )
+        replace_blackboard(ticket, bb + "\n\n" + "\n".join(dev) + "\n")
     return ref["slug"], ticket
 
 
@@ -314,9 +321,9 @@ def test_sweep_merged_bumps_final_step_with_merged_pr(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/7": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    result = am.sweep_merged(cfg, quiet=True)
 
-    assert count == 1
+    assert len(result.closed) == 1
     t = Ticket.read(path)
     assert t.status == "done"
     from coga.logfile import task_log_lines
@@ -333,9 +340,9 @@ def test_sweep_merged_skips_non_final_step(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/8": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    result = am.sweep_merged(cfg, quiet=True)
 
-    assert count == 0
+    assert len(result.closed) == 0
     t = Ticket.read(path)
     assert t.status == "active"
 
@@ -349,9 +356,9 @@ def test_sweep_merged_no_workflow_marks_done(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/9": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    result = am.sweep_merged(cfg, quiet=True)
 
-    assert count == 1
+    assert len(result.closed) == 1
     t = Ticket.read(path)
     assert t.status == "done"
 
@@ -365,9 +372,9 @@ def test_sweep_merged_skips_open_pr(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/10": "OPEN"})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    result = am.sweep_merged(cfg, quiet=True)
 
-    assert count == 0
+    assert len(result.closed) == 0
     t = Ticket.read(path)
     assert t.status == "active"
 
@@ -379,9 +386,9 @@ def test_sweep_merged_skips_ticket_without_pr(
     calls = _stub_pr_state(monkeypatch, {})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    result = am.sweep_merged(cfg, quiet=True)
 
-    assert count == 0
+    assert len(result.closed) == 0
     assert calls == []  # pr_state never called
 
 
@@ -398,9 +405,9 @@ def test_sweep_merged_skips_terminal_ticket(
     calls = _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/11": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    result = am.sweep_merged(cfg, quiet=True)
 
-    assert count == 0
+    assert len(result.closed) == 0
     # Terminal statuses are filtered before any gh call.
     assert calls == []
 
@@ -417,8 +424,8 @@ def test_sweep_merged_idempotent(
     first = am.sweep_merged(cfg, quiet=True)
     second = am.sweep_merged(cfg, quiet=True)
 
-    assert first == 1
-    assert second == 0
+    assert len(first.closed) == 1
+    assert len(second.closed) == 0
 
 
 def test_sweep_rechecks_after_concurrent_manual_final_bump(
@@ -444,9 +451,9 @@ def test_sweep_rechecks_after_concurrent_manual_final_bump(
     monkeypatch.setattr(am, "pr_state", finish_while_checking)
     cfg = load_config(repo)
 
-    count = am.sweep_merged(cfg, quiet=True)
+    result = am.sweep_merged(cfg, quiet=True)
 
-    assert count == 0
+    assert len(result.closed) == 0
     assert Ticket.read(path).status == "done"
     from coga.logfile import task_log_lines
 
@@ -468,9 +475,9 @@ def test_sweep_merged_quiet_swallows_gh_error(
     monkeypatch.setattr(am, "pr_state", boom)
 
     cfg = load_config(repo)
-    count = am.sweep_merged(cfg, quiet=True)
+    result = am.sweep_merged(cfg, quiet=True)
 
-    assert count == 0
+    assert len(result.closed) == 0
     t = Ticket.read(path)
     assert t.status == "active"
 
@@ -490,6 +497,181 @@ def test_sweep_merged_loud_raises_gh_error(
     cfg = load_config(repo)
     with pytest.raises(am.GhError):
         am.sweep_merged(cfg, quiet=False)
+
+
+# --- retire follow-ups --------------------------------------------------------
+
+
+def _closed(
+    slug: str, *, branch: str | None = None, worktree: str | None = None
+) -> am.ClosedTicket:
+    return am.ClosedTicket(slug=slug, title="Work", branch=branch, worktree=worktree)
+
+
+def _capture_posts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Capture the text of every live Slack notification made during the test."""
+    posts: list[str] = []
+
+    def fake(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        posts.append(json["text"])
+
+        class R:
+            status_code = 200
+            text = "ok"
+
+        return R()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake)
+    return posts
+
+
+def test_sweep_records_the_checkout_state_of_each_closed_ticket(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The `## Dev` lines must be captured during the sweep: they are the only
+    # trace of which checkout belongs to the ticket, and retire (or a task
+    # deletion) takes them away.
+    slug, _ = _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/20",
+        branch="feature-x",
+        worktree="/w/coga-feature-x",
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/20": "MERGED"})
+
+    result = am.sweep_merged(load_config(repo), quiet=True)
+
+    assert [
+        (item.slug, item.branch, item.worktree) for item in result.retire_pending
+    ] == [(slug, "feature-x", "/w/coga-feature-x")]
+
+
+def test_sweep_omits_a_closed_ticket_that_recorded_no_checkout(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/21",
+        branch=None,
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/21": "MERGED"})
+
+    result = am.sweep_merged(load_config(repo), quiet=True)
+
+    assert len(result.closed) == 1
+    assert result.retire_pending == []
+
+
+def test_render_retire_report_names_the_exact_retire_command() -> None:
+    report = am.render_retire_report(
+        generated_at="2026-08-14T08:00:00+00:00",
+        task_slug="recurring/autoclose-merged",
+        pending=[_closed("fix-thing", branch="fix-thing", worktree="/w/coga-fix")],
+    )
+
+    assert report.startswith(am.RETIRE_REPORT_HEADING)
+    assert "Generated: 2026-08-14T08:00:00+00:00" in report
+    assert "Task: `recurring/autoclose-merged`" in report
+    assert (
+        '- `fix-thing` "Work": worktree `/w/coga-fix`, branch `fix-thing` — '
+        "`coga retire fix-thing`" in report
+    )
+
+
+def test_render_retire_summary_is_one_line_naming_every_command() -> None:
+    summary = am.render_retire_summary(
+        [_closed("alpha", branch="alpha"), _closed("beta", worktree="/w/beta")]
+    )
+
+    assert summary == (
+        "🧹 2 auto-closed tickets still have a feature checkout: "
+        "`coga retire alpha`, `coga retire beta`"
+    )
+
+
+def test_render_retire_summary_reads_naturally_for_one_ticket() -> None:
+    assert am.render_retire_summary([_closed("alpha", branch="alpha")]) == (
+        "🧹 1 auto-closed ticket still has a feature checkout: `coga retire alpha`"
+    )
+
+
+def test_recipe_reports_the_retire_followup_on_stdout_and_slack(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, path = _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/22",
+        branch="feature-x",
+        worktree="/w/coga-feature-x",
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/22": "MERGED"})
+    posts = _capture_posts(monkeypatch)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    out = capsys.readouterr().out
+    assert am.RETIRE_REPORT_HEADING in out
+    assert f"`coga retire {slug}`" in out
+    # Reporting the debt is not disposing of it: the ticket closes, the
+    # checkout stays recorded and untouched.
+    assert Ticket.read(path).status == "done"
+    assert "worktree: /w/coga-feature-x" in path.read_text()
+    # One trailing line for the whole sweep, addressed to the channel rather
+    # than to one ticket's owner. (The `[project]` prefix `post()` prepends is
+    # covered in test_notification.py, so pin the body with `endswith`.)
+    summaries = [p for p in posts if "🧹" in p]
+    assert len(summaries) == 1
+    assert summaries[0].endswith(
+        f"🧹 1 auto-closed ticket still has a feature checkout: `coga retire {slug}`"
+    )
+
+
+def test_recipe_says_nothing_when_no_closed_ticket_left_a_checkout(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/23",
+        branch=None,
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/23": "MERGED"})
+    posts = _capture_posts(monkeypatch)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    assert am.RETIRE_REPORT_HEADING not in capsys.readouterr().out
+    assert [p for p in posts if "🧹" in p] == []
+
+
+def test_recipe_appends_the_report_to_the_task_blackboard(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, _ = _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/24",
+        branch="feature-x",
+    )
+    # The recurring task the sweep runs under; its ticket is the blackboard
+    # `coga launch` exports, and stays a draft so the sweep skips it.
+    _, host = _make_task(repo, title="Autoclose merged", status="draft")
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
+    monkeypatch.setenv("COGA_TASK_SLUG", "autoclose-merged")
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
+    _capture_posts(monkeypatch)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    report = host.read_text()
+    assert am.RETIRE_REPORT_HEADING in report
+    assert f"`coga retire {slug}`" in report
+    assert "Task: `autoclose-merged`" in report
+    # The blackboard is the report surface when there is one — not both.
+    assert am.RETIRE_REPORT_HEADING not in capsys.readouterr().out
 
 
 # --- status stays read-only --------------------------------------------------

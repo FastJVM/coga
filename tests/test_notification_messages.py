@@ -298,8 +298,8 @@ def test_automerge_links_pr_and_shows_prev_to_done(
     monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
     posts = _capture(monkeypatch)
 
-    count = am.sweep_merged(load_config(repo), quiet=True)
-    assert count == 1
+    result = am.sweep_merged(load_config(repo), quiet=True)
+    assert len(result.closed) == 1
     assert _body(posts, "🎉") == (
         f"🎉 *{slug}* \"Work\": merge → done — <{url}|PR #7> merged"
     )
@@ -313,8 +313,8 @@ def test_automerge_workflowless_collapses_and_links(
     monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
     posts = _capture(monkeypatch)
 
-    count = am.sweep_merged(load_config(repo), quiet=True)
-    assert count == 1
+    result = am.sweep_merged(load_config(repo), quiet=True)
+    assert len(result.closed) == 1
     assert _body(posts, "🎉") == (
         f"🎉 *{slug}* \"Work\" finished — <{url}|PR #9> merged"
     )
@@ -335,9 +335,9 @@ def test_automerge_digest_preserves_transition_and_pr_link(
         "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
     )
 
-    count = am.sweep_merged(load_config(repo), quiet=True)
+    result = am.sweep_merged(load_config(repo), quiet=True)
 
-    assert count == 1
+    assert len(result.closed) == 1
     assert posts == []
     records = spool.read_records(digest_spool)
     assert len(records) == 1
