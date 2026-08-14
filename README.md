@@ -141,14 +141,15 @@ Then, from the root of the git repository you want Coga to operate:
 
 ```sh
 coga init --user <your-name>
-coga build
+coga chat
 ```
 
-`coga init` installs the markdown OS into that repository. `coga build` starts
-the first-run interview and creates an initial batch of tickets, and `coga pick`
-runs a chosen batch until it reaches a blocker or review gate. You need an
-authenticated [Claude Code](https://claude.com/claude-code) or
-[Codex](https://github.com/openai/codex) CLI before `coga build` launches its
+`coga init` installs the markdown OS into that repository. `coga chat` drops you
+into a Coga-aware agent session where you can talk through what you want and turn
+it into tickets, and `coga pick` runs a chosen batch until it reaches a blocker
+or review gate. You need an authenticated
+[Claude Code](https://claude.com/claude-code) or
+[Codex](https://github.com/openai/codex) CLI before `coga chat` launches its
 agent. Installation troubleshooting and adopting an existing Coga repository
 are covered in [Getting started](docs/getting-started.md).
 

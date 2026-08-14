@@ -54,7 +54,7 @@ skill; the command remains only because the pre/post hook is irreducible.
 
 The structural consequence: aliases may capture any fixed argv rewrite whose
 first token is a real built-in. Current defaults cover bootstrap launches,
-recurring launches, the `build` task, and the `megalaunch --pick` spelling.
+recurring launches, registered recipes, and the `megalaunch --pick` spelling.
 Parameterized command tickets remain fixed alias targets because the caller's
 remaining argv passes through unchanged.
 
@@ -67,7 +67,6 @@ remaining argv passes through unchanged.
 | `init` | built-in | No | Scaffolds `coga/`, vendors the running CLI into `.coga/.venv`, installs venv deps. Heavy side effects. |
 | `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket and validates it; raw creation is intentionally Slack-silent. |
 | `ticket` | thin built-in head + `coga.authoring` finalize | No | **Canonical proof.** Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. |
-| `project` | built-in | No | Interview → scaffold many drafts → post-validate; TTY guard. |
 | `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |
 | `status` | built-in | No | Reads tree + renders tables. Logic, not a passthrough to another command. |
 | `show` | built-in | No | Reads + Rich-renders ticket/blackboard/log. |
@@ -94,13 +93,12 @@ implementation, not a fixed rewrite to another command.
 |------|-----------------|-------------|-----|
 | `orient` | `chat` default alias → `launch bootstrap/orient` | Yes — already aliased | Pure `launch bootstrap/orient`; no pre/post logic. |
 | `ticket` | `coga ticket` command head + `coga/ticket/finalize` | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. The validate/sync substance is Python-backed, not an alias hook. |
-| `project` | `coga project` built-in | No | Interview + multi-draft scaffold + TTY guard; not a passthrough. |
 | `recurring-scan` | `coga recurring` command head + fixed `coga run recurring-scan` recipe | No | The bootstrap target is gone. The public command forwards `--interactive` / `--force` / `--agent` as ordinary argv; `--all <path>` dispatches the same recipe in each discovered repo. |
 | `browser-automation` | unaliased `launch bootstrap/browser-automation` | Not currently | Intentional agent-backed orchestration entry point; it remains available through its full launch spelling. |
 | `open-pr` | `open-pr` default alias → `run open-pr` | Yes — already aliased | Registered recipe (`coga.open_pr`); the target task ref is ordinary argv. The command ticket it used to be is retired. |
 | `resolve-conflicts` | `resolve-conflicts` default alias → `launch bootstrap/resolve-conflicts` | Yes — already aliased | Stateless agent command ticket; its optional PR selector reaches the `## Launch arguments` block. |
 
-The packaged bootstrap-ticket inventory is `orient`, `project`, `ticket`,
+The packaged bootstrap-ticket inventory is `orient`, `ticket`,
 `browser-automation`, and `resolve-conflicts`.
 Browser automation is the one intentionally unaliased launch target.
 
@@ -121,8 +119,8 @@ Browser automation is the one intentionally unaliased launch target.
 ## The concrete finding (verified, not assumed)
 
 **One unaliased bootstrap launch target remains intentionally.**
-`DEFAULT_ALIASES` covers `chat`, `dream`, `build`, `skill-update`,
-`autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
+`DEFAULT_ALIASES` covers `chat`, `dream`, `skill-update`, `autoclose`, `pick`,
+`open-pr`, and `resolve-conflicts`.
 `bootstrap/browser-automation` remains available only through its explicit
 launch spelling; it is orchestration rather than a stable top-level verb.
 
@@ -169,8 +167,8 @@ pure-passthrough set for aliasing is exactly the two named above.
   not a launchable thing. Do not mistake a `bootstrap/skills/...` path for an
   aliasable bootstrap ticket.
 
-- **`DEFAULT_ALIASES` ships eight.** `chat`, `dream`, `build`,
-  `skill-update`, `autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
+- **`DEFAULT_ALIASES` ships seven.** `chat`, `dream`, `skill-update`,
+  `autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
   `open-pr` fronts a registered recipe; `resolve-conflicts` demonstrates the
   agent-backed command ticket.
 
@@ -213,7 +211,7 @@ validate + git-sync lives in `coga.authoring`, and the `arg → draft` head in
 `commands/ticket.py` is irreducible. The command calls the
 finalize module inline after the single-shot interview to preserve the stateless,
 concurrent-safe bootstrap launch target; no generic shim or workflow-step state
-was introduced. `project` and `retire` share that irreducible head.
+was introduced. `retire` retains its own task-creation and launch head.
 
 **Ticket vs. command is decided by statefulness, not parameters.** Stateful
 work materializes inputs into task files. Stateless command tickets accept
@@ -246,6 +244,6 @@ the audit's path to it.
 - autoclose sweep + module: `coga/workflows/autoclose-merged/sweep.md`,
   `coga.autoclose.sweep_merged`.
 - Bootstrap tickets: package
-  `bootstrap/{browser-automation,orient,project,resolve-conflicts,ticket}/ticket.md`.
+  `bootstrap/{browser-automation,orient,resolve-conflicts,ticket}/ticket.md`.
 - Recurring templates: `coga/recurring/{autoclose-merged,digest,dream,skill-update}/`.
 - Alias test coverage (not `coga validate`): `tests/test_aliases.py`.

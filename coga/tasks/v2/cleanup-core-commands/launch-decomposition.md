@@ -45,8 +45,8 @@ step: 2 (review-design)
 ## Description
 
 `src/coga/commands/launch.py` is currently both the `coga launch` Typer command
-and the shared runtime used by task launches, `coga ticket`, `coga project`, and
-`coga megalaunch`. Its 1,179 lines combine target/status policy, workflow
+and the shared runtime used by task launches, `coga ticket`, and `coga
+megalaunch`. Its 1,179 lines combine target/status policy, workflow
 supervision, prompt/agent process execution, usage capture, git readiness and
 refresh behavior, and lifecycle writes. Script execution adds another 460
 lines in `commands/launch_script.py`, including both subprocess mechanics and
@@ -71,6 +71,10 @@ executor API.
 ## Context
 
 Directory index: `v2/cleanup-core-commands/README`.
+
+The dedicated removal ticket supersedes the former project-planning caller in
+this inventory by deleting it outright; this design should not preserve a seam
+for that removed command.
 
 Owner direction from the parent: keep `launch` and the things it truly depends
 on, but challenge every other part of launch-shaped behavior. This ticket should
@@ -237,7 +241,7 @@ verb migration unless it is required to prove the launch split.
   internals.
 - Implementing the lifecycle-verb migration, changing status/step semantics,
   or replacing `mark`/`bump`/`block`/`unblock`; that is the lifecycle sibling.
-- Moving `project`, `retire`, `megalaunch`, recurring scans, read/report
+- Moving `retire`, `megalaunch`, recurring scans, read/report
   commands, aliases, or support commands to tickets. This ticket only gives
   those migrations a stable executor API and records their owning sibling.
 - Adding transient launch parameters, a launch plugin API, a policy registry,
@@ -254,8 +258,8 @@ Created under `v2/cleanup-core-commands/` as part of the command-surface breakdo
 
 - `src/coga/commands/launch.py` currently mixes three layers: a shared
   single-agent session runner, deterministic ticket/workflow supervision, and
-  Typer/user-facing policy. `coga ticket`, `coga project`, and `coga
-  megalaunch` import the session runner back out of the command module, which
+  Typer/user-facing policy. `coga ticket` and `coga megalaunch` import the
+  session runner back out of the command module, which
   is the clearest existing seam.
 - The irreducible bootstrap exception is execution, not every behavior that
   happens to run before or after it: a ticket cannot execute the ticket that

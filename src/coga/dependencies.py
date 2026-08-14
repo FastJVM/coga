@@ -71,7 +71,7 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         name="claude",
         purpose=(
             "Claude Code — an agent CLI coga drives for `coga launch`, "
-            "`coga ticket`, and `coga build`. Not required at init: which "
+            "`coga ticket`, and `coga chat`. Not required at init: which "
             "binary a launch needs comes from the launched agent's `cli` in "
             "coga.toml, and the launch fails loud at the point of need. "
             "Install and authenticate it before launching agents."
@@ -83,7 +83,7 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         name="codex",
         purpose=(
             "Codex — an agent CLI coga drives for `coga launch`, "
-            "`coga ticket`, and `coga build`. Not required at init: which "
+            "`coga ticket`, and `coga chat`. Not required at init: which "
             "binary a launch needs comes from the launched agent's `cli` in "
             "coga.toml, and the launch fails loud at the point of need. "
             "Install and authenticate it before launching agents."

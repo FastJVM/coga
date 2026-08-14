@@ -24,9 +24,12 @@ script: null
 ## Description
 
 Move command behavior that performs substantive work orchestration into durable
-tickets and workflows. Commands in scope: `coga project`, `coga retire`,
-`coga megalaunch`, `coga slack`, and digest/recurring maintenance command
-surfaces that still own workflow substance.
+tickets and workflows. Commands in scope: `coga retire`, `coga megalaunch`,
+`coga slack`, and digest/recurring maintenance command surfaces that still own
+workflow substance.
+
+The dedicated removal ticket supersedes the project-planning portion of this
+work by deleting that command outright; it is no longer a migration target.
 
 These are the most ticket-shaped commands: they plan work, retire work, drain
 work queues, notify humans, or summarize/post results. The user-facing command
@@ -44,8 +47,8 @@ Existing prior art:
 - recurring scan has been collapsed toward `bootstrap/recurring-scan`.
 - digest/autoclose/delete behavior already has script/workflow precedent.
 
-Design the shared pattern first so `project`, `retire`, `megalaunch`, and
-notification/digest operations do not each invent a different migration shape.
+Design the shared pattern first so `retire`, `megalaunch`, and notification/
+digest operations do not each invent a different migration shape.
 Do not implement all of them in one PR; after the design review, split concrete
 moves by command shape if more than one command would change.
 
@@ -55,8 +58,8 @@ Out of scope: `skill *`, `create`, and the launch executor substrate.
 
 - [ ] The design step defines the shared creator/launcher/alias pattern for
       work-orchestration commands.
-- [ ] `project` and `retire` are migrated or split into concrete implementation
-      follow-ups with exact acceptance criteria.
+- [ ] `retire` is migrated or split into a concrete implementation follow-up
+      with exact acceptance criteria.
 - [ ] `megalaunch`, `slack`, and digest/recurring maintenance surfaces are
       classified and migrated where the shape is clear.
 - [ ] Implementation work is split if the reviewed design touches unrelated
