@@ -164,6 +164,14 @@ def _control_tip_owner(cfg: Config) -> tuple[str | None, str, bool]:
     unset and ``None`` only when it could not be resolved. ``control_reached``
     distinguishes an unavailable remote from a fetched but unreadable/invalid
     config, which must fail closed even for a locally owner-less checkout.
+
+    Local `HEAD` is authoritative only for a checkout with **no configured
+    remote**. `[git].enabled = false` does not qualify: it is the sync opt-out
+    documented for a remote-less repo, and honoring it here would make a
+    machine-local, uncommitted setting an override of a committed policy — a
+    stale clone would read no owner at all, and a former owner would stay
+    authorized after a transfer, while the sweep still created period state and
+    launched real work.
     """
     root = _git_toplevel(cfg.repo_root)
     if root is None:
@@ -171,19 +179,31 @@ def _control_tip_owner(cfg: Config) -> tuple[str | None, str, bool]:
         # the only committed-policy source available.
         return cfg.owner, "", True
 
-    if not cfg.git_enabled:
-        try:
-            return _owner_at_ref(cfg, root, "HEAD"), "", True
-        except (ConfigError, git.GitError, tomllib.TOMLDecodeError) as exc:
-            return None, str(exc), True
-
     reached = False
     try:
+        if not git._remote_configured(root, cfg.git_remote):
+            return _owner_at_ref(cfg, root, "HEAD"), "", True
+        # Authorize from the destination the sweep will actually mutate.
+        # `_push_control_branch` publishes period state with `git push
+        # <remote>`, and git distinguishes a remote's push URLs from its fetch
+        # URL — reading the owner from the fetch repository would let an
+        # operator it authorizes create and launch work in a push repository
+        # owned by someone else. A multi-push remote has no single such
+        # repository, so it fails closed rather than picking one.
+        push_urls = git._remote_push_urls(root, cfg.git_remote)
+        if len(push_urls) != 1:
+            return (
+                None,
+                f"remote {cfg.git_remote!r} has {len(push_urls)} effective "
+                "push URLs, so recurring state has no single owning "
+                "repository to authorize against",
+                True,
+            )
         # FETCH_HEAD is checkout-wide and another Coga/git process may replace
         # it between fetch and read. The shared git primitive fetches through a
         # UUID-scoped ref and returns the exact command-owned commit instead.
         target = git._fetch_branch_oid(
-            root, cfg.git_remote, cfg.git_control_branch
+            root, push_urls[0], cfg.git_control_branch
         )
         reached = True
         return _owner_at_ref(cfg, root, target), "", True

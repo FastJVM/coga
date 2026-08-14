@@ -150,6 +150,14 @@ override flag; taking recurring over means editing the committed `owner`. Under
 and the sweep continues. `coga recurring list` and `promote` stay ungated, and a
 repo with no `owner` set behaves as before.
 
+The name is read from the committed control tip fetched from the remote's sole
+effective *push* URL — the repository the sweep's own state lands in — not from
+the working tree, the current branch, or the remote's fetch URL; a remote with
+several push URLs is refused. Only a checkout with no configured remote reads
+`owner` from local `HEAD`. `[git].enabled = false` does **not** switch to that
+local read: it is the sync opt-out for a remote-less repo, and honoring it here
+would let an uncommitted machine-local setting override a committed policy.
+
 - `--interactive` — launch due agent tasks as a human-stepped run, leaving REPL
   liveness backstops unarmed; ticket files aren't modified.
 - `--all <PATH>` — discover every Coga repo below `PATH` and run each repo's due

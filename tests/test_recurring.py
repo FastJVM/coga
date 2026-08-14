@@ -687,7 +687,128 @@ def test_control_tip_owner_reads_command_scoped_fetched_commit(
     )
 
     assert (owner, error, reached) == ("nick", "", True)
-    assert seen == [(git_repo.root, "origin", "main")]
+    assert seen == [(git_repo.root, str(git_repo.origin), "main")]
+
+
+def test_control_tip_owner_reads_the_effective_push_destination(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A distinct `pushurl` owns the state, so it owns the authorization.
+
+    `_push_control_branch` writes period state to the push URL. Reading the
+    owner from the fetch repository would let whoever *it* names create and
+    launch work in a push repository owned by someone else.
+    """
+    config = git_repo.coga_os / "coga.toml"
+    # The fetch repository says `marc` may launch...
+    git_repo.push_competing_commit(
+        "coga/coga.toml", 'owner = "marc"\n' + config.read_text()
+    )
+    # ...but pushes land somewhere that names `nick`.
+    push_origin = _clone_bare_with_owner(git_repo, "nick")
+    git_repo.git("remote", "set-url", "--push", "origin", str(push_origin))
+
+    owner, error, reached = recurring_cmd._control_tip_owner(
+        load_config(git_repo.coga_os)
+    )
+
+    assert (owner, error, reached) == ("nick", "", True)
+
+
+def test_recurring_scan_refuses_a_multi_push_remote(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """Split state has no single owning repository to authorize against."""
+    second = _clone_bare_with_owner(git_repo, "nick")
+    # The first `--add --push` replaces the implicit fetch-URL default rather
+    # than joining it, so both destinations have to be named explicitly.
+    git_repo.git(
+        "remote", "set-url", "--add", "--push", "origin", str(git_repo.origin)
+    )
+    git_repo.git("remote", "set-url", "--add", "--push", "origin", str(second))
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("multi-push remote reached scan_due"),
+    )
+
+    cfg = load_config(git_repo.coga_os)
+    owner, error, reached = recurring_cmd._control_tip_owner(cfg)
+    assert owner is None and reached is True
+    assert "2 effective push URLs" in error
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 2
+    assert "could not confirm the latest committed `owner`" in capsys.readouterr().err
+
+
+def test_control_tip_owner_reads_head_without_a_configured_remote(
+    git_repo,
+) -> None:
+    """A genuinely remote-less checkout has no tip but its own HEAD."""
+    config = git_repo.coga_os / "coga.toml"
+    config.write_text('owner = "nick"\n' + config.read_text())
+    git_repo.git("add", "coga/coga.toml")
+    git_repo.git("commit", "-m", "assign recurring owner")
+    git_repo.git("remote", "remove", "origin")
+
+    owner, error, reached = recurring_cmd._control_tip_owner(
+        load_config(git_repo.coga_os)
+    )
+
+    assert (owner, error, reached) == ("nick", "", True)
+
+
+def test_local_git_disablement_does_not_bypass_the_owner_gate(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """`[git].enabled = false` is the sync opt-out, not an authorization override.
+
+    It is machine-local and uncommitted, so honoring it here would let a stale
+    clone read no owner at all — while the sweep still created period state and
+    launched real work.
+    """
+    config = git_repo.coga_os / "coga.toml"
+    local = git_repo.coga_os / "coga.local.toml"
+    local.write_text(local.read_text() + "\n[git]\nenabled = false\n")
+    git_repo.push_competing_commit(
+        "coga/coga.toml", 'owner = "nick"\n' + config.read_text()
+    )
+    stale_cfg = load_config(git_repo.coga_os)
+    assert stale_cfg.git_enabled is False
+    assert stale_cfg.owner == ""
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("git-disabled sweep reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(stale_cfg) == 2
+    assert "belong to 'nick'" in capsys.readouterr().err
+
+
+def _clone_bare_with_owner(git_repo, owner: str) -> Path:
+    """A second bare repo whose control tip names `owner`."""
+    bare = git_repo.origin.parent / f"push-origin-{owner}.git"
+    work = git_repo.origin.parent / f"push-work-{owner}"
+    git_repo.git("clone", "--bare", str(git_repo.origin), str(bare), cwd=git_repo.root)
+    git_repo.git("clone", str(bare), str(work), cwd=git_repo.origin.parent)
+    git_repo.git("config", "user.email", "other@example.com", cwd=work)
+    git_repo.git("config", "user.name", "Other", cwd=work)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=work)
+    git_repo.git("checkout", "-B", "main", "origin/main", cwd=work)
+    config = work / "coga" / "coga.toml"
+    kept = [
+        line
+        for line in config.read_text().splitlines(keepends=True)
+        if not line.startswith("owner =")
+    ]
+    config.write_text(f'owner = "{owner}"\n' + "".join(kept))
+    git_repo.git("add", "--", "coga/coga.toml", cwd=work)
+    git_repo.git("commit", "-m", f"push-side owner {owner}", cwd=work)
+    git_repo.git("push", "origin", "main", cwd=work)
+    return bare
 
 
 def test_recurring_all_skips_repos_owned_by_someone_else(

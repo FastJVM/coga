@@ -123,7 +123,9 @@ Two properties matter in practice:
   change.
 
 To opt out (a repo with no remote — dev, test, solo branches), set `[git].enabled
-= false` in `coga.toml` or `coga.local.toml`.
+= false` in `coga.toml` or `coga.local.toml`. It turns off *sync*, not policy:
+the recurring `owner` gate below still reads the remote if one is configured,
+so a machine-local setting can't quietly hand recurring back to a stale clone.
 
 ## Recurring maintenance
 

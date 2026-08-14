@@ -145,7 +145,21 @@ Authorization does not trust the config object loaded when the command started
 or an uncommitted working-tree edit. It fetches the configured control branch
 through a command-scoped ref and reads `owner` directly from that exact commit's
 `coga.toml`, including when the launch runs on a feature branch; checkout-wide
-`FETCH_HEAD` is never an authorization source. The `--all` parent uses the same
+`FETCH_HEAD` is never an authorization source. It fetches from the remote's
+sole effective **push** URL — the repository `git push <remote>` actually
+writes the period state to, which git distinguishes from the fetch URL — and
+refuses a remote with several push URLs, because state spread across
+destinations has no single owning repository to authorize against.
+
+Only a checkout with **no configured remote** falls back to reading `owner`
+from local `HEAD`. `[git].enabled = false` does not qualify: it is the sync
+opt-out documented for a remote-less repo, and letting a machine-local,
+uncommitted setting decide would make it a silent override of committed
+policy — a stale clone would read no owner at all, and a former owner would
+stay authorized after a transfer, while the sweep still created period state
+and launched real work.
+
+The `--all` parent uses the same
 control-tip value before duplicate-checkout selection; if it cannot confirm the
 value, it dispatches the child, whose existing mandatory freshness gate fails
 before any period state is touched. An owner addition or transfer therefore
