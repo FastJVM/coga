@@ -78,6 +78,7 @@ from coga.mark import (
     mark_in_progress,
 )
 from coga.paths import PackagedResourceMissing, read_packaged_resource
+from coga.repl_supervisor import build_supervised_step_env
 from coga.workflow import WorkflowError
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.service_order import service_order
@@ -940,8 +941,11 @@ def _launch_until_stop(
         before = read_ticket(ref)
         try:
             agent = cfg.agent_type(launch_assignee or "")
-            env = build_launch_env(cfg, before.secrets)
-            env["COGA_SUPERVISED"] = "1"
+            env = build_supervised_step_env(
+                build_launch_env(cfg, before.secrets),
+                task_path=ref.path,
+                step=before.step,
+            )
             # A normal interactive launch: the REPL streams to the console
             # under the PTY watcher, and the done-sentinel (`coga bump` /
             # `mark done` / `mark canceled` / `block`) releases it — never

@@ -1,14 +1,14 @@
 ---
 slug: remove-legacy-config-compatibility-shims
 title: Remove legacy config compatibility shims
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts:
-  - coga/project-stage
-  - coga/sync
+- coga/project-stage
+- coga/sync
 skills: []
 workflow:
   name: code/with-review
