@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -169,6 +169,18 @@ Pure removal in one commit. Confirmed reference inventory by grep:
 - `coga validate --task remove-coga-build-and-project --json` is clean from the
   control checkout. Repo-wide validation still reports unrelated pre-existing
   errors in parked `v2/` drafts; those are outside this ticket.
+
+## Open PR step
+
+- `coga open-pr` first refused: `origin/main` had advanced past the recorded
+  base (#688 plus a state sync), so the branch was stale.
+- Rebased the clone onto `origin/main` at `fa48d9de`; clean, no conflicts.
+  Commits are now `9eebd4b0` (removal) and `f54b5ea1` (peer-review fix).
+- Re-ran the full suite post-rebase with `python3.12 -m pytest`: 1,728 passed,
+  1 skipped. (The ambient `python` on this box is 3.9 and cannot import Coga —
+  use `python3.12`.)
+- `coga open-pr` then succeeded: https://github.com/FastJVM/coga/pull/691,
+  recorded as `pr:` under `## Dev`.
 
 ## Peer review
 
