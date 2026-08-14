@@ -1,7 +1,7 @@
 ---
 slug: important-alerts-the-task-owner-drop-important-rec
 title: important alerts @ the task owner; drop important_recipient
-status: in_progress
+status: done
 owner: zach
 human: zach
 agent: codex
@@ -26,7 +26,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
