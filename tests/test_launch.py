@@ -388,6 +388,8 @@ def test_spawn_agent_session_rederives_nested_recurring_task_env(
         "COGA_TASK_TICKET": str(parent_ticket),
         "COGA_TASK_BLACKBOARD": str(parent_ticket),
         "COGA_TASK_LOG": str(tmp_path / "parent-log.md"),
+        EXPECTED_TASK_ENV: str(parent_ticket.parent),
+        EXPECTED_STEP_ENV: "3 (open-pr)",
         "KEEP_ME": "yes",
     }
     captured_env: dict[str, str] = {}
@@ -423,6 +425,8 @@ def test_spawn_agent_session_rederives_nested_recurring_task_env(
     assert captured_env["COGA_TASK_TICKET"] == str(ref.ticket_path.resolve())
     assert captured_env["COGA_TASK_BLACKBOARD"] == str(ref.ticket_path.resolve())
     assert captured_env["COGA_TASK_LOG"] == str((company / "log.md").resolve())
+    assert captured_env[EXPECTED_TASK_ENV] == str(parent_ticket.parent)
+    assert captured_env[EXPECTED_STEP_ENV] == "3 (open-pr)"
     assert captured_env["KEEP_ME"] == "yes"
 
 
