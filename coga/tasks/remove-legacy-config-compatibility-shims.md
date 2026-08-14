@@ -185,5 +185,6 @@ Test plan: `python3.12 -m pytest` (1742 passed, 1 skipped).
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/692
 branch: remove-legacy-config-shims
 worktree: /tmp/coga-remove-legacy-config-shims
