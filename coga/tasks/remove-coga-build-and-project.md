@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -111,7 +111,10 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: remove-build-project
-worktree: /home/n/Code/claude/coga-remove-build-project
+worktree: /tmp/coga-feature.EybenD/repo
+
+Independent clone rebased onto `origin/main` at `9e5a2eb1`; the original linked
+checkout held a preserved but stale uncommitted patch.
 
 ## Plan
 
@@ -138,3 +141,52 @@ Pure removal in one commit. Confirmed reference inventory by grep:
   `docs/cli-extension-audit.md`.
 - Supersede notes (not migrations) in the two `v2/cleanup-core-commands/`
   drafts that list `coga project`.
+
+## Implementation notes
+
+- Reconciled the preserved removal onto fresh `origin/main` in the independent
+  clone recorded above; the final mandatory rebase moved the base to
+  `a99b33a0`.
+- Removal commit: `5a4c1423` (`Remove unused build and project entry points`).
+- Peer-review fix: `c9da37d3` (`Peer-review: remove stale project context`).
+- Left `/home/n/Code/claude/coga-remove-build-project` untouched; it is the
+  superseded linked checkout containing the stale pre-rebase patch.
+- Removed init's `new-user` stamping regex/helper as part of the onboarding
+  deletion: no remaining packaged template contains that placeholder, so the
+  helper had no real consumer.
+- The two overlapping cleanup drafts now explicitly remove the deleted command
+  from their scopes instead of planning a migration.
+
+## Verification
+
+- Targeted alias/init/packaging tests: 139 passed, 1 skipped (Hatchling absent
+  from the ambient pytest interpreter).
+- Final post-rebase full suite: 1,721 passed, 1 skipped.
+- Explicit final wheel build succeeded with `uv build --wheel`; an archive
+  inspection confirmed every removed command/resource path is absent despite
+  the pytest packaging skip.
+- `coga validate --task remove-coga-build-and-project --json` is clean from the
+  control checkout. Repo-wide validation still reports unrelated pre-existing
+  errors in parked `v2/` drafts; those are outside this ticket.
+
+## Peer review
+
+- `codex review --base main` found one P2: the live and packaged architecture
+  contexts still named the deleted `coga project` spawn path, and the usage
+  context still counted project/onboarding interviews.
+- Applied the must-fix context cleanup on the feature branch; a multiline
+  repository scan now finds no removed command/resource references in live
+  contexts, packaged resources, code, tests, examples, or public docs.
+- Final rebase onto `origin/main` at `a99b33a0` was clean. The post-rebase full
+  suite passed (1,721 passed, 1 skipped), the explicit wheel build succeeded
+  and omitted all removed resources, and task-scoped validation is clean.
+
+## PR
+
+Remove the unused `coga build` alias and `coga project` command together with
+their single-consumer onboarding/project templates, workflow, init seeding
+machinery, tests, and documentation. Route fresh-repo and project-planning
+guidance through `coga chat`, and update both live and packaged behavioral
+contexts so agent sessions describe only the surviving command surface.
+
+Test plan: `python -m pytest` (1,721 passed, 1 skipped); `uv build --wheel`; `coga validate --task remove-coga-build-and-project --json`.
