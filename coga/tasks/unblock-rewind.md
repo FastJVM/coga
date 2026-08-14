@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -203,4 +203,81 @@ separate ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: rewind-status-gate
+worktree: /home/n/Code/claude/coga-rewind-status-gate
+
+## Implement — what changed
+
+Followed the recommended design in Context verbatim; nothing in it turned out
+to be wrong, so no escalation was needed.
+
+- `src/coga/bump.py` (core): added `REWINDABLE_STATUSES =
+  {active, in_progress, paused}` and `rewind_status_error(id_slug, status)`,
+  which returns the refusal string or `None`. The `blocked` case returns the
+  owner-specified message naming `coga unblock <id>`; everything else
+  (`draft`, `done`, `canceled`) gets "Cannot rewind. Rewindable statuses: …".
+- `src/coga/commands/bump.py`: the single `status != "in_progress"` guard is
+  now `if rewind: <rewind_status_error>` / `elif status != "in_progress"`.
+  Forward-bump semantics, the `requires:` gate, the `COGA_SUPERVISED` agent
+  refusal, and the step-1 `--backward` error are all untouched.
+- No status write anywhere in the rewind path — `advance_step` still only
+  writes `step:` (+ re-resolved `assignee:`), so `git.py`'s status rules stay
+  armed and needed no edit. `paused` stays `paused`; the human resumes with
+  `coga launch`.
+
+Decision recorded: no transition table was promoted to `lifecycle.py`. The
+design needs only a membership test, so `commands/mark.py`'s `_ACTIVE_FROM`
+tables were left where they are (avoids the scope growth flagged in Context).
+
+## Tests
+
+Added alongside the existing rewind suite in `tests/test_commands.py`, reusing
+its `_make_task` / `CliRunner` / `_log_text` style and a small
+`_advance_then_set_status` helper (bump to step 2, then set the status on
+disk — the shape a real rewind lands on):
+
+- `test_bump_rewinds_from_rewindable_status` — parametrized over
+  `active` / `in_progress` / `paused`; asserts step moves *and* status is
+  unchanged.
+- `test_bump_rewind_to_number_from_paused` — `--to` path, not just
+  `--backward`.
+- `test_bump_rewind_refuses_blocked_and_points_at_unblock` — with a real
+  `append_blocker`; asserts the message names `coga unblock <slug>` and that
+  step/status are untouched (no blocker cleared as a side effect).
+- `test_bump_rewind_refuses_non_rewindable_status` — `done` / `canceled` /
+  `draft`.
+- `test_bump_backward_from_first_step_errors` — the step-1 error had no direct
+  coverage in `tests/test_commands.py`; pinned it so the relaxation can't
+  erode it later.
+
+`test_bump_rejects_non_in_progress` and
+`test_bump_error_wrong_status_does_not_signal` were left alone and still pass,
+as Context predicted.
+
+## Docs
+
+Behavior described in prose, so updated in the same commit:
+
+- `coga/contexts/coga/architecture/SKILL.md` + its packaged copy under
+  `src/coga/resources/templates/coga/…` (verified byte-identical before and
+  after): the data-plane bullet no longer says the step "only moves when
+  status is `in_progress`"; it now states the forward/rewind split, the
+  reposition-only rule, and the `blocked` → `coga unblock` refusal.
+- `docs/reference.md` (`coga bump` section) and `docs/concepts.md` (step
+  bullet) got the same distinction.
+- `coga/contexts/coga/sync/SKILL.md` needed no change — "a rewind never
+  changes status" is still exactly true, and this change is what keeps it so.
+
+## Verification
+
+- `python3.12 -m pytest` in the worktree: **1743 passed, 1 skipped**.
+- `coga validate --json` against `example/coga`: `ok_count: 2`, no issues.
+- `coga validate --json` against this repo's own `coga/`: 20 issues, all
+  pre-existing on `main` (stuck-in-progress / unknown-assignee /
+  unfrozen-workflow / draft-blackboard on unrelated `v2/*` tickets) and none
+  touched by this branch.
+
+Committed as `d84bc680` on `rewind-status-gate`, rebased on current
+`origin/main`. Not pushed — that's the `open-pr` step.
