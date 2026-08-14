@@ -26,3 +26,4 @@ context. The git high-water mark lives separately in the digest ticket's
 
 consumed_through: ab124db01254
 {"id":"ab124db01254","ts":"2026-08-14T10:58","project":"coga","kind":"done","detail":"→ done (recipe: autoclose)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
+{"id":"ef7ff56aca26","ts":"2026-08-14T10:59","project":"coga","kind":"done","detail":"→ done (recipe: digest)","ticket":"recurring/digest","owner":"nicktoper"}
