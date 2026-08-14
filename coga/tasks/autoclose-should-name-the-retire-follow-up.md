@@ -1,7 +1,7 @@
 ---
 slug: autoclose-should-name-the-retire-follow-up
 title: Autoclose should name the retire follow-up
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
