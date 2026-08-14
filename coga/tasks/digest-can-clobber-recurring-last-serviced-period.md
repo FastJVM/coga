@@ -1,7 +1,7 @@
 ---
 slug: digest-can-clobber-recurring-last-serviced-period
 title: Digest can clobber recurring last_serviced_period
-status: draft
+status: canceled
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
 ---
 
 ## Description
