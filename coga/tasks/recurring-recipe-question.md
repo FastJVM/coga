@@ -74,11 +74,12 @@ The `design` step writes a spec that states, at minimum:
 - **Contract deltas** — the exact prose changes to `CLAUDE.md`, `AGENTS.md`, and
   the `coga/extension-model`, `coga/codebase`, `coga/architecture`, and
   `coga/recurring` contexts.
-- **A quantified microkernel claim** — how many lines actually leave `src/coga/`
-  under the proposal. Ten `RECIPES` entries are ten lines in a dict; the real
-  code sits in `autoclose.py`, the digest module, and friends, much of which may
-  be shared infra that stays either way. Without a number the argument is
-  rhetorical and a defender of #670 will say moving dict entries shrinks nothing.
+- **An honest microkernel claim.** No implementation leaves `src/coga/` in this
+  ticket (see Sequencing), so do not claim a shrink that has not happened. The
+  claim to defend is narrower and checkable: a new deterministic feature can now
+  ship entirely at the edge without touching core. Demonstrate it — describe the
+  smallest end-to-end example of a feature that would previously have required a
+  `runner.RECIPES` entry and now does not.
 
 **A design that concludes the current contract should stand is an acceptable
 outcome.** Say so plainly in the spec and stop at `review-design`; do not
@@ -194,47 +195,57 @@ Present it as the fallback if deduction cannot be defended.
   `src/coga/resources/templates/coga/bootstrap/workflows/digest/post.md`.
   CLAUDE.md requires keeping both copies in sync, so expect to touch both trees.
 
-### Sequencing — how far this ticket goes
+### Deleting `recipe:` is a format change, not a migration
 
-Deleting `recipe:` and migrating the ten `runner.RECIPES` entries are the same
-move, and that is a sequencing problem the design must resolve explicitly.
+It looks at first like `recipe:` cannot be deduced away until the ten
+`runner.RECIPES` implementations move out of `src/coga/`: `recipe: autoclose`
+names an entry in a core registry, and there is no file beside
+`coga/recurring/autoclose-merged/ticket.md` for a classifier to find. That
+framing is wrong, and the design should not adopt it.
 
-A recurring template's `recipe: autoclose` points at a *name in a core
-registry*, not at code beside the template. There is no file next to
-`coga/recurring/autoclose-merged/ticket.md` for a classifier to find. So
-`recipe:` cannot be deduced away until that job's implementation moves out of
-`src/coga/` to sit beside its ticket — which is the migration. The two cannot be
-separated by wishing.
+**Only the template format has to change.** Give each recurring template the
+entry point it currently lacks — a thin script beside its `ticket.md` that
+imports the core function and calls it. The classifier then finds a file exactly
+as it does for any other script ticket, and `recipe:` can be deleted in the same
+change. No implementation moves.
 
-The design picks one and justifies it:
+This is the edge shape `CLAUDE.md` already sanctions: *"A single-consumer helper
+may live beside the ticket or skill that uses it, import only shared core infra,
+and be invoked explicitly by agent instructions."* A shim that imports
+`coga.autoclose` is precisely that. The dependency arrow stays correct — the
+shim imports core; core never imports the shim — so the *"core must never import
+from a ticket or skill directory"* rule is untouched.
 
-- **Capability first.** Land the classifier and the contract change; ordinary
-  tickets gain script execution; `recipe:` survives on recurring templates until
-  a follow-up migrates the jobs. Smaller and reviewable, but leaves two
-  mechanisms live at once, which is the state this ticket is complaining about.
-- **One job as proof.** Land the classifier and migrate exactly one recipe
-  (`autoclose` is the smallest) to prove the path end to end, deleting its
-  `recipe:` and its one-step workflow. Leaves nine behind but demonstrates the
-  end state rather than asserting it.
-- **Full migration.** All ten, `recipe:` deleted outright. Cleanest end state,
-  almost certainly too large for one review given #670's mirror-image change was
-  25+ files.
+The consequence worth stating plainly: **the capability and the migration are
+now independent.** This ticket lands the classifier, the template format change,
+and the deletion of `recipe:`. Whether a given implementation later moves out of
+`src/coga/` becomes an ordinary per-job judgment about whether that code is
+still shared infra — decided one job at a time, with no further format change,
+and never as a precondition for anything here.
 
-Recommendation to weigh, not a decision: the middle option. The owner decides at
-`review-design`.
+The design should still say what the shim looks like concretely (one per
+template, or one shared dispatcher), and whether the ten `runner.RECIPES`
+entries and `coga run` survive as a public command surface once nothing in
+`coga/recurring/` depends on them.
 
 ### Out of scope
 
-Rewriting the ten recipe *implementations* themselves. Whatever migrates moves
-as-is; behavior changes to `autoclose`, `digest`, and friends belong in their
-own tickets.
+- Migrating the ten recipe implementations out of `src/coga/`. Decoupled by the
+  format change above; each is its own later judgment call.
+- Rewriting the implementations themselves. Behavior changes to `autoclose`,
+  `digest`, and friends belong in their own tickets.
 
 ### Sizing
 
-`755e60de` — the mirror image of this change — was 25+ files. If the design
-expects comparable reach, have it propose a split (capability plus tests first,
-prose-contract sweep second) rather than putting 25 files behind one owner
-review at the final `review` gate.
+The code half is small — a classifier, a dispatch branch in two call sites, one
+shim per recurring template, and the `recipe:` deletion. The prose half is not:
+`755e60de`, the mirror image of this change, touched 25+ files across contexts,
+templates, README, `docs/vision.md`, `docs/market-thesis.md`, `docs/concepts.md`,
+and `docs/reference.md`, and every one of those statements has to be re-examined.
+
+If the design expects that reach, have it propose a split — capability plus
+tests first, prose-contract sweep second — rather than putting 25+ files behind
+one owner review at the final `review` gate.
 
 <!-- coga:blackboard -->
 
