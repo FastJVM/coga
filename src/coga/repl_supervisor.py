@@ -54,6 +54,27 @@ SENTINEL_ENV = "COGA_DONE_SENTINEL"
 EXPECTED_TASK_ENV = "COGA_EXPECTED_TASK"
 EXPECTED_STEP_ENV = "COGA_EXPECTED_STEP"
 
+
+def build_supervised_step_env(
+    env: Mapping[str, str],
+    *,
+    task_path: Path,
+    step: str | None,
+) -> dict[str, str]:
+    """Copy ``env`` and pin the ownership witnesses for one composed step.
+
+    Both interactive launch supervisors must mint this exact contract before
+    handing an environment to ``spawn_agent_session``. The spawn boundary may
+    re-derive ``COGA_TASK_*`` for nested work, but it deliberately leaves this
+    outer session's task/step pair untouched.
+    """
+    step_env = dict(env)
+    step_env["COGA_SUPERVISED"] = "1"
+    step_env[EXPECTED_TASK_ENV] = str(task_path.resolve())
+    step_env[EXPECTED_STEP_ENV] = step or ""
+    return step_env
+
+
 # A human-step assist may run from the recorded PR checkout itself. Launch
 # exports this capability only after proving that checkout is on the recorded
 # branch and aligned with its live remote tip. In-session state commands pair it
@@ -533,6 +554,7 @@ __all__ = [
     "_TIMEOUT_EXIT_CODE",
     "_TTY_SANITIZE",
     "ReplOutcome",
+    "build_supervised_step_env",
     "emit_done_marker",
     "run_with_done_marker",
 ]

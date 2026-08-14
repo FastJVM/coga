@@ -1,7 +1,7 @@
 ---
 slug: refuse-recurring-runs-from-a-non-control-branch
 title: Refuse recurring runs from a non-control branch
-status: draft
+status: active
 owner: nick
 human: nick
 agent: claude
