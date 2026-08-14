@@ -78,8 +78,7 @@ class Config:
     default_status: str
     agents: dict[str, AgentType]
     # Slack remains as the first notification backend. These fields hold the
-    # effective Slack-channel config resolved from `[notification.slack]` or
-    # the deprecated bare-env fallback.
+    # effective Slack-channel config resolved from `[notification.slack]`.
     slack_webhook: str | None
     slack_enabled: bool
     # Second webhook, pointing at the coga-important channel. Alerts that need a
@@ -88,7 +87,6 @@ class Config:
     # crashes an `--important` post rather than rerouting it to `slack_webhook`.
     slack_important_webhook: str | None = None
     notification_channels: tuple[str, ...] = ("slack",)
-    notification_deprecation_notes: tuple[str, ...] = ()
     slack_gifs: dict[str, list[str]] = field(default_factory=dict)
     slack_users: dict[str, str] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
@@ -262,7 +260,6 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         slack_enabled,
         slack_gifs,
         slack_users,
-        notification_deprecation_notes,
     ) = _parse_slack_notification(
         shared.get("notification"),
         local.get("notification"),
@@ -314,7 +311,6 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         slack_important_webhook=slack_important_webhook,
         slack_enabled=slack_enabled,
         notification_channels=notification_channels,
-        notification_deprecation_notes=notification_deprecation_notes,
         slack_gifs=slack_gifs,
         slack_users=slack_users,
         aliases=aliases,
@@ -694,9 +690,7 @@ def _resolve_notification_channels(
     An explicit `channels` list — including an empty one — is authoritative. A
     fresh repo that names no `channels` key anywhere gets no notification
     channels: Slack is opt-in, not the first-run default. Slack is *inferred*
-    only when the absent key is paired with opt-in or compatibility evidence —
-    a `[notification.slack]` table or a bare `SLACK_WEBHOOK_URL` env var (see
-    `_slack_opt_in_present`).
+    only when the absent key is paired with a `[notification.slack]` table.
     """
     for label, table in (
         ("[notification] in coga.local.toml", local),
@@ -735,12 +729,11 @@ def _slack_opt_in_present(
     shared_notification: dict | None,
     local_notification: dict | None,
 ) -> bool:
-    """True when a repo has opted into Slack via TOML or env config.
+    """True when a repo has opted into Slack via TOML config.
 
     Drives channel inference when `[notification].channels` is absent: a
-    `[notification.slack]` table (shared or local) or a bare exported
-    `SLACK_WEBHOOK_URL` each count as opt-in evidence. With neither, a fresh
-    repo selects no channels.
+    `[notification.slack]` table in either config counts as opt-in evidence.
+    With neither, a fresh repo selects no channels.
     """
     if (
         _notification_slack_table(shared_notification, "[notification] in coga.toml")
@@ -753,8 +746,6 @@ def _slack_opt_in_present(
         )
         is not None
     ):
-        return True
-    if os.environ.get("SLACK_WEBHOOK_URL"):
         return True
     return False
 
@@ -783,26 +774,17 @@ def _parse_slack_notification(
     bool,
     dict[str, list[str]],
     dict[str, str],
-    tuple[str, ...],
 ]:
-    """Parse the effective Slack channel config.
-
-    Config lives under `[notification.slack]`. A bare `SLACK_WEBHOOK_URL`
-    environment variable remains a compatibility fallback and is reported
-    through `notification_deprecation_notes`.
-    """
+    """Parse the effective `[notification.slack]` channel config."""
     shared_slack = _notification_slack_table(
         shared_notification, "[notification] in coga.toml"
     )
     local_slack = _notification_slack_table(
         local_notification, "[notification] in coga.local.toml"
     )
-    notes: list[str] = []
-
     webhook = _resolve_notification_slack_webhook(
         shared_slack,
         local_slack,
-        notes,
     )
     important_webhook = _resolve_notification_slack_important_webhook(
         shared_slack,
@@ -826,14 +808,12 @@ def _parse_slack_notification(
         enabled,
         gifs,
         users,
-        tuple(dict.fromkeys(notes)),
     )
 
 
 def _resolve_notification_slack_webhook(
     shared: dict | None,
     local: dict | None,
-    notes: list[str],
 ) -> str | None:
     """Resolve Slack webhook with local overriding shared."""
     for table in (local, shared):
@@ -847,11 +827,11 @@ def _resolve_notification_slack_webhook(
             return _resolve_secret_value(value) or None
     value = os.environ.get("SLACK_WEBHOOK_URL")
     if value:
-        notes.append(
-            "bare `SLACK_WEBHOOK_URL` fallback is deprecated; set "
-            '`[notification.slack].webhook = "env:SLACK_WEBHOOK_URL"`.'
+        raise ConfigError(
+            "Bare `SLACK_WEBHOOK_URL` is no longer supported. Declare "
+            '`[notification.slack].webhook = "env:SLACK_WEBHOOK_URL"` in '
+            "coga.toml or coga.local.toml, or unset the environment variable."
         )
-        return value
     return None
 
 
@@ -861,11 +841,9 @@ def _resolve_notification_slack_important_webhook(
 ) -> str | None:
     """Resolve the coga-important webhook, with local overriding shared.
 
-    Unlike `webhook`, this key has no bare `SLACK_WEBHOOK_URL` fallback: nothing
-    was ever written against a key that did not exist. Absent — or an `env:`
-    reference whose var isn't exported — resolves to None, and
-    `SlackChannel.send` crashes an `--important` post rather than rerouting it
-    to the primary webhook.
+    Absent — or an `env:` reference whose var isn't exported — resolves to
+    None, and `SlackChannel.send` crashes an `--important` post rather than
+    rerouting it to the primary webhook.
     """
     for table in (local, shared):
         if isinstance(table, dict) and "important_webhook" in table:
@@ -1060,8 +1038,7 @@ def _resolve_secret_value(value: str) -> str:
     `[notification.slack].webhook`, where an unset var collapsing to "" (then
     `or None`) correctly means "no webhook configured". Ticket secrets do **not**
     use this — they go through `select_launch_secrets`, which fails loud on an
-    unset env var at launch instead of injecting "". The notification layer also
-    keeps a deprecated bare `SLACK_WEBHOOK_URL` fallback.
+    unset env var at launch instead of injecting "".
     """
     if value.startswith("env:"):
         return os.environ.get(value[len("env:") :], "")

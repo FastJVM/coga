@@ -20,8 +20,8 @@ the `coga/cli` *context*. Read this for the worked classification; read
 
 1. **Pure aliases** — argv rewrites in `DEFAULT_ALIASES` (shipped to every
    repo) merged with user `[aliases]` from `coga.toml`, user key winning.
-   `src/coga/aliases.py` owns the defaults, built-in inventory, validation, and
-   legacy migration; `src/coga/cli.py` registers placeholders and rewrites
+   `src/coga/aliases.py` owns the defaults, built-in inventory, and validation;
+   `src/coga/cli.py` registers placeholders and rewrites
    `sys.argv` to `expansion + rest` before Typer dispatches. There is **no
    post-dispatch hook**.
 
@@ -43,8 +43,8 @@ the `coga/cli` *context*. Read this for the worked classification; read
 > carry logic — including a stateless command ticket — but the alias itself
 > cannot draft, validate, sync, or own a lifecycle transition.
 
-`coga ticket` is the standing proof: it was promoted *out of* the old
-`create = "launch bootstrap/ticket"` alias into a built-in command head because
+`coga ticket` is the standing proof: a pure `launch bootstrap/ticket` alias
+cannot replace its built-in command head because
 it drafts a ticket on the fly, validates the authored ticket after the agent
 exits, git-syncs changed `tasks/`/`contexts/`/`skills/`, and enforces a TTY —
 none of which an argv rewrite can express. The authoring interview itself is
@@ -237,7 +237,7 @@ the audit's path to it.
 
 ## Source references
 
-- Alias defaults, built-in inventory, validation, and legacy migration:
+- Alias defaults, built-in inventory, and validation:
   `src/coga/aliases.py`.
 - Alias registration and argv rewrite: `src/coga/cli.py`.
 - Command registration: `src/coga/cli.py`.

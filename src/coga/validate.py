@@ -1112,15 +1112,7 @@ def _now_iso() -> str:
 
 
 def _notification_issues(cfg: Config) -> list[Issue]:
-    issues = [
-        Issue(
-            kind="notification-deprecated-config",
-            task="(notification)",
-            message=note,
-            severity="warn",
-        )
-        for note in cfg.notification_deprecation_notes
-    ]
+    issues: list[Issue] = []
     if "slack" not in cfg.notification_channels:
         return issues
     if not cfg.slack_enabled:

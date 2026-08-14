@@ -48,27 +48,14 @@ def test_validate_accepts_well_formed() -> None:
     _validate_aliases({"chat": "launch bootstrap/orient"})
 
 
-def test_validate_soft_skips_legacy_create_alias(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Every pre-split repo has the legacy `create = "launch bootstrap/ticket"`
-    line. Now that `create` is a built-in, that line would crash the CLI on
-    every invocation. The validator drops it with a stderr notice instead."""
-    aliases = {
-        "chat": "launch bootstrap/orient",
-        "create": "launch bootstrap/ticket",
-    }
-    _validate_aliases(aliases)
-    assert "create" not in aliases
-    assert aliases == {"chat": "launch bootstrap/orient"}
-    err = capsys.readouterr().err
-    assert "dropping legacy alias 'create'" in err
+def test_validate_rejects_removed_create_alias() -> None:
+    """The retired create alias is an ordinary built-in collision now."""
+    with pytest.raises(ConfigError, match="collides with built-in"):
+        _validate_aliases({"create": "launch bootstrap/ticket"})
 
 
-def test_validate_still_rejects_non_legacy_create_collision() -> None:
-    """A user who *renames* `create` to something else and points it at
-    a different target still gets the hard collision error — only the
-    exact legacy default is soft-skipped."""
+def test_validate_rejects_other_create_collision() -> None:
+    """Every create alias collides, regardless of its expansion."""
     with pytest.raises(ConfigError, match="collides with built-in"):
         _validate_aliases({"create": "launch bootstrap/something-else"})
 

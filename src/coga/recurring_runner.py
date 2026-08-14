@@ -398,10 +398,7 @@ def _has_serviceable_config(coga_os: Path) -> bool:
     """Whether a discovered workspace is a configured scheduler target."""
     try:
         cfg = load_config(coga_os)
-        validate_aliases(
-            {**DEFAULT_ALIASES, **cfg.aliases},
-            warn_legacy=False,
-        )
+        validate_aliases({**DEFAULT_ALIASES, **cfg.aliases})
     except ConfigError:
         return False
     except Exception:

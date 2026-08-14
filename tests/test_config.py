@@ -61,6 +61,8 @@ def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.slack_enabled is True
     # The central [secrets] catalog is gone — Config no longer carries it.
     assert not hasattr(cfg, "secrets")
+    # Deprecated notification spellings are rejected, not accumulated as notes.
+    assert not hasattr(cfg, "notification_deprecation_notes")
 
 
 def test_missing_local_toml_fails_loud(repo: Path) -> None:

@@ -4969,6 +4969,13 @@ def test_human_assist_notification_preflight_preserves_unstarted_state(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    config_path = git_repo.coga_os / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace(
+            "SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK"
+        )
+    )
+    monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     created, ticket_path = _seed_single_checkout_human_review(
         git_repo,
         title="Require notification config before review",
@@ -4984,7 +4991,6 @@ def test_human_assist_notification_preflight_preserves_unstarted_state(
         "coga.commands.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
-    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     child_started = False
 
     def unexpected_child(*args, **kwargs):  # type: ignore[no-untyped-def]
