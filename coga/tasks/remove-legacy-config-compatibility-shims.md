@@ -1,7 +1,7 @@
 ---
 slug: remove-legacy-config-compatibility-shims
 title: Remove legacy config compatibility shims
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
