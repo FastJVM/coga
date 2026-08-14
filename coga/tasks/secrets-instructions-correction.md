@@ -1,15 +1,38 @@
 ---
 slug: secrets-instructions-correction
 title: secrets-instructions-correction
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: null
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+  - name: review-design
+    skills: []
+    assignee: owner
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
 secrets: null
+step: 1 (design)
 ---
 
 ## Description
@@ -28,18 +51,8 @@ secrets:
 
 ## Context
 
-Original report was a raw paste; the text above is the same content with the
-line-number prefix, duplicated half-sentence, and unclosed fence cleaned up. No
-scope decision has been made — see the blocker below.
-
-<!-- coga:blackboard -->
-
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Ticket authoring notes (2026-08-13)
-
-Interview was cut short — parked for Zach before the workflow/contexts were
-picked. Frontmatter is still `workflow: null`, `contexts: []`.
+Original report was a raw paste; the Description above is the same content with
+its line-number prefix, duplicated half-sentence, and unclosed fence cleaned up.
 
 **The ticket's premise does not reproduce in this repo.** Every instruction here
 already documents the correct list form:
@@ -67,5 +80,15 @@ Three candidate scopes, unresolved:
 3. **Both**, as one ticket or split into two.
 
 Scope 2 is worth a look regardless of how 1 resolves — it is the part that costs
-manual cleanup every time.
+manual cleanup every time. The `design` step's first job is to settle which
+scope this ticket actually is, using Zach's answer.
+
+Out of scope until that is settled: changing `secrets:` parsing to *accept* the
+mapping form. The list shape is deliberate (`src/coga/config.py:1094`), and
+`coga/contexts/coga/architecture/SKILL.md:156` explains why a bare-string entry
+and a raw literal are both rejected.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.
 
