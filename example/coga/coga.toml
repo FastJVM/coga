@@ -5,6 +5,11 @@ version = 1
 # it without launching.
 default_status = "draft"
 
+# Optional: the one operator who may run recurring sweeps in this repo.
+# Committed, so every clone agrees on it; unset here, so this fixture's
+# recurring commands stay ungated.
+# owner = "marc"
+
 # --- Agents ---
 
 [agents.claude]

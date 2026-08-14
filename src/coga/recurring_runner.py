@@ -9,6 +9,7 @@ import os
 import subprocess
 import shutil
 import sys
+import tomllib
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -24,6 +25,7 @@ from coga.config import (
     SecretError,
     build_launch_env,
     load_config,
+    parse_owner,
 )
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, ref_tag_for_path, task_log_lines
@@ -66,6 +68,171 @@ from coga.workspace_discovery import discover_coga_repos
 # the window or, at `<= 0` / non-finite, disarms it.
 _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
 
+
+def recurring_owner_refusal(cfg: Config) -> str | None:
+    """Why this operator may not launch recurring here, or None if they may.
+
+    Recurring sweeps mutate shared period state (the created period task, the
+    template's `last_serviced_period` high-water mark) and then launch real
+    work, so two *different* operators sweeping the same repo from their own
+    clones race each other. The committed `owner` in `coga.toml` picks one of
+    them: every clone reads the same name, and only the operator whose
+    machine-local `user` matches it may launch.
+
+    A **policy gate, not a lock.** Same-machine overlap is already prevented by
+    the sweep being sequential and foreground; the owner running two clones of
+    their own can still race, and this does not try to stop them. `--force` is
+    gated too — a deliberate takeover is a committed `owner` change, not a
+    flag. A repo with no `owner` set behaves exactly as before.
+    """
+    return _recurring_owner_refusal(cfg, cfg.owner)
+
+
+def _recurring_owner_refusal(cfg: Config, owner: str) -> str | None:
+    """Apply the owner policy using an explicitly resolved committed value."""
+    if not owner or cfg.current_user == owner:
+        return None
+    who = (
+        f"this checkout runs as {cfg.current_user!r}"
+        if cfg.current_user
+        else "this checkout has no `user` set in coga.local.toml"
+    )
+    return (
+        f"Recurring launches in this repo belong to {owner!r} "
+        f"(`owner` in coga.toml); {who}. Recurring is gated to one operator so "
+        "two clones cannot sweep the same repo at once — ask them to run it, "
+        "or change the committed `owner` to take it over."
+    )
+
+
+def _refuse_non_owner(cfg: Config) -> bool:
+    """Authorize from the control tip and print any refusal."""
+    refusal = _launch_owner_refusal(cfg)
+    if refusal is None:
+        return False
+    typer.secho(refusal, fg=typer.colors.RED, err=True)
+    return True
+
+
+def _launch_owner_refusal(cfg: Config) -> str | None:
+    """Resolve recurring authorization from the latest reachable control tip.
+
+    A feature branch may predate an owner addition or transfer, and the working
+    tree may contain an uncommitted owner edit. Neither is authoritative: read
+    the shared config blob from the fetched control commit instead.
+
+    Fetch failure retains compatibility for repos whose local committed config
+    has never opted into an owner. Once an owner is present locally, however,
+    an apparent owner may not launch until the latest value can be confirmed;
+    otherwise an offline stale clone could bypass an owner transfer.
+    """
+    owner, error, control_reached = _control_tip_owner(cfg)
+    if owner is not None:
+        return _recurring_owner_refusal(cfg, owner)
+
+    local_owner, local_error = _local_committed_owner(cfg)
+    if local_owner is None:
+        return (
+            "Recurring launch refused: could not read the committed local "
+            f"`owner` after control-tip lookup failed ({error}): {local_error}."
+        )
+    local_refusal = _recurring_owner_refusal(cfg, local_owner)
+    if local_refusal is not None:
+        return local_refusal
+    if not local_owner and not control_reached:
+        # No local opt-in: preserve the pre-owner best-effort behavior when the
+        # configured remote is unavailable.
+        return None
+
+    local_note = (
+        f" The local commit names {local_owner!r}, but that value may be stale."
+        if local_owner
+        else ""
+    )
+    return (
+        "Recurring launch refused: could not confirm the latest committed "
+        f"`owner` from {cfg.git_remote}/{cfg.git_control_branch}: {error}."
+        f"{local_note} Retry when the control branch is reachable; `--force` "
+        "does not override the owner gate."
+    )
+
+
+def _control_tip_owner(cfg: Config) -> tuple[str | None, str, bool]:
+    """Return (owner, error, control_reached) for committed control config.
+
+    ``owner`` is ``""`` when the fetched config deliberately leaves the gate
+    unset and ``None`` only when it could not be resolved. ``control_reached``
+    distinguishes an unavailable remote from a fetched but unreadable/invalid
+    config, which must fail closed even for a locally owner-less checkout.
+
+    Local `HEAD` is authoritative only for a checkout with **no configured
+    remote**. `[git].enabled = false` does not qualify: it is the sync opt-out
+    documented for a remote-less repo, and honoring it here would make a
+    machine-local, uncommitted setting an override of a committed policy — a
+    stale clone would read no owner at all, and a former owner would stay
+    authorized after a transfer, while the sweep still created period state and
+    launched real work.
+    """
+    root = _git_toplevel(cfg.repo_root)
+    if root is None:
+        # A non-git local repo has no distinct control tip; its shared config is
+        # the only committed-policy source available.
+        return cfg.owner, "", True
+
+    reached = False
+    try:
+        if not git._remote_configured(root, cfg.git_remote):
+            return _owner_at_ref(cfg, root, "HEAD"), "", True
+        # Authorize from the destination the sweep will actually mutate.
+        # `_push_control_branch` publishes period state with `git push
+        # <remote>`, and git distinguishes a remote's push URLs from its fetch
+        # URL — reading the owner from the fetch repository would let an
+        # operator it authorizes create and launch work in a push repository
+        # owned by someone else. A multi-push remote has no single such
+        # repository, so it fails closed rather than picking one.
+        push_urls = git._remote_push_urls(root, cfg.git_remote)
+        if len(push_urls) != 1:
+            return (
+                None,
+                f"remote {cfg.git_remote!r} has {len(push_urls)} effective "
+                "push URLs, so recurring state has no single owning "
+                "repository to authorize against",
+                True,
+            )
+        # FETCH_HEAD is checkout-wide and another Coga/git process may replace
+        # it between fetch and read. The shared git primitive fetches through a
+        # UUID-scoped ref and returns the exact command-owned commit instead.
+        target = git._fetch_branch_oid(
+            root, push_urls[0], cfg.git_control_branch
+        )
+        reached = True
+        return _owner_at_ref(cfg, root, target), "", True
+    except (ConfigError, git.GitError, tomllib.TOMLDecodeError) as exc:
+        return None, str(exc), reached
+
+
+def _local_committed_owner(cfg: Config) -> tuple[str | None, str]:
+    """Read owner from HEAD, falling back to config only outside git."""
+    root = _git_toplevel(cfg.repo_root)
+    if root is None:
+        return cfg.owner, ""
+    try:
+        return _owner_at_ref(cfg, root, "HEAD"), ""
+    except (ConfigError, git.GitError, tomllib.TOMLDecodeError) as exc:
+        return None, str(exc)
+
+
+def _owner_at_ref(cfg: Config, root: Path, ref: str) -> str:
+    """Parse the shared recurring owner from one exact committed config."""
+    target = _rev_parse(root, ref)
+    config_rel = _relative_to_root(root, cfg.repo_root / "coga.toml")
+    shared_text = _show_path(root, target, config_rel)
+    if not shared_text:
+        raise ConfigError(f"commit {target} has no readable {config_rel}")
+    shared = tomllib.loads(shared_text)
+    return parse_owner(shared.get("owner"))
+
+
 def run_recurring_all_repos(
     scan_root: Path,
     *,
@@ -103,11 +270,20 @@ def run_recurring_all_repos(
 
     serviceable: list[Path] = []
     skipped_unconfigured: list[str] = []
+    skipped_not_owner: list[str] = []
     for coga_os in repos:
-        if _has_serviceable_config(coga_os):
-            serviceable.append(coga_os)
-        else:
-            skipped_unconfigured.append(_repo_label(coga_os, root))
+        label = _repo_label(coga_os, root)
+        if not _has_serviceable_config(coga_os):
+            skipped_unconfigured.append(label)
+            continue
+        # Per-repo, before duplicate grouping: a repo this operator does not own
+        # is not a sweep target at all, so it must not be picked as the keeper
+        # for a remote whose other checkout *is* runnable.
+        refusal = _repo_owner_refusal(coga_os)
+        if refusal is not None:
+            skipped_not_owner.append(f"{label} — {refusal}")
+            continue
+        serviceable.append(coga_os)
 
     duplicate_of = _duplicate_remote_checkouts(serviceable)
     failed: list[str] = []
@@ -168,6 +344,7 @@ def run_recurring_all_repos(
         - len(failed)
         - len(skipped_duplicates)
         - len(skipped_unconfigured)
+        - len(skipped_not_owner)
     )
     typer.echo(f"\nSwept {swept} of {len(repos)} Coga repo(s).")
     if skipped_unconfigured:
@@ -175,6 +352,18 @@ def run_recurring_all_repos(
         repo_word = "repo" if count == 1 else "repos"
         typer.secho(
             f"Skipped {count} unconfigured {repo_word}.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+    if skipped_not_owner:
+        count = len(skipped_not_owner)
+        repo_word = "repo" if count == 1 else "repos"
+        # Named individually, not just counted: an operator who owns none of
+        # the repos they scanned would otherwise see an empty sweep with no
+        # clue which name to ask for.
+        listed = "\n".join(f"  {entry}" for entry in skipped_not_owner)
+        typer.secho(
+            f"Skipped {count} {repo_word} owned by someone else:\n{listed}",
             fg=typer.colors.YELLOW,
             err=True,
         )
@@ -221,6 +410,28 @@ def _has_serviceable_config(coga_os: Path) -> bool:
         # guards identify an unconfigured checkout that the parent may skip.
         return True
     return True
+
+
+def _repo_owner_refusal(coga_os: Path) -> str | None:
+    """The owner refusal for a discovered workspace, or None if it may sweep.
+
+    The gate is per-repo under `--all`: each repo names its own `owner`, so an
+    operator sweeping a directory of clones runs the ones they own and skips
+    the rest rather than failing the whole sweep. Config that fails to load
+    here is left to the child process, which is the authoritative loader —
+    exactly as `_configured_remote_identity` does.
+    """
+    try:
+        cfg = load_config(coga_os, require_user=False)
+        owner, _reason, _control_reached = _control_tip_owner(cfg)
+        if owner is None:
+            # Never pre-skip on an unconfirmed value. The selected child is the
+            # authoritative freshness gate and fails before scanning if the
+            # control tip cannot be integrated.
+            return None
+    except Exception:
+        return None
+    return _recurring_owner_refusal(cfg, owner)
 
 
 def _duplicate_remote_checkouts(repos: list[Path]) -> dict[Path, Path]:
@@ -418,10 +629,11 @@ def run_recurring_scan(
     Bare single-repo sweeps retain the established best-effort catch-up.
 
     `coga recurring launch <name>` force-runs one named template now.
-    """
-    if not _valid_agent_override(cfg, agent_override):
-        return 2
 
+    A repo with a committed `owner` refuses this for every other operator —
+    including under `--force` — before anything is scanned or created; see
+    `recurring_owner_refusal`.
+    """
     fresh, freshness_error = _sync_control_checkout_ahead(
         cfg, announce_failure=not require_fresh_control
     )
@@ -438,6 +650,10 @@ def run_recurring_scan(
         # git catch-up instead of re-failing (and re-printing) the same
         # divergence — see `git.STALE_CONTROL_EXIT_CODE`.
         return git.STALE_CONTROL_EXIT_CODE
+    if _refuse_non_owner(cfg):
+        return 2
+    if not _valid_agent_override(cfg, agent_override):
+        return 2
     scan = scan_due(
         cfg, allow_interactive=_interactive_stdio_has_tty(), force=force
     )
@@ -660,12 +876,14 @@ def run_recurring_named(
     instantiated task directory.
 
     `agent_override` has the same ephemeral, agent-only semantics as the full
-    recurring sweep.
+    recurring sweep, and the same committed-`owner` gate applies — this is a
+    launch, so a non-owner is refused before the template is created.
     """
+    fresh, _reason = _sync_control_checkout_ahead(cfg)
+    if _refuse_non_owner(cfg):
+        return 2
     if not _valid_agent_override(cfg, agent_override):
         return 2
-
-    _sync_control_checkout_ahead(cfg)
     try:
         outcome = create_named(cfg, name)
         recipe = Template.load(recurring_dir(cfg) / name).recipe

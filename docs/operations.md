@@ -121,7 +121,9 @@ Two properties matter in practice:
   change.
 
 To opt out (a repo with no remote — dev, test, solo branches), set `[git].enabled
-= false` in `coga.toml` or `coga.local.toml`.
+= false` in `coga.toml` or `coga.local.toml`. It turns off *sync*, not policy:
+the recurring `owner` gate below still reads the remote if one is configured,
+so a machine-local setting can't quietly hand recurring back to a stale clone.
 
 ## Recurring maintenance
 
@@ -141,6 +143,13 @@ is recorded in the template so the next scan knows what's already done.
 
 Point a single cron entry at `coga recurring` (or `coga recurring --all`) and the
 schedules inside the templates do the rest.
+
+If two people have clones of the same repo, name one of them in the committed
+`coga.toml` — `owner = "<name>"` — so only their machine sweeps it. Everyone
+else's recurring launches (including `--force`) are refused with the owner's
+name; `--all` skips repos they don't own and keeps going. It's a policy gate,
+not a lock: it stops two *operators* racing, not one operator running two
+clones. Leave `owner` unset and nothing changes.
 
 ### Dream: generic ticket cleanup
 

@@ -97,7 +97,9 @@ the example under "Extend recurring with a task-specific workflow").
   and end-of-command git sync stay repo-local. TOML parse errors and failures
   after dispatch are reported without preventing later repos from running; the
   parent command exits non-zero after the sweep. `--force` may be combined with
-  `--all <path>` to force every template in every selected repo.
+  `--all <path>` to force every template in every selected repo. The owner gate
+  below applies per repo: repos owned by someone else are skipped and named in
+  the summary, and the sweep continues rather than failing.
 - `coga recurring launch <name>` — creates one named recurring task now,
   ignoring its schedule. `<name>` is the directory name. Unless
   `--interactive` is set, the launched REPL receives the same concrete
@@ -128,6 +130,60 @@ the example under "Extend recurring with a task-specific workflow").
   still workflow-carrying and bumpable — `direct/body` is the workflow.)
 - `owner`, `assignee`, `watchers`, `contexts`, `secrets` — passed through to
   the created period task.
+
+## One operator owns recurring: the `owner` gate
+
+A repo may name a recurring owner with a top-level `owner = "<name>"` in the
+**committed** `coga.toml`. With it set, every launching entry point — the bare
+sweep, `--force`, `coga run recurring-scan`, and `coga recurring launch <name>`
+— refuses to run for any operator whose machine-local `user` (in
+`coga.local.toml`) differs, naming the owner so they know who to ask. Leave
+`owner` unset and recurring is ungated, exactly as before, so a repo opts in by
+naming someone.
+
+Authorization does not trust the config object loaded when the command started
+or an uncommitted working-tree edit. It fetches the configured control branch
+through a command-scoped ref and reads `owner` directly from that exact commit's
+`coga.toml`, including when the launch runs on a feature branch; checkout-wide
+`FETCH_HEAD` is never an authorization source. It fetches from the remote's
+sole effective **push** URL — the repository `git push <remote>` actually
+writes the period state to, which git distinguishes from the fetch URL — and
+refuses a remote with several push URLs, because state spread across
+destinations has no single owning repository to authorize against.
+
+Only a checkout with **no configured remote** falls back to reading `owner`
+from local `HEAD`. `[git].enabled = false` does not qualify: it is the sync
+opt-out documented for a remote-less repo, and letting a machine-local,
+uncommitted setting decide would make it a silent override of committed
+policy — a stale clone would read no owner at all, and a former owner would
+stay authorized after a transfer, while the sweep still created period state
+and launched real work.
+
+The `--all` parent uses the same
+control-tip value before duplicate-checkout selection; if it cannot confirm the
+value, it dispatches the child, whose existing mandatory freshness gate fails
+before any period state is touched. An owner addition or transfer therefore
+takes effect on the next reachable sweep instead of a stale clone continuing
+under the old name. A locally owner-less repo keeps the pre-gate best-effort
+behavior while its remote is unavailable; once the local config has opted in,
+an apparent owner cannot launch offline because a transfer could be waiting
+upstream.
+
+Why: a sweep mutates shared period state (the created period task, the
+template's `last_serviced_period` high-water mark) and then launches real work.
+Two *different* operators sweeping the same repo from their own clones race
+each other, and the same period gets launched twice. Naming one owner in
+committed config is the cheapest thing that closes that: every clone reads the
+same name.
+
+This is a **policy gate, not a lock.** Same-machine overlap is already
+prevented by the sweep being sequential and foreground; the owner running two
+of their own clones concurrently can still race, and the gate does not try to
+stop them. There is deliberately no override flag — `--force` forces the
+*schedule and status filters*, not the gate — so taking recurring over is an
+explicit, reviewable change to the committed `owner`. Read-only
+`coga recurring list` and the non-launching `coga recurring promote` stay
+ungated.
 
 ## Dropping a new recurring task
 

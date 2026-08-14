@@ -5,6 +5,13 @@ version = 1
 # it without launching.
 default_status = "draft"
 
+# Optional: the one operator who may run recurring sweeps in this repo.
+# Committed, so every clone agrees on it — with it set, `coga recurring`
+# (including `--force`) and `coga recurring launch` refuse to run for anyone
+# whose `user` in coga.local.toml differs, which keeps two machines from
+# sweeping the same repo at once. Left unset, recurring is ungated.
+# owner = "marc"
+
 # --- Agents ---
 # Agent types. Each defines the CLI binary and how to invoke it.
 # Removed headless-agent keys (`auto`, `skip_permissions`,

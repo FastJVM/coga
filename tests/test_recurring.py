@@ -18,6 +18,7 @@ from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import tasks_dir
 from coga.recurring import (
+    DueScan,
     DueTask,
     Template,
     create_named,
@@ -463,6 +464,441 @@ def test_recurring_all_skips_unconfigured_repos_compactly(
     assert "Swept 1 of 5 Coga repo(s)." in result.output
     assert "Skipped 4 unconfigured repos." in result.output
     assert "recurring exited" not in result.output
+
+
+# --- the committed `owner` gate: one operator launches recurring -------------
+
+
+def _set_owner(company: Path, owner: str) -> None:
+    """Name the repo's recurring owner in the committed coga.toml."""
+    path = company / "coga.toml"
+    path.write_text(f'owner = "{owner}"\n' + path.read_text())
+
+
+def test_recurring_ungated_when_no_owner_is_configured(repo: Path) -> None:
+    """A repo that names no owner keeps today's behavior — nothing to opt into."""
+    assert recurring_cmd.recurring_owner_refusal(load_config(repo)) is None
+
+
+def test_recurring_refusal_names_the_configured_owner(repo: Path) -> None:
+    _set_owner(repo, "nick")
+
+    refusal = recurring_cmd.recurring_owner_refusal(load_config(repo))
+
+    assert refusal is not None
+    assert "'nick'" in refusal
+    assert "runs as 'marc'" in refusal
+
+
+def test_recurring_refusal_reports_a_checkout_with_no_user(repo: Path) -> None:
+    """A clone that never set `user` is a non-owner, not a silent owner."""
+    _set_owner(repo, "nick")
+    (repo / "coga.local.toml").unlink()
+
+    refusal = recurring_cmd.recurring_owner_refusal(
+        load_config(repo, require_user=False)
+    )
+
+    assert refusal is not None
+    assert "'nick'" in refusal
+    assert "no `user` set in coga.local.toml" in refusal
+
+
+def test_recurring_scan_refuses_non_owner_before_scanning(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """The gate runs before any period state is read or written."""
+    _set_owner(repo, "nick")
+
+    def unreachable(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("scan_due ran for a non-owner")
+
+    monkeypatch.setattr(recurring_cmd, "scan_due", unreachable)
+
+    assert recurring_cmd.run_recurring_scan(load_config(repo)) == 2
+    assert "belong to 'nick'" in capsys.readouterr().err
+
+
+def test_recurring_scan_force_stays_gated_for_non_owner(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--force` forces the schedule and status filters, not the owner gate."""
+    _set_owner(repo, "nick")
+
+    def unreachable(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("scan_due ran for a non-owner")
+
+    monkeypatch.setattr(recurring_cmd, "scan_due", unreachable)
+
+    assert recurring_cmd.run_recurring_scan(load_config(repo), force=True) == 2
+
+
+def test_recurring_scan_runs_for_the_configured_owner(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_owner(repo, "marc")
+    scanned: list[Path] = []
+
+    def fake_scan(cfg, **kwargs):  # type: ignore[no-untyped-def]
+        scanned.append(cfg.repo_root)
+        return DueScan(tasks=[], errors=[])
+
+    monkeypatch.setattr(recurring_cmd, "scan_due", fake_scan)
+
+    assert recurring_cmd.run_recurring_scan(load_config(repo)) == 0
+    assert scanned == [repo]
+
+
+def test_recurring_launch_refuses_non_owner_before_creating(
+    repo: Path, capsys
+) -> None:
+    _set_owner(repo, "nick")
+
+    code = recurring_cmd.run_recurring_named(load_config(repo), "weekly-check")
+
+    assert code == 2
+    assert not (repo / "tasks" / "recurring").exists()
+    assert "belong to 'nick'" in capsys.readouterr().err
+
+
+def test_recurring_scan_resolves_owner_from_control_tip_on_feature_branch(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A remotely added owner gates a sweep from a stale feature branch."""
+    config = git_repo.coga_os / "coga.toml"
+    git_repo.checkout_branch("stale-feature")
+    git_repo.push_competing_commit(
+        "coga/coga.toml", 'owner = "nick"\n' + config.read_text()
+    )
+    stale_cfg = load_config(git_repo.coga_os)
+    assert stale_cfg.owner == ""
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("stale authorization reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(stale_cfg) == 2
+    assert load_config(git_repo.coga_os).owner == ""
+    assert "belong to 'nick'" in capsys.readouterr().err
+
+
+def test_recurring_named_resolves_owner_from_control_tip_on_feature_branch(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """The on-demand launcher also authorizes from control-tip config."""
+    config = git_repo.coga_os / "coga.toml"
+    git_repo.checkout_branch("stale-feature")
+    git_repo.push_competing_commit(
+        "coga/coga.toml", 'owner = "nick"\n' + config.read_text()
+    )
+    stale_cfg = load_config(git_repo.coga_os)
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "create_named",
+        lambda *args, **kwargs: pytest.fail("stale authorization created a task"),
+    )
+
+    assert recurring_cmd.run_recurring_named(stale_cfg, "weekly-check") == 2
+    assert load_config(git_repo.coga_os).owner == ""
+    assert "belong to 'nick'" in capsys.readouterr().err
+
+
+def test_recurring_scan_ignores_uncommitted_owner_takeover(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """Only the committed control owner counts, never a working-tree edit."""
+    config = git_repo.coga_os / "coga.toml"
+    config.write_text('owner = "nick"\n' + config.read_text())
+    git_repo.git("add", "coga/coga.toml")
+    git_repo.git("commit", "-m", "assign recurring owner")
+    git_repo.git("push", "origin", "main")
+    config.write_text(
+        config.read_text().replace('owner = "nick"', 'owner = "marc"')
+    )
+    dirty_cfg = load_config(git_repo.coga_os)
+    assert dirty_cfg.owner == "marc"
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("uncommitted takeover reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(dirty_cfg) == 2
+    assert load_config(git_repo.coga_os).owner == "marc"
+    assert "belong to 'nick'" in capsys.readouterr().err
+
+
+def test_recurring_scan_refuses_owner_when_control_owner_cannot_be_confirmed(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """An opted-in owner cannot run offline through a pending transfer."""
+    config = git_repo.coga_os / "coga.toml"
+    config.write_text('owner = "marc"\n' + config.read_text())
+    git_repo.git("add", "coga/coga.toml")
+    git_repo.git("commit", "-m", "assign recurring owner")
+    git_repo.git("push", "origin", "main")
+
+    def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        raise coga_git.GitError("simulated offline remote")
+
+    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
+    monkeypatch.setattr(recurring_cmd.git, "_fetch_branch_oid", fail_fetch)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("unconfirmed owner reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 2
+    error = capsys.readouterr().err
+    assert "could not confirm the latest committed `owner`" in error
+    assert "local commit names 'marc'" in error
+
+
+def test_control_tip_owner_reads_command_scoped_fetched_commit(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Owner authorization never reads checkout-wide FETCH_HEAD."""
+    config = git_repo.coga_os / "coga.toml"
+    git_repo.push_competing_commit(
+        "coga/coga.toml", 'owner = "nick"\n' + config.read_text()
+    )
+    control_tip = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    git_repo.git("fetch", "origin", "main")
+    seen: list[tuple[Path, str, str]] = []
+
+    def scoped_fetch(root: Path, source: str, branch: str) -> str:
+        seen.append((root, source, branch))
+        return control_tip
+
+    monkeypatch.setattr(recurring_cmd.git, "_fetch_branch_oid", scoped_fetch)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_fetch_control_branch",
+        lambda *args, **kwargs: pytest.fail("owner lookup used FETCH_HEAD fetch"),
+    )
+
+    owner, error, reached = recurring_cmd._control_tip_owner(
+        load_config(git_repo.coga_os)
+    )
+
+    assert (owner, error, reached) == ("nick", "", True)
+    assert seen == [(git_repo.root, str(git_repo.origin), "main")]
+
+
+def test_control_tip_owner_reads_the_effective_push_destination(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A distinct `pushurl` owns the state, so it owns the authorization.
+
+    `_push_control_branch` writes period state to the push URL. Reading the
+    owner from the fetch repository would let whoever *it* names create and
+    launch work in a push repository owned by someone else.
+    """
+    config = git_repo.coga_os / "coga.toml"
+    # The fetch repository says `marc` may launch...
+    git_repo.push_competing_commit(
+        "coga/coga.toml", 'owner = "marc"\n' + config.read_text()
+    )
+    # ...but pushes land somewhere that names `nick`.
+    push_origin = _clone_bare_with_owner(git_repo, "nick")
+    git_repo.git("remote", "set-url", "--push", "origin", str(push_origin))
+
+    owner, error, reached = recurring_cmd._control_tip_owner(
+        load_config(git_repo.coga_os)
+    )
+
+    assert (owner, error, reached) == ("nick", "", True)
+
+
+def test_recurring_scan_refuses_a_multi_push_remote(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """Split state has no single owning repository to authorize against."""
+    second = _clone_bare_with_owner(git_repo, "nick")
+    # The first `--add --push` replaces the implicit fetch-URL default rather
+    # than joining it, so both destinations have to be named explicitly.
+    git_repo.git(
+        "remote", "set-url", "--add", "--push", "origin", str(git_repo.origin)
+    )
+    git_repo.git("remote", "set-url", "--add", "--push", "origin", str(second))
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("multi-push remote reached scan_due"),
+    )
+
+    cfg = load_config(git_repo.coga_os)
+    owner, error, reached = recurring_cmd._control_tip_owner(cfg)
+    assert owner is None and reached is True
+    assert "2 effective push URLs" in error
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 2
+    assert "could not confirm the latest committed `owner`" in capsys.readouterr().err
+
+
+def test_control_tip_owner_reads_head_without_a_configured_remote(
+    git_repo,
+) -> None:
+    """A genuinely remote-less checkout has no tip but its own HEAD."""
+    config = git_repo.coga_os / "coga.toml"
+    config.write_text('owner = "nick"\n' + config.read_text())
+    git_repo.git("add", "coga/coga.toml")
+    git_repo.git("commit", "-m", "assign recurring owner")
+    git_repo.git("remote", "remove", "origin")
+
+    owner, error, reached = recurring_cmd._control_tip_owner(
+        load_config(git_repo.coga_os)
+    )
+
+    assert (owner, error, reached) == ("nick", "", True)
+
+
+def test_local_git_disablement_does_not_bypass_the_owner_gate(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """`[git].enabled = false` is the sync opt-out, not an authorization override.
+
+    It is machine-local and uncommitted, so honoring it here would let a stale
+    clone read no owner at all — while the sweep still created period state and
+    launched real work.
+    """
+    config = git_repo.coga_os / "coga.toml"
+    local = git_repo.coga_os / "coga.local.toml"
+    local.write_text(local.read_text() + "\n[git]\nenabled = false\n")
+    git_repo.push_competing_commit(
+        "coga/coga.toml", 'owner = "nick"\n' + config.read_text()
+    )
+    stale_cfg = load_config(git_repo.coga_os)
+    assert stale_cfg.git_enabled is False
+    assert stale_cfg.owner == ""
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("git-disabled sweep reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(stale_cfg) == 2
+    assert "belong to 'nick'" in capsys.readouterr().err
+
+
+def _clone_bare_with_owner(git_repo, owner: str) -> Path:
+    """A second bare repo whose control tip names `owner`."""
+    bare = git_repo.origin.parent / f"push-origin-{owner}.git"
+    work = git_repo.origin.parent / f"push-work-{owner}"
+    git_repo.git("clone", "--bare", str(git_repo.origin), str(bare), cwd=git_repo.root)
+    git_repo.git("clone", str(bare), str(work), cwd=git_repo.origin.parent)
+    git_repo.git("config", "user.email", "other@example.com", cwd=work)
+    git_repo.git("config", "user.name", "Other", cwd=work)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=work)
+    git_repo.git("checkout", "-B", "main", "origin/main", cwd=work)
+    config = work / "coga" / "coga.toml"
+    kept = [
+        line
+        for line in config.read_text().splitlines(keepends=True)
+        if not line.startswith("owner =")
+    ]
+    config.write_text(f'owner = "{owner}"\n' + "".join(kept))
+    git_repo.git("add", "--", "coga/coga.toml", cwd=work)
+    git_repo.git("commit", "-m", f"push-side owner {owner}", cwd=work)
+    git_repo.git("push", "origin", "main", cwd=work)
+    return bare
+
+
+def test_recurring_all_skips_repos_owned_by_someone_else(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The gate is per repo: sweep the ones this operator owns, skip the rest."""
+    root = tmp_path / "workspaces"
+    mine = root / "mine" / "coga"
+    theirs = root / "theirs" / "coga"
+    _write(mine / "coga.toml", 'version = 1\nowner = "marc"\n')
+    _write(theirs / "coga.toml", 'version = 1\nowner = "nick"\n')
+    for coga_os in (mine, theirs):
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    seen: list[Path] = []
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_repo_recurring",
+        lambda coga_os, **kwargs: seen.append(coga_os) or 0,
+    )
+    result = CliRunner().invoke(app, ["recurring", "--all", str(root)])
+
+    assert result.exit_code == 0, result.output
+    assert seen == [mine]
+    assert "Swept 1 of 2 Coga repo(s)." in result.output
+    assert "Skipped 1 repo owned by someone else:" in result.output
+    assert "theirs — Recurring launches in this repo belong to 'nick'" in result.output
+
+
+def test_recurring_all_owner_skip_cannot_shadow_a_runnable_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A skipped non-owned checkout is never the keeper for its remote."""
+    root = tmp_path / "workspaces"
+    first = root / "alpha" / "coga"
+    second = root / "beta" / "coga"
+    _write(first / "coga.toml", 'version = 1\nowner = "nick"\n')
+    _write(second / "coga.toml", 'version = 1\nowner = "marc"\n')
+    for coga_os in (first, second):
+        _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+
+    monkeypatch.setattr(
+        recurring_cmd, "_git_toplevel", lambda coga_os: coga_os.parent
+    )
+    monkeypatch.setattr(recurring_cmd, "_current_branch", lambda _root: "main")
+
+    def fake_subprocess_run(command, **kwargs):  # type: ignore[no-untyped-def]
+        assert command[-3:] == ["remote", "get-url", "origin"]
+        return SimpleNamespace(returncode=0, stdout="https://example.com/team/repo\n")
+
+    monkeypatch.setattr(recurring_cmd.subprocess, "run", fake_subprocess_run)
+    seen: list[Path] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_repo_recurring",
+        lambda coga_os, **kwargs: seen.append(coga_os) or 0,
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_control_tip_owner",
+        lambda cfg, **kwargs: (cfg.owner, "", True),
+    )
+
+    assert recurring_cmd.run_recurring_all_repos(root) == 0
+    assert seen == [second]
+
+
+def test_recurring_all_resolves_owner_from_control_tip_before_prefilter(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An owner transfer cannot leave the new owner pre-skipped forever."""
+    config = git_repo.coga_os / "coga.toml"
+    config.write_text('owner = "nick"\n' + config.read_text())
+    git_repo.git("add", "coga/coga.toml")
+    git_repo.git("commit", "-m", "assign old recurring owner")
+    git_repo.git("push", "origin", "main")
+    git_repo.push_competing_commit(
+        "coga/coga.toml", config.read_text().replace('owner = "nick"', 'owner = "marc"')
+    )
+
+    seen: list[Path] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_repo_recurring",
+        lambda coga_os, **kwargs: seen.append(coga_os) or 0,
+    )
+
+    assert recurring_cmd.run_recurring_all_repos(git_repo.root) == 0
+    assert load_config(git_repo.coga_os).owner == "nick"
+    assert seen == [git_repo.coga_os]
 
 
 def test_recurring_all_services_one_checkout_per_remote(
