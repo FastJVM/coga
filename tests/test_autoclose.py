@@ -5,12 +5,15 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+import requests
+import typer
 from typer.testing import CliRunner
 
 from coga import autoclose as am
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
+from coga.taskfile import TaskFileError
 from coga.ticket import Ticket
 
 
@@ -672,6 +675,153 @@ def test_recipe_appends_the_report_to_the_task_blackboard(
     assert "Task: `autoclose-merged`" in report
     # The blackboard is the report surface when there is one — not both.
     assert am.RETIRE_REPORT_HEADING not in capsys.readouterr().out
+
+
+def test_recipe_reports_earlier_closure_when_a_later_pr_lookup_fails(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    first_slug, first_path = _make_task(
+        repo,
+        title="Alpha",
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/25",
+        branch="alpha-branch",
+    )
+    _, second_path = _make_task(
+        repo,
+        title="Beta",
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/26",
+        branch="beta-branch",
+    )
+
+    def state(url: str) -> str:
+        if url.endswith("/25"):
+            return "MERGED"
+        raise am.GhError("later lookup failed")
+
+    monkeypatch.setattr(am, "pr_state", state)
+    _capture_posts(monkeypatch)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+
+    captured = capsys.readouterr()
+    assert f"`coga retire {first_slug}`" in captured.out
+    assert "[autoclose] later lookup failed" in captured.err
+    assert Ticket.read(first_path).status == "done"
+    assert Ticket.read(second_path).status == "active"
+
+
+def test_recipe_reports_a_close_when_mark_done_fails_after_its_write(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, path = _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/27",
+        branch="committed-branch",
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/27": "MERGED"})
+    _capture_posts(monkeypatch)
+    real_mark_done = am.mark_done
+
+    def committed_then_fails(*args, **kwargs):  # type: ignore[no-untyped-def]
+        real_mark_done(*args, **kwargs)
+        raise RuntimeError("failed after terminal write")
+
+    monkeypatch.setattr(am, "mark_done", committed_then_fails)
+
+    with pytest.raises(RuntimeError, match="failed after terminal write"):
+        am.run_autoclose_recipe(load_config(repo), [])
+
+    assert f"`coga retire {slug}`" in capsys.readouterr().out
+    assert Ticket.read(path).status == "done"
+
+
+def test_recipe_preflights_live_summary_before_closing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, path = _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/28",
+        branch="needs-summary",
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/28": "MERGED"})
+    monkeypatch.delenv("SLACK_WEBHOOK_URL")
+
+    with pytest.raises(typer.Exit):
+        am.run_autoclose_recipe(load_config(repo), [])
+
+    captured = capsys.readouterr()
+    assert "no webhook is configured" in captured.err
+    assert am.RETIRE_REPORT_HEADING not in captured.out
+    assert Ticket.read(path).status == "active"
+    assert slug not in captured.out
+
+
+def test_append_report_preserves_crlf_and_uses_atomic_blackboard_replace(
+    repo: Path,
+) -> None:
+    _, host = _make_task(repo, title="CRLF host", status="draft")
+    original = host.read_bytes().replace(b"\n", b"\r\n")
+    host.write_bytes(original)
+
+    am._append_blackboard_report(host, "## Report\n\nbody\n")
+
+    assert host.read_bytes() == original + b"\r\n## Report\r\n\r\nbody\r\n"
+
+
+def test_append_report_refuses_to_overwrite_a_concurrent_ticket_change(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, host = _make_task(repo, title="Racing host", status="draft")
+    original_replace = am.replace_blackboard
+
+    def race_then_replace(
+        path: Path, new_blackboard: str, *, expected_bytes: bytes | None = None
+    ) -> bytes:
+        path.write_bytes(path.read_bytes() + b"\nconcurrent update\n")
+        return original_replace(
+            path, new_blackboard, expected_bytes=expected_bytes
+        )
+
+    monkeypatch.setattr(am, "replace_blackboard", race_then_replace)
+
+    with pytest.raises(TaskFileError, match="ticket changed"):
+        am._append_blackboard_report(host, "## Report\n")
+
+    assert host.read_text().endswith("\nconcurrent update\n")
+    assert "## Report" not in host.read_text()
+
+
+def test_failed_summary_delivery_is_logged_against_the_host_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/29",
+        branch="offline-summary",
+    )
+    host_slug, host = _make_task(repo, title="Autoclose host", status="draft")
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
+    monkeypatch.setenv("COGA_TASK_SLUG", host_slug)
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/29": "MERGED"})
+
+    def offline(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise requests.ConnectionError("offline")
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", offline)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    from coga.logfile import task_log_lines
+
+    assert any(
+        "post failed: ConnectionError: connection failure" in line
+        for line in task_log_lines(load_config(repo), host_slug)
+    )
 
 
 # --- status stays read-only --------------------------------------------------

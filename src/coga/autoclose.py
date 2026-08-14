@@ -35,15 +35,20 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
 from coga.mark import mark_done
 from coga.config import Config
-from coga.notification import post
-from coga.task_env import append_blackboard_report, blackboard_from_env
-from coga.taskfile import TaskFileError, read_blackboard
+from coga.notification import digest_spool_path, post, preflight_post
+from coga.task_env import blackboard_from_env
+from coga.taskfile import (
+    TaskFileError,
+    read_blackboard,
+    replace_blackboard,
+)
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
@@ -292,7 +297,14 @@ def _candidate(ticket: Ticket) -> bool:
     return ticket.status in {"active", "in_progress"} and _on_final_step(ticket)
 
 
-def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> ClosedTicket | None:
+def _try_bump_one(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    quiet: bool,
+    on_closed: Callable[[ClosedTicket], None],
+    before_close: Callable[[ClosedTicket], None] | None = None,
+) -> ClosedTicket | None:
     """Check `ref`; bump to done iff its linked PR has merged.
 
     Returns the closed ticket (with its recorded checkout state) iff the ticket
@@ -340,48 +352,143 @@ def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> ClosedTicket | N
     log_message = f"auto-bumped on merge of {pr_label} → done"
     echo = None if quiet else f"{ref.id_slug}: done (auto, {pr_label})"
 
-    mark_done(
-        cfg,
-        ref,
-        ticket,
-        actor=actor,
-        log_message=log_message,
-        slack_text=slack_text,
-        digest_detail=f"auto-bumped: {digest_transition} — {pr_link} merged ✅",
-        image_url=cfg.gif_for("done"),
-        echo=echo,
-    )
-    return ClosedTicket(
+    closed = ClosedTicket(
         slug=ref.id_slug,
         title=ticket.title,
         branch=parse_branch_name(blackboard),
         worktree=parse_worktree_path(blackboard),
     )
+    if before_close is not None:
+        before_close(closed)
+
+    try:
+        mark_done(
+            cfg,
+            ref,
+            ticket,
+            actor=actor,
+            log_message=log_message,
+            slack_text=slack_text,
+            digest_detail=f"auto-bumped: {digest_transition} — {pr_link} merged ✅",
+            image_url=cfg.gif_for("done"),
+            echo=echo,
+        )
+    except BaseException:
+        # `mark_done` writes the terminal state before validation, notification,
+        # and git publication. If one of those later operations fails, retain
+        # the successful local closure so the recipe can still name its retire
+        # follow-up before surfacing the original failure. Checking both the
+        # mutated in-memory ticket and disk avoids attributing a concurrent
+        # completion to this sweep when a pre-write gate failed.
+        if ticket.status == "done":
+            try:
+                persisted = read_ticket(ref)
+            except TicketError:
+                persisted = None
+            if persisted is not None and persisted.status == "done":
+                on_closed(closed)
+        raise
+
+    on_closed(closed)
+    return closed
 
 
-def sweep_merged(cfg: Config, *, quiet: bool = False) -> AutocloseResult:
+def _sweep_merged_into(
+    cfg: Config,
+    result: AutocloseResult,
+    *,
+    quiet: bool,
+    before_close: Callable[[ClosedTicket], None] | None = None,
+) -> None:
+    """Populate ``result`` while walking candidates.
+
+    The recipe owns ``result`` outside this call so closures already committed
+    to disk remain reportable if a later ticket fails. Public callers use
+    ``sweep_merged`` below, which preserves the ordinary return-value API.
+    """
+    for ref in list_tasks(cfg):
+        try:
+            _try_bump_one(
+                cfg,
+                ref,
+                quiet=quiet,
+                on_closed=result.closed.append,
+                before_close=before_close,
+            )
+        except GhError:
+            if quiet:
+                # Quiet callers use this as a best-effort check; the recurring
+                # sweep runs loud so gh failures surface.
+                return
+            raise
+
+
+def sweep_merged(
+    cfg: Config,
+    *,
+    quiet: bool = False,
+    result: AutocloseResult | None = None,
+    before_close: Callable[[ClosedTicket], None] | None = None,
+) -> AutocloseResult:
     """Walk active/in-progress tickets; finish those whose linked PR has merged.
 
     Returns what the run closed, including each ticket's recorded checkout
     state — the recipe turns that into the `coga retire` follow-up report.
 
-    `quiet=True` suppresses stdout echoes and swallows `GhError` (gh
-    missing or unauthed). The recurring sweep skill sets `quiet=False` so a
-    missing `gh` surfaces as a real failure.
+    `quiet=True` suppresses stdout echoes and swallows `GhError` (gh missing or
+    unauthed). The recurring sweep skill sets `quiet=False` so a missing `gh`
+    surfaces as a real failure. Its recipe also supplies the accumulator and
+    pre-close hook: retaining the accumulator outside this call lets it report
+    closures committed before a later exception.
     """
-    result = AutocloseResult()
-    for ref in list_tasks(cfg):
-        try:
-            closed = _try_bump_one(cfg, ref, quiet=quiet)
-        except GhError:
-            if quiet:
-                # Quiet callers use this as a best-effort check; the recurring
-                # sweep runs loud so gh failures surface.
-                return result
-            raise
-        if closed is not None:
-            result.closed.append(closed)
+    if result is None:
+        result = AutocloseResult()
+    _sweep_merged_into(
+        cfg,
+        result,
+        quiet=quiet,
+        before_close=before_close,
+    )
     return result
+
+
+def _append_blackboard_report(blackboard: Path, report: str) -> None:
+    """Atomically append one report within a task's blackboard region.
+
+    Read/replace uses the ticket primitive's byte compare-and-swap so a
+    concurrent frontmatter or blackboard writer wins loudly instead of being
+    overwritten. The ticket's existing newline convention is retained.
+    """
+    if not blackboard.parent.is_dir():
+        raise RuntimeError(f"Blackboard parent does not exist: {blackboard.parent}")
+    raw = blackboard.read_bytes()
+    existing = read_blackboard(blackboard, expected_bytes=raw)
+    newline = "\r\n" if b"\r\n" in raw else "\n"
+    normalized_report = (
+        report.replace("\r\n", "\n").replace("\r", "\n").replace("\n", newline)
+    )
+    if not existing or existing.endswith(newline * 2):
+        separator = ""
+    elif existing.endswith(newline):
+        separator = newline
+    else:
+        separator = newline * 2
+    replace_blackboard(
+        blackboard,
+        existing + separator + normalized_report,
+        expected_bytes=raw,
+    )
+
+
+def _preflight_recipe_notifications(cfg: Config, closed: ClosedTicket) -> None:
+    """Fail before closing when this ticket will require a live post.
+
+    Checkout debt always produces the live sweep summary. A ticket without
+    checkout debt still needs a live per-ticket Done post when no digest spool
+    is installed. Both use the default notification destination.
+    """
+    if closed.branch or closed.worktree or digest_spool_path(cfg) is None:
+        preflight_post(cfg)
 
 
 def render_retire_report(
@@ -455,15 +562,22 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
     # from another checkout falls back to stdout.
     blackboard = blackboard_from_env(cfg.repo_root)
     if blackboard:
-        append_blackboard_report(blackboard, report)
+        _append_blackboard_report(blackboard, report)
     else:
         sys.stdout.write(report)
 
     post(
         cfg,
         render_retire_summary(pending),
+        task_path=(
+            blackboard.parent
+            if blackboard is not None and blackboard.name == "ticket.md"
+            else blackboard
+        ),
         # The tickets are already `done` on disk and the report is already
-        # written; an undeliverable hint must not fail the recurring run.
+        # written; an undeliverable hint must not fail the recurring run. A
+        # task-scoped run supplies its validated task path above, so the miss
+        # is also durable in the repo-global audit log.
         fatal=False,
     )
 
@@ -475,11 +589,23 @@ def run_autoclose_recipe(cfg: Config, argv: list[str]) -> int:
             f"autoclose: unexpected arguments: {' '.join(repr(arg) for arg in argv)}\n"
         )
         return 2
+    result = AutocloseResult()
     try:
-        result = sweep_merged(cfg, quiet=False)
+        result = sweep_merged(
+            cfg,
+            quiet=False,
+            result=result,
+            before_close=lambda closed: _preflight_recipe_notifications(
+                cfg, closed
+            ),
+        )
     except (GhError, TaskValidationError) as exc:
+        _report_retire_followups(cfg, result)
         sys.stderr.write(f"[autoclose] {exc}\n")
         return 2
+    except BaseException:
+        _report_retire_followups(cfg, result)
+        raise
     if not result.closed:
         sys.stdout.write("[autoclose] no tickets bumped.\n")
     _report_retire_followups(cfg, result)

@@ -39,8 +39,8 @@ watching the run.
 Dream runs six phases in order. Phases 1–3 **decide** — they read the repo and
 record what to change. Phases 4–6 **execute** — they make the changes. Deciding
 before executing is deliberate: the knowledge scan and contract audit read the
-corpus while every done ticket still exists (Phase 4 deletes them all), so
-nothing is missed, and their findings steer the Retro pass.
+corpus while every done ticket still exists (Phase 4 may delete the eligible
+ones), so nothing is missed, and their findings steer the Retro pass.
 
 1. **validate-drift** — deterministic repo hygiene (registered recipe).
 2. **knowledge scan** — one full-corpus read; classifies every finding.
@@ -100,7 +100,7 @@ proposal PRs.
 
 ### Phase 4 — retro/done-ticket
 
-Extract durable knowledge from done tickets, then delete every one of them.
+Extract durable knowledge from done tickets, then delete every eligible one.
 This pass processes **every eligible done ticket in a single run** — there is
 no per-run ticket cap and nothing is deferred to a later run. One corpus read
 with one running delta across all tickets is both cheaper than repeated capped
@@ -109,8 +109,19 @@ runs and better at de-duplicating repeated facts.
 A done ticket is eligible when:
 
 - its resolved task directory under `coga/tasks/` still exists; and
+- its blackboard `## Dev` section has no real `branch:` or `worktree:` value
+  (absent, empty, and placeholder values such as `(not yet created)` do not
+  block Retro); and
 - no open PR is adding its `## Retro` marker or deleting that resolved task
   directory.
+
+A checkout-bearing done ticket is retirement debt, not Retro input. Do not
+delegate it to `retro/done-ticket` and do not invoke `coga retire` from Dream:
+leave the ticket and its `## Dev` evidence on disk so the exact human-typed
+`coga retire <slug>` command remains valid. List it as deferred retirement debt
+in the run summary. After retirement consumes that evidence and removes the
+source ticket, the ordinary existence gate makes it disappear from Dream's
+candidate set.
 
 A ticket whose directory is already gone is not a candidate; git history holds
 its record. A processed `## Retro` marker on a still-present directory does not
@@ -161,7 +172,8 @@ directory. Delete the evidence snapshot too. Agent-native cleanup is not
 guaranteed after a mutating run. If durability or cleanup cannot be verified,
 preserve the paths and surface a blocker.
 
-A done `recurring/<name>` ticket from this sweep is eligible like any other.
+A done `recurring/<name>` ticket from this sweep is eligible like any other
+when it records no feature checkout.
 Period tickets carry nothing durable (their output is the notification post or
 PR they already produced), so Retro direct-deletes them via `coga delete
 recurring/<name>` — no PR or marker — while leaving the recurring template's

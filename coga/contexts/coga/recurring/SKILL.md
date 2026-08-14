@@ -420,6 +420,13 @@ a wrapper run that discovered a reusable gotcha writes it to its own blackboard
 (see `## Gotchas`), and that is worth extracting before the delete. Read the
 period task's blackboard rather than direct-deleting on class alone.
 
+Checkout-bearing done tickets are deliberately not eligible for Dream. A real
+`branch:` or `worktree:` under blackboard `## Dev` preserves the source ticket
+and its checkout evidence until a human runs the exact `coga retire <slug>`
+follow-up. Dream records those tickets as deferred retirement debt; it neither
+duplicates retire's checkout safety proofs nor makes that human-typed cleanup
+implicit.
+
 The scheduler is the liveness fallback. If any completed recurring task
 survives into a later period, it deletes that stale artifact before creating
 the fresh task at the stable path. This is also how Dream's own completed task

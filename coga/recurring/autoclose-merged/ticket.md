@@ -29,8 +29,9 @@ which:
 
 Autoclose never disposes of a checkout itself — `coga retire` owns those safety
 proofs. Without step 6 an auto-closed ticket's worktree and branch outlive it
-silently, and by the time anyone notices, the `## Dev` lines naming them may
-already be gone.
+silently. Dream preserves checkout-bearing done tickets rather than deleting
+the `## Dev` evidence the named command needs, so that debt stays actionable
+until a human retires it.
 
 This sweep is the sole trigger for auto-closing merged tickets — there is
 no manual `automerge` command. The recurring task only changes when the

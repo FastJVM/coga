@@ -161,8 +161,12 @@ Last updated: 2026-07-30.
   cleanup pass.
 - **Done-ticket cleanup is retro-first, and every processed done ticket is
   deleted — knowledge-bearing tickets in a PR, knowledge-less tickets
-  directly.** A done task whose directory still exists, with no open PR adding
-  its `## Retro` marker or deleting it, is eligible for Retro. If Retro extracts
+  directly.** A done task whose directory still exists, has no real `branch:`
+  or `worktree:` under blackboard `## Dev`, and has no open PR adding its
+  `## Retro` marker or deleting it, is eligible for Retro. A checkout-bearing
+  done ticket remains visible retirement debt until a human runs
+  `coga retire <slug>`; Dream must not delete the evidence that command needs
+  or make checkout cleanup implicit. If Retro extracts
   durable knowledge, its PR records the marker, updates the knowledge base, and
   deletes the source task directory in the same PR — so a human can reject or
   edit the knowledge change and the deletion together, atomically. If Retro

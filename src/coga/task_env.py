@@ -130,31 +130,6 @@ def blackboard_from_env(coga_os_root: Path | None) -> Path | None:
     return path
 
 
-def append_blackboard_report(blackboard: Path, report: str) -> None:
-    """Append one run report to the end of a task's blackboard.
-
-    The blackboard is the final region of `ticket.md`, so appending to the file
-    appends to the blackboard. The separator keeps exactly one blank line
-    between whatever was already there and the new section.
-
-    Companion to `blackboard_from_env`: that resolves *where* a recipe's report
-    goes, this writes it there. Three recipes (`dream_validate_drift`,
-    `dream_cleanup_orphan_markers`, `skill_update`) still carry byte-identical
-    private copies of this function; they predate this shared one and should be
-    collapsed onto it.
-    """
-    if not blackboard.parent.is_dir():
-        raise RuntimeError(f"Blackboard parent does not exist: {blackboard.parent}")
-    existing = blackboard.read_text() if blackboard.is_file() else ""
-    if not existing or existing.endswith("\n\n"):
-        separator = ""
-    elif existing.endswith("\n"):
-        separator = "\n"
-    else:
-        separator = "\n\n"
-    blackboard.write_text(existing + separator + report)
-
-
 def _refuse_blackboard(path: Path, reason: str) -> None:
     print(
         f"Warning: ignoring COGA_TASK_BLACKBOARD {reason}: "

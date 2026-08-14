@@ -28,9 +28,17 @@ def test_autoclose_recipe_calls_shared_sweep_loudly(monkeypatch, capsys) -> None
     cfg = object()
     calls: list[tuple[object, bool]] = []
 
-    def fake_sweep(cfg_arg, *, quiet: bool) -> autoclose.AutocloseResult:
+    def fake_sweep(
+        cfg_arg,
+        *,
+        quiet: bool,
+        result: autoclose.AutocloseResult,
+        before_close,
+    ) -> autoclose.AutocloseResult:
         calls.append((cfg_arg, quiet))
-        return autoclose.AutocloseResult()
+        assert result.closed == []
+        assert callable(before_close)
+        return result
 
     monkeypatch.setattr(autoclose, "sweep_merged", fake_sweep)
 

@@ -29,7 +29,9 @@ and it owns the safety proofs (same-repo linked worktree, no other live ticket
 sharing it, no open PR for the head, branch landed at the recorded merged head).
 Autoclose stays non-destructive and only *names* that follow-up, because
 implicit destruction cuts against the principle that destructive behavior is
-never implicit.
+never implicit. Dream likewise leaves a checkout-bearing done ticket in place,
+so the named command and the `## Dev` evidence it consumes remain valid until a
+human retires it.
 
 Two surfaces, both silent when the sweep stranded nothing:
 
@@ -40,6 +42,8 @@ Two surfaces, both silent when the sweep stranded nothing:
   line is left alone: it announces a lifecycle event and normally lands in the
   daily digest, while a retire hint is an operational to-do.
 
-Run it directly with `coga run autoclose`. `gh` failures and task validation
-failures are hard failures; an undeliverable retire summary is not — the
-tickets are already closed and the report is already written.
+Run it directly with `coga run autoclose`. Live notification configuration is
+preflighted before each affected ticket closes. Later `gh` or task-validation
+failures remain hard failures, but any earlier closures are still reported.
+After the report exists, a transiently undeliverable retire summary is
+non-fatal and is recorded against the period task in the repo-global log.
