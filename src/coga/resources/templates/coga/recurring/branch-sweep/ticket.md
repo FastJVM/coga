@@ -54,5 +54,5 @@ The sweep runs on this schedule via `coga recurring`, on demand via
 This blackboard persists across every run of this recurring task. The
 `branch-sweep` recipe keeps no durable state here — every run's
 output is the branches it deletes or reports as skipped. `coga recurring`
-keeps the serviced-period high-water mark here as `last_serviced_period`
+keeps the serviced-period record in the repo-global `coga/log.md`
 (weekly period key `YYYY-Www`) once the first run has fired.

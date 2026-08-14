@@ -6,12 +6,13 @@ import argparse
 import json
 import math
 import os
+import re
 import subprocess
 import shutil
 import sys
 import tomllib
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
 import typer
@@ -35,14 +36,13 @@ from coga.recurring import (
     DueTask,
     DueScan,
     RecurringError,
+    SERVICED_LOG_VERBS,
     Template,
-    merge_last_serviced_period_text,
-    read_last_serviced_period,
+    format_serviced_log,
     recurring_dir,
     create_named,
     scan_due,
-    set_last_serviced_period_text,
-    write_last_serviced_period,
+    serviced_periods,
 )
 from coga.period_state import SNAPSHOT_FILE, parse_keys
 from coga.mark import (
@@ -1062,8 +1062,14 @@ def _sync_recurring_create(
     force_period_key: str | None = None,
     force_snapshot_is_fresh: bool = False,
     force_record_period: bool = False,
+    control_ledger: dict[str, str] | None = None,
 ) -> bool:
-    """Sync the period task and high-water line that make deletion idempotent."""
+    """Sync the period task and ledger record that make deletion idempotent.
+
+    `control_ledger` is the caller's per-run snapshot of control's serviced
+    periods; see `_control_serviced_period_cached` for why a sweep must share
+    one.
+    """
     template_dir = recurring_dir(cfg) / template_name
     message = f"Ticket: {ref.id_slug} — recurring create"
     if not template_dir.is_dir():
@@ -1074,16 +1080,15 @@ def _sync_recurring_create(
             message=message,
         )
         return True
-    # Single-file format: the template's working state (the `last_serviced_period`
-    # high-water line) lives in the blackboard region of its `ticket.md`. There is
-    # no per-template `log.md` to merge anymore — period history is appended to the
-    # repo-global, union-merged `coga/log.md` (by `_record_run`), which never
-    # rides the cross-branch overlay. So the only cross-branch state this sync
-    # reconciles is the template ticket.md's high-water mark.
+    # The serviced-period ledger is the repo-global, union-merged `coga/log.md`
+    # (appended by `_record_run`), which never rides the cross-branch overlay —
+    # so this sync reconciles no scheduler state at all. The template ticket
+    # stays in the overlay only for the *recipe* cursors it carries
+    # (`state_keys` values, the digest's `### Digest State`).
     template_ticket = template_dir / "ticket.md"
     original_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
     local_ticket = original_ticket
-    period_key = read_last_serviced_period(template_ticket)
+    period_key = serviced_periods(cfg).get(_recurring_ref(template_name))
     state_keys: list[str] = []
     if force_period_key is not None:
         try:
@@ -1115,6 +1120,7 @@ def _sync_recurring_create(
             force_snapshot_is_fresh=force_snapshot_is_fresh,
             force_record_period=force_record_period,
             state_keys=state_keys,
+            control_ledger=control_ledger,
         )
     except Exception as exc:
         # `_sync_recurring_create_paths` already degrades on GitError. This
@@ -1148,8 +1154,9 @@ def _sync_recurring_create_paths(
     force_snapshot_is_fresh: bool,
     force_record_period: bool,
     state_keys: list[str],
+    control_ledger: dict[str, str] | None = None,
 ) -> tuple[str, bool]:
-    """Sync create paths while merging the template ticket's high-water mark.
+    """Sync create paths, carrying the period task and template cursors.
 
     The cross-branch overlay carries the period task dir and the template
     `ticket.md` (`rels`). The repo-global `coga/log.md` is union-merged and
@@ -1190,32 +1197,35 @@ def _sync_recurring_create_paths(
                 preserve_local_changes=not overwrite_dirty_control_task,
             )
             if restored_control_task and force_period_key is not None:
-                local_ticket, period_key = (
-                    _reconcile_forced_period_after_control_restore(
-                        cfg,
-                        root,
-                        base,
-                        task_rel=task_rel,
-                        ticket_rel=ticket_rel,
-                        template_ticket=template_ticket,
-                        task_id_slug=_task_id_slug_from_rel(task_rel),
-                        force_period_key=force_period_key,
-                        snapshot_text_is_fresh=force_snapshot_is_fresh,
-                        snapshot_text=restored_snapshot,
-                        snapshot_ticket_text=local_ticket,
-                        record_period=force_record_period,
-                        state_keys=state_keys,
-                    )
+                local_ticket = _reconcile_forced_period_after_control_restore(
+                    cfg,
+                    root,
+                    base,
+                    task_rel=task_rel,
+                    template_ref=_template_ref_from_ticket_rel(ticket_rel),
+                    template_ticket=template_ticket,
+                    ticket_rel=ticket_rel,
+                    task_id_slug=_task_id_slug_from_rel(task_rel),
+                    force_period_key=force_period_key,
+                    snapshot_text_is_fresh=force_snapshot_is_fresh,
+                    snapshot_text=restored_snapshot,
+                    snapshot_ticket_text=local_ticket,
+                    record_period=force_record_period,
+                    state_keys=state_keys,
                 )
+                if force_record_period:
+                    period_key = force_period_key
                 original_ticket = local_ticket
                 if not force_record_period:
                     return local_ticket, False
         if _control_already_has_period(
             root,
             base,
-            ticket_rel,
             task_rel,
+            log_rel=_relative_to_root(root, log_path(cfg)),
+            template_ref=_template_ref_from_ticket_rel(ticket_rel),
             period_key=period_key,
+            control_ledger=control_ledger,
             include_ledger=respect_handled_period,
             include_task=respect_existing_task,
         ):
@@ -1228,7 +1238,7 @@ def _sync_recurring_create_paths(
                 # the log).
                 _commit_global_log(cfg, root, message)
                 return (
-                    _control_blackboard_with_local_period(
+                    _control_template_or_local(
                         root, "HEAD", ticket_rel, original_ticket
                     ),
                     False,
@@ -1237,18 +1247,18 @@ def _sync_recurring_create_paths(
             if branch != "HEAD":
                 git._commit_paths(root, local_rels, message)
                 return (
-                    _control_blackboard_with_local_period(
+                    _control_template_or_local(
                         root, "HEAD", ticket_rel, original_ticket
                     ),
                     False,
                 )
             return (
-                _control_blackboard_with_local_period(
+                _control_template_or_local(
                     root, base, ticket_rel, original_ticket
                 ),
                 False,
             )
-        _write_merged_blackboard_for_ref(
+        _adopt_control_template(
             root, template_ticket, ticket_rel, base, local_ticket
         )
 
@@ -1271,6 +1281,7 @@ def _sync_recurring_create_paths(
                 force_snapshot_is_fresh=force_snapshot_is_fresh,
                 force_record_period=force_record_period,
                 state_keys=state_keys,
+                control_ledger=control_ledger,
             )
 
         committed_ticket = template_ticket.read_text()
@@ -1298,25 +1309,26 @@ def _sync_recurring_create_paths(
             force_snapshot_is_fresh=force_snapshot_is_fresh,
             force_record_period=force_record_period,
             state_keys=state_keys,
+            control_ledger=control_ledger,
         )
         if already_handled:
             _restore_selected_paths_from_ref(root, landed, rels)
             if branch != "HEAD":
                 git._commit_paths(root, local_rels, message)
                 return (
-                    _control_blackboard_with_local_period(
+                    _control_template_or_local(
                         root, "HEAD", ticket_rel, original_ticket
                     ),
                     False,
                 )
             return (
-                _control_blackboard_with_local_period(
+                _control_template_or_local(
                     root, landed, ticket_rel, original_ticket
                 ),
                 False,
             )
         return (
-            merge_last_serviced_period_text(committed_ticket, original_ticket),
+            committed_ticket or original_ticket,
             True,
         )
     except git.GitError as exc:
@@ -1354,15 +1366,18 @@ def _commit_global_log(cfg: Config, root: Path, message: str) -> None:
         git._commit_paths(root, [_relative_to_root(root, log_file)], message)
 
 
-def _control_blackboard_with_local_period(
-    root: Path, ref: str, ticket_rel: str, original_ticket: str
+def _control_template_or_local(
+    root: Path, ref: str, ticket_rel: str, local_ticket: str
 ) -> str:
-    """The control template `ticket.md`, with the local high-water mark merged
-    in (take-max). Operates on the whole ticket text; only the
-    `last_serviced_period` line is touched."""
-    return merge_last_serviced_period_text(
-        _show_path(root, ref, ticket_rel), original_ticket
-    )
+    """Control's template `ticket.md`, falling back to the local copy.
+
+    The template no longer carries scheduler state — the serviced-period ledger
+    is the repo-global log — but it still carries *recipe* cursors
+    (`state_keys` values, the digest's `### Digest State`). Control wins because
+    its copy holds whichever cursor advanced most recently, so a stale checkout
+    adopts it instead of re-running from a stale cursor.
+    """
+    return _show_path(root, ref, ticket_rel) or local_ticket
 
 
 def _append_sync_failure(cfg: Config, anchor_path: Path, exc: Exception) -> None:
@@ -1394,6 +1409,7 @@ def _land_recurring_create_on_control_branch(
     force_snapshot_is_fresh: bool,
     force_record_period: bool,
     state_keys: list[str],
+    control_ledger: dict[str, str] | None = None,
     update_local_ref: bool = True,
 ) -> tuple[str, bool]:
     remote = cfg.git_remote
@@ -1412,34 +1428,37 @@ def _land_recurring_create_on_control_branch(
                 preserve_local_changes=not overwrite_dirty_control_task,
             )
             if restored_control_task and force_period_key is not None:
-                local_ticket, period_key = (
-                    _reconcile_forced_period_after_control_restore(
-                        cfg,
-                        root,
-                        base,
-                        task_rel=task_rel,
-                        ticket_rel=ticket_rel,
-                        template_ticket=template_ticket,
-                        task_id_slug=_task_id_slug_from_rel(task_rel),
-                        force_period_key=force_period_key,
-                        snapshot_text_is_fresh=force_snapshot_is_fresh,
-                        snapshot_text=restored_snapshot,
-                        snapshot_ticket_text=local_ticket,
-                        record_period=force_record_period,
-                        state_keys=state_keys,
-                    )
+                local_ticket = _reconcile_forced_period_after_control_restore(
+                    cfg,
+                    root,
+                    base,
+                    task_rel=task_rel,
+                    template_ref=_template_ref_from_ticket_rel(ticket_rel),
+                    template_ticket=template_ticket,
+                    ticket_rel=ticket_rel,
+                    task_id_slug=_task_id_slug_from_rel(task_rel),
+                    force_period_key=force_period_key,
+                    snapshot_text_is_fresh=force_snapshot_is_fresh,
+                    snapshot_text=restored_snapshot,
+                    snapshot_ticket_text=local_ticket,
+                    record_period=force_record_period,
+                    state_keys=state_keys,
                 )
+                if force_record_period:
+                    period_key = force_period_key
         if _control_already_has_period(
             root,
             base,
-            ticket_rel,
             task_rel,
+            log_rel=_relative_to_root(root, log_path(cfg)),
+            template_ref=_template_ref_from_ticket_rel(ticket_rel),
             period_key=period_key,
+            control_ledger=control_ledger,
             include_ledger=respect_handled_period,
             include_task=respect_existing_task,
         ):
             return base, True
-        _write_merged_blackboard_for_ref(
+        _adopt_control_template(
             root, template_ticket, ticket_rel, base, local_ticket
         )
         control_rels = _control_create_rels(root, base, rels, ticket_rel)
@@ -1484,6 +1503,7 @@ def _sync_recurring_create_on_checked_out_control_branch(
     force_snapshot_is_fresh: bool,
     force_record_period: bool,
     state_keys: list[str],
+    control_ledger: dict[str, str] | None = None,
 ) -> tuple[str, bool]:
     landed, already_handled = _land_recurring_create_on_control_branch(
         cfg,
@@ -1503,6 +1523,7 @@ def _sync_recurring_create_on_checked_out_control_branch(
         force_snapshot_is_fresh=force_snapshot_is_fresh,
         force_record_period=force_record_period,
         state_keys=state_keys,
+        control_ledger=control_ledger,
         # The checked-out control branch is reconciled right below via
         # restore + rebase; the landing's best-effort ff-merge would always
         # fail against this checkout's still-dirty create paths and print a
@@ -1520,15 +1541,13 @@ def _sync_recurring_create_on_checked_out_control_branch(
     git._push_control_branch(cfg, root)
     if already_handled:
         return (
-            _control_blackboard_with_local_period(
+            _control_template_or_local(
                 root, "HEAD", ticket_rel, original_ticket
             ),
             False,
         )
     return (
-        merge_last_serviced_period_text(
-            _show_path(root, "HEAD", ticket_rel), original_ticket
-        ),
+        _control_template_or_local(root, "HEAD", ticket_rel, original_ticket),
         True,
     )
 
@@ -1544,10 +1563,12 @@ def _control_create_rels(
 def _control_already_has_period(
     root: Path,
     ref: str,
-    ticket_rel: str,
     task_rel: str,
     *,
+    log_rel: str,
+    template_ref: str,
     period_key: str | None,
+    control_ledger: dict[str, str] | None = None,
     include_ledger: bool = True,
     include_task: bool = True,
 ) -> bool:
@@ -1555,8 +1576,40 @@ def _control_already_has_period(
         return True
     if not include_ledger or period_key is None:
         return False
-    serviced = _read_control_last_serviced_period(root, ref, ticket_rel)
+    serviced = _control_serviced_period_cached(
+        root, ref, log_rel, template_ref, control_ledger
+    )
     return serviced is not None and serviced >= period_key
+
+
+def _control_serviced_period_cached(
+    root: Path,
+    ref: str,
+    log_rel: str,
+    template_ref: str,
+    control_ledger: dict[str, str] | None,
+) -> str | None:
+    """Control's serviced period for `template_ref`, read at most once per run.
+
+    `control_ledger` is a per-run cache owned by the caller, filled for *every*
+    template on first use. The repo-global log holds all templates' records in
+    one file, so the first sync of a sweep pushes the whole file — including
+    the lines this same sweep just wrote for templates it has not synced yet.
+    Reading control per template, even cached per template, would let a later
+    template mistake its own pending record for another checkout's and delete
+    the task it just created. Capturing every entry at once, before the sweep
+    publishes anything, keeps the check answering the question it is for.
+
+    The trade-off is deliberate: a competing push landing *mid-sweep* is not
+    seen by this half of the guard. The task-presence half still catches it,
+    and reading fresh reintroduces the self-collision above.
+    """
+    if control_ledger is None:
+        return _read_control_ledger(root, ref, log_rel).get(template_ref)
+    if not control_ledger.get(_LEDGER_LOADED):
+        control_ledger.update(_read_control_ledger(root, ref, log_rel))
+        control_ledger[_LEDGER_LOADED] = "yes"
+    return control_ledger.get(template_ref)
 
 
 def _restore_selected_paths_from_ref(root: Path, ref: str, rels: list[str]) -> None:
@@ -1613,6 +1666,7 @@ def _reconcile_forced_period_after_control_restore(
     *,
     task_rel: str,
     ticket_rel: str,
+    template_ref: str,
     template_ticket: Path,
     task_id_slug: str,
     force_period_key: str,
@@ -1621,28 +1675,21 @@ def _reconcile_forced_period_after_control_restore(
     snapshot_ticket_text: str,
     record_period: bool,
     state_keys: list[str],
-) -> tuple[str, str | None]:
+) -> str:
     """Recompute forced-run bookkeeping after local task state is current.
 
-    Operates on the template's single-file `ticket.md`; the high-water mark is
-    the only mutable cross-branch state, and the forced-reused history line goes
-    to the repo-global log.
+    Returns the template text to keep locally. The serviced-period ledger is
+    the repo-global log, so nothing scheduler-owned is merged here; the
+    template is touched only for the *recipe* cursors it carries.
     """
     control_ticket = _show_path(root, ref, ticket_rel)
     if not record_period:
-        template_ticket.write_text(
-            _local_blackboard_with_control_period(
-                snapshot_ticket_text, control_ticket
-            )
-        )
-        merged = template_ticket.read_text() if template_ticket.is_file() else ""
-        return merged, read_last_serviced_period(template_ticket)
+        # Discovery only. The local template already holds its own cursors and
+        # there is no mark to adopt from control, so leave it as it stands.
+        return snapshot_ticket_text
 
-    template_ticket.write_text(control_ticket)
-    current = read_last_serviced_period(template_ticket)
-    if current is None or current < force_period_key:
-        write_last_serviced_period(template_ticket, force_period_key)
-        _append_forced_reused_log(cfg, template_ticket, task_id_slug, force_period_key)
+    template_ticket.write_text(control_ticket or snapshot_ticket_text)
+    _append_forced_reused_log(cfg, template_ref, task_id_slug, force_period_key)
 
     snapshot = root / task_rel / SNAPSHOT_FILE
     if snapshot_text is not None and snapshot_text_is_fresh:
@@ -1655,29 +1702,21 @@ def _reconcile_forced_period_after_control_restore(
             state_keys,
         )
 
-    merged = template_ticket.read_text() if template_ticket.is_file() else ""
-    return merged, read_last_serviced_period(template_ticket)
+    return template_ticket.read_text() if template_ticket.is_file() else ""
 
 
 def _append_forced_reused_log(
-    cfg: Config, template_ticket: Path, task_id_slug: str, period_key: str
+    cfg: Config, template_ref: str, task_id_slug: str, period_key: str
 ) -> None:
-    """Record a forced reuse in the repo-global log, tagged `recurring/<name>`,
-    idempotently (skip if the same line is already present)."""
-    tag = f"recurring/{template_ticket.parent.name}"
-    needle = f"reused {task_id_slug} for {period_key}"
-    if any(needle in line for line in task_log_lines(cfg, tag)):
+    """Record a forced reuse in the repo-global ledger, idempotently.
+
+    Skipped when the same line is already present, so repeated `--force` runs
+    inside one period leave one record rather than one per invocation.
+    """
+    needle = format_serviced_log("reused", task_id_slug, period_key)
+    if any(needle in line for line in task_log_lines(cfg, template_ref)):
         return
-    append_log(cfg, tag, "system", needle)
-
-
-def _local_blackboard_with_control_period(
-    local_blackboard: str, control_blackboard: str
-) -> str:
-    period = _last_serviced_period_from_text(control_blackboard)
-    if period is None:
-        return local_blackboard
-    return set_last_serviced_period_text(local_blackboard, period)
+    append_log(cfg, template_ref, "system", needle)
 
 
 def _write_snapshot_from_text(
@@ -1762,37 +1801,60 @@ def _confirm_control_tip_integrated(root: Path, target: str) -> None:
         )
 
 
-def _write_merged_blackboard_for_ref(
+def _adopt_control_template(
     root: Path,
     template_ticket: Path,
     ticket_rel: str,
     ref: str,
     local_ticket: str,
 ) -> None:
-    """Write the template `ticket.md` with the control + local high-water marks
-    merged (take-max). Whole-text merge; only the high-water line changes."""
-    control_ticket = _show_path(root, ref, ticket_rel)
+    """Point the local template at control's copy of its recipe cursors."""
     template_ticket.write_text(
-        merge_last_serviced_period_text(control_ticket, local_ticket)
+        _control_template_or_local(root, ref, ticket_rel, local_ticket)
     )
 
 
-def _read_control_last_serviced_period(
-    root: Path, ref: str, ticket_rel: str
-) -> str | None:
-    text = _show_path(root, ref, ticket_rel)
-    return _last_serviced_period_from_text(text)
+# Sentinel key marking a per-run control-ledger cache as populated.
+_LEDGER_LOADED = "\0loaded"
+
+_CONTROL_LOG_LINE_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[(?P<ref>[^\]]*)\] \[[^\]]*\] "
+    rf"(?:{'|'.join(SERVICED_LOG_VERBS)})\s+\S+\s+for\s+(?P<period>\S+)$"
+)
 
 
-def _last_serviced_period_from_text(text: str) -> str | None:
+def _recurring_ref(template_name: str) -> str:
+    """The log tag for a template — `recurring/<name>`."""
+    return f"recurring/{template_name}"
+
+
+def _template_ref_from_ticket_rel(ticket_rel: str) -> str:
+    """`.../recurring/<name>/ticket.md` → the `recurring/<name>` log tag."""
+    return _recurring_ref(PurePosixPath(ticket_rel).parent.name)
+
+
+def _read_control_ledger(root: Path, ref: str, log_rel: str) -> dict[str, str]:
+    """Every `recurring/<name>` → newest serviced period, per `ref`'s log.
+
+    The whole file is parsed in one go because the ledger is shared: a caller
+    pinning "control as it stood before this sweep" needs every template's
+    entry captured at the same instant, not one lazily per template. The
+    maximum is taken because `merge=union` can leave the file unsorted.
+    """
+    out: dict[str, str] = {}
+    text = _show_path(root, ref, log_rel)
     if not text:
-        return None
-    tmp = merge_last_serviced_period_text("", text)
-    marker = "last_serviced_period: "
-    for line in tmp.splitlines():
-        if line.startswith(marker):
-            return line[len(marker):].strip() or None
-    return None
+        return out
+    for line in text.splitlines():
+        match = _CONTROL_LOG_LINE_RE.match(line)
+        if match is None:
+            continue
+        template_ref = match.group("ref")
+        period = match.group("period")
+        current = out.get(template_ref)
+        if current is None or period > current:
+            out[template_ref] = period
+    return out
 
 
 def _show_path(root: Path, ref: str, rel: str) -> str:
@@ -2071,11 +2133,9 @@ def _record_forced_period_locally(cfg: Config, task: DueTask) -> None:
             state_keys,
         )
 
-    current = read_last_serviced_period(template.ticket_path)
-    if current is not None and current >= task.period_key:
-        return
-    write_last_serviced_period(template.ticket_path, task.period_key)
-    _append_forced_reused_log(cfg, template.ticket_path, task.ref.id_slug, task.period_key)
+    _append_forced_reused_log(
+        cfg, _recurring_ref(template.name), task.ref.id_slug, task.period_key
+    )
 
 
 def _broadcast_scan(
@@ -2093,6 +2153,10 @@ def _broadcast_scan(
     current status. The actual restore/sync still happens when the launch loop
     reaches that task, so an unreached task is not mutated during the scan.
     """
+    # One control-ledger snapshot for the whole sweep: the first sync publishes
+    # the shared log, so a per-task read would see this sweep's own pending
+    # records as another checkout's.
+    control_ledger: dict[str, str] = {}
     for task in list(scan.tasks):
         if not task.created and not task.replaced_done:
             if sync_existing:
@@ -2114,6 +2178,7 @@ def _broadcast_scan(
             force_period_key=task.period_key if sync_existing else None,
             force_snapshot_is_fresh=False,
             force_record_period=False,
+            control_ledger=control_ledger,
         )
         if not (task.ref.ticket_path).is_file():
             scan.tasks.remove(task)

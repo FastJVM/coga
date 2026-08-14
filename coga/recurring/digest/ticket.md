@@ -58,8 +58,6 @@ single `coga digest` consumer.
 human history in the repo-global `coga/log.md` (never composed into a run,
 so it can grow unbounded).
 
-last_serviced_period: 2026-08-13
-
 ### Digest State
 
 last_commit: 5d2ae15cd0fc905d4af94f0c8cb67c477b99df97

@@ -22,6 +22,7 @@ append-only audit trail.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 
@@ -30,6 +31,10 @@ from coga.paths import log_path, recurring_dir, tasks_dir
 
 # `YYYY-MM-DD HH:MM [<ref>] ...` — captures the timestamp and the ref tag.
 _LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) \[([^\]]*)\]")
+# The same line with its actor and message — `... [<ref>] [<actor>] <message>`.
+_ENTRY_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[([^\]]*)\] \[([^\]]*)\] (.*)$"
+)
 
 
 def append_log(cfg: Config, task_ref: str, actor: str, message: str) -> bytes:
@@ -135,6 +140,27 @@ def first_activity(cfg: Config, task_ref: str) -> datetime | None:
     return first_activity_map(cfg).get(task_ref)
 
 
+def iter_log_messages(cfg: Config) -> Iterator[tuple[str, str]]:
+    """Yield `(task_ref, message)` for every parseable line, in file order.
+
+    One pass over the whole log for callers that need to reconstruct state for
+    *many* refs at once — reading it once per ref would re-scan the one file
+    Coga lets grow without bound. Callers own their own message parsing; this
+    only splits the line's fixed envelope.
+    """
+    path = log_path(cfg)
+    if not path.is_file():
+        return
+    try:
+        text = path.read_text()
+    except OSError:
+        return
+    for line in text.splitlines():
+        match = _ENTRY_RE.match(line)
+        if match:
+            yield match.group(1), match.group(3)
+
+
 def task_log_lines(cfg: Config, task_ref: str) -> list[str]:
     """Return the global log's lines for `task_ref`, in file order.
 
@@ -159,5 +185,6 @@ __all__ = [
     "first_activity",
     "last_activity_map",
     "last_activity",
+    "iter_log_messages",
     "task_log_lines",
 ]

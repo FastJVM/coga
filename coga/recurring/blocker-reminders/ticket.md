@@ -38,5 +38,3 @@ selection; it only makes unresolved asks visible again.
 This blackboard persists across every run of this recurring task. Reminder
 deduplication state is deliberately not stored here; each blocked task carries
 its own `## Blocker reminders` watermark.
-
-last_serviced_period: 2026-08-12

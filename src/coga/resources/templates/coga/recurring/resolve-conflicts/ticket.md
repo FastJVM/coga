@@ -43,5 +43,5 @@ this recurring template.
 <!-- coga:blackboard -->
 
 `coga recurring` keeps the serviced-period high-water mark here as
-`last_serviced_period`. Run results remain stateless: stdout plus the command's
+the repo-global log. Run results remain stateless: stdout plus the command's
 one-line Slack roll-up, never this blackboard.

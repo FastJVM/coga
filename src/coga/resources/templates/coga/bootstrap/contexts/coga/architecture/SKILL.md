@@ -72,9 +72,14 @@ no in-memory state.
   invokes the fixed `recurring-scan` recipe, which scans templates, creates
   the current run at the stable
   path-qualified task ref `tasks/recurring/<name>/` (`recurring/<name>` in
-  CLI/status/notifications), records the serviced period as
-  `last_serviced_period` in the template blackboard, and launches the due
-  ones. A template may select a known deterministic implementation with
+  CLI/status/notifications), records the serviced period as a
+  `created|reused <task-ref> for <period>` line in the repo-global
+  `coga/log.md`, and launches the due
+  ones. That log line **is** the serviced-period ledger, not just history: the
+  scan reads it back to decide whether a period has already run. It lives
+  there because the log is append-only and union-merged — a co-writer
+  rewriting a region of a template's blackboard cannot destroy an appended
+  line, and the record outlives the period task Dream reaps. A template may select a known deterministic implementation with
   `recipe:`; the scanner executes that recipe in an isolated `coga run`
   subprocess with the period task's scoped secrets and `COGA_TASK_*`
   metadata. Other templates launch the ordinary agent workflow.

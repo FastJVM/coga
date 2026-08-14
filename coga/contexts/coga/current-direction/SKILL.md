@@ -12,9 +12,11 @@ Last updated: 2026-07-30.
 - **Recurring runs use a stable path-qualified task ref.** The current direction is
   `coga/tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/Slack),
   not `tasks/recurring-<name>-<period>/`. The `recurring/` directory is the
-  namespace/identity marker; the schedule period lives in the template
-  blackboard as a single overwritten `last_serviced_period` line. The template
-  the repo-global `coga/log.md` remains append-only human history, not the dedup source.
+  namespace/identity marker; the schedule period is recorded in the
+  repo-global `coga/log.md` as a `created|reused <task-ref> for <period>`
+  line. That append-only record *is* the dedup source — a mark in the template
+  blackboard was reachable by any recipe rewriting that region, which made
+  serviced periods re-fire.
 
 - **The lifecycle stays ordinary and Dream owns cleanup.** `coga recurring`
   creates a normal `active` task, `coga launch` moves it through the usual
@@ -22,7 +24,7 @@ Last updated: 2026-07-30.
   retro pass direct-deletes it. Since the instantiated task is deleted after a
   completed run, a leftover `tasks/recurring/<name>/` directory is the orphan
   signal: `in_progress` is resumed before fresh period work, and `paused` stays
-  human-parked. A missing task dir plus `last_serviced_period >= current
+  human-parked. A missing task dir plus a logged serviced period `>= current
   period_key` means this period already ran.
 
 - **`coga recurring --force` is a forced real run, not a debug sandbox.** The
@@ -30,7 +32,7 @@ Last updated: 2026-07-30.
   suppression, orphan reaping, fold-back-to-template-log) is gone. `--force` now
   get-or-creates and launches each template's real `recurring/<name>` task,
   bypassing only the schedule and the status filter — every other effect (Slack,
-  spool drain, git sync, `last_serviced_period` advance) is identical to a bare
+  spool drain, git sync, serviced-period record) is identical to a bare
   sweep.
 
 - **`coga recurring --all <path>` is the one-entry scheduler surface.** It

@@ -22,11 +22,17 @@ identity marker; the period is **not** encoded in the slug.
 Your parent recurring task lives at
 `coga/recurring/<parent-name>/`. Its blackboard region (in `ticket.md`,
 below the `<!-- coga:blackboard -->` fence) persists across
-every run. The creator records the period currently being serviced there as
-`last_serviced_period: <period_key>`, where the bucket is `YYYY-MM-DD-HH`
-(hourly), `YYYY-MM-DD` (daily), `YYYY-Www` (weekly), or `YYYY-MM` (monthly).
-Read that line when this run needs to know which period it is servicing; do
-not parse the period from your slug.
+every run — but only for *your* state. The period being serviced is recorded
+in the repo-global `coga/log.md`, as a `created|reused <task-ref> for
+<period>` line tagged `recurring/<parent-name>`, where the bucket is
+`YYYY-MM-DD-HH` (hourly), `YYYY-MM-DD` (daily), `YYYY-Www` (weekly), or
+`YYYY-MM` (monthly). Read the newest such line when this run needs to know
+which period it is servicing; do not parse the period from your slug.
+
+The ledger is kept out of the parent blackboard on purpose: that region is
+shared with whatever cursors you write, and a run that rewrites a section of
+it would otherwise be able to erase the scheduler's own record and make the
+period fire again.
 
 ## Persistent state lives in the parent's blackboard
 
@@ -38,9 +44,8 @@ skipped" flag — read and write the blackboard region (below the fence) of
 Every period-task run that carries state follows the same shape:
 
 1. At the start, read the blackboard region of
-   `coga/recurring/<parent-name>/ticket.md`
-   to find the current `last_serviced_period` and where the previous run
-   stopped.
+   `coga/recurring/<parent-name>/ticket.md` to find where the previous run
+   stopped (and `coga/log.md` for the period being serviced).
 2. Do this period's work.
 3. Before finishing, update that same file with whatever the next run
    needs. Then finish the current workflow step with `coga bump` (or use
