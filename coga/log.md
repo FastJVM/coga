@@ -3401,3 +3401,9 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-13 22:57 [secrets-instructions-correction] [agent:claude] advanced to step 2 (review-design) → assigned to nicktoper — Scope resolved to (b), the launch ordering bug: launch.py:542 durably activates draft/paused BEFORE the preflights that refuse (secrets at 591), so a bad secrets: strands the ticket as active. Spec written; 4 open questions, #1 is Zach's original 'is the bad instruction in weather-events?' — the code fix stands either way.
 2026-08-13 22:57 [secrets-instructions-correction] [system] {"agent":"claude","agent_turns":12,"cache_creation_input_tokens":205731,"cache_read_input_tokens":3883940,"cli":"claude","content_status":"ok","elapsed_seconds":302.544395,"ended_at":"2026-08-14T05:57:13.526923Z","human_turns":0,"input_tokens":126,"model":"claude-opus-5","outcome":"Clean — 20 pre-existing issues repo-wide, none on this ticket. Bumping to `review-design`.","outcome_status":"completed","output_tokens":56043,"provider":"anthropic","request":null,"schema":2,"session_id":"5b953166-92f2-4532-b977-843d08f66b43","slug":"secrets-instructions-correction","started_at":"2026-08-14T05:52:10.982528Z","step":"design","title":"secrets-instructions-correction","ts":"2026-08-14T05:57:13.526923Z","usage_status":"ok"}
 2026-08-14 06:04 [bootstrap/orient] [human:zach] launched (assignee=claude, agent=claude)
+2026-08-14 10:53 [recurring/autoclose-merged] [system] created (status=active)
+2026-08-14 10:53 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-08-14
+2026-08-14 10:53 [recurring/blocker-reminders] [system] created (status=active)
+2026-08-14 10:53 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-08-14
+2026-08-14 10:53 [recurring/digest] [system] created (status=active)
+2026-08-14 10:53 [recurring/digest] [system] created recurring/digest for 2026-08-14
