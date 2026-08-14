@@ -731,9 +731,9 @@ once": compose → write the prompt file → build the agent command → spawn u
 the PTY watcher → log → cleanup. `coga launch`'s `while True:` supervisor chain
 (per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the
 done-sentinel, respawn) **wraps** that call per step; the chain stays
-launch-only and is *not* pushed into the shared unit. `coga ticket` and `coga
-project` authoring route through the same helper, expressing their differences
-as explicit parameters, never as forked code: `secrets` (none for authoring —
+launch-only and is *not* pushed into the shared unit. `coga ticket` authoring
+routes through the same helper, expressing its differences as explicit
+parameters rather than forked code: `secrets` (none for authoring —
 least privilege), a greet-first `kickoff` token (`coga ticket` opts in;
 `coga chat` / general launch stay silent), `discussion`, an authoring-only
 ticket projection with no current step, and suppression of the launch-only
