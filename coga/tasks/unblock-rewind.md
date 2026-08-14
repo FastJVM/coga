@@ -330,3 +330,9 @@ handoff were intentionally not performed while this design finding is open.
 ## Blockers
 
 - [ ] [2026-08-13 22:51] [agent:codex] id=20260813T225158 Peer review reproduced a stale-state race: an active/paused rewind can overwrite a newer blocked/in_progress control ticket because rewind disables the step guard without requiring status equality. Please approve the narrow src/coga/git.py expansion to require exact control/local status equality for rewind publication, or choose a different stale-rewind policy.
+
+---
+
+## Blocker reminders
+
+- 9ce2d8481594 last_reminded: 2026-08-14 10:59
