@@ -3424,3 +3424,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-14 10:57 [process-pr-comments-during-review] [human:nicktoper] auto-bumped on merge of PR #677 → done
 2026-08-14 10:57 [recurring-can-only-be-launched-by-owner] [human:nicktoper] auto-bumped on merge of PR #687 → done
 2026-08-14 10:58 [retire-recurring-can-only-be-launched-by-owner] [retire] created (status=active)
+2026-08-14 10:58 [retire-decide-the-fate-of-two-premise-dead-v2-drafts-whos] [retire] created (status=active)
