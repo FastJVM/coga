@@ -758,7 +758,7 @@ is a default alias for `recurring launch dream`. It creates the
 The instantiated task ref is `recurring/dream`: the `recurring/` directory
 marks it as generated, and the current period is recorded in
 the blackboard region of `coga/recurring/dream/ticket.md` as
-`last_serviced_period`. Running
+the log's serviced-period ledger. Running
 `coga dream` mid-week reuses that task instead of creating a second one. Dream
 scans current task state, runs the known Coga housekeeping pass, writes
 results to that run's blackboard, and finishes with `coga mark done`.
@@ -810,7 +810,7 @@ For each template (skipping `_`-prefixed files) `coga recurring` enforces
 already `active` or orphaned `in_progress`, that one is
 launched/resumed and no duplicate is created; only when none is live does it
 get-or-create the current run at `coga/tasks/recurring/<name>/` and advance
-the template blackboard's `last_serviced_period` line. It launches the due ones
+the serviced period in the repo-global log. It launches the due ones
 **sequentially** — orphaned `in_progress` resumes first, then fresh launches,
 each set most-overdue first, one finishing before the next starts. It prints
 a scan table (`→ resume` / `→ launch` / `ready` vs `overdue Nd`) before
@@ -825,9 +825,13 @@ recurring` once a month for a weekly template produces one run (this
 period's), not a backlog. It does not install or manage system cron —
 nothing runs unless you invoke it. `coga/scripts/cron.sh` is the
 optional entry point if you later wire it into a scheduler yourself.
-Dedup after Dream deletes a completed run comes from
-`last_serviced_period >= current period_key`; the repo-global `coga/log.md`
-(tagged `recurring/<name>`) is append-only human history, not the dedup source.
+Dedup — including after Dream deletes a completed run — reads the repo-global
+`coga/log.md`: a `created|reused <task-ref> for <period>` line tagged
+`recurring/<name>` records that the period was serviced, and a period at or
+below the newest such record does not fire again. The log is the ledger
+precisely because it is append-only and union-merged: unlike a mark in a
+template's blackboard, it cannot be erased by another writer rewriting that
+region, and it outlives the reaped task.
 
 `coga recurring --interactive` is the human-stepped debug knob for a recurring
 run. It requires an attended TTY and leaves the recurring liveness backstops
@@ -846,7 +850,7 @@ exits non-zero after the sweep; the operator must delete the canceled task
 before starting a fresh run.
 Everything else is identical to a normal run: real Slack,
 real digest-spool drain, real git task-state sync, and the real
-`last_serviced_period` high-water advance. There are no `-dbg-` scratch dirs, no
+serviced-period ledger advance. There are no `-dbg-` scratch dirs, no
 slug-based suppression, no orphan reaping, and no fold-back-to-template-log
 step. Use it to force this period's work to re-run without waiting for the
 schedule.

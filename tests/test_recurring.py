@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 from datetime import datetime
+import re
 from pathlib import Path
 from textwrap import dedent
 from types import SimpleNamespace
@@ -15,21 +16,34 @@ from coga import git as coga_git
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
 from coga.config import load_config
-from coga.logfile import task_log_lines
+from coga.logfile import append_log, task_log_lines
 from coga.paths import tasks_dir
 from coga.recurring import (
     DueScan,
     DueTask,
     Template,
     create_named,
+    format_serviced_log,
     list_templates,
-    read_last_serviced_period,
     scan_due,
+    serviced_periods,
 )
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
 from coga.validate import Issue, TaskValidationError
+
+
+def read_serviced_period(template_ticket: Path) -> str | None:
+    """The period `recurring/<name>` last serviced, per the repo-global log.
+
+    Takes the template `ticket.md` path so call sites read the same as they did
+    when the ledger was a mark in that file's blackboard; the value now comes
+    from `coga/log.md`.
+    """
+    coga_os = template_ticket.parents[2]
+    name = template_ticket.parent.name
+    return serviced_periods(load_config(coga_os)).get(f"recurring/{name}")
 
 
 _TEMPLATES_COGA_OS = (
@@ -54,6 +68,52 @@ def _write(path: Path, text: str) -> None:
 def _write_recurring(company: Path, name: str, text: str) -> None:
     """Write a recurring task as a ticket-format directory."""
     _write(company / "recurring" / name / "ticket.md", text)
+
+
+def _push_competing_serviced_period(git_repo, name: str, period: str) -> None:
+    """Land a rival checkout's serviced-period record straight on control.
+
+    The ledger is the repo-global log, so a competing process that handled the
+    period announces it by appending there — this is what the local scan must
+    notice and defer to.
+    """
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        f"2026-06-08 10:00 [recurring/{name}] [system] "
+        f"created recurring/{name} for {period}\n",
+    )
+
+
+def _control_serviced_period(git_repo, name: str) -> str | None:
+    """The newest period `recurring/<name>` serviced per the *control* log.
+
+    The cross-checkout ledger is `coga/log.md` on the control branch, so this
+    is what a second checkout reads to decide a period was already handled.
+    """
+    text = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    periods = re.findall(
+        rf"\[recurring/{re.escape(name)}\] \[[^\]]*\] "
+        r"(?:created|reused) \S+ for (\S+)",
+        text,
+    )
+    return max(periods) if periods else None
+
+
+def _seed_serviced_period(
+    company: Path, name: str, period: str, *, verb: str = "created"
+) -> None:
+    """Seed the ledger: record that `recurring/<name>` serviced `period`.
+
+    The serviced-period ledger is the repo-global append-only log, so a test
+    that wants a period to read as already handled writes the same line
+    `_record_run` would have written.
+    """
+    append_log(
+        load_config(company),
+        f"recurring/{name}",
+        "system",
+        format_serviced_log(verb, f"recurring/{name}", period),
+    )
 
 
 def _seed_template_blackboard(company: Path, name: str, region: str) -> None:
@@ -1212,7 +1272,7 @@ def test_recurring_list_reports_prior_period_done_task_as_due(repo: Path) -> Non
     assert next_period.due is True
     # The read-only view does not perform the replacement itself.
     assert Ticket.read(first.tasks[0].ref.ticket_path).status == "done"
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W17"
 
@@ -1271,7 +1331,7 @@ def test_scan_due_creates_task(repo: Path) -> None:
     assert task.ref.slug == "weekly-check"
     assert task.ref.id_slug == "recurring/weekly-check"
     assert task.ref.path == repo / "tasks" / "recurring" / "weekly-check"
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W17"
     body = (task.ref.path / "ticket.md").read_text()
@@ -1414,7 +1474,7 @@ def test_scan_due_different_period_creates_new(repo: Path) -> None:
     scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
     assert scan.tasks[0].created is True
     assert scan.tasks[0].ref.id_slug == "recurring/weekly-check"
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W18"
     assert len(list_tasks(cfg)) == 1
@@ -1448,11 +1508,8 @@ def test_scan_due_replaces_prior_period_done_task(repo: Path) -> None:
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.ticket_path)
     replace_blackboard(ref.ticket_path, "\nold run residue\n")
-    _seed_template_blackboard(
-        repo,
-        "weekly-check",
-        "cursor: new\n\nlast_serviced_period: 2026-W17\n",
-    )
+    _seed_template_blackboard(repo, "weekly-check", "cursor: new\n")
+    _seed_serviced_period(repo, "weekly-check", "2026-W17")
 
     scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))
 
@@ -1469,7 +1526,7 @@ def test_scan_due_replaces_prior_period_done_task(repo: Path) -> None:
     assert ticket.step == "1 (execute)"
     assert "old run residue" not in read_blackboard(ref.ticket_path)
     assert '"cursor": "new"' in (ref.path / ".state-snapshot.json").read_text()
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W18"
     log = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
@@ -1506,7 +1563,7 @@ def test_scan_due_keeps_prior_period_paused_task_parked(repo: Path) -> None:
     assert scan.tasks[0].status == "paused"
     assert scan.tasks[0].replaced_done is False
     assert scan.due == []
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W17"
 
@@ -1540,7 +1597,7 @@ def test_recurring_scan_launches_replacement_task(
 
     assert launched == ["recurring/weekly-check"]
     assert "Replaced completed recurring/weekly-check" in capsys.readouterr().out
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W18"
 
@@ -1636,7 +1693,7 @@ def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(
     assert resumed.ref.id_slug == "recurring/weekly-check"
     # The resumed prior-period run still owns week 17. Week 18 is not marked
     # serviced until the stale run is gone and a new run is created.
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W17"
     # Only the stuck run exists — no duplicate create.
@@ -1647,7 +1704,7 @@ def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(
     shutil.rmtree(ref.path)
     next_scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))
     assert next_scan.tasks[0].created is True
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W18"
 
@@ -1675,7 +1732,7 @@ def test_scan_due_does_not_recreate_after_period_task_deleted(
     log = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
     bb_path = repo / "recurring" / "weekly-check" / "ticket.md"
     assert "created recurring/weekly-check for 2026-W17" in log
-    assert read_last_serviced_period(bb_path) == "2026-W17"
+    assert read_serviced_period(bb_path) == "2026-W17"
 
     # Simulate the run completing and later being deleted by Dream or a human.
     shutil.rmtree(ref.path)
@@ -1767,9 +1824,7 @@ def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
 def test_scan_due_recognizes_blackboard_high_water(repo: Path) -> None:
     """A period recorded in `last_serviced_period` is honored."""
     now = datetime(2026, 4, 22, 10, 0, 0)  # week 17
-    _seed_template_blackboard(
-        repo, "weekly-check", "### State\n\nlast_serviced_period: 2026-W17\n"
-    )
+    _seed_serviced_period(repo, "weekly-check", "2026-W17")
 
     cfg = load_config(repo)
     scan = scan_due(cfg, now=now)
@@ -2379,7 +2434,7 @@ def test_scan_due_stale_done_replacement_respects_tty_gate(
     assert len(scan.errors) == 1
     assert "an agent run requires a TTY" in scan.errors[0][1]
     assert Ticket.read(ref.path / "ticket.md").status == "done"
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W17"
 
@@ -2399,7 +2454,7 @@ def test_create_named_replaces_stale_done_run(repo: Path) -> None:
     assert outcome.replaced_done is True
     assert outcome.ref.id_slug == ref.id_slug
     assert Ticket.read(outcome.ref.path / "ticket.md").status == "active"
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W18"
 
@@ -2466,7 +2521,7 @@ def test_recurring_launch_creates_dream_task(
     # The task path carries recurring identity; the period lives in the
     # recurring template blackboard, not the slug.
     assert refs[0].id_slug != "dream"
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         dream_repo / "recurring" / "dream" / "ticket.md"
     ) is not None
 
@@ -2519,8 +2574,7 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     assert git_repo.origin_tracks(ticket_rel)
     assert git_repo.origin_tracks(log_rel)
     assert git_repo.origin_tracks(template_rel)
-    template = git_repo.git("show", f"main:{template_rel}", cwd=git_repo.origin)
-    assert "last_serviced_period: 2026-W24" in template
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W24"
     ledger = git_repo.git("show", f"main:{log_rel}", cwd=git_repo.origin)
     assert f"created {ref.id_slug}" in ledger
 
@@ -2672,12 +2726,7 @@ def test_recurring_scan_replaces_stale_done_task_on_control(
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
     assert launched == ["recurring/weekly-check"]
-    control_template = git_repo.git(
-        "show",
-        "main:coga/recurring/weekly-check/ticket.md",
-        cwd=git_repo.origin,
-    )
-    assert "last_serviced_period: 2026-W18" in control_template
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W18"
 
 
 def test_recurring_launch_lands_create_without_ff_noise(
@@ -3432,7 +3481,7 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
     cfg = load_config(coga_os)
     outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
     handled_region = (
-        "\nstate\n\nremote_cursor: kept\n\nlast_serviced_period: 2026-W24\n"
+        "\nstate\n\nremote_cursor: kept\n"
     )
     handled_ticket = _template_ticket_with_blackboard(
         coga_os, "weekly-check", handled_region
@@ -3448,6 +3497,7 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
                 "coga/recurring/weekly-check/ticket.md",
                 handled_ticket,
             )
+            _push_competing_serviced_period(git_repo, "weekly-check", "2026-W24")
             raced = True
         return committed
 
@@ -3460,10 +3510,10 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
     ticket_rel = "coga/recurring/weekly-check/ticket.md"
     control_ticket = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     assert "remote_cursor: kept" in control_ticket
-    assert "last_serviced_period: 2026-W24" in control_ticket
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W24"
     local_template = coga_os / "recurring" / "weekly-check" / "ticket.md"
     assert "remote_cursor: kept" in read_blackboard(local_template)
-    assert read_last_serviced_period(local_template) == "2026-W24"
+    assert read_serviced_period(local_template) == "2026-W24"
     assert not git_repo.origin_tracks(f"coga/tasks/{outcome.ref.id_slug}/ticket.md")
     assert not outcome.ref.path.exists()
     assert git_repo.git("status", "--porcelain") == ""
@@ -3499,7 +3549,7 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
 
     cfg = load_config(coga_os)
     outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
-    handled_region = "\nstate\n\nlast_serviced_period: 2026-W24\n"
+    handled_region = "\nstate\n"
     handled_ticket = _template_ticket_with_blackboard(
         coga_os, "weekly-check", handled_region
     )
@@ -3515,6 +3565,7 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
                 "coga/recurring/weekly-check/ticket.md",
                 handled_ticket,
             )
+            _push_competing_serviced_period(git_repo, "weekly-check", "2026-W24")
 
     monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", racing_fetch)
 
@@ -3523,12 +3574,9 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
     assert "sync failed" not in capsys.readouterr().err
     assert not outcome.ref.path.exists()
     assert not git_repo.origin_tracks(f"coga/tasks/{outcome.ref.id_slug}/ticket.md")
-    ticket_rel = "coga/recurring/weekly-check/ticket.md"
-    assert "last_serviced_period: 2026-W24" in git_repo.git(
-        "show", f"main:{ticket_rel}", cwd=git_repo.origin
-    )
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W24"
     local_template = coga_os / "recurring" / "weekly-check" / "ticket.md"
-    assert read_last_serviced_period(local_template) == "2026-W24"
+    assert read_serviced_period(local_template) == "2026-W24"
     assert git_repo.git("status", "--porcelain") == ""
 
 
@@ -3819,17 +3867,19 @@ def test_scan_due_force_defers_existing_done_period_until_launch(
     t = Ticket.read(ticket_path)
     t.frontmatter["status"] = "done"
     ticket_path.write_text(t.render())
-    # Reset the template blackboard region to just the cursor — this clobbers
-    # the W17 high-water the first create wrote, exactly as a fresh
-    # blackboard.md rewrite did under the old layout.
+    # Rewrite the template blackboard region to just the cursor. This used to
+    # clobber the W17 high-water the first create wrote; the ledger lives in
+    # the repo-global log now, so nothing a blackboard rewrite can reach.
     _seed_template_blackboard(repo, "weekly-check", "cursor: new\n")
 
     forced = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0), force=True)
 
     assert forced.forced[0].ref == ref
+    # Still W17: the scan discovered the finished task but has not recorded the
+    # forced W18 rerun — that happens when the launch loop reaches it.
     assert (
-        read_last_serviced_period(repo / "recurring" / "weekly-check" / "ticket.md")
-        is None
+        read_serviced_period(repo / "recurring" / "weekly-check" / "ticket.md")
+        == "2026-W17"
     )
     assert '"cursor": "old"' in (ref.path / ".state-snapshot.json").read_text()
     log = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
@@ -3864,15 +3914,14 @@ def test_scan_due_force_does_not_advance_live_prior_period_task(
 
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     ref = first.tasks[0].ref
-    _seed_template_blackboard(
-        repo, "weekly-check", "cursor: new\n\nlast_serviced_period: 2026-W17\n"
-    )
+    _seed_template_blackboard(repo, "weekly-check", "cursor: new\n")
+    _seed_serviced_period(repo, "weekly-check", "2026-W17")
 
     forced = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0), force=True)
 
     assert forced.forced[0].ref == ref
     assert forced.forced[0].status == "active"
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W17"
     log = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
@@ -4029,12 +4078,7 @@ def test_recurring_force_preserves_existing_control_task_from_stale_checkout(
         cwd=git_repo.origin,
     )
     assert _blackboard_of_text(remote_ticket) == "\nremote done state\n"
-    control_template = git_repo.git(
-        "show",
-        "main:coga/recurring/weekly-check/ticket.md",
-        cwd=git_repo.origin,
-    )
-    assert "last_serviced_period: 2026-W18" in control_template
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W18"
 
 
 def test_recurring_force_restores_clean_stale_existing_task_from_control(
@@ -4080,9 +4124,8 @@ def test_recurring_force_restores_clean_stale_existing_task_from_control(
     git_repo.git("commit", "-m", "complete recurring period remotely")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
-    _seed_template_blackboard(
-        coga_os, "weekly-check", "cursor: new\n\nlast_serviced_period: 2026-W17\n"
-    )
+    _seed_template_blackboard(coga_os, "weekly-check", "cursor: new\n")
+    _seed_serviced_period(coga_os, "weekly-check", "2026-W17")
 
     launched: list[str] = []
 
@@ -4106,12 +4149,7 @@ def test_recurring_force_restores_clean_stale_existing_task_from_control(
         cwd=git_repo.origin,
     )
     assert _blackboard_of_text(remote_ticket) == "\nremote newer state\n"
-    control_template = git_repo.git(
-        "show",
-        "main:coga/recurring/weekly-check/ticket.md",
-        cwd=git_repo.origin,
-    )
-    assert "last_serviced_period: 2026-W18" in control_template
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W18"
     assert '"cursor": "new"' in (stale.ref.path / ".state-snapshot.json").read_text()
 
 
@@ -4218,9 +4256,8 @@ def test_recurring_force_snapshot_does_not_block_control_restore(
     git_repo.git("commit", "-m", "remote newer done state")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_done_head)
-    _seed_template_blackboard(
-        coga_os, "weekly-check", "cursor: new\n\nlast_serviced_period: 2026-W17\n"
-    )
+    _seed_template_blackboard(coga_os, "weekly-check", "cursor: new\n")
+    _seed_serviced_period(coga_os, "weekly-check", "2026-W17")
 
     launched: list[str] = []
 
@@ -4302,8 +4339,7 @@ def test_recurring_force_does_not_mark_new_period_for_control_live_task(
         "main:coga/recurring/weekly-check/ticket.md",
         cwd=git_repo.origin,
     )
-    assert "last_serviced_period: 2026-W17" in control_template
-    assert "last_serviced_period: 2026-W18" not in control_template
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W17"
 
 
 def test_recurring_force_reconciles_existing_tasks_before_launch_order(
@@ -4331,9 +4367,15 @@ def test_recurring_force_reconciles_existing_tasks_before_launch_order(
 
     cfg = load_config(coga_os)
     first_scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    # One ledger snapshot for the whole sweep, as `_broadcast_scan` does: the
+    # log is shared, so the first sync publishes records for templates that
+    # have not synced yet.
+    control_ledger: dict[str, str] = {}
     for task in first_scan.tasks:
         assert task.ref is not None
-        recurring_cmd._sync_recurring_create(cfg, task.template, task.ref)
+        recurring_cmd._sync_recurring_create(
+            cfg, task.template, task.ref, control_ledger=control_ledger
+        )
     live = next(task for task in first_scan.tasks if task.template == "zzz-live")
     assert live.ref is not None
 
@@ -4405,7 +4447,7 @@ def test_recurring_force_does_not_service_unreached_existing_task(
 
     assert result.exit_code == 1
     assert launched == ["recurring/aaa-first"]
-    assert read_last_serviced_period(
+    assert read_serviced_period(
         repo / "recurring" / "zzz-second" / "ticket.md"
     ) == "2026-W17"
     assert Ticket.read(second.ref.path / "ticket.md").status == "done"
@@ -4466,12 +4508,7 @@ def test_recurring_force_syncs_forced_existing_period_state(
     assert launched == [ref.id_slug]
     assert "skip (done)" not in result.output
     assert "→ launch" in result.output
-    control_template = git_repo.git(
-        "show",
-        "main:coga/recurring/weekly-check/ticket.md",
-        cwd=git_repo.origin,
-    )
-    assert "last_serviced_period: 2026-W18" in control_template
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W18"
 
 
 def test_recurring_force_launches_every_template(
@@ -5760,6 +5797,219 @@ def test_promoted_template_creates_a_real_period_task(
     assert "coga/period-task" in ticket.contexts
     assert "Write the monthly report." in ticket.body
     assert (
-        read_last_serviced_period(repo / "recurring" / "monthly-report" / "ticket.md")
+        read_serviced_period(repo / "recurring" / "monthly-report" / "ticket.md")
         == "2026-04"
     )
+
+
+# --- the ledger is the log ----------------------------------------------------
+
+
+def test_serviced_period_survives_a_blackboard_rewrite(repo: Path) -> None:
+    """The bug this design replaced: a co-writer erasing the template state.
+
+    The digest recipe rewrites its `### Digest State` section, which used to
+    swallow a `last_serviced_period` mark appended after it. Every subsequent
+    `coga recurring` then treated the period as unserviced, deleted the
+    completed task, and reran the recipe — reposting the digest each time.
+    """
+    _write_recurring(
+        repo,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    assert first.tasks[0].created is True
+
+    # A recipe rewrites the whole blackboard region, taking any mark with it.
+    _seed_template_blackboard(repo, "weekly-check", "### Recipe State\n\ncursor: 9\n")
+    _finish_period_task(repo, "recurring/weekly-check")
+
+    again = scan_due(cfg, now=datetime(2026, 4, 22, 11, 0, 0))
+
+    assert again.tasks[0].created is False
+    assert again.tasks[0].replaced_done is False
+    assert again.due == []
+
+
+def test_repeated_scans_in_one_period_service_it_once(repo: Path) -> None:
+    """Three `coga recurring` invocations inside one period, one run."""
+    _write_recurring(
+        repo,
+        "daily-digest",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Daily digest"
+        recipe: digest
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Post the digest.
+        """,
+    )
+    cfg = load_config(repo)
+    created = 0
+    for hour in (10, 11, 12):
+        scan = scan_due(cfg, now=datetime(2026, 4, 22, hour, 0, 0))
+        if scan.tasks[0].created or scan.tasks[0].replaced_done:
+            created += 1
+            _finish_period_task(repo, "recurring/daily-digest")
+
+    assert created == 1
+    log = "\n".join(task_log_lines(cfg, "recurring/daily-digest"))
+    assert log.count("for 2026-04-22") == 1
+
+
+def test_serviced_log_format_is_pinned() -> None:
+    """Dedup parses this line, so its wording is a contract, not prose.
+
+    `serviced_periods` reads back what `_record_run` wrote. If the message is
+    reworded without updating the parser, dedup silently stops working and
+    every period re-fires — so the exact spelling is pinned here.
+    """
+    assert (
+        format_serviced_log("created", "recurring/digest", "2026-08-13")
+        == "created recurring/digest for 2026-08-13"
+    )
+    assert (
+        format_serviced_log("reused", "recurring/dream", "2026-W33")
+        == "reused recurring/dream for 2026-W33"
+    )
+    with pytest.raises(ValueError):
+        format_serviced_log("advanced", "recurring/digest", "2026-08-13")
+
+
+def test_serviced_periods_reads_the_newest_record_per_template(repo: Path) -> None:
+    """`merge=union` can leave the log unsorted, so the max wins, not the last."""
+    cfg = load_config(repo)
+    for period in ("2026-W20", "2026-W22", "2026-W21"):
+        _seed_serviced_period(repo, "weekly-check", period)
+    _seed_serviced_period(repo, "other-check", "2026-W02")
+
+    serviced = serviced_periods(cfg)
+
+    assert serviced["recurring/weekly-check"] == "2026-W22"
+    assert serviced["recurring/other-check"] == "2026-W02"
+
+
+def test_serviced_periods_ignores_other_log_lines(repo: Path) -> None:
+    """Ordinary history for the same ref must not parse as a ledger record."""
+    cfg = load_config(repo)
+    append_log(cfg, "recurring/weekly-check", "system", "started (active → in_progress)")
+    append_log(cfg, "recurring/weekly-check", "system", "deleted completed prior-period task before 2026-W17")
+    append_log(cfg, "some-task", "system", "created some-task for 2026-W30")
+
+    serviced = serviced_periods(cfg)
+
+    assert "recurring/weekly-check" not in serviced
+    assert "some-task" not in serviced  # not a recurring ref
+
+
+def test_feature_branch_create_lands_the_ledger_on_control(
+    git_repo, monkeypatch
+) -> None:
+    """A create from a feature branch records the period on control *now*.
+
+    The period task lands on control immediately, so the record that says the
+    period ran has to land with it. Waiting for this branch's PR to merge is
+    not enough: Dream's retro pass deletes completed period tickets, so a
+    control checkout would see neither the task nor the record and fire the
+    same period again — and a branch that never merges never delivers it.
+
+    The log is `merge=union`, so it must reach control three-way merged rather
+    than through the wholesale-replacement overlay.
+    """
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_template_blackboard(coga_os, "weekly-check", "cursor: old\n")
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/never-merges")
+
+    cfg = load_config(coga_os)
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
+
+    # Control has the task and the record, without this branch ever merging.
+    assert git_repo.origin_tracks(f"coga/tasks/{outcome.ref.id_slug}/ticket.md")
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W24"
+
+    # Dream reaps the completed task from control; the record must outlive it.
+    git_repo.push_competing_commit("notes.md", "reaped\n")
+    control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert "created recurring/weekly-check for 2026-W24" in control_log
+
+
+def test_control_ledger_landing_preserves_a_peer_append(git_repo, monkeypatch) -> None:
+    """The union landing must fold in, not overwrite, another checkout's lines."""
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/peer-append")
+
+    cfg = load_config(coga_os)
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    # Another checkout appends its own audit line to control first.
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        "2026-06-08 09:00 [some-other-task] [system] peer line\n",
+    )
+
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
+
+    control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert "peer line" in control_log
+    assert "created recurring/weekly-check for 2026-W24" in control_log

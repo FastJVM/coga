@@ -316,10 +316,10 @@ wrong checkout silently produces wrong results in both directions:
 - **Tests must not pin to live dogfooded state.** Coga dogfoods itself, so files
   under `coga/` mutate as the repo is used. A test that compares the live
   `coga/` copy against a packaged template, or asserts a baked-in value, fails as
-  the live value drifts — the `recurring/autoclose-merged` `last_serviced_period`
+  the live value drifts — the `recurring/autoclose-merged` serviced-period
   date did exactly this, independently re-diagnosed as a "pre-existing failure"
   across at least four dev tasks (a recurring verification tax). Strip
-  runtime-mutated fields (`last_serviced_period:`, timestamped log lines — see
+  runtime-mutated fields (recipe cursors, timestamped log lines — see
   `_strip_runtime_state`) or freeze the period before comparing; assert
   structure, not a hardcoded date.
 

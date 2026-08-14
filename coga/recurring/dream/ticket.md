@@ -165,7 +165,7 @@ A done `recurring/<name>` ticket from this sweep is eligible like any other.
 Period tickets carry nothing durable (their output is the notification post or
 PR they already produced), so Retro direct-deletes them via `coga delete
 recurring/<name>` — no PR or marker — while leaving the recurring template's
-`last_serviced_period` untouched. If a completed period ticket survives into a
+serviced-period record untouched. If a completed period ticket survives into a
 later firing, the recurring scanner deletes it before creating that period's
 fresh task. The previous Dream run is removed by that scanner fallback before
 this Dream task is created, so Dream never sees or deletes its own predecessor.
@@ -265,7 +265,5 @@ end with whatever the next run needs.
 Dream's per-period task is disposable after it is marked done, but Dream does
 not delete itself mid-run. Dream keeps no durable state here — every finding
 ends in a PR, a draft ticket, or a recorded marker instead. `coga recurring`
-keeps Dream's serviced-period high-water mark here as `last_serviced_period`;
+keeps Dream's serviced-period record in the repo-global `coga/log.md`;
 `log.md` keeps append-only human history.
-
-last_serviced_period: 2026-W33

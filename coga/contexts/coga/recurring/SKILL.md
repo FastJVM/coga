@@ -50,8 +50,9 @@ the example under "Extend recurring with a task-specific workflow").
   bootstrap target or `COGA_RECURRING_*` argument channel. The recipe scans
   every recurring task,
   get-or-creates the stable instantiated task at
-  `coga/tasks/recurring/<name>/`, records the current period as
-  `last_serviced_period` in the template blackboard, and launches the ones
+  `coga/tasks/recurring/<name>/`, records the current period as a
+  `created|reused <task-ref> for <period>` line in the repo-global
+  `coga/log.md`, and launches the ones
   still `active` or orphaned `in_progress`. **Launch order is phased, not
   alphabetical:** the
   cleanup template — Dream, the recurring janitor (see below) — is sorted
@@ -72,7 +73,7 @@ the example under "Extend recurring with a task-specific workflow").
   finished but never reaped by Dream's retro pass — is **deleted before a
   fresh task is created** from the current template. The new task starts
   `active` at workflow step 1 with a fresh blackboard, a re-baselined state-key
-  snapshot, and an advanced `last_serviced_period`; reactivating a terminal
+  snapshot, and an advanced serviced-period record; reactivating a terminal
   task would preserve stale run instructions and residue. A live
   stale leftover under `tasks/recurring/<name>/` is resumed before any new
   period work for that template; there is only one instantiated path per
@@ -170,7 +171,7 @@ an apparent owner cannot launch offline because a transfer could be waiting
 upstream.
 
 Why: a sweep mutates shared period state (the created period task, the
-template's `last_serviced_period` high-water mark) and then launches real work.
+serviced-period record in the repo-global log) and then launches real work.
 Two *different* operators sweeping the same repo from their own clones race
 each other, and the same period gets launched twice. Naming one owner in
 committed config is the cheapest thing that closes that: every clone reads the
@@ -205,8 +206,8 @@ What promote does to the ticket, and why:
 - The body above the blackboard fence travels verbatim — the `## Description`
   is what each period task runs.
 - The blackboard is **reset**. A task blackboard is one run's scratch; a
-  template blackboard is durable cross-run state (`last_serviced_period`,
-  cursors). The old text stays in git history.
+  template blackboard is durable cross-run state (recipe cursors). The old
+  text stays in git history.
 - `status:`, `step:`, `slug:`, `human:`, and `agent:` are dropped — per-run and
   per-launch fields the creator re-derives for every period task. `title`,
   `owner`, `assignee`, `watchers`, `contexts`, and `secrets` pass
@@ -332,8 +333,9 @@ blackboard does **not** carry over.
 So a recurring task that needs continuity between runs (a last-processed
 commit SHA, a cursor, a posted/skipped flag) keeps that state in **its own**
 blackboard region: the part of `coga/recurring/<name>/ticket.md` below the
-fence. The creator also keeps the schedule high-water mark there as `last_serviced_period:
-<period_key>`, overwriting the single line as periods advance.
+fence. The *schedule* high-water mark is deliberately **not** kept there: it
+lives in the repo-global log, out of reach of any recipe that rewrites a
+region of this blackboard.
 
 When designing a recurring task that carries cross-run state, name in the
 body *which* keys it persists (e.g. `last_commit`, a cursor section). You
@@ -346,20 +348,31 @@ task, which carries that rule.
 - **Instantiated task ref** is `recurring/<name>`, backed by
   `coga/tasks/recurring/<name>/`. The `recurring/` directory is the
   identity marker. The period is not in the slug.
-- **`last_serviced_period` in the template blackboard is the period
-  high-water mark.** The period key buckets the firing: hourly →
+- **The repo-global `coga/log.md` is the period high-water mark.** Each
+  serviced period appends one `created|reused <task-ref> for <period>` line
+  tagged `recurring/<name>`. The period key buckets the firing: hourly →
   `YYYY-MM-DD-HH`, daily → `YYYY-MM-DD`, weekly → `YYYY-Www`, monthly →
-  `YYYY-MM`. Bare `coga recurring` reads the blackboard region of
-  `coga/recurring/<name>/ticket.md` before creating: if
-  `last_serviced_period >= current period_key` and no instantiated task dir
-  remains, that period has been handled — it is not re-created and not
-  re-launched. The on-demand `coga recurring launch <name>` (and aliases like
-  `coga dream`) bypass this skip: it's the explicit override.
-- **Run history goes to the repo-global `coga/log.md`** (tagged
-  `recurring/<name>`). The creator still appends a human-readable period line,
-  but dedup does not depend on
-  parsing the log. Logs are never composed into prompts, so history can grow
+  `YYYY-MM`. Bare `coga recurring` reads those lines before creating: if the
+  newest recorded period `>= current period_key`, that period has been
+  handled — it is not re-created and not re-launched. The on-demand
+  `coga recurring launch <name>` (and aliases like `coga dream`) bypass this
+  skip: it's the explicit override.
+- **Why the log and not the template.** A mark in the template blackboard is
+  reachable by every other writer of that region. The digest recipe rewrites
+  its `### Digest State` section, which swallowed a mark appended after it —
+  and each erasure made the next `coga recurring` delete the completed task
+  and repost the digest. An appended line cannot be clobbered that way, is
+  union-merged across checkouts, and outlives the task Dream reaps. Dedup
+  therefore *does* parse the log, so the line's wording is a contract with one
+  writer and one reader (`format_serviced_log` / `serviced_periods`), pinned
+  by a test. Logs are still never composed into prompts, so history can grow
   without bloating the next run.
+- **One shared file, so a sweep pins one snapshot.** Because every template
+  records into the same log, the first sync of a sweep publishes records for
+  templates it has not synced yet. The cross-checkout "did someone else handle
+  this?" check therefore reads control's ledger once per run, before the sweep
+  publishes anything — otherwise a template mistakes its own pending record
+  for a rival's and deletes the task it just created.
 - Period tasks create **straight to `status: active`** — ready jobs, not
   drafts to triage. Because every active task must carry a workflow, a
   template that declares none creates with `direct/body` (it would otherwise
@@ -412,7 +425,7 @@ survives into a later period, it deletes that stale artifact before creating
 the fresh task at the stable path. This is also how Dream's own completed task
 is removed: Dream marks itself `done` and stops, then the next firing's scan
 deletes that prior-period task before creating the new Dream run. Git history
-is the audit trail; the template's `last_serviced_period` remains persistent.
+is the audit trail; the log's serviced-period record remains persistent.
 
 ## Gotchas
 

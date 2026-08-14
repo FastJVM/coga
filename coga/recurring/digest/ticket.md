@@ -54,11 +54,9 @@ file kept out of this ticket so concurrent appends never touch the YAML
 frontmatter); only the `### Digest State` mark below lives here, written by the
 single `coga digest` consumer.
 
-`coga recurring` keeps the serviced-period high-water mark here and append-only
-human history in the repo-global `coga/log.md` (never composed into a run,
+`coga recurring` keeps the serviced-period high-water mark, and append-only
+human history, in the repo-global `coga/log.md` (never composed into a run,
 so it can grow unbounded).
-
-last_serviced_period: 2026-08-14
 
 ### Digest State
 

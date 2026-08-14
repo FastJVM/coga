@@ -16,14 +16,12 @@ from croniter import CroniterError, croniter
 from coga.create import create_task
 from coga.config import Config
 from coga.delete_task import DeleteTaskError, run_delete_task
-from coga.logfile import append_log
+from coga.logfile import append_log, iter_log_messages
 from coga.paths import recurring_dir, resolve_workflow_path
 from coga.period_state import write_snapshot
 from coga.taskfile import (
     join_task_body,
-    read_blackboard,
     split_body,
-    upsert_blackboard,
 )
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import Ticket
@@ -272,6 +270,9 @@ def scan_due(
 
     tasks: list[DueTask] = []
     errors: list[tuple[str, str]] = []
+    # One log pass for every template in this scan, then kept current in-place
+    # as creates record their periods.
+    serviced = serviced_periods(cfg)
     for path in sorted(root.iterdir()):
         if path.name.startswith("_"):
             # Underscore-prefixed entries are templates/creates, not live
@@ -314,7 +315,7 @@ def scan_due(
             not force
             and _live_task_for_template(cfg, template.name) is None
             and _task_with_slug(cfg, target_slug) is None
-            and _period_already_serviced(template, period_key)
+            and _period_already_serviced(cfg, template, period_key, serviced)
         ):
             tasks.append(
                 DueTask(
@@ -338,6 +339,7 @@ def scan_due(
                 # Forced scans defer every status/period mutation until the
                 # sequential launch loop actually reaches that template.
                 replace_done=not force,
+                serviced=serviced,
             )
             ticket = read_ticket(outcome.ref)
         except RecurringError as exc:
@@ -388,8 +390,13 @@ def create_template(
     *,
     allow_agent: bool = True,
     replace_done: bool = True,
+    serviced: dict[str, str] | None = None,
 ) -> CreateOutcome:
-    """Create one recurring template for `now`'s firing. Idempotent."""
+    """Create one recurring template for `now`'s firing. Idempotent.
+
+    `serviced` is the caller's prefetched `serviced_periods` map when it is
+    walking every template; None makes each ledger check read the log.
+    """
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
     target_slug = _recurring_slug(template.name)
@@ -413,7 +420,7 @@ def create_template(
         if (
             replace_done
             and ticket.status == "done"
-            and not _period_already_serviced(template, period_key)
+            and not _period_already_serviced(cfg, template, period_key, serviced)
         ):
             # A completed task is terminal. If Dream did not reap it, delete
             # that prior-period artifact through the canonical deletion path,
@@ -444,7 +451,9 @@ def create_template(
                 "system",
                 f"deleted completed prior-period task before {period_key}",
             )
-            _advance_serviced_period(cfg, template, period_key, outcome, now)
+            _advance_serviced_period(
+                cfg, template, period_key, outcome, now, serviced
+            )
             return outcome
         return CreateOutcome(ref=existing, created=False)
 
@@ -460,7 +469,7 @@ def create_template(
         target_slug=target_slug,
         title=_extract_title(template),
     )
-    _advance_serviced_period(cfg, template, period_key, outcome, now)
+    _advance_serviced_period(cfg, template, period_key, outcome, now, serviced)
     return outcome
 
 
@@ -525,6 +534,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
     out: list[TemplateStatus] = []
     if not root.is_dir():
         return out
+    serviced = serviced_periods(cfg)
 
     for path in sorted(root.iterdir()):
         if path.name.startswith("_") or not path.is_dir():
@@ -554,14 +564,16 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
         instance = _live_task_for_template(cfg, template.name)
         instance_status: str | None = None
         stale_done = False
-        serviced = False
+        period_handled = False
         if instance is None:
             candidate = _task_with_slug(cfg, target_slug)
             if candidate is None:
                 # No task on disk at all — the period still counts as handled
-                # when the template blackboard's high-water mark covers it
-                # (the run happened and Dream reaped the task dir).
-                serviced = _period_already_serviced(template, period_key)
+                # when the log records this template servicing it (the run
+                # happened and Dream reaped the task dir).
+                period_handled = _period_already_serviced(
+                    cfg, template, period_key, serviced
+                )
             if candidate is not None:
                 try:
                     instance_status = read_ticket(candidate).status
@@ -572,9 +584,8 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
                 # it is not evidence that the current period has run.
                 # Surface it as stale instead of letting "done" read as
                 # serviced.
-                stale_done = (
-                    instance_status == "done"
-                    and not _period_already_serviced(template, period_key)
+                stale_done = instance_status == "done" and not (
+                    _period_already_serviced(cfg, template, period_key, serviced)
                 )
         if instance is not None and instance_status is None:
             try:
@@ -593,7 +604,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
                 instance_status=instance_status,
                 error=None,
                 stale_done=stale_done,
-                serviced=serviced,
+                serviced=period_handled,
             )
         )
     return out
@@ -894,13 +905,24 @@ def _create_at_slug(
 
 
 def _advance_serviced_period(
-    cfg: Config, template: Template, period_key: str, outcome: CreateOutcome, now: datetime
+    cfg: Config,
+    template: Template,
+    period_key: str,
+    outcome: CreateOutcome,
+    now: datetime,
+    serviced: dict[str, str] | None = None,
 ) -> None:
-    current = read_last_serviced_period(template.ticket_path)
-    if current is not None and current >= period_key:
+    """Record that this template serviced `period_key`.
+
+    The log line *is* the ledger — there is no separate mark to keep in step
+    with it. Re-recording an already-serviced period is skipped so the log does
+    not accumulate a duplicate line per invocation.
+    """
+    if _period_already_serviced(cfg, template, period_key, serviced):
         return
-    write_last_serviced_period(template.ticket_path, period_key)
     _record_run(cfg, template, outcome, period_key)
+    if serviced is not None:
+        serviced[_recurring_slug(template.name)] = period_key
 
 
 def _write_state_snapshot(template: Template, ref: TaskRef) -> None:
@@ -914,18 +936,19 @@ def _write_state_snapshot(template: Template, ref: TaskRef) -> None:
 def _record_run(
     cfg: Config, template: Template, outcome: CreateOutcome, period_key: str
 ) -> None:
-    """Append a period-history line to the repo-global log.
+    """Append this template's serviced-period line to the repo-global log.
 
-    The load-bearing high-water mark lives in the template blackboard region.
-    The history line is tagged `recurring/<name>` so it is reconstructable, and
-    lands in the global log (never composed into a run prompt).
+    This line is the load-bearing dedup record, not just history: `coga
+    recurring` reads it back through `serviced_periods` to decide whether a
+    period has already run. It is tagged `recurring/<name>` and lands in the
+    global log, which is never composed into a run prompt.
     """
     verb = "created" if outcome.created else "reused"
     append_log(
         cfg,
         _recurring_slug(template.name),
         "system",
-        f"{verb} {outcome.ref.id_slug} for {period_key}",
+        format_serviced_log(verb, outcome.ref.id_slug, period_key),
     )
 
 
@@ -989,9 +1012,54 @@ def _period_key(cron: str, fire_time: datetime) -> str:
     return fire_time.strftime("%Y%m%dT%H%M")
 
 
-_LAST_SERVICED_PERIOD_RE = re.compile(
-    r"^last_serviced_period:\s*(?P<period>\S+)\s*$", re.MULTILINE
+# --- the serviced-period ledger ----------------------------------------------
+#
+# "Has this period already run?" is answered from the repo-global append-only
+# log, not from a mark in the template blackboard. The blackboard is shared
+# free text, so any co-writer that rewrites a region of it can destroy a mark
+# living there — the digest recipe did exactly that, and every `coga recurring`
+# then re-fired an already-serviced period and reposted the digest. An appended
+# line cannot be clobbered that way, it outlives the period task (Dream reaps
+# those), and it is union-merged across checkouts.
+#
+# Because dedup now depends on this wording, the format has one writer and one
+# reader, both here. Changing it breaks `test_recurring.py`'s format pin rather
+# than silently disabling dedup.
+SERVICED_LOG_VERBS = ("created", "reused")
+_SERVICED_LOG_RE = re.compile(
+    rf"^(?:{'|'.join(SERVICED_LOG_VERBS)})\s+\S+\s+for\s+(?P<period>\S+)$"
 )
+
+
+def format_serviced_log(verb: str, task_ref: str, period_key: str) -> str:
+    """The one spelling of a serviced-period log message."""
+    if verb not in SERVICED_LOG_VERBS:
+        raise ValueError(f"unknown serviced-period verb {verb!r}")
+    return f"{verb} {task_ref} for {period_key}"
+
+
+def serviced_periods(cfg: Config) -> dict[str, str]:
+    """Map each `recurring/<name>` ref to the newest period it has serviced.
+
+    One pass over the log for every template at once; scanning per template
+    would re-read the one file Coga lets grow without bound.
+
+    The *maximum* period is kept rather than the last line seen: `log.md` is
+    `merge=union`, so concurrent appends from two checkouts can leave the file
+    unsorted. (`first_activity_map` keeps its minimum for the same reason.)
+    """
+    out: dict[str, str] = {}
+    for ref, message in iter_log_messages(cfg):
+        if not ref.startswith("recurring/"):
+            continue
+        match = _SERVICED_LOG_RE.match(message)
+        if match is None:
+            continue
+        period = match.group("period")
+        current = out.get(ref)
+        if current is None or period > current:
+            out[ref] = period
+    return out
 
 
 def _recurring_slug(template_name: str) -> str:
@@ -1026,65 +1094,18 @@ def _live_task_for_template(cfg: Config, template_name: str) -> TaskRef | None:
     return live
 
 
-def _period_already_serviced(template: Template, period_key: str) -> bool:
-    last_serviced = read_last_serviced_period(template.ticket_path)
-    return last_serviced is not None and last_serviced >= period_key
+def _period_already_serviced(
+    cfg: Config, template: Template, period_key: str, serviced: dict[str, str] | None
+) -> bool:
+    """Has this template already serviced `period_key`?
 
-
-def read_last_serviced_period(ticket_path: Path) -> str | None:
-    """Read the `last_serviced_period` high-water mark from a template's
-    `ticket.md` blackboard region."""
-    if not ticket_path.is_file():
-        return None
-    region = read_blackboard(ticket_path, blackboard_required=False)
-    return _read_last_serviced_period_text(region)
-
-
-def write_last_serviced_period(ticket_path: Path, period_key: str) -> None:
-    """Set the high-water mark in a template's `ticket.md` blackboard region,
-    leaving the frontmatter and body above the fence untouched."""
-    region = (
-        read_blackboard(ticket_path, blackboard_required=False)
-        if ticket_path.is_file()
-        else ""
-    )
-    upsert_blackboard(ticket_path, set_last_serviced_period_text(region, period_key))
-
-
-def merge_last_serviced_period_text(base_text: str, incoming_text: str) -> str:
-    """Merge only the high-water line from `incoming_text` into `base_text`."""
-    base_period = _read_last_serviced_period_text(base_text)
-    incoming_period = _read_last_serviced_period_text(incoming_text)
-    periods = [p for p in (base_period, incoming_period) if p is not None]
-    if not periods:
-        return base_text or incoming_text
-    return set_last_serviced_period_text(base_text or incoming_text, max(periods))
-
-
-def set_last_serviced_period_text(text: str, period_key: str) -> str:
-    line = f"last_serviced_period: {period_key}"
-    lines = text.splitlines()
-    out: list[str] = []
-    replaced = False
-    for existing in lines:
-        if _LAST_SERVICED_PERIOD_RE.match(existing):
-            if not replaced:
-                out.append(line)
-                replaced = True
-            continue
-        out.append(existing)
-    if not replaced:
-        if out and out[-1].strip():
-            out.append("")
-        out.append(line)
-    return "\n".join(out).rstrip("\n") + "\n"
-
-
-def _read_last_serviced_period_text(text: str) -> str | None:
-    match = _LAST_SERVICED_PERIOD_RE.search(text)
-    if match is None:
-        return None
-    return match.group("period")
+    `serviced` is a prefetched `serviced_periods` map when the caller is
+    walking every template; None makes this read the log itself.
+    """
+    if serviced is None:
+        serviced = serviced_periods(cfg)
+    last = serviced.get(_recurring_slug(template.name))
+    return last is not None and last >= period_key
 
 
 def _extract_title(template: Template) -> str:
@@ -1104,9 +1125,8 @@ __all__ = [
     "create_template",
     "PromoteOutcome",
     "promote_task",
-    "read_last_serviced_period",
-    "write_last_serviced_period",
-    "merge_last_serviced_period_text",
-    "set_last_serviced_period_text",
+    "serviced_periods",
+    "format_serviced_log",
+    "SERVICED_LOG_VERBS",
     "RecurringError",
 ]

@@ -55,10 +55,11 @@ def _strip_runtime_state(text: str) -> str:
     This repo dogfoods coga, so the live `autoclose-merged` template — which
     doubles as the canonical source mirrored into the packaged templates — gets
     serviced by real `coga recurring` runs. `sync_task_state` then commits that
-    runtime state: a `last_serviced_period:` line in the blackboard and
-    timestamped `[system] ...` entries in the log. Those are legitimate run
-    artifacts, not template drift, so strip them before comparing — what must
-    stay in sync is the static template content.
+    runtime state: recipe cursors in the blackboard and timestamped
+    `[system] ...` entries in the log. Those are legitimate run artifacts, not
+    template drift, so strip them before comparing — what must stay in sync is
+    the static template content. (The serviced-period line is stripped too: it
+    is a vestige on templates that predate the log-backed ledger.)
     """
     out = []
     for line in text.splitlines(keepends=True):
@@ -166,12 +167,11 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
     assert [(ref.directory, ref.slug, ref.id_slug) for ref in refs] == [
         ("recurring", "autoclose-merged", "recurring/autoclose-merged")
     ]
-    # The high-water mark is written into the template's ticket.md blackboard
-    # region (single-file format), not a separate blackboard.md.
-    from coga.recurring import read_last_serviced_period
+    # The serviced period is recorded in the repo-global append-only log, not
+    # in the template — a co-writer rewriting the blackboard cannot lose it.
+    from coga.recurring import serviced_periods
 
-    template_ticket = coga_os / "recurring" / "autoclose-merged" / "ticket.md"
-    assert read_last_serviced_period(template_ticket) == "2026-06-11"
+    assert serviced_periods(cfg).get("recurring/autoclose-merged") == "2026-06-11"
 
     ticket = Ticket.read(refs[0].path / "ticket.md")
     template = Template.load(coga_os / "recurring" / "autoclose-merged")
