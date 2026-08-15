@@ -1,7 +1,7 @@
 ---
 slug: unblock-rewind
 title: unblock-rewind
-status: blocked
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
