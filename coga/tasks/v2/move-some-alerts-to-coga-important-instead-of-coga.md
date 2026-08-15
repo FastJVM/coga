@@ -1,7 +1,7 @@
 ---
 slug: v2/move-some-alerts-to-coga-important-instead-of-coga
 title: move some alerts to coga important instead of coga flow
-status: paused
+status: canceled
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -33,8 +33,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-script: null
-step: 2 (review-design)
 ---
 
 ## Description
