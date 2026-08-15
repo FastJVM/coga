@@ -893,14 +893,18 @@ def run_recurring_named(
         return 2
 
     ref = outcome.ref
-    if outcome.created:
-        try:
+    try:
+        if outcome.created:
             created_on_control = _sync_recurring_create(
                 cfg, name, ref, respect_handled_period=False
             )
-        except RecurringError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-            return 2
+        else:
+            _validate_control_serviced_period(cfg, name)
+    except RecurringError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
+
+    if outcome.created:
         if not (ref.ticket_path).is_file():
             typer.secho(
                 f"{ref.id_slug} was already handled on the control branch; "
@@ -1607,18 +1611,20 @@ def _control_already_has_period(
     include_ledger: bool = True,
     include_task: bool = True,
 ) -> bool:
-    if include_ledger and period_key is not None:
-        serviced = _control_serviced_period_cached(
-            root, ref, log_rel, template_ref, control_ledger
-        )
-        if serviced is not None:
-            try:
-                if period_key_at_least(serviced, period_key):
-                    return True
-            except ValueError as exc:
-                raise RecurringError(
-                    f"invalid serviced-period comparison for {template_ref}: {exc}"
-                ) from exc
+    # An override disables the *dedup decision*, not ledger validation. Always
+    # parse control's record so `--force` / named launches cannot run through a
+    # malformed high-water mark merely because its value will not be compared.
+    serviced = _control_serviced_period_cached(
+        root, ref, log_rel, template_ref, control_ledger
+    )
+    if include_ledger and period_key is not None and serviced is not None:
+        try:
+            if period_key_at_least(serviced, period_key):
+                return True
+        except ValueError as exc:
+            raise RecurringError(
+                f"invalid serviced-period comparison for {template_ref}: {exc}"
+            ) from exc
     return include_task and _ref_has_path(root, ref, task_rel)
 
 
@@ -1657,6 +1663,51 @@ def _control_serviced_period_cached(
     if error is not None:
         raise RecurringError(error)
     return control_ledger.get(template_ref)
+
+
+def _validate_control_serviced_period(
+    cfg: Config,
+    template_name: str,
+    control_ledger: dict[str, str] | None = None,
+) -> None:
+    """Fail on malformed control-ledger state without changing task state.
+
+    A prior sweep can leave a locally created task behind after its control
+    sync discovers a malformed record. Reused tasks skip create-sync, so they
+    pass through this read-only gate on every later sweep instead of launching
+    after the first warning. A shared cache pins the same pre-publication
+    control snapshot for every template in one sweep.
+
+    Control freshness remains best-effort for bare/named single-repo launches,
+    matching their existing sync contract. A reachable malformed record is a
+    hard template error; an unreachable remote keeps the existing loud Git
+    warning and local behavior.
+    """
+    if not cfg.git_enabled:
+        return
+    root = _git_toplevel(cfg.repo_root)
+    if root is None:
+        return
+
+    if control_ledger is not None and control_ledger.get(_LEDGER_LOADED):
+        ref = "HEAD"  # ignored once the shared ledger snapshot is populated
+    else:
+        try:
+            _fetch_control_branch(cfg, root)
+            ref = _rev_parse(root, "FETCH_HEAD")
+        except git.GitError as exc:
+            sys.stderr.write(
+                f"[git] control serviced-ledger validation skipped: {exc}\n"
+            )
+            return
+
+    _control_serviced_period_cached(
+        root,
+        ref,
+        _relative_to_root(root, log_path(cfg)),
+        _recurring_ref(template_name),
+        control_ledger,
+    )
 
 
 def _restore_selected_paths_from_ref(root: Path, ref: str, rels: list[str]) -> None:
@@ -2209,13 +2260,16 @@ def _broadcast_scan(
     # records as another checkout's.
     control_ledger: dict[str, str] = {}
     for task in list(scan.tasks):
-        if not task.created and not task.replaced_done:
-            if sync_existing:
-                _refresh_forced_status_from_control(cfg, task)
-            continue
-        if task.ref is None:
-            continue
         try:
+            if not task.created and not task.replaced_done:
+                _validate_control_serviced_period(
+                    cfg, task.template, control_ledger
+                )
+                if sync_existing:
+                    _refresh_forced_status_from_control(cfg, task)
+                continue
+            if task.ref is None:
+                continue
             created_on_control = _sync_recurring_create(
                 cfg,
                 task.template,

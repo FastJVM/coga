@@ -6086,6 +6086,33 @@ def test_control_ledger_rejects_malformed_period(
         )
 
 
+def test_control_guard_validates_ledger_when_dedup_is_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def malformed_control_ledger(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RecurringError(
+            "invalid serviced period 'none' for recurring/check"
+        )
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_control_serviced_period_cached",
+        malformed_control_ledger,
+    )
+
+    with pytest.raises(RecurringError, match="invalid serviced period 'none'"):
+        recurring_cmd._control_already_has_period(
+            tmp_path,
+            "control",
+            "coga/tasks/recurring/check",
+            log_rel="coga/log.md",
+            template_ref="recurring/check",
+            period_key="2026-W33",
+            include_ledger=False,
+            include_task=False,
+        )
+
+
 def test_broadcast_scan_skips_a_template_with_a_control_ledger_error(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -6139,6 +6166,107 @@ def test_named_launch_reports_a_control_ledger_error(
         load_config(repo), "weekly-check"
     ) == 2
     assert "invalid serviced period 'none'" in capsys.readouterr().err
+
+
+def test_named_launch_keeps_control_only_malformed_ledger_blocked_on_retry(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        recipe: digest
+        owner: marc
+        assignee: claude
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    git_repo.git("add", "coga/contexts", "coga/recurring")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/malformed-named-ledger")
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        "2026-08-13 17:22 [recurring/weekly-check] [system] "
+        "created recurring/weekly-check for none\n",
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_launch_created",
+        lambda *args, **kwargs: pytest.fail("malformed ledger reached launch"),
+    )
+    cfg = load_config(coga_os)
+
+    assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 2
+    assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 2
+
+    assert "invalid serviced period 'none'" in capsys.readouterr().err
+    assert (
+        coga_os / "tasks" / "recurring" / "weekly-check" / "ticket.md"
+    ).is_file()
+
+
+def test_sweep_retry_revalidates_control_only_malformed_ledger(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        recipe: digest
+        owner: marc
+        assignee: claude
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    git_repo.git("add", "coga/contexts", "coga/recurring")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/malformed-sweep-ledger")
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        "2026-08-13 17:22 [recurring/weekly-check] [system] "
+        "created recurring/weekly-check for none\n",
+    )
+    launches: list[str] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_recipe_task",
+        lambda cfg, task: launches.append(task.template) or 0,
+    )
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
+    cfg = load_config(coga_os)
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+
+    assert launches == []
+    assert capsys.readouterr().err.count("invalid serviced period 'none'") >= 2
+    assert (
+        coga_os / "tasks" / "recurring" / "weekly-check" / "ticket.md"
+    ).is_file()
 
 
 def test_serviced_periods_ignores_other_log_lines(repo: Path) -> None:
