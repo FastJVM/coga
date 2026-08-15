@@ -1,7 +1,7 @@
 ---
 slug: review-slack-channels
 title: review slack channels
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -9,9 +9,27 @@ assignee: claude
 contexts:
 - coga/important
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
 secrets: null
-script: null
+step: 1 (implement)
 ---
 
 ## Description
