@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -243,3 +243,97 @@ with the live copies under `coga/contexts/coga/`.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: route-important-failures
+worktree: /tmp/coga-route-important-failures
+
+## Implementation notes
+
+- Preserve each event's current cadence; `notify(important=True)` affects only
+  the no-digest live fallback, and spool records remain delivery-neutral.
+- Keep `SlackChannel.webhook_for` and the period-state warning's broad
+  exception guard unchanged. The validation warning is the mitigation for an
+  unresolved important webhook.
+- The broader v2 routing proposal is already canceled; this branch follows the
+  narrower four-failure-event decision in this ticket.
+- Added URL-observable regressions for all four failure routes, digest and
+  no-digest behavior for both `recurring-error` producers, flow controls, and
+  the period-state best-effort guard. The pre-fix focused run failed on each
+  new route as expected.
+- Implementation now forwards `notify(important=True)` only through its live
+  fallback, routes the two direct posters to important, and adds a static
+  validate warning for selected Slack with no resolved important webhook.
+- A focused eight-file run reached 539 passing tests with three fixture-only
+  validation failures caused by the suite-wide deprecated Slack env fallback;
+  the baseline validator fixture now explicitly models no notification opt-in,
+  and its 82-test suite passes.
+
+## Implemented
+
+- Routed non-zero recurring recipes and stale declared-period-state warnings
+  directly to the important webhook.
+- Added `important` to `notification.notify`; recurring scan errors and
+  watchdog timeouts pass it only to the no-digest live fallback. Installed
+  digests still receive one unchanged, delivery-neutral record.
+- Added the default, non-network `coga validate` warning for selected Slack
+  without a resolved important webhook. `SlackChannel.webhook_for` remains
+  unchanged and no call-site containment was added.
+- Updated `coga/important`, `coga/sync`, their byte-identical packaged copies,
+  the shipped config comment, and `docs/operations.md`. Dream, megalaunch,
+  digest, blockers, reminders, starts, done outcomes, and explicit flow FYIs
+  retain their prior destinations.
+
+## Verification
+
+- `python -m pytest` — 1752 passed, 1 skipped.
+- `PYTHONPATH=/tmp/coga-route-important-failures/src python -m coga.cli validate
+  --task review-slack-channels` — all good (1 task).
+- From `example/coga`, `PYTHONPATH=/tmp/coga-route-important-failures/src
+  python -m coga.cli validate --json` — 2 tasks checked, no issues.
+- Both required live/packaged context pairs pass `diff -q`; `git diff --check`
+  passes.
+- Final diff review clarified the operations guide's best-effort exception for
+  post-commit lifecycle notifications and the period-state advisory; routing
+  behavior was unchanged.
+- Commit: `866be522227d678320e3e91b7b64a1071ff8efd6` (`Route recurring
+  failures to important Slack`). The feature checkout is clean.
+- Freshness: fetched `origin/main`; `FETCH_HEAD` remained
+  `5740ccfd7311bcb6fe632ba5e9be5994bce4036f`, exactly the feature commit's
+  parent. `git rebase FETCH_HEAD` reported the branch up to date, and the
+  ancestry check passed.
+
+## Peer review
+
+- Started from clean feature commit `866be522` against `main`; reviewing only
+  must-fix correctness issues before the mandatory fresh rebase and full suite.
+- `codex review --base main` found one P2: the prerequisite warning ignored
+  `[notification.slack].enabled = false`, creating permanent false drift for
+  the supported solo/dev/CI opt-out. Applying the narrow enabled-state gate,
+  regression test, and matching documentation qualification.
+- Applied the P2 fix. Focused validation is `83 passed`; the post-fix full
+  suite is `1753 passed, 1 skipped`. Live/packaged contexts remain identical
+  and `git diff --check` passes.
+- Committed the review fix, fetched `origin/main`, and rebased both feature
+  commits cleanly onto `9a160d9e`. Final commits are `1a527549` (implementation)
+  and `03b8f94a` (peer-review fix); the feature checkout is clean and two commits
+  ahead of the fresh base.
+- Post-rebase `python -m pytest` is `1753 passed, 1 skipped`; task-scoped
+  validation reports `All good (1 tasks checked)`.
+
+## PR
+
+### Summary
+
+- Route four unattended recurring failure signals to `coga-important` while
+  preserving every event's existing live-versus-digest cadence and keeping the
+  daily aggregate, lifecycle traffic, Dream, and megalaunch in `coga-flow`.
+- Warn during validation when enabled Slack has no resolved important webhook,
+  while honoring the supported disabled-Slack opt-out and retaining the chosen
+  fail-loud delivery policy.
+- Update the live and packaged notification contracts, operator documentation,
+  shipped config guidance, and URL-observable regression coverage.
+
+### Test plan
+
+`python -m pytest` (1753 passed, 1 skipped); `PYTHONPATH=/tmp/coga-route-important-failures/src python -m coga.cli validate --task review-slack-channels` (all good).
