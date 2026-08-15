@@ -13,22 +13,33 @@ reaches it. Events fall into three tiers:
 
 - **Live** — posted the moment they happen: a session starting (`active →
   in_progress`), a `coga block`, blocker reminders, and explicit FYIs
-  (`coga slack`, `coga bump --message`). Anything urgent or human-directed
-  never waits.
+  (`coga slack`, `coga bump --message`), plus recurring recipe failures and
+  warnings that declared recurring state did not advance.
 - **Outcome digest** — done and canceled tickets, `autoclose-merged`
-  completions, and recurring-scan parse errors are spooled and posted together
-  on a schedule by `coga digest`. Cancellation entries retain their required
-  reason. If the digest ticket isn't installed, these fall back to a live post.
+  completions, recurring-scan errors, and recurring watchdog timeouts are
+  spooled and posted together on a schedule by `coga digest`. Cancellation
+  entries retain their required reason. If the digest ticket isn't installed,
+  these fall back to a live post.
 - **Silent** — routine lifecycle churn posts nothing at all: draft creation,
-  `mark active`/`mark paused`, message-less `coga bump`, successful recurring
-  creates, and relaunching an already-`in_progress` ticket.
+  `mark active`, manual or non-timeout `mark paused`, message-less `coga bump`,
+  successful recurring creates, and relaunching an already-`in_progress`
+  ticket.
 
 Agents and humans add one-line FYIs on top with `coga slack` (see the
 [reference](reference.md#coga-slack---task-target---message-text)).
 
+Cadence is separate from destination. The ordinary flow webhook carries
+operating awareness and the daily digest. The important webhook carries
+action-needed alerts: explicit `coga slack --important`, recurring recipe
+failures, stale declared period state, and the no-digest live fallback for scan
+errors or watchdog timeouts. A spooled record is delivery-neutral, so installing
+the digest never creates a duplicate live post.
+
 A fresh `coga init` selects **no** channels, so a brand-new repo is silent until
-you turn a channel on. Once Slack is configured and enabled, any live-channel
-failure fails loud rather than dropping the message quietly.
+you turn a channel on. Once Slack is configured and enabled, delivery failures
+are reported rather than dropped quietly. Most fail loud; state-transition
+posts made after a durable mutation and the advisory period-state warning use
+best-effort guards so a Slack failure cannot undo the state change.
 
 Channels are configured under `[notification]` in `coga.toml`. Slack is the first
 channel:
@@ -49,9 +60,10 @@ A few things worth knowing:
   it at send time. The committed file holds only the pointer.
 - **Two destinations.** `webhook` carries ordinary state transitions.
   `important_webhook` is the "a human needs to go do something" channel, where
-  `coga slack --important` posts land. If you call `--important` without that key
-  set, Coga crashes rather than quietly rerouting — a human-action alert in the
-  wrong channel is worse than a loud misconfiguration.
+  explicit and automatic failure alerts land. It becomes an operational
+  prerequisite once recurring jobs run. If an important post has no resolved
+  destination, Coga raises rather than quietly rerouting — a human-action alert
+  in the wrong channel is worse than a loud misconfiguration.
 - **Pings need a mapping.** `[notification.slack.users]` maps a Coga name (the
   token in a ticket's `owner`/`watchers`) to a Slack member ID, so that person
   gets a real `<@…>` ping. Without a mapping they're still named, just in plain
@@ -63,9 +75,11 @@ A few things worth knowing:
 - **GIFs, optionally.** `[notification.slack.gifs]` can attach a randomly chosen
   GIF to `done` and `block` events. Skip a kind to keep it text-only.
 
-You can probe the webhook with `coga validate --check-slack`. It POSTs an
-empty-text payload to the webhook — a real network call, but nothing visible
-lands in the channel — and reports whether the endpoint accepted it.
+Default `coga validate` warns without network I/O when Slack is selected but
+`important_webhook` is unresolved. You can probe the primary webhook with
+`coga validate --check-slack`; it POSTs an empty-text payload — a real network
+call, but nothing visible lands in the channel — and reports whether the
+endpoint accepted it.
 
 ### Webhook failure safety and incident response
 

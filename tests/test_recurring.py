@@ -13,9 +13,10 @@ import pytest
 from typer.testing import CliRunner
 
 from coga import git as coga_git
+from coga import spool
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
-from coga.config import load_config
+from coga.config import Config, load_config
 from coga.logfile import append_log, task_log_lines
 from coga.paths import tasks_dir
 from coga.recurring import (
@@ -29,7 +30,7 @@ from coga.recurring import (
     serviced_periods,
 )
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
-from coga.tasks import list_tasks
+from coga.tasks import TaskRef, list_tasks
 from coga.ticket import Ticket
 from coga.validate import Issue, TaskValidationError
 
@@ -58,6 +59,8 @@ _TEMPLATES_COGA_OS = (
 SHIPPED_DREAM_DIR = _TEMPLATES_COGA_OS / "recurring" / "dream"
 SHIPPED_DIRECT_BODY_SKILL_DIR = _TEMPLATES_COGA_OS / "skills" / "direct" / "body"
 SHIPPED_DIRECT_BODY_WORKFLOW = _TEMPLATES_COGA_OS / "workflows" / "direct" / "body.md"
+FLOW_WEBHOOK = "https://hooks.slack.com/services/flow"
+IMPORTANT_WEBHOOK = "https://hooks.slack.com/services/important"
 
 
 def _write(path: Path, text: str) -> None:
@@ -357,7 +360,7 @@ def _finish_period_task(coga_os: Path, slug: str) -> None:
 
 
 @pytest.fixture
-def repo(tmp_path: Path):
+def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     company = tmp_path / "coga"
     _write(
         company / "coga.toml",
@@ -366,12 +369,15 @@ def repo(tmp_path: Path):
         default_status = "draft"
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"
         """,
     )
     _write(company / "coga.local.toml", 'user = "marc"\n')
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", FLOW_WEBHOOK)
+    monkeypatch.setenv("COGA_IMPORTANT_WEBHOOK_URL", IMPORTANT_WEBHOOK)
     _seed_period_task_context(company)
     _write_recurring(
         company,
@@ -1946,7 +1952,7 @@ def test_recipe_task_uses_period_context_secrets_and_lifecycle(
     ticket.write(ref.ticket_path)
 
     transitions: list[str] = []
-    posts: list[str] = []
+    posts: list[dict[str, object]] = []
     captured: dict[str, object] = {}
 
     def fake_mark_in_progress(
@@ -1973,11 +1979,17 @@ def test_recipe_task_uses_period_context_secrets_and_lifecycle(
     monkeypatch.setattr(recurring_cmd, "mark_done", fake_mark_done)
     monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
-    monkeypatch.setattr(
-        recurring_cmd,
-        "post",
-        lambda task_cfg, message, **kwargs: posts.append(message),
-    )
+
+    def capture_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        posts.append({"url": url, "json": json})
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        return Response()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture_post)
     monkeypatch.setattr(recurring_cmd.subprocess, "run", fake_subprocess_run)
 
     code = recurring_cmd._run_recipe_task(
@@ -2015,6 +2027,8 @@ def test_recipe_task_uses_period_context_secrets_and_lifecycle(
     assert env["COGA_COGA_OS_ROOT"] == str(repo.resolve())
     assert env["COGA_REPO_ROOT"] == str(repo.parent.resolve())
     assert bool(posts) is (recipe_code != 0)
+    if recipe_code != 0:
+        assert [post["url"] for post in posts] == [IMPORTANT_WEBHOOK]
 
 
 def test_scan_due_explains_removed_megalaunch_skill(repo: Path) -> None:
@@ -4967,6 +4981,96 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
     assert second.exit_code == 0, second.output
     assert calls == []
     assert "No recurring tasks due." in second.output
+
+
+def _in_progress_period(repo: Path) -> tuple[Config, TaskRef]:
+    cfg = load_config(repo)
+    ref = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0].ref
+    assert ref is not None
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(ref.ticket_path)
+    return cfg, ref
+
+
+def test_watchdog_timeout_uses_important_live_fallback(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg, ref = _in_progress_period(repo)
+    urls: list[str] = []
+
+    def capture(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        urls.append(url)
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        return Response()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
+
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+
+    assert urls == [IMPORTANT_WEBHOOK]
+    assert Ticket.read(ref.ticket_path).status == "paused"
+
+
+def test_watchdog_timeout_spools_once_without_live_post(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    digest_spool = repo / "recurring" / "digest" / "spool.md"
+    _write(
+        digest_spool,
+        "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
+    )
+    cfg, ref = _in_progress_period(repo)
+    urls: list[str] = []
+
+    def capture(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        urls.append(url)
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        return Response()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
+
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+
+    assert urls == []
+    records = spool.read_records(digest_spool)
+    assert len(records) == 1
+    assert set(records[0]) == {
+        "id",
+        "ts",
+        "project",
+        "kind",
+        "detail",
+        "ticket",
+        "owner",
+    }
+    assert records[0]["kind"] == "recurring-error"
+
+
+def test_non_timeout_unfinished_pause_stays_silent(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg, ref = _in_progress_period(repo)
+    urls: list[str] = []
+
+    def capture(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        urls.append(url)
+        raise AssertionError("a non-timeout pause must stay silent")
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
+
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=False)
+
+    assert urls == []
+    assert Ticket.read(ref.ticket_path).status == "paused"
 
 
 def test_bare_recurring_records_liveness_timeout_not_human_pause(

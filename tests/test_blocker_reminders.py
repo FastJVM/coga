@@ -15,6 +15,9 @@ from coga.create import create_task
 from coga.taskfile import read_blackboard, replace_blackboard
 
 
+FLOW_WEBHOOK = "https://example.test/flow-webhook"
+
+
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
@@ -31,7 +34,8 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         [notification]
         channels = ["slack"]
         [notification.slack]
-        webhook = "https://example.test/webhook"
+        webhook = "https://example.test/flow-webhook"
+        important_webhook = "https://example.test/important-webhook"
         [git]
         enabled = false
         [agents.claude]
@@ -92,10 +96,14 @@ def _task_with_blocker(
     return ref["slug"]
 
 
-def _capture_posts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+def _capture_posts(
+    monkeypatch: pytest.MonkeyPatch, *, urls: list[str] | None = None
+) -> list[str]:
     posts: list[str] = []
 
     def fake(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        if urls is not None:
+            urls.append(url)
         posts.append(json["text"])
 
         class R:
@@ -132,10 +140,12 @@ def test_remind_blocked_tasks_posts_once_and_records_watermark(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug = _task_with_blocker(repo)
-    posts = _capture_posts(monkeypatch)
+    urls: list[str] = []
+    posts = _capture_posts(monkeypatch, urls=urls)
     cfg = load_config(repo)
 
     assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 10, 0)) == 1
+    assert urls == [FLOW_WEBHOOK]
     assert len(posts) == 1
     assert f"*{slug}*" in posts[0]
     assert "retry ceiling unspecified" in posts[0]

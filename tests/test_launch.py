@@ -43,6 +43,10 @@ from coga.ticket import Ticket
 from coga.validate import TaskValidationError
 
 
+FLOW_WEBHOOK = "https://slack.example.test/flow"
+IMPORTANT_WEBHOOK = "https://slack.example.test/important"
+
+
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
@@ -1003,6 +1007,7 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         default_status = "draft"
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"
@@ -1014,6 +1019,8 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     _write(company / "coga.local.toml", 'user = "marc"\n')
 
     seed_direct_body_workflow(company)
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", FLOW_WEBHOOK)
+    monkeypatch.setenv("COGA_IMPORTANT_WEBHOOK_URL", IMPORTANT_WEBHOOK)
     monkeypatch.chdir(company)
     cfg = load_config(company)
     create_task(
@@ -1139,6 +1146,7 @@ def _create_chain_task(active_task: Path) -> dict[str, object]:
 
 def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
+    slack_urls: list[str] = []
     _allow_interactive_tty(monkeypatch)
 
     class _Result:
@@ -1150,6 +1158,17 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    def capture_slack(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        slack_urls.append(url)
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        return Response()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -1167,6 +1186,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     ref = list_tasks(cfg)[0]
     ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == "in_progress"
+    assert slack_urls == [FLOW_WEBHOOK]
     log = _read_log(active_task)
     assert "started (active → in_progress) via coga launch" in log
     assert "launched (assignee=claude, agent=claude)" in log

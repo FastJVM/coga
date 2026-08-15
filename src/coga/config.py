@@ -82,10 +82,11 @@ class Config:
     # the deprecated bare-env fallback.
     slack_webhook: str | None
     slack_enabled: bool
-    # Second webhook, pointing at the coga-important channel. Alerts that need a
-    # human to act (`coga slack --important`) post here; state-transition traffic
-    # stays on `slack_webhook`. None when unconfigured — `SlackChannel.send` then
-    # crashes an `--important` post rather than rerouting it to `slack_webhook`.
+    # Second webhook, pointing at the coga-important channel. Explicit and
+    # automatic alerts that need a human to act post here; ordinary lifecycle
+    # traffic stays on `slack_webhook`. None when unconfigured —
+    # `SlackChannel.send` then crashes an important post rather than rerouting
+    # it to `slack_webhook`.
     slack_important_webhook: str | None = None
     notification_channels: tuple[str, ...] = ("slack",)
     notification_deprecation_notes: tuple[str, ...] = ()

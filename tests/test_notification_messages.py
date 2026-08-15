@@ -30,6 +30,10 @@ from coga.taskfile import read_blackboard, replace_blackboard
 from coga.ticket import Ticket
 
 
+FLOW_WEBHOOK = "https://hooks.slack.com/services/flow"
+IMPORTANT_WEBHOOK = "https://hooks.slack.com/services/important"
+
+
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
@@ -82,12 +86,15 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         channels = ["slack"]
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"
         """,
     )
     _write(company / "coga.local.toml", 'user = "marc"\n')
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", FLOW_WEBHOOK)
+    monkeypatch.setenv("COGA_IMPORTANT_WEBHOOK_URL", IMPORTANT_WEBHOOK)
     _write(
         company / "workflows" / "code.md",
         """
@@ -159,11 +166,15 @@ def _make_task(
     return ref["slug"], path
 
 
-def _capture(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+def _capture(
+    monkeypatch: pytest.MonkeyPatch, *, urls: list[str] | None = None
+) -> list[str]:
     """Capture the text of every live Slack notification made during the test."""
     posts: list[str] = []
 
     def fake(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        if urls is not None:
+            urls.append(url)
         posts.append(json["text"])
 
         class R:
@@ -208,9 +219,11 @@ def test_mark_done_with_workflow_shows_prev_to_done(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, _ = _make_task(repo, status="in_progress")
-    posts = _capture(monkeypatch)
+    urls: list[str] = []
+    posts = _capture(monkeypatch, urls=urls)
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
+    assert urls == [FLOW_WEBHOOK]
     assert _body(posts, "🎉") == (
         f"🎉 claude finished *{slug}* \"Work\": implement → done"
     )
@@ -235,21 +248,25 @@ def test_bump_without_message_is_silent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, _ = _make_task(repo, status="in_progress")
-    posts = _capture(monkeypatch)
+    urls: list[str] = []
+    posts = _capture(monkeypatch, urls=urls)
     result = CliRunner().invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
     assert posts == []
+    assert urls == []
 
 
 def test_bump_message_posts_live_fyi(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, _ = _make_task(repo, status="in_progress")
-    posts = _capture(monkeypatch)
+    urls: list[str] = []
+    posts = _capture(monkeypatch, urls=urls)
     result = CliRunner().invoke(
         app, ["bump", slug, "--message", "PR opened: https://example/pr"]
     )
     assert result.exit_code == 0, result.output
+    assert urls == [FLOW_WEBHOOK]
     assert _body(posts, "👉") == (
         f"👉 claude advanced *{slug}* \"Work\": implement → pr "
         "(step 2/3) — PR opened: https://example/pr"
@@ -263,11 +280,13 @@ def test_block_uses_colon_and_drops_quotes_around_reason(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, _ = _make_task(repo, status="in_progress")
-    posts = _capture(monkeypatch)
+    urls: list[str] = []
+    posts = _capture(monkeypatch, urls=urls)
     result = CliRunner().invoke(
         app, ["block", "--task", slug, "--reason", "retry ceiling unspecified"]
     )
     assert result.exit_code == 0, result.output
+    assert urls == [FLOW_WEBHOOK]
     assert _body(posts, "🛑") == (
         f"🛑 claude blocked *{slug}* \"Work\": retry ceiling unspecified"
     )
@@ -277,11 +296,13 @@ def test_slack_fyi_includes_title(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, _ = _make_task(repo, status="in_progress")
-    posts = _capture(monkeypatch)
+    urls: list[str] = []
+    posts = _capture(monkeypatch, urls=urls)
     result = CliRunner().invoke(
         app, ["slack", "--task", slug, "--message", "tests still flaky"]
     )
     assert result.exit_code == 0, result.output
+    assert urls == [FLOW_WEBHOOK]
     assert _body(posts, "💬") == (
         f"💬 claude on *{slug}* \"Work\": tests still flaky"
     )
@@ -377,3 +398,46 @@ def test_recurring_create_is_silent(
     )
     _broadcast_scan(cfg, scan)
     assert posts == []
+
+
+def test_recurring_scan_error_uses_important_live_fallback(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from coga.recurring import DueScan
+    from coga.recurring_runner import _broadcast_scan
+
+    urls: list[str] = []
+    posts = _capture(monkeypatch, urls=urls)
+    _broadcast_scan(
+        load_config(repo),
+        DueScan(tasks=[], errors=[("bad", "invalid schedule")]),
+    )
+
+    assert urls == [IMPORTANT_WEBHOOK]
+    assert "recurring scan skipped 1 template" in posts[0]
+
+
+def test_recurring_scan_error_spools_once_without_live_post(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from coga.recurring import DueScan
+    from coga.recurring_runner import _broadcast_scan
+
+    digest_spool = repo / "recurring" / "digest" / "spool.md"
+    _write(
+        digest_spool,
+        "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
+    )
+    urls: list[str] = []
+    posts = _capture(monkeypatch, urls=urls)
+    _broadcast_scan(
+        load_config(repo),
+        DueScan(tasks=[], errors=[("bad", "invalid schedule")]),
+    )
+
+    assert posts == []
+    assert urls == []
+    records = spool.read_records(digest_spool)
+    assert len(records) == 1
+    assert set(records[0]) == {"id", "ts", "project", "kind", "detail"}
+    assert records[0]["kind"] == "recurring-error"

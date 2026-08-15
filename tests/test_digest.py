@@ -13,6 +13,10 @@ from coga.commands.digest import run_digest
 from coga.config import load_config
 
 
+FLOW_WEBHOOK = "https://hooks.slack.com/services/flow"
+IMPORTANT_WEBHOOK = "https://hooks.slack.com/services/important"
+
+
 # --- repo fixture -------------------------------------------------------------
 
 
@@ -35,6 +39,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
 
         [notification.slack.users]
         nick = "Unick"
@@ -47,6 +52,8 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     _write(coga_os / "coga.local.toml", 'user = "nick"\n')
     (coga_os / "tasks").mkdir(parents=True)
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", FLOW_WEBHOOK)
+    monkeypatch.setenv("COGA_IMPORTANT_WEBHOOK_URL", IMPORTANT_WEBHOOK)
     monkeypatch.chdir(coga_os)
     return coga_os
 
@@ -84,7 +91,9 @@ def captured_posts(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     posts: list[dict] = []
 
     def _capture(url, json=None, timeout=None):  # noqa: A002
-        posts.append(json)
+        payload = dict(json or {})
+        payload["url"] = url
+        posts.append(payload)
 
         class R:
             status_code = 200
@@ -221,7 +230,24 @@ def test_notify_falls_back_to_live_post_without_digest(
         cfg, "🎉 live text", kind="done", detail="→ done ✅", ticket="t-1", owner="nick"
     )
     assert len(captured_posts) == 1
+    assert captured_posts[0]["url"] == FLOW_WEBHOOK
     assert "🎉 live text" in captured_posts[0]["text"]
+
+
+def test_notify_important_falls_back_to_important_webhook_without_digest(
+    repo: Path, captured_posts: list[dict]
+) -> None:
+    cfg = load_config()
+    notification.notify(
+        cfg,
+        "⚠️ recurring scan skipped one template",
+        kind="recurring-error",
+        detail="weekly-check: invalid schedule",
+        important=True,
+    )
+
+    assert len(captured_posts) == 1
+    assert captured_posts[0]["url"] == IMPORTANT_WEBHOOK
 
 
 def test_notify_spools_when_digest_installed(
@@ -248,6 +274,27 @@ def test_notify_spools_when_digest_installed(
     assert records[0]["detail"] == (
         "auto-bumped: merge → done — <https://example/pr|PR #4> merged ✅"
     )
+
+
+def test_notify_important_spool_record_stays_delivery_neutral(
+    repo: Path, captured_posts: list[dict]
+) -> None:
+    spool_path = _install_digest(repo)
+    cfg = load_config()
+    notification.notify(
+        cfg,
+        "⚠️ recurring scan skipped one template",
+        kind="recurring-error",
+        detail="weekly-check: invalid schedule",
+        important=True,
+    )
+
+    assert captured_posts == []
+    records = spool.read_records(spool_path)
+    assert len(records) == 1
+    assert set(records[0]) == {"id", "ts", "project", "kind", "detail"}
+    assert records[0]["kind"] == "recurring-error"
+    assert records[0]["detail"] == "weekly-check: invalid schedule"
 
 
 def test_notify_migrates_legacy_digest_ticket_spool(

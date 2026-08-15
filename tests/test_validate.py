@@ -13,7 +13,7 @@ from coga.config import load_config
 from coga.taskfile import replace_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
-from coga.validate import _main, apply_safe_fixes, probe_slack, run
+from coga.validate import _main, apply_safe_fixes, probe_slack, run, validate_task
 
 
 def _write(path: Path, text: str) -> None:
@@ -22,7 +22,7 @@ def _write(path: Path, text: str) -> None:
 
 
 @pytest.fixture
-def repo(tmp_path: Path):
+def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     company = tmp_path / "coga"
     _write(
         company / "coga.toml",
@@ -35,6 +35,11 @@ def repo(tmp_path: Path):
         """,
     )
     _write(company / "coga.local.toml", 'user = "marc"\n')
+    # This fixture models a repo that has not opted into notifications. The
+    # suite-wide Slack transport stub exports the deprecated compatibility env
+    # var for command tests, which would otherwise infer Slack here.
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    monkeypatch.delenv("COGA_IMPORTANT_WEBHOOK_URL", raising=False)
     _write(company / "contexts" / "email" / "payment-flow" / "SKILL.md", "---\nname: x\n---\n")
     _write(company / "skills" / "infra" / "tests" / "SKILL.md", "---\nname: x\n---\n")
     _write(
@@ -1017,6 +1022,74 @@ def test_run_check_slack_misconfigured_when_selected_without_webhook(
     misconfigured = [i for i in report.issues if i.kind == "slack-misconfigured"]
     assert misconfigured
     assert misconfigured[0].severity == "error"
+
+
+def test_validate_warns_when_selected_slack_lacks_important_webhook(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[notification]\nchannels = ["slack"]\n'
+        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n'
+    )
+
+    def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("the setup warning must not probe the network")
+
+    monkeypatch.setattr("coga.validate.requests.post", boom)
+    report = run(load_config(repo))
+
+    issue = next(
+        issue for issue in report.issues
+        if issue.kind == "slack-important-webhook-unresolved"
+    )
+    assert issue.severity == "warn"
+    assert "important_webhook" in issue.message
+
+
+def test_task_scoped_validate_includes_important_webhook_warning(
+    repo: Path,
+) -> None:
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[notification]\nchannels = ["slack"]\n'
+        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n'
+    )
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
+    )
+
+    report = validate_task(cfg, created["slug"])
+
+    assert any(
+        issue.kind == "slack-important-webhook-unresolved"
+        for issue in report.issues
+    )
+
+
+def test_validate_has_no_important_warning_when_webhook_resolves(repo: Path) -> None:
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[notification]\nchannels = ["slack"]\n'
+        '[notification.slack]\n'
+        'webhook = "https://hooks.slack.com/services/flow"\n'
+        'important_webhook = "https://hooks.slack.com/services/important"\n'
+    )
+
+    report = run(load_config(repo))
+
+    assert all(
+        issue.kind != "slack-important-webhook-unresolved"
+        for issue in report.issues
+    )
 
 
 def test_run_no_slack_check_by_default(
