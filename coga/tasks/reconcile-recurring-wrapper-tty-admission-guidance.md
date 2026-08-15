@@ -1,7 +1,7 @@
 ---
 slug: reconcile-recurring-wrapper-tty-admission-guidance
 title: Reconcile recurring wrapper TTY-admission guidance with resolve-conflicts template
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude

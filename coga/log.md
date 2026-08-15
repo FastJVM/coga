@@ -3508,3 +3508,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-15 12:19 [review-slack-channels] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-15 12:20 [unblock-rewind] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-08-15 12:20 [launch-ignores-the-recorded-worktree-stranding-bla] [megalaunch] activated (draft → active) — explicit megalaunch pick
+2026-08-15 12:20 [reconcile-recurring-wrapper-tty-admission-guidance] [megalaunch] activated (draft → active) — explicit megalaunch pick
