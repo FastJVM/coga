@@ -245,6 +245,7 @@ with the live copies under `coga/contexts/coga/`.
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/696
 branch: route-important-failures
 worktree: /tmp/coga-route-important-failures
 
