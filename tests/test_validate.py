@@ -1047,6 +1047,25 @@ def test_validate_warns_when_selected_slack_lacks_important_webhook(
     assert "important_webhook" in issue.message
 
 
+def test_validate_skips_important_warning_when_slack_disabled(repo: Path) -> None:
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[notification]\nchannels = ["slack"]\n'
+        '[notification.slack]\nwebhook = "https://hooks.slack.com/services/flow"\n'
+    )
+    (repo / "coga.local.toml").write_text(
+        (repo / "coga.local.toml").read_text()
+        + "\n[notification.slack]\nenabled = false\n"
+    )
+
+    report = run(load_config(repo))
+
+    assert all(
+        issue.kind != "slack-important-webhook-unresolved"
+        for issue in report.issues
+    )
+
+
 def test_task_scoped_validate_includes_important_webhook_warning(
     repo: Path,
 ) -> None:

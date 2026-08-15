@@ -135,11 +135,12 @@ Slack-channel failure:
 
 Once recurring jobs run, `[notification.slack].important_webhook` is a second
 operational prerequisite. Default `coga validate` warns, without a network
-probe, whenever Slack is selected and that destination is unresolved. The
-warning does not weaken delivery: an automatic important post still raises
-rather than falling back to flow. The declared-period-state warning remains
-the known best-effort exception — its existing advisory guard reports that
-raise on stderr so it cannot undo a successful `mark done`.
+probe, whenever Slack is selected, enabled, and that destination is unresolved.
+The supported `enabled = false` opt-out suppresses the warning along with
+delivery. The warning does not weaken delivery: an automatic important post
+still raises rather than falling back to flow. The declared-period-state
+warning remains the known best-effort exception — its existing advisory guard
+reports that raise on stderr so it cannot undo a successful `mark done`.
 
 **One carve-out: a broadcast that announces an already-committed state
 change.** The lifecycle transitions — `bump`, `mark done` / `canceled` /

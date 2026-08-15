@@ -75,8 +75,9 @@ A few things worth knowing:
 - **GIFs, optionally.** `[notification.slack.gifs]` can attach a randomly chosen
   GIF to `done` and `block` events. Skip a kind to keep it text-only.
 
-Default `coga validate` warns without network I/O when Slack is selected but
-`important_webhook` is unresolved. You can probe the primary webhook with
+Default `coga validate` warns without network I/O when Slack is selected and
+enabled but `important_webhook` is unresolved. The `enabled = false` opt-out
+suppresses this warning with delivery. You can probe the primary webhook with
 `coga validate --check-slack`; it POSTs an empty-text payload — a real network
 call, but nothing visible lands in the channel — and reports whether the
 endpoint accepted it.

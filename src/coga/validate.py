@@ -1118,8 +1118,12 @@ def _now_iso() -> str:
 
 
 def _important_webhook_issue(cfg: Config) -> Issue | None:
-    """Warn before recurring failures first exercise the important route."""
-    if "slack" not in cfg.notification_channels or cfg.slack_important_webhook:
+    """Warn before enabled Slack first exercises the important route."""
+    if (
+        not cfg.slack_enabled
+        or "slack" not in cfg.notification_channels
+        or cfg.slack_important_webhook
+    ):
         return None
     return Issue(
         kind="slack-important-webhook-unresolved",
