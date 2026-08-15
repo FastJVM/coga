@@ -46,28 +46,26 @@ launch unless stdin *and* stdout are terminals
 agent's own Bash tool subprocess has neither — so the inner launch exits 2.
 
 **Owner decision (2026-08-14): fix this structurally, not by wording.** The
-wrapper agent must stop shelling out to a nested agent launch. The component
-that already owns a real pty — the recurring REPL supervisor — should perform
-the delegated launch itself, so a delegating template declares its delegation
-rather than improvising it in prose. Two candidate mechanisms, implementer's
-choice with the reasoning recorded in the PR:
-
-1. A declarative delegation field on the recurring template's frontmatter
-   (sibling to the existing `recipe:`), which `recurring_runner` honours by
-   launching the delegated ticket directly under its supervisor — one agent
-   session for the period, not two.
-2. A fixed entry in `runner.RECIPES` that performs the supervised launch as
-   deterministic plumbing (`recurring-scan` is already a recipe that launches
-   agents), with the template naming it via `recipe:`.
+wrapper agent must stop shelling out to a nested agent launch. Nothing needs
+to manufacture a terminal: `recurring_runner` already runs in the operator's
+own terminal and already calls `launch` in-process
+(`src/coga/recurring_runner.py:684,709`), so it can launch the delegated
+ticket directly instead of launching a wrapper that re-launches it. A
+delegating template should *declare* its delegation rather than improvise it
+in prose. Candidate mechanisms are in Context; pick one, record the reasoning
+in the PR, and see the note there on when that choice has to be made.
 
 Whichever lands, the `script -qec` pty recipe must stop being the sanctioned
-pattern, and both documents must end up saying the same thing.
+pattern, and every document describing the shape must end up saying the same
+thing.
 
-**Blast radius: all delegating wrappers, not just this one.** Audit every
-recurring template for the double-hop shape and convert each. Today
-`resolve-conflicts` is the only instance (see Context), but the context's
-gotcha is written as generic guidance for *any* future wrapper, which is how
-the pattern would spread.
+**Blast radius: all delegating wrappers.** `resolve-conflicts` is the only
+current instance — the inventory in Context was taken for this ticket and
+re-verified, so re-confirming it is a few minutes, not a work item. The point
+of the wider framing is that the context's gotcha is written as generic
+guidance for *any* future wrapper: the deliverable is that the double-hop
+shape becomes unnecessary or unavailable going forward, not merely that one
+template changed.
 
 ## Context
 
@@ -109,14 +107,66 @@ the shell-out does. That second blocker is evidence for the structural
 direction, not separate work — it should be moot once the supervisor performs
 the launch.
 
+### Candidate mechanisms, and the design question nobody has answered
+
+These are not equally sound. Weigh them against the taxonomy facts below
+before writing code.
+
+**When to decide, and when to stop.** This choice is made before the first
+line of code, but `code/with-review` only exposes it to a reviewer after the
+implementation exists — so a wrong pick is discovered late and rewritten.
+Owner's instruction (2026-08-14): the implement step picks and justifies the
+choice in the PR, but if option 1's "who marks the period task done" question
+has no clean answer, `coga block` with the specific ask rather than guessing.
+All three options stay live; none is pre-rejected.
+
+1. **Declarative delegation field** on the template frontmatter, sibling to
+   `recipe:`, honoured by `recurring_runner`'s existing in-process
+   `launch_cmd` call. The delegating template stays agent-backed, so the
+   pre-create TTY refusals at `src/coga/recurring.py:430,462` keep guarding a
+   headless sweep — correct behaviour preserved.
+   **Its unanswered question:** every piece of period-task bookkeeping in the
+   runner is written against the period `TaskRef` — `mark_in_progress`,
+   `_stop_if_unfinished_after_launch`, `_advance_serviced_period`, the log and
+   Slack lines. Launching `bootstrap/resolve-conflicts` instead means one
+   session on a *bootstrap* ref, with the period task's transitions happening
+   around it and no session inside to run `coga mark done`. Settle this before
+   committing to the option; it is the actual design work in this ticket.
+2. **A fixed `runner.RECIPES` entry** named by the template's `recipe:`.
+   **Carries a specific defect — do not choose it without answering this.**
+   The recipe/agent split *is* the mechanism of the TTY gate: both raises read
+   `if not allow_agent and not template.recipe`. Giving this template a
+   `recipe:` moves it into the class explicitly exempt from TTY admission, so
+   a headless sweep would create the period task, run the recipe, and only
+   then hit the agent-launch refusal at `src/coga/commands/launch.py:546` —
+   relocating a clean pre-create refusal into a mid-run failure, which is
+   strictly worse for an unattended job. It also contradicts two shipped
+   documents (see files to touch). The tempting precedent — "`recurring-scan`
+   is already a recipe that launches agents" — does not transfer:
+   `recurring-scan` launches agents only because `coga recurring` invoked it
+   from the operator's shell, and it re-checks `_interactive_stdio_has_tty()`
+   and filters on the result. It is not evidence that recipes have terminals.
+3. **No second session at all.** Templates may name a `workflow:`, and `dream`
+   already does its work in-session. The delegated work is a stateless prose
+   runbook at `coga/bootstrap/resolve-conflicts/ticket.md`; carrying it into
+   the period task's own session by context or skill attachment removes the
+   double hop with no code change and no new frontmatter field.
+   **Its tension:** that runbook explicitly says "do not create a task per run
+   … do not run `coga bump` / `coga mark`", which fights the period-task
+   lifecycle, and the human-facing `coga resolve-conflicts` alias must keep
+   working for on-demand use either way. Ruling this out is fine; ruling it
+   out silently is not — record the reason.
+
 ### Recurring template taxonomy (what "audit all delegating wrappers" means)
 
-Templates come in two shapes (`coga/contexts/coga/recurring/SKILL.md:118-135`):
+Templates come in two shapes (`coga/contexts/coga/recurring/SKILL.md:121-126`):
 a known `recipe:` selects deterministic headless execution; without one the
 task is agent-backed and runs under the REPL supervisor.
 
-- `recipe:` — `digest`, `branch-sweep`, `autoclose-merged`,
-  `blocker-reminders`, `skill-update`. No agent, no TTY, unaffected.
+- `recipe:` — `digest`, `branch-sweep`, `autoclose-merged` (its recipe name is
+  `autoclose`, not the template name — grepping `runner.RECIPES` for
+  `autoclose-merged` finds nothing), `blocker-reminders`, `skill-update`. No
+  agent, no TTY, unaffected.
 - agent-backed — `dream` (does its work in-session; fine) and
   `resolve-conflicts` (the only double-hop).
 
@@ -133,14 +183,38 @@ going forward, not just that one template changed.
   packaged twin (packaged `coga/` contexts live under
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/` and that set
   does not include `recurring`). Do not create one as a side effect.
+- `coga/contexts/coga/architecture/SKILL.md:525-527` — states the taxonomy
+  this change alters, verbatim: "A recurring template selects this path with
+  `recipe:`; without one, its period task is an agent launch and therefore
+  needs a TTY." Any mechanism makes that incomplete. **Has a byte-identical
+  packaged twin** at
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md`;
+  both move together.
+- `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md:307`
+  — enumerates the recipe registry by name; option 2 makes it stale. **This
+  one is packaged-only: there is no `coga/contexts/coga/cli/`.** The usual
+  "check the live copy and the packaged copy" habit misses it precisely
+  because there is no live copy to start from.
 - Code: `src/coga/recurring.py`, `src/coga/recurring_runner.py`, and
   `src/coga/runner.py` / `src/coga/aliases.py` depending on which mechanism is
-  chosen. Add tests under `tests/` named for the module changed, and run
-  `coga validate --json` — it statically resolves recurring templates,
-  including `recipe:` names against the fixed registry.
+  chosen. The human-facing `coga resolve-conflicts` alias
+  (`src/coga/aliases.py:67`) must keep working unchanged for on-demand use —
+  do not repurpose it as part of the fix.
 - The microkernel rule in CLAUDE.md constrains option 2: a recipe is a fixed
   name in `runner.RECIPES`, not a plugin, and skills describe how to invoke
   commands rather than supplying launch plugins.
+
+### Acceptance
+
+- **The test that distinguishes a correct fix from a relocated bug:** a
+  headless (no-TTY) sweep must still refuse the delegating template at
+  *admission* — before the period task is created — and not fail mid-run.
+  Name it explicitly in `tests/`.
+- An attended sweep runs the delegated conflict work end to end with no
+  `script`/pty invocation anywhere in the path.
+- `coga validate --json` clean — it statically resolves recurring templates,
+  including `recipe:` names against the fixed registry.
+- Add tests under `tests/` named for the module changed, per CLAUDE.md.
 
 ### Out of scope
 
@@ -149,9 +223,15 @@ going forward, not just that one template changed.
   both.
 - Running the W33 sweep itself. That is `recurring/resolve-conflicts`'s work,
   currently paused, and it should be re-run by the owner after this lands.
-- `coga/period-task` guidance and the `resolve-conflicts` command runbook
-  under `bootstrap/resolve-conflicts` — the operation itself is not changing,
-  only how it gets launched.
+- The conflict-resolution *operation* itself. What the sweep does — which PRs
+  it selects, how it rebases, verifies, force-pushes, and rolls up — is not
+  changing; only how it gets launched. The runbook at
+  `coga/bootstrap/resolve-conflicts/ticket.md` (packaged twin under
+  `src/coga/resources/templates/coga/bootstrap/resolve-conflicts/`) is
+  therefore edited only if the chosen mechanism forces it — option 3 would,
+  and its sentence describing the `coga resolve-conflicts` alias sits in the
+  blast radius if the alias path moves.
+- `coga/period-task` guidance.
 
 ### Provenance
 
