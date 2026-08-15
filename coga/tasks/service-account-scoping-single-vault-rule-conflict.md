@@ -1,7 +1,7 @@
 ---
 slug: service-account-scoping-single-vault-rule-conflict
 title: 'Service account scoping: single-vault rule conflicts with trust-tiered vaults'
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
