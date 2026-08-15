@@ -1,6 +1,6 @@
 ---
 slug: secrets-instructions-correction
-title: secrets-instructions-correction
+title: Launch activates a draft before its preflight checks refuse it
 status: in_progress
 owner: nicktoper
 human: nicktoper
@@ -36,6 +36,15 @@ step: 2 (review-design)
 ---
 
 ## Description
+
+**Why this ticket exists.** The trigger was a malformed `secrets:` block, but
+the defect has nothing to do with secrets. `coga launch` writes the
+draft → `active` transition to disk *before* it runs the preflights that can
+refuse the launch, so a ticket whose session never started is left on disk
+claiming work began — and the operator hand-repairs state the CLI is supposed
+to own. Any refusal in that window does it; the bad `secrets:` is just the
+one that got reported. Re-verified against `main` on 2026-08-14: the line
+numbers below still hold.
 
 `coga launch` performs a **durable** draft/paused → `active` transition *before*
 it runs the preflight checks that can refuse the launch. A ticket with a
@@ -104,6 +113,14 @@ Note the ticket slug still says `secrets-instructions-correction`, which now
 describes the trigger rather than the fix. Renaming is the owner's call at
 `review-design`; the malformed `secrets:` block is the *reproducer*, not the
 subject.
+
+**[2026-08-14] Retiring this ticket was proposed and rejected.** The reasoning
+was that the premise doesn't reproduce in this repo — true of half (a), the
+documentation fix, and false of half (b). Half (b) was re-checked against
+`main` that day and is live: `_auto_activate` at `launch.py:542` still sits
+above the `SecretError` refusal at 591, the push-auth preflight at 614, and
+the `in_progress` flip at 674. Deleting the ticket would not have deleted the
+bug. The stale slug is what made it illegible enough to look disposable.
 
 ## Acceptance Criteria
 
