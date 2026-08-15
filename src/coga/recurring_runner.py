@@ -36,13 +36,14 @@ from coga.recurring import (
     DueTask,
     DueScan,
     RecurringError,
-    SERVICED_LOG_VERBS,
     Template,
     format_serviced_log,
+    parse_serviced_period_entries,
+    period_key_at_least,
+    read_serviced_ledger,
     recurring_dir,
     create_named,
     scan_due,
-    serviced_periods,
 )
 from coga.period_state import SNAPSHOT_FILE, parse_keys
 from coga.mark import (
@@ -72,8 +73,8 @@ _RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
 def recurring_owner_refusal(cfg: Config) -> str | None:
     """Why this operator may not launch recurring here, or None if they may.
 
-    Recurring sweeps mutate shared period state (the created period task, the
-    template's `last_serviced_period` high-water mark) and then launch real
+    Recurring sweeps mutate shared period state (the created period task and
+    the repo-global serviced-period ledger) and then launch real
     work, so two *different* operators sweeping the same repo from their own
     clones race each other. The committed `owner` in `coga.toml` picks one of
     them: every clone reads the same name, and only the operator whose
@@ -616,7 +617,7 @@ def run_recurring_scan(
     included in discovery but refused rather than reactivated; the sweep
     reports each refusal, continues with later templates, and returns non-zero
     after the remaining work finishes. Everything else — Slack, the digest
-    spool, git task-state sync, the `last_serviced_period` high-water advance —
+    spool, git task-state sync, and the serviced-period ledger advance —
     is identical to a normal run.
 
     `agent_override` temporarily selects the configured agent for agent-backed
@@ -893,9 +894,13 @@ def run_recurring_named(
 
     ref = outcome.ref
     if outcome.created:
-        created_on_control = _sync_recurring_create(
-            cfg, name, ref, respect_handled_period=False
-        )
+        try:
+            created_on_control = _sync_recurring_create(
+                cfg, name, ref, respect_handled_period=False
+            )
+        except RecurringError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            return 2
         if not (ref.ticket_path).is_file():
             typer.secho(
                 f"{ref.id_slug} was already handled on the control branch; "
@@ -1088,7 +1093,12 @@ def _sync_recurring_create(
     template_ticket = template_dir / "ticket.md"
     original_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
     local_ticket = original_ticket
-    period_key = serviced_periods(cfg).get(_recurring_ref(template_name))
+    ledger = read_serviced_ledger(cfg)
+    template_ref = _recurring_ref(template_name)
+    ledger_error = ledger.errors.get(template_ref)
+    if ledger_error is not None:
+        raise RecurringError(ledger_error)
+    period_key = ledger.periods.get(template_ref)
     state_keys: list[str] = []
     if force_period_key is not None:
         try:
@@ -1122,6 +1132,8 @@ def _sync_recurring_create(
             state_keys=state_keys,
             control_ledger=control_ledger,
         )
+    except RecurringError:
+        raise
     except Exception as exc:
         # `_sync_recurring_create_paths` already degrades on GitError. This
         # backstop keeps any *other* failure (subprocess, OS, racing control
@@ -1595,14 +1607,19 @@ def _control_already_has_period(
     include_ledger: bool = True,
     include_task: bool = True,
 ) -> bool:
-    if include_task and _ref_has_path(root, ref, task_rel):
-        return True
-    if not include_ledger or period_key is None:
-        return False
-    serviced = _control_serviced_period_cached(
-        root, ref, log_rel, template_ref, control_ledger
-    )
-    return serviced is not None and serviced >= period_key
+    if include_ledger and period_key is not None:
+        serviced = _control_serviced_period_cached(
+            root, ref, log_rel, template_ref, control_ledger
+        )
+        if serviced is not None:
+            try:
+                if period_key_at_least(serviced, period_key):
+                    return True
+            except ValueError as exc:
+                raise RecurringError(
+                    f"invalid serviced-period comparison for {template_ref}: {exc}"
+                ) from exc
+    return include_task and _ref_has_path(root, ref, task_rel)
 
 
 def _control_serviced_period_cached(
@@ -1628,10 +1645,17 @@ def _control_serviced_period_cached(
     and reading fresh reintroduces the self-collision above.
     """
     if control_ledger is None:
-        return _read_control_ledger(root, ref, log_rel).get(template_ref)
+        ledger = _read_control_ledger(root, ref, log_rel)
+        error = ledger.get(_control_ledger_error_key(template_ref))
+        if error is not None:
+            raise RecurringError(error)
+        return ledger.get(template_ref)
     if not control_ledger.get(_LEDGER_LOADED):
         control_ledger.update(_read_control_ledger(root, ref, log_rel))
         control_ledger[_LEDGER_LOADED] = "yes"
+    error = control_ledger.get(_control_ledger_error_key(template_ref))
+    if error is not None:
+        raise RecurringError(error)
     return control_ledger.get(template_ref)
 
 
@@ -1839,10 +1863,11 @@ def _adopt_control_template(
 
 # Sentinel key marking a per-run control-ledger cache as populated.
 _LEDGER_LOADED = "\0loaded"
+_LEDGER_ERROR_PREFIX = "\0error:"
 
-_CONTROL_LOG_LINE_RE = re.compile(
+_CONTROL_LOG_ENTRY_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[(?P<ref>[^\]]*)\] \[[^\]]*\] "
-    rf"(?:{'|'.join(SERVICED_LOG_VERBS)})\s+\S+\s+for\s+(?P<period>\S+)$"
+    r"(?P<message>.*)$"
 )
 
 
@@ -1856,6 +1881,10 @@ def _template_ref_from_ticket_rel(ticket_rel: str) -> str:
     return _recurring_ref(PurePosixPath(ticket_rel).parent.name)
 
 
+def _control_ledger_error_key(template_ref: str) -> str:
+    return f"{_LEDGER_ERROR_PREFIX}{template_ref}"
+
+
 def _read_control_ledger(root: Path, ref: str, log_rel: str) -> dict[str, str]:
     """Every `recurring/<name>` → newest serviced period, per `ref`'s log.
 
@@ -1864,19 +1893,18 @@ def _read_control_ledger(root: Path, ref: str, log_rel: str) -> dict[str, str]:
     entry captured at the same instant, not one lazily per template. The
     maximum is taken because `merge=union` can leave the file unsorted.
     """
-    out: dict[str, str] = {}
     text = _show_path(root, ref, log_rel)
     if not text:
-        return out
+        return {}
+    entries: list[tuple[str, str]] = []
     for line in text.splitlines():
-        match = _CONTROL_LOG_LINE_RE.match(line)
-        if match is None:
-            continue
-        template_ref = match.group("ref")
-        period = match.group("period")
-        current = out.get(template_ref)
-        if current is None or period > current:
-            out[template_ref] = period
+        match = _CONTROL_LOG_ENTRY_RE.match(line)
+        if match is not None:
+            entries.append((match.group("ref"), match.group("message")))
+    ledger = parse_serviced_period_entries(entries)
+    out = dict(ledger.periods)
+    for template_ref, error in ledger.errors.items():
+        out[_control_ledger_error_key(template_ref)] = error
     return out
 
 
@@ -2187,22 +2215,28 @@ def _broadcast_scan(
             continue
         if task.ref is None:
             continue
-        created_on_control = _sync_recurring_create(
-            cfg,
-            task.template,
-            task.ref,
-            respect_handled_period=respect_handled_period,
-            # A normal replacement deliberately replaces the prior-period
-            # `done` task at the stable path. The period ledger still guards
-            # against racing another machine that handled this firing first.
-            respect_existing_task=not (sync_existing or task.replaced_done),
-            restore_existing_control_task=sync_existing,
-            overwrite_dirty_control_task=sync_existing and task.created,
-            force_period_key=task.period_key if sync_existing else None,
-            force_snapshot_is_fresh=False,
-            force_record_period=False,
-            control_ledger=control_ledger,
-        )
+        try:
+            created_on_control = _sync_recurring_create(
+                cfg,
+                task.template,
+                task.ref,
+                respect_handled_period=respect_handled_period,
+                # A normal replacement deliberately replaces the prior-period
+                # `done` task at the stable path. The period ledger still guards
+                # against racing another machine that handled this firing first.
+                respect_existing_task=not (sync_existing or task.replaced_done),
+                restore_existing_control_task=sync_existing,
+                overwrite_dirty_control_task=sync_existing and task.created,
+                force_period_key=task.period_key if sync_existing else None,
+                force_snapshot_is_fresh=False,
+                force_record_period=False,
+                control_ledger=control_ledger,
+            )
+        except RecurringError as exc:
+            scan.tasks.remove(task)
+            sys.stderr.write(f"[recurring] skipping {task.template}: {exc}\n")
+            scan.errors.append((task.template, str(exc)))
+            continue
         if not (task.ref.ticket_path).is_file():
             scan.tasks.remove(task)
             typer.secho(

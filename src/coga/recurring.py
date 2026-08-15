@@ -39,9 +39,9 @@ class Template:
     """A recurring task — a ticket-format directory under `recurring/<name>/`.
 
     `ticket.md` carries the schedule and run body; its blackboard region
-    (below the fence) persists across runs for forward state, including the
-    `last_serviced_period` high-water mark. Append-only history goes to the
-    repo-global `coga/log.md`, tagged `recurring/<name>`.
+    (below the fence) persists across runs for task-specific forward state.
+    The serviced-period high-water mark lives in the append-only repo-global
+    `coga/log.md`, tagged `recurring/<name>`.
     """
 
     path: Path  # the recurring task directory
@@ -98,10 +98,9 @@ class Template:
         """The template's single-file `ticket.md`.
 
         Its blackboard region (below the `<!-- coga:blackboard -->` fence)
-        holds the persistent working state composed into each run's prompt —
-        notably the `last_serviced_period` high-water mark. Append-only period
-        history no longer lives beside the template; it goes to the repo-global
-        log (see `_record_run`), which is never composed.
+        holds task-specific working state composed into each run's prompt.
+        The serviced-period ledger lives in the repo-global log (see
+        `_record_run`), which is never composed.
         """
         return self.path / "ticket.md"
 
@@ -142,9 +141,8 @@ class DueTask:
     used to report "ready" vs "overdue" and to order launches.
 
     `ref` is `None` when the period was already serviced earlier and the task
-    directory has since been removed. The template's `ticket.md` blackboard
-    region carries the `last_serviced_period` high-water mark used for that
-    decision.
+    directory has since been removed. The repo-global log carries the
+    serviced-period high-water mark used for that decision.
     """
 
     template: str
@@ -271,8 +269,11 @@ def scan_due(
     tasks: list[DueTask] = []
     errors: list[tuple[str, str]] = []
     # One log pass for every template in this scan, then kept current in-place
-    # as creates record their periods.
-    serviced = serviced_periods(cfg)
+    # as creates record their periods. Malformed records stay attached to the
+    # template they belong to so one bad high-water mark cannot hide itself as
+    # "already serviced" or prevent healthy templates from running.
+    ledger = read_serviced_ledger(cfg)
+    serviced = ledger.periods
     for path in sorted(root.iterdir()):
         if path.name.startswith("_"):
             # Underscore-prefixed entries are templates/creates, not live
@@ -297,6 +298,14 @@ def scan_due(
             errors.append((path.name, str(exc)))
             continue
 
+        ledger_error = ledger.errors.get(_recurring_slug(template.name))
+        if ledger_error is not None:
+            sys.stderr.write(
+                f"[recurring] skipping {path.name}: {ledger_error}\n"
+            )
+            errors.append((path.name, ledger_error))
+            continue
+
         last_fire = _last_firing(template.schedule, now)
         period_key = _period_key(template.schedule, last_fire)
         target_slug = _recurring_slug(template.name)
@@ -306,11 +315,10 @@ def scan_due(
         # `create_template` below rather than superseded by a fresh period;
         # so the "already ran" skip only applies when nothing is live.
         #
-        # The template's persistent blackboard carries the serviced-period
-        # high-water mark. If it has already advanced through this period and
-        # the task directory is gone, the period was handled — do not
-        # re-create what already ran. `--force` overrides this: it
-        # re-runs every template for real regardless of the high-water mark.
+        # The repo-global log carries the serviced-period high-water mark. If
+        # it has advanced through this period and the task directory is gone,
+        # the period was handled — do not re-create what already ran. `--force`
+        # overrides this and re-runs every template for real.
         if (
             not force
             and _live_task_for_template(cfg, template.name) is None
@@ -394,12 +402,18 @@ def create_template(
 ) -> CreateOutcome:
     """Create one recurring template for `now`'s firing. Idempotent.
 
-    `serviced` is the caller's prefetched `serviced_periods` map when it is
-    walking every template; None makes each ledger check read the log.
+    `serviced` is the caller's prefetched valid-period map when it is walking
+    every template; None reads and validates this template's ledger state.
     """
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
     target_slug = _recurring_slug(template.name)
+    if serviced is None:
+        ledger = read_serviced_ledger(cfg)
+        ledger_error = ledger.errors.get(target_slug)
+        if ledger_error is not None:
+            raise RecurringError(ledger_error)
+        serviced = ledger.periods
 
     # One live task per template: an `active`/`in_progress` instance — current
     # period or a dead sweep's prior-period orphan — is *the* live run. Return
@@ -486,7 +500,7 @@ class TemplateStatus:
     prior-period `done` leftover Dream never reaped: the next sweep deletes it
     and creates this period's task fresh, so it is reported as due rather than
     as serviced. `serviced` marks a template with no task on disk whose
-    blackboard high-water mark already covers the current period — the run
+    serviced-period ledger already covers the current period — the run
     happened and Dream reaped the task dir, so it is *not* due (the sweep
     would skip it as "ran this period"). `error` is set for a template that
     failed to load (e.g. missing `schedule`), with the other fields left
@@ -534,7 +548,8 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
     out: list[TemplateStatus] = []
     if not root.is_dir():
         return out
-    serviced = serviced_periods(cfg)
+    ledger = read_serviced_ledger(cfg)
+    serviced = ledger.periods
 
     for path in sorted(root.iterdir()):
         if path.name.startswith("_") or not path.is_dir():
@@ -553,6 +568,23 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
                     instance=None,
                     instance_status=None,
                     error=str(exc),
+                )
+            )
+            continue
+
+        ledger_error = ledger.errors.get(_recurring_slug(template.name))
+        if ledger_error is not None:
+            out.append(
+                TemplateStatus(
+                    name=template.name,
+                    schedule=None,
+                    last_fire=None,
+                    next_fire=None,
+                    period_key=None,
+                    target_slug=None,
+                    instance=None,
+                    instance_status=None,
+                    error=ledger_error,
                 )
             )
             continue
@@ -1027,15 +1059,104 @@ def _period_key(cron: str, fire_time: datetime) -> str:
 # than silently disabling dedup.
 SERVICED_LOG_VERBS = ("created", "reused")
 _SERVICED_LOG_RE = re.compile(
-    rf"^(?:{'|'.join(SERVICED_LOG_VERBS)})\s+\S+\s+for\s+(?P<period>\S+)$"
+    rf"^(?:{'|'.join(SERVICED_LOG_VERBS)})\s+\S+\s+for(?:\s+(?P<period>.*))?$"
 )
+_PERIOD_KEY_EXPECTATION = (
+    "expected YYYY-MM, YYYY-Www, YYYY-MM-DD, YYYY-MM-DD-HH, or "
+    "YYYYMMDDTHHMM with valid calendar values"
+)
+
+
+@dataclass
+class ServicedPeriodLedger:
+    """Valid high-water marks plus malformed records, keyed by template ref."""
+
+    periods: dict[str, str]
+    errors: dict[str, str]
+
+
+def _period_key_position(period_key: str) -> datetime:
+    """Normalize every period-key shape emitted by `_period_key` for ordering."""
+    try:
+        match = re.fullmatch(r"(\d{4})-(\d{2})", period_key)
+        if match is not None:
+            return datetime(int(match.group(1)), int(match.group(2)), 1)
+
+        match = re.fullmatch(r"(\d{4})-W(\d{2})", period_key)
+        if match is not None:
+            return datetime.fromisocalendar(
+                int(match.group(1)), int(match.group(2)), 1
+            )
+
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", period_key):
+            return datetime.strptime(period_key, "%Y-%m-%d")
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}-\d{2}", period_key):
+            return datetime.strptime(period_key, "%Y-%m-%d-%H")
+        if re.fullmatch(r"\d{8}T\d{4}", period_key):
+            return datetime.strptime(period_key, "%Y%m%dT%H%M")
+    except ValueError as exc:
+        raise ValueError(
+            f"invalid period key {period_key!r}; {_PERIOD_KEY_EXPECTATION}"
+        ) from exc
+    raise ValueError(
+        f"invalid period key {period_key!r}; {_PERIOD_KEY_EXPECTATION}"
+    )
+
+
+def period_key_at_least(period_key: str, other: str) -> bool:
+    """Compare two serviced-period keys by calendar position, not spelling."""
+    return _period_key_position(period_key) >= _period_key_position(other)
+
+
+def parse_serviced_period_entries(
+    entries: Iterable[tuple[str, str]],
+) -> ServicedPeriodLedger:
+    """Parse log `(ref, message)` entries into typed high-water marks.
+
+    A malformed ledger-looking line is retained as a per-template error rather
+    than ignored or compared as text. Valid records still accumulate for other
+    templates so scan and status can isolate the bad state to its owner.
+    """
+    periods: dict[str, str] = {}
+    positions: dict[str, tuple[datetime, str]] = {}
+    errors: dict[str, str] = {}
+    for ref, message in entries:
+        if not ref.startswith("recurring/"):
+            continue
+        match = _SERVICED_LOG_RE.match(message)
+        if match is None:
+            continue
+        period = (match.group("period") or "").strip()
+        try:
+            position = _period_key_position(period)
+        except ValueError:
+            error = (
+                f"invalid serviced period {period!r} for {ref} in coga/log.md; "
+                f"{_PERIOD_KEY_EXPECTATION}"
+            )
+            current_error = errors.get(ref)
+            if current_error is None or error < current_error:
+                errors[ref] = error
+            continue
+        candidate = (position, period)
+        current = positions.get(ref)
+        if current is None or candidate > current:
+            periods[ref] = period
+            positions[ref] = candidate
+    return ServicedPeriodLedger(periods=periods, errors=errors)
 
 
 def format_serviced_log(verb: str, task_ref: str, period_key: str) -> str:
     """The one spelling of a serviced-period log message."""
     if verb not in SERVICED_LOG_VERBS:
         raise ValueError(f"unknown serviced-period verb {verb!r}")
+    _period_key_position(period_key)
     return f"{verb} {task_ref} for {period_key}"
+
+
+def read_serviced_ledger(cfg: Config) -> ServicedPeriodLedger:
+    """Read all serviced-period state while preserving per-template errors."""
+    return parse_serviced_period_entries(iter_log_messages(cfg))
 
 
 def serviced_periods(cfg: Config) -> dict[str, str]:
@@ -1044,22 +1165,17 @@ def serviced_periods(cfg: Config) -> dict[str, str]:
     One pass over the log for every template at once; scanning per template
     would re-read the one file Coga lets grow without bound.
 
-    The *maximum* period is kept rather than the last line seen: `log.md` is
-    `merge=union`, so concurrent appends from two checkouts can leave the file
-    unsorted. (`first_activity_map` keeps its minimum for the same reason.)
+    The latest calendar period is kept rather than the last line seen:
+    `log.md` is `merge=union`, so concurrent appends from two checkouts can
+    leave the file unsorted. Malformed ledger state raises instead of returning
+    a partial map; scan/status use `read_serviced_ledger` to attach each error
+    to its template while continuing past it.
     """
-    out: dict[str, str] = {}
-    for ref, message in iter_log_messages(cfg):
-        if not ref.startswith("recurring/"):
-            continue
-        match = _SERVICED_LOG_RE.match(message)
-        if match is None:
-            continue
-        period = match.group("period")
-        current = out.get(ref)
-        if current is None or period > current:
-            out[ref] = period
-    return out
+    ledger = read_serviced_ledger(cfg)
+    if ledger.errors:
+        first_ref = sorted(ledger.errors)[0]
+        raise RecurringError(ledger.errors[first_ref])
+    return ledger.periods
 
 
 def _recurring_slug(template_name: str) -> str:
@@ -1105,7 +1221,15 @@ def _period_already_serviced(
     if serviced is None:
         serviced = serviced_periods(cfg)
     last = serviced.get(_recurring_slug(template.name))
-    return last is not None and last >= period_key
+    if last is None:
+        return False
+    try:
+        return period_key_at_least(last, period_key)
+    except ValueError as exc:
+        raise RecurringError(
+            f"invalid serviced-period comparison for "
+            f"{_recurring_slug(template.name)}: {exc}"
+        ) from exc
 
 
 def _extract_title(template: Template) -> str:
@@ -1126,6 +1250,10 @@ __all__ = [
     "PromoteOutcome",
     "promote_task",
     "serviced_periods",
+    "read_serviced_ledger",
+    "parse_serviced_period_entries",
+    "period_key_at_least",
+    "ServicedPeriodLedger",
     "format_serviced_log",
     "SERVICED_LOG_VERBS",
     "RecurringError",

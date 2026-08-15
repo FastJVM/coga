@@ -24,8 +24,9 @@ Last updated: 2026-07-30.
   retro pass direct-deletes it. Since the instantiated task is deleted after a
   completed run, a leftover `tasks/recurring/<name>/` directory is the orphan
   signal: `in_progress` is resumed before fresh period work, and `paused` stays
-  human-parked. A missing task dir plus a logged serviced period `>= current
-  period_key` means this period already ran.
+  human-parked. A missing task dir plus a valid logged serviced period whose
+  normalized calendar position is at or after the current period means this
+  period already ran. Malformed period records are errors, not schedule state.
 
 - **`coga recurring --force` is a forced real run, not a debug sandbox.** The
   old `<name>-dbg-<timestamp>` scratch machinery (slug-based Slack/git

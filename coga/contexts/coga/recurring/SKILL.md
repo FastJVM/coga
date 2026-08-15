@@ -352,9 +352,13 @@ task, which carries that rule.
   serviced period appends one `created|reused <task-ref> for <period>` line
   tagged `recurring/<name>`. The period key buckets the firing: hourly →
   `YYYY-MM-DD-HH`, daily → `YYYY-MM-DD`, weekly → `YYYY-Www`, monthly →
-  `YYYY-MM`. Bare `coga recurring` reads those lines before creating: if the
-  newest recorded period `>= current period_key`, that period has been
-  handled — it is not re-created and not re-launched. The on-demand
+  `YYYY-MM`, and schedules outside those four buckets → `YYYYMMDDTHHMM`.
+  Bare `coga recurring` validates those exact shapes and their calendar values,
+  then compares their normalized calendar positions before creating. A
+  malformed record is a template error in the sweep, `coga recurring list`,
+  and `coga status`; it never counts as "ran this period." If the newest valid
+  record is at or after the current period, that period has been handled — it
+  is not re-created and not re-launched. The on-demand
   `coga recurring launch <name>` (and aliases like `coga dream`) bypass this
   skip: it's the explicit override.
 - **Why the log and not the template.** A mark in the template blackboard is
@@ -364,8 +368,9 @@ task, which carries that rule.
   and repost the digest. An appended line cannot be clobbered that way, is
   union-merged across checkouts, and outlives the task Dream reaps. Dedup
   therefore *does* parse the log, so the line's wording is a contract with one
-  writer and one reader (`format_serviced_log` / `serviced_periods`), pinned
-  by a test. Logs are still never composed into prompts, so history can grow
+  writer and one shared parser (`format_serviced_log` /
+  `parse_serviced_period_entries`), pinned by a test. Logs are still never
+  composed into prompts, so history can grow
   without bloating the next run.
 - **One shared file, so a sweep pins one snapshot.** Because every template
   records into the same log, the first sync of a sweep publishes records for

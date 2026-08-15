@@ -76,7 +76,9 @@ no in-memory state.
   `created|reused <task-ref> for <period>` line in the repo-global
   `coga/log.md`, and launches the due
   ones. That log line **is** the serviced-period ledger, not just history: the
-  scan reads it back to decide whether a period has already run. It lives
+  scan validates its calendar-period key and compares normalized period
+  positions to decide whether a period has already run. A malformed key is a
+  visible template error in scans and status, never an "already ran" result. It lives
   there because the log is append-only and union-merged — a co-writer
   rewriting a region of a template's blackboard cannot destroy an appended
   line, and the record outlives the period task Dream reaps. A template may select a known deterministic implementation with
