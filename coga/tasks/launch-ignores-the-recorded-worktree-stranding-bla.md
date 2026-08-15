@@ -5,10 +5,11 @@ status: draft
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
+assignee: claude
+contexts:
+  - dev/code
 skills: []
-workflow: null
+workflow: code/design-then-implement
 secrets: null
 ---
 
@@ -40,6 +41,26 @@ the primary checkout and cannot see them, so `open-pr` fails with "No usable
   (scoped to the per-launch worktrees removed in PR #547, not the
   agent-created one `code/implement` mandates today) and
   `v2/use-worktree-when-starting-a-dev-task` (placement + litter).
+- The checkout-boundary contract this violates is the attached `dev/code`
+  context: control-plane writes (`ticket.md`, `coga/log.md`, `bump`, `slack`,
+  `block`) belong in the primary checkout; source changes belong in the feature
+  worktree recorded as `worktree:`. The bug is that nothing enforces the split.
+- Design is genuinely open — the `design` step should pick among at least:
+  (a) `launch` reads `worktree:` and spawns the agent there;
+  (b) `code/implement` stops mandating the `cd` and edits the worktree from the
+  primary checkout; (c) `sync_task_state` fires unconditionally so blackboard
+  writes land on control wherever the agent sits; (d) a `bump`/`validate` guard
+  that fails loudly on divergence. Say what each gives up, don't just pick.
+- Repo conventions live in `CLAUDE.md`; read the `coga/codebase` context before
+  editing `src/coga/` (microkernel rule, source layout, test expectations). It
+  is deliberately not attached — it is large and the pointer is enough.
+- If the fix touches shipped OS files (`coga/skills/code/implement/SKILL.md`,
+  workflows, contexts), mirror the change into the packaged copy under
+  `src/coga/resources/templates/coga/` in the same PR.
+- Chicken-and-egg to expect: this ticket's own `implement` step runs through the
+  exact path being fixed, so the implementing agent may strand its own
+  blackboard writes. Push the branch and verify `ticket.md` state landed on the
+  control branch before bumping into `open-pr`.
 
 <!-- coga:blackboard -->
 
