@@ -72,7 +72,11 @@ any line number quoted elsewhere.
 - Adjacent but not covering: `v2/reintroduce-per-launch-worktree-isolation`
   (scoped to the per-launch worktrees removed in PR #547, not the
   agent-created one `code/implement` mandates today) and
-  `v2/use-worktree-when-starting-a-dev-task` (placement + litter).
+  `v2/use-worktree-when-starting-a-dev-task` (placement + litter). **Both are
+  placeholders — unrefined idea capture, both still `status: draft`, neither
+  approved or scheduled.** Read them for prior thinking only. This ticket is the
+  live one on `worktree:`; do not treat either as a committed design, a
+  constraint on the fix, or a reason to narrow scope, and do not edit them.
 - The contract this violates is the attached `dev/code` context — read its
   checkout-boundary, retire, and `## Dev` grammar sections; all three constrain
   the fix.
