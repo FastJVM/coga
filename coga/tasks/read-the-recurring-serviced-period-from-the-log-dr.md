@@ -162,3 +162,22 @@ worktree: /tmp/coga-recurring-log-reverse-pass
 - Preserve the exact `created|reused <task-ref> for <period>` contract while
   making scan/list callers supply the finite recurring refs they need, so one
   reverse pass can stop as soon as all of them resolve.
+
+## Note from `admin/carry-three-verified-coga-bugs-upstream` (2026-08-15)
+
+The "source/help prose also still describes the removed blackboard marker" gap
+above was independently verified during the 2026-08-15 Dream run in the `admin`
+repo. Nothing reads or writes `last_serviced_period` any more, so these are
+documentation only — but they are what makes the drift easy to reintroduce, and
+it did reintroduce it: `admin`'s `dream` and `digest` recurring templates
+carried the wrong claim until Dream PR #115. The six surviving sites, so the
+sweep does not have to be rediscovered:
+
+- `src/coga/recurring.py:43`, `:102`, `:146`
+- `src/coga/recurring_runner.py:76`, `:619`
+- `src/coga/commands/recurring.py:60`
+
+Each names the template blackboard as the high-water-mark carrier; they should
+name the `coga/log.md` ledger instead. Filed here rather than as its own ticket
+because this ticket's acceptance criterion ("No `last_serviced_period` read or
+write remains in the source tree") and its implement note already own the scope.
