@@ -2,10 +2,10 @@
 slug: put-build-back
 title: put-build-back
 status: draft
-owner: zach
-human: zach
+owner: nicktoper
+human: nicktoper
 agent: claude
-assignee: zach
+assignee: claude
 contexts: []
 skills: []
 workflow: null
@@ -14,7 +14,9 @@ secrets: null
 
 ## Description
 
+This is a reminder to add `coga build` back in to Coga. 
 
+Zach used build on his weather app and it turned a half-baked idea into something real. I think it adds value. 
 
 ## Context
 
