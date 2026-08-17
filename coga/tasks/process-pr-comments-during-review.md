@@ -586,3 +586,10 @@ Test plan:
 - `python -m pytest` (1715 passed, 1 skipped)
 - source-backed CLI smoke
 - `coga validate --json` against `example/coga` (2 ok, no issues)
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: a frozen workflow snapshot never refreshes
