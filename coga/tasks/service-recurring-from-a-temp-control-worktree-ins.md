@@ -1,14 +1,14 @@
 ---
 slug: service-recurring-from-a-temp-control-worktree-ins
 title: Service recurring from a temp control worktree instead of failing the repo
-status: draft
+status: active
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - coga/architecture
-  - coga/cli
+- coga/architecture
+- coga/cli
 skills: []
 workflow:
   name: code/design-then-implement
