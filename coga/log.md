@@ -3566,3 +3566,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-17 14:24 [recurring/dream] [system] created recurring/dream for 2026-W34
 2026-08-17 14:24 [recurring/skill-update] [system] created (status=active)
 2026-08-17 14:24 [recurring/skill-update] [system] created recurring/skill-update for 2026-W34
+2026-08-17 14:24 [recurring/branch-sweep] [system] started (active → in_progress) via recurring recipe branch-sweep
