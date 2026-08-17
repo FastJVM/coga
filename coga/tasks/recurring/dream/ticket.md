@@ -1,7 +1,7 @@
 ---
 slug: recurring/dream
 title: Dream
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,6 +17,7 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
+step: 1 (execute)
 ---
 
 ## Description
@@ -176,7 +177,7 @@ A done `recurring/<name>` ticket from this sweep is eligible like any other.
 Period tickets carry nothing durable (their output is the notification post or
 PR they already produced), so Retro direct-deletes them via `coga delete
 recurring/<name>` — no PR or marker — while leaving the recurring template's
-`last_serviced_period` untouched. If a completed period ticket survives into a
+serviced-period record untouched. If a completed period ticket survives into a
 later firing, the recurring scanner deletes it before creating that period's
 fresh task. The previous Dream run is removed by that scanner fallback before
 this Dream task is created, so Dream never sees or deletes its own predecessor.
@@ -272,111 +273,3 @@ Git history preserves the completed run.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Run notes
-
-- Phase 1 (validate-drift): done — 23 issues, all human-needed, 0 direct fixes. Recipe ran twice (double invocation); duplicate section removed.
-- Phase 2 (knowledge-scan) and Phase 3 (contract-audit): delegated to read-only subagents, running.
-- Phase 4 prep: 15 done tickets on disk; open PRs #678 (coga/skill-update) and #677 (codex/address-pr-comments) touch no coga/tasks/ path and add no Retro markers, so all 15 are eligible.
-  - Ordinary: always-accept-coga-ticket, bump-can-mark-done-too, document-megalaunch-drain-order, recurring-bugs/branch-sweep-leaves-worktree-pinned-merged-branche, recurring-bugs/dream-recipes-write-reports-into-packaged-bootstra, remove-run-py/delete-the-script-seam, remove-run-py/port-hard-consumers-onto-the-generic-runner, retire-a-finished-ticket-s-linked-worktree-and-mak, scrub-coga-task-in-the-pytest-autouse-guard-so-fix, write-real-coga-documentation-command-reference-gu
-  - Recurring period tickets (direct-delete, no marker): recurring/autoclose-merged, recurring/blocker-reminders, recurring/branch-sweep, recurring/digest, recurring/skill-update
-
-## Findings
-
-### Phase 2 — knowledge scan
-
-#### `extract` — group: dev/code (checkout lifecycle)
-
-**F1 — Durable-checkout rule: /tmp worktrees are a data-loss pattern** — `extract` — source tickets `write-real-coga-documentation-command-reference-gu`, `retire-a-finished-ticket-s-linked-worktree-and-mak`, `recurring-bugs/branch-sweep-leaves-worktree-pinned-merged-branche`; target `coga/contexts/dev/code/SKILL.md` (`## Checkout boundary`) + packaged twin.
-Three done tickets independently paid for the same missing rule. The docs ticket's first implement pass was unrecoverable — the `/tmp/coga-real-docs` worktree was wiped by a reboot and the branch existed in no ref, forcing a full human-decided rewind and redo. The retire ticket's recorded worktree and branch were likewise gone at relaunch, and the branch-sweep probe found 18 prunable worktrees (mostly `/tmp`) invisibly pinning branches. `dev/code` says only "a path outside the primary checkout", and the `code/implement` fallback clone recipe itself uses `mktemp -d /tmp/...`. Draft addition to `## Checkout boundary`: *"A `/tmp` checkout survives only until the next reboot. For work that may span sessions, either use a durable sibling path (e.g. `../coga-<branch>`) or push the branch to the remote before ending the session — an unpushed branch whose only checkout is under `/tmp` is one reboot away from unrecoverable. A wiped `/tmp` worktree also keeps pinning its branch until `git worktree prune`."*
-
-#### `extract` — group: coga/codebase (dev-loop gotchas)
-
-**F2 — Coga commands inside a feature worktree publish `coga/` edits to `main` before the PR exists** — `extract` — source ticket `remove-run-py/port-hard-consumers-onto-the-generic-runner`; target `coga/contexts/coga/codebase/SKILL.md` (`## Sandbox and cross-machine dev loop`).
-Running `coga validate` / `coga run` from inside the feature worktree tripped the automatic control-branch sync, which committed the branch's in-flight `coga/` context and skill edits and pushed them to `origin/main` as `3779d340` before the PR existed — leaving `main`'s contexts describing behavior `main`'s code didn't yet have, and those files missing from the PR diff. Draft bullet: *"State-changing (and even validating) coga commands run from a feature worktree will sweep any dirty `coga/` context/skill edits onto the control branch immediately — publishing your doc half before your code half merges. Keep in-flight `coga/` edits committed on the feature branch (not dirty in the working tree) before running coga commands there, or expect them to reach `main` out-of-band and drop out of the PR diff."*
-
-**F3 — Megalaunch from a stale checkout replays already-merged tickets** — `extract` — source ticket `remove-run-py/delete-the-script-seam`; target `coga/contexts/coga/codebase/SKILL.md` (or `dev/code` `## Checkout boundary`).
-Megalaunch re-picked the ticket eight minutes after its PR merged, because the invoking checkout sat on a feature branch 75 commits behind `origin/main`: the composed prompt was built from a stale ticket copy and stale source still containing the deleted seam. Draft bullet: *"Run `coga megalaunch` (and launches generally) only from a control checkout freshly synced to `origin/<control>`. A checkout parked behind `main` composes prompts from stale ticket copies and can re-dispatch work that already merged; the state-regression guard protects the control branch, not your session's wasted run."*
-
-#### `stale`
-
-**F4 — Live and packaged task `_template` carry the removed `autonomy:` field and pre-rename `[secrets]`/relay prose** — `stale` — files `coga/tasks/_template/ticket.md` and `src/coga/resources/templates/coga/tasks/_template/ticket.md`.
-Both templates open with `autonomy: interactive`, but `coga/architecture` states "There is no `autonomy:` field". The live copy additionally documents `secrets:` as keys from `[secrets]` in relay.local.toml with legacy blanket-inject semantics — three contradictions of the current model (no central `[secrets]` catalog, `null` injects nothing, the file is `coga.local.toml`), plus `relay create`/`relay ticket`/`relay.toml` naming. Fix: strip `autonomy:`, rewrite the secrets comment to the inline `- NAME: op://…` / `env:VAR` list shape, and s/relay/coga/ in both copies.
-
-**F5 — `coga/recurring` wrapper Gotcha contradicts the `recurring/resolve-conflicts` template on TTY admission** — `stale` — files `coga/contexts/coga/recurring/SKILL.md` (Gotchas, ~lines 371–387) and `coga/recurring/resolve-conflicts/ticket.md`.
-The context tells a wrapper agent to run the delegated agent-backed command under a fake pty (`script -qec ... /dev/null`) and confirm success via `coga/log.md`; the template says the opposite ("Recurring's outer agent supervisor remains responsible for TTY admission"). The 2026-W33 run followed the template, judged the pty workaround a design bypass, and terminally blocked (blocker `20260813T094004`) — the delegated sweep never ran. One of the two must win; the blocked run's blackboard leans structural, so the proposal PR should flag that half may deserve a draft ticket.
-
-**F6 — Packaged `docs/with-review` workflow still instructs the removed `coga panic`** — `stale` — file `src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md` (5 occurrences: lines 50, 62, 90, 117, 145).
-The blocked-handoff surface is `coga block` / `coga unblock` everywhere else; an agent following this workflow will invoke a nonexistent command exactly when stuck. Overlap: draft ticket `docs-with-review-coga-panic` (2026-08-05) already tracks this — the stale-fix PR should close that draft rather than duplicate it.
-
-**F7 — `coga/secrets` single-vault rule contradicts its own trust-tier guidance** — `stale`, already tracked, do not open a parallel PR — file `coga/contexts/coga/secrets/SKILL.md`.
-"SA … scoped to a single vault" and "secrets will accrue in vaults named by their trust level" cannot both hold; hit live 2026-08-11. Active ticket `service-account-scoping-single-vault-rule-conflict` (workflow `draft-for-human`) owns the design decision. Note the overlap and defer.
-
-**F8 — The `v2/` parking area systematically references `relay`/`relay-os` paths that no longer resolve** — `stale` — directory `coga/tasks/v2/` (most non-empty drafts).
-Pre-rename paths (`src/relay/`, `relay-os/contexts/...`, `relay launch`) and dead mechanisms (`mode: script`, `relay panic`, `[secrets]` bulk-inject) pervade the parked drafts. Draft `decide-the-fate-of-two-premise-dead-v2-drafts-whos` already calls the v2-wide sweep "a broader cleanup question"; route by folding into that existing draft's scope rather than a new artifact.
-
-#### Phase 2 notes (unclassified)
-
-- Untracked `__pycache__/recipe.cpython-312.pyc` leftovers in `coga/skills/code/open-pr/`, `coga/skills/coga/autoclose/sweep/`, `coga/skills/coga/blockers/remind/` — residue of the deleted `recipe.py` seam; pure hygiene.
-- Most done tickets already extracted their knowledge in their own PRs; apart from F1–F3 they are direct-delete candidates.
-- Phase 4 batching hint: F1's three source tickets + `write-real-…` = one dev/code checkout-lifecycle knowledge PR (4 source tickets); F2+F3's two `remove-run-py` tickets = a second codebase-dev-loop PR; the rest are direct-delete.
-
-### Phase 3 — contract audit
-
-**F9 — Shipped task template carries the removed `autonomy:` field** — `drift` — `coga/tasks/_template/ticket.md:5` and packaged copy `src/coga/resources/templates/coga/tasks/_template/ticket.md:5`.
-Both copies ship `autonomy: interactive`, but the field was removed (`src/coga/config.py:463` — "Removed with the autonomy rework (#503): launches are interactive-only"); no code reads it, it is not in `_RESERVED_TICKET_FIELD_NAMES`, and `coga validate` warns on tickets copied from the template. Source of truth: code reality + architecture context.
-
-**F10 — Shipped task template documents the removed `[secrets]` catalog and inverted `null` semantics** — `drift` — `coga/tasks/_template/ticket.md:13-15` and packaged copy, same lines.
-The `secrets:` comment teaches "omit or `null` = legacy blanket-inject all secrets", but `parse_inline_secrets` (`src/coga/config.py:1166`) treats absent/`null`/`[]` identically as no secrets, there is no `[secrets]` catalog, and a `[secrets]` table in `coga.local.toml` raises a migration ConfigError (`src/coga/config.py:233-240`). Source of truth: `src/coga/config.py`.
-
-**F11 — Live task template diverged from packaged copy — pre-rename `relay` spellings** — `drift` — `coga/tasks/_template/ticket.md:13,18-19` vs packaged copy.
-Live copy says "relay.local.toml", "relay.toml", "`relay create` / `relay ticket`"; the packaged counterpart already uses `coga` spellings. All other live/packaged pairs are byte-identical apart from runtime state, so the divergence is undocumented. Source of truth: packaged template + Relay→Coga rename.
-
-Phase 3 note: F9–F11 all target the same `_template` pair as Phase 2's F4 — route as one combined proposal PR. Audit otherwise found the contract surface in good sync (recipe registry, aliases, flags, validator kinds, notification tiers all check out).
-
-## Phase 4 — Retro results
-
-All 15 eligible done tickets processed by one Retro subagent in a caller-created linked worktree (`../coga-retro-2026w33`, temp branch `dream-retro-2026-W33`, based on fresh `origin/main` @ adaebcbb). Isolation proof held; no failures, no gates.
-
-Knowledge PRs (each deletes its source tickets and records their `## Retro` markers in PR history):
-- PR #681 — "Context: a /tmp feature checkout is one reboot from unrecoverable" — https://github.com/FastJVM/coga/pull/681 — adds `### Keep the feature checkout durable` to `coga/contexts/dev/code/SKILL.md` + packaged twin (synced). Sources deleted: `write-real-coga-documentation-command-reference-gu`, `retire-a-finished-ticket-s-linked-worktree-and-mak`, `recurring-bugs/branch-sweep-leaves-worktree-pinned-merged-branche`. (Covers finding F1.)
-- PR #682 — "Context: run coga commands only from a fresh control checkout" — https://github.com/FastJVM/coga/pull/682 — adds `### Which checkout you invoke coga from` to `coga/contexts/coga/codebase/SKILL.md` (no packaged counterpart). Sources deleted: `remove-run-py/port-hard-consumers-onto-the-generic-runner`, `remove-run-py/delete-the-script-seam`. (Covers F2+F3; F2's "even validating" claim was corrected — `src/coga/cli.py:124` excludes status/show/validate/usage from the exit-boundary sweep, so the bullet is scoped to state-changing commands.)
-
-Direct-deleted (no durable knowledge, no PR/marker), landed on origin/main: always-accept-coga-ticket (599f7073), bump-can-mark-done-too (52e8f7f1), document-megalaunch-drain-order (30e10d93), scrub-coga-task-in-the-pytest-autouse-guard-so-fix (bd15657a), recurring-bugs/dream-recipes-write-reports-into-packaged-bootstra (62530cee), recurring/autoclose-merged (4ed4c338), recurring/blocker-reminders (3b98b5f1), recurring/branch-sweep (73060e05), recurring/digest (c0e0ccd4), recurring/skill-update (3ba16130). Recurring templates untouched.
-
-Slack FYIs posted for both PRs. Teardown verified: PR branches match remote, worktree + temp branch removed, copied coga.local.toml removed, evidence snapshot deleted. Note: the 5 knowledge-bearing ticket files remain in the operator checkout until #681/#682 merge (by design); their local copies carry no `## Retro` markers, so Phase 5 should find nothing.
-
-## Dream Skill: cleanup-orphan-markers
-
-Generated: 2026-08-13T17:04:59+00:00
-Task: `recurring/dream`
-
-Result: no-op. No cleanup-eligible processed done tickets still have task directories.
-
-## Dream Run Summary
-
-Generated: 2026-08-13T17:15Z (period 2026-W33)
-
-| Phase | Result |
-| --- | --- |
-| 1 validate-drift | reported — 23 issues, all human-needed (0 direct-fix, 0 pr-proposal) |
-| 2 knowledge scan | reported — 8 findings (3 extract, 5 stale) |
-| 3 contract audit | reported — 3 findings (drift, all in the `_template` pair) |
-| 4 retro/done-ticket | pr-opened — 2 knowledge PRs (5 source tickets deleted in-PR), 10 tickets direct-fixed via `coga delete` to origin/main |
-| 5 cleanup-orphan-markers | no-op |
-| 6 disposition | pr-opened — 2 proposal PRs, 1 draft ticket created, 1 draft folded-into, 2 findings deferred to existing artifacts |
-
-Findings routed:
-- F1 (extract) → PR #681 https://github.com/FastJVM/coga/pull/681 — /tmp-checkout durability rule in `dev/code` + packaged twin; deletes 3 source tickets.
-- F2+F3 (extract) → PR #682 https://github.com/FastJVM/coga/pull/682 — fresh-control-checkout rule in `coga/codebase`; deletes 2 source tickets. (F2's "even validating" claim corrected against `src/coga/cli.py:124`.)
-- F4+F9+F10+F11 (stale/drift) → PR #683 https://github.com/FastJVM/coga/pull/683 — `_template` frontmatter refresh, live+packaged byte-identical.
-- F6 (stale) → PR #684 https://github.com/FastJVM/coga/pull/684 — `coga panic` → `coga block` in packaged `docs/with-review`; folds in (deletes) draft `docs-with-review-coga-panic`.
-- F5 (stale) → draft ticket `reconcile-recurring-wrapper-tty-admission-guidance` (design decision: context pty recipe vs template supervisor-owns-TTY; live run blocked on this, blocker 20260813T094004).
-- F7 (stale) → deferred: already owned by active ticket `service-account-scoping-single-vault-rule-conflict`; no parallel PR.
-- F8 (stale) → folded into existing draft `decide-the-fate-of-two-premise-dead-v2-drafts-whos` (scope note appended: v2-wide relay-reference sweep).
-- Hygiene note → 3 untracked `__pycache__` residues deleted from live skill dirs.
-
-Human-needed / review gates:
-- 23 validate-drift issues need owner lifecycle decisions (stuck in_progress ×4, unfrozen workflows ×7, unknown assignee ×5, missing step ×3, unsynthesized draft blackboards ×4) — listed in `## Dream Skill: validate-drift` above.
-- PRs #681–#684 are pr-required: human reviews and merges; Dream never auto-merges.
-- 5 knowledge-bearing ticket files remain on disk until #681/#682 merge (by design; local copies carry no markers).
