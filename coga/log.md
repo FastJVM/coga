@@ -3571,3 +3571,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-17 14:25 [recurring/branch-sweep] [system] recipe branch-sweep exited with code 0
 2026-08-17 14:25 [recurring/branch-sweep] [system] completed (recipe branch-sweep exited 0) via coga recurring
 2026-08-17 14:25 [recurring/autoclose-merged] [system] started (active → in_progress) via recurring recipe autoclose
+2026-08-17 14:25 [recurring/autoclose-merged] [system] launched as recipe (autoclose)
