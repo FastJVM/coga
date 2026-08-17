@@ -3550,3 +3550,19 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-15 16:36 [reconcile-recurring-wrapper-tty-admission-guidance] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
 2026-08-15 16:36 [reconcile-recurring-wrapper-tty-admission-guidance] [git] sync failed: `git fetch --no-write-fetch-head https://github.com/FastJVM/coga refs/heads/main:refs/coga/fetch/74241b4ae42248cb959ac0af3c93c96c` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
 2026-08-15 16:36 [reconcile-recurring-wrapper-tty-admission-guidance] [system] {"agent":"codex","agent_turns":6,"cache_creation_input_tokens":null,"cache_read_input_tokens":23104256,"cli":"codex","content_status":"ok","elapsed_seconds":3037.155835,"ended_at":"2026-08-15T23:36:01.856785Z","human_turns":0,"input_tokens":308281,"model":"gpt-5.6-sol","outcome":"The feature branch is clean at commit `04daadfa` and already based on the latest `origin/main`; no push or PR was created. I’ve recorded the design choice, test evidence, validation caveat, branch, worktree, and commit in the blackboard. I’m advancing the ticket to peer review now.","outcome_status":"completed","output_tokens":52457,"provider":"openai","request":null,"schema":2,"session_id":"01a00799-f332-78d2-b25e-03c72f3ff04d","slug":"reconcile-recurring-wrapper-tty-admission-guidance","started_at":"2026-08-15T22:45:24.700950Z","step":"implement","title":"Reconcile recurring wrapper TTY-admission guidance with resolve-conflicts template","ts":"2026-08-15T23:36:01.856785Z","usage_status":"ok"}
+2026-08-17 14:24 [recurring/autoclose-merged] [system] created (status=active)
+2026-08-17 14:24 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-08-17
+2026-08-17 14:24 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-08-17
+2026-08-17 14:24 [recurring/blocker-reminders] [system] created (status=active)
+2026-08-17 14:24 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-08-17
+2026-08-17 14:24 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-08-17
+2026-08-17 14:24 [recurring/branch-sweep] [system] created (status=active)
+2026-08-17 14:24 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-W34
+2026-08-17 14:24 [recurring/digest] [system] created (status=active)
+2026-08-17 14:24 [recurring/digest] [system] deleted completed prior-period task before 2026-08-17
+2026-08-17 14:24 [recurring/digest] [system] created recurring/digest for 2026-08-17
+2026-08-17 14:24 [recurring/dream] [system] created (status=active)
+2026-08-17 14:24 [recurring/dream] [system] deleted completed prior-period task before 2026-W34
+2026-08-17 14:24 [recurring/dream] [system] created recurring/dream for 2026-W34
+2026-08-17 14:24 [recurring/skill-update] [system] created (status=active)
+2026-08-17 14:24 [recurring/skill-update] [system] created recurring/skill-update for 2026-W34
