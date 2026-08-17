@@ -385,3 +385,79 @@ Generated: 2026-08-17T21:53:08+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Findings
+
+**Empty.** Phases 2 and 3 never returned findings (see "Phase 2/3 — FAILED"
+above). This is an absence of input, not a clean bill of health. Consequently
+Phase 6 routed no `stale` or `drift` proposal PRs and created no `gap` tickets
+from scan output.
+
+## Dream Run Summary
+
+Generated: 2026-08-17 14:56 -0700. Period serviced: `2026-W34`.
+
+| # | Phase | Result |
+| --- | --- | --- |
+| 1 | validate-drift | `reported` — 23 issues, all `human-needed` |
+| 2 | knowledge scan | `human-needed` — subagent returned no findings |
+| 3 | contract audit | `human-needed` — subagent returned no findings |
+| 4 | retro/done-ticket | `pr-opened` — 1 knowledge PR, 10 direct deletes |
+| 5 | cleanup-orphan-markers | `no-op` — no orphaned processed markers |
+| 6 | disposition + summary | `reported` — 1 draft ticket; no findings to route |
+
+### Counts
+
+- Validator issues: 23 — all `human-needed`, none auto-repairable. Mix of
+  `stuck-in-progress` (4 top-level + 1 `v2/*`), `unknown-assignee` (5 `v2/*`,
+  assignee `nicktoper` is not an agent type), `unfrozen-workflow` (6
+  `v2/cleanup-core-commands/*` + `v2/fix-windows-cli-import-crash`, hand-authored
+  and awaiting first launch), `missing-step` (3 errors), and
+  `unsynthesized-draft-blackboard` (4 errors on `v2/*` drafts).
+- Done tickets processed: 11 of 11 eligible — 1 knowledge-bearing, 10 with no
+  durable knowledge. None left on disk at `origin/main`.
+- Scan findings: 0 (phases failed).
+
+### PRs opened
+
+- [#698](https://github.com/FastJVM/coga/pull/698) — "New context: a frozen
+  workflow snapshot never refreshes". Edits `coga/contexts/coga/architecture/SKILL.md`
+  and its packaged copy, records the `## Retro` marker for
+  `process-pr-comments-during-review`, and deletes that source ticket in the same
+  PR. **Open, needs human review — Dream does not auto-merge.**
+
+### Draft tickets created
+
+- `dream-phases-2-3-cannot-complete-scan-subagents-re` — carries the Phase 2/3
+  failure forward, since this task's blackboard is deleted at the next firing.
+
+### Direct deletes (no PR, no marker; recovery via `git restore`)
+
+Landed on `origin/main`: `recurring/autoclose-merged` `282f57a4`,
+`recurring/blocker-reminders` `70142629`, `recurring/branch-sweep` `b14c817f`,
+`recurring/digest` `83997788`, `recurring/skill-update` `019e162c`,
+`megalaunch-does-not-set-coga-expected-task` `d10be102`,
+`recurring-can-only-be-launched-by-owner` `59181000`,
+`important-alerts-the-task-owner-drop-important-rec` `adea44dc`,
+`retire-coga-important-support-second-webhook` `faa8b9ae`,
+`decide-the-fate-of-two-premise-dead-v2-drafts-whos` `0de678ef`.
+Caller-verified: all 10 absent from `origin/main`; PR branch pushed; isolated
+worktree clean, config copy removed, worktree + temp branch removed; evidence
+snapshot deleted. `codex/retro-workflow-freeze-knowledge` deliberately kept
+while #698 is open.
+
+### human-needed / review gates
+
+1. **PR #698 awaits review.** Until it merges, `process-pr-comments-during-review`
+   is still on `origin/main` — correct, but it means one done ticket survives this
+   run by design.
+2. **All 23 validator issues need owner decisions** — every one is a lifecycle,
+   ownership, or draft-state call that Dream must not make silently. The 4
+   `unsynthesized-draft-blackboard` errors and 3 `missing-step` errors block
+   activation of those `v2/*` drafts.
+3. **Phases 2 and 3 did not run.** No knowledge or contract-drift sweep happened
+   this week; the contract surface is unaudited. Tracked by the draft ticket above.
+4. **This checkout is 11 commits behind `origin/main`** and still has the 10
+   deleted task directories on disk — expected, because
+   `--keep-control-checkout` deliberately does not refresh the operator's
+   checkout. A `git pull` here will clear them.

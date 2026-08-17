@@ -3589,3 +3589,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-17 14:26 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-08-17 14:26 [recurring/dream] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-08-17 14:53 [dream-phases-2-3-cannot-complete-scan-subagents-re] [human:nicktoper] created (status=draft)
+2026-08-17 14:54 [recurring/dream] [agent:claude] slack: Dream (2026-W34): 1 knowledge PR (#698, needs review), 11 done tickets cleared (10 direct-deleted), cleanup-orphan-markers no-op, 23 validator issues all human-needed. Phases 2-3 (knowledge scan + contract audit) returned no findings — tracked in draft dream-phases-2-3-cannot-complete-scan-subagents-re.
