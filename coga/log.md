@@ -3586,3 +3586,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-17 14:26 [recurring/blocker-reminders] [system] launched as recipe (blocker-reminders)
 2026-08-17 14:26 [recurring/blocker-reminders] [system] recipe blocker-reminders exited with code 0
 2026-08-17 14:26 [recurring/blocker-reminders] [system] completed (recipe blocker-reminders exited 0) via coga recurring
+2026-08-17 14:26 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
