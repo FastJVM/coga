@@ -274,116 +274,114 @@ Git history preserves the completed run.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Dream Skill: validate-drift
+## Run State
 
-Generated: 2026-08-17T21:26:38+00:00
-Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.validate --json --fix`
+Period serviced: `2026-W34` (per `coga/log.md`: `created recurring/dream for 2026-W34`).
+
+- **Phase 1 validate-drift** — done. 23 issues, all `human-needed` (0 direct-fix,
+  0 pr-proposal). Recipe writes only to this blackboard; it printed nothing to
+  stdout, so the first invocation looked like a no-op and was run twice. The
+  duplicate `## Dream Skill: validate-drift` section was removed. Passed as a
+  lead to the Phase 3 contract audit.
+- **Phase 2 knowledge scan** — delegated to subagent (read-only).
+- **Phase 3 contract audit** — delegated to subagent (read-only).
+
+### Phase 4 preflight (done before delegation)
+
+Eligible done tickets — 11. Gate: resolved dir exists on disk **and** no open PR
+adds its `## Retro` marker or deletes its directory. Checked all 7 open PRs;
+only #695 and #691 touch `coga/tasks/` and neither touches a done ticket.
+
+1. `decide-the-fate-of-two-premise-dead-v2-drafts-whos`
+2. `important-alerts-the-task-owner-drop-important-rec`
+3. `megalaunch-does-not-set-coga-expected-task`
+4. `process-pr-comments-during-review`
+5. `recurring-can-only-be-launched-by-owner`
+6. `retire-coga-important-support-second-webhook`
+7. `recurring/autoclose-merged`
+8. `recurring/blocker-reminders`
+9. `recurring/branch-sweep`
+10. `recurring/digest`
+11. `recurring/skill-update`
+
+All 11 verified present on `origin/main` (so each can be deleted durably —
+Retro stops on an uncommitted-only task). Local `HEAD` == `origin/main` ==
+`60c98639`.
+
+Isolation: linked worktrees are writable here (probe created and removed
+cleanly), so the `git clone --no-hardlinks` fallback is not needed.
+Machine-local config to copy into the isolated checkout: `coga/coga.local.toml`
+(config lives under the Coga OS root, not the repo root).
+
+Evidence snapshot: 11 task artifacts + `coga/log.md` + `coga/contexts/` +
+`coga/skills/` + `coga/.agent-skills/`, ordinary copies, no symlinks.
+`## Findings` is appended to it once Phases 2-3 return.
+
+### Phase 2/3 delegation — first attempt failed
+
+Both scan subagents were spawned concurrently at ~14:26 and died silently
+without returning findings (output streams froze at 14:27 and 14:31; no agent
+reachable at 14:35). Neither produced a findings list. Retrying the delegation
+one subagent at a time.
+
+### Phase 2/3 — FAILED (capability unavailable)
+
+Subagent delegation does not deliver results in this session. Three attempts:
+
+- `knowledge-scan` (14:26) — read ~120KB of corpus, froze at 14:27, never returned.
+- `contract-audit` (14:26) — read ~53KB incl. `coga/log.md`, froze at 14:31, never returned.
+- `knowledge-scan-2` (14:36, retry with a tightened reading budget) — produced no
+  transcript at all and returned nothing by 14:42.
+
+Both original agents later emitted `idle_notification` / `idleReason: available`
+and, when messaged directly asking for whatever findings they had, replied only
+with another idle notification — no content either time.
+
+Consequence: `## Findings` is **empty** for this run. Phases 2 and 3 are
+`human-needed`. Per the body's dispatch contract ("a phase failing does not
+permit a replacement"), the scans were **not** re-run inline in Dream's own
+context — delegation is also what keeps the full-corpus read out of Dream's
+context so Phases 4-6 stay affordable.
+
+Phase 6 therefore has no findings to route: no `stale`/`drift` proposal PRs and
+no `gap` draft tickets are created this run. That is an absence of input, not a
+clean bill of health — the scans never ran.
+
+## Phase 4 — retro/done-ticket (in progress, isolated worktree)
+
+Delegated to one subagent in a linked worktree at
+`/home/n/Code/claude/coga/.claude/worktrees/agent-a357abc7c01e0a27c`
+(branch `worktree-agent-a357abc7c01e0a27c`, git-common-dir shared with the
+primary checkout, so `coga delete --keep-control-checkout` is the correct delete
+form). Preflight boundary proof passed; `coga/coga.local.toml` copied in at mode
+600, unstaged. Evidence snapshot was made read-only before delegation.
+
+The subagent writes a step-by-step progress log to
+`scratchpad/retro-progress.log` — added as a hedge after the Phase 2/3 agents
+died silently. That log, not the agent's final message, is what makes this
+phase's work recoverable.
+
+Classification (all 11 tickets, one running delta):
+
+- **Knowledge-bearing — 1**: `process-pr-comments-during-review` → PR
+  [#698](https://github.com/FastJVM/coga/pull/698) "New context: a frozen
+  workflow snapshot never refreshes", branch
+  `codex/retro-workflow-freeze-knowledge`. Edits the live + packaged
+  `architecture` context, records the `## Retro` marker, and deletes the source
+  ticket in the same PR.
+- **No durable knowledge — 10** (direct-deleted, no marker, no PR): the five
+  `recurring/*` period tickets (facts already covered by
+  `coga/{recurring,sync,patterns}` + the `coga/*` sweep skills),
+  `megalaunch-does-not-set-coga-expected-task`,
+  `recurring-can-only-be-launched-by-owner`,
+  `important-alerts-the-task-owner-drop-important-rec`,
+  `decide-the-fate-of-two-premise-dead-v2-drafts-whos`, and
+  `retire-coga-important-support-second-webhook` — each already covered by an
+  existing context or skill block the subagent cited by line.
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-08-17T21:53:08+00:00
 Task: `recurring/dream`
 
-Result: 23 issue(s): 0 direct fix, 0 PR proposal, 23 human-needed.
-
-### Human Needed
-
-- `read-the-recurring-serviced-period-from-the-log-dr`: `stuck-in-progress` (warn) - in_progress but idle for 73.0h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `recurring-recipe-question`: `stuck-in-progress` (warn) - in_progress but idle for 87.9h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `remove-coga-build-and-project`: `stuck-in-progress` (warn) - in_progress but idle for 74.7h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `secrets-instructions-correction`: `stuck-in-progress` (warn) - in_progress but idle for 87.5h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `v2/acceptance-criteria`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/autotrigger-ticket-type`: `missing-step` (error) - `workflow:` is set but `step:` is missing
-  Remediation: The ticket's current `step:` is not in its frozen workflow. Lifecycle correction is human-only; ask the owner to relaunch, rewind, or hand-edit the step.
-- `v2/autotrigger-ticket-type`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (authoring section(s): ## Evaluator review); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Unknown validator issue kind. Ask a human before changing repo state.
-- `v2/clean-uncommitted-work`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/read-report-commands-as-ticket-workflows`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/residual-command-surfaces`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/support-commands-boundary`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/work-orchestration-commands-to-tickets`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/document-contexts-as-prompt-payload-not-tags-princ`: `stuck-in-progress` (warn) - in_progress but idle for 648.2h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `v2/fix-windows-cli-import-crash`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/identify-blocking-issues`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/issue-inbox-slack`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/measure-relay-prompt-scope-and-agent-precision`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (non-placeholder blackboard is 4213 characters); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Unknown validator issue kind. Ask a human before changing repo state.
-- `v2/relay-design-repositories`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/split-context-to-doc-user-accessible-and-editable`: `missing-step` (error) - `workflow:` is set but `step:` is missing
-  Remediation: The ticket's current `step:` is not in its frozen workflow. Lifecycle correction is human-only; ask the owner to relaunch, rewind, or hand-edit the step.
-- `v2/split-context-to-doc-user-accessible-and-editable`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (authoring section(s): ## Evaluator review); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Unknown validator issue kind. Ask a human before changing repo state.
-- `v2/use-worktree-when-starting-a-dev-task`: `missing-step` (error) - `workflow:` is set but `step:` is missing
-  Remediation: The ticket's current `step:` is not in its frozen workflow. Lifecycle correction is human-only; ask the owner to relaunch, rewind, or hand-edit the step.
-- `v2/use-worktree-when-starting-a-dev-task`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (authoring section(s): ## Evaluator review); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Unknown validator issue kind. Ask a human before changing repo state.
-
-## Dream Skill: validate-drift
-
-Generated: 2026-08-17T21:26:49+00:00
-Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.validate --json --fix`
-Task: `recurring/dream`
-
-Result: 23 issue(s): 0 direct fix, 0 PR proposal, 23 human-needed.
-
-### Human Needed
-
-- `read-the-recurring-serviced-period-from-the-log-dr`: `stuck-in-progress` (warn) - in_progress but idle for 73.0h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `recurring-recipe-question`: `stuck-in-progress` (warn) - in_progress but idle for 87.9h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `remove-coga-build-and-project`: `stuck-in-progress` (warn) - in_progress but idle for 74.7h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `secrets-instructions-correction`: `stuck-in-progress` (warn) - in_progress but idle for 87.5h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `v2/acceptance-criteria`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/autotrigger-ticket-type`: `missing-step` (error) - `workflow:` is set but `step:` is missing
-  Remediation: The ticket's current `step:` is not in its frozen workflow. Lifecycle correction is human-only; ask the owner to relaunch, rewind, or hand-edit the step.
-- `v2/autotrigger-ticket-type`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (authoring section(s): ## Evaluator review); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Unknown validator issue kind. Ask a human before changing repo state.
-- `v2/clean-uncommitted-work`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/read-report-commands-as-ticket-workflows`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/residual-command-surfaces`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/support-commands-boundary`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/work-orchestration-commands-to-tickets`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/document-contexts-as-prompt-payload-not-tags-princ`: `stuck-in-progress` (warn) - in_progress but idle for 648.2h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `v2/fix-windows-cli-import-crash`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/identify-blocking-issues`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/issue-inbox-slack`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/measure-relay-prompt-scope-and-agent-precision`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (non-placeholder blackboard is 4213 characters); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Unknown validator issue kind. Ask a human before changing repo state.
-- `v2/relay-design-repositories`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/split-context-to-doc-user-accessible-and-editable`: `missing-step` (error) - `workflow:` is set but `step:` is missing
-  Remediation: The ticket's current `step:` is not in its frozen workflow. Lifecycle correction is human-only; ask the owner to relaunch, rewind, or hand-edit the step.
-- `v2/split-context-to-doc-user-accessible-and-editable`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (authoring section(s): ## Evaluator review); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Unknown validator issue kind. Ask a human before changing repo state.
-- `v2/use-worktree-when-starting-a-dev-task`: `missing-step` (error) - `workflow:` is set but `step:` is missing
-  Remediation: The ticket's current `step:` is not in its frozen workflow. Lifecycle correction is human-only; ask the owner to relaunch, rewind, or hand-edit the step.
-- `v2/use-worktree-when-starting-a-dev-task`: `unsynthesized-draft-blackboard` (error) - draft blackboard has pre-launch authoring notes (authoring section(s): ## Evaluator review); synthesize durable content into the ticket body or move intentional launch notes under `## Production notes` before activation
-  Remediation: Unknown validator issue kind. Ask a human before changing repo state.
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
