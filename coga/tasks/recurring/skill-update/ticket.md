@@ -1,7 +1,7 @@
 ---
 slug: recurring/skill-update
 title: Skill update
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,7 +17,6 @@ workflow:
     - bootstrap/skill-update
     assignee: agent
 secrets: null
-step: 1 (update)
 ---
 
 ## Description
