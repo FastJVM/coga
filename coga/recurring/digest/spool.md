@@ -30,3 +30,4 @@ consumed_through: 2e975264dbe5
 {"id":"8703372729a6","ts":"2026-08-17T14:25","project":"coga","kind":"done","detail":"→ done (recipe: digest)","ticket":"recurring/digest","owner":"nicktoper"}
 {"id":"882857623215","ts":"2026-08-17T14:25","project":"coga","kind":"done","detail":"→ done (recipe: skill-update)","ticket":"recurring/skill-update","owner":"nicktoper"}
 {"id":"7b171e3def41","ts":"2026-08-17T14:26","project":"coga","kind":"done","detail":"→ done (recipe: blocker-reminders)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+{"id":"1e5227f6db25","ts":"2026-08-17T14:55","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — Dream 2026-W34: 1 knowledge PR, 10 direct deletes, phases 2-3 human-needed.","ticket":"recurring/dream","owner":"nicktoper"}
