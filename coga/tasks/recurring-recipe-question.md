@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts:
 - coga/extension-model
 - coga/principles
@@ -35,7 +35,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (review-design)
+step: 3 (implement)
 ---
 
 ## Description
@@ -745,7 +745,8 @@ Verified against the tree, not inferred:
    fallback — `skills:` + agent `assignee` on the current step — is specified in
    Proposed Shape and costs a rewrite of all six one-step workflows plus a
    weaker loudness guarantee. **This is the one decision that changes the shape
-   of the work.**
+   of the work.** — **Resolved 2026-08-18: owner accepts the
+   completion-contract rule as specified.**
 2. **`ticket.py` as the name.** Chosen over the historical `run.py` because a
    task directory also holds attachments and "here's the repro script, `run.py`"
    is a plausible accidental trigger. Trade-off: it sits next to core's own
@@ -754,18 +755,26 @@ Verified against the tree, not inferred:
 3. **Does the split land as specified?** The ticket says `recipe:` deletion
    "goes in this ticket"; the spec moves it to PR 2 with the prose it describes,
    leaving PR 1 shippable on its own. If the owner wants one PR, PR 1's
-   acceptance criteria absorb PR 2's list unchanged.
+   acceptance criteria absorb PR 2's list unchanged. — **Resolved 2026-08-18:
+   split accepted. PR 2 is tracked as sibling draft
+   `migrate-recurring-templates-to-ticket-py-shims-and`.**
 4. **Scan vs. stat.** If the owner judges that one `stat()` inside a ticket's own
    directory is still the discovery #670 closed the door on, the honest outcome
    is the declarative-registration middle path (implementations beside their
    tickets, `runner.RECIPES` kept as the explicit dispatch surface) — which
    keeps a declaration and so only partly meets the no-new-field constraint. Say
    so at `review-design` and the spec becomes that instead; it is not worth
-   building the classifier first to find out.
+   building the classifier first to find out. — **Resolved 2026-08-18: owner
+   accepts the scan-vs-stat rebuttal; deduction stands, the middle path is not
+   taken.**
 
 ## Owner feedback — review-design (2026-08-18)
 
-Partial review; open questions 1, 3, and 4 still await the owner's call.
+**Design accepted in full.** All four open questions are resolved (see inline
+resolutions above): completion-contract classifier, `ticket.py` name, the PR
+split (PR 2 = `migrate-recurring-templates-to-ticket-py-shims-and`, draft), and
+the scan-vs-stat rebuttal. Implement works from Proposed Shape as written,
+scoped to PR 1's acceptance criteria.
 
 - **Keep `ticket.py` as the name** (open question 2 resolved). The packaging
   worry was checked and does not bite: shims are subprocessed by path, never

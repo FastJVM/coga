@@ -3677,3 +3677,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-18 14:13 [review-slack-channels] [human:nicktoper] task done
 2026-08-18 14:17 [recurring-recipe-question] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-08-18 14:33 [migrate-recurring-templates-to-ticket-py-shims-and] [human:nicktoper] created (status=draft)
+2026-08-18 14:34 [recurring-recipe-question] [agent:nicktoper] advanced to step 3 (implement) → assigned to claude — Design accepted at review-design: completion-contract classifier, ticket.py, PR split (PR 2 drafted), stat-not-scan. Moving to implement.
