@@ -58,3 +58,17 @@ no merged final-step tickets exits successfully and changes nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-08-18T16:57:33+00:00
+Task: `recurring/autoclose-merged`
+
+6 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
+
+- `autoclose-should-name-the-retire-follow-up` "Autoclose should name the retire follow-up": worktree `/home/n/Code/claude/coga-autoclose-retire-hint`, branch `autoclose-retire-hint` — `coga retire autoclose-should-name-the-retire-follow-up`
+- `recurring-last-serviced-period-compares-as-a-strin` "recurring: last_serviced_period compares as a string, so a non-period value suppresses a template forever": worktree `/tmp/coga-recurring-period-validation`, branch `codex/validate-recurring-periods` — `coga retire recurring-last-serviced-period-compares-as-a-strin`
+- `refuse-recurring-runs-from-a-non-control-branch` "Refuse recurring runs from a non-control branch": worktree `/tmp/coga-recurring-control-branch-gate`, branch `fix/recurring-control-branch-gate` — `coga retire refuse-recurring-runs-from-a-non-control-branch`
+- `remove-coga-build-and-project` "remove-coga-build-and-project": worktree `/tmp/coga-feature.EybenD/repo`, branch `remove-build-project` — `coga retire remove-coga-build-and-project`
+- `remove-legacy-config-compatibility-shims` "Remove legacy config compatibility shims": worktree `/tmp/coga-remove-legacy-config-shims`, branch `remove-legacy-config-shims` — `coga retire remove-legacy-config-compatibility-shims`
+- `review-slack-channels` "review slack channels": worktree `/tmp/coga-route-important-failures`, branch `route-important-failures` — `coga retire review-slack-channels`
