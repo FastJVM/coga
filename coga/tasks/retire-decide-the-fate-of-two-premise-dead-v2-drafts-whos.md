@@ -1,7 +1,7 @@
 ---
 slug: retire-decide-the-fate-of-two-premise-dead-v2-drafts-whos
 title: Retire decide-the-fate-of-two-premise-dead-v2-drafts-whos
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -16,7 +16,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -106,3 +105,43 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Run 2026-08-18 — already satisfied, no Retro rerun
+
+**Phase 1 (`retro/done-ticket`) not run: its work was already completed.**
+
+Findings, in order:
+
+- Source artifact `coga/tasks/decide-the-fate-of-two-premise-dead-v2-drafts-whos.md`
+  is absent from this checkout. It was a bare Markdown file, never a directory.
+- Git history explains why: `0de678ef` — `Ticket:
+  decide-the-fate-of-two-premise-dead-v2-drafts-whos — deleted` (2026-08-17,
+  232 deletions, single file). `git merge-base --is-ancestor 0de678ef
+  origin/main` passes, so the deletion is durable on the remote control branch.
+- That commit is Retro's own no-durable-knowledge direct-delete path, run under
+  Dream, not an ad-hoc removal. `coga/tasks/recurring/dream/ticket.md` lists
+  this slug in its Phase 4 eligible-done set, then under **"No durable
+  knowledge — 10 (direct-deleted, no marker, no PR)"**, and again in its
+  direct-deletes ledger against hash `0de678ef` with the caller verification
+  ("all 10 absent from `origin/main`; isolated worktree clean, config copy
+  removed, worktree + temp branch removed; evidence snapshot deleted").
+- Consistent with that path: no `## Retro` marker exists anywhere for this slug,
+  and the one open PR (#699) is unrelated.
+
+**Decision — close as already satisfied.** Retire's contract is "extract durable
+knowledge from one finished task, then delete it." Both halves are done, by the
+skill this shell exists to drive, with the deletion durable on `origin/main`.
+Restoring the file via `git restore` to rerun Retro would re-litigate a
+disposition Dream already made and the owner already accepted.
+
+Precedent applied rather than re-asking: `retire-coga-important-support-second-webhook`
+hit this exact shape (shell left `in_progress` while its source was
+direct-deleted out from under it) and was blocked for the owner on 2026-08-13.
+The owner's answer, `coga/log.md` line 3418 (2026-08-14): "Owner confirmed the
+prior direct deletion in commit bc94a150 already satisfied retirement; do not
+restore the source or rerun Retro. Close this retire shell as already
+satisfied." That shell was then marked done. Same facts here, so the same
+disposition.
+
+No isolated checkout, snapshot, or `coga.local.toml` copy was created this run —
+there was no Retro pass to isolate — so there is nothing to clean up.
