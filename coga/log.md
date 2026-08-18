@@ -3618,3 +3618,11 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-17 22:03 [read-the-recurring-serviced-period-from-the-log-dr] [megalaunch] launched via coga megalaunch
 2026-08-17 22:15 [read-the-recurring-serviced-period-from-the-log-dr] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
 2026-08-17 22:15 [read-the-recurring-serviced-period-from-the-log-dr] [system] {"agent":"claude","agent_turns":12,"cache_creation_input_tokens":333628,"cache_read_input_tokens":11379542,"cli":"claude","content_status":"ok","elapsed_seconds":696.422777,"ended_at":"2026-08-18T05:15:17.745953Z","human_turns":0,"input_tokens":210,"model":"claude-opus-5","outcome":"Clean, current with `origin/main`. Updating the blackboard, then bumping.","outcome_status":"completed","output_tokens":90155,"provider":"anthropic","request":null,"schema":2,"session_id":"04e788ed-04bc-4b49-a283-3efd7457333e","slug":"read-the-recurring-serviced-period-from-the-log-dr","started_at":"2026-08-18T05:03:41.323176Z","step":"implement","title":"Read the recurring serviced-period from the log, drop the blackboard marker","ts":"2026-08-18T05:15:17.745953Z","usage_status":"ok"}
+2026-08-17 22:15 [read-the-recurring-serviced-period-from-the-log-dr] [megalaunch] launched via coga megalaunch
+2026-08-18 09:47 [recurring/autoclose-merged] [system] created (status=active)
+2026-08-18 09:47 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-08-18
+2026-08-18 09:47 [recurring/digest] [system] created (status=active)
+2026-08-18 09:47 [recurring/digest] [system] created recurring/digest for 2026-08-18
+2026-08-18 09:47 [recurring/resolve-conflicts] [system] created (status=active)
+2026-08-18 09:47 [recurring/resolve-conflicts] [system] deleted completed prior-period task before 2026-W34
+2026-08-18 09:47 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W34
