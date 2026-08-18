@@ -3649,3 +3649,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-18 09:57 [review-slack-channels] [human:nicktoper] auto-bumped on merge of PR #696 → done
 2026-08-18 09:57 [recurring/autoclose-merged] [system] recipe autoclose exited with code 0
 2026-08-18 09:57 [recurring/autoclose-merged] [system] completed (recipe autoclose exited 0) via coga recurring
+2026-08-18 09:57 [recurring/digest] [system] started (active → in_progress) via recurring recipe digest
