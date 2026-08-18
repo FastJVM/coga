@@ -62,6 +62,22 @@ no in-memory state.
   workflow definition. Deleting or renaming that definition, or removing a
   step's inline instructions, therefore degrades prompt composition and is a
   validation error for live tickets.
+  Nothing ever re-freezes an existing ticket. `_freeze_workflow_ref`
+  (`mark.py`) only converts a bare string ref and seeds `step: 1`; it is a
+  documented no-op once `workflow:` is already a dict carrying a step. A
+  `steps:` edit — an added `skills:` ref, a changed `assignee:` token, a new
+  `requires:` gate — therefore reaches only tickets created afterwards, plus
+  drafts still carrying a *bare-string* `workflow:` ref (hand-authored or
+  guided-authored) when they are activated afterwards. Activation alone is not
+  a refresh: `coga create --workflow <name>` freezes the snapshot at creation,
+  so a draft made that way before the edit stays on the old steps no matter
+  when it is activated, exactly like the tickets already in flight. Plan a
+  workflow change around that whole parked population rather than expecting it
+  to pick the change up.
+  Adding `skills:` to a previously skill-less step has a second edge: from then
+  on composition takes the skill layers *instead of* that step's inline prose,
+  so any limit carried only in the prose has to be restated inside the skill or
+  it silently stops reaching the agent.
   Each step may declare an `assignee:` role token (`owner` | `human` |
   `agent` | `other-agent`); on bump, the token resolves against the ticket's
   matching role field and rewrites `assignee:`. `other-agent` resolves to the
