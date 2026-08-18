@@ -1,7 +1,7 @@
 ---
 slug: refuse-recurring-runs-from-a-non-control-branch
 title: Refuse recurring runs from a non-control branch
-status: in_progress
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
