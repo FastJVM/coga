@@ -1,7 +1,7 @@
 ---
 slug: remove-coga-build-and-project
 title: remove-coga-build-and-project
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description

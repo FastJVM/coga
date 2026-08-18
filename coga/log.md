@@ -3644,3 +3644,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-18 09:57 [autoclose-should-name-the-retire-follow-up] [human:nicktoper] auto-bumped on merge of PR #694 → done
 2026-08-18 09:57 [recurring-last-serviced-period-compares-as-a-strin] [human:nicktoper] auto-bumped on merge of PR #697 → done
 2026-08-18 09:57 [refuse-recurring-runs-from-a-non-control-branch] [human:nicktoper] auto-bumped on merge of PR #693 → done
+2026-08-18 09:57 [remove-coga-build-and-project] [human:nicktoper] auto-bumped on merge of PR #691 → done
