@@ -5,8 +5,10 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
+assignee: nicktoper
+contexts:
+- coga/secrets
+- coga/architecture
 skills: []
 workflow:
   name: draft-for-human
@@ -21,7 +23,7 @@ workflow:
     skills: []
     assignee: agent
 secrets: null
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 ---
 
 ## Description
@@ -110,3 +112,105 @@ the only one that needs code.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Agent draft — decision memo (2026-08-15)
+
+### Proposed decision
+
+Endorse **option 1 for v1**, stated as **one read-only service account per Coga
+repo / automation purpose, scoped to all and only the non-root vaults that
+repo's headless work needs**.
+
+Keep trust-tiered vaults, but name their boundary honestly: they classify
+sensitivity and provide separate human grants, audit surfaces, and rotation
+units. They do **not** contain compromise of the repo service-account token.
+The root-level vault that stores the SA token remains human-only and must never
+be readable by that SA.
+
+Do not add vault-to-token routing yet. Treat stronger per-tier isolation as a
+separate execution-isolation design, not as a small extension of secret lookup.
+
+### Why this is the v1 recommendation
+
+| Model | Works with today's one-token launch | SA-token blast radius | Operational/code cost | Future vault cost |
+| --- | --- | --- | --- | --- |
+| 1. One repo SA spanning tiers | Yes; proven in `FastJVM/admin` | Every automation vault granted to that SA | One credential; no routing code | New SA + token redistribution, because 1Password scope is immutable |
+| 2. One SA per vault | No | One vault **only if** credentials and child environments are also isolated | Token mapping, per-ref selection, source-token scrubbing, config/docs/tests | Add one SA and mapping without rotating unrelated tiers |
+| 3. One vault per repo | Yes | The repo vault | Simplest | Loses useful human-access and rotation separation |
+
+Option 1 matches the concrete operating need and Coga's current execution
+boundary: one repo launcher with one ambient `OP_SERVICE_ACCOUNT_TOKEN`. It
+also follows the current project-stage rule against adding a credential router
+for a hypothetical boundary. Option 3 is simpler only by discarding benefits
+the worked example already uses. Option 2 is defensible if cross-tier token
+containment is a hard requirement, but then the current runtime model—not just
+the wording—must change.
+
+Current 1Password documentation supports the factual premises: a service
+account may be granted selected **multiple** vaults, its access and permissions
+are immutable after creation, and 1Password recommends one service account per
+purpose with only the vaults that purpose needs:
+
+- <https://www.1password.dev/service-accounts/get-started>
+- <https://www.1password.dev/get-started/secure-developers>
+
+### Important weak spot outside the stated three-way choice
+
+`src/coga/config.py:build_launch_env()` starts from the full parent environment
+and scrubs only variables named by ticket `env:` references. It does not scrub
+`OP_SERVICE_ACCOUNT_TOKEN`. No later removal was found at the launch,
+megalaunch, or recurring-recipe call sites. Consequently, a spawned agent or
+recipe can invoke `op` directly with the repo SA and read any vault that SA can
+read, even when the ticket declares only one secret.
+
+That conflicts with `coga/architecture`'s statement that the ticket-level
+`secrets:` list defines task capability. Before durable docs imply that
+declared refs contain a worker, Coga should make one of these explicit:
+
+1. **Recommended invariant:** Coga may use the SA token while resolving
+   declared refs, but removes it before spawning the agent/recipe. The child
+   receives only resolved aliases. This needs a focused follow-up code ticket,
+   including an answer for nested Coga commands that may need notification
+   credentials.
+2. **Weaker documented model:** every worker inherits repo-wide 1Password
+   authority, and `secrets:` controls convenience/injection rather than
+   capability. This is consistent with current behavior but materially widens
+   the trust boundary.
+
+Vault-to-token mapping would not fix this by itself. If all tier tokens are
+delivered into one parent environment and inherited by the child, mapping can
+increase the number of exposed root credentials while providing no worker
+containment. A correct option-2 design would need at least per-reference token
+selection, scrubbing of every token source before spawn, explicit behavior for
+cross-tier tickets, and tests proving a low-tier worker cannot use a high-tier
+credential.
+
+### Candidate durable wording if the human accepts option 1
+
+> **Service account** — the headless 1Password identity. Authenticates via
+> `OP_SERVICE_ACCOUNT_TOKEN` and is read-only. Use one service account per Coga
+> repo / automation purpose by default, granting it only the vaults that
+> purpose's headless work needs and never the root-level vault that stores its
+> token. A leaked token can read every vault granted to that account.
+>
+> **Vaults** — containers named by trust level. For the repo service account,
+> tiers classify secrets; they do not contain a leaked SA token. They still
+> provide legible sensitivity, separate human access grants, audit boundaries,
+> and independent secret rotation.
+
+### Human judgment requested
+
+Confirm or revise two decisions independently:
+
+1. v1 identity model: option 1 (recommended) versus accepting the option-2
+   implementation cost for genuine per-tier token containment.
+2. worker capability model: scrub the raw SA token after resolution
+   (recommended) versus explicitly granting every worker repo-wide vault
+   access.
+
+### Verification
+
+- `git diff --check` passed.
+- `coga validate --json` found no issue for this task. The repo-wide command
+  still exits 1 on unrelated pre-existing `v2/` ticket errors (`missing-step`
+  and `unsynthesized-draft-blackboard`); its other findings are warnings.
