@@ -59,17 +59,6 @@ uninstall commands. With `--purge`, it also uninstalls the global package; if
 the running CLI is this repo's vendored copy, there is no separate global
 package to remove.
 
-## coga build
-
-First-run onboarding entry point — the command to tell new users about. `build`
-is not a built-in; it is a default alias for `launch coga-build`, so it
-launches the packaged `coga-build` ticket through the normal `coga launch`
-path (one question → agent-led chat → vision → starter tickets). Because it
-dispatches through `coga launch` CLI parsing it requires an already-init'd
-repo, and capturing your name is `coga init`'s job, not `build`'s. There is no
-separate `coga setup` command — initialize the repo with `coga init`, then run
-`coga build`.
-
 ## coga create "\<title\>" [--workflow \<name\>]
 
 Scaffold a new raw `draft` ticket and post `✨` when a notification channel
@@ -134,28 +123,6 @@ composed authoring prompt as system/developer context instead of as the first
 user message. That lets the first real human exchange set the agent session
 title for later resume. Set `[agents.<type>].discussion` to override the argv
 template for another agent.
-
-## coga project [\<seed\>] [--agent <type>]
-
-Plan a whole project into an ordered set of `draft` tickets. Runs the
-`bootstrap/project` skill in an interactive session: it interviews the human
-(outcome → prior art → constraints → dependencies & sign-off, one question at
-a time), proposes the ordered ticket list for the human to prune/reorder, then
-scaffolds the surviving set with `coga create` — one launchable step per
-ticket. Where `coga ticket` authors one ticket, `coga project` decomposes a
-project into many.
-
-- `coga project` — start from the first interview question.
-- `coga project "<seed>"` — seed the interview with a one-line description or
-  a path/link to a vision doc; the agent reads it and confirms/fills gaps
-  rather than starting cold. Covers the vision-to-plan case.
-- `coga project --agent <type>` — run the interview with a specific agent.
-
-The interview questions and decomposition rules live in the skill, not in CLI
-code, so they can't drift. The command creates only `draft`s and never
-activates or launches them — the human owns what happens next. Like
-`coga ticket`, it requires a TTY (interactive). After the session it lists the
-created drafts and fails loud if any has a schema error.
 
 ## coga mark \<state\> \<slug\> [--message "..."]
 
@@ -953,13 +920,12 @@ Default aliases shipped by `coga init`:
 ```toml
 [aliases]
 chat = "launch bootstrap/orient"
-build = "launch coga-build"
 dream = "recurring launch dream"
 pick = "megalaunch --pick"
 ```
 
-Eight aliases are registered as built-in defaults in `aliases.DEFAULT_ALIASES`,
-so they dispatch even in repos whose `coga.toml` predates the line — the four
+Seven aliases are registered as built-in defaults in `aliases.DEFAULT_ALIASES`,
+so they dispatch even in repos whose `coga.toml` predates the line — the three
 above plus four the packaged `coga.toml` never mentions:
 
 ```

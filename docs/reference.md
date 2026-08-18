@@ -44,13 +44,6 @@ like `create`). Omit it to start an empty interview.
 
 - `--agent <nickname>` — agent to run the interview.
 
-### `coga project [SEED]`
-Interview about a project, then create an ordered set of draft tickets. `SEED` is
-an optional one-line description or a path/link to a vision doc to seed the
-interview.
-
-- `--agent <nickname>` — agent to run the planning interview.
-
 ## Running work
 
 ### `coga launch TASK [ARGS...]`
@@ -396,13 +389,12 @@ Resolve one `op://…` or `env:VAR` reference and print its value to stdout. Und
 Thin sugar over common commands. Positional args after the alias name forward
 to the expanded form.
 
-These eight ship with every install, registered in `aliases.DEFAULT_ALIASES`,
+These seven ship with every install, registered in `aliases.DEFAULT_ALIASES`,
 so they work whether or not `coga.toml` names them:
 
 | Alias | Expands to |
 | --- | --- |
 | `coga chat` | `coga launch bootstrap/orient` |
-| `coga build` | `coga launch coga-build` |
 | `coga dream` | `coga recurring launch dream` |
 | `coga skill-update` | `coga recurring launch skill-update` |
 | `coga autoclose` | `coga recurring launch autoclose-merged` |
@@ -410,7 +402,7 @@ so they work whether or not `coga.toml` names them:
 | `coga open-pr` | `coga run open-pr` |
 | `coga resolve-conflicts` | `coga launch bootstrap/resolve-conflicts` |
 
-The packaged `coga.toml` writes out only `chat`, `build`, `pick`, and `dream`;
+The packaged `coga.toml` writes out only `chat`, `pick`, and `dream`;
 the other four come from the Python defaults, so opening `coga.toml` will not
 show you the full set.
 

@@ -53,7 +53,6 @@ EXPECTED_FILES = {
     "coga/recurring/dream/ticket.md",
     "coga/recurring/skill-update/ticket.md",
     "coga/tasks/_template/ticket.md",
-    "coga/tasks/coga-build.md",
     # Single-file format: the repo-global audit log + its union-merge attribute
     # ship at the coga root; tasks no longer carry per-dir blackboard.md/log.md.
     "coga/log.md",
@@ -61,7 +60,6 @@ EXPECTED_FILES = {
     "coga/workflows/autoclose-merged/sweep.md",
     "coga/workflows/direct/body.md",
     "coga/workflows/skill-update/run.md",
-    "coga/workflows/build/onboarding.md",
 }
 
 
@@ -93,7 +91,7 @@ def _seed_fake_templates(templates: Path) -> None:
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
         "bootstrap/ticket skill\n"
     )
-    for name in ("orient", "project", "ticket"):
+    for name in ("orient", "ticket"):
         (templates / "bootstrap" / name).mkdir(parents=True)
         (templates / "bootstrap" / name / "ticket.md").write_text(
             f"{name} bootstrap ticket\n"
@@ -160,54 +158,6 @@ def _seed_fake_templates(templates: Path) -> None:
     (templates / "workflows" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "skill-update" / "run.md").write_text(
         "skill update workflow\n"
-    )
-    (templates / "workflows" / "build").mkdir(parents=True, exist_ok=True)
-    (templates / "workflows" / "build" / "onboarding.md").write_text(
-        "---\n"
-        "name: build/onboarding\n"
-        "description: Onboarding workflow.\n"
-        "steps:\n"
-        "  - name: gather-and-spec\n"
-        "    assignee: agent\n"
-        "  - name: generate-batch\n"
-        "    assignee: agent\n"
-        "---\n"
-        "\n"
-        "## gather-and-spec\n"
-        "\n"
-        "Ask what the user wants to build.\n"
-    )
-    (templates / "tasks" / "coga-build").mkdir(parents=True, exist_ok=True)
-    (templates / "tasks" / "coga-build" / "ticket.md").write_text(
-        "---\n"
-        "title: coga-build\n"
-        "status: active\n"
-                "owner: new-user\n"
-        "human: new-user\n"
-        "agent: claude\n"
-        "assignee: claude\n"
-        "contexts: []\n"
-        "skills: []\n"
-        "workflow:\n"
-        "  name: build/onboarding\n"
-        "  steps:\n"
-        "  - name: gather-and-spec\n"
-        "    skills: []\n"
-        "    assignee: agent\n"
-        "step: 1 (gather-and-spec)\n"
-        "---\n"
-        "\n"
-        "## Description\n"
-        "\n"
-        "Onboarding task.\n"
-        "\n"
-        "## Context\n"
-        "\n"
-        "Empty until the `gather-and-spec` step runs at first launch.\n"
-        "\n"
-        "<!-- coga:blackboard -->\n"
-        "\n"
-        "notepad\n"
     )
     # Single-file format: the audit log + its union-merge attribute ship at the
     # coga root, not as per-task siblings.
@@ -937,74 +887,20 @@ def test_init_into_missing_dir_errors_not_git_repo(
     assert not target.exists()
 
 
-# --- init build ticket ----------------------------------------------------------
+# --- init next steps -----------------------------------------------------------
 
 
-def test_init_ships_build_ticket_template(
+def test_init_empty_repo_points_at_chat(
     tmp_path: Path, fake_vendor, fake_venv
 ) -> None:
-    """The coga-build task is a static packaged template: fresh init copies
-    it verbatim — no prompts, no creating code — and the onboarding chat happens
-    at first launch as the workflow's first step. The `--user` name is stamped
-    over the `new-user` placeholder so it never ships live."""
-    target = _make_git_repo(tmp_path / "company")
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    tasks = target / "coga" / "tasks"
-    ticket = tasks / "coga-build.md"
-    text = ticket.read_text()
-    assert "status: active" in text
-    assert "name: build/onboarding" in text
-    assert "step: 1 (gather-and-spec)" in text
-    assert "Empty until the `gather-and-spec` step runs at first launch" in text
-    # The placeholder is stamped with the captured name; it never ships live.
-    assert "owner: tester" in text
-    assert "human: tester" in text
-    assert "new-user" not in text
-    # Single-file format: the blackboard rides inside ticket.md behind one
-    # fence; no per-task blackboard.md / log.md siblings.
-    from coga.taskfile import fence_count
-
-    assert fence_count(text) == 1
-    # File-form task: a self-contained `.md`, no companion directory.
-    assert not (tasks / "coga-build").exists()
-    assert not (tasks / "coga-build" / "blackboard.md").exists()
-    assert not (tasks / "coga-build" / "log.md").exists()
-    # Bare init on an empty repo points at `coga build` (the alias that
-    # launches this ticket) rather than at a manual launch.
-    assert "Run `coga build`" in result.output
-
-
-def test_init_stamps_new_user_out_of_every_delivered_ticket(
-    tmp_path: Path, fake_vendor, fake_venv
-) -> None:
-    """No delivered ticket carries the `new-user` placeholder after a fresh
-    init — the `--user` name is stamped over it everywhere."""
-    target = _make_git_repo(tmp_path / "company")
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "marc"])
-    assert result.exit_code == 0, result.output
-
-    tasks = target / "coga" / "tasks"
-    # File-form tasks are `<slug>.md`; dir-form (the `_template`) keep `ticket.md`.
-    for ticket in tasks.glob("**/*.md"):
-        assert "new-user" not in ticket.read_text(), f"new-user survived in {ticket}"
-    assert not (tasks / "browser-automation.md").exists()
-
-
-def test_init_empty_repo_seeds_onboarding_and_points_at_build(
-    tmp_path: Path, fake_vendor, fake_venv
-) -> None:
-    """An empty repo keeps the onboarding ticket and the next-steps coax
-    points the user at the onboarding command without inventing browser work."""
+    """An empty repo points the user at the conversational entry point without
+    inventing browser work or seeding a first-run task."""
     target = _make_git_repo(tmp_path / "company")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     tasks = target / "coga" / "tasks"
-    assert (tasks / "coga-build.md").is_file()
     assert not (tasks / "browser-automation.md").exists()
     assert (
         target / "coga" / "contexts" / "browser" / "api-first" / "SKILL.md"
@@ -1023,16 +919,14 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
         target / "coga" / ".agent-skills" / "browser" / "build-automation"
     ).is_symlink()
     assert (target / "coga" / ".agent-skills" / "browser" / "playwright").is_symlink()
-    assert "Run `coga build`" in result.output
+    assert "Run `coga chat`" in result.output
     assert 'coga ticket "' not in result.output
-    assert "Skipped the onboarding ticket" not in result.output
 
 
-def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
+def test_init_filled_repo_points_at_ticket(
     tmp_path: Path, fake_vendor, fake_venv
 ) -> None:
-    """A filled repo (any pre-existing user file) drops the onboarding ticket
-    and the next-steps coax points the user at `coga ticket` without seeding a
+    """A filled repo points the user at `coga ticket` without seeding a
     browser-automation draft."""
     target = _make_git_repo(tmp_path / "existing-repo")
     (target / "README.md").write_text("hi")
@@ -1041,7 +935,6 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     assert result.exit_code == 0, result.output
 
     tasks = target / "coga" / "tasks"
-    assert not (tasks / "coga-build.md").exists()  # onboarding pruned
     assert not (tasks / "browser-automation.md").exists()
     assert (
         target / "coga" / "contexts" / "browser" / "api-first" / "SKILL.md"
@@ -1051,15 +944,14 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     ).is_symlink()
     assert (target / "coga" / ".agent-skills" / "browser" / "playwright").is_symlink()
     assert 'coga ticket "' in result.output
-    assert "Skipped the onboarding ticket" in result.output
-    assert "Run `coga build`" not in result.output
+    assert "Run `coga chat`" not in result.output
 
 
 def test_init_next_steps_name_the_agent_cli_prerequisite(
     tmp_path: Path, fake_vendor, fake_venv
 ) -> None:
     """Init's next steps name the agent-CLI prerequisite with install URLs —
-    the `coga build` coax otherwise sends a fresh user into a flow whose
+    the conversational coax otherwise sends a fresh user into a flow whose
     "not found in PATH" failure arrives only after they've committed to it."""
     target = _make_git_repo(tmp_path / "company")
 
@@ -1075,7 +967,7 @@ def test_init_filled_repo_ignores_coga_managed_files(
     tmp_path: Path, fake_vendor, fake_venv
 ) -> None:
     """Pre-existing `.git`/`.DS_Store` and coga-managed names (CLAUDE.md etc.)
-    don't count as a filled repo — onboarding is still seeded."""
+    don't count as a filled repo — the new-project hint still applies."""
     target = tmp_path / "company"
     target.mkdir()
     (target / ".git").mkdir()
@@ -1085,8 +977,7 @@ def test_init_filled_repo_ignores_coga_managed_files(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert (target / "coga" / "tasks" / "coga-build.md").is_file()
-    assert "Run `coga build`" in result.output
+    assert "Run `coga chat`" in result.output
 
 
 # --- name capture + gate helpers ----------------------------------------------
@@ -1112,55 +1003,6 @@ def test_repo_is_empty_false_when_user_content_present(tmp_path: Path) -> None:
     target.mkdir()
     (target / "README.md").write_text("hi")
     assert init_cmd._repo_is_empty(target) is False
-
-
-def test_prune_onboarding_tickets_removes_build_ticket(tmp_path: Path) -> None:
-    """The delivered onboarding ticket (coga-build) is pruned on a filled
-    repo; other tasks are left alone."""
-    coga_os = tmp_path / "coga"
-    tasks = coga_os / "tasks"
-    for name in ("coga-build", "real-work", "_template"):
-        (tasks / name).mkdir(parents=True)
-        (tasks / name / "ticket.md").write_text("---\n---\n")
-
-    pruned = init_cmd._prune_onboarding_tickets(coga_os)
-
-    assert set(pruned) == {"coga-build"}
-    assert not (tasks / "coga-build").exists()
-    assert (tasks / "real-work").is_dir()
-    assert (tasks / "_template").is_dir()
-
-
-def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
-    coga_os = tmp_path / "coga"
-    tasks = coga_os / "tasks"
-    (tasks / "alpha").mkdir(parents=True)
-    (tasks / "alpha" / "ticket.md").write_text(
-        "---\nowner: new-user\nhuman: new-user\nassignee: claude\n---\n"
-    )
-    (tasks / "beta").mkdir(parents=True)
-    (tasks / "beta" / "ticket.md").write_text(
-        "---\nowner: new-user\nhuman: new-user\nassignee: new-user\n---\n"
-    )
-    # The `replace-with-human-name` token is a different placeholder, owned by
-    # create_task/recurring — the stamp must leave it alone.
-    (tasks / "_template").mkdir(parents=True)
-    (tasks / "_template" / "ticket.md").write_text(
-        "---\nowner: replace-with-human-name\nhuman: replace-with-human-name\n---\n"
-    )
-
-    stamped = init_cmd._stamp_user_into_delivered_tickets(coga_os, "marc")
-
-    assert set(stamped) == {"alpha", "beta"}
-    alpha = (tasks / "alpha" / "ticket.md").read_text()
-    assert "owner: marc" in alpha and "human: marc" in alpha
-    assert "assignee: claude" in alpha  # non-placeholder line untouched
-    assert "new-user" not in alpha
-    beta = (tasks / "beta" / "ticket.md").read_text()
-    assert "assignee: marc" in beta
-    assert "new-user" not in beta
-    template = (tasks / "_template" / "ticket.md").read_text()
-    assert "replace-with-human-name" in template  # left alone
 
 
 # --- vendored-CLI location, pin, and host gitignore --------------------------
@@ -1491,10 +1333,9 @@ def test_init_into_subdir_of_git_repo(
     host_gi = (target / ".gitignore").read_text()
     assert update_cmd.HOST_GITIGNORE_BEGIN in host_gi
     assert ".claude/skills/coga" in host_gi
-    # A nested init sits in an established host project: onboarding is never
-    # seeded, even though the subdir itself started empty.
-    assert not (target / "coga" / "tasks" / "coga-build.md").exists()
-    assert "Run `coga build`" not in result.output
+    # A nested init sits in an established host project, so the filled-repo
+    # next step applies even though the subdir itself started empty.
+    assert "Run `coga chat`" not in result.output
     assert 'coga ticket "' in result.output
 
 
@@ -2392,7 +2233,7 @@ def test_dep_check_ignores_missing_agent_clis(
     monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Agent CLIs (`claude`/`codex`) are not required at init — they're
-    enforced at the point of need (launch/ticket/build, with an install
+    enforced at the point of need (launch/ticket/chat, with an install
     hint), so a missing one must not crash init."""
     monkeypatch.setattr(
         "coga.commands.init.shutil.which", _which_missing({"claude", "codex"})

@@ -19,7 +19,7 @@ code.
 - **An agent CLI**, installed and authenticated: either
   [Claude Code](https://claude.com/claude-code) or
   [Codex](https://github.com/openai/codex). You need one before anything that
-  launches an agent (`coga launch`, `coga ticket`, `coga build`). `coga init`
+  launches an agent (`coga launch`, `coga ticket`, `coga chat`). `coga init`
   itself works without one.
 - **The GitHub CLI** ([`gh`](https://cli.github.com), then `gh auth login`) is
   recommended but not required at init. PR workflows, the merged-ticket autoclose
@@ -132,8 +132,8 @@ coga ticket "Add a health-check endpoint"
 This launches an authoring interview: an agent asks what you're building, what
 "done" means, which contexts apply, and which workflow fits, then writes a
 well-formed draft for you. Use it when you'd rather talk the ticket into shape
-than fill in a template. Planning a whole batch of related tickets at once? See
-`coga project`.
+than fill in a template. Planning a whole batch of related tickets at once? Talk
+it through in `coga chat` and let the session create the drafts.
 
 Either way you now have a **draft**. Drafts are intentionally cheap: they capture
 intent before the shape is settled and don't have to commit to a workflow yet.

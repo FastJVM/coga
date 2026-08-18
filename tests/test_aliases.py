@@ -161,33 +161,6 @@ def test_default_chat_alias_dispatches_without_user_aliases_section(
     assert captured["argv"] == ["coga", "launch", "bootstrap/orient"]
 
 
-def test_build_is_default_alias_for_launch_coga_build() -> None:
-    """`coga build` is the onboarding entry point — a default alias expanding
-    to `launch coga-build`, not a built-in command."""
-    assert _DEFAULT_ALIASES["build"] == "launch coga-build"
-    assert "build" not in _BUILTIN_COMMANDS
-
-
-def test_default_build_alias_dispatches_without_user_aliases_section(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A repo whose `coga.toml` has no `[aliases]` still routes `coga build`
-    to the packaged onboarding ticket."""
-    monkeypatch.chdir(repo)
-    monkeypatch.setattr("sys.argv", ["coga", "build"])
-    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
-
-    captured: dict[str, list[str]] = {}
-
-    def fake_app() -> None:
-        import sys
-        captured["argv"] = list(sys.argv)
-
-    monkeypatch.setattr("coga.cli.app", fake_app)
-    main()
-    assert captured["argv"] == ["coga", "launch", "coga-build"]
-
-
 def test_recurring_launch_aliases_are_defaults() -> None:
     """`skill-update` and `autoclose` are default recurring-launch aliases, not
     built-in commands."""
@@ -328,7 +301,7 @@ def test_default_alias_help_registers_outside_repo(
     assert captured["argv"] == ["coga", "launch", "bootstrap/orient", "--help"]
 
 
-@pytest.mark.parametrize("command", ["status", "build"])
+@pytest.mark.parametrize("command", ["status", "chat"])
 def test_main_missing_repo_points_to_init(
     command: str,
     tmp_path: Path,

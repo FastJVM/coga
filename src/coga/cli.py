@@ -23,7 +23,6 @@ from coga.commands import init as init_cmd
 from coga.commands import launch as launch_cmd
 from coga.commands import mark as mark_cmd
 from coga.commands import megalaunch as megalaunch_cmd
-from coga.commands import project as project_cmd
 from coga.commands import recurring as recurring_cmd
 from coga.commands import run as run_cmd
 from coga.commands import retire as retire_cmd
@@ -87,7 +86,6 @@ app.command("init")(init_cmd.init)
 app.command("uninstall")(uninstall_cmd.uninstall)
 app.command("create")(create_cmd.create)
 app.command("ticket")(ticket_cmd.ticket)
-app.command("project")(project_cmd.project)
 app.command("launch")(launch_cmd.launch)
 app.command("megalaunch")(megalaunch_cmd.megalaunch)
 app.command("status")(status_cmd.status)
@@ -127,7 +125,6 @@ _SWEEPING_COMMANDS = frozenset(
     {
         "create",
         "ticket",
-        "project",
         "launch",
         "megalaunch",
         "bump",
