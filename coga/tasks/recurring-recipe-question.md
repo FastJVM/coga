@@ -332,9 +332,9 @@ sweep are PR 2 — see *Proposed Shape → The split*.
 - [ ] The entry point receives, verifiably: `cwd = host_repo_root(cfg)`;
       `COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
       `COGA_TASK_BLACKBOARD`, `COGA_TASK_LOG`, `COGA_TASK_STEP`,
-      `COGA_COGA_OS_ROOT`, `COGA_REPO_ROOT`; every value declared in the
-      ticket's `secrets:`; and `coga launch <slug> a b` as
-      `sys.argv[1:] == ["a", "b"]`.
+      `COGA_COGA_OS_ROOT`, `COGA_REPO_ROOT`; and every value declared in the
+      ticket's `secrets:`. The script is run with **no operands**
+      (`sys.argv[1:] == []`) — the argument channel is out of scope.
 - [ ] Non-zero exit **halts**: no agent is spawned, the ticket is left at its
       current step in `in_progress`, the exit code is propagated by `coga
       launch`, one `💥 script failed` notification is posted (`fatal=False`),
@@ -367,8 +367,10 @@ sweep are PR 2 — see *Proposed Shape → The split*.
       `CLAUDE.md`, `AGENTS.md`, and the `coga/extension-model`, `coga/codebase`,
       `coga/architecture` contexts plus their packaged twins under
       `src/coga/resources/templates/coga/bootstrap/contexts/`. Each states the
-      classifier, and states explicitly that core **subprocesses** an entry
-      point and still never **imports** from a ticket or skill directory.
+      classifier, states explicitly that core **subprocesses** an entry
+      point and still never **imports** from a ticket or skill directory, and
+      states that only the reserved `ticket.py` name triggers script mode —
+      any other attachment, including scripts the agent invokes, is untouched.
 - [ ] `python -m pytest` green; `coga validate --json` clean.
 
 ## Proposed Shape
@@ -432,8 +434,14 @@ onto `coga validate`, which would have to warn when a directory holds
   Nobody attaches a file called `ticket.py` by accident.
 - **The executable bit is not consulted.** It is invisible to `ls` and to a
   reader browsing GitHub, and it is lost by zips and some checkouts. The name is
-  the signal; the file is always run as `[sys.executable, str(path), *args]`, so
+  the signal; the file is always run as `[sys.executable, str(path)]`, so
   it imports the same installed `coga` the launcher is running.
+- **A script the *agent* calls is a different, untouched mode** — the
+  `CLAUDE.md` edge helper "invoked explicitly by agent instructions." It needs
+  no classifier and no special name, and an attachment meant for the agent must
+  **not** be named `ticket.py`, or it becomes the ticket's deterministic half.
+  The contract prose states this rule explicitly rather than leaving it
+  implied.
 - File-form tasks (`tasks/<slug>.md`) can never be script tickets — they have no
   directory. No error is needed; the `stat()` simply cannot match.
 - Only `.py`. A shell-native job wraps three lines of `subprocess.run`. The cost
@@ -447,7 +455,7 @@ the whole deterministic path so `commands/launch.py` keeps only a call site:
 - `script_entry_point(ref: TargetRef) -> Path | None` — the classifier. One
   `stat()` on `(ref.task_dir or ref.path.parent) / "ticket.py"`. Pure, no config,
   no IO beyond the stat; trivially unit-testable and callable from `validate`.
-- `run_script_phase(cfg, ref, ticket, *, args, stateless) -> ScriptPhaseResult`
+- `run_script_phase(cfg, ref, ticket, *, stateless) -> ScriptPhaseResult`
   — preflight secrets, flip `active → in_progress`, append + `git.sync_log` the
   launch line, subprocess the entry point, log the exit code, and on non-zero
   post the failure notification. Restored in substance from the deleted
@@ -483,13 +491,14 @@ deliberately dumber than reviving per-step skill scripts.
 
 ### Argv and env
 
-- **Arguments are real argv.** `coga launch <target> a b` runs
-  `[sys.executable, ticket.py, "a", "b"]`. `COGA_ARG_1..N` / `COGA_ARGC` /
-  `apply_arg_env` are **not** revived — an env-var argument channel was a worse
-  reimplementation of something the OS already does, and the principle that
-  forbids it (`coga/principles` §3, reuse the OS) is the same one that argued
-  for deleting it. In row three the same arguments still reach the agent through
-  the existing `## Launch arguments` prompt block; neither channel changes.
+- **No script arguments in v1** (owner call, 2026-08-18). The entry point is
+  always run as `[sys.executable, str(path)]` — no operands. The recurring jobs
+  need none, and deferring the channel keeps PR 1 smaller. Trailing launch
+  arguments keep their existing meaning untouched: they reach the *agent* half
+  through the `## Launch arguments` prompt block, exactly as today. If a script
+  ticket ever needs parameters, that is a later ticket — and it will pass real
+  argv, never a revived `COGA_ARG_1..N` / `COGA_ARGC` env channel
+  (`coga/principles` §3, reuse the OS).
 - **Env** is `build_launch_env(cfg, ticket.secrets)` (same secret chokepoint as
   an agent launch — a missing declared secret is a launch refusal, not a started
   task) then `apply_task_env(env, cfg, ref)`. One new member,
@@ -552,7 +561,7 @@ import os, subprocess, sys
 from coga.autoclose import run_autoclose_recipe
 from coga.config import load_config
 
-code = run_autoclose_recipe(load_config(), sys.argv[1:])
+code = run_autoclose_recipe(load_config(), [])
 if code:
     sys.exit(code)
 sys.exit(subprocess.run(
@@ -568,11 +577,33 @@ infra (`coga.autoclose`, `coga.config`), which is exactly the edge shape
 dependency arrow is unchanged, and the classifier subprocesses a path rather
 than importing a module.
 
+Packaging note: the templates that ship in the wheel gain a `.py` file, which
+flips their directories from "pure data" to "contains Python" — the exact shape
+behind the documented package-walk vs `force-include` wheel trap
+(`coga/codebase`, "Wheel packaging"). The bootstrap tree's existing
+exclude+force-include pairing should already cover it, but PR 2 must verify the
+wheel builds on a **pristine** clone, not just a dev tree. The name itself
+costs nothing on the Python side: shims are subprocessed by path, never
+imported, and `coga/` in a working repo is not a package, so a task-directory
+`ticket.py` cannot collide with core's `src/coga/ticket.py`.
+
 `runner.RECIPES` and `coga run` **survive this work unchanged.** Their role
 narrows rather than ends: they stop being the only door out of core and remain a
 public headless command surface that agents, humans, and now shims invoke by
 name (`coga run open-pr`, Dream's `coga run validate-drift`). Trimming the table
 is a later per-job judgment, not part of either PR.
+
+### Where unit tests live
+
+- **Coga's own scripts** — the five shims and any future bundled script
+  ticket — are covered from `tests/` like everything else: subprocess the entry
+  point against the seeded `example/` fixture. Never by collecting the live
+  dogfooded `coga/` tree ("tests must not pin to live dogfooded state",
+  `coga/codebase`).
+- **Scripts in user repos** are the repo's own business. Tests may sit beside
+  the ticket (any name but `ticket.py`), but Coga neither collects nor runs
+  them — the launcher has no test-discovery machinery. The sanctioned shape
+  keeps `ticket.py` thin; the imported logic is what carries the real tests.
 
 ### Answering #670
 
@@ -662,7 +693,10 @@ review as the mechanism is what the ticket asked to avoid.
 - **Reviving skill `script:` frontmatter, inline `## Script` blocks, or a
   `script:` / `recipe:` ticket field.** All three stay deleted; this design
   restores strictly less than `755e60de` removed.
-- **Reviving `COGA_ARG_1..N` / `COGA_ARGC`.** Arguments are real argv.
+- **Any script argument channel.** v1 entry points take no operands; the
+  recurring jobs need none. If a script ticket ever needs parameters, that is a
+  later ticket — and it will pass real argv, never a revived `COGA_ARG_1..N` /
+  `COGA_ARGC` env channel.
 - **Scrubbing the ~20 legacy inert `script: null` keys.** `Ticket.parse` already
   strips them on rewrite; a sweep buys nothing.
 - **The recurring migration and the 25-file prose sweep** — PR 2, per the split
@@ -715,7 +749,8 @@ Verified against the tree, not inferred:
 2. **`ticket.py` as the name.** Chosen over the historical `run.py` because a
    task directory also holds attachments and "here's the repro script, `run.py`"
    is a plausible accidental trigger. Trade-off: it sits next to core's own
-   `src/coga/ticket.py` in conversation, if not on disk.
+   `src/coga/ticket.py` in conversation, if not on disk. — **Resolved
+   2026-08-18: owner keeps `ticket.py`** (see Owner feedback below).
 3. **Does the split land as specified?** The ticket says `recipe:` deletion
    "goes in this ticket"; the spec moves it to PR 2 with the prose it describes,
    leaving PR 1 shippable on its own. If the owner wants one PR, PR 1's
@@ -727,3 +762,23 @@ Verified against the tree, not inferred:
    keeps a declaration and so only partly meets the no-new-field constraint. Say
    so at `review-design` and the spec becomes that instead; it is not worth
    building the classifier first to find out.
+
+## Owner feedback — review-design (2026-08-18)
+
+Partial review; open questions 1, 3, and 4 still await the owner's call.
+
+- **Keep `ticket.py` as the name** (open question 2 resolved). The packaging
+  worry was checked and does not bite: shims are subprocessed by path, never
+  imported, and `coga/` in a working repo is not a package. The one real trap —
+  the wheel package-walk vs `force-include` collision when packaged template
+  dirs gain a `.py` — is now called out in the spec with a pristine-clone
+  build check in PR 2.
+- **Defer script arguments.** v1 entry points take no operands; the argv
+  passthrough was cut from PR 1's acceptance criteria and moved to Out of
+  Scope. Trailing launch args keep their existing agent-side meaning.
+- **Agent-called attachment scripts stay a separate, untouched mode** and must
+  not be named `ticket.py` — now an explicit rule in "The entry point" and to
+  be stated in the contract-prose deltas.
+- **Test placement added to the spec**: Coga's own scripts are tested from
+  `tests/` via subprocess against the `example/` fixture; user-repo script
+  tests live beside the ticket but Coga never collects or runs them.
