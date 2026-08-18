@@ -66,9 +66,14 @@ no in-memory state.
   (`mark.py`) only converts a bare string ref and seeds `step: 1`; it is a
   documented no-op once `workflow:` is already a dict carrying a step. A
   `steps:` edit — an added `skills:` ref, a changed `assignee:` token, a new
-  `requires:` gate — therefore reaches only tickets created or activated
-  afterwards, never the ones already in flight. Plan a workflow change around
-  that parked population rather than expecting it to pick the change up.
+  `requires:` gate — therefore reaches only tickets created afterwards, plus
+  drafts still carrying a *bare-string* `workflow:` ref (hand-authored or
+  guided-authored) when they are activated afterwards. Activation alone is not
+  a refresh: `coga create --workflow <name>` freezes the snapshot at creation,
+  so a draft made that way before the edit stays on the old steps no matter
+  when it is activated, exactly like the tickets already in flight. Plan a
+  workflow change around that whole parked population rather than expecting it
+  to pick the change up.
   Adding `skills:` to a previously skill-less step has a second edge: from then
   on composition takes the skill layers *instead of* that step's inline prose,
   so any limit carried only in the prose has to be restated inside the skill or
