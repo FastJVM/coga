@@ -2,7 +2,7 @@
 slug: recurring-last-serviced-period-compares-as-a-strin
 title: 'recurring: last_serviced_period compares as a string, so a non-period value
   suppresses a template forever'
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description

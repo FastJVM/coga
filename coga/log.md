@@ -3642,3 +3642,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-18 09:56 [recurring/autoclose-merged] [system] started (active → in_progress) via recurring recipe autoclose
 2026-08-18 09:57 [recurring/autoclose-merged] [system] launched as recipe (autoclose)
 2026-08-18 09:57 [autoclose-should-name-the-retire-follow-up] [human:nicktoper] auto-bumped on merge of PR #694 → done
+2026-08-18 09:57 [recurring-last-serviced-period-compares-as-a-strin] [human:nicktoper] auto-bumped on merge of PR #697 → done
