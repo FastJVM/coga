@@ -136,6 +136,25 @@ cause of the prior exit 2 — that really was the TTY refusal.
 
 ---
 
+## 2026-08-17 — resumed under megalaunch queue
+
+- Period being serviced is still **2026-W33** (newest `created ... for` line is
+  `coga/log.md` L3278; the megalaunch lines L3609-3611 only reactivate the same
+  period task).
+- **The prior blocker's permission denial did not recur.** The
+  context-sanctioned command
+  `timeout 900 script -qec 'coga resolve-conflicts --agent claude --queue-guidance' /dev/null`
+  was admitted by this session's permission layer and executed. So remedy (1)
+  from the open ask (a permission-rule gap) is moot in this session; no rule
+  change was needed.
+- **Blast radius changed since the block was written.** Both PRs named in that
+  ask are gone: #688 (base `main`) and #690 (base `recurring-ledger-from-log`)
+  were both merged 2026-08-14T18:43Z. `gh pr list --state open` returns `[]`,
+  so this sweep is a no-op roll-up, not a rebase run.
+- Success is confirmed from the `bootstrap/resolve-conflicts` `slack:` line in
+  `coga/log.md`, not the pty stream (per `coga/recurring` SKILL.md L479-494).
+  High-water mark before this run: L3102.
+
 ## Blockers
 
 - [x] [2026-08-13 09:40] [agent:claude] id=20260813T094004 Delegated sweep never ran: 'coga resolve-conflicts --agent claude --queue-guidance' exits 2 because the underlying 'coga launch bootstrap/resolve-conflicts' requires stdin/stdout TTYs, and the wrapper agent's shell has neither (verified). Need a human to either run 'coga resolve-conflicts --agent claude' from a real shell for period 2026-W33, or restructure the recurring template so the outer supervisor performs the delegated launch instead of the wrapper agent shelling out to it.
