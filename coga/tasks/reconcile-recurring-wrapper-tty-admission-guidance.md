@@ -241,7 +241,6 @@ Dream 2026-W33 stale finding F5 (`coga/tasks/recurring/dream/ticket.md:307,374`)
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-<<<<<<< HEAD
 ## Dev
 
 branch: reconcile-recurring-delegation
@@ -335,7 +334,7 @@ validation resolves delegate targets statically, and the recurring guidance no
 longer sanctions a fake pty or nested agent launch.
 
 Test plan: `python -m pytest` (1757 passed, 1 skipped); source-backed `coga validate --json` is clean on the isolated Coga OS fixture and resolves all recurring templates in the dogfood repo (whose seven unrelated pre-existing `v2/` draft errors remain).
-=======
+
 ## Plan (implement step, 2026-08-18)
 
 Chosen mechanism: **option 1 — declarative `delegate:` frontmatter field** on
@@ -455,4 +454,25 @@ skill-update; agent-backed = dream (in-session); resolve-conflicts is now the
 only `delegate:` template and no template instructs a nested `coga launch` —
 the context Gotcha now prohibits the shape generically and names the field
 instead.
->>>>>>> 96ce5a83 (Ticket: reconcile-recurring-wrapper-tty-admission-guidance — step 2 (peer-review))
+
+## Peer review (2026-08-18)
+
+`codex review --base 773cb7ad` found three must-fix failure-path defects:
+
+- `_run_delegated_task` treats both the bootstrap done sentinel and a natural
+  zero REPL exit as a clean return, so it can mark the period task `done`
+  without the delegated command's required final `coga slack` signal.
+- the helper always converts a watchdog timeout to a paused task plus return
+  code 0; that is correct for a multi-task sweep that must continue, but makes
+  `coga recurring launch <name>` falsely report success and makes retry skip
+  the now-paused task.
+- the period task is persisted as `in_progress` before bootstrap resolution,
+  TTY/CLI/composition/secret preflights. A pre-spawn `SystemExit` therefore
+  leaves an originally active task falsely started and orphan-resumable.
+
+Fix direction: expose the bootstrap supervisor's termination kind to the
+in-process caller and accept only the done sentinel; give scheduled sweep and
+named launch distinct timeout policies; and restore an originally active
+period task after a pre-spawn refusal while preserving `in_progress` for a
+genuinely spawned crash or a resumed orphan. Add focused regression coverage
+before rebasing.
