@@ -3675,3 +3675,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-18 14:12 [dream-phases-2-3-cannot-complete-scan-subagents-re] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-15 16:36 [reconcile-recurring-wrapper-tty-admission-guidance] [megalaunch] launched via coga megalaunch
 2026-08-18 14:13 [review-slack-channels] [human:nicktoper] task done
+2026-08-18 14:17 [recurring-recipe-question] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-08-18 14:33 [migrate-recurring-templates-to-ticket-py-shims-and] [human:nicktoper] created (status=draft)
