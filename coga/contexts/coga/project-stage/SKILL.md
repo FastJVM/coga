@@ -27,10 +27,9 @@ non-tester users, this context gets deleted, not edited.
 
 - Do not add open-ended deprecation shims or preserve old behavior as a second
   supported product surface.
-- The shipped bare `SLACK_WEBHOOK_URL` fallback and the dropped
-  `create = "launch bootstrap/ticket"` alias are narrow upgrade aids for config
-  Coga itself previously wrote. They warn or migrate toward the current surface;
-  they are not precedent for supporting two designs.
+- Superseded config spellings fail loud instead of remaining as upgrade aids.
+  Use the current surface explicitly; do not keep a second path that warns only
+  when an operator remembers to validate it.
 - No `_legacy` fields kept around "in case."
 - No migration scripts for ticket frontmatter — edit the few
   existing tickets by hand.

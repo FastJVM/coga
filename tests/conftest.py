@@ -9,6 +9,7 @@ the real env can override these with `monkeypatch.setenv` themselves.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -108,13 +109,30 @@ def _stub_init_identity_check(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _stub_slack(monkeypatch):
-    """Default-on Slack so commands don't crash on `$SLACK_WEBHOOK_URL` unset.
+    """Resolve declared test webhooks without exporting the retired bare key.
 
-    Sets a fake webhook and stubs `requests.post` to a no-op. Tests that want
-    real slack behavior (test_notification.py, test_validate.py probe tests)
-    re-monkeypatch these — autouse runs first, test-local setattr wins.
+    Config fixtures use the canonical
+    `webhook = "env:SLACK_WEBHOOK_URL"` spelling. Supply a fake value only
+    through that explicit resolver path so configs without the key do not
+    accidentally exercise the removed bare-environment fallback. Tests that
+    set `SLACK_WEBHOOK_URL` still resolve their own value. Slack HTTP is stubbed
+    to a no-op; focused notification/validation tests replace it locally.
     """
-    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/test-stub")
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+
+    from coga import config as config_module
+
+    resolve_secret_value = config_module._resolve_secret_value
+
+    def _resolve_test_secret(value: str) -> str:
+        if (
+            value == "env:SLACK_WEBHOOK_URL"
+            and "SLACK_WEBHOOK_URL" not in os.environ
+        ):
+            return "https://hooks.slack.com/services/test-stub"
+        return resolve_secret_value(value)
+
+    monkeypatch.setattr(config_module, "_resolve_secret_value", _resolve_test_secret)
 
     def _noop_post(*args, **kwargs):
         class R:

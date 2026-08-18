@@ -7,7 +7,7 @@ import pytest
 import requests
 import typer
 
-from coga.config import load_config
+from coga.config import ConfigError, load_config
 from coga.notification import post
 from coga.slack_response import classify_slack_response, format_slack_request_error
 
@@ -281,10 +281,10 @@ def test_notification_slack_table_without_channels_infers_slack(
     assert cfg.notification_channels == ("slack",)
 
 
-def test_bare_env_without_config_infers_slack(
+def test_bare_env_without_config_is_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A bare exported `SLACK_WEBHOOK_URL` is opt-in evidence on its own."""
+    """The old bare-env spelling fails loud instead of silently opting in."""
     _write(
         tmp_path / "coga.toml",
         """
@@ -297,8 +297,8 @@ def test_bare_env_without_config_infers_slack(
     )
     _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/x")
-    cfg = load_config(tmp_path)
-    assert cfg.notification_channels == ("slack",)
+    with pytest.raises(ConfigError, match=r"Bare `SLACK_WEBHOOK_URL`.*webhook"):
+        load_config(tmp_path)
 
 
 def test_empty_notification_channels_suppresses_post(
@@ -322,10 +322,10 @@ def test_empty_notification_channels_suppresses_post(
     assert "[notification] no channels configured" in capsys.readouterr().err
 
 
-def test_bare_env_without_toml_key_is_deprecated_fallback(
+def test_bare_env_cannot_supply_selected_slack_webhook(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A bare exported SLACK_WEBHOOK_URL remains a deprecated compatibility path."""
+    """Selected Slack still requires the canonical explicit webhook key."""
     _write(
         tmp_path / "coga.toml",
         """
@@ -334,13 +334,14 @@ def test_bare_env_without_toml_key_is_deprecated_fallback(
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"
+        [notification]
+        channels = ["slack"]
         """,
     )
     _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/from-env")
-    cfg = load_config(tmp_path)
-    assert cfg.slack_webhook == "https://hooks.slack.com/services/from-env"
-    assert any("SLACK_WEBHOOK_URL" in n for n in cfg.notification_deprecation_notes)
+    with pytest.raises(ConfigError, match=r"Bare `SLACK_WEBHOOK_URL`.*webhook"):
+        load_config(tmp_path)
 
 
 def test_toml_env_indirection_unset_var_is_none(
@@ -348,7 +349,11 @@ def test_toml_env_indirection_unset_var_is_none(
 ) -> None:
     """`webhook = "env:VAR"` with the var unset resolves to None, not empty string."""
     _create_min(tmp_path)
-    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    config_path = tmp_path / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
+    )
+    monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     assert cfg.slack_webhook is None
 
@@ -656,7 +661,11 @@ def test_enabled_but_no_webhook_crashes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
     _create_min(tmp_path)
-    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    config_path = tmp_path / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
+    )
+    monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     with pytest.raises(typer.Exit) as exc:
         post(cfg, "should crash")
@@ -740,7 +749,11 @@ def test_post_missing_webhook_still_crashes_when_non_fatal(
     crashing loud even on the transition path.
     """
     _create_min(tmp_path)
-    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    config_path = tmp_path / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
+    )
+    monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
     with pytest.raises(typer.Exit) as exc:
         post(cfg, "should still crash", fatal=False)

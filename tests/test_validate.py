@@ -1004,9 +1004,9 @@ def test_run_check_slack_misconfigured_when_selected_without_webhook(
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text()
         + '\n[notification]\nchannels = ["slack"]\n'
-        '[notification.slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
+        '[notification.slack]\nwebhook = "env:UNSET_SLACK_WEBHOOK"\n'
     )
-    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
 
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("must not probe the network with no webhook")

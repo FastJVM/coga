@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shlex
-import sys
 
 from coga.config import ConfigError
 
@@ -65,32 +64,9 @@ DEFAULT_ALIASES: dict[str, str] = {
 }
 
 
-LEGACY_ALIASES: dict[str, str] = {
-    "create": "launch bootstrap/ticket",
-}
-
-
-def validate_aliases(
-    aliases: dict[str, str], *, warn_legacy: bool = True
-) -> None:
-    """Reject aliases that collide with or target unknown built-in commands.
-
-    The exact legacy ``create`` alias is removed rather than rejected. CLI
-    startup warns about that migration; read-only preflight callers can disable
-    the duplicate notice while applying the same validation semantics.
-    """
-    for name in list(aliases):
-        expansion = aliases[name]
-        if LEGACY_ALIASES.get(name) == expansion:
-            if warn_legacy:
-                print(
-                    f"coga: dropping legacy alias {name!r} from coga.toml "
-                    f"({name!r} is now a built-in command — remove the line "
-                    f"under [aliases]).",
-                    file=sys.stderr,
-                )
-            del aliases[name]
-            continue
+def validate_aliases(aliases: dict[str, str]) -> None:
+    """Reject aliases that collide with or target unknown built-in commands."""
+    for name, expansion in aliases.items():
         if name in BUILTIN_COMMANDS:
             raise ConfigError(
                 f"alias {name!r} collides with built-in command — rename it."

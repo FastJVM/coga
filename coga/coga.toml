@@ -46,10 +46,10 @@ discussion = "-c developer_instructions={prompt}"
 #
 # Use `env:` indirection so
 # the URL (a bearer token) stays out of this committed file — each user exports
-# SLACK_WEBHOOK_URL locally and coga resolves it. A bare exported
-# SLACK_WEBHOOK_URL with no `webhook` key is only a deprecated compatibility
-# fallback. A machine-specific webhook may override this in coga.local.toml
-# (local wins). To opt out (solo / dev / CI), set
+# SLACK_WEBHOOK_URL locally and coga resolves it through the declared `webhook`
+# key; without that declaration, a bare export fails config load. A
+# machine-specific webhook may override this in coga.local.toml (local wins).
+# To opt out (solo / dev / CI), set
 # `[notification.slack].enabled = false` in
 # coga.local.toml.
 [notification]

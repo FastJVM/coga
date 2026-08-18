@@ -308,8 +308,23 @@ def main() -> None:
     try:
         _validate_aliases(aliases)
     except ConfigError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        sys.exit(2)
+        if init_invoked or recurring_all_invoked:
+            prefix = (
+                f"Note: ignoring config error so `{sys.argv[1]}` can run"
+                if init_invoked
+                else "Note: ignoring current config error so the cross-repo "
+                "recurring sweep can run"
+            )
+            typer.secho(
+                f"{prefix} — {exc}",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+            cfg = None
+            aliases = dict(_DEFAULT_ALIASES)
+        else:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            sys.exit(2)
     for name, expansion in aliases.items():
         _register_alias_placeholder(name, expansion)
 

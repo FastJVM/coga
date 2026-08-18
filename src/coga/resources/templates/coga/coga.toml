@@ -65,8 +65,8 @@ discussion = "-c developer_instructions={prompt}"
 # A machine-specific webhook can override this in coga.local.toml (local wins),
 # e.g. a literal URL there for a personal channel. Never commit a real URL.
 # `coga validate --check-slack` probes the webhook so dead URLs surface
-# at config time, not at first bump. A bare exported SLACK_WEBHOOK_URL with no
-# `webhook` key is only a deprecated compatibility fallback.
+# at config time, not at first bump. A bare SLACK_WEBHOOK_URL export fails config
+# load; the explicit `webhook` key above is required.
 #
 # Already opted in but want Slack temporarily silent (solo runs, dev/test, CI
 # without notifications)? Keep the channel selected and set in coga.local.toml:

@@ -93,9 +93,8 @@ without configuring anything. Notifications are opt-in: a repo turns Slack on
 by selecting the channel and pointing it at a webhook (see `coga/cli` for the
 exact snippet). With no channel selected, `notification.post` takes its
 no-channel branch — one stderr line, no crash. When `[notification].channels`
-is absent entirely, Slack is *inferred* only from opt-in/compat evidence (a
-`[notification.slack]` table or a bare `SLACK_WEBHOOK_URL`); with neither,
-channels resolve to `()`.
+is absent entirely, Slack is inferred only from the presence of a
+`[notification.slack]` table; without one, channels resolve to `()`.
 
 Once Slack *is* selected and enabled (`[notification.slack].enabled` defaults
 to true), the fail-loud contract holds — commands crash on any live
@@ -248,17 +247,16 @@ new string:
 - `[notification.slack].webhook` in `coga.toml` (or `coga.local.toml`) — the
   source for the default webhook URL. It is a bearer token, so the committed value
   is an `env:SLACK_WEBHOOK_URL` reference, resolved via
-  `config._resolve_secret_value`. A bare exported `SLACK_WEBHOOK_URL` still
-  resolves as a deprecated compatibility fallback.
+  `config._resolve_secret_value`. The key is required: a bare exported
+  `SLACK_WEBHOOK_URL` fails config load with guidance to declare it explicitly.
   A literal URL is accepted by the parser but must never be committed; use
   `env:` indirection.
 - `[notification.slack].important_webhook` — a second webhook, pointing at the
   coga-important channel. Posts that need a human to go act (`coga slack
   --important`) route here; state transitions stay on `webhook`. Resolved by
   `config._resolve_notification_slack_important_webhook` with the same `env:`
-  indirection and local-overrides-shared rule, but with no bare-env fallback —
-  the key postdates that fallback, so there is no old config to stay compatible
-  with. Unset resolves to None and `SlackChannel.webhook_for`
+  indirection and local-overrides-shared rule. Unset resolves to None and
+  `SlackChannel.webhook_for`
   crashes an `--important` post (exit 1, stderr note) rather than rerouting it
   to `webhook`: delivering a human-action alert to the wrong channel while
   reporting success is worse than crashing, and the crash is what gets the
