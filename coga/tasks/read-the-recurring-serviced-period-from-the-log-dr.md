@@ -5,7 +5,7 @@ status: in_progress
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/recurring
 - coga/codebase
@@ -30,7 +30,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -151,7 +151,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: fix/recurring-log-reverse-pass
-worktree: /tmp/coga-recurring-log-reverse-pass
+worktree: /home/n/Code/claude/coga-recurring-log-reverse-pass
 
 ## Implement notes
 
@@ -162,6 +162,77 @@ worktree: /tmp/coga-recurring-log-reverse-pass
 - Preserve the exact `created|reused <task-ref> for <period>` contract while
   making scan/list callers supply the finite recurring refs they need, so one
   reverse pass can stop as soon as all of them resolve.
+
+## Implement result (2026-08-17)
+
+Commit `abb4eaca` on `fix/recurring-log-reverse-pass`. Everything else in the
+ticket had already landed in PR #688 (`f5543446`) and PR #697 (`f3e6e322`);
+re-verified before writing any code:
+
+- No `last_serviced_period` read or write remains under `src/` — the eight
+  prose sites the note below flags were fixed by #697. Shipped templates under
+  `coga/recurring/` and `src/coga/resources/` carry no vestigial line. (The
+  only surviving mention is historical prose in the *done* period task
+  `coga/tasks/recurring/resolve-conflicts/ticket.md` — a reapable run
+  blackboard, not shipped state.)
+- `coga/architecture` already says the log line **is** the ledger.
+- `coga recurring list` and the `coga status` footer already read the ledger.
+
+So this step closed the two real gaps:
+
+**1. Bounded reverse ledger read.** `read_serviced_ledger(cfg, refs)` takes the
+finite ref set the caller needs, reads the log backwards through a new
+`logfile.iter_log_messages_reverse`, and stops once every ref resolves.
+`refs=None` keeps the whole-log forward read. Callers repointed: `scan_due` and
+`list_templates` (via `_template_refs`, from directory names, before
+`Template.load`), `create_template`, `_period_already_serviced`, and
+`recurring_runner._sync_recurring_create`. Both directions fold through one
+`_LedgerAccumulator` so they cannot disagree.
+
+**Decision — a slack window, not "stop at the first hit."** `merge=union` can
+leave a template's newest record *above* an older one, so pure reverse order is
+a recency heuristic. Stopping at the first hit would under-report a serviced
+period, which is the exact failure this ticket exists to kill. The read keeps
+taking the maximum calendar position and continues `_LEDGER_TAIL_SLACK_LINES`
+(500) past the last resolution. Tradeoff: a fixed 500-line tail overhead in
+exchange for tolerating any realistic merge block.
+
+Two behavior changes fall out of bounding the read, both documented in the
+docstring and in `coga/recurring`:
+- A template with **no** record yet never resolves, so its first firing still
+  walks the whole log — the previous cost, paid once.
+- A malformed record *older* than a valid one is no longer reached, so a
+  template heals by servicing a period instead of staying wedged behind ancient
+  bad state. A malformed record *newer* than the valid one is still surfaced.
+
+**2. Rollback coverage.** `test_rolled_back_create_re_fires_once_its_ledger_line_is_gone`
+checks both halves: line intact + task reaped → reads as handled (correct, the
+Dream-reaped case); line removed as well (reverting the create) → the next scan
+re-creates. No wedge.
+
+Other tests added: reverse reader (newest-first, block-boundary seams, missing
+trailing newline, absent log) in `tests/test_logfile.py`; bounded-read stop,
+union-merge disorder in the tail, and per-ref error isolation in
+`tests/test_recurring.py`.
+
+### Verification
+
+- `PYTHONPATH=$PWD/src python3.12 -m pytest` → 1789 passed, 1 skipped, 3 failed.
+  All three fail identically on unmodified `main` (confirmed by running them
+  there): `test_autoclose.py::test_recipe_preflights_live_summary_before_closing`,
+  `test_recurring.py::test_named_launch_keeps_control_only_malformed_ledger_blocked_on_retry`,
+  `test_recurring.py::test_sweep_retry_revalidates_control_only_malformed_ledger`.
+  Not caused by this change; not fixed here (out of scope).
+- `python -m coga.validate --json` → issue list identical to `main`'s apart
+  from two environmental warnings for the feature checkout (no local `user`,
+  and this ticket's own idle warning).
+
+### Follow-up owed on the sibling ticket
+
+Per the ticket's out-of-scope note,
+`recurring-last-serviced-period-compares-as-a-strin` should record that the two
+now share `_period_key_position` / `period_key_at_least`. That ticket already
+landed (#697) and the shared code path exists; nothing further changed here.
 
 ## Note from `admin/carry-three-verified-coga-bugs-upstream` (2026-08-15)
 
