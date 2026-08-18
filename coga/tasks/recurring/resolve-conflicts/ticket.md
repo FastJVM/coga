@@ -1,7 +1,7 @@
 ---
 slug: recurring/resolve-conflicts
 title: Resolve PR conflicts
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,7 +17,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -58,3 +57,13 @@ this recurring template.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## 2026-W34 result
+
+- Delegated `coga resolve-conflicts --agent codex --queue-guidance` completed
+  successfully after retrying outside the restricted sandbox.
+- The bootstrap command found 0 open PRs: selected=0, rebased-pushed=0,
+  up-to-date=0, conflict=0, skipped-dirty=0, verify-failed=0; human attention:
+  none.
+- Required Slack roll-up was posted by `bootstrap/resolve-conflicts` at
+  2026-08-18 09:56 local time.
