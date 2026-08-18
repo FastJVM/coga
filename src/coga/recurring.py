@@ -6,7 +6,7 @@ import re
 import shutil
 import sys
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -119,13 +119,17 @@ class CreateOutcome:
     stable `tasks/recurring/<name>/` directory. `replaced_done` identifies a
     prior-period completed task that was deleted before this fresh creation.
     `period_key` is the period this create call decided, whether it created or
-    reused the stable task.
+    reused the stable task. `prior_serviced_period` is the target-bounded
+    ledger answer captured before this call can append its own record; the
+    recurring runner uses that pre-create snapshot for its pinned control
+    check after a successful pre-scan catch-up.
     """
 
     ref: TaskRef
     created: bool
     period_key: str
     replaced_done: bool = False
+    prior_serviced_period: str | None = None
 
 
 # The cleanup template runs last in a bare sweep so its retro/cleanup pass acts
@@ -207,6 +211,12 @@ class DueScan:
 
     tasks: list[DueTask]
     errors: list[tuple[str, str]]  # (template_filename, error_message)
+    # Target-bounded ledger state captured before this scan creates anything.
+    # The runner may reuse it as control's pinned pre-publication snapshot when
+    # its immediately preceding control-branch catch-up succeeded.
+    ledger_periods: dict[str, str] = field(default_factory=dict, repr=False)
+    ledger_errors: dict[str, str] = field(default_factory=dict, repr=False)
+    period_targets: dict[str, str] = field(default_factory=dict, repr=False)
 
     @property
     def due(self) -> list[DueTask]:
@@ -282,7 +292,14 @@ def scan_due(
     # a repeated same-period scan resolves from the tail. Malformed records
     # stay attached to their template so one bad high-water mark cannot hide
     # itself as "already serviced" or prevent healthy templates from running.
-    ledger = read_serviced_ledger(cfg, _template_period_targets(root, now))
+    period_targets = _template_period_targets(root, now)
+    ledger = read_serviced_ledger(cfg, period_targets)
+    # `_advance_serviced_period` mutates `ledger.periods` in place as this scan
+    # creates tasks. Preserve the pre-create view separately: after a successful
+    # control catch-up it is the one snapshot the runner must pin before any
+    # template publishes its new shared-log line.
+    ledger_periods_before_scan = dict(ledger.periods)
+    ledger_errors_before_scan = dict(ledger.errors)
     serviced = ledger.periods
     for path in sorted(root.iterdir()):
         if path.name.startswith("_"):
@@ -380,7 +397,13 @@ def scan_due(
                 replaced_done=outcome.replaced_done,
             )
         )
-    return DueScan(tasks=tasks, errors=errors)
+    return DueScan(
+        tasks=tasks,
+        errors=errors,
+        ledger_periods=ledger_periods_before_scan,
+        ledger_errors=ledger_errors_before_scan,
+        period_targets=period_targets,
+    )
 
 
 def create_named(
@@ -424,6 +447,7 @@ def create_template(
         if ledger_error is not None:
             raise RecurringError(ledger_error)
         serviced = ledger.periods
+    prior_serviced_period = serviced.get(target_slug)
 
     # One live task per template: an `active`/`in_progress` instance — current
     # period or a dead sweep's prior-period orphan — is *the* live run. Return
@@ -436,7 +460,12 @@ def create_template(
     # would-be agent run that the check guards against).
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
-        return CreateOutcome(ref=live, created=False, period_key=period_key)
+        return CreateOutcome(
+            ref=live,
+            created=False,
+            period_key=period_key,
+            prior_serviced_period=prior_serviced_period,
+        )
 
     existing = _task_with_slug(cfg, target_slug)
     if existing is not None:
@@ -468,6 +497,7 @@ def create_template(
                 target_slug=target_slug,
                 title=_extract_title(template),
                 period_key=period_key,
+                prior_serviced_period=prior_serviced_period,
             )
             outcome.replaced_done = True
             append_log(
@@ -480,7 +510,12 @@ def create_template(
                 cfg, template, period_key, outcome, now, serviced
             )
             return outcome
-        return CreateOutcome(ref=existing, created=False, period_key=period_key)
+        return CreateOutcome(
+            ref=existing,
+            created=False,
+            period_key=period_key,
+            prior_serviced_period=prior_serviced_period,
+        )
 
     if not allow_agent and not template.recipe:
         raise RecurringError(
@@ -494,6 +529,7 @@ def create_template(
         target_slug=target_slug,
         title=_extract_title(template),
         period_key=period_key,
+        prior_serviced_period=prior_serviced_period,
     )
     _advance_serviced_period(cfg, template, period_key, outcome, now, serviced)
     return outcome
@@ -878,6 +914,7 @@ def _create_at_slug(
     target_slug: str,
     title: str,
     period_key: str,
+    prior_serviced_period: str | None,
 ) -> CreateOutcome:
     """Create one recurring task at an explicit slug. Shared by period and
     debug creating — the only differences are the slug and ledger handling,
@@ -943,7 +980,12 @@ def _create_at_slug(
     # without advancing a declared key (a stale cursor → duplicate next firing).
     _write_state_snapshot(template, out_ref)
 
-    return CreateOutcome(ref=out_ref, created=True, period_key=period_key)
+    return CreateOutcome(
+        ref=out_ref,
+        created=True,
+        period_key=period_key,
+        prior_serviced_period=prior_serviced_period,
+    )
 
 
 # --- helpers ------------------------------------------------------------------
@@ -1177,6 +1219,39 @@ def parse_serviced_period_entries(
     return accumulator.ledger()
 
 
+def parse_serviced_period_entries_reverse(
+    entries: Iterable[tuple[str, str]], resolve_at: Mapping[str, str]
+) -> ServicedPeriodLedger:
+    """Resolve target periods from newest-to-oldest ledger entries.
+
+    Each ref stops accumulating as soon as a valid record proves the caller's
+    at-least target. That per-ref stop matters when another requested template
+    keeps the shared pass open: older malformed history for an already-resolved
+    ref must remain unreachable rather than becoming an unrelated template's
+    error.
+    """
+    targets = dict(resolve_at)
+    if not targets:
+        return ServicedPeriodLedger(periods={}, errors={})
+    for period_key in targets.values():
+        _period_key_position(period_key)
+
+    accumulator = _LedgerAccumulator()
+    pending = set(targets)
+    for ref, message in entries:
+        # A resolved ref is intentionally ignored even if some other target
+        # still requires older lines from this one shared file.
+        if ref not in pending:
+            continue
+        accumulator.add(ref, message)
+        period = accumulator.periods.get(ref)
+        if period is not None and period_key_at_least(period, targets[ref]):
+            pending.remove(ref)
+            if not pending:
+                break
+    return accumulator.ledger()
+
+
 def format_serviced_log(verb: str, task_ref: str, period_key: str) -> str:
     """The one spelling of a serviced-period log message."""
     if verb not in SERVICED_LOG_VERBS:
@@ -1209,30 +1284,9 @@ def read_serviced_ledger(
     """
     if resolve_at is None:
         return parse_serviced_period_entries(iter_log_messages(cfg))
-    targets = dict(resolve_at)
-    wanted = set(targets)
-    if not wanted:
-        return ServicedPeriodLedger(periods={}, errors={})
-    for period_key in targets.values():
-        _period_key_position(period_key)
-    accumulator = _LedgerAccumulator()
-    pending = set(wanted)
-    for ref, message in iter_log_messages_reverse(cfg):
-        # Only the requested templates accumulate — a ref the caller did not
-        # ask about must not answer for one it did, and its malformed records
-        # are not this caller's error to raise.
-        if ref in wanted:
-            accumulator.add(ref, message)
-            period = accumulator.periods.get(ref)
-            if period is not None and period_key_at_least(period, targets[ref]):
-                # Resolving at the caller's target is safe even when union
-                # merging left a newer record earlier in the file: either one
-                # answers the only question this bounded read is allowed to
-                # answer. An older record leaves the ref pending.
-                pending.discard(ref)
-        if not pending:
-            break
-    return accumulator.ledger()
+    return parse_serviced_period_entries_reverse(
+        iter_log_messages_reverse(cfg), resolve_at
+    )
 
 
 def serviced_periods(
@@ -1357,6 +1411,7 @@ __all__ = [
     "serviced_periods",
     "read_serviced_ledger",
     "parse_serviced_period_entries",
+    "parse_serviced_period_entries_reverse",
     "period_key_at_least",
     "ServicedPeriodLedger",
     "format_serviced_log",

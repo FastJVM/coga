@@ -11,6 +11,7 @@ import subprocess
 import shutil
 import sys
 import tomllib
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
@@ -39,6 +40,7 @@ from coga.recurring import (
     Template,
     format_serviced_log,
     parse_serviced_period_entries,
+    parse_serviced_period_entries_reverse,
     period_key_at_least,
     read_serviced_ledger,
     recurring_dir,
@@ -717,6 +719,7 @@ def run_recurring_scan(
         scan,
         respect_handled_period=not force,
         sync_existing=force,
+        control_is_fresh=fresh,
     )
     _print_table(scan, force=force)
 
@@ -951,6 +954,18 @@ def run_recurring_named(
         return 2
 
     ref = outcome.ref
+    control_ledger: dict[str, str] | None = None
+    if fresh:
+        # `create_named` captured this target-aware answer before it could
+        # append its own record. The successful catch-up makes that local view
+        # the pinned control snapshot, so no whole-blob `git show` is needed.
+        template_ref = _recurring_ref(name)
+        control_ledger = {
+            _LEDGER_LOADED: "yes",
+            _control_ledger_target_key(template_ref): outcome.period_key,
+        }
+        if outcome.prior_serviced_period is not None:
+            control_ledger[template_ref] = outcome.prior_serviced_period
     try:
         if outcome.created:
             created_on_control = _sync_recurring_create(
@@ -959,9 +974,15 @@ def run_recurring_named(
                 ref,
                 respect_handled_period=False,
                 expected_period_key=outcome.period_key,
+                control_ledger=control_ledger,
             )
         else:
-            _validate_control_serviced_period(cfg, name)
+            _validate_control_serviced_period(
+                cfg,
+                name,
+                control_ledger,
+                expected_period_key=outcome.period_key,
+            )
     except RecurringError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return 2
@@ -1138,9 +1159,10 @@ def _sync_recurring_create(
 ) -> bool:
     """Sync the period task and ledger record that make deletion idempotent.
 
-    `expected_period_key` bounds the local reverse ledger read only after it
-    finds a record sufficient for this sync's at-least comparison. Callers that
-    cannot prove the period leave it unset and get the exact whole-ledger read.
+    `expected_period_key` bounds both the local reverse ledger read and any
+    fallback control-snapshot read after they find a record sufficient for
+    this sync's at-least comparison. Callers that cannot prove the period leave
+    it unset and get the exact whole-ledger read.
     `control_ledger` is the caller's per-run snapshot of control's serviced
     periods; see `_control_serviced_period_cached` for why a sweep must share
     one.
@@ -1164,6 +1186,13 @@ def _sync_recurring_create(
     original_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
     local_ticket = original_ticket
     template_ref = _recurring_ref(template_name)
+    if control_ledger is not None and expected_period_key is not None:
+        # `_broadcast_scan` seeds every template before the first sync so the
+        # shared snapshot resolves them in one reverse pass. Direct callers
+        # still contribute their own target here.
+        control_ledger.setdefault(
+            _control_ledger_target_key(template_ref), expected_period_key
+        )
     resolve_at = (
         {template_ref: expected_period_key}
         if expected_period_key is not None
@@ -1686,7 +1715,14 @@ def _control_already_has_period(
     # parse control's record so `--force` / named launches cannot run through a
     # malformed high-water mark merely because its value will not be compared.
     serviced = _control_serviced_period_cached(
-        root, ref, log_rel, template_ref, control_ledger
+        root,
+        ref,
+        log_rel,
+        template_ref,
+        control_ledger,
+        resolve_at=(
+            {template_ref: period_key} if period_key is not None else None
+        ),
     )
     if include_ledger and period_key is not None and serviced is not None:
         try:
@@ -1705,13 +1741,16 @@ def _control_serviced_period_cached(
     log_rel: str,
     template_ref: str,
     control_ledger: dict[str, str] | None,
+    *,
+    resolve_at: Mapping[str, str] | None = None,
 ) -> str | None:
     """Control's serviced period for `template_ref`, read at most once per run.
 
-    `control_ledger` is a per-run cache owned by the caller, filled for *every*
-    template on first use. The repo-global log holds all templates' records in
-    one file, so the first sync of a sweep pushes the whole file — including
-    the lines this same sweep just wrote for templates it has not synced yet.
+    `control_ledger` is a per-run cache owned by the caller, resolved for every
+    target in one pass on first use (or preloaded from a successful pre-scan
+    control catch-up). The repo-global log holds all templates' records in one
+    file, so the first sync of a sweep pushes the whole file — including the
+    lines this same sweep just wrote for templates it has not synced yet.
     Reading control per template, even cached per template, would let a later
     template mistake its own pending record for another checkout's and delete
     the task it just created. Capturing every entry at once, before the sweep
@@ -1722,13 +1761,16 @@ def _control_serviced_period_cached(
     and reading fresh reintroduces the self-collision above.
     """
     if control_ledger is None:
-        ledger = _read_control_ledger(root, ref, log_rel)
+        ledger = _read_control_ledger(root, ref, log_rel, resolve_at)
         error = ledger.get(_control_ledger_error_key(template_ref))
         if error is not None:
             raise RecurringError(error)
         return ledger.get(template_ref)
     if not control_ledger.get(_LEDGER_LOADED):
-        control_ledger.update(_read_control_ledger(root, ref, log_rel))
+        targets = _control_ledger_targets(control_ledger)
+        control_ledger.update(
+            _read_control_ledger(root, ref, log_rel, targets or resolve_at)
+        )
         control_ledger[_LEDGER_LOADED] = "yes"
     error = control_ledger.get(_control_ledger_error_key(template_ref))
     if error is not None:
@@ -1740,6 +1782,8 @@ def _validate_control_serviced_period(
     cfg: Config,
     template_name: str,
     control_ledger: dict[str, str] | None = None,
+    *,
+    expected_period_key: str | None = None,
 ) -> None:
     """Fail on malformed control-ledger state without changing task state.
 
@@ -1778,6 +1822,11 @@ def _validate_control_serviced_period(
         _relative_to_root(root, log_path(cfg)),
         _recurring_ref(template_name),
         control_ledger,
+        resolve_at=(
+            {_recurring_ref(template_name): expected_period_key}
+            if expected_period_key is not None
+            else None
+        ),
     )
 
 
@@ -1986,6 +2035,7 @@ def _adopt_control_template(
 # Sentinel key marking a per-run control-ledger cache as populated.
 _LEDGER_LOADED = "\0loaded"
 _LEDGER_ERROR_PREFIX = "\0error:"
+_LEDGER_TARGET_PREFIX = "\0target:"
 
 _CONTROL_LOG_ENTRY_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[(?P<ref>[^\]]*)\] \[[^\]]*\] "
@@ -2007,23 +2057,51 @@ def _control_ledger_error_key(template_ref: str) -> str:
     return f"{_LEDGER_ERROR_PREFIX}{template_ref}"
 
 
-def _read_control_ledger(root: Path, ref: str, log_rel: str) -> dict[str, str]:
-    """Every `recurring/<name>` → newest serviced period, per `ref`'s log.
+def _control_ledger_target_key(template_ref: str) -> str:
+    return f"{_LEDGER_TARGET_PREFIX}{template_ref}"
 
-    The whole file is parsed in one go because the ledger is shared: a caller
-    pinning "control as it stood before this sweep" needs every template's
-    entry captured at the same instant, not one lazily per template. The
-    maximum is taken because `merge=union` can leave the file unsorted.
+
+def _control_ledger_targets(control_ledger: Mapping[str, str]) -> dict[str, str]:
+    return {
+        key.removeprefix(_LEDGER_TARGET_PREFIX): value
+        for key, value in control_ledger.items()
+        if key.startswith(_LEDGER_TARGET_PREFIX)
+    }
+
+
+def _read_control_ledger(
+    root: Path,
+    ref: str,
+    log_rel: str,
+    resolve_at: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Read serviced periods from the pinned control log at `ref`.
+
+    `resolve_at` applies the same per-template target proof as the working-tree
+    reader. A sweep supplies all of its targets together, so even this fallback
+    captures one shared pre-publication snapshot rather than reading lazily per
+    template. Without targets the exact whole-ledger parse remains available
+    to callers that cannot state an at-least question.
     """
     text = _show_path(root, ref, log_rel)
     if not text:
         return {}
-    entries: list[tuple[str, str]] = []
-    for line in text.splitlines():
-        match = _CONTROL_LOG_ENTRY_RE.match(line)
-        if match is not None:
-            entries.append((match.group("ref"), match.group("message")))
-    ledger = parse_serviced_period_entries(entries)
+
+    lines = text.splitlines()
+
+    def entries(source: Iterable[str]) -> Iterable[tuple[str, str]]:
+        for line in source:
+            match = _CONTROL_LOG_ENTRY_RE.match(line)
+            if match is not None:
+                yield match.group("ref"), match.group("message")
+
+    ledger = (
+        parse_serviced_period_entries(entries(iter(lines)))
+        if resolve_at is None
+        else parse_serviced_period_entries_reverse(
+            entries(reversed(lines)), resolve_at
+        )
+    )
     out = dict(ledger.periods)
     for template_ref, error in ledger.errors.items():
         out[_control_ledger_error_key(template_ref)] = error
@@ -2322,6 +2400,7 @@ def _broadcast_scan(
     *,
     respect_handled_period: bool = True,
     sync_existing: bool = False,
+    control_is_fresh: bool = False,
 ) -> None:
     """Post Slack lines for newly created tasks and skipped templates.
 
@@ -2334,12 +2413,37 @@ def _broadcast_scan(
     # One control-ledger snapshot for the whole sweep: the first sync publishes
     # the shared log, so a per-task read would see this sweep's own pending
     # records as another checkout's.
-    control_ledger: dict[str, str] = {}
+    targets = scan.period_targets or {
+        _recurring_ref(task.template): task.period_key
+        for task in scan.tasks
+        if task.period_key
+    }
+    control_ledger: dict[str, str] = {
+        _control_ledger_target_key(ref): period
+        for ref, period in targets.items()
+    }
+    if control_is_fresh:
+        # `scan_due` took this target-bounded snapshot immediately after the
+        # successful pre-scan catch-up and before any create appended to the
+        # shared log. Reusing it is both the self-collision guard and the only
+        # way a normal git-backed sweep can retain the local reverse reader's
+        # bounded I/O; reading the Git blob would materialize the whole log.
+        control_ledger.update(scan.ledger_periods)
+        control_ledger.update(
+            {
+                _control_ledger_error_key(ref): error
+                for ref, error in scan.ledger_errors.items()
+            }
+        )
+        control_ledger[_LEDGER_LOADED] = "yes"
     for task in list(scan.tasks):
         try:
             if not task.created and not task.replaced_done:
                 _validate_control_serviced_period(
-                    cfg, task.template, control_ledger
+                    cfg,
+                    task.template,
+                    control_ledger,
+                    expected_period_key=task.period_key,
                 )
                 if sync_existing:
                     _refresh_forced_status_from_control(cfg, task)

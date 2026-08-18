@@ -411,7 +411,11 @@ task, which carries that rule.
   walks the whole log on the first scan of a new period; after that period is
   recorded, repeated scans resolve from the tail. A malformed record reached
   before the target remains a template error; older unreachable malformed
-  history is allowed to heal.
+  history is allowed to heal. When the pre-scan control catch-up succeeds, the
+  sweep carries this pre-create result into the control guard as its pinned
+  snapshot instead of materializing the same Git blob again. If catch-up could
+  not be confirmed and the later best-effort control fetch succeeds, that
+  fallback applies the same complete target set to one pinned control read.
 - **One shared file, so a sweep pins one snapshot.** Because every template
   records into the same log, the first sync of a sweep publishes records for
   templates it has not synced yet. The cross-checkout "did someone else handle

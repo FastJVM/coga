@@ -6288,6 +6288,27 @@ def test_scan_does_not_refire_past_an_older_union_merged_tail_record(
     assert not (tasks_dir(cfg) / "recurring" / "weekly-check").exists()
 
 
+def test_broadcast_reuses_the_fresh_prescan_control_ledger(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A normal caught-up sweep must not materialize control's whole log."""
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "weekly-check", "2026-W24")
+    scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0, 0))
+    assert scan.ledger_periods == {"recurring/weekly-check": "2026-W24"}
+
+    monkeypatch.setattr(recurring_cmd, "_git_toplevel", lambda *args: repo)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_read_control_ledger",
+        lambda *args, **kwargs: pytest.fail("fresh sweep reread control log"),
+    )
+
+    recurring_cmd._broadcast_scan(cfg, scan, control_is_fresh=True)
+
+    assert scan.errors == []
+
+
 def test_read_serviced_ledger_ignores_templates_the_caller_did_not_request(
     repo: Path,
 ) -> None:
@@ -6307,6 +6328,71 @@ def test_read_serviced_ledger_ignores_templates_the_caller_did_not_request(
 
     assert ledger.periods == {"recurring/weekly-check": "2026-W20"}
     assert ledger.errors == {}
+
+
+def test_read_serviced_ledger_stops_each_ref_after_its_target_resolves(
+    repo: Path,
+) -> None:
+    """One unresolved template must not expose another's healed history."""
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "other-check", "2026-W20")
+    append_log(
+        cfg,
+        "recurring/weekly-check",
+        "system",
+        "created recurring/weekly-check for none",
+    )
+    _seed_serviced_period(repo, "weekly-check", "2026-W20")
+
+    ledger = read_serviced_ledger(
+        cfg,
+        {
+            "recurring/weekly-check": "2026-W20",
+            "recurring/other-check": "2026-W20",
+        },
+    )
+
+    assert ledger.periods == {
+        "recurring/weekly-check": "2026-W20",
+        "recurring/other-check": "2026-W20",
+    }
+    assert ledger.errors == {}
+
+
+def test_control_ledger_uses_the_same_per_ref_target_stop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The pinned control fallback must agree with the local reverse read."""
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_show_path",
+        lambda *args: "".join(
+            [
+                "2026-05-01 09:00 [recurring/other-check] [system] "
+                "created recurring/other-check for 2026-W20\n",
+                "2026-05-01 09:01 [recurring/weekly-check] [system] "
+                "created recurring/weekly-check for none\n",
+                "2026-05-01 09:02 [recurring/weekly-check] [system] "
+                "created recurring/weekly-check for 2026-W20\n",
+            ]
+        ),
+    )
+
+    ledger = recurring_cmd._read_control_ledger(
+        tmp_path,
+        "control",
+        "coga/log.md",
+        {
+            "recurring/weekly-check": "2026-W20",
+            "recurring/other-check": "2026-W20",
+        },
+    )
+
+    assert ledger["recurring/weekly-check"] == "2026-W20"
+    assert ledger["recurring/other-check"] == "2026-W20"
+    assert recurring_cmd._control_ledger_error_key(
+        "recurring/weekly-check"
+    ) not in ledger
 
 
 def test_rolled_back_create_re_fires_once_its_ledger_line_is_gone(
