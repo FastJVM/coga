@@ -1,7 +1,7 @@
 ---
 slug: retire-decide-the-fate-of-two-premise-dead-v2-drafts-whos
 title: Retire decide-the-fate-of-two-premise-dead-v2-drafts-whos
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
