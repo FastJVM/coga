@@ -35,7 +35,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -791,3 +791,32 @@ scoped to PR 1's acceptance criteria.
 - **Test placement added to the spec**: Coga's own scripts are tested from
   `tests/` via subprocess against the `example/` fixture; user-repo script
   tests live beside the ticket but Coga never collects or runs them.
+
+## Dev
+
+branch: deduce-ticket-script
+worktree: `/tmp/coga-deduce-ticket-script`
+
+## Implement progress (2026-08-18)
+
+- Commit `e92b69dd` adds fixed-name `ticket.py` classification and direct
+  subprocess execution, completion-contract script→agent handoff,
+  `COGA_TASK_STEP`, compile-time validation, the seeded example, regression
+  coverage, and the scoped live/packaged contract edits.
+- The implementation uses the same structural `status` + `step` contract as
+  `_harness_stop_reason`, but not that helper verbatim: its unchanged-step case
+  is intentionally agent-exit-specific ("still on step; stopping"), while an
+  unchanged step after `ticket.py` is the row-three signal to start the agent.
+  Keeping that inversion explicit avoids changing established agent-exit
+  semantics.
+- At the owner's request to fix the full-suite failures, commit `1a80c838`
+  repairs the three stale test fixtures separately: autoclose now selects an
+  actually unresolved webhook variable despite the suite-wide Slack stub, and
+  the two malformed-ledger retries stay on the required control branch while
+  simulating the best-effort pre-scan catch-up miss their scenario needs.
+- Exact committed-tree verification: `1805 passed, 1 skipped` in 106.22s.
+  The skip is the existing wheel-build test because `hatchling` is absent;
+  the other four packaging tests pass. The seeded example validates cleanly
+  (`ok_count: 3`, zero issues), and `git diff --check` is clean.
+- Freshness: fetched and rebased onto `origin/main`; branch is clean, zero
+  commits behind and two commits ahead. No push or PR was created in this step.
