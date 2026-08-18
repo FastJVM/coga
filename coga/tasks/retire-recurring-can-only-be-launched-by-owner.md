@@ -1,7 +1,7 @@
 ---
 slug: retire-recurring-can-only-be-launched-by-owner
 title: Retire recurring-can-only-be-launched-by-owner
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
