@@ -1,7 +1,7 @@
 ---
 slug: recurring/resolve-conflicts
 title: Resolve PR conflicts
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
