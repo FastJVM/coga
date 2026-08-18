@@ -399,6 +399,19 @@ task, which carries that rule.
   `parse_serviced_period_entries`), pinned by a test. Logs are still never
   composed into prompts, so history can grow
   without bloating the next run.
+- **The ledger read is bounded to the log's tail.** The log is allowed to grow
+  without bound, so a sweep must not pay for the repo's whole history every
+  firing. `read_serviced_ledger` takes the finite set of `recurring/<name>`
+  refs the caller needs, reads `coga/log.md` **backwards**, and stops once each
+  one has resolved. Two consequences. Reverse order is a recency heuristic, not
+  a guarantee — `merge=union` can leave a template's newest record *above* an
+  older one — so the read keeps taking the maximum calendar position and scans
+  a slack window past the last resolution rather than stopping at the first
+  hit. And a template with no record yet never resolves, so its first firing
+  still walks the whole log once. A malformed record older than a valid one is
+  no longer reached, so a template heals by servicing a period instead of
+  staying wedged behind ancient bad state; a malformed record *newer* than the
+  valid one is still a template error.
 - **One shared file, so a sweep pins one snapshot.** Because every template
   records into the same log, the first sync of a sweep publishes records for
   templates it has not synced yet. The cross-checkout "did someone else handle

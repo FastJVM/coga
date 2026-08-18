@@ -14,11 +14,12 @@ from typer.testing import CliRunner
 
 from coga import git as coga_git
 from coga import spool
+from coga import recurring as recurring_module
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
 from coga.config import Config, load_config
 from coga.logfile import append_log, task_log_lines
-from coga.paths import tasks_dir
+from coga.paths import log_path, tasks_dir
 from coga.recurring import (
     DueScan,
     DueTask,
@@ -27,6 +28,7 @@ from coga.recurring import (
     create_named,
     format_serviced_log,
     list_templates,
+    read_serviced_ledger,
     scan_due,
     serviced_periods,
 )
@@ -6207,6 +6209,122 @@ def test_serviced_periods_rejects_malformed_period_keys(
         match=rf"invalid serviced period {re.escape(repr(period))}.*weekly-check",
     ):
         serviced_periods(cfg)
+
+
+def test_read_serviced_ledger_bounds_its_read_to_the_log_tail(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`coga/log.md` grows without bound, so a scan must not walk all of it.
+
+    The answer to "what period did this template last service?" lives in the
+    log's tail. Reading forward from byte zero makes every sweep pay for the
+    repo's whole history; the bounded reverse read stops once the templates it
+    was asked about have resolved.
+    """
+    cfg = load_config(repo)
+    for note in range(20):
+        append_log(cfg, "ancient", "human:marc", f"ancient note {note}")
+    _seed_serviced_period(repo, "weekly-check", "2026-W20")
+    for note in range(20):
+        append_log(cfg, "recent", "human:marc", f"recent note {note}")
+
+    seen: list[tuple[str, str]] = []
+    real = recurring_module.iter_log_messages_reverse
+
+    def counting(cfg_arg, **kwargs):  # type: ignore[no-untyped-def]
+        for entry in real(cfg_arg, **kwargs):
+            seen.append(entry)
+            yield entry
+
+    monkeypatch.setattr(recurring_module, "iter_log_messages_reverse", counting)
+    # The shipped slack window is wider than any fixture log, so shrink it here
+    # rather than seeding hundreds of lines to prove the same stop.
+    monkeypatch.setattr(recurring_module, "_LEDGER_TAIL_SLACK_LINES", 5)
+
+    ledger = read_serviced_ledger(cfg, ["recurring/weekly-check"])
+
+    assert ledger.periods == {"recurring/weekly-check": "2026-W20"}
+    assert ("ancient", "ancient note 0") not in seen
+    assert len(seen) < 41
+
+
+def test_read_serviced_ledger_tail_keeps_the_newest_of_unsorted_records(
+    repo: Path,
+) -> None:
+    """Reverse order is a recency heuristic, not a guarantee.
+
+    `merge=union` concatenates two checkouts' blocks in whichever order the
+    merge picked, so a template's newest record can sit *above* an older one.
+    Stopping at the first hit would under-report the serviced period and re-fire
+    it — the exact failure this ledger replaced.
+    """
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "weekly-check", "2026-W22")
+    _seed_serviced_period(repo, "weekly-check", "2026-W21")
+
+    ledger = read_serviced_ledger(cfg, ["recurring/weekly-check"])
+
+    assert ledger.periods == {"recurring/weekly-check": "2026-W22"}
+
+
+def test_read_serviced_ledger_ignores_templates_the_caller_did_not_request(
+    repo: Path,
+) -> None:
+    """One template's bad ledger state must not answer for another's."""
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "weekly-check", "2026-W20")
+    append_log(
+        cfg,
+        "recurring/other-check",
+        "system",
+        "created recurring/other-check for none",
+    )
+
+    ledger = read_serviced_ledger(cfg, ["recurring/weekly-check"])
+
+    assert ledger.periods == {"recurring/weekly-check": "2026-W20"}
+    assert ledger.errors == {}
+
+
+def test_rolled_back_create_re_fires_once_its_ledger_line_is_gone(
+    repo: Path,
+) -> None:
+    """Removing a create's audit line must re-fire the period, not wedge it.
+
+    The ledger *is* the audit line now, so the two states a rollback can leave
+    behind are both checked here. With the line intact and the task reaped, the
+    period reads as handled — that is the reaped-task case, not a bug. With the
+    line removed as well (reverting the create), the next scan must behave as
+    if the period never ran and create the task again.
+    """
+    cfg = load_config(repo)
+    now = datetime(2026, 6, 8, 10, 0, 0)
+    first = scan_due(cfg, now=now)
+    assert first.tasks[0].created
+    period_key = first.tasks[0].period_key
+
+    task_dir = tasks_dir(cfg) / "recurring" / "weekly-check"
+    shutil.rmtree(task_dir)
+
+    reaped = scan_due(cfg, now=now)
+    assert reaped.tasks[0].created is False
+    assert reaped.tasks[0].ref is None
+
+    log_file = log_path(cfg)
+    log_file.write_text(
+        "".join(
+            f"{line}\n"
+            for line in log_file.read_text().splitlines()
+            if format_serviced_log("created", "recurring/weekly-check", period_key)
+            not in line
+        )
+    )
+
+    rolled_back = scan_due(cfg, now=now)
+
+    assert rolled_back.tasks[0].created
+    assert task_dir.is_dir()
+    assert serviced_periods(cfg)["recurring/weekly-check"] == period_key
 
 
 def test_scan_due_reports_malformed_period_and_continues(

@@ -16,7 +16,11 @@ from croniter import CroniterError, croniter
 from coga.create import create_task
 from coga.config import Config
 from coga.delete_task import DeleteTaskError, run_delete_task
-from coga.logfile import append_log, iter_log_messages
+from coga.logfile import (
+    append_log,
+    iter_log_messages,
+    iter_log_messages_reverse,
+)
 from coga.paths import recurring_dir, resolve_workflow_path
 from coga.period_state import write_snapshot
 from coga.taskfile import (
@@ -269,10 +273,12 @@ def scan_due(
     tasks: list[DueTask] = []
     errors: list[tuple[str, str]] = []
     # One log pass for every template in this scan, then kept current in-place
-    # as creates record their periods. Malformed records stay attached to the
-    # template they belong to so one bad high-water mark cannot hide itself as
-    # "already serviced" or prevent healthy templates from running.
-    ledger = read_serviced_ledger(cfg)
+    # as creates record their periods. Bounding it to the templates on disk
+    # lets the read stop at the log's tail instead of walking the whole file
+    # once per sweep. Malformed records stay attached to the template they
+    # belong to so one bad high-water mark cannot hide itself as "already
+    # serviced" or prevent healthy templates from running.
+    ledger = read_serviced_ledger(cfg, _template_refs(root))
     serviced = ledger.periods
     for path in sorted(root.iterdir()):
         if path.name.startswith("_"):
@@ -409,7 +415,7 @@ def create_template(
     period_key = _period_key(template.schedule, last_fire)
     target_slug = _recurring_slug(template.name)
     if serviced is None:
-        ledger = read_serviced_ledger(cfg)
+        ledger = read_serviced_ledger(cfg, [target_slug])
         ledger_error = ledger.errors.get(target_slug)
         if ledger_error is not None:
             raise RecurringError(ledger_error)
@@ -548,7 +554,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
     out: list[TemplateStatus] = []
     if not root.is_dir():
         return out
-    ledger = read_serviced_ledger(cfg)
+    ledger = read_serviced_ledger(cfg, _template_refs(root))
     serviced = ledger.periods
 
     for path in sorted(root.iterdir()):
@@ -1108,6 +1114,47 @@ def period_key_at_least(period_key: str, other: str) -> bool:
     return _period_key_position(period_key) >= _period_key_position(other)
 
 
+class _LedgerAccumulator:
+    """Fold log entries into high-water marks, in either file direction.
+
+    Shared by the whole-log forward read and the bounded tail read so both
+    agree on what counts as a ledger line, what counts as malformed, and which
+    of two records for one template wins.
+    """
+
+    def __init__(self) -> None:
+        self.periods: dict[str, str] = {}
+        self.errors: dict[str, str] = {}
+        self._positions: dict[str, tuple[datetime, str]] = {}
+
+    def add(self, ref: str, message: str) -> None:
+        if not ref.startswith("recurring/"):
+            return
+        match = _SERVICED_LOG_RE.match(message)
+        if match is None:
+            return
+        period = (match.group("period") or "").strip()
+        try:
+            position = _period_key_position(period)
+        except ValueError:
+            error = (
+                f"invalid serviced period {period!r} for {ref} in coga/log.md; "
+                f"{_PERIOD_KEY_EXPECTATION}"
+            )
+            current_error = self.errors.get(ref)
+            if current_error is None or error < current_error:
+                self.errors[ref] = error
+            return
+        candidate = (position, period)
+        current = self._positions.get(ref)
+        if current is None or candidate > current:
+            self.periods[ref] = period
+            self._positions[ref] = candidate
+
+    def ledger(self) -> ServicedPeriodLedger:
+        return ServicedPeriodLedger(periods=self.periods, errors=self.errors)
+
+
 def parse_serviced_period_entries(
     entries: Iterable[tuple[str, str]],
 ) -> ServicedPeriodLedger:
@@ -1117,33 +1164,10 @@ def parse_serviced_period_entries(
     than ignored or compared as text. Valid records still accumulate for other
     templates so scan and status can isolate the bad state to its owner.
     """
-    periods: dict[str, str] = {}
-    positions: dict[str, tuple[datetime, str]] = {}
-    errors: dict[str, str] = {}
+    accumulator = _LedgerAccumulator()
     for ref, message in entries:
-        if not ref.startswith("recurring/"):
-            continue
-        match = _SERVICED_LOG_RE.match(message)
-        if match is None:
-            continue
-        period = (match.group("period") or "").strip()
-        try:
-            position = _period_key_position(period)
-        except ValueError:
-            error = (
-                f"invalid serviced period {period!r} for {ref} in coga/log.md; "
-                f"{_PERIOD_KEY_EXPECTATION}"
-            )
-            current_error = errors.get(ref)
-            if current_error is None or error < current_error:
-                errors[ref] = error
-            continue
-        candidate = (position, period)
-        current = positions.get(ref)
-        if current is None or candidate > current:
-            periods[ref] = period
-            positions[ref] = candidate
-    return ServicedPeriodLedger(periods=periods, errors=errors)
+        accumulator.add(ref, message)
+    return accumulator.ledger()
 
 
 def format_serviced_log(verb: str, task_ref: str, period_key: str) -> str:
@@ -1154,16 +1178,74 @@ def format_serviced_log(verb: str, task_ref: str, period_key: str) -> str:
     return f"{verb} {task_ref} for {period_key}"
 
 
-def read_serviced_ledger(cfg: Config) -> ServicedPeriodLedger:
-    """Read all serviced-period state while preserving per-template errors."""
-    return parse_serviced_period_entries(iter_log_messages(cfg))
+# How far past "every template resolved" the tail read keeps going before it
+# stops. `log.md` is `merge=union`, so two checkouts appending in the same
+# period leave their blocks concatenated in whichever order the merge picked —
+# a template's newest record can sit *above* an older one. Reverse order is
+# therefore a good recency heuristic, not a guarantee, and a bare "stop at the
+# first hit" would re-introduce the under-reporting this ticket exists to kill.
+# A merge block is a sweep's worth of lines; this window covers many of them
+# while still reading a fixed tail rather than the unbounded file.
+_LEDGER_TAIL_SLACK_LINES = 500
 
 
-def serviced_periods(cfg: Config) -> dict[str, str]:
+def read_serviced_ledger(
+    cfg: Config, refs: Iterable[str] | None = None
+) -> ServicedPeriodLedger:
+    """Read serviced-period state while preserving per-template errors.
+
+    `refs` is the finite set of `recurring/<name>` refs the caller actually
+    needs — every template in a scan, or the single one a create is deciding.
+    Given it, the log is read **backwards** and abandoned once each ref has
+    resolved, so the answer costs a tail read instead of a full pass over the
+    one file Coga lets grow without bound. `None` keeps the whole-log forward
+    read for callers that must reconstruct every template's state.
+
+    Two consequences of the bounded read, both deliberate. A ref with no record
+    at all never resolves, so a template's first firing still walks the whole
+    log — the same cost as before, once. And a malformed record older than a
+    valid one for the same template is no longer reached, so a template heals
+    itself by servicing a period instead of staying wedged behind ancient bad
+    state; a malformed record *newer* than the valid one is still surfaced,
+    because the reverse scan meets it first and records its error before the
+    older valid record resolves the ref.
+    """
+    if refs is None:
+        return parse_serviced_period_entries(iter_log_messages(cfg))
+    wanted = set(refs)
+    if not wanted:
+        return ServicedPeriodLedger(periods={}, errors={})
+    accumulator = _LedgerAccumulator()
+    pending = set(wanted)
+    slack = _LEDGER_TAIL_SLACK_LINES
+    for ref, message in iter_log_messages_reverse(cfg):
+        # Only the requested templates accumulate — a ref the caller did not
+        # ask about must not answer for one it did, and its malformed records
+        # are not this caller's error to raise.
+        if ref in wanted:
+            accumulator.add(ref, message)
+            if ref in accumulator.periods:
+                # Resolved means "has a valid high-water mark". A malformed
+                # record alone leaves the ref pending, so an older good one is
+                # still found.
+                pending.discard(ref)
+        # Slack counts every line scanned, not just ledger ones: the window is
+        # sized against a merge block's worth of log, whatever it contains.
+        if not pending:
+            slack -= 1
+            if slack <= 0:
+                break
+    return accumulator.ledger()
+
+
+def serviced_periods(
+    cfg: Config, refs: Iterable[str] | None = None
+) -> dict[str, str]:
     """Map each `recurring/<name>` ref to the newest period it has serviced.
 
-    One pass over the log for every template at once; scanning per template
-    would re-read the one file Coga lets grow without bound.
+    One pass over the log for every requested template at once; scanning per
+    template would re-read the one file Coga lets grow without bound. Pass
+    `refs` to bound that pass to the log's tail — see `read_serviced_ledger`.
 
     The latest calendar period is kept rather than the last line seen:
     `log.md` is `merge=union`, so concurrent appends from two checkouts can
@@ -1171,7 +1253,7 @@ def serviced_periods(cfg: Config) -> dict[str, str]:
     a partial map; scan/status use `read_serviced_ledger` to attach each error
     to its template while continuing past it.
     """
-    ledger = read_serviced_ledger(cfg)
+    ledger = read_serviced_ledger(cfg, refs)
     if ledger.errors:
         first_ref = sorted(ledger.errors)[0]
         raise RecurringError(ledger.errors[first_ref])
@@ -1180,6 +1262,19 @@ def serviced_periods(cfg: Config) -> dict[str, str]:
 
 def _recurring_slug(template_name: str) -> str:
     return f"recurring/{template_name}"
+
+
+def _template_refs(root: Path) -> list[str]:
+    """Every live template's log ref, from directory names alone.
+
+    Cheap enough to run before `Template.load`, which is what lets a scan bound
+    its ledger read to the templates it is about to walk.
+    """
+    return [
+        _recurring_slug(path.name)
+        for path in sorted(root.iterdir())
+        if path.is_dir() and not path.name.startswith("_")
+    ]
 
 
 def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
@@ -1219,7 +1314,7 @@ def _period_already_serviced(
     walking every template; None makes this read the log itself.
     """
     if serviced is None:
-        serviced = serviced_periods(cfg)
+        serviced = serviced_periods(cfg, [_recurring_slug(template.name)])
     last = serviced.get(_recurring_slug(template.name))
     if last is None:
         return False

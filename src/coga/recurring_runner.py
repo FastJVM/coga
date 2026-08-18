@@ -1155,8 +1155,8 @@ def _sync_recurring_create(
     template_ticket = template_dir / "ticket.md"
     original_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
     local_ticket = original_ticket
-    ledger = read_serviced_ledger(cfg)
     template_ref = _recurring_ref(template_name)
+    ledger = read_serviced_ledger(cfg, [template_ref])
     ledger_error = ledger.errors.get(template_ref)
     if ledger_error is not None:
         raise RecurringError(ledger_error)
