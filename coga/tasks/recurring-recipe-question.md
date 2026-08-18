@@ -794,6 +794,7 @@ scoped to PR 1's acceptance criteria.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/700
 branch: deduce-ticket-script
 worktree: `/tmp/coga-deduce-ticket-script`
 
