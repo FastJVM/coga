@@ -1,7 +1,7 @@
 ---
 slug: recurring/resolve-conflicts
 title: Resolve PR conflicts
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,7 +17,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -154,6 +153,17 @@ cause of the prior exit 2 — that really was the TTY refusal.
 - Success is confirmed from the `bootstrap/resolve-conflicts` `slack:` line in
   `coga/log.md`, not the pty stream (per `coga/recurring` SKILL.md L479-494).
   High-water mark before this run: L3102.
+
+### Outcome — sweep completed for 2026-W33
+
+- Delegated run finished; roll-up in `coga/log.md`:
+  `2026-08-17 22:02 [bootstrap/resolve-conflicts] [agent:claude] slack:
+  resolve-conflicts sweep: 0 open PRs — nothing to rebase; no attention needed.`
+- No PR was fetched, rebased, or force-pushed — there were none to touch.
+- Nothing durable to persist: this recurring entry is stateless by design (the
+  serviced-period high-water mark lives in the log, not the parent blackboard),
+  so no parent-blackboard cursor update belongs to this run.
+- Marking the period task done.
 
 ## Blockers
 
