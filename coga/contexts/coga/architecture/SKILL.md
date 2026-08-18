@@ -36,6 +36,12 @@ no in-memory state.
   region (the workspace shared between human and agent). The append-only audit
   trail is not in the task file — it lives in one repo-global `coga/log.md`
   (written by CLI commands only), each line tagged with its task ref.
+  A directory-form task may reserve the exact sibling name `ticket.py` for its
+  deterministic launch phase. Launch stats that one path and subprocesses it;
+  core never imports from the task directory. No other attachment changes
+  dispatch, so an agent-called `run.py`, test helper, or reproduction script
+  remains an ordinary file. File-form tasks have no siblings and are therefore
+  agent-only.
 - **Contexts** are domain knowledge — what's true about the world.
   Project-local contexts live in `coga/contexts/`; bundled Coga batteries live
   in the installed package's `bootstrap/contexts/` resources. Attached to
@@ -120,22 +126,26 @@ no in-memory state.
   failures still fail that repo, and the parent keeps sweeping before returning
   the aggregate result. `--force` is the explicit schedule/status bypass and
   composes with the parent sweep.
-- **Bootstrap tickets** are stateless agent launch targets for skills. No
-  status, no workflow. Resolution is **local-first**,
+- **Bootstrap tickets** are stateless launch targets. With only `ticket.md`
+  they compose an agent prompt; with the exact sibling `ticket.py` they run
+  deterministically with no task lifecycle or blackboard. No status, no
+  workflow. Resolution is **local-first**,
   exactly like skills/contexts/workflows: `coga launch bootstrap/<name>`
   checks a repo-local `coga/bootstrap/<name>/ticket.md` before the package
   `bootstrap/<name>/ticket.md` resource. Used for ticket-less re-entry points
-  like `coga launch bootstrap/orient` (the `chat` alias) and agent-backed
-  command tickets such as `coga resolve-conflicts`. Trailing launch args
-  (`coga launch <target> [ARGS...]`) arrive as ordered values in an appended
-  `## Launch arguments` prompt block. Deterministic package commands use the
-  registered recipe surface instead:
+  like `coga launch bootstrap/orient` (the `chat` alias) and command tickets
+  such as `coga resolve-conflicts`. Trailing launch args (`coga launch <target>
+  [ARGS...]`) arrive at an agent as ordered values in an appended `## Launch
+  arguments` prompt block; a deterministic `ticket.py` receives no operands in
+  v1. Repository-independent parameterized package commands use the registered
+  recipe surface instead:
   `coga open-pr` is a default alias for the registered `open-pr` *recipe*,
   because a fixed name in `runner.RECIPES` is a genuine package command whose
   implementation belongs in importable core; `coga resolve-conflicts` is the
   agent-backed command ticket and consumes its optional PR selector from the
-  prompt arg block. A repo mints its own agent-backed `coga <verb>` with a local
-  command ticket plus an `[aliases]` line — zero core Python. `coga launch`
+  prompt arg block. A repo mints its own agent-backed or no-operand
+  deterministic `coga <verb>` with a local command ticket plus an `[aliases]`
+  line — zero core Python. `coga launch`
   does not create new tickets merely because a target is under `bootstrap/`;
   use `coga create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, reusable
@@ -309,7 +319,8 @@ bundled refs may replace that list with specific cleanup instructions.
   `coga block` owns the `blocked` transition, and `coga unblock` resolves
   open blocker asks and moves `blocked → active` while preserving `step:`.
   `coga launch`
-  flips an `active` ticket to `in_progress` when it spawns the agent, and —
+  flips an `active` ticket to `in_progress` when its script or agent work
+  begins, and —
   since launching is itself the readiness signal — also performs the
   `mark active` step inline for a ticket that is still `draft` or `paused`
   before that flip. `coga mark canceled <ticket> --message "<reason>"` accepts
@@ -341,16 +352,23 @@ statuses directly via `coga mark`. `coga bump` refuses them.
 The split is deliberate: each state change has one shared writer. `coga create`
 authors a draft, the `coga.mark` finalizers flip status across the lifecycle,
 `coga bump` moves steps and delegates final completion to `mark_done`, and
-`coga launch` spawns the agent — bringing a `draft` or `paused` ticket to
-`active` first (reusing `coga mark active`), then flipping
-`active → in_progress` as it does.
+`coga launch` drives the target's deterministic and/or agent phases — bringing
+a `draft` or `paused` ticket to `active` first (reusing `coga mark active`),
+then flipping `active → in_progress` as work begins.
 
-## Agent launches and registered recipes
+## Ticket launch phases and registered recipes
 
-`coga launch` always composes the ticket prompt and spawns the assignee's
-agent CLI in a live REPL. There is no ticket execution-mode field and workflow
-skills are prompt contracts, not executable plugins. Agent launches require
-stdin and stdout to be TTYs. `coga bump`, `coga mark done`, `coga mark
+There is no ticket execution-mode field and workflow skills remain prompt
+contracts, not executable plugins. Instead launch checks the selected
+directory for one fixed `ticket.py` sibling. When present, it subprocesses that
+file headlessly before agent setup. The script receives task identity, current
+step, and declared secrets, but no operands. A zero exit plus an open step
+falls through to the assignee's agent; a completed step or terminal lifecycle
+does not. Without `ticket.py`, launch goes directly to the agent path.
+
+Only an actual agent phase composes the ticket prompt and spawns the
+assignee's CLI in a live REPL, so only that phase requires stdin and stdout to
+be TTYs. `coga bump`, `coga mark done`, `coga mark
 canceled`, and `coga block` signal the session-scoped
 `$COGA_DONE_SENTINEL`; the supervisor tears down the REPL, re-reads the ticket,
 and either starts a fresh agent process for the next agent-owned step or stops
@@ -358,7 +376,7 @@ at a human handoff, terminal state, blocker, no-progress exit, or non-zero
 exit. A stateless bootstrap agent has no lifecycle transition, so its final
 `coga slack --task bootstrap/<name> ...` FYI is the completion signal.
 
-A human-owned step remains a hard handoff when launched normally. An explicit
+A human-owned agent step remains a hard handoff when launched normally. An explicit
 `coga launch <slug> --agent <type>` is the on-demand assist path: it selects a
 configured agent for that launch only, prints the unusual assist in the banner,
 and never rewrites the human `assignee:` on disk. The strict assist path is
@@ -615,8 +633,18 @@ bump because the gate reads the recorded artifact. The registry remains generic
 
 ## Prompt composition
 
-`coga launch` builds one composed prompt and writes it to a temp
-file. Layers, in order:
+`coga launch` first checks only the selected target directory for the exact
+`ticket.py` sibling. If present, it runs that file headlessly under the current
+Python interpreter before any TTY, agent-type, agent-CLI, prompt, or push-auth
+preflight. A nonzero exit halts. On zero, launch re-reads the ticket: a
+completed/advanced/blocked step is not run by an agent, while a still-open step
+continues into the agent path and sees any blackboard findings the script
+appended. The launcher never advances a step for the script. This is a
+fixed-path stat on one already-selected ticket, not recursive discovery or an
+executable skill-plugin API.
+
+When an agent phase remains, `coga launch` builds one composed prompt and
+writes it to a temp file. Layers, in order:
 
 1. Base prompt plus the agent-mode block. Both are package resources, not
    files under `coga/`.
@@ -789,7 +817,10 @@ Deterministic Coga jobs that need a stable command surface live as importable
 core functions in the fixed `runner.RECIPES` table and are invoked through
 `coga run`. Keeping the registry explicit makes the available code legible
 and reviewable; installed skills are process contracts, not executable
-plugins. State-machine commands (`create`, `mark`, `bump`, `block`, `unblock`,
+plugins. This remains the repository-independent parameterized command surface;
+ticket-owned deterministic behavior can instead live in `ticket.py`, which
+launch subprocesses without adding it to the registry. State-machine commands
+(`create`, `mark`, `bump`, `block`, `unblock`,
 `launch`, `megalaunch`) remain ordinary core commands, as do shared gates,
 parsers, preflights, and config/secrets machinery.
 
@@ -807,6 +838,11 @@ ordered list of known skills it will run and is the only control point.
 Dropping a SKILL.md under `bootstrap/dream/tasks/` does not enable it; there is
 no recursive discovery, no registry, and no daemon. Adding another Dream skill
 is a normal Coga code/docs change to that list.
+
+The `ticket.py` classifier does not weaken that contract. It stats one reserved
+path inside the launch target already named by the caller; it never scans
+Dream's skill tree, adds a command to a registry, or imports a plugin. A file
+appearing in one ticket directory affects only that ticket.
 
 Dream's deterministic workers are plain skills whose known-skill contracts
 name registered recipes. The shipped contracts live under
@@ -838,19 +874,22 @@ delivery mechanism. Known limitation: the contract audit's own corpus globs
 `bootstrap/skills/**`, so the bundled Dream skills — the scan skills included
 — sit outside the surface that audit reads.
 
-Every launched agent and every recurring recipe subprocess receives task
-metadata as environment variables:
+Every launched agent, ticket script, and recurring recipe subprocess receives
+task metadata as environment variables:
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
-`COGA_TASK_BLACKBOARD`, `COGA_TASK_LOG`, `COGA_COGA_OS_ROOT`, and
-`COGA_REPO_ROOT`. The shared agent-spawn boundary and recurring recipe runner
+`COGA_TASK_BLACKBOARD`, `COGA_TASK_LOG`, `COGA_TASK_STEP`,
+`COGA_COGA_OS_ROOT`, and `COGA_REPO_ROOT`. `COGA_TASK_STEP` is the frozen
+`<n> (<name>)` value and is absent when the target has no workflow step. The
+shared launch boundaries and recurring recipe runner
 **clear the whole namespace and re-derive it** from the launched task, so
 nested work cannot inherit the outer task's paths — and a variable the target
 does not export cannot survive by inheritance either. `COGA_COGA_OS_ROOT` is
 the `coga/` root; `COGA_REPO_ROOT` is the host repo (its parent when `coga/` is
 nested in a repo).
 
-`COGA_TASK_BLACKBOARD` is the one member that is **not** unconditional: a
-stateless bootstrap target has no blackboard, so it is omitted there. Its
+Two members are conditional. `COGA_TASK_STEP` is absent without a current
+workflow step. `COGA_TASK_BLACKBOARD` is absent for a stateless bootstrap
+target, which has no blackboard. Its
 `ticket.md` is normally a packaged resource, and a report writer handed that
 path appends into a file that ships in the wheel (a repo-local
 `coga/bootstrap/<name>/ticket.md` override is corrupted the same way). Recipes

@@ -43,6 +43,9 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "ticket/finalize/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md",
     "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.md",
     "coga/resources/templates/coga/recurring/digest/ticket.md",
@@ -88,6 +91,21 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
 # templates are curated copies that intentionally diverge from the live
 # `coga/` tree, so this is an explicit allowlist, not a tree diff.
 IDENTICAL_LIVE_PACKAGED_PAIRS = (
+    (
+        "coga/contexts/coga/architecture/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/"
+        "SKILL.md",
+    ),
+    (
+        "coga/contexts/coga/codebase/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/"
+        "SKILL.md",
+    ),
+    (
+        "coga/contexts/coga/extension-model/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/"
+        "extension-model/SKILL.md",
+    ),
     (
         "coga/skills/code/address-pr-comments/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/skills/code/"

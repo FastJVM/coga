@@ -1,4 +1,4 @@
-"""Task metadata shared by agent and recipe execution."""
+"""Task metadata shared by agent, ticket-script, and recipe execution."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 from coga.config import Config, ConfigError, find_repo_root
 from coga.paths import log_path
 from coga.tasks import BootstrapRef, TargetRef
+from coga.ticket import Ticket
 
 # Every task-scoped variable `apply_task_env` owns. The metadata members are
 # rebuilt by `build_task_env`; narrower launch capabilities are cleared here
@@ -20,6 +21,7 @@ TASK_ENV_KEYS = (
     "COGA_TASK_TICKET",
     "COGA_TASK_BLACKBOARD",
     "COGA_TASK_LOG",
+    "COGA_TASK_STEP",
     "COGA_COGA_OS_ROOT",
     "COGA_REPO_ROOT",
     "COGA_ASSIST_AGENT",
@@ -33,10 +35,16 @@ def host_repo_root(cfg: Config) -> Path:
     return cfg.repo_root.parent if cfg.repo_root.name == "coga" else cfg.repo_root
 
 
-def build_task_env(cfg: Config, ref: TargetRef) -> dict[str, str]:
+def build_task_env(
+    cfg: Config,
+    ref: TargetRef,
+    ticket: Ticket | None = None,
+) -> dict[str, str]:
     """Build the task metadata environment contract.
 
-    `COGA_TASK_BLACKBOARD` is emitted only for a task under `coga/tasks/`.
+    `COGA_TASK_STEP` is emitted only when a stateful ticket has a current
+    workflow step. `COGA_TASK_BLACKBOARD` is emitted only for a task under
+    `coga/tasks/`.
     A bootstrap ticket is stateless — no status, no workflow, no blackboard —
     and its `ticket.md` is normally a *packaged* resource, so handing that path
     to a report writer makes it append run reports into a file that ships in
@@ -55,10 +63,19 @@ def build_task_env(cfg: Config, ref: TargetRef) -> dict[str, str]:
     if not isinstance(ref, BootstrapRef):
         # The blackboard is the final region of the single ticket file.
         env["COGA_TASK_BLACKBOARD"] = str(ref.ticket_path.resolve())
+        current = ticket.current_step() if ticket is not None else None
+        step_index = ticket.step_index() if ticket is not None else None
+        if current is not None and step_index is not None:
+            env["COGA_TASK_STEP"] = f"{step_index} ({current['name']})"
     return env
 
 
-def apply_task_env(env: dict[str, str], cfg: Config, ref: TargetRef) -> dict[str, str]:
+def apply_task_env(
+    env: dict[str, str],
+    cfg: Config,
+    ref: TargetRef,
+    ticket: Ticket | None = None,
+) -> dict[str, str]:
     """Return a copy of `env` with the task metadata namespace rewritten for `ref`.
 
     Clearing the namespace first is what makes the contract absolute: a
@@ -69,7 +86,7 @@ def apply_task_env(env: dict[str, str], cfg: Config, ref: TargetRef) -> dict[str
     updated = dict(env)
     for key in TASK_ENV_KEYS:
         updated.pop(key, None)
-    updated.update(build_task_env(cfg, ref))
+    updated.update(build_task_env(cfg, ref, ticket))
     return updated
 
 

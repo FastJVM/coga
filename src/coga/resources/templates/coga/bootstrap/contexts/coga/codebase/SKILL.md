@@ -211,7 +211,7 @@ force-include is what guarantees they ship.
 
 ## Daily commands
 
-- Install editable with declared test tools: `python -m pip install -e ".[test]"`
+- Install editable: `python -m pip install -e .`
 - Run CLI: `coga --help`
 - Tests: `python -m pytest`
 - Validate config + tasks: `coga validate --json`
@@ -326,7 +326,7 @@ wrong checkout silently produces wrong results in both directions:
   <x>`) and the old `setup.py`. Fixes: pass concrete values for **every**
   parameter, or (better) call a non-Typer helper so a newly-added option can't
   silently become a sentinel. An **alias** (argv rewrite, e.g.
-  `build = "launch coga-build"`) sidesteps the bug entirely — it dispatches
+  `dream = "recurring launch dream"`) sidesteps the bug entirely — it dispatches
   through real CLI parsing, so Typer fills every default.
 
 - **Tests must not pin to live dogfooded state.** Coga dogfoods itself, so files

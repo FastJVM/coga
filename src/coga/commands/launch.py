@@ -1,4 +1,4 @@
-"""`coga launch` — compose context and start work on a task.
+"""`coga launch` — run a ticket's deterministic and/or agent phases.
 
 Launching an `active` task moves it to `in_progress`. A draft / paused ticket
 is activated inline first — typing `coga launch` is the readiness signal, so
@@ -12,7 +12,8 @@ Human-owned steps remain unlaunchable by default. An explicit `--agent`
 override starts one visible assist session without rewriting `assignee:`.
 
 Bootstrap tickets are stateless re-entry points (no status, no log of state
-changes) — launch is the only way to run a skill against one.
+changes). A reserved ``ticket.py`` sibling runs directly; otherwise launch
+composes and starts the agent.
 """
 
 from __future__ import annotations
@@ -60,6 +61,7 @@ from coga.github_preflight import check_git_auth, check_git_remote
 from coga import git
 from coga import pr_assist
 from coga.lifecycle import TERMINAL_STATUSES
+from coga.launch_script import run_script_chain, script_entry_point
 from coga.logfile import append_log, log_path
 from coga.mark import (
     BlackboardNeedsSynthesis,
@@ -89,6 +91,7 @@ from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
     TaskRef,
+    TargetRef,
     read_ticket,
     resolve_target,
 )
@@ -120,7 +123,8 @@ def launch(
     args: list[str] | None = typer.Argument(
         None,
         help="Trailing positional arguments for the launch target. They appear "
-        "as an ordered Launch arguments block in the composed agent prompt.",
+        "as an ordered Launch arguments block in the composed agent prompt; "
+        "ticket.py receives no operands.",
     ),
     agent_override: str | None = typer.Option(
         None,
@@ -192,6 +196,82 @@ def launch(
 
     resolved_target_slug = ref.id_slug
     is_bootstrap = isinstance(ref, BootstrapRef)
+    entry = script_entry_point(ref)
+    script_steps_run: set[str | None] = set()
+    script_launch_announced = False
+
+    if entry is not None and prompt_report:
+        _bail(
+            f"Cannot report an agent prompt for {ref.id_slug}: ticket.py runs "
+            "before composition and may complete the step. --prompt-report "
+            "does not execute ticket code."
+        )
+
+    # The deterministic half runs before *any* agent setup.  A script-only
+    # ticket therefore needs no TTY, configured agent binary, prompt
+    # composition, agent-skill materialization, or push-auth preflight.  If the
+    # script leaves its step open, the ordinary agent path below starts from
+    # the freshly re-read ticket and performs all of those checks then.
+    if entry is not None and not prompt_report:
+        early_ticket = read_ticket(ref)
+        if not is_bootstrap and early_ticket.status in TERMINAL_STATUSES:
+            _bail(
+                f"Cannot launch {ref.id_slug}: it is {early_ticket.status}, a "
+                "terminal status; nothing to launch. Launch a different ticket."
+            )
+
+        # Blocked resume is a distinct attended lifecycle operation. Preserve
+        # its existing resolve-or-re-block gate; once it reactivates, the
+        # supervisor loop below will still run ticket.py before the agent.
+        if is_bootstrap or early_ticket.status != "blocked":
+            script_launch_announced = True
+            typer.echo(
+                f"Launch: task {ref.id_slug} "
+                f"(status={early_ticket.status if not is_bootstrap else 'n/a'}, "
+                f"assignee={early_ticket.assignee or 'unassigned'})",
+                err=is_bootstrap,
+            )
+            try:
+                if (
+                    not is_bootstrap
+                    and isinstance(ref, TaskRef)
+                    and early_ticket.status in {"draft", "paused"}
+                ):
+                    _auto_activate(cfg, ref, early_ticket)
+
+                script_outcome = run_script_chain(
+                    cfg,
+                    ref,
+                    early_ticket,
+                    script_steps_run,
+                )
+                if script_outcome.exit_code != 0:
+                    _exit_failed_script(script_outcome.exit_code)
+                if not script_outcome.needs_agent:
+                    if script_outcome.stop_reason:
+                        typer.echo(
+                            script_outcome.stop_reason,
+                            err=is_bootstrap,
+                        )
+                    _refresh_launch_checkout(cfg)
+                    return None
+                if script_outcome.ticket is None:
+                    _bail(
+                        f"Cannot continue {ref.id_slug}: ticket.py left no "
+                        "ticket state for an agent handoff."
+                    )
+                _require_agent_after_script(
+                    cfg,
+                    ref,
+                    script_outcome.ticket,
+                    agent_override,
+                )
+            except (SecretError, TaskValidationError, FileNotFoundError) as exc:
+                _refresh_launch_checkout(cfg)
+                _bail(str(exc))
+            except BaseException:
+                _refresh_launch_checkout(cfg)
+                raise
 
     # A supported single-checkout assist may be behind its published PR branch.
     # Align before refreshing the agent-skill view or deriving any launch state:
@@ -381,13 +461,14 @@ def launch(
 
     ticket = post_alignment_setup_call(lambda: _read(ref))
 
-    post_alignment_setup_call(
-        lambda: typer.echo(
-            f"Launch: task {ref.id_slug} "
-            f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
-            f"assignee={ticket.assignee or 'unassigned'})",
+    if not script_launch_announced:
+        post_alignment_setup_call(
+            lambda: typer.echo(
+                f"Launch: task {ref.id_slug} "
+                f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
+                f"assignee={ticket.assignee or 'unassigned'})",
+            )
         )
-    )
 
     # A terminal ticket is closed: launching it must not restart its frozen
     # workflow. Re-activating would re-seed `step: 1` without re-resolving
@@ -749,6 +830,35 @@ def launch(
         while True:
             ticket = _read(ref)
 
+            if entry is not None and ticket.step not in script_steps_run:
+                try:
+                    script_outcome = run_script_chain(
+                        cfg,
+                        ref,
+                        ticket,
+                        script_steps_run,
+                    )
+                except (SecretError, TaskValidationError, FileNotFoundError) as exc:
+                    _bail(str(exc))
+                if script_outcome.exit_code != 0:
+                    _exit_failed_script(script_outcome.exit_code)
+                if not script_outcome.needs_agent:
+                    if script_outcome.stop_reason:
+                        typer.echo(script_outcome.stop_reason)
+                    break
+                if script_outcome.ticket is None:
+                    _bail(
+                        f"Cannot continue {ref.id_slug}: ticket.py left no "
+                        "ticket state for an agent handoff."
+                    )
+                ticket = script_outcome.ticket
+                _require_agent_after_script(
+                    cfg,
+                    ref,
+                    ticket,
+                    agent_override if first_step else None,
+                )
+
             # Resolve the agent for THIS step from the ticket's current
             # assignee, so the supervisor can rotate claude <-> codex across
             # the workflow. A one-off `--agent` override follows directly
@@ -1076,6 +1186,61 @@ def launch(
 
 
 # --- helpers ------------------------------------------------------------------
+
+
+def _script_step_label(ticket: Ticket) -> str:
+    current = ticket.current_step()
+    if current is None:
+        return "the workflow-less task"
+    return f"step {ticket.step_index()} ({current['name']})"
+
+
+def _require_agent_after_script(
+    cfg: Config,
+    ref: TargetRef,
+    ticket: Ticket,
+    agent_override: str | None,
+) -> None:
+    """Fail loud when ``ticket.py`` left work open but no agent can take it."""
+
+    step_label = _script_step_label(ticket)
+    if not _interactive_stdio_has_tty():
+        _bail(
+            f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open, "
+            "but its agent phase requires a TTY (stdin and stdout must both "
+            "be terminals). The deterministic work was kept; rerun from a "
+            "real shell to continue."
+        )
+
+    assignee = agent_override or ticket.assignee
+    if not assignee:
+        _bail(
+            f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open, "
+            "but the ticket has no agent assignee."
+        )
+    try:
+        agent = cfg.agent_type(assignee)
+    except ConfigError as exc:
+        _bail(
+            f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open, "
+            f"but assignee {assignee!r} cannot run an agent ({exc}). The "
+            "deterministic work was kept."
+        )
+    if shutil.which(agent.cli) is None:
+        _bail(
+            f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open "
+            f"for agent {assignee!r}, but {agent_cli_missing_message(agent.cli)} "
+            "The deterministic work was kept."
+        )
+
+
+def _exit_failed_script(exit_code: int) -> None:
+    typer.secho(
+        f"Script exited with {exit_code}.",
+        fg=typer.colors.YELLOW,
+        err=True,
+    )
+    raise SystemExit(exit_code)
 
 
 def _prospective_assist_ticket(
@@ -1956,7 +2121,7 @@ def spawn_agent_session(
     # rewriting it, so a variable this target does not export (a stateless
     # bootstrap ticket's absent `COGA_TASK_BLACKBOARD`) cannot survive by
     # inheritance.
-    env = apply_task_env(env, cfg, ref)
+    env = apply_task_env(env, cfg, ref, ticket)
     # Never inherit a parent assist capability into a nested ordinary launch.
     # Re-mint it only for the exact recorded branch/PR this spawn already
     # proved.
@@ -2417,8 +2582,8 @@ def _refuse_tty_launch(
     _bail(
         f"Cannot launch {ref.id_slug!r}: an agent launch requires a TTY "
         "(stdin and stdout must both be terminals). Run from a real "
-        "shell. Use a registered `coga run` recipe for deterministic "
-        "unattended work.",
+        "shell. A directory-form ticket can instead own deterministic "
+        "unattended work in the exact sibling `ticket.py`.",
         exit_code=exit_code,
     )
 
