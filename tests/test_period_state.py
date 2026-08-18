@@ -28,6 +28,11 @@ from coga.period_state import (
 from coga.recurring import RecurringError, Template, scan_due
 from coga.taskfile import upsert_blackboard
 from coga.tasks import list_tasks
+from coga.ticket import Ticket
+
+
+FLOW_WEBHOOK = "https://hooks.slack.com/services/flow"
+IMPORTANT_WEBHOOK = "https://hooks.slack.com/services/important"
 
 
 def _set_parent_state(repo: Path, region: str) -> None:
@@ -113,7 +118,7 @@ def test_read_snapshot_valid_json_non_object_returns_none(
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> Path:
+def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     company = tmp_path / "coga"
     _write(
         company / "coga.toml",
@@ -122,12 +127,15 @@ def repo(tmp_path: Path) -> Path:
         default_status = "draft"
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"
         """,
     )
     _write(company / "coga.local.toml", 'user = "marc"\n')
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", FLOW_WEBHOOK)
+    monkeypatch.setenv("COGA_IMPORTANT_WEBHOOK_URL", IMPORTANT_WEBHOOK)
     _write(
         company / "contexts" / "coga" / "period-task" / "SKILL.md",
         """
@@ -301,11 +309,53 @@ def _create_period(repo: Path) -> str:
 def test_mark_done_warns_on_unchanged_cursor(repo: Path, monkeypatch) -> None:
     monkeypatch.chdir(repo)
     slug = _create_period(repo)
+    urls: list[str] = []
+
+    def capture(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        urls.append(url)
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        return Response()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
     # Parent blackboard untouched — the run "forgot" to advance last_commit.
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
+    assert urls == [FLOW_WEBHOOK, IMPORTANT_WEBHOOK]
     assert "did not advance" in result.output
     assert "last_commit" in result.output
+
+
+def test_period_state_important_failure_does_not_undo_mark_done(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("COGA_IMPORTANT_WEBHOOK_URL")
+    slug = _create_period(repo)
+    urls: list[str] = []
+
+    def capture(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        urls.append(url)
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        return Response()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
+
+    result = CliRunner().invoke(app, ["mark", "done", slug])
+
+    assert result.exit_code == 0, result.output
+    assert urls == [FLOW_WEBHOOK]
+    ref = next(ref for ref in list_tasks(load_config(repo)) if ref.id_slug == slug)
+    assert Ticket.read(ref.ticket_path).status == "done"
+    assert "important_webhook" in result.output
+    assert "[period-state] FYI broadcast failed" in result.output
 
 
 def test_mark_done_quiet_when_cursor_advanced(repo: Path, monkeypatch) -> None:

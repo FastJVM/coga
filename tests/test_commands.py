@@ -44,6 +44,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         default_status = "draft"
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "https://hooks.slack.com/services/important-test"
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"

@@ -18,7 +18,8 @@ while notifications carry outcomes and urgent exceptions. When the daily-digest
 recurring ticket is installed (`recurring/digest/spool.md` exists, or an older
 `recurring/digest/ticket.md` is present and can be migrated), `notify` spools a
 structured record to that dedicated, `merge=union` spool file; when it is
-absent, those same outcome/error events fall back to a live `post`.
+absent, those same outcome/error events fall back to a live `post`, preserving
+the caller's flow-versus-important destination.
 """
 
 from __future__ import annotations
@@ -241,6 +242,7 @@ def notify(
     watchers: list[str] | None = None,
     task_path: Path | None = None,
     image_url: str | None = None,
+    important: bool = False,
     fatal: bool = True,
 ) -> None:
     """Route an outcome/error event: spool it, or post live.
@@ -248,10 +250,12 @@ def notify(
     Only `done`, `canceled`, and `recurring-error` belong here. Other lifecycle
     transitions are intentionally silent and should not call this helper.
 
-    When the digest ticket is installed, append a structured JSONL record to
-    its spool (rendered and posted later by `coga digest`). Otherwise fall back
-    to a live `post(slack_text)`, so `image_url` and the `[project] [owner]`
-    formatting still apply on that path.
+    When the digest ticket is installed, append a structured, delivery-neutral
+    JSONL record to its spool (rendered and posted later by `coga digest`).
+    Otherwise fall back to a live `post(slack_text)`, forwarding `important`
+    along with `image_url` and the `[project] [owner]` formatting. The digest
+    consumer owns the aggregate's destination, so `important` is deliberately
+    absent from a spooled record.
 
     `kind` is the event tag; `detail` is the human one-liner shown in the
     digest. `ticket`/`owner` drive the Done grouping; a record with no `ticket`
@@ -278,6 +282,7 @@ def notify(
             owner=owner,
             watchers=watchers,
             image_url=image_url,
+            important=important,
             fatal=fatal,
         )
         return

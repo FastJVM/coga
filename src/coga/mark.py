@@ -297,7 +297,7 @@ def _warn_if_state_not_advanced(
     the creator snapshots their values into the period task. If a declared
     key still equals that snapshot when the run finishes, the run did the work
     but never recorded its high-water mark — the next firing will redo the same
-    range. Warn locally and broadcast an FYI.
+    range. Warn locally and broadcast an important alert.
 
     No-op for any task without a snapshot — i.e. every non-recurring task. This
     is advisory only: it runs after the transition has already committed, and a
@@ -325,6 +325,7 @@ def _warn_if_state_not_advanced(
             task_path=ref.path,
             owner=owner,
             watchers=ticket.watchers,
+            important=True,
         )
     except Exception as exc:  # advisory broadcast — never break completion
         import sys
@@ -691,7 +692,8 @@ def mark_paused(
     liveness watchdog, which pauses a wedged run and needs the team to see it —
     a recurring run that timed out is a `recurring-error`, so when `slack_text`
     is given the pause routes through `notification.notify` (digest-spooled when the
-    ticket is installed, else posted live); `digest_detail` is its one-liner.
+    ticket is installed, else posted live to important); `digest_detail` is its
+    one-liner.
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
@@ -710,6 +712,7 @@ def mark_paused(
             owner=owner,
             watchers=ticket.watchers,
             task_path=ref.path,
+            important=True,
             fatal=False,
         )
     git.sync_task_state(

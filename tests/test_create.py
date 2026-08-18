@@ -46,6 +46,7 @@ def repo(tmp_path: Path) -> Path:
 
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "https://hooks.slack.com/services/important-test"
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"
@@ -171,6 +172,7 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
 
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "https://hooks.slack.com/services/important-test"
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"

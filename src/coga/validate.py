@@ -188,6 +188,9 @@ def run(
     missing_user = _missing_user_issue(cfg)
     if missing_user is not None:
         report.issues.append(missing_user)
+    important_webhook = _important_webhook_issue(cfg)
+    if important_webhook is not None:
+        report.issues.append(important_webhook)
 
     try:
         refs = list_tasks(cfg)
@@ -240,6 +243,9 @@ def validate_task(
     missing_user = _missing_user_issue(cfg)
     if missing_user is not None:
         report.issues.append(missing_user)
+    important_webhook = _important_webhook_issue(cfg)
+    if important_webhook is not None:
+        report.issues.append(important_webhook)
     try:
         ref = resolve_task(cfg, slug)
     except DuplicateTaskSlugError as exc:
@@ -1109,6 +1115,26 @@ def _ok_count(refs: list[TaskRef], issues: list[Issue]) -> int:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _important_webhook_issue(cfg: Config) -> Issue | None:
+    """Warn before enabled Slack first exercises the important route."""
+    if (
+        not cfg.slack_enabled
+        or "slack" not in cfg.notification_channels
+        or cfg.slack_important_webhook
+    ):
+        return None
+    return Issue(
+        kind="slack-important-webhook-unresolved",
+        task="(slack)",
+        message=(
+            "no important Slack webhook resolved — automatic recurring failure "
+            "alerts require [notification.slack].important_webhook once recurring "
+            "jobs run; configure the key and export any referenced env var"
+        ),
+        severity="warn",
+    )
 
 
 def _notification_issues(cfg: Config) -> list[Issue]:

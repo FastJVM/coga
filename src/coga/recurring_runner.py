@@ -867,6 +867,7 @@ def _run_recipe_task(cfg: Config, task: DueTask) -> int:
             task_path=ref.path,
             owner=ticket.owner or cfg.current_user,
             watchers=ticket.watchers,
+            important=True,
         )
         typer.secho(
             f"{ref.id_slug}: recipe {task.recipe} exited with {code}; "
@@ -2289,7 +2290,8 @@ def _broadcast_scan(
             cfg,
             f"⚠️ recurring scan skipped {n} template{plural}\n{bullets}",
             kind="recurring-error",
-                detail=f"⚠️ recurring scan skipped {n} template{plural}: {inline}",
+            detail=f"⚠️ recurring scan skipped {n} template{plural}: {inline}",
+            important=True,
         )
 
 

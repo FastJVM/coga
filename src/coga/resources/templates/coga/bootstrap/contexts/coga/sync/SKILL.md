@@ -16,36 +16,50 @@ is the first backend behind it, not the whole abstraction.
 Coga commands reach that channel through configured notification backends
 (`channels = ["slack"]` today), but not every state change belongs there. A
 channel shared across many projects and tickets drowns in lifecycle chatter —
-humans tune it out, which defeats the point. So coga routes
-notification-worthy events into **two tiers** and keeps routine lifecycle churn
-out of notifications entirely:
+humans tune it out, which defeats the point. Coga therefore makes two
+independent routing decisions:
 
-- **Live (urgent)** — posted the moment they happen. A stuck agent or a
-  failure must never wait. This is the `notification.post` path.
-- **Outcome digest** — done/canceled tickets and recurring scan errors,
-  collapsed into **one daily digest**. This is the `notification.notify` path:
-  each outcome/error
-  appends a structured JSONL record to the dedicated `recurring/digest/spool.md`
-  file (its `## Spool (pending)` section), and the digest recurring
-  ticket flushes the spool once a day via `coga digest` (read unconsumed → fetch
-  `origin/main` → render Done + Canceled + Also merged → post one message →
-  drain (advance the watermark + trim the consumed prefix) → record a git
-  high-water mark).
+- **Cadence** — post live with `notification.post`, batch through
+  `notification.notify`, or stay silent. Live events are delivered when they
+  happen; outcome/error events collapse into a daily digest. When that digest
+  is not installed, `notify` falls back to a live post.
+- **Destination** — deliver to the ordinary flow webhook or the important
+  webhook. Flow is the operating feed; important is the action-needed queue
+  defined by `coga/important`.
 
-Live (urgent) surface — still posts immediately:
+Cadence is chosen first. An important destination does not make a digest event
+live, and a spooled record carries no destination. The digest command owns the
+aggregate's destination (flow today), while an event's `important=True` choice
+is forwarded only if `notify` takes its no-digest live fallback.
 
-- `coga block` — blocker, owner named.
+The outcome digest is collapsed into **one daily post**: each outcome/error
+appends a structured JSONL record to the dedicated `recurring/digest/spool.md`
+file (its `## Spool (pending)` section), and the digest recurring ticket
+flushes the spool once a day via `coga digest` (read unconsumed → fetch
+`origin/main` → render Done + Canceled + Also merged → post one message →
+drain (advance the watermark + trim the consumed prefix) → record a git
+high-water mark).
+
+Live cadence surface — posts immediately to the named destination:
+
+- `coga block` — blocker, owner named; flow.
 - `recurring/blocker-reminders` — unresolved blocked-task reminders, owner
   named, with the `coga unblock <slug> --answer "..."` command shape. The
   recipe records a `## Blocker reminders` watermark on the blocked task only
   after attempting the live post, so the same blocker is not reminded on every
-  scan.
-- `coga slack` — explicit FYI (manual broadcast escape hatch); an
-  intentional human broadcast, so batching it would surprise the sender.
+  scan; flow.
+- `coga slack` — explicit FYI (manual broadcast escape hatch); flow unless the
+  sender supplies `--important`.
 - `coga bump --message "<FYI>"` — explicit FYI attached to step movement.
-  Message-less bumps are silent.
+  Message-less bumps are silent; the FYI stays in flow.
 - `coga launch` — an approved `active` ticket starts and becomes
-  `in_progress`. The session-start signal stays live (one per task).
+  `in_progress`. The session-start signal stays live (one per task) in flow.
+- a recurring recipe exits non-zero — the generated period task stays
+  unfinished and needs diagnosis; important.
+- a completed recurring period fails to advance declared state — the next run
+  may duplicate work; important, under the existing best-effort warning guard.
+- the Dream validate-drift summary — bounded maintenance result; flow.
+- the megalaunch drain summary — non-empty aggregate result; flow.
 
 Outcome digest surface — spooled into the daily digest (live fallback below):
 
@@ -59,21 +73,31 @@ Outcome digest surface — spooled into the daily digest (live fallback below):
   sweep is the sole trigger; there is no manual `automerge` command.
 - `coga recurring` — only the end-of-run summary when templates failed to
   parse (`recurring-error`).
+- the recurring liveness watchdog — a timed-out run is paused and recorded as
+  `recurring-error`. Manual pauses and non-timeout unfinished pauses stay
+  silent.
+
+Both recurring-error producers append one delivery-neutral record when the
+digest is installed, and the daily aggregate stays in flow. With no digest,
+their `notify(..., important=True)` fallback posts live to important. There is
+never both a spool record and a live post for one event.
 
 Silent lifecycle surface — no notification post, no spool record:
 
 - `coga create` and `coga ticket "<title>"'s raw draft
   creation.
-- `coga mark active` and `coga mark paused`.
+- `coga mark active` and manual `coga mark paused`.
 - `coga bump` with no `--message`.
 - Successful `coga recurring` creates.
 - `coga retire` creating.
 
 The digest is **opt-in by installing the `recurring/digest/` ticket**. When
 that ticket is absent, `notification.notify` degrades to a live `post` for the
-same outcome/error events. It does not revive the silent lifecycle surface.
-Owners ping as `<@ID>` and watchers cc exactly as a live post does — the
-digest reuses Slack-channel mention rendering.
+same outcome/error events. Done and canceled outcomes keep the flow
+destination; recurring scan errors and watchdog timeouts use important. It
+does not revive the silent lifecycle surface. Owners ping as `<@ID>` and
+watchers cc exactly as a live post does — the digest reuses Slack-channel
+mention rendering.
 
 Notifications are not an "FYI nice-to-have" — they are the synchronization
 point between async agents and the people approving, unblocking, or watching
@@ -107,6 +131,15 @@ Slack-channel failure:
 - Network or webhook-rejection error during `requests.post` →
   `typer.Exit(1)` with the error and (when `task_path` is given) a line
   appended (tagged with that task's ref) to the repo-global `coga/log.md`.
+
+Once recurring jobs run, `[notification.slack].important_webhook` is a second
+operational prerequisite. Default `coga validate` warns, without a network
+probe, whenever Slack is selected, enabled, and that destination is unresolved.
+The supported `enabled = false` opt-out suppresses the warning along with
+delivery. The warning does not weaken delivery: an automatic important post
+still raises rather than falling back to flow. The declared-period-state
+warning remains the known best-effort exception — its existing advisory guard
+reports that raise on stderr so it cannot undo a successful `mark done`.
 
 **One carve-out: a broadcast that announces an already-committed state
 change.** The lifecycle transitions — `bump`, `mark done` / `canceled` /
@@ -219,7 +252,7 @@ new string:
 ## Notification implementation pointers
 
 - `src/coga/notification/__init__.py::post(cfg, message, *, task_path=None, owner=None,
-  watchers=None, image_url=None, fatal=True)` — the **live** path. Three branches: not
+  watchers=None, image_url=None, important=False, fatal=True)` — the **live** path. Three branches: not
   configured channel(s). Slack has three branches: not enabled → stderr;
   enabled + no webhook → crash; enabled + webhook → POST, then on failure
   report (stderr + `log.md`) and either crash (`fatal=True`, the default) or
@@ -231,13 +264,14 @@ new string:
   Slack text rendering (project/owner prefix, watcher cc, image attachment),
   mention rendering, and the webhook POST.
 - `src/coga/notification/__init__.py::notify(cfg, slack_text, *, kind, detail, ticket=None,
-  owner=None, watchers=None, task_path=None, image_url=None, fatal=True)` — the
-  **outcome digest** path. `fatal` is forwarded to the live-post fallback. It accepts only `done`, `canceled`, and
-  `recurring-error`
+  owner=None, watchers=None, task_path=None, image_url=None, important=False,
+  fatal=True)` — the **outcome digest** path. `important` and `fatal` are
+  forwarded only to the live-post fallback. It accepts only `done`, `canceled`, and `recurring-error`
   records. When `digest_spool_path(cfg)` is non-None (the
   `recurring/digest/spool.md` file is installed), it appends a structured record
-  to the spool; otherwise it falls back to `post(slack_text, …)`. `kind` is the
-  event tag; `detail` is the digest one-liner.
+  to the spool without a destination field; otherwise it falls back to
+  `post(slack_text, …)`. `kind` is the event tag; `detail` is the digest
+  one-liner.
 - `src/coga/notification/__init__.py::render_digest(cfg, records, *, date_label,
   also_merged=None)` — renders Done owner sections, a Canceled section, an
   optional "Also merged (no ticket)" section, and recurring errors (no
@@ -252,8 +286,11 @@ new string:
   A literal URL is accepted by the parser but must never be committed; use
   `env:` indirection.
 - `[notification.slack].important_webhook` — a second webhook, pointing at the
-  coga-important channel. Posts that need a human to go act (`coga slack
-  --important`) route here; state transitions stay on `webhook`. Resolved by
+  coga-important channel. Posts that need a human to go act route here: an
+  explicit `coga slack --important`, a recurring recipe failure, a stale
+  declared-period-state warning, and the no-digest fallback for recurring scan
+  errors or watchdog timeouts. Ordinary lifecycle notifications, Dream and
+  megalaunch summaries, and the daily digest stay on `webhook`. Resolved by
   `config._resolve_notification_slack_important_webhook` with the same `env:`
   indirection and local-overrides-shared rule. Unset resolves to None and
   `SlackChannel.webhook_for`
@@ -275,19 +312,23 @@ new string:
   reference or omits the key.
 - `cfg.slack_users` (`dict[str, str]`, coga name → Slack member ID) — parsed
   from `[notification.slack.users]` in `coga.toml`.
-- Live callers (`post`): `commands/block.py`, `commands/slack.py`,
-  `commands/bump.py` when `--message` is present, and
-  `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
-  session start), plus the `coga/blockers/remind` skill recipe
-  (`remind_blocked_tasks`) for unresolved blocker reminders. Outcome callers
-  (`notify`): `mark.mark_done` (including the autoclose sweep),
-  `mark.mark_canceled`, and `coga/recurring_runner.py`'s error
-  summary. Both paths pass
+- Live producers (`post`): `commands/block.py`; `commands/slack.py` (important
+  only with its existing flag); `commands/bump.py` when `--message` is present;
+  `commands/launch.py` / `mark.mark_in_progress` (active → in_progress session
+  start); `blocker_reminders.py::remind_blocked_tasks`; the recipe-failure path
+  in `recurring_runner.py` (important); the stale-period-state warning in
+  `mark.py` (important); `dream_validate_drift.py` (flow); and
+  `commands/megalaunch.py` (flow). `commands/digest.py` is the flow delivery
+  consumer for the outcome aggregate. Outcome producers (`notify`):
+  `mark.mark_done` (including the autoclose sweep), `mark.mark_canceled`, the
+  recurring scan-error summary, and `mark.mark_paused` only when the recurring
+  watchdog supplies `slack_text`. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
   in the repo-global `coga/log.md`, tagged with the task ref.
 - `coga validate --check-slack` — probes the webhook with an
   empty-text payload that Slack rejects without notifying the channel.
-  Honors the opt-out (skipped when `enabled = false`).
+  Honors the opt-out (skipped when `enabled = false`). Default validation does
+  no network I/O and separately warns when the important webhook is unresolved.
 
 ## The daily digest — a blackboard producer/consumer
 
@@ -780,13 +821,14 @@ fetched — but it turns the silently stale table into a labeled one.
 
 ## Design rule for new features
 
-If a new command changes state that other team members need to know
-about, it must reach the sync layer — `post` for genuinely urgent events
-(a blocker, a failure, an intentional human FYI), `notify` for outcomes or
-scheduled-work errors that belong in the daily digest. Pick the tier by
-urgency and substance: would a teammate need this within minutes (live), is it
-a daily outcome/error (digest), or is it lifecycle audit noise that belongs
-only in the global `coga/log.md` and git? Don't add silent state mutations that bypass both
+If a new command changes state that other team members need to know about, it
+must reach the sync layer. Choose cadence first: `post` for an event needed
+within minutes, `notify` for an outcome or scheduled-work error that belongs in
+the daily digest, or silence for lifecycle audit noise that belongs only in the
+repo-global `coga/log.md` and git. Then choose destination at delivery: flow for
+operating awareness and aggregates, important only when a human must act and no
+durable human-owned ticket already holds the ask. Never encode that destination
+in a spool record. Don't add silent state mutations that bypass both layers
 when the team needs awareness. Conversely, don't emit chatter that doesn't
 represent an outcome, urgent exception, or explicit FYI — notifications are the
 sync surface, not a debug stream.
