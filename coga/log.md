@@ -3646,3 +3646,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-18 09:57 [refuse-recurring-runs-from-a-non-control-branch] [human:nicktoper] auto-bumped on merge of PR #693 → done
 2026-08-18 09:57 [remove-coga-build-and-project] [human:nicktoper] auto-bumped on merge of PR #691 → done
 2026-08-18 09:57 [remove-legacy-config-compatibility-shims] [human:nicktoper] auto-bumped on merge of PR #692 → done
+2026-08-18 09:57 [review-slack-channels] [human:nicktoper] auto-bumped on merge of PR #696 → done
