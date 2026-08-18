@@ -255,3 +255,21 @@ literal `last_serviced_period` grep cannot find them. Filed here rather than as
 its own ticket because this ticket's acceptance criterion ("No
 `last_serviced_period` read or write remains in the source tree") and its
 implement note already own the scope.
+
+## Peer review (2026-08-17)
+
+`codex review --base main` found one P1 correctness issue in `abb4eaca` and
+reproduced it: the fixed 500-line tail slack is not a safe bound for a
+`merge=union` log. A long-lived branch can append an older serviced-period
+record at EOF while the newer record sits arbitrarily far above it; the reader
+then returns the older period and can relaunch already-serviced work.
+
+Fix direction: replace the heuristic slack with a proof-bearing target per
+template. A reverse read may stop for a ref only after finding a valid record
+whose normalized period is at or after the exact period the caller is deciding.
+An older record does not resolve the ref, so a due template scans to EOF; a
+current-period record makes repeated same-period scans tail-bounded. This gives
+up the claim that every new-period firing is bounded, which is impossible on an
+unordered union-merged source without adding an index or denormalized marker,
+in exchange for preserving exact dedup correctness and the markdown/log-only
+architecture.
