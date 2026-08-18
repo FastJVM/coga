@@ -3653,3 +3653,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-18 09:57 [recurring/digest] [system] launched as recipe (digest)
 2026-08-18 09:57 [recurring/digest] [system] recipe digest exited with code 0
 2026-08-18 09:57 [recurring/digest] [system] completed (recipe digest exited 0) via coga recurring
+2026-08-18 11:45 [read-the-recurring-serviced-period-from-the-log-dr] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review fixed target-safety and control-ledger bounds; branch rebased, verified, and ready for PR.

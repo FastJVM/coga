@@ -5,7 +5,7 @@ status: in_progress
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/recurring
 - coga/codebase
@@ -30,7 +30,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -273,3 +273,51 @@ up the claim that every new-period firing is bounded, which is impossible on an
 unordered union-merged source without adding an index or denormalized marker,
 in exchange for preserving exact dedup correctness and the markdown/log-only
 architecture.
+
+## Peer review result (2026-08-18)
+
+The provisional fixed-slack decision above is superseded. Review produced and
+closed three correctness/performance findings:
+
+- `bc78bcae` replaced the unsafe 500-line heuristic with an exact target per
+  template. A ref resolves only when the reverse pass finds a valid serviced
+  period at or after the period the caller is deciding, so arbitrary
+  `merge=union` disorder cannot make an already-serviced period re-fire.
+- `70dcf6f0` made resolution independent per ref. A template that has reached
+  its target stops accumulating immediately even when another template keeps
+  the shared pass open, so its older malformed history cannot become an error
+  merely because another ref is unresolved.
+- The same commit carried the pre-create local ledger snapshot into the
+  control guard after a successful control-branch catch-up. Normal git-backed
+  sweeps therefore retain bounded reverse I/O instead of materializing the
+  entire control Git blob; the best-effort fallback applies all targets to one
+  pinned control read.
+
+The branch was fetched and rebased unconditionally onto `origin/main` at
+`4c29ba92`; it is clean and three commits ahead. A final
+`codex review --base main` found no patch-introduced correctness defects.
+
+Verification after the rebase and review fixes:
+
+- Targeted reverse/control regressions: 7 passed.
+- `tests/test_logfile.py tests/test_recurring.py`: 212 passed, 2 known
+  branch-gate failures reproduced on `main`.
+- Full suite: 1793 passed, 1 skipped, 3 failed. The failures are the same
+  baseline/environment failures recorded above (`test_recipe_preflights_live_summary_before_closing`
+  plus the two stale branch-gate tests); the final Codex review independently
+  observed the same result.
+- `coga validate --task read-the-recurring-serviced-period-from-the-log-dr --json`:
+  1 OK, no issues.
+- `git diff --check main...HEAD`: clean.
+
+## PR
+
+Make the append-only repo log the durable recurring-period ledger and keep its
+unbounded read safe: scan all requested templates in one reverse pass, stop
+each ref only on a proof-bearing target period, reuse the pre-create snapshot
+for the control guard, and cover union-order, malformed-history, reverse-reader,
+and rollback behavior. This removes the blackboard marker's clobber/re-fire
+failure mode without adding a second state source.
+
+Test plan: `PYTHONPATH=$PWD/src python3.12 -m pytest` (1793 passed, 1 skipped;
+the 3 remaining failures reproduce on `main`).
