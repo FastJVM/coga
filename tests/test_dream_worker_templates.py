@@ -85,8 +85,11 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "`gap`" in text
     assert "coga create" in text
     assert "no per-run ticket cap" in text
-    assert "Extract durable knowledge from done tickets, then delete every one of them." in text
+    assert "Extract durable knowledge from done tickets, then delete every eligible one." in text
     assert "its resolved task directory under `coga/tasks/` still exists" in text
+    assert "has no real `branch:` or `worktree:` value" in " ".join(text.split())
+    assert "leave the ticket and its `## Dev` evidence on disk" in " ".join(text.split())
+    assert "do not invoke `coga retire` from Dream" in " ".join(text.split())
     assert "Retro never leaves a processed done ticket on" in " ".join(text.split())
     assert "Delegate the entire Retro pass to one subagent in a dedicated" in text
     assert "`isolation: worktree`" in text

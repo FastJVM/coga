@@ -23,7 +23,15 @@ which:
 2. reads the `pr:` line under each ticket blackboard's `## Dev` section,
 3. checks the linked PR state with `gh pr view`,
 4. leaves non-final-step tickets alone as suspicious, and
-5. marks final-step or workflow-less tickets `done` when the PR is merged.
+5. marks final-step or workflow-less tickets `done` when the PR is merged, and
+6. names the `coga retire` follow-up for each ticket it closed that still
+   records a `branch:` or `worktree:`.
+
+Autoclose never disposes of a checkout itself — `coga retire` owns those safety
+proofs. Without step 6 an auto-closed ticket's worktree and branch outlive it
+silently. Dream preserves checkout-bearing done tickets rather than deleting
+the `## Dev` evidence the named command needs, so that debt stays actionable
+until a human retires it.
 
 This sweep is the sole trigger for auto-closing merged tickets — there is
 no manual `automerge` command. The recurring task only changes when the
@@ -39,3 +47,7 @@ no merged final-step tickets exits successfully and changes nothing.
 This blackboard persists across every run of this recurring task. The
 `autoclose` recipe keeps no durable state here - every run's output
 is the tickets it marks done and the resulting digest spool records.
+
+The one thing a run appends is a `## Autoclose Sweep: retire follow-ups`
+section, and only when it closed a ticket that still records a feature
+checkout. A sweep that stranded nothing writes nothing.
