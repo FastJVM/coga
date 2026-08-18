@@ -114,12 +114,61 @@ def _refuse_non_owner(cfg: Config) -> bool:
     return True
 
 
+def _refuse_non_control_branch(cfg: Config) -> bool:
+    """Require recurring mutations to start on the configured control branch.
+
+    Git-disabled and non-git workspaces have no Coga-managed control checkout,
+    so they retain their existing local behavior. This is deliberately only a
+    branch gate: reachability and freshness remain best-effort for interactive
+    runs and mandatory for ``coga recurring --all``.
+    """
+    if not cfg.git_enabled:
+        return False
+
+    location = cfg.repo_root
+    try:
+        # Only a confirmed non-git workspace is exempt. The best-effort local
+        # helper used by discovery collapses every probe failure to ``None``;
+        # this mutation gate must preserve inspection errors and fail closed.
+        root = git._toplevel(cfg.repo_root)
+        if root is None:
+            return False
+        location = root
+        current = _current_branch(root)
+    except git.GitError as exc:
+        typer.secho(
+            "Recurring launch refused: could not determine the current branch "
+            f"in {location}: {exc}. Check out the configured control branch "
+            f"{cfg.git_control_branch!r} with `git switch "
+            f"{cfg.git_control_branch}` and retry.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return True
+
+    if current == cfg.git_control_branch:
+        return False
+
+    where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
+    typer.secho(
+        f"Recurring launch refused: the current checkout is on {where}, not "
+        f"the configured control branch {cfg.git_control_branch!r}. Check out "
+        f"the control branch with `git switch {cfg.git_control_branch}` and "
+        "retry. `--force` does not override "
+        "this gate.",
+        fg=typer.colors.RED,
+        err=True,
+    )
+    return True
+
+
 def _launch_owner_refusal(cfg: Config) -> str | None:
     """Resolve recurring authorization from the latest reachable control tip.
 
-    A feature branch may predate an owner addition or transfer, and the working
-    tree may contain an uncommitted owner edit. Neither is authoritative: read
-    the shared config blob from the fetched control commit instead.
+    A stale local checkout may predate an owner addition or transfer, and the
+    working tree may contain an uncommitted owner edit. Neither is
+    authoritative: read the shared config blob from the fetched control commit
+    instead.
 
     Fetch failure retains compatibility for repos whose local committed config
     has never opted into an owner. Once an owner is present locally, however,
@@ -620,7 +669,9 @@ def run_recurring_scan(
     tasks. It never rewrites the ticket, and registered recipe tasks keep
     their deterministic execution path.
 
-    A child dispatched by `coga recurring --all` sets
+    A git-backed interactive run requires the configured control branch to be
+    checked out, but does not require its remote tip to be reachable. A child
+    dispatched by `coga recurring --all` sets
     `require_fresh_control`: failure to fetch and integrate the configured
     control tip returns non-zero before `scan_due` can mutate period state.
     Bare single-repo sweeps retain the established best-effort catch-up.
@@ -631,6 +682,12 @@ def run_recurring_scan(
     including under `--force` — before anything is scanned or created; see
     `recurring_owner_refusal`.
     """
+    # `--all` retains its existing stricter combined branch/freshness gate and
+    # distinct stale-control exit code. Interactive entry points need only the
+    # local branch precondition, so an offline control checkout may proceed.
+    if not require_fresh_control and _refuse_non_control_branch(cfg):
+        return 2
+
     fresh, freshness_error = _sync_control_checkout_ahead(
         cfg, announce_failure=not require_fresh_control
     )
@@ -873,9 +930,12 @@ def run_recurring_named(
     instantiated task directory.
 
     `agent_override` has the same ephemeral, agent-only semantics as the full
-    recurring sweep, and the same committed-`owner` gate applies — this is a
-    launch, so a non-owner is refused before the template is created.
+    recurring sweep. A git-backed run requires the configured control branch
+    to be checked out, and the same committed-`owner` gate applies — this is a
+    launch, so either refusal happens before the template is created.
     """
+    if _refuse_non_control_branch(cfg):
+        return 2
     fresh, _reason = _sync_control_checkout_ahead(cfg)
     if _refuse_non_owner(cfg):
         return 2
@@ -1915,7 +1975,10 @@ def _rev_parse(root: Path, ref: str) -> str:
 
 
 def _current_branch(root: Path) -> str:
-    return git._run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    # `rev-parse --abbrev-ref HEAD` returns `heads/<name>` when a tag shadows
+    # the branch. `branch --show-current` is unambiguous and empty when detached.
+    current = git._run_git(root, "branch", "--show-current").strip()
+    return current or "HEAD"
 
 
 def _relative_to_root(root: Path, path: Path) -> str:

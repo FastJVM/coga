@@ -621,49 +621,182 @@ def test_recurring_launch_refuses_non_owner_before_creating(
     assert "belong to 'nick'" in capsys.readouterr().err
 
 
-def test_recurring_scan_resolves_owner_from_control_tip_on_feature_branch(
-    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+@pytest.mark.parametrize("force", [False, True], ids=["bare", "force"])
+def test_recurring_scan_refuses_non_control_branch_before_scanning(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys, force: bool
 ) -> None:
-    """A remotely added owner gates a sweep from a stale feature branch."""
-    config = git_repo.coga_os / "coga.toml"
-    git_repo.checkout_branch("stale-feature")
-    git_repo.push_competing_commit(
-        "coga/coga.toml", 'owner = "nick"\n' + config.read_text()
-    )
-    stale_cfg = load_config(git_repo.coga_os)
-    assert stale_cfg.owner == ""
+    """Bare and forced sweeps refuse before reading any period state."""
+    git_repo.checkout_branch("feature/recurring-scan")
 
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: pytest.fail("branch refusal reached catch-up"),
+    )
     monkeypatch.setattr(
         recurring_cmd,
         "scan_due",
-        lambda *args, **kwargs: pytest.fail("stale authorization reached scan_due"),
+        lambda *args, **kwargs: pytest.fail("branch refusal reached scan_due"),
     )
 
-    assert recurring_cmd.run_recurring_scan(stale_cfg) == 2
-    assert load_config(git_repo.coga_os).owner == ""
-    assert "belong to 'nick'" in capsys.readouterr().err
+    assert recurring_cmd.run_recurring_scan(
+        load_config(git_repo.coga_os), force=force
+    ) == 2
+    assert list_tasks(load_config(git_repo.coga_os)) == []
+    error = capsys.readouterr().err
+    assert "branch 'feature/recurring-scan'" in error
+    assert "control branch 'main'" in error
+    assert "git switch main" in error
+    assert "--force` does not override" in error
 
 
-def test_recurring_named_resolves_owner_from_control_tip_on_feature_branch(
+def test_recurring_named_refuses_non_control_branch_before_creating(
     git_repo, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
-    """The on-demand launcher also authorizes from control-tip config."""
-    config = git_repo.coga_os / "coga.toml"
-    git_repo.checkout_branch("stale-feature")
-    git_repo.push_competing_commit(
-        "coga/coga.toml", 'owner = "nick"\n' + config.read_text()
-    )
-    stale_cfg = load_config(git_repo.coga_os)
+    """The named launcher applies the same gate before creating its task."""
+    git_repo.checkout_branch("feature/recurring-launch")
 
     monkeypatch.setattr(
         recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: pytest.fail("branch refusal reached catch-up"),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
         "create_named",
-        lambda *args, **kwargs: pytest.fail("stale authorization created a task"),
+        lambda *args, **kwargs: pytest.fail("branch refusal created a task"),
     )
 
-    assert recurring_cmd.run_recurring_named(stale_cfg, "weekly-check") == 2
-    assert load_config(git_repo.coga_os).owner == ""
-    assert "belong to 'nick'" in capsys.readouterr().err
+    assert recurring_cmd.run_recurring_named(
+        load_config(git_repo.coga_os), "weekly-check"
+    ) == 2
+    assert list_tasks(load_config(git_repo.coga_os)) == []
+    error = capsys.readouterr().err
+    assert "branch 'feature/recurring-launch'" in error
+    assert "control branch 'main'" in error
+    assert "git switch main" in error
+
+
+def test_recurring_scan_refuses_detached_head_before_scanning(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    git_repo.git("checkout", "--detach")
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: pytest.fail("branch refusal reached catch-up"),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("branch refusal reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 2
+    assert list_tasks(load_config(git_repo.coga_os)) == []
+    error = capsys.readouterr().err
+    assert "detached HEAD" in error
+    assert "control branch 'main'" in error
+
+
+def test_recurring_branch_gate_accepts_control_branch_shadowed_by_tag(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A same-named tag cannot disguise the checked-out control branch."""
+    git_repo.git("tag", "main")
+    scanned: list[Path] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: (True, ""),
+    )
+    monkeypatch.setattr(recurring_cmd, "_refuse_non_owner", lambda *args: False)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda task_cfg, **kwargs: scanned.append(task_cfg.repo_root)
+        or DueScan(tasks=[], errors=[]),
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 0
+    assert scanned == [git_repo.coga_os]
+
+
+def test_recurring_branch_gate_refuses_git_inspection_failure(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A broken Git probe cannot masquerade as an exempt non-git workspace."""
+
+    def fail_toplevel(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise coga_git.GitError("simulated dubious ownership")
+
+    monkeypatch.setattr(recurring_cmd.git, "_toplevel", fail_toplevel)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: pytest.fail("inspection refusal reached catch-up"),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("inspection refusal reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(repo)) == 2
+    error = capsys.readouterr().err
+    assert "could not determine the current branch" in error
+    assert "simulated dubious ownership" in error
+    assert "control branch 'main'" in error
+
+
+def test_recurring_branch_gate_skips_git_disabled_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The new local-branch policy does not opt git-disabled repos back in."""
+    git_repo.checkout_branch("feature/git-disabled")
+    git_repo.coga_os.joinpath("coga.local.toml").write_text(
+        'user = "marc"\n[git]\nenabled = false\n'
+    )
+    cfg = load_config(git_repo.coga_os)
+    scanned: list[Path] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: (False, "[git].enabled = false"),
+    )
+    monkeypatch.setattr(recurring_cmd, "_refuse_non_owner", lambda *args: False)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda task_cfg, **kwargs: scanned.append(task_cfg.repo_root)
+        or DueScan(tasks=[], errors=[]),
+    )
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+    assert scanned == [git_repo.coga_os]
+
+
+def test_recurring_branch_gate_skips_non_git_workspace(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A local markdown-only workspace has no control checkout to require."""
+    cfg = load_config(repo)
+    scanned: list[Path] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: (False, "workspace is not inside a git checkout"),
+    )
+    monkeypatch.setattr(recurring_cmd, "_refuse_non_owner", lambda *args: False)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda task_cfg, **kwargs: scanned.append(task_cfg.repo_root)
+        or DueScan(tasks=[], errors=[]),
+    )
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+    assert scanned == [repo]
 
 
 def test_recurring_scan_ignores_uncommitted_owner_takeover(
@@ -2776,10 +2909,12 @@ def test_recurring_launch_lands_create_without_ff_noise(
     assert (git_repo.root / "notes.md").is_file()
 
 
-def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
-    git_repo, monkeypatch
-) -> None:
-    """A stale checkout appends its create line without replacing main's log."""
+def test_feature_branch_landing_preserves_remote_ledger_entries(git_repo) -> None:
+    """The retained low-level landing path union-merges a stale branch's log.
+
+    Normal recurring entry points now refuse this checkout, but repos
+    mid-upgrade may already have feature-branch period state to land.
+    """
     coga_os = git_repo.coga_os
     _seed_period_task_context(coga_os)
     _write_recurring(
@@ -2821,12 +2956,15 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
         log.read_text() + remote_line,
     )
 
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
-    result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
-
-    assert result.exit_code == 0, result.output
     cfg = load_config(coga_os)
-    ref = list_tasks(cfg)[0]
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    recurring_cmd._sync_recurring_create(
+        cfg,
+        "weekly-check",
+        outcome.ref,
+        respect_handled_period=False,
+    )
+    ref = outcome.ref
     # The repo-global log is union-merged across branches: the concurrent
     # remote append and this run's create line both survive on control.
     ledger = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
@@ -2835,10 +2973,14 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
     assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
 
 
-def test_recurring_launch_does_not_publish_feature_only_template_log(
-    git_repo, monkeypatch
+def test_feature_branch_landing_does_not_publish_feature_only_template_log(
+    git_repo,
 ) -> None:
-    """A feature-only recurring template does not become a malformed main dir."""
+    """The retained landing path does not turn a feature template into main.
+
+    Normal recurring entry points now refuse this checkout; this pins the
+    low-level migration behavior until its later cleanup.
+    """
     coga_os = git_repo.coga_os
     _seed_period_task_context(coga_os)
     git_repo.git("add", "coga/contexts")
@@ -2866,12 +3008,15 @@ def test_recurring_launch_does_not_publish_feature_only_template_log(
     git_repo.git("add", "coga/recurring/new-weekly")
     git_repo.git("commit", "-m", "add new recurring template")
 
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
-    result = CliRunner().invoke(app, ["recurring", "launch", "new-weekly"])
-
-    assert result.exit_code == 0, result.output
     cfg = load_config(coga_os)
-    ref = list_tasks(cfg)[0]
+    outcome = create_named(cfg, "new-weekly", now=datetime(2026, 6, 8, 10, 5))
+    recurring_cmd._sync_recurring_create(
+        cfg,
+        "new-weekly",
+        outcome.ref,
+        respect_handled_period=False,
+    )
+    ref = outcome.ref
     assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
     # The feature-only template ticket must not be published to control.
     assert not git_repo.origin_tracks("coga/recurring/new-weekly/ticket.md")
@@ -3380,10 +3525,14 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
     assert git_repo.git("status", "--porcelain") == ""
 
 
-def test_recurring_launch_preserves_midflight_remote_ledger_race(
+def test_feature_branch_landing_preserves_midflight_remote_ledger_race(
     git_repo, monkeypatch
 ) -> None:
-    """A log line pushed after local commit but before control landing survives."""
+    """The retained landing path preserves a peer append during publication.
+
+    Normal recurring entry points no longer reach feature-branch landing, but
+    already-created state in a repo mid-upgrade can still use this path.
+    """
     coga_os = git_repo.coga_os
     _seed_period_task_context(coga_os)
     _write_recurring(
@@ -3432,12 +3581,15 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
         return committed
 
     monkeypatch.setattr("coga.recurring_runner.git._commit_paths", racing_commit)
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
-    result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
-
-    assert result.exit_code == 0, result.output
     cfg = load_config(coga_os)
-    ref = list_tasks(cfg)[0]
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    recurring_cmd._sync_recurring_create(
+        cfg,
+        "weekly-check",
+        outcome.ref,
+        respect_handled_period=False,
+    )
+    ref = outcome.ref
     ledger_rel = "coga/log.md"
     ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
     assert race_line in ledger
@@ -5240,13 +5392,13 @@ def test_pre_scan_catch_up_conflict_names_files_and_fix(git_repo, capsys) -> Non
 def test_bare_scan_notes_catch_up_failure_once_and_continues(
     git_repo, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
-    """The bare (single-repo) sweep keeps the best-effort stderr note — once —
-    and still scans."""
+    """An offline control checkout warns once and still scans."""
 
     def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         raise coga_git.GitError("simulated fetch failure")
 
     monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
+    monkeypatch.setattr(recurring_cmd.git, "_fetch_branch_oid", fail_fetch)
     cfg = load_config(git_repo.coga_os)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
