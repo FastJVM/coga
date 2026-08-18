@@ -399,6 +399,23 @@ task, which carries that rule.
   `parse_serviced_period_entries`), pinned by a test. Logs are still never
   composed into prompts, so history can grow
   without bloating the next run.
+- **The ledger read is bounded to the log's tail.** The log is allowed to grow
+  without bound, so repeated same-period scans should not pay for the repo's
+  whole history. `read_serviced_ledger` takes the finite mapping of
+  `recurring/<name>` refs to the exact periods the caller is deciding, reads
+  `coga/log.md` **backwards**, and stops once every ref has a valid record at or
+  after its target. The target is the proof for that stop: `merge=union` can
+  leave a template's newer record arbitrarily far *above* an older record, so
+  neither the first hit nor a fixed slack window can establish the true
+  high-water mark. An older hit therefore stays unresolved and a due template
+  walks the whole log on the first scan of a new period; after that period is
+  recorded, repeated scans resolve from the tail. A malformed record reached
+  before the target remains a template error; older unreachable malformed
+  history is allowed to heal. When the pre-scan control catch-up succeeds, the
+  sweep carries this pre-create result into the control guard as its pinned
+  snapshot instead of materializing the same Git blob again. If catch-up could
+  not be confirmed and the later best-effort control fetch succeeds, that
+  fallback applies the same complete target set to one pinned control read.
 - **One shared file, so a sweep pins one snapshot.** Because every template
   records into the same log, the first sync of a sweep publishes records for
   templates it has not synced yet. The cross-checkout "did someone else handle

@@ -14,11 +14,12 @@ from typer.testing import CliRunner
 
 from coga import git as coga_git
 from coga import spool
+from coga import recurring as recurring_module
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
 from coga.config import Config, load_config
 from coga.logfile import append_log, task_log_lines
-from coga.paths import tasks_dir
+from coga.paths import log_path, tasks_dir
 from coga.recurring import (
     DueScan,
     DueTask,
@@ -27,6 +28,7 @@ from coga.recurring import (
     create_named,
     format_serviced_log,
     list_templates,
+    read_serviced_ledger,
     scan_due,
     serviced_periods,
 )
@@ -6207,6 +6209,231 @@ def test_serviced_periods_rejects_malformed_period_keys(
         match=rf"invalid serviced period {re.escape(repr(period))}.*weekly-check",
     ):
         serviced_periods(cfg)
+
+
+def test_read_serviced_ledger_bounds_its_read_to_the_log_tail(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`coga/log.md` grows without bound, so a scan must not walk all of it.
+
+    Once the target period is in the tail, older records cannot change the
+    caller's "at least this period" answer. Reading forward from byte zero would
+    make every repeated same-period sweep pay for the repo's whole history.
+    """
+    cfg = load_config(repo)
+    for note in range(20):
+        append_log(cfg, "ancient", "human:marc", f"ancient note {note}")
+    _seed_serviced_period(repo, "weekly-check", "2026-W20")
+    for note in range(20):
+        append_log(cfg, "recent", "human:marc", f"recent note {note}")
+
+    seen: list[tuple[str, str]] = []
+    real = recurring_module.iter_log_messages_reverse
+
+    def counting(cfg_arg, **kwargs):  # type: ignore[no-untyped-def]
+        for entry in real(cfg_arg, **kwargs):
+            seen.append(entry)
+            yield entry
+
+    monkeypatch.setattr(recurring_module, "iter_log_messages_reverse", counting)
+
+    ledger = read_serviced_ledger(
+        cfg, {"recurring/weekly-check": "2026-W20"}
+    )
+
+    assert ledger.periods == {"recurring/weekly-check": "2026-W20"}
+    assert ("ancient", "ancient note 0") not in seen
+    assert len(seen) < 41
+
+
+def test_read_serviced_ledger_does_not_stop_at_an_older_union_merged_record(
+    repo: Path,
+) -> None:
+    """An arbitrary tail window cannot make an unordered ledger correct.
+
+    A long-lived branch can append an old period at EOF after more than any
+    fixed number of unrelated union-merged lines. The older hit must leave the
+    ref pending until the target period is found; otherwise dedup can re-fire
+    already-serviced work.
+    """
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "weekly-check", "2026-W22")
+    for note in range(600):
+        append_log(cfg, f"noise/{note}", "system", "union-merged note")
+    _seed_serviced_period(repo, "weekly-check", "2026-W21")
+
+    ledger = read_serviced_ledger(
+        cfg, {"recurring/weekly-check": "2026-W22"}
+    )
+
+    assert ledger.periods == {"recurring/weekly-check": "2026-W22"}
+
+
+def test_scan_does_not_refire_past_an_older_union_merged_tail_record(
+    repo: Path,
+) -> None:
+    """The target-aware read must protect the real scan, not only its parser."""
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "weekly-check", "2026-W24")
+    for note in range(600):
+        append_log(cfg, f"noise/{note}", "system", "union-merged note")
+    _seed_serviced_period(repo, "weekly-check", "2026-W23")
+
+    scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0, 0))
+
+    assert len(scan.tasks) == 1
+    assert scan.tasks[0].period_key == "2026-W24"
+    assert scan.tasks[0].ref is None
+    assert scan.tasks[0].created is False
+    assert not (tasks_dir(cfg) / "recurring" / "weekly-check").exists()
+
+
+def test_broadcast_reuses_the_fresh_prescan_control_ledger(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A normal caught-up sweep must not materialize control's whole log."""
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "weekly-check", "2026-W24")
+    scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0, 0))
+    assert scan.ledger_periods == {"recurring/weekly-check": "2026-W24"}
+
+    monkeypatch.setattr(recurring_cmd, "_git_toplevel", lambda *args: repo)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_read_control_ledger",
+        lambda *args, **kwargs: pytest.fail("fresh sweep reread control log"),
+    )
+
+    recurring_cmd._broadcast_scan(cfg, scan, control_is_fresh=True)
+
+    assert scan.errors == []
+
+
+def test_read_serviced_ledger_ignores_templates_the_caller_did_not_request(
+    repo: Path,
+) -> None:
+    """One template's bad ledger state must not answer for another's."""
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "weekly-check", "2026-W20")
+    append_log(
+        cfg,
+        "recurring/other-check",
+        "system",
+        "created recurring/other-check for none",
+    )
+
+    ledger = read_serviced_ledger(
+        cfg, {"recurring/weekly-check": "2026-W20"}
+    )
+
+    assert ledger.periods == {"recurring/weekly-check": "2026-W20"}
+    assert ledger.errors == {}
+
+
+def test_read_serviced_ledger_stops_each_ref_after_its_target_resolves(
+    repo: Path,
+) -> None:
+    """One unresolved template must not expose another's healed history."""
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "other-check", "2026-W20")
+    append_log(
+        cfg,
+        "recurring/weekly-check",
+        "system",
+        "created recurring/weekly-check for none",
+    )
+    _seed_serviced_period(repo, "weekly-check", "2026-W20")
+
+    ledger = read_serviced_ledger(
+        cfg,
+        {
+            "recurring/weekly-check": "2026-W20",
+            "recurring/other-check": "2026-W20",
+        },
+    )
+
+    assert ledger.periods == {
+        "recurring/weekly-check": "2026-W20",
+        "recurring/other-check": "2026-W20",
+    }
+    assert ledger.errors == {}
+
+
+def test_control_ledger_uses_the_same_per_ref_target_stop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The pinned control fallback must agree with the local reverse read."""
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_show_path",
+        lambda *args: "".join(
+            [
+                "2026-05-01 09:00 [recurring/other-check] [system] "
+                "created recurring/other-check for 2026-W20\n",
+                "2026-05-01 09:01 [recurring/weekly-check] [system] "
+                "created recurring/weekly-check for none\n",
+                "2026-05-01 09:02 [recurring/weekly-check] [system] "
+                "created recurring/weekly-check for 2026-W20\n",
+            ]
+        ),
+    )
+
+    ledger = recurring_cmd._read_control_ledger(
+        tmp_path,
+        "control",
+        "coga/log.md",
+        {
+            "recurring/weekly-check": "2026-W20",
+            "recurring/other-check": "2026-W20",
+        },
+    )
+
+    assert ledger["recurring/weekly-check"] == "2026-W20"
+    assert ledger["recurring/other-check"] == "2026-W20"
+    assert recurring_cmd._control_ledger_error_key(
+        "recurring/weekly-check"
+    ) not in ledger
+
+
+def test_rolled_back_create_re_fires_once_its_ledger_line_is_gone(
+    repo: Path,
+) -> None:
+    """Removing a create's audit line must re-fire the period, not wedge it.
+
+    The ledger *is* the audit line now, so the two states a rollback can leave
+    behind are both checked here. With the line intact and the task reaped, the
+    period reads as handled — that is the reaped-task case, not a bug. With the
+    line removed as well (reverting the create), the next scan must behave as
+    if the period never ran and create the task again.
+    """
+    cfg = load_config(repo)
+    now = datetime(2026, 6, 8, 10, 0, 0)
+    first = scan_due(cfg, now=now)
+    assert first.tasks[0].created
+    period_key = first.tasks[0].period_key
+
+    task_dir = tasks_dir(cfg) / "recurring" / "weekly-check"
+    shutil.rmtree(task_dir)
+
+    reaped = scan_due(cfg, now=now)
+    assert reaped.tasks[0].created is False
+    assert reaped.tasks[0].ref is None
+
+    log_file = log_path(cfg)
+    log_file.write_text(
+        "".join(
+            f"{line}\n"
+            for line in log_file.read_text().splitlines()
+            if format_serviced_log("created", "recurring/weekly-check", period_key)
+            not in line
+        )
+    )
+
+    rolled_back = scan_due(cfg, now=now)
+
+    assert rolled_back.tasks[0].created
+    assert task_dir.is_dir()
+    assert serviced_periods(cfg)["recurring/weekly-check"] == period_key
 
 
 def test_scan_due_reports_malformed_period_and_continues(
