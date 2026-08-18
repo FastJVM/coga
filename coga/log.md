@@ -3626,3 +3626,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-18 09:47 [recurring/resolve-conflicts] [system] created (status=active)
 2026-08-18 09:47 [recurring/resolve-conflicts] [system] deleted completed prior-period task before 2026-W34
 2026-08-18 09:47 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W34
+2026-08-18 09:47 [recurring/resolve-conflicts] [human:nicktoper] started (active → in_progress) via coga launch
