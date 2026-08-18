@@ -79,6 +79,7 @@ from coga.tasks import (
     TaskNotFoundError,
     TaskRef,
     list_tasks,
+    resolve_bootstrap,
     resolve_task,
 )
 from coga.ticket import Ticket, TicketError
@@ -971,8 +972,9 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         # only report the load failure when the schedule was fine — otherwise
         # one bad cron yields two issues for the same defect. The workflow-step
         # skill checks below still run either way.
+        template = None
         try:
-            Template.load(path)
+            template = Template.load(path)
         except RecurringError as exc:
             if not schedule_bad:
                 out.append(Issue(
@@ -982,6 +984,23 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
                     severity="error",
                 ))
                 continue
+
+        # A `delegate:` target is a launch-time lookup; resolve it statically
+        # so a template pointing at a missing bootstrap ticket fails
+        # validation instead of failing the sweep that fires it.
+        if template is not None and template.delegate is not None:
+            try:
+                resolve_bootstrap(cfg, template.delegate)
+            except TaskNotFoundError as exc:
+                out.append(Issue(
+                    kind="unknown-delegate-target",
+                    task=f"recurring/{path.name}",
+                    message=(
+                        f"recurring template {path.name!r} delegates to "
+                        f"{template.delegate!r}: {exc}"
+                    ),
+                    severity="error",
+                ))
 
         workflow_name = ticket.frontmatter.get("workflow") or "direct/body"
         if not isinstance(workflow_name, str):

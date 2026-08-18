@@ -351,6 +351,56 @@ def test_validate_reports_broken_recurring_template_entry_point(
     assert "does not compile" in issue.message
 
 
+def test_validate_rejects_unknown_recurring_delegate_target(repo: Path) -> None:
+    """A `delegate:` target is resolved statically, so a template pointing at
+    a missing bootstrap ticket fails validation instead of the sweep."""
+    _write(
+        repo / "recurring" / "delegate-check" / "ticket.md",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Delegate check
+        delegate: bootstrap/does-not-exist
+        ---
+        """,
+    )
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "unknown-delegate-target"
+    )
+    assert issue.task == "recurring/delegate-check"
+    assert "bootstrap/does-not-exist" in issue.message
+
+
+def test_validate_accepts_recurring_delegate_to_shipped_bootstrap(
+    repo: Path,
+) -> None:
+    """A delegate target resolves like any bootstrap launch target — the
+    packaged `bootstrap/resolve-conflicts` ticket satisfies the check."""
+    _write(
+        repo / "recurring" / "delegate-check" / "ticket.md",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Delegate check
+        delegate: bootstrap/resolve-conflicts
+        ---
+        """,
+    )
+
+    report = run(load_config(repo))
+
+    assert not [
+        issue
+        for issue in report.issues
+        if issue.kind in {"unknown-delegate-target", "bad-recurring-template"}
+    ]
+
+
 def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:
     cfg = load_config(repo)
     created = create_task(

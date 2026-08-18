@@ -77,6 +77,27 @@ class Template:
                 raise RecurringError(
                     "`state_keys` must be a list of non-empty strings"
                 )
+        if "delegate" in fm:
+            delegate = fm["delegate"]
+            if not isinstance(delegate, str) or not delegate.strip():
+                raise RecurringError("`delegate` must be a non-empty string")
+            if (path / SCRIPT_ENTRY_POINT).is_file():
+                raise RecurringError(
+                    "`delegate` and a reserved `ticket.py` are mutually "
+                    "exclusive — a template either runs its own deterministic "
+                    "phase or delegates its whole period to one bootstrap "
+                    "launch"
+                )
+            name = delegate.strip()
+            if (
+                not name.startswith("bootstrap/")
+                or not name[len("bootstrap/"):].strip()
+                or "/" in name[len("bootstrap/"):]
+            ):
+                raise RecurringError(
+                    "`delegate` must name a stateless bootstrap command "
+                    "ticket as `bootstrap/<name>`"
+                )
         return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
 
     @property
@@ -95,6 +116,19 @@ class Template:
         """
         candidate = self.path / SCRIPT_ENTRY_POINT
         return candidate if candidate.is_file() else None
+
+    @property
+    def delegate(self) -> str | None:
+        """The `bootstrap/<name>` target this template's period delegates to.
+
+        A delegating template stays agent-backed for admission (the delegated
+        run is an agent launch, so a headless sweep refuses it before the
+        period task exists), but the sweep launches this target in-process —
+        in the operator's own terminal — instead of launching an agent session
+        on the period task itself. See `_run_delegated_task`.
+        """
+        value = self.frontmatter.get("delegate")
+        return value.strip() if isinstance(value, str) else None
 
     @property
     def ticket_path(self) -> Path:
@@ -160,6 +194,7 @@ class DueTask:
     last_fire: datetime
     created: bool
     status: str
+    delegate: str | None = None
     period_key: str = ""
     replaced_done: bool = False
 
@@ -354,6 +389,7 @@ def scan_due(
                     template=template.name,
                     ref=None,
                     last_fire=last_fire,
+                    delegate=template.delegate,
                     period_key=period_key,
                     created=False,
                     status="done",
@@ -386,6 +422,7 @@ def scan_due(
                 template=template.name,
                 ref=outcome.ref,
                 last_fire=last_fire,
+                delegate=template.delegate,
                 period_key=period_key,
                 created=outcome.created,
                 status=ticket.status,

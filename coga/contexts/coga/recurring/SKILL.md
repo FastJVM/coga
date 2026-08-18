@@ -128,6 +128,21 @@ the example under "Extend recurring with a task-specific workflow").
   the REPL supervisor; `ticket.py` templates run headlessly. A leftover
   `recipe:` key from the old format is inert — it selects nothing and is not a
   validation error.
+- `delegate` — optional `bootstrap/<name>` command-ticket ref, mutually
+  exclusive with a `ticket.py` sibling. It does not select deterministic-vs-
+  agent execution — that stays deduced from the file. It declares *which*
+  stateless bootstrap target an agent period hands its work to, which no
+  file's presence can express. The template's period is then serviced by
+  launching that target rather than by an agent session on the period task:
+  the sweep marks the period task `in_progress`, performs the delegated launch
+  in-process — in the operator's own terminal, under the sweep's `--agent`
+  override, queue guidance, and idle/max-session liveness bounds — then marks
+  the period task `done` on a clean return (or pauses it as a watchdog
+  timeout). Because the delegated run is still an agent launch, a delegating
+  template stays in the agent-backed admission class: a headless sweep refuses
+  it *before the period task is created*, exactly like any other agent
+  template. `coga validate` resolves the target statically and reports a
+  missing one as `unknown-delegate-target`.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered
@@ -348,9 +363,11 @@ This extension seam has five important constraints:
   those intermediate states.
 - **Agent work needs a TTY; a `ticket.py` half does not.** An agent-backed
   template needs stdin and stdout TTYs and runs under the REPL supervisor; a
-  TTY-less sweep skips it with a warning. A template carrying `ticket.py` runs
-  directly without a TTY and is the appropriate shape for an unattended
-  scheduler.
+  TTY-less sweep skips it with a warning. A delegating template
+  (`delegate: bootstrap/<name>`) is agent-backed for this purpose — its
+  delegated run is an agent launch — and is skipped headless the same way. A
+  template carrying `ticket.py` runs directly without a TTY and is the
+  appropriate shape for an unattended scheduler.
 
 The creator performs a deliberate template-to-ticket transform, not an
 arbitrary frontmatter clone. Use the recurring fields documented above. In
@@ -571,37 +588,21 @@ Operating it:
   cleanup. Use the recurring task's own blackboard region in
   `coga/recurring/<name>/ticket.md`.
 
-- **A wrapper that delegates to an agent-backed command inherits the outer
-  supervisor's admission, and still needs a log-based success check.** Some
-  recurring templates own only the schedule and hand the real work to an
-  ordinary Coga command (`recurring/resolve-conflicts` → `coga
-  resolve-conflicts --agent <type>`, itself an alias for `launch
-  bootstrap/resolve-conflicts`). Two things to get right:
-  - **Keep the delegating template agent-backed, and give the nested launch a
-    pty.** `coga launch` refuses an agent launch without a TTY on *both* stdin
-    and stdout (`_refuse_tty_launch`, `commands/launch.py`), and that check is
-    unconditional — it runs on the *inner* launch as well as the outer one.
-    Keeping the template agent-backed is still right, and buys the outer half:
-    a headless sweep is refused before the period task is created, and
-    recurring's `--agent` override, idle timeout, and max-session watchdog
-    govern the whole delegated process tree. But it does not buy the inner
-    half. The wrapper's command runs from the agent's own tool shell, whose
-    stdin/stdout are pipes, so launching the outer sweep from a real terminal
-    does **not** make the nested `coga resolve-conflicts` a TTY: a plain
-    invocation is refused, not merely degraded. Until delegation moves down to
-    the runner level, wrap the nested call in a pty and bound it, e.g.
-    `timeout 900 script -qec 'coga resolve-conflicts --agent claude' /dev/null`.
-    Treat that as a known workaround with known costs — it duplicates bounding
-    the outer supervisor already provides, and an agent harness's permission
-    classifier may read the construct as unfamiliar and deny it — not as a
-    pattern to copy into wrappers that do not need it.
-  - **Do not read success from the captured output.** The delegated session is
-    torn down by the done sentinel seconds after its roll-up posts, and the pty
-    stream is ANSI noise, so the wrapper's stdout is not a usable signal.
-    Confirm through the repo-global `coga/log.md` — the `slack:` line tagged
-    `bootstrap/<verb>` for the delegated command — before finishing the period
-    task, and surface a delegated failure instead of marking the period task
-    done as if the sweep succeeded.
+- **A template whose work is "launch another Coga command" must declare
+  `delegate:`, never shell out to a nested `coga launch`.** The two levels are
+  easy to conflate, and conflating them reproduces a real bug: the recurring
+  supervisor owns TTY admission for the sessions *it* spawns, but that
+  ownership does not extend one level down to a launch an agent improvises
+  from its own tool shell — `coga launch` refuses an agent launch without a
+  TTY on *both* stdin and stdout, and a tool subprocess has neither, so the
+  nested launch exits 2. Faking a terminal (`script -qec ...`) is not the
+  sanctioned workaround; it was, and agent harnesses refused to execute it.
+  With `delegate: bootstrap/<name>` there is no inner shell-out at all: the
+  sweep itself performs the delegated launch in the operator's terminal and
+  keeps the period task's lifecycle bookkeeping (in_progress → done, or a
+  watchdog pause on timeout), so no wrapper agent session exists in between.
+  The delegated command's own success signal — e.g. its `coga slack` roll-up
+  line in `coga/log.md` — stays what it always was.
 
 - **A job that pushes to a dedicated long-lived branch must prune the remote
   ref before pushing.** `coga skill update --pr` reuses one fixed branch

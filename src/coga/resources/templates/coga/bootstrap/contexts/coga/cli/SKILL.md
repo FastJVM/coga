@@ -856,9 +856,14 @@ schedule.
 
 Agent templates — those with no `ticket.py` beside their `ticket.md` — are
 skipped when `coga recurring` has no stdin/stdout TTY, because the agent REPL
-cannot be driven. Templates intended for cron or other unattended schedulers
-should carry that deterministic half. There is no mode field to set: the file's
-presence is the whole declaration.
+cannot be driven. A delegating template (`delegate: bootstrap/<name>`) is in
+the same class — its period is serviced by an agent launch the sweep performs
+in-process, with the sweep keeping the period task's lifecycle bookkeeping —
+so it is skipped headless too. Templates intended for cron or other unattended
+schedulers should carry that deterministic half. Whether a period is
+deterministic is never declared: the `ticket.py` file's presence is the whole
+signal. `delegate:` declares something else — which bootstrap target an agent
+period hands its work to, which no file's presence can express.
 
 **Queue guidance.** Like megalaunch, automatic recurring launches (the bare
 sweep, `--force`, and on-demand `recurring launch <name>` — everything except

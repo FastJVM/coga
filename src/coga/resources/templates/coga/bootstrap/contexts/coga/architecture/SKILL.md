@@ -675,8 +675,14 @@ argument boundaries and option spelling, propagate their integer return code
 and stdout/stderr, and re-derive `COGA_TASK_*` for instantiated recurring
 tasks — including a ticket's own `ticket.py`, which may import a registered
 recipe function directly. A recurring template's deterministic path is that
-`ticket.py` sibling; without one, its period task is an agent launch and
-therefore needs a TTY.
+`ticket.py` sibling; without one, its period task is agent work and therefore
+needs a TTY at admission. That agent work takes one of two shapes: by default
+an agent session launched on the period task itself, or — with
+`delegate: bootstrap/<name>` — a stateless bootstrap launch the sweep performs
+in-process while keeping the period task's lifecycle bookkeeping, so a template
+never instructs its agent to shell out to a nested `coga launch`. `delegate:`
+and a `ticket.py` sibling are mutually exclusive: a template either runs its own
+deterministic phase or hands its whole period to one bootstrap launch.
 
 There is no `autonomy:` field. The old `auto`, `skip_permissions`, and
 `skip_permissions_argv` agent keys are removed; config load rejects them with

@@ -2178,6 +2178,242 @@ def test_period_script_runs_with_period_context_secrets_and_lifecycle(
         assert f"exit {script_code}" in failures[0][1]
 
 
+def _write_delegating_template(company: Path, name: str) -> None:
+    """Write a recurring template that delegates to a bootstrap ticket."""
+    _write_recurring(
+        company,
+        name,
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Delegated sweep"
+        delegate: bootstrap/resolve-conflicts
+        owner: marc
+        ---
+
+        ## Description
+
+        Delegate the period's work to the stateless bootstrap target.
+        """,
+    )
+
+
+@pytest.mark.parametrize(
+    ("delegate_value", "message"),
+    [
+        ('""', "`delegate` must be a non-empty string"),
+        ("[]", "`delegate` must be a non-empty string"),
+        ("resolve-conflicts", "must name a stateless bootstrap command"),
+        ("bootstrap/", "must name a stateless bootstrap command"),
+        ("bootstrap/nested/name", "must name a stateless bootstrap command"),
+    ],
+)
+def test_template_rejects_invalid_delegate_declarations(
+    repo: Path, delegate_value: str, message: str
+) -> None:
+    _write_recurring(
+        repo,
+        "delegate-check",
+        f"""
+        ---
+        schedule: "0 9 * * *"
+        title: Delegate check
+        delegate: {delegate_value}
+        ---
+        """,
+    )
+
+    with pytest.raises(recurring_cmd.RecurringError, match=message):
+        Template.load(repo / "recurring" / "delegate-check")
+
+
+def test_template_rejects_delegate_combined_with_recipe(repo: Path) -> None:
+    """`delegate:` and `recipe:` pick opposite admission classes — one
+    template cannot be both TTY-gated agent work and a headless recipe."""
+    _write_recurring(
+        repo,
+        "delegate-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Delegate check
+        recipe: digest
+        delegate: bootstrap/resolve-conflicts
+        ---
+        """,
+    )
+
+    with pytest.raises(
+        recurring_cmd.RecurringError, match="mutually exclusive"
+    ):
+        Template.load(repo / "recurring" / "delegate-check")
+
+
+def test_headless_scan_refuses_delegating_template_at_admission(
+    repo: Path, capsys
+) -> None:
+    """A no-TTY sweep refuses a delegating template *before* the period task
+    exists — the refusal stays at admission, exactly like any agent-backed
+    template, instead of relocating into a mid-run agent-launch failure.
+    """
+    _write_delegating_template(repo, "delegate-check")
+
+    cfg = load_config(repo)
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=False
+    )
+
+    errors = dict(scan.errors)
+    assert "an agent run requires a TTY" in errors["delegate-check"]
+    assert all(task.template != "delegate-check" for task in scan.tasks)
+    assert not any(
+        ref.id_slug == "recurring/delegate-check" for ref in list_tasks(cfg)
+    )
+    assert "skipping delegate-check" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("starting_status", "launch_kind", "expected_status", "expected_transitions"),
+    [
+        ("active", None, "done", ["in_progress", "done"]),
+        ("in_progress", None, "done", ["done"]),
+        ("active", "timeout", "paused", ["in_progress", "paused"]),
+    ],
+)
+def test_delegated_task_launches_target_and_owns_lifecycle(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    starting_status: str,
+    launch_kind: str | None,
+    expected_status: str,
+    expected_transitions: list[str],
+) -> None:
+    """The runner owns the delegating period task's lifecycle: it marks
+    `in_progress`, launches the bootstrap target in-process (never an agent
+    session on the period task), then marks `done` on a clean return — or
+    pauses the task as a watchdog timeout when the delegated session's
+    liveness backstop fired.
+    """
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    ref = outcome.ref
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = starting_status
+    ticket.write(ref.ticket_path)
+
+    transitions: list[str] = []
+    launches: list[tuple] = []
+
+    def fake_mark_in_progress(
+        task_cfg, task_ref, current: Ticket, **kwargs  # type: ignore[no-untyped-def]
+    ) -> None:
+        transitions.append("in_progress")
+        current.frontmatter["status"] = "in_progress"
+        current.write(task_ref.ticket_path)
+
+    def fake_mark_done(
+        task_cfg, task_ref, current: Ticket, **kwargs  # type: ignore[no-untyped-def]
+    ) -> None:
+        transitions.append("done")
+        current.frontmatter["status"] = "done"
+        current.frontmatter.pop("step", None)
+        current.write(task_ref.ticket_path)
+
+    def fake_mark_paused(
+        task_cfg, task_ref, current: Ticket, **kwargs  # type: ignore[no-untyped-def]
+    ) -> None:
+        transitions.append("paused")
+        current.frontmatter["status"] = "paused"
+        current.write(task_ref.ticket_path)
+
+    def fake_launch(task: str, **kwargs) -> str | None:  # type: ignore[no-untyped-def]
+        launches.append(
+            (
+                task,
+                kwargs.get("agent_override"),
+                kwargs.get("idle_timeout"),
+                kwargs.get("max_session"),
+                kwargs.get("return_timeout"),
+                kwargs.get("queue_guidance"),
+            )
+        )
+        return launch_kind
+
+    monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
+    monkeypatch.setattr(recurring_cmd, "mark_done", fake_mark_done)
+    monkeypatch.setattr(recurring_cmd, "mark_paused", fake_mark_paused)
+    monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+
+    code = recurring_cmd._run_delegated_task(
+        cfg,
+        DueTask(
+            template="delegate-check",
+            ref=ref,
+            last_fire=datetime(2026, 4, 22, 9, 0, 0),
+            created=True,
+            status=starting_status,
+            delegate="bootstrap/resolve-conflicts",
+        ),
+        agent_override="claude",
+        idle_timeout=900.0,
+        max_session=None,
+        queue_guidance=True,
+    )
+
+    assert code == 0
+    assert transitions == expected_transitions
+    assert Ticket.read(ref.ticket_path).status == expected_status
+    # The delegated launch targets the bootstrap ticket — never the period
+    # task — with the sweep's liveness and queue posture threaded through.
+    assert launches == [
+        ("bootstrap/resolve-conflicts", "claude", 900.0, None, True, True)
+    ]
+
+
+def test_bare_recurring_launches_delegate_target_directly(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sweep services a delegating template by launching its bootstrap
+    target in-process; no launch of the period task itself ever happens."""
+    shutil.rmtree(repo / "recurring" / "weekly-check")
+    _write_delegating_template(repo, "delegate-check")
+    monkeypatch.chdir(repo)
+    _allow_interactive_recurring(monkeypatch)
+
+    launches: list[tuple[str, str | None, bool | None]] = []
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launches.append(
+            (task, kwargs.get("agent_override"), kwargs.get("queue_guidance"))
+        )
+        return None
+
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+
+    def capture_slack(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        class R:
+            status_code = 200
+            text = "ok"
+
+        return R()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert launches == [("bootstrap/resolve-conflicts", None, True)]
+    ticket = Ticket.read(
+        repo / "tasks" / "recurring" / "delegate-check" / "ticket.md"
+    )
+    assert ticket.status == "done"
+
+
 def test_scan_due_explains_removed_megalaunch_skill(repo: Path) -> None:
     _write(
         repo / "workflows" / "megalaunch.md",
@@ -3939,12 +4175,14 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
         ref=SimpleNamespace(
             id_slug="canceled-period", ticket_path=Path("no-such-ticket.md")
         ),
+        delegate=None,
     )
     later = SimpleNamespace(
         template="later-period",
         ref=SimpleNamespace(
             id_slug="later-period", ticket_path=Path("no-such-ticket.md")
         ),
+        delegate=None,
     )
     scan = SimpleNamespace(forced=[canceled, later], due=[], tasks=[], errors=[])
     launched: list[str] = []

@@ -817,6 +817,35 @@ def _launch_due_tasks(
         # deterministically and an agent template composes a prompt, without
         # this sweep holding a second copy of that rule.
         #
+        if task.delegate:
+            # A delegating template's period task never runs its own agent
+            # session: the sweep launches the declared bootstrap target
+            # directly — in this operator's terminal, under the same liveness
+            # bounds and queue posture as any sweep launch — and does the
+            # period task's lifecycle bookkeeping itself.
+            code = _run_delegated_task(
+                cfg,
+                task,
+                agent_override=agent_override,
+                idle_timeout=idle_timeout,
+                max_session=max_session,
+                queue_guidance=not interactive,
+            )
+            # Main's sweep records every run it performed; `run_autofix` fires
+            # only when `record.outcomes` is non-empty, so a delegated run that
+            # returned without recording would be invisible to the analyst.
+            record.add(
+                _task_outcome(
+                    cfg,
+                    task.template,
+                    task.ref,
+                    result="failed" if code else "",
+                    exit_code=code or None,
+                )
+            )
+            if code:
+                return code
+            continue
         # Sequential by design: each launch blocks until the session exits
         # before the next begins. `scan_due` filters out templates that cannot
         # run in the current stdio context (an agent run with no TTY), and the
@@ -945,6 +974,126 @@ def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
     )
 
 
+def _run_delegated_task(
+    cfg: Config,
+    task: DueTask,
+    *,
+    agent_override: str | None = None,
+    idle_timeout: float | None = None,
+    max_session: float | None = None,
+    queue_guidance: bool = True,
+) -> int:
+    """Run one delegating period task by launching its bootstrap target.
+
+    A `delegate:` template owns only the schedule; the real work is a
+    stateless `bootstrap/<name>` command ticket. The sweep is a foreground
+    command in the operator's own terminal, so it performs that agent launch
+    in-process — TTY admission was already decided before the period task was
+    created (`scan_due` refuses agent-backed templates, delegating ones
+    included, without a TTY) — and owns the period task's lifecycle
+    bookkeeping exactly as `_run_recipe_task` does around a recipe
+    subprocess. No agent session ever runs on the period task itself, so no
+    wrapper has to shell out to a nested `coga launch` or manufacture a pty.
+
+    A clean delegated return marks the period task done (the bootstrap
+    target's own success signal stays its Slack roll-up); a liveness timeout
+    pauses it as a watchdog timeout, like any sweep launch, and lets the
+    sweep continue. A delegated launch that dies harder leaves the task
+    `in_progress`, and the next sweep resumes the orphan by re-delegating.
+    """
+    if task.ref is None or task.delegate is None:
+        raise RecurringError("delegating recurring task is missing its target")
+
+    ref = task.ref
+    ticket = read_ticket(ref)
+
+    if ticket.status == "active":
+        cur = ticket.current_step()
+        step_note = f" (step {ticket.step_index()}: {cur['name']})" if cur else ""
+        try:
+            mark_in_progress(
+                cfg,
+                ref,
+                ticket,
+                actor="system",
+                log_message=(
+                    "started (active → in_progress) via recurring delegation "
+                    f"to {task.delegate}"
+                ),
+                slack_text=(
+                    f"▶️ delegated run started *{ref.id_slug}* "
+                    f"\"{ticket.title}\"{step_note}"
+                ),
+                echo=f"{ref.id_slug}: in_progress",
+            )
+        except TaskValidationError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            return 2
+
+    append_log(
+        cfg,
+        ref.id_slug,
+        "system",
+        f"launched delegated target {task.delegate}",
+    )
+    git.sync_log(cfg, message=f"Log: {ref.id_slug}")
+
+    from coga.commands.launch import launch as launch_cmd
+
+    kind = launch_cmd(
+        task.delegate,
+        agent_override=agent_override,
+        prompt_report=False,
+        idle_timeout=idle_timeout,
+        max_session=max_session,
+        return_timeout=True,
+        queue_guidance=queue_guidance,
+    )
+    if kind == "timeout":
+        # The delegated session wedged and a liveness backstop tore it down.
+        # Record that against the period task the way any sweep launch would,
+        # then continue to the next due template.
+        _stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+        return 0
+
+    if not ref.ticket_path.exists():
+        return 0
+    after_delegate = Ticket.read(ref.ticket_path)
+    if after_delegate.status in TERMINAL_STATUSES:
+        return 0
+    try:
+        mark_done(
+            cfg,
+            ref,
+            after_delegate,
+            actor="system",
+            log_message=(
+                f"completed (delegated {task.delegate} run finished) "
+                "via coga recurring"
+            ),
+            slack_text=(
+                f"✅ delegated run completed *{ref.id_slug}* "
+                f"\"{after_delegate.title}\""
+            ),
+            digest_detail=f"→ done (delegate: {task.delegate})",
+            echo=f"{ref.id_slug}: done",
+        )
+    except StrandedProductCode as exc:
+        listed = "\n".join(f"    {path}" for path in exc.paths)
+        typer.secho(
+            f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow "
+            "has no push/PR step, but this checkout committed tracked product "
+            f"code not on the control branch:\n{listed}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return 2
+    except TaskValidationError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
+    return 0
+
+
 def run_recurring_named(
     cfg: Config,
     name: str,
@@ -973,6 +1122,7 @@ def run_recurring_named(
         return 2
     try:
         outcome = create_named(cfg, name)
+        template = Template.load(recurring_dir(cfg) / name)
     except RecurringError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return 2
@@ -1038,6 +1188,7 @@ def run_recurring_named(
         return _launch_created(
             cfg,
             ref,
+            delegate=template.delegate,
             interactive=interactive,
             agent_override=agent_override,
             record=record,
@@ -1110,6 +1261,7 @@ def _launch_created(
     cfg: Config,
     ref: TaskRef,
     *,
+    delegate: str | None = None,
     interactive: bool = False,
     agent_override: str | None = None,
     record: RunRecord | None = None,
@@ -1148,10 +1300,41 @@ def _launch_created(
 
     verb = "Resuming" if ticket.status == "in_progress" else "Launching"
     typer.echo(f"{verb} {ref.id_slug}")
-    from coga.commands.launch import launch as launch_cmd
-
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
+    if delegate:
+        # An on-demand named launch delegates exactly as the sweep does: the
+        # runner launches the bootstrap target in this operator's terminal
+        # and keeps the period task's bookkeeping to itself.
+        code = _run_delegated_task(
+            cfg,
+            DueTask(
+                template=ref.slug,
+                ref=ref,
+                last_fire=datetime.now(),
+                created=False,
+                status=ticket.status or "",
+                delegate=delegate,
+            ),
+            agent_override=agent_override,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+            queue_guidance=not interactive,
+        )
+        if record is not None:
+            record.add(
+                _task_outcome(
+                    cfg,
+                    template or ref.slug,
+                    ref,
+                    result="failed" if code else "",
+                    exit_code=code or None,
+                )
+            )
+        return code
+
+    from coga.commands.launch import launch as launch_cmd
+
     try:
         launch_cmd(
             ref.id_slug,
