@@ -954,7 +954,11 @@ def run_recurring_named(
     try:
         if outcome.created:
             created_on_control = _sync_recurring_create(
-                cfg, name, ref, respect_handled_period=False
+                cfg,
+                name,
+                ref,
+                respect_handled_period=False,
+                expected_period_key=outcome.period_key,
             )
         else:
             _validate_control_serviced_period(cfg, name)
@@ -1129,10 +1133,14 @@ def _sync_recurring_create(
     force_period_key: str | None = None,
     force_snapshot_is_fresh: bool = False,
     force_record_period: bool = False,
+    expected_period_key: str | None = None,
     control_ledger: dict[str, str] | None = None,
 ) -> bool:
     """Sync the period task and ledger record that make deletion idempotent.
 
+    `expected_period_key` bounds the local reverse ledger read only after it
+    finds a record sufficient for this sync's at-least comparison. Callers that
+    cannot prove the period leave it unset and get the exact whole-ledger read.
     `control_ledger` is the caller's per-run snapshot of control's serviced
     periods; see `_control_serviced_period_cached` for why a sweep must share
     one.
@@ -1156,7 +1164,12 @@ def _sync_recurring_create(
     original_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
     local_ticket = original_ticket
     template_ref = _recurring_ref(template_name)
-    ledger = read_serviced_ledger(cfg, [template_ref])
+    resolve_at = (
+        {template_ref: expected_period_key}
+        if expected_period_key is not None
+        else None
+    )
+    ledger = read_serviced_ledger(cfg, resolve_at)
     ledger_error = ledger.errors.get(template_ref)
     if ledger_error is not None:
         raise RecurringError(ledger_error)
@@ -2241,6 +2254,7 @@ def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
             force_period_key=task.period_key,
             force_snapshot_is_fresh=False,
             force_record_period=False,
+            expected_period_key=task.period_key,
         )
 
     ticket = read_ticket(task.ref)
@@ -2273,6 +2287,7 @@ def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
         respect_existing_task=False,
         restore_existing_control_task=False,
         overwrite_dirty_control_task=False,
+        expected_period_key=task.period_key,
     )
 
 
@@ -2345,6 +2360,7 @@ def _broadcast_scan(
                 force_period_key=task.period_key if sync_existing else None,
                 force_snapshot_is_fresh=False,
                 force_record_period=False,
+                expected_period_key=task.period_key,
                 control_ledger=control_ledger,
             )
         except RecurringError as exc:

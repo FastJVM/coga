@@ -6216,10 +6216,9 @@ def test_read_serviced_ledger_bounds_its_read_to_the_log_tail(
 ) -> None:
     """`coga/log.md` grows without bound, so a scan must not walk all of it.
 
-    The answer to "what period did this template last service?" lives in the
-    log's tail. Reading forward from byte zero makes every sweep pay for the
-    repo's whole history; the bounded reverse read stops once the templates it
-    was asked about have resolved.
+    Once the target period is in the tail, older records cannot change the
+    caller's "at least this period" answer. Reading forward from byte zero would
+    make every repeated same-period sweep pay for the repo's whole history.
     """
     cfg = load_config(repo)
     for note in range(20):
@@ -6237,34 +6236,56 @@ def test_read_serviced_ledger_bounds_its_read_to_the_log_tail(
             yield entry
 
     monkeypatch.setattr(recurring_module, "iter_log_messages_reverse", counting)
-    # The shipped slack window is wider than any fixture log, so shrink it here
-    # rather than seeding hundreds of lines to prove the same stop.
-    monkeypatch.setattr(recurring_module, "_LEDGER_TAIL_SLACK_LINES", 5)
 
-    ledger = read_serviced_ledger(cfg, ["recurring/weekly-check"])
+    ledger = read_serviced_ledger(
+        cfg, {"recurring/weekly-check": "2026-W20"}
+    )
 
     assert ledger.periods == {"recurring/weekly-check": "2026-W20"}
     assert ("ancient", "ancient note 0") not in seen
     assert len(seen) < 41
 
 
-def test_read_serviced_ledger_tail_keeps_the_newest_of_unsorted_records(
+def test_read_serviced_ledger_does_not_stop_at_an_older_union_merged_record(
     repo: Path,
 ) -> None:
-    """Reverse order is a recency heuristic, not a guarantee.
+    """An arbitrary tail window cannot make an unordered ledger correct.
 
-    `merge=union` concatenates two checkouts' blocks in whichever order the
-    merge picked, so a template's newest record can sit *above* an older one.
-    Stopping at the first hit would under-report the serviced period and re-fire
-    it — the exact failure this ledger replaced.
+    A long-lived branch can append an old period at EOF after more than any
+    fixed number of unrelated union-merged lines. The older hit must leave the
+    ref pending until the target period is found; otherwise dedup can re-fire
+    already-serviced work.
     """
     cfg = load_config(repo)
     _seed_serviced_period(repo, "weekly-check", "2026-W22")
+    for note in range(600):
+        append_log(cfg, f"noise/{note}", "system", "union-merged note")
     _seed_serviced_period(repo, "weekly-check", "2026-W21")
 
-    ledger = read_serviced_ledger(cfg, ["recurring/weekly-check"])
+    ledger = read_serviced_ledger(
+        cfg, {"recurring/weekly-check": "2026-W22"}
+    )
 
     assert ledger.periods == {"recurring/weekly-check": "2026-W22"}
+
+
+def test_scan_does_not_refire_past_an_older_union_merged_tail_record(
+    repo: Path,
+) -> None:
+    """The target-aware read must protect the real scan, not only its parser."""
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "weekly-check", "2026-W24")
+    for note in range(600):
+        append_log(cfg, f"noise/{note}", "system", "union-merged note")
+    _seed_serviced_period(repo, "weekly-check", "2026-W23")
+
+    scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0, 0))
+
+    assert len(scan.tasks) == 1
+    assert scan.tasks[0].period_key == "2026-W24"
+    assert scan.tasks[0].ref is None
+    assert scan.tasks[0].created is False
+    assert not (tasks_dir(cfg) / "recurring" / "weekly-check").exists()
 
 
 def test_read_serviced_ledger_ignores_templates_the_caller_did_not_request(
@@ -6280,7 +6301,9 @@ def test_read_serviced_ledger_ignores_templates_the_caller_did_not_request(
         "created recurring/other-check for none",
     )
 
-    ledger = read_serviced_ledger(cfg, ["recurring/weekly-check"])
+    ledger = read_serviced_ledger(
+        cfg, {"recurring/weekly-check": "2026-W20"}
+    )
 
     assert ledger.periods == {"recurring/weekly-check": "2026-W20"}
     assert ledger.errors == {}
