@@ -22,6 +22,7 @@ from coga.paths import tasks_dir
 from coga.recurring import (
     DueScan,
     DueTask,
+    RecurringError,
     Template,
     create_named,
     format_serviced_log,
@@ -122,15 +123,15 @@ def _seed_serviced_period(
 def _seed_template_blackboard(company: Path, name: str, region: str) -> None:
     """Seed a recurring template's persistent working state.
 
-    In the single-file format a template's cross-run state — its `state_keys`
-    values and the `last_serviced_period` high-water mark — lives in the
-    blackboard region of `recurring/<name>/ticket.md`, not a separate
-    `blackboard.md`. `upsert_blackboard` adds the fence if the hand-authored
-    template ticket doesn't have one yet.
+    In the single-file format a template's task-specific cross-run state — its
+    `state_keys` values — lives in the blackboard region of
+    `recurring/<name>/ticket.md`, not a separate `blackboard.md`.
+    `upsert_blackboard` adds the fence if the hand-authored template ticket
+    doesn't have one yet.
 
     The fence must stay on its own line, so the region text is normalized to
     start with a blank line after the fence (matching what `read_blackboard`
-    returns and the high-water writer produces).
+    returns).
     """
     region_text = "\n\n" + region.lstrip("\n")
     upsert_blackboard(company / "recurring" / name / "ticket.md", region_text)
@@ -1854,9 +1855,9 @@ def test_scan_due_does_not_recreate_after_period_task_deleted(
     """A completed-this-period task that has been deleted stays completed.
 
     A later Dream retro pass deletes done recurring period tickets; a human
-    `coga delete` is the other case. The recurring template's blackboard
-    carries the `last_serviced_period` high-water mark, so a successful run
-    isn't silently re-launched by the next `coga recurring`.
+    `coga delete` is the other case. The repo-global log carries the
+    serviced-period high-water mark, so a successful run isn't silently
+    re-launched by the next `coga recurring`.
     """
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)  # a Wednesday after Monday 9am
@@ -1865,8 +1866,7 @@ def test_scan_due_does_not_recreate_after_period_task_deleted(
     assert first.tasks[0].created is True
     ref = first.tasks[0].ref
 
-    # The load-bearing period state lands in the template ticket's blackboard
-    # region; the repo-global log keeps the append-only period history, tagged
+    # The load-bearing period state is the append-only log record tagged
     # `recurring/<name>`.
     log = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
     bb_path = repo / "recurring" / "weekly-check" / "ticket.md"
@@ -1960,8 +1960,8 @@ def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
     assert order[-1] == "dream"
 
 
-def test_scan_due_recognizes_blackboard_high_water(repo: Path) -> None:
-    """A period recorded in `last_serviced_period` is honored."""
+def test_scan_due_recognizes_serviced_period_ledger(repo: Path) -> None:
+    """A period recorded in the repo-global ledger is honored."""
     now = datetime(2026, 4, 22, 10, 0, 0)  # week 17
     _seed_serviced_period(repo, "weekly-check", "2026-W17")
 
@@ -2679,8 +2679,8 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     """The git control branch gets the task dir and period high-water together.
 
     Dream later deletes done recurring period tickets. That deletion is
-    idempotent only if another checkout can still see the advanced
-    `last_serviced_period` after the task dir is gone.
+    idempotent only if another checkout can still see the serviced-period log
+    record after the task dir is gone.
     """
     coga_os = git_repo.coga_os
     _seed_period_task_context(coga_os)
@@ -4096,8 +4096,8 @@ def test_scan_due_force_does_not_advance_live_prior_period_task(
 
 
 def test_scan_due_force_recreates_serviced_deleted_period(repo: Path) -> None:
-    """`--force` bypasses the `last_serviced_period` high-water: a period that
-    already ran and had its task dir deleted is re-created as a real run."""
+    """`--force` bypasses the serviced-period ledger: a period that already
+    ran and had its task dir deleted is re-created as a real run."""
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)
 
@@ -6149,6 +6149,18 @@ def test_serviced_log_format_is_pinned() -> None:
     )
     with pytest.raises(ValueError):
         format_serviced_log("advanced", "recurring/digest", "2026-08-13")
+    with pytest.raises(ValueError, match="invalid period key 'none'"):
+        format_serviced_log("created", "recurring/digest", "none")
+
+
+@pytest.mark.parametrize(
+    "period",
+    ["2026-08", "2026-W33", "2026-08-13", "2026-08-13-17", "20260813T1722"],
+)
+def test_serviced_log_accepts_every_generated_period_shape(period: str) -> None:
+    assert format_serviced_log("created", "recurring/check", period).endswith(
+        f" for {period}"
+    )
 
 
 def test_serviced_periods_reads_the_newest_record_per_template(repo: Path) -> None:
@@ -6162,6 +6174,355 @@ def test_serviced_periods_reads_the_newest_record_per_template(repo: Path) -> No
 
     assert serviced["recurring/weekly-check"] == "2026-W22"
     assert serviced["recurring/other-check"] == "2026-W02"
+
+
+def test_serviced_periods_orders_mixed_key_shapes_as_calendar_periods(
+    repo: Path,
+) -> None:
+    """A schedule change must not bring lexical period ordering back."""
+    cfg = load_config(repo)
+    _seed_serviced_period(repo, "weekly-check", "2026-12")
+    _seed_serviced_period(repo, "weekly-check", "2026-W01")
+
+    assert serviced_periods(cfg)["recurring/weekly-check"] == "2026-12"
+
+
+@pytest.mark.parametrize(
+    "period",
+    ["none", "2026-13", "2026-W54", "2026-02-30", "2026-01-01-24"],
+)
+def test_serviced_periods_rejects_malformed_period_keys(
+    repo: Path, period: str
+) -> None:
+    cfg = load_config(repo)
+    append_log(
+        cfg,
+        "recurring/weekly-check",
+        "system",
+        f"created recurring/weekly-check for {period}",
+    )
+
+    with pytest.raises(
+        RecurringError,
+        match=rf"invalid serviced period {re.escape(repr(period))}.*weekly-check",
+    ):
+        serviced_periods(cfg)
+
+
+def test_scan_due_reports_malformed_period_and_continues(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_recurring(
+        repo,
+        "daily-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Daily check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the daily check.
+        """,
+    )
+    cfg = load_config(repo)
+    append_log(
+        cfg,
+        "recurring/weekly-check",
+        "system",
+        "created recurring/weekly-check for none",
+    )
+
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+
+    assert [task.template for task in scan.tasks] == ["daily-check"]
+    assert len(scan.errors) == 1
+    assert scan.errors[0][0] == "weekly-check"
+    assert "invalid serviced period 'none'" in scan.errors[0][1]
+    assert "recurring/weekly-check" in scan.errors[0][1]
+    assert "skipping weekly-check" in capsys.readouterr().err
+
+
+def test_recurring_views_render_malformed_period_as_error(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(repo)
+    append_log(
+        cfg,
+        "recurring/weekly-check",
+        "system",
+        "created recurring/weekly-check for none",
+    )
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("COLUMNS", "240")
+
+    statuses = list_templates(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    assert len(statuses) == 1
+    assert statuses[0].error is not None
+    assert "invalid serviced period 'none'" in statuses[0].error
+
+    for argv in (["recurring", "list"], ["status"]):
+        result = CliRunner().invoke(app, argv)
+        assert result.exit_code == 0, result.output
+        assert "error: invalid serviced period 'none'" in result.output
+        assert "ran this period" not in result.output
+
+
+def test_scan_due_compares_serviced_periods_after_schedule_change(repo: Path) -> None:
+    """An early ISO week must not sort after a later calendar month."""
+    _write_recurring(
+        repo,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 1 * *"
+        title: "Monthly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the monthly check.
+        """,
+    )
+    _seed_serviced_period(repo, "weekly-check", "2026-W01")
+
+    scan = scan_due(
+        load_config(repo), now=datetime(2026, 12, 2, 10, 0, 0)
+    )
+
+    assert scan.errors == []
+    assert len(scan.tasks) == 1
+    assert scan.tasks[0].created is True
+
+
+def test_control_guard_compares_serviced_periods_as_calendar_positions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_control_serviced_period_cached",
+        lambda *args, **kwargs: "2026-W01",
+    )
+
+    assert recurring_cmd._control_already_has_period(
+        tmp_path,
+        "control",
+        "coga/tasks/recurring/check",
+        log_rel="coga/log.md",
+        template_ref="recurring/check",
+        period_key="2026-12",
+        include_task=False,
+    ) is False
+
+
+def test_control_ledger_rejects_malformed_period(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_show_path",
+        lambda *args: (
+            "2026-08-13 17:22 [recurring/check] [system] "
+            "created recurring/check for none\n"
+        ),
+    )
+
+    with pytest.raises(RecurringError, match="invalid serviced period 'none'"):
+        recurring_cmd._control_serviced_period_cached(
+            tmp_path,
+            "control",
+            "coga/log.md",
+            "recurring/check",
+            None,
+        )
+
+
+def test_control_guard_validates_ledger_when_dedup_is_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def malformed_control_ledger(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RecurringError(
+            "invalid serviced period 'none' for recurring/check"
+        )
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_control_serviced_period_cached",
+        malformed_control_ledger,
+    )
+
+    with pytest.raises(RecurringError, match="invalid serviced period 'none'"):
+        recurring_cmd._control_already_has_period(
+            tmp_path,
+            "control",
+            "coga/tasks/recurring/check",
+            log_rel="coga/log.md",
+            template_ref="recurring/check",
+            period_key="2026-W33",
+            include_ledger=False,
+            include_task=False,
+        )
+
+
+def test_broadcast_scan_skips_a_template_with_a_control_ledger_error(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+
+    def malformed_control_ledger(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RecurringError(
+            "invalid serviced period 'none' for recurring/weekly-check"
+        )
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_recurring_create",
+        malformed_control_ledger,
+    )
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
+
+    recurring_cmd._broadcast_scan(cfg, scan)
+
+    assert scan.tasks == []
+    assert scan.errors == [
+        (
+            "weekly-check",
+            "invalid serviced period 'none' for recurring/weekly-check",
+        )
+    ]
+    assert "skipping weekly-check" in capsys.readouterr().err
+
+
+def test_named_launch_reports_a_control_ledger_error(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def malformed_control_ledger(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RecurringError(
+            "invalid serviced period 'none' for recurring/weekly-check"
+        )
+
+    monkeypatch.setattr(
+        recurring_cmd, "_sync_recurring_create", malformed_control_ledger
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_launch_created",
+        lambda *args, **kwargs: pytest.fail("malformed ledger reached launch"),
+    )
+
+    assert recurring_cmd.run_recurring_named(
+        load_config(repo), "weekly-check"
+    ) == 2
+    assert "invalid serviced period 'none'" in capsys.readouterr().err
+
+
+def test_named_launch_keeps_control_only_malformed_ledger_blocked_on_retry(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        recipe: digest
+        owner: marc
+        assignee: claude
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    git_repo.git("add", "coga/contexts", "coga/recurring")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/malformed-named-ledger")
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        "2026-08-13 17:22 [recurring/weekly-check] [system] "
+        "created recurring/weekly-check for none\n",
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_launch_created",
+        lambda *args, **kwargs: pytest.fail("malformed ledger reached launch"),
+    )
+    cfg = load_config(coga_os)
+
+    assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 2
+    assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 2
+
+    assert "invalid serviced period 'none'" in capsys.readouterr().err
+    assert (
+        coga_os / "tasks" / "recurring" / "weekly-check" / "ticket.md"
+    ).is_file()
+
+
+def test_sweep_retry_revalidates_control_only_malformed_ledger(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        recipe: digest
+        owner: marc
+        assignee: claude
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    git_repo.git("add", "coga/contexts", "coga/recurring")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/malformed-sweep-ledger")
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        "2026-08-13 17:22 [recurring/weekly-check] [system] "
+        "created recurring/weekly-check for none\n",
+    )
+    launches: list[str] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_recipe_task",
+        lambda cfg, task: launches.append(task.template) or 0,
+    )
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
+    cfg = load_config(coga_os)
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+
+    assert launches == []
+    assert capsys.readouterr().err.count("invalid serviced period 'none'") >= 2
+    assert (
+        coga_os / "tasks" / "recurring" / "weekly-check" / "ticket.md"
+    ).is_file()
 
 
 def test_serviced_periods_ignores_other_log_lines(repo: Path) -> None:

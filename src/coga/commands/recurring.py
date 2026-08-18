@@ -57,7 +57,7 @@ def main(
         "and the already-serviced/done/paused status filter, then get-or-create "
         "and launch each template's real `recurring/<name>` task. Identical to a "
         "bare `coga recurring` (real Slack, spool drain, git sync, "
-        "`last_serviced_period` advance) — just forced. A template that already "
+        "serviced-period ledger advance) — just forced. A template that already "
         "ran this period is re-launched. A canceled period task is refused; "
         "delete it before starting a fresh run.",
     ),

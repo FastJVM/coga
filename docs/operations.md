@@ -146,7 +146,9 @@ Recurring work lives as **templates** under `coga/recurring/<name>/`. `coga
 recurring` scans them and launches any that are due; each due template gets a
 real task at the stable path `tasks/recurring/<name>/`, using the same ticket,
 workflow, blackboard, and log machinery as any other task. The serviced period
-is recorded in the template so the next scan knows what's already done.
+is recorded as a validated calendar-period key in the repo-global `coga/log.md`
+so the next scan knows what's already done. A malformed record is shown as an
+error by `coga recurring list` and `coga status`; it never counts as serviced.
 
 - `coga recurring list` shows the templates and their schedules.
 - `coga recurring --force` runs every template regardless of schedule.
