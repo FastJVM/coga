@@ -6,7 +6,9 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
-contexts: []
+contexts:
+  - marketing/plan
+  - marketing/positioning
 skills: []
 workflow: null
 secrets: null
@@ -14,7 +16,11 @@ secrets: null
 
 ## Description
 
-
+Align the top of the README with the post-1 story (see
+`marketing/plan`): what Coga is, for whom, and the shape of the day (brief in
+the morning, launch the sweep, leave — and see everything it did in your
+repo). Every convinced reader of the post clicks the repo link; the README is
+the landing page. Top only — not a full rewrite.
 
 ## Context
 

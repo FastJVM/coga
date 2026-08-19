@@ -6,7 +6,9 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
-contexts: []
+contexts:
+  - marketing/plan
+  - marketing/positioning
 skills: []
 workflow: null
 secrets: null
@@ -14,7 +16,10 @@ secrets: null
 
 ## Description
 
-
+Create the Coga community Discord and wire it as the "where to go" link
+for the launch posts. Must exist before `marketing/post-async-megalaunch`
+ships — spike readers are not recoverable after the fact. Replaces the
+canceled `marketing/relay-discord` (deleted).
 
 ## Context
 

@@ -6,7 +6,9 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
-contexts: []
+contexts:
+  - marketing/plan
+  - marketing/positioning
 skills: []
 workflow: null
 secrets: null
@@ -14,7 +16,12 @@ secrets: null
 
 ## Description
 
-
+Write launch post 2 — "you own it" — per phase 2 of `marketing/plan`:
+ownership/control/simplicity argued by specifics (in your repo, not their
+cloud; everything the system did is readable; vendor-neutral; zero telemetry;
+flat cost), never as humanist slogan (the "keep thinking" space is occupied).
+Include the "just markdown" judo. Timeable: hold for the next autonomy-hype
+cycle and publish as the counter.
 
 ## Context
 

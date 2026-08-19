@@ -6,7 +6,9 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
-contexts: []
+contexts:
+  - marketing/plan
+  - marketing/positioning
 skills: []
 workflow: null
 secrets: null
@@ -14,7 +16,12 @@ secrets: null
 
 ## Description
 
-
+Audit what exists vs what the launch needs, per the phase 0 of
+`marketing/plan`: the README top (does it tell the post's story?), the blog
+and newsletter state, megalaunch and the blocker queue as narrative material
+(real examples to quote in post 1), community surfaces, and anything else the
+essay series depends on. Output: the concrete phase-0 worklist, written to
+this ticket's blackboard.
 
 ## Context
 
