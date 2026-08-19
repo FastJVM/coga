@@ -3734,3 +3734,11 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-19 13:37 [put-build-back] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-08-19 13:41 [put-build-back] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/701
 2026-08-19 13:41 [put-build-back] [system] {"agent":"claude","agent_turns":4,"cache_creation_input_tokens":95161,"cache_read_input_tokens":864364,"cli":"claude","content_status":"ok","elapsed_seconds":220.39927,"ended_at":"2026-08-19T20:41:35.524290Z","human_turns":0,"input_tokens":40,"model":"claude-fable-5","outcome":"PR opened and recorded. Adding a one-line note about the rebase to the blackboard, then bumping.","outcome_status":"completed","output_tokens":7567,"provider":"anthropic","request":null,"schema":2,"session_id":"0fcd968a-d40c-4c46-93f4-85b8edcb7a82","slug":"put-build-back","started_at":"2026-08-19T20:37:55.125020Z","step":"open-pr","title":"put-build-back","ts":"2026-08-19T20:41:35.524290Z","usage_status":"ok"}
+2026-08-19 13:49 [recurring/autoclose-merged] [system] created (status=active)
+2026-08-19 13:49 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-08-19
+2026-08-19 13:49 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-08-19
+2026-08-19 13:49 [recurring/blocker-reminders] [system] created (status=active)
+2026-08-19 13:49 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-08-19
+2026-08-19 13:49 [recurring/digest] [system] created (status=active)
+2026-08-19 13:49 [recurring/digest] [system] deleted completed prior-period task before 2026-08-19
+2026-08-19 13:49 [recurring/digest] [system] created recurring/digest for 2026-08-19
