@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -98,8 +98,9 @@ worktree: /home/n/Code/codex/coga-put-build-back
 
 ## Implement notes (2026-08-18)
 
-Committed `996e8c77` "Restore coga build first-run onboarding" — the
-build-scoped revert of `8394d3b3`, with `coga project` left removed.
+Committed `b006e4da` "Restore coga build first-run onboarding" after the final
+rebase (originally `996e8c77`) — the build-scoped revert of `8394d3b3`, with
+`coga project` left removed.
 
 What was restored verbatim (verified byte-identical to `8394d3b3^`):
 `src/coga/commands/init.py` (empty-repo-only seeding, `_prune_onboarding_tickets`,
@@ -139,11 +140,79 @@ running them in the pristine primary checkout): adjacent bug, not mine.
 
 ## Adjacent bug (follow-up ticket candidate)
 
-`tests/conftest.py:121` (autouse fixture) deletes `SLACK_WEBHOOK_URL` with
-`raising=False`; three tests then call `monkeypatch.delenv("SLACK_WEBHOOK_URL")`
-with default `raising=True` and hit a deterministic KeyError regardless of
-environment: `test_autoclose.py::test_recipe_preflights_live_summary_before_closing`
-(line 751), `test_recurring.py::test_named_launch_keeps_control_only_malformed_ledger_blocked_on_retry`,
-`test_recurring.py::test_sweep_retry_revalidates_control_only_malformed_ledger`.
-Fix is `raising=False` (or drop the redundant delenv). Not fixed here — out of
-ticket scope.
+The two remaining failures are unrelated to Slack environment setup:
+`test_named_launch_keeps_control_only_malformed_ledger_blocked_on_retry` and
+`test_sweep_retry_revalidates_control_only_malformed_ledger` create a feature
+branch, but the current control-branch gate rejects that branch before the
+malformed-ledger behavior they expect. Both reproduce unchanged on `main`.
+The autoclose test's redundant strict Slack-env deletion was corrected in peer
+review so it now reaches and verifies the intended fail-loud product path.
+
+## Peer review notes (2026-08-19)
+
+Owner clarification: Slack failure must crash/fail the tool. Review the three
+reported failures as part of this step and distinguish the intended fail-loud
+product behavior from an accidental pytest-fixture `KeyError`; apply the
+smallest must-fix correction rather than dismissing the failures as unrelated.
+
+Required `codex review --base main` findings:
+
+- P1: generated starter drafts use bare `coga create`, leaving `workflow: null`
+  and making the advertised batch unlaunchable.
+- P1: `coga build --agent codex` overrides only the first iteration; the frozen
+  ticket's `agent: claude` routes step two back to unavailable Claude.
+- P2: raw `new-user` replacement does not YAML-quote valid names such as
+  `Jane: Doe`, `yes`, or `Nick #1`.
+- P2: the README unconditionally recommends `coga build`, although init prunes
+  that ticket from filled/existing repositories.
+
+All four are must-fix before bump. The Slack product path already deliberately
+fails loud; fix the test's redundant strict `delenv` so it reaches that path.
+
+## Peer review results (2026-08-19)
+
+Rebased the feature branch cleanly onto fresh `origin/main` at `8268e381`.
+Final feature commits are `b006e4da` (restoration) and `bbb02e7b` (peer-review
+findings):
+
+- Generated implementation drafts now use `code/design-then-implement`; the
+  decide/evaluate subset uses `draft-for-human`. Both are launchable, retain
+  `product/vision`, and the final onboarding step now follows the current
+  `coga bump` convention.
+- A one-off `coga launch --agent` override now follows directly consecutive
+  workflow steps whose frozen role is `agent`, without rewriting ticket state;
+  a role change or human assist ends propagation. A Codex-only regression test
+  covers the packaged coga-build shape (`agent: claude`, explicit Codex launch).
+- Init JSON-quotes the user name before inserting it into YAML, preserving
+  valid names such as `Jane: Doe`, `yes`, `Nick #1`, and `[alice]` exactly.
+- README now distinguishes empty-repo `coga build` from filled-repo
+  `coga ticket`, matching init's required prune behavior.
+- Slack delivery remains intentionally fail-loud. The autoclose test now
+  overrides the suite-wide fake secret resolver so it reaches and asserts the
+  missing-webhook crash instead of dying first in `monkeypatch.delenv`.
+
+Verification:
+
+- Changed modules: 365 passed, 1 skipped.
+- Post-rebase full suite: 1,805 passed, 1 skipped, 2 failed. The remaining two failures are
+  the existing recurring control-branch tests recorded above; both reproduce
+  unchanged on the primary `main` checkout. The former Slack failure now passes.
+- Final feature worktree is clean and two commits ahead of `origin/main`;
+  `git diff --check` is clean and the live/packaged onboarding workflows match.
+- `uv build --wheel` succeeded; archive inspection confirmed the alias config,
+  packaged `tasks/coga-build.md`, and byte-identical packaged onboarding
+  workflow are present.
+- `coga validate --task put-build-back --json`: clean.
+
+## PR
+
+Restore `coga build` as the empty-repository first-run onboarding path: init
+seeds its durable ticket only for a blank repo, the alias launches a two-step
+vision-and-ticket workflow, and live/package resources plus user documentation
+describe the restored surface. Keep `coga project` removed. Peer-review
+hardening makes generated drafts genuinely launchable, preserves an explicit
+agent choice across consecutive onboarding steps, safely quotes seeded user
+names, and keeps existing-project guidance on `coga ticket`; Slack remains
+fail-loud and its regression test now exercises that contract.
+
+Test plan: `python3.12 -m pytest -p no:cacheprovider` (1,805 passed, 1 skipped; 2 pre-existing recurring failures reproduced on main), changed-module suite (365 passed, 1 skipped), wheel build/archive inspection, and task-scoped validation.
