@@ -1,7 +1,7 @@
 ---
 slug: read-the-recurring-serviced-period-from-the-log-dr
 title: Read the recurring serviced-period from the log, drop the blackboard marker
-status: in_progress
+status: done
 owner: nick
 human: nick
 agent: claude
@@ -30,7 +30,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
