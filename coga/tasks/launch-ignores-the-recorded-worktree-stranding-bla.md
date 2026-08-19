@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -33,7 +33,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (design)
+step: 2 (review-design)
 ---
 
 ## Description

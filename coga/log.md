@@ -3720,3 +3720,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-19 11:55 [validate-drift-classifier-misses-17-emitted-kinds] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-19 11:55 [launch-ignores-the-recorded-worktree-stranding-bla] [megalaunch] launched via coga megalaunch
 2026-08-19 12:04 [detect-stranded-ticket-writes-across-checkouts] [human:nicktoper] created (status=draft)
+2026-08-19 12:04 [launch-ignores-the-recorded-worktree-stranding-bla] [agent:claude] advanced to step 2 (review-design) → assigned to nicktoper — Spec ready: requires:dev step gate (candidate d); mechanism reproduced; follow-up draft detect-stranded-ticket-writes-across-checkouts
