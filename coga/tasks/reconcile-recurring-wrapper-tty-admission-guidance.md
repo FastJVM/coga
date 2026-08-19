@@ -241,99 +241,23 @@ Dream 2026-W33 stale finding F5 (`coga/tasks/recurring/dream/ticket.md:307,374`)
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Dev
+## Superseded parallel run (collapsed 2026-08-19)
 
-branch: reconcile-recurring-delegation
-worktree: /tmp/coga-reconcile-recurring-delegation
+A second, parallel implementation of this ticket was recorded here from
+another checkout: branch `reconcile-recurring-delegation` (commits `a02c3731`
++ `6a07a50a`, worktree `/tmp/coga-reconcile-recurring-delegation`). Its record
+claimed implement + codex peer review complete, but those commits exist
+neither in this clone nor on origin and the /tmp worktree is gone, so the
+record was collapsed in favor of the reachable run below
+(`delegate-recurring`). The full text is in this file's git history.
 
-## Implement notes
+Its peer review found two must-fix failure-path defects in the same design
+family — check the surviving implementation for both during peer review:
 
-- Chosen mechanism: a declarative `delegate: bootstrap/<name>` template field.
-  It stays in the agent-backed class, so the existing pre-create no-TTY gate
-  remains authoritative. The recurring runner marks the period task
-  `in_progress`, launches the bootstrap target directly through the shared
-  in-process launch supervisor, and marks the period task `done` only after the
-  delegated session's done-sentinel termination. A timeout or natural exit
-  without that completion signal is not success.
-- This settles lifecycle ownership without asking the stateless bootstrap
-  session to mutate the period task: runner-owned bookkeeping mirrors recipe
-  bookkeeping, while the delegated bootstrap target remains stateless and
-  continues to finish with its own targeted `coga slack` signal.
-- Rejected a registered recipe because `recipe:` is the deliberate no-TTY
-  exemption and would move a clean admission refusal into a mid-run launch
-  failure. Rejected copying the bootstrap runbook into the period session
-  because its stateless/no-mark contract conflicts with the period lifecycle
-  and would create a second operational runbook beside the on-demand alias.
-- Inventory reconfirmed on current `main`: deterministic templates are
-  `digest`, `branch-sweep`, `autoclose-merged` (`recipe: autoclose`),
-  `blocker-reminders`, and `skill-update`; direct agent work is `dream`; the
-  only nested delegating wrapper is `resolve-conflicts`.
-- Implemented the field across template parsing, bootstrap-target resolution,
-  static validation, scheduled dispatch, and named on-demand dispatch. The
-  shared launch supervisor can now return a stateless session's termination
-  kind so the runner accepts only the bootstrap done sentinel, not a natural
-  zero exit, as completion.
-- Updated the live and packaged resolve-conflicts templates, the live recurring
-  contract, the live/packaged architecture pair, and the packaged-only CLI
-  context. Added byte-identity guards for the two changed twin pairs. The
-  human-facing `resolve-conflicts` alias remains unchanged.
-- Verification so far: full suite `python -m pytest` passed (1751 passed,
-  1 skipped). Source-backed `coga validate --json` on an isolated copy of the
-  current Coga OS with unrelated task tickets removed exited 0 and resolved all
-  recurring templates (only the expected missing-local-user warning). The full
-  dogfood repo validation resolves the new delegate but exits 1 on seven
-  pre-existing `v2/` draft errors (`missing-step` / unsynthesized blackboard),
-  so those unrelated tickets were left untouched.
-- Commit: `04daadfa` (`Declare recurring bootstrap delegation`). The feature
-  checkout is clean. A final `git fetch origin main && git rebase FETCH_HEAD`
-  found the branch already based on the latest `origin/main` (`213c6dc7`), so
-  no post-test code changed and no test rerun was required.
-
-## Peer review
-
-- `codex review --base main` found two must-fix failure-path defects. A named
-  delegated launch returned success after a watchdog timeout, and any
-  pre-spawn bootstrap refusal paused the period task even though no delegated
-  session ran.
-- Fix direction: make the stateless in-process launch API return the
-  supervisor termination kind for every spawned bootstrap session, including a
-  non-zero natural/crash exit. `SystemExit` then identifies a pre-spawn
-  refusal, so an originally active period task can be restored to `active`
-  instead of parked. Thread an explicit timeout policy so named launches fail
-  loud while the multi-task sweep can record the timeout and continue.
-- Applied both fixes with regression coverage for active/in-progress preflight
-  refusals, named-vs-sweep timeout policy, and non-zero spawned bootstrap
-  outcomes. Affected suites pass: 433 passed, 1 skipped.
-- Review-fix commit rebased to `6a07a50a` (`peer-review: preserve delegated
-  failure semantics`); implementation commit rebased to `a02c3731`. Required
-  `git fetch origin main` + `git rebase FETCH_HEAD` completed cleanly, leaving
-  the branch two commits ahead and the feature checkout clean. Both changed
-  live/packaged pairs remain byte-identical.
-- Post-rebase full suite: `python -m pytest` passed (1757 passed, 1 skipped).
-  Source-backed full dogfood validation still resolves every recurring
-  template and reports only the same seven unrelated pre-existing `v2/` draft
-  errors; the implement step's isolated source-backed validation remains clean.
-
-## PR
-
-Add a declarative `delegate: bootstrap/<name>` execution shape for recurring
-templates that own a schedule but not an operation. Delegations remain
-agent-backed at admission, so a no-TTY sweep still refuses them before period
-task creation; once admitted, the recurring runner launches the stateless
-bootstrap target directly, owns the period task lifecycle, and accepts only the
-target's done sentinel as completion. Pre-spawn refusals leave the period task
-retryable, named watchdog timeouts fail loud, and multi-task sweeps pause the
-timed-out run before continuing.
-
-This deliberately avoids a registered recipe, which would inherit the
-headless TTY exemption and move the failure into the run, and avoids copying
-the stateless runbook into the period task, whose ordinary mark/bump lifecycle
-conflicts with that contract. The on-demand `coga resolve-conflicts` alias is
-unchanged. Live and packaged templates/architecture guidance move together,
-validation resolves delegate targets statically, and the recurring guidance no
-longer sanctions a fake pty or nested agent launch.
-
-Test plan: `python -m pytest` (1757 passed, 1 skipped); source-backed `coga validate --json` is clean on the isolated Coga OS fixture and resolves all recurring templates in the dogfood repo (whose seven unrelated pre-existing `v2/` draft errors remain).
+- a named delegated launch reported success after a watchdog timeout;
+- a pre-spawn bootstrap refusal paused the period task even though no
+  delegated session ran (an originally-active task should be restored to
+  `active`, not parked).
 
 ## Plan (implement step, 2026-08-18)
 
