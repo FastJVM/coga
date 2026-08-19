@@ -184,6 +184,54 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind in {
+        "bad-recurring-template",
+        "broken-recurring-template-skill",
+        "invalid-recurring-schedule",
+    }:
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Open a small PR after reading the recurring template and its "
+                "referenced workflow. Repair the schedule, execution shape, or "
+                "skill reference without inventing a cadence or behavior the "
+                "template does not establish."
+            ),
+        )
+
+    if kind in {"broken-workflow", "missing-step-instructions"}:
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Open a small PR repairing the workflow definition after "
+                "reading its affected tickets. Preserve the frozen steps' "
+                "intended behavior rather than silently changing their routing."
+            ),
+        )
+
+    if kind == "duplicate-slug":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Open a small PR renaming one colliding task path and updating "
+                "its explicit references after determining which name matches "
+                "each task."
+            ),
+        )
+
+    if kind == "duplicate-task-number":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Open a small PR renumbering one colliding task after reading "
+                "the directory's intended megalaunch order."
+            ),
+        )
+
     if kind == "large-blackboard":
         return ClassifiedIssue(
             issue=issue,
@@ -191,6 +239,17 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             remediation=(
                 "Propose a reviewed blackboard condensation that preserves "
                 "current decisions and blockers before removing detail."
+            ),
+        )
+
+    if kind == "unsynthesized-draft-blackboard":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Propose a reviewed synthesis of durable authoring decisions "
+                "into the ticket body. Preserve intentional launch-only notes "
+                "under `## Production notes`; do not discard ambiguous content."
             ),
         )
 
@@ -227,6 +286,17 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind in {"missing-user", "unset-secret-env"}:
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "Machine-local identity or environment setup is missing. Ask "
+                "the operator to follow the validator's setup hint; do not "
+                "commit machine-local config or secret values from Dream."
+            ),
+        )
+
     if kind.startswith("slack-"):
         return ClassifiedIssue(
             issue=issue,
@@ -235,6 +305,17 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
                 "Slack configuration or network state needs a human with "
                 "environment access; do not edit secrets or machine-local config "
                 "from Dream."
+            ),
+        )
+
+    if kind.startswith("github-"):
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "Git/GitHub preflight depends on the operator's tools, auth, "
+                "network, remote, or branch state. Follow the validator's hint; "
+                "Dream must not alter credentials or rewrite branch history."
             ),
         )
 
