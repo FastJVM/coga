@@ -3702,3 +3702,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-19 11:37 [marketing/post-doc-as-cache] [human:nicktoper] created (status=draft)
 2026-08-19 11:39 [bootstrap/orient] [human:nick] launched (assignee=codex, agent=codex)
 2026-08-19 11:39 [bootstrap/orient] [system] {"agent":"codex","agent_turns":null,"cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"codex","content_status":"unknown","elapsed_seconds":12.306399,"ended_at":"2026-08-19T18:39:35.529575Z","human_turns":null,"input_tokens":null,"model":null,"outcome":null,"outcome_status":"completed","output_tokens":null,"provider":"openai","request":null,"schema":2,"session_id":null,"slug":"bootstrap/orient","started_at":"2026-08-19T18:39:23.223176Z","step":null,"title":"Orient an agent in this coga/ repo","ts":"2026-08-19T18:39:35.529575Z","usage_status":"unknown"}
+2026-08-19 11:39 [bootstrap/orient] [human:nick] launched (assignee=codex, agent=codex)
