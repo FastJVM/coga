@@ -12,7 +12,7 @@ from coga.blackboard import append_blocker, open_blockers
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
-from coga.mark import CancellationError, mark_active, mark_canceled
+from coga.mark import CancellationError, mark_active, mark_canceled, mark_in_progress
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import read_ticket, resolve_task
 from coga.ticket import Ticket
@@ -538,6 +538,30 @@ def test_shared_mark_active_refuses_canceled_ticket(repo: Path) -> None:
         )
 
     assert Ticket.read(task_path).status == "canceled"
+
+
+def test_mark_in_progress_uses_matching_sync_subject(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(repo, status="active")
+    cfg = load_config(repo)
+    ref = resolve_task(cfg, slug)
+    messages: list[str] = []
+
+    def capture_sync(*args: object, message: str, **kwargs: object) -> None:
+        messages.append(message)
+
+    monkeypatch.setattr("coga.mark.git.sync_task_state", capture_sync)
+
+    mark_in_progress(
+        cfg,
+        ref,
+        read_ticket(ref),
+        actor="human:marc",
+        log_message="started",
+    )
+
+    assert messages == [f"Ticket: {slug} — in_progress"]
 
 
 # --- --message ----------------------------------------------------------------

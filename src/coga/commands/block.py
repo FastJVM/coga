@@ -46,9 +46,18 @@ def block(
     # or notification preflight. The first strict write remains conditional on
     # these bytes, so work arriving during either window cannot become this
     # command's rollback baseline.
-    pre_lease_snapshot = git.FileMutationRollback.capture(
-        (ref.ticket_path, log_path(cfg)),
-        union_paths=(log_path(cfg),),
+    assist_requested = pr_assist.assist_publication_requested(ref)
+    pre_lease_snapshot = (
+        git.capture_task_mutation_snapshot(
+            ref.path,
+            extra_paths=(log_path(cfg),),
+            union_paths=(log_path(cfg),),
+        )
+        if assist_requested
+        else git.FileMutationRollback.capture(
+            (ref.ticket_path, log_path(cfg)),
+            union_paths=(log_path(cfg),),
+        )
     )
     ticket_bytes = pre_lease_snapshot.originals[ref.ticket_path]
     assert ticket_bytes is not None
@@ -60,7 +69,13 @@ def block(
         )
 
     try:
-        assist = pr_assist.assist_publication_from_env(cfg, ref)
+        assist = pr_assist.assist_publication_from_env(
+            cfg,
+            ref,
+            mutation_snapshot=(
+                pre_lease_snapshot if assist_requested else None
+            ),
+        )
     except git.FeaturePublicationError as exc:
         _bail(
             "Could not verify the recorded assist branch before blocking "

@@ -171,6 +171,20 @@ def digest_spool_path(cfg: Config) -> Path | None:
     return path if path.is_file() else None
 
 
+def digest_spool_target_path(cfg: Config) -> Path | None:
+    """Return the possible spool leaf without performing legacy migration.
+
+    Strict lifecycle commands call this before acquiring a publication lease
+    so a not-yet-migrated spool can be captured as an expected creation rather
+    than becoming unleased checkout dirt.
+    """
+    digest_dir = recurring_dir(cfg) / DIGEST_RECURRING_NAME
+    path = digest_dir / "spool.md"
+    if path.is_file() or (digest_dir / "ticket.md").is_file():
+        return path
+    return None
+
+
 def _migrate_legacy_digest_spool(path: Path, legacy_ticket: Path) -> None:
     """Create `spool.md` for an older digest ticket installation.
 
@@ -244,6 +258,7 @@ def notify(
     image_url: str | None = None,
     important: bool = False,
     fatal: bool = True,
+    record_failure: bool = True,
 ) -> None:
     """Route an outcome/error event: spool it, or post live.
 
@@ -265,7 +280,9 @@ def notify(
     has on `post`: the outcome callers here (`mark done` / `mark canceled`)
     announce a transition already written to disk, so they pass `fatal=False`.
     The spool path writes a local file and never had a delivery failure to
-    begin with.
+    begin with. ``record_failure=False`` is the strict-publication form: a live
+    delivery miss remains visible on stderr without appending an unleased log
+    line after the protected transition.
     """
     if kind not in DIGEST_EVENT_KINDS:
         allowed = ", ".join(sorted(DIGEST_EVENT_KINDS))
@@ -284,6 +301,7 @@ def notify(
             image_url=image_url,
             important=important,
             fatal=fatal,
+            record_failure=record_failure,
         )
         return
 

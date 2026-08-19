@@ -16,6 +16,7 @@ import pytest
 from typer.testing import CliRunner
 
 from coga.cli import app, main
+from coga.repl_supervisor import ASSIST_BRANCH_ENV, EXPECTED_TASK_ENV
 
 
 def _write(path: Path, text: str) -> None:
@@ -99,6 +100,39 @@ def test_pick_alias_expands_to_megalaunch(
     with pytest.raises(SystemExit):
         main()
     assert "→ coga megalaunch --pick" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("termination", ["return", "exit", "crash"])
+def test_inherited_assist_never_falls_back_to_cli_state_sweep(
+    clone: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    termination: str,
+) -> None:
+    _write(clone / "coga.local.toml", 'user = "marc"\n')
+    monkeypatch.setenv(ASSIST_BRANCH_ENV, "feature/review")
+    monkeypatch.setenv(EXPECTED_TASK_ENV, str(clone / "tasks" / "fix-retry-logic"))
+    monkeypatch.setattr("sys.argv", ["coga", "bump", "fix-retry-logic"])
+    sweeps: list[object] = []
+    monkeypatch.setattr("coga.cli._sweep_coga_state", sweeps.append)
+
+    def terminate() -> None:
+        if termination == "exit":
+            raise SystemExit(2)
+        if termination == "crash":
+            raise RuntimeError("strict command failed before publication")
+
+    monkeypatch.setattr("coga.cli.app", terminate)
+
+    if termination == "exit":
+        with pytest.raises(SystemExit, match="2"):
+            main()
+    elif termination == "crash":
+        with pytest.raises(RuntimeError, match="before publication"):
+            main()
+    else:
+        main()
+
+    assert sweeps == []
 
 
 def test_status_runs_without_user(clone: Path) -> None:

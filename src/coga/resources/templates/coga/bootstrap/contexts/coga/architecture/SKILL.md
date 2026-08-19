@@ -334,11 +334,16 @@ bundled refs may replace that list with specific cleanup instructions.
   verbatim, so settling them with the human is the session's first job —
   recorded via `coga unblock <slug> --answer`, which on an already
   `in_progress` ticket resolves the asks without touching status or step.
-  If the resumed session exits before recording an answer, launch returns the
-  ticket to `blocked` so blocker queues keep reporting it. Script and TTY-less launches keep refusing a blocked ticket until `coga unblock`
-  records the answer. `bump` owns workflow progression and enforces
-  `status: in_progress`; at the terminal boundary it delegates the status
-  transition to `mark_done`.
+  If any resumed phase exits before recording an answer, launch returns the
+  ticket to `blocked` so blocker queues keep reporting it. This includes a
+  `ticket.py` phase that fails, pauses, closes, or advances before an agent
+  session starts; an unanswered ask wins, and launch restores the original
+  live step and its assignee when a terminal transition cleared them. An
+  invalid unassigned baseline fails closed instead of inheriting a later agent
+  and misrouting the ask. TTY-less
+  launches keep refusing a blocked ticket until `coga unblock` records the
+  answer. `bump` owns workflow progression and enforces `status: in_progress`;
+  at the terminal boundary it delegates the status transition to `mark_done`.
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when
   status is `in_progress`. Bare `coga bump` advances one step, or marks the
@@ -364,7 +369,42 @@ directory for one fixed `ticket.py` sibling. When present, it subprocesses that
 file headlessly before agent setup. The script receives task identity, current
 step, and declared secrets, but no operands. A zero exit plus an open step
 falls through to the assignee's agent; a completed step or terminal lifecycle
-does not. Without `ticket.py`, launch goes directly to the agent path.
+does not. After a step advance, launch repeats the deterministic phase only for
+another configured agent-owned step; a human or unassigned handoff returns
+control to the caller. Lifecycle and audit sync may move a control checkout, so
+launch reloads config, ticket, target, secrets, and the fixed entry-point stat
+after the last pre-script sync; a removed `ticket.py` becomes an agent-only
+handoff instead of executing a stale path. A recorded single-checkout human
+assist first verifies and aligns its authoritative PR tip, publishes the
+started lifecycle and pre-script audit under the strict PR/control lease, then
+executes `ticket.py` with the same task-scoped assist capability. Valid direct
+ticket/blackboard output and the exit audit are republished from their exact
+post-child byte snapshot under a lease acquired before user code; ignored
+untracked leaves, including ignored non-regular local-environment entries, are
+never part of that snapshot; tracked symlinks remain a refusal. Task validation
+runs before publication, and an invalid result is restored and audited instead
+of reaching either ref. If a nested lifecycle command already published while
+the child ran, recovery restores the latest re-verified feature/control
+lifecycle rather than the stale pre-child state. Live notification
+configuration is preflighted before the child or any strict lifecycle/audit
+publication.
+Lifecycle commands invoked by that child (`bump`, `mark paused/done/canceled`,
+`block`, and `unblock`) capture their own exact task-tree mutation snapshot
+before acquiring a fresh inherited assist lease, publish earlier deterministic
+attachments plus the transition to feature and control together, and include
+the recurring parent high-water state when a period task completes. They leave
+only the trailing script-exit audit for the parent to renew under an append-only
+lease. While that scoped assist environment is present, the CLI's
+generic end-of-command Coga subtree sweep is disabled on success and failure;
+only an exact assist publisher may commit child state. Before every agent
+spawn, launch rebuilds the environment from the fresh ticket's secret
+declarations; after each child boundary it reloads config, target, and ticket
+again before classifying the handoff. An explicit override assisting a human
+step expires when the script advances to a configured agent-owned step, so the
+durable assignee selects and is credited for that next deterministic or agent
+phase; the aligned checkout's strict publication capability continues through
+that configured-agent chain. Without `ticket.py`, launch goes directly to the
+agent path.
 
 Only an actual agent phase composes the ticket prompt and spawns the
 assignee's CLI in a live REPL, so only that phase requires stdin and stdout to
@@ -519,8 +559,10 @@ checkout switch after alignment is a retry-only refusal, never a silent
 downgrade to an ordinary launch. The child inherits a task-scoped recorded-branch,
 recorded-PR, and effective-agent capability,
 allowing required in-session state commands such as the blocked-resume
-`coga unblock` and an explicit `coga block` to use the same feature/control
-lease and re-prove the same PR is open immediately before their generated push,
+`coga unblock`, an explicit `coga block`, and deterministic completion via
+`coga bump` or `coga mark paused/done/canceled` to acquire a fresh
+feature/control lease
+and re-prove the same PR is open immediately before their generated push,
 while attributing a blocker to the assisting agent rather than the human ticket
 assignee, without granting it to nested ordinary launches. If that resumed session exits
 with its ask still open, launch obtains a fresh lease and republishes the
@@ -635,8 +677,14 @@ bump because the gate reads the recorded artifact. The registry remains generic
 
 `coga launch` first checks only the selected target directory for the exact
 `ticket.py` sibling. If present, it runs that file headlessly under the current
-Python interpreter before any TTY, agent-type, agent-CLI, prompt, or push-auth
-preflight. A nonzero exit halts. On zero, launch re-reads the ticket: a
+Python interpreter before agent-type, agent-CLI, prompt, or push-auth
+preflight. A blocked ticket pays only its TTY/open-ask resume gate first. The
+strict human-assist exception aligns the recorded PR checkout and publishes
+its leased lifecycle before user code, so stale or unshared ticket code never
+runs. After any lifecycle/log sync that can move the checkout, launch reloads
+the final config, ticket, secrets, and entry point before exec. A nonzero exit
+halts, and its code is audited/notified even if user code deleted or malformed
+`ticket.md`. On zero, launch re-reads the ticket: a
 completed/advanced/blocked step is not run by an agent, while a still-open step
 continues into the agent path and sees any blackboard findings the script
 appended. The launcher never advances a step for the script. This is a

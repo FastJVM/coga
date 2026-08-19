@@ -2789,6 +2789,37 @@ def test_file_mutation_rollback_refuses_unarmed_restore(
     assert log.read_text() == "prior audit\npeer audit\n"
 
 
+def test_task_snapshot_ignores_untracked_symlinks_but_rejects_tracked_ones(
+    git_repo,
+) -> None:
+    task_dir = git_repo.coga_os / "tasks" / "strict-snapshot"
+    task_dir.mkdir()
+    ticket = task_dir / "ticket.md"
+    ticket.write_text("---\ntitle: strict snapshot\n---\n\nbody\n")
+    (task_dir / ".gitignore").write_text(".venv/\n")
+    ignored_bin = task_dir / ".venv" / "bin"
+    ignored_bin.mkdir(parents=True)
+    (ignored_bin / "python").symlink_to("/usr/bin/python")
+    git_repo.git(
+        "add",
+        str(ticket.relative_to(git_repo.root)),
+        str((task_dir / ".gitignore").relative_to(git_repo.root)),
+    )
+    git_repo.git("commit", "-m", "ticket: seed strict snapshot")
+
+    captured = git.capture_task_file_bytes(task_dir)
+
+    assert set(captured) == {ticket, task_dir / ".gitignore"}
+
+    tracked_link = task_dir / "tracked-link"
+    tracked_link.symlink_to("ticket.md")
+    git_repo.git("add", str(tracked_link.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: track task symlink")
+
+    with pytest.raises(git.FeaturePublicationError, match="symbolic link"):
+        git.capture_task_file_bytes(task_dir)
+
+
 def test_strict_feature_publication_cas_preserves_concurrent_local_commit(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,

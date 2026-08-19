@@ -86,7 +86,7 @@ from coga.repl_supervisor import (
 )
 from coga.task_env import apply_task_env
 from coga.step_gate import gate_publishes_current_branch
-from coga.taskfile import split_body
+from coga.taskfile import TaskFileError, split_body
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -196,82 +196,7 @@ def launch(
 
     resolved_target_slug = ref.id_slug
     is_bootstrap = isinstance(ref, BootstrapRef)
-    entry = script_entry_point(ref)
     script_steps_run: set[str | None] = set()
-    script_launch_announced = False
-
-    if entry is not None and prompt_report:
-        _bail(
-            f"Cannot report an agent prompt for {ref.id_slug}: ticket.py runs "
-            "before composition and may complete the step. --prompt-report "
-            "does not execute ticket code."
-        )
-
-    # The deterministic half runs before *any* agent setup.  A script-only
-    # ticket therefore needs no TTY, configured agent binary, prompt
-    # composition, agent-skill materialization, or push-auth preflight.  If the
-    # script leaves its step open, the ordinary agent path below starts from
-    # the freshly re-read ticket and performs all of those checks then.
-    if entry is not None and not prompt_report:
-        early_ticket = read_ticket(ref)
-        if not is_bootstrap and early_ticket.status in TERMINAL_STATUSES:
-            _bail(
-                f"Cannot launch {ref.id_slug}: it is {early_ticket.status}, a "
-                "terminal status; nothing to launch. Launch a different ticket."
-            )
-
-        # Blocked resume is a distinct attended lifecycle operation. Preserve
-        # its existing resolve-or-re-block gate; once it reactivates, the
-        # supervisor loop below will still run ticket.py before the agent.
-        if is_bootstrap or early_ticket.status != "blocked":
-            script_launch_announced = True
-            typer.echo(
-                f"Launch: task {ref.id_slug} "
-                f"(status={early_ticket.status if not is_bootstrap else 'n/a'}, "
-                f"assignee={early_ticket.assignee or 'unassigned'})",
-                err=is_bootstrap,
-            )
-            try:
-                if (
-                    not is_bootstrap
-                    and isinstance(ref, TaskRef)
-                    and early_ticket.status in {"draft", "paused"}
-                ):
-                    _auto_activate(cfg, ref, early_ticket)
-
-                script_outcome = run_script_chain(
-                    cfg,
-                    ref,
-                    early_ticket,
-                    script_steps_run,
-                )
-                if script_outcome.exit_code != 0:
-                    _exit_failed_script(script_outcome.exit_code)
-                if not script_outcome.needs_agent:
-                    if script_outcome.stop_reason:
-                        typer.echo(
-                            script_outcome.stop_reason,
-                            err=is_bootstrap,
-                        )
-                    _refresh_launch_checkout(cfg)
-                    return None
-                if script_outcome.ticket is None:
-                    _bail(
-                        f"Cannot continue {ref.id_slug}: ticket.py left no "
-                        "ticket state for an agent handoff."
-                    )
-                _require_agent_after_script(
-                    cfg,
-                    ref,
-                    script_outcome.ticket,
-                    agent_override,
-                )
-            except (SecretError, TaskValidationError, FileNotFoundError) as exc:
-                _refresh_launch_checkout(cfg)
-                _bail(str(exc))
-            except BaseException:
-                _refresh_launch_checkout(cfg)
-                raise
 
     # A supported single-checkout assist may be behind its published PR branch.
     # Align before refreshing the agent-skill view or deriving any launch state:
@@ -424,20 +349,6 @@ def launch(
             )
             raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
 
-    # Alignment may fast-forward coga.toml itself. Resolve an explicit override
-    # only after that final tree is authoritative for the launch.
-    if agent_override is not None:
-        try:
-            post_alignment_setup_call(
-                lambda: cfg.agent_type(agent_override)
-            )
-        except ConfigError as exc:
-            setup_bail(str(exc))
-
-    post_alignment_setup_call(
-        lambda: _refresh_agent_skills_for_launch(cfg.repo_root)
-    )
-
     def _read(target: TaskRef | BootstrapRef) -> Ticket:
         """Read the ticket, applying the ephemeral `--agent` override."""
         t = read_ticket(target)
@@ -445,7 +356,28 @@ def launch(
             t.frontmatter["assignee"] = agent_override
         return t
 
+    # Classify only after recorded-assist alignment. Prompt reporting remains
+    # non-executing; for an agent-only report, refresh the agent skill view here
+    # and keep every deterministic launch free of that agent-only preflight.
+    entry = script_entry_point(ref)
+    if entry is not None and prompt_report:
+        _bail(
+            f"Cannot report an agent prompt for {ref.id_slug}: ticket.py runs "
+            "before composition and may complete the step. --prompt-report "
+            "does not execute ticket code."
+        )
+
     if prompt_report:
+        if agent_override is not None:
+            try:
+                post_alignment_setup_call(
+                    lambda: cfg.agent_type(agent_override)
+                )
+            except ConfigError as exc:
+                setup_bail(str(exc))
+        post_alignment_setup_call(
+            lambda: _refresh_agent_skills_for_launch(cfg.repo_root)
+        )
         ticket = _read(ref)
         try:
             composition = compose_prompt_report(
@@ -461,14 +393,14 @@ def launch(
 
     ticket = post_alignment_setup_call(lambda: _read(ref))
 
-    if not script_launch_announced:
-        post_alignment_setup_call(
-            lambda: typer.echo(
-                f"Launch: task {ref.id_slug} "
-                f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
-                f"assignee={ticket.assignee or 'unassigned'})",
-            )
+    post_alignment_setup_call(
+        lambda: typer.echo(
+            f"Launch: task {ref.id_slug} "
+            f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
+            f"assignee={ticket.assignee or 'unassigned'})",
+            err=is_bootstrap and entry is not None,
         )
+    )
 
     # A terminal ticket is closed: launching it must not restart its frozen
     # workflow. Re-activating would re-seed `step: 1` without re-resolving
@@ -487,6 +419,9 @@ def launch(
         )
 
     blocked_resume = False
+    blocked_resume_step: str | None = None
+    blocked_resume_assignee: str | None = None
+    blocked_resume_ticket_bytes: bytes | None = None
 
     # A blocked ticket may be launched only by an explicit interactive human
     # act: the session's first job becomes resolving the open asks with the
@@ -510,6 +445,9 @@ def launch(
                     "repair the task state before launching."
                 )
             blocked_resume = True
+            blocked_resume_step = ticket.step
+            blocked_resume_assignee = ticket.assignee
+            blocked_resume_ticket_bytes = ref.ticket_path.read_bytes()
             post_alignment_setup_call(
                 lambda: typer.echo(
                     f"Launch: {ref.id_slug} is blocked — resuming "
@@ -526,19 +464,6 @@ def launch(
                 f"to resume."
             )
 
-    # Refuse unoverridden human handoffs up front: a human-owned
-    # active/in-progress step should report the handoff directly, before any
-    # status mutation. An explicit override is the on-demand assist path.
-    if not is_bootstrap and ticket.status not in {"draft", "paused"}:
-        post_alignment_setup_call(
-            lambda: _refuse_human_handoff_launch(
-                cfg,
-                ref,
-                ticket,
-                agent_override,
-            )
-        )
-
     assignee = ticket.assignee
     if not assignee:
         setup_bail(f"Task {ref.id_slug} has no assignee")
@@ -553,6 +478,7 @@ def launch(
     human_assist = (
         not is_bootstrap
         and agent_override is not None
+        and bool(assignee)
         and assignee not in cfg.agents
         and not agent_role_override
     )
@@ -617,6 +543,273 @@ def launch(
         and aligned_assist_pr_url is not None
         else None
     )
+
+    def refresh_after_script() -> None:
+        """Refresh once, preserving the strict assist's no-sweep boundary."""
+        try:
+            refreshed = _refresh_launch_checkout(
+                cfg,
+                expected_assist_branch=single_checkout_assist_branch,
+                feature_publication_guard=assist_pr_guard,
+            )
+        except BaseException as exc:
+            if single_checkout_assist_branch is None:
+                raise
+            setup_bail(
+                f"Cannot finish {ref.id_slug}'s deterministic assist: "
+                f"recorded-branch refresh failed ({exc})."
+            )
+        if single_checkout_assist_branch is not None and not refreshed:
+            setup_bail(
+                f"Cannot finish {ref.id_slug}'s deterministic assist: the "
+                "recorded PR branch could not be safely refreshed."
+            )
+
+    def reblock_after_script() -> bool:
+        """Return a still-unanswered resumed blocker to its durable queue."""
+        nonlocal blocked_resume
+        if not blocked_resume:
+            return False
+        blocked_resume = False
+        return _reblock_unresolved_resume(
+            cfg,
+            ref,
+            agent_override or ticket.assignee or assignee,
+            resume_step=blocked_resume_step,
+            resume_assignee=blocked_resume_assignee,
+            fallback_ticket_bytes=blocked_resume_ticket_bytes,
+            feature_branch=single_checkout_assist_branch,
+            feature_publication_guard=assist_pr_guard,
+        )
+
+    def reblock_after_script_safely() -> bool:
+        """Normalize a nested strict re-block refusal to the no-sweep exit."""
+        try:
+            return reblock_after_script()
+        except _AssistPublicationRefused as exc:
+            setup_bail(
+                f"Cannot finish {ref.id_slug}'s deterministic assist: {exc}"
+            )
+
+    # Run the deterministic half before every agent-only preflight. Blocked
+    # tickets pay only their attended/open-ask gate first. A recorded human
+    # assist is additionally wrapped in the same strict lifecycle, PR, audit,
+    # and child-capability transaction as its agent process.
+    if entry is not None:
+        script_outcome = None
+        try:
+            if single_checkout_assist_branch is not None:
+                if (
+                    not isinstance(ref, TaskRef)
+                    or agent_override is None
+                    or aligned_assist_pr_url is None
+                    or assist_pr_guard is None
+                ):
+                    setup_bail(
+                        f"Cannot launch {ref.id_slug}: recorded script assist "
+                        "is missing its task, agent, PR, or publication guard."
+                    )
+                # The selected assist agent is part of the child capability,
+                # so validate the name here. CLI lookup, skill refresh, prompt
+                # composition, and the remaining agent preflights stay deferred
+                # until ticket.py actually leaves agent work open.
+                try:
+                    cfg.agent_type(agent_override)
+                except ConfigError as exc:
+                    setup_bail(str(exc))
+                build_launch_env(cfg, ticket.secrets)
+                _prospective_assist_ticket(cfg, ref, ticket)
+                try:
+                    preflight_post(cfg)
+                except typer.Exit:
+                    setup_bail(
+                        f"Cannot launch {ref.id_slug}: notification "
+                        "configuration must be valid before assist "
+                        "lifecycle state or script audit is published."
+                    )
+                _preflight_push_auth(cfg, ref, is_bootstrap=False)
+                expected_ticket_bytes = ref.ticket_path.read_bytes()
+                _publish_assist_lifecycle_before_spawn(
+                    cfg,
+                    ref,
+                    expected=ticket,
+                    expected_bytes=expected_ticket_bytes,
+                    branch=single_checkout_assist_branch,
+                    launch_assignee=agent_override,
+                    publication_guard=assist_pr_guard,
+                )
+                ticket = _read(ref)
+            elif (
+                not is_bootstrap
+                and isinstance(ref, TaskRef)
+                and ticket.status in {"draft", "paused", "blocked"}
+            ):
+                # Secret resolution belongs before the activation write. The
+                # script helper repeats it after any moving sync so the child
+                # receives the final ticket's declarations.
+                build_launch_env(cfg, ticket.secrets)
+                _auto_activate(cfg, ref, ticket)
+
+            script_outcome = run_script_chain(
+                cfg,
+                ref,
+                ticket,
+                script_steps_run,
+                publish_aligned_branch=single_checkout_assist_branch,
+                assist_agent=(
+                    agent_override
+                    if single_checkout_assist_branch is not None
+                    else None
+                ),
+                assist_pr_url=aligned_assist_pr_url,
+                feature_publication_guard=assist_pr_guard,
+            )
+            cfg = script_outcome.cfg or cfg
+            ref = script_outcome.ref or ref
+            is_bootstrap = isinstance(ref, BootstrapRef)
+            if script_outcome.ticket is not None:
+                ticket = script_outcome.ticket
+            entry = script_entry_point(ref)
+
+            # An unresolved blocked resume may continue to an agent only while
+            # ticket.py left the original step open. Failure, pause, closure,
+            # deletion, or advancement ends the deterministic path and must put
+            # the original ask back in the blocked queue first.
+            should_reblock_after_script = bool(
+                blocked_resume
+                and (
+                    script_outcome.exit_code != 0
+                    or not script_outcome.needs_agent
+                    or script_outcome.ticket is None
+                    or script_outcome.ticket.step != blocked_resume_step
+                )
+            )
+            stop_blocked_resume = (
+                reblock_after_script_safely()
+                if should_reblock_after_script
+                else False
+            )
+
+            if script_outcome.exit_code != 0:
+                _exit_failed_script(script_outcome.exit_code)
+
+            if not script_outcome.needs_agent or stop_blocked_resume:
+                if script_outcome.stop_reason:
+                    typer.echo(script_outcome.stop_reason, err=is_bootstrap)
+                elif stop_blocked_resume:
+                    typer.echo(
+                        f"{ref.id_slug}: unresolved blocker restored; "
+                        "returning to caller"
+                    )
+                refresh_after_script()
+                return None
+
+            if script_outcome.ticket is None:
+                _bail(
+                    f"Cannot continue {ref.id_slug}: ticket.py left no "
+                    "ticket state for an agent handoff."
+                )
+            handoff_override = (
+                agent_override
+                if not human_assist or ticket.assignee not in cfg.agents
+                else None
+            )
+            _require_agent_after_script(
+                cfg,
+                ref,
+                ticket,
+                handoff_override,
+            )
+            # An explicit override authorizes the human-owned step it was
+            # requested for. Once ticket.py advances to a configured agent, the
+            # durable assignee owns the actual spawn and the assist override no
+            # longer participates in routing.
+            agent_override = handoff_override
+            human_assist = bool(
+                agent_override is not None
+                and ticket.assignee
+                and ticket.assignee not in cfg.agents
+            )
+        except (SecretError, TaskValidationError, FileNotFoundError) as exc:
+            if blocked_resume:
+                reblock_after_script_safely()
+            refresh_after_script()
+            if assist_setup_started:
+                setup_bail(str(exc))
+            _bail(str(exc))
+        except BaseException as exc:
+            if blocked_resume:
+                reblock_after_script_safely()
+            refresh_after_script()
+            if (
+                isinstance(exc, SystemExit)
+                and script_outcome is not None
+                and script_outcome.exit_code != 0
+                and exc.code == script_outcome.exit_code
+            ):
+                # The strict result publication and refresh both completed;
+                # preserve ticket.py's real failure instead of rewriting it as
+                # an assist retry code.
+                raise
+            if assist_setup_started and not (
+                isinstance(exc, SystemExit)
+                and exc.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+            ):
+                detail = str(exc).strip() or type(exc).__name__
+                setup_bail(
+                    f"Cannot continue {ref.id_slug}'s deterministic assist "
+                    f"({detail})."
+                )
+            raise
+
+        if single_checkout_assist_branch is not None:
+            try:
+                aligned_assist_remote_oid = _verify_recorded_assist_pr_head(
+                    cfg,
+                    ticket,
+                    single_checkout_assist_branch,
+                    expected_pr_url=aligned_assist_pr_url,
+                )
+            except git.FeaturePublicationError as exc:
+                setup_bail(
+                    f"Cannot continue {ref.id_slug}: the recorded PR could "
+                    f"not be re-verified after ticket.py ({exc})."
+                )
+            assist_publication = git.FeaturePublicationLease(
+                branch=single_checkout_assist_branch,
+                local_oid=aligned_assist_remote_oid,
+                remote_oid=aligned_assist_remote_oid,
+            )
+
+    # Everything below is agent-only. Deterministic completion, failure, and
+    # handoff paths have already returned without consulting agent config,
+    # materializing skills, composing a prompt, or probing the CLI binary.
+    def agent_only_setup_call(action: Callable[[], _T]) -> _T:
+        """Keep a resumed blocker owned through every agent-only preflight."""
+        try:
+            return post_alignment_setup_call(action)
+        except BaseException:
+            if blocked_resume:
+                reblock_after_script_safely()
+            raise
+
+    if agent_override is not None:
+        try:
+            agent_only_setup_call(
+                lambda: cfg.agent_type(agent_override)
+            )
+        except ConfigError as exc:
+            setup_bail(str(exc))
+    agent_only_setup_call(
+        lambda: _refresh_agent_skills_for_launch(cfg.repo_root)
+    )
+
+    assignee = ticket.assignee
+    if not assignee:
+        if blocked_resume:
+            reblock_after_script_safely()
+        setup_bail(f"Task {ref.id_slug} has no assignee")
+
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
         # is brought to `active` inline rather than refused with a "run
@@ -801,6 +994,8 @@ def launch(
         signal.signal(signal.SIGINT, _on_signal)
         signal.signal(signal.SIGTERM, _on_signal)
     except SystemExit as exc:
+        if blocked_resume:
+            reblock_after_script_safely()
         if (
             assist_setup_started
             and exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -810,6 +1005,8 @@ def launch(
             _refresh_launch_checkout(cfg)
         raise
     except BaseException as exc:
+        if blocked_resume:
+            reblock_after_script_safely()
         if assist_setup_started:
             detail = str(exc).strip() or type(exc).__name__
             typer.secho(
@@ -837,9 +1034,21 @@ def launch(
                         ref,
                         ticket,
                         script_steps_run,
+                        publish_aligned_branch=single_checkout_assist_branch,
+                        assist_agent=(
+                            ticket.assignee
+                            if single_checkout_assist_branch is not None
+                            else None
+                        ),
+                        assist_pr_url=aligned_assist_pr_url,
+                        feature_publication_guard=assist_pr_guard,
                     )
                 except (SecretError, TaskValidationError, FileNotFoundError) as exc:
                     _bail(str(exc))
+                cfg = script_outcome.cfg or cfg
+                ref = script_outcome.ref or ref
+                is_bootstrap = isinstance(ref, BootstrapRef)
+                entry = script_entry_point(ref)
                 if script_outcome.exit_code != 0:
                     _exit_failed_script(script_outcome.exit_code)
                 if not script_outcome.needs_agent:
@@ -859,6 +1068,15 @@ def launch(
                     agent_override if first_step else None,
                 )
 
+            # A prior agent or deterministic phase may have changed both the
+            # ticket's secret declarations and coga.toml. Mint this step's env
+            # from the freshly re-read config/ticket instead of carrying the
+            # first step's secret scope across the handoff.
+            try:
+                env = build_launch_env(cfg, ticket.secrets)
+            except SecretError as exc:
+                _bail(str(exc))
+
             # Resolve the agent for THIS step from the ticket's current
             # assignee, so the supervisor can rotate claude <-> codex across
             # the workflow. A one-off `--agent` override follows directly
@@ -866,15 +1084,22 @@ def launch(
             # workflow stays on the explicitly selected CLI. Any role change
             # ends that continuation; later steps follow the ticket. A
             # human-owned first step reaches here only through an explicit
-            # assist, which never propagates. Later human handoffs stop in
-            # `_harness_stop_reason` before a relaunch.
-            assist_session = (
-                first_step
-                and human_assist
-                and ticket.assignee not in cfg.agents
+            # assist, whose override never propagates. Later human handoffs
+            # stop in `_harness_stop_reason` before a relaunch.
+            #
+            # The explicit override expires for routing as soon as ticket.py
+            # hands control to a configured agent, but the launch still owns
+            # one aligned recorded-PR checkout. Keep its strict publication
+            # capability through every configured-agent step so ordinary
+            # lifecycle commands cannot leave that checkout locally ahead of
+            # the PR and make teardown fail closed.
+            strict_publication_session = (
+                single_checkout_assist_branch is not None
             )
             publish_assist_branch = (
-                single_checkout_assist_branch if assist_session else None
+                single_checkout_assist_branch
+                if strict_publication_session
+                else None
             )
             current_step = ticket.current_step()
             current_role = (
@@ -1114,6 +1339,8 @@ def launch(
                         cfg,
                         ref,
                         agent_override or launch_assignee,
+                        resume_step=blocked_resume_step,
+                        resume_assignee=blocked_resume_assignee,
                         feature_branch=single_checkout_assist_branch,
                         feature_publication_guard=assist_pr_guard,
                     )
@@ -1148,6 +1375,30 @@ def launch(
             raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
         raise
     finally:
+        # A blocked resume stays responsible for its original unanswered ask
+        # until an agent session records a resolution.  ticket.py can end the
+        # deterministic path before the ordinary post-session cleanup (failure,
+        # pause, close, or a step handoff), so cover every remaining
+        # exit here.  The helper is a no-op once the ask was resolved.
+        if blocked_resume:
+            blocked_resume = False
+            try:
+                _reblock_unresolved_resume(
+                    cfg,
+                    ref,
+                    agent_override or launch_assignee,
+                    resume_step=blocked_resume_step,
+                    resume_assignee=blocked_resume_assignee,
+                    feature_branch=single_checkout_assist_branch,
+                    feature_publication_guard=assist_pr_guard,
+                )
+            except _AssistPublicationRefused as exc:
+                suppress_assist_refresh = True
+                _bail(
+                    str(exc),
+                    exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+                )
+
         # On every exit path — clean chain completion, `sys.exit` on a
         # non-zero/timeout agent, or an exception — pull the run's published
         # state back into the checkout the operator launched from, so the
@@ -1557,44 +1808,101 @@ def _reblock_unresolved_resume(
     ref: TaskRef | BootstrapRef,
     blocker: str | None,
     *,
+    resume_step: str | None = None,
+    resume_assignee: str | None = None,
+    fallback_ticket_bytes: bytes | None = None,
     feature_branch: str | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
-) -> None:
+) -> bool:
     """Return an unresolved blocked-ticket resume to the blocked queue.
 
     A resumed blocked launch is allowed to become `in_progress` so the same
     session can discuss, run `coga unblock`, and continue to `coga bump`. If
     that session exits before recording the answer, keep the unresolved ask
     visible to `status --blocked`, `unblock --all`, and blocker reminders.
+
+    ``resume_step`` is supplied by the deterministic path.  A ticket script
+    can pause or close the ticket before launch regains control; an unanswered
+    ask still wins, so restore the original live step when the transition
+    cleared it and put the ticket back in the blocked queue.  Agent-session
+    callers omit it and retain the established in-progress-only cleanup.
+
+    Returns whether an open ask remains durably parked as ``blocked``.
     """
-    if not isinstance(ref, TaskRef) or not ref.ticket_path.exists():
-        return
+    if not isinstance(ref, TaskRef):
+        return False
     # The automatic reblock's Ticket object and rollback baseline must predate
     # its network lease. Parse both lifecycle and blockers from that one exact
     # revision so a peer edit during lease acquisition is rejected by
     # ``mark_blocked`` rather than adopted or overwritten.
-    rollback = (
-        _snapshot_assist_state(cfg, ref)
-        if feature_branch is not None
-        else None
+    rollback = _snapshot_assist_state(cfg, ref) if feature_branch is not None else None
+    current_bytes = (
+        rollback.originals[ref.ticket_path]
+        if rollback is not None
+        else (
+            ref.ticket_path.read_bytes()
+            if ref.ticket_path.is_file()
+            else None
+        )
     )
-    if rollback is not None:
-        ticket_bytes = rollback.originals[ref.ticket_path]
-        assert ticket_bytes is not None
-        ticket = Ticket.parse(ticket_bytes.decode("utf-8"))
+    restored_fallback = False
+    try:
+        if current_bytes is None:
+            raise TicketError("ticket.py removed ticket.md")
+        ticket = Ticket.parse(current_bytes.decode("utf-8"))
         _, blackboard = split_body(ticket.body)
         blockers = [
-            blocker
-            for blocker in parse_blockers_text(blackboard or "")
-            if not blocker.resolved
+            item
+            for item in parse_blockers_text(blackboard or "")
+            if not item.resolved
         ]
-    else:
-        blockers = open_blockers(ref.ticket_path)
-        ticket = read_ticket(ref)
+    except (OSError, UnicodeError, TaskFileError, TicketError) as exc:
+        if fallback_ticket_bytes is None:
+            return False
+        if feature_branch is not None:
+            raise _AssistPublicationRefused(
+                f"Could not return {ref.id_slug} to blocked because ticket.py "
+                f"left unreadable strict state: {exc}",
+                post_session=True,
+            ) from exc
+        ticket = Ticket.parse(fallback_ticket_bytes.decode("utf-8"))
+        _, blackboard = split_body(ticket.body)
+        blockers = [
+            item
+            for item in parse_blockers_text(blackboard or "")
+            if not item.resolved
+        ]
+        # A failed deterministic child owns its invalid or missing ticket
+        # result. Fall back to the exact pre-resume ticket so the original ask
+        # stays queue-visible, then preserve the child's exit code upstream.
+        ref.ticket_path.parent.mkdir(parents=True, exist_ok=True)
+        ticket.write(ref.ticket_path)
+        restored_fallback = True
     if not blockers:
-        return
-    if ticket.status != "in_progress":
-        return
+        return False
+    if ticket.status == "blocked" and not restored_fallback:
+        return True
+    if ticket.status != "in_progress" and resume_step is None:
+        return False
+    script_lifecycle = (
+        ("in_progress", resume_step, resume_assignee)
+        if restored_fallback and resume_step is not None
+        else (ticket.status, ticket.step, ticket.assignee)
+    )
+    if resume_step is not None and ticket.step is None:
+        ticket.frontmatter["step"] = resume_step
+        # A terminal deterministic transition can clear ``step`` while leaving
+        # a later agent assignee behind. Restore the original owner rather than
+        # misrouting the unresolved ask. A live ticket cannot validly be
+        # unassigned (the schema requires a non-empty ``assignee``), so an
+        # invalid baseline fails closed instead of inheriting that later agent.
+        if resume_assignee is None:
+            raise _AssistPublicationRefused(
+                f"Could not return {ref.id_slug} to blocked because its "
+                "original resumed step had no valid assignee; refusing to "
+                "attribute the unresolved ask to a later agent"
+            )
+        ticket.frontmatter["assignee"] = resume_assignee
 
     owner = ticket.owner or cfg.current_user
     detail = "; ".join(b.reason for b in blockers)
@@ -1641,6 +1949,12 @@ def _reblock_unresolved_resume(
             feature_publication_guard=feature_publication_guard,
             mutation_snapshot=rollback,
             after_sync=record_publication if rollback is not None else None,
+            state_guard=git.ticket_state_guard(
+                cfg,
+                ref.ticket_path,
+                allow_terminal_change=True,
+                expected_lifecycle=script_lifecycle,
+            ),
         )
     except git.FeaturePublicationError as exc:
         rollback_note = ""
@@ -1690,6 +2004,7 @@ def _reblock_unresolved_resume(
             f"after {type(exc).__name__}: {detail}{rollback_note}",
             post_session=True,
         ) from exc
+    return True
 
 
 def _preflight_push_auth(

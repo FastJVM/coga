@@ -133,9 +133,41 @@ the step through `coga bump`, `coga mark done`, or `coga block`, launch observes
 the new frontmatter and does not spawn an agent for that step. If it exits zero
 while the step remains open, launch composes the freshly re-read ticket — so a
 blackboard append is the visible handoff — and starts the agent on the same
-step. A nonzero exit halts before composition. This completion contract makes a
-forgotten completion fail toward running the agent, never toward silently
-skipping judgment.
+step. A step advance repeats `ticket.py` only while control stays with a
+configured agent; a human or unassigned handoff stops the chain. A recorded
+single-checkout human assist aligns its authoritative PR tip and publishes the
+started lifecycle before either the entry-point stat or user code runs, then
+gives the script the same scoped assist capability and strictly republishes its
+valid ticket/result state from an exact publishable post-child byte snapshot
+captured by a pre-execution publication lease; ignored untracked leaves,
+including non-regular local-environment entries, are excluded while tracked
+symlinks still refuse publication. The result must still pass ordinary task
+validation; invalid output is restored and audited rather than published. If a
+nested lifecycle command already published, recovery uses the latest
+re-verified feature/control lifecycle instead of rewinding it. Live
+notification configuration is preflighted before strict user code or state
+publication. An
+in-script `coga bump`, `coga mark paused/done/canceled`,
+`coga block`, or `coga unblock` consumes a fresh inherited assist lease around
+its own exact task-tree/log (and, for outcomes, digest-spool) mutation, so
+attachments written earlier in that deterministic phase ride the same
+transition. Period completion includes its recurring parent's high-water
+state. The parent then renews only for the trailing exit audit instead of
+reusing a stale pre-child control witness. The inherited assist scope disables
+the CLI's broad
+end-of-command subtree sweep, so an early command failure cannot bypass the
+exact publisher. Ordinary lifecycle or audit sync can also move a
+control checkout, so config, ticket, secrets, and `ticket.py` are re-derived
+after that boundary. A removed entry point falls through as agent-only work. A
+nonzero exit halts before composition and remains the reported/audited result
+even when the script deleted or malformed its ticket. After a successful child
+boundary, config, target, and ticket are reloaded before handoff. Each later
+agent spawn rebuilds its secret environment from the current ticket, and a
+human-assist override no longer routes or receives credit after the durable
+workflow hands control to a configured agent, while the aligned checkout
+retains strict publication through that configured-agent chain.
+This completion contract makes a forgotten completion fail toward running the
+agent, never toward silently skipping judgment.
 
 ## Ticket vs. command: statefulness decides
 
