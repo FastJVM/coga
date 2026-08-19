@@ -45,16 +45,28 @@ back:
 - the reverted `src/coga/commands/init.py` seeding and the associated test
   coverage removed from `tests/test_aliases.py`, `tests/test_init.py`,
   `tests/test_packaging.py`
+- the two `coga build` → `coga chat` `purpose` strings in
+  `src/coga/dependencies.py`, and the seeded `[coga-build] created` line in
+  `src/coga/resources/templates/coga/log.md`
 - doc/context mentions trimmed by the PR (README, `docs/getting-started.md`,
   `docs/reference.md`, `docs/cli-extension-audit.md`,
   `coga/contexts/coga/architecture`, `coga/contexts/coga/codebase`,
   `coga/contexts/coga/usage`, packaged `bootstrap/contexts/coga/cli` and
   `bootstrap/contexts/coga/architecture`) — restore only the build mentions,
   leave `project` mentions out, and resolve any drift from commits landed
-  since the removal.
+  since the removal. Drift is nontrivial (`src/coga/aliases.py` and the
+  packaged `coga.toml` have both changed since); where reverted text
+  conflicts with current text, current text wins — re-add the build mentions
+  on top of it rather than restoring old prose wholesale.
 
 Leave removed: `src/coga/commands/project.py`, the `bootstrap/project` skill,
 `tests/test_project.py`, and the packaged `bootstrap/project/ticket.md`.
+
+Evaluator notes (2026-08-18): restore the old empty-repo-only seeding
+semantics as-is — that design is still wanted, not just the old code. When
+restoring the packaged `coga-build` ticket template, check its frontmatter
+against current template conventions (several `recurring/` templates were
+reworked after the removal).
 
 <!-- coga:blackboard -->
 
