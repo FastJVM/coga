@@ -72,6 +72,12 @@ Writing rules for this post (and defaults for the series):
 
 - One post, one idea. Everything else is a later post.
 - Present tense, real details, first person.
+- **Own the dogfooding, and source details beyond it.** Coga runs on
+  itself and the post says so openly — the public repo is the passive
+  receipt (the days the post describes are readable in git: log, tickets,
+  PRs). The "coga working on coga" dismissal is preempted by drawing real
+  details from non-Coga repos too (multiply, other team usage), so the
+  story shows the practice, not the tool grooming itself.
 - **No numbers as claims.** The claim is the *shape of the day*
   ("an hour or two in the morning, then I leave"), never a figure that
   invites verification. An essay claims ideas, not results.
@@ -92,10 +98,20 @@ Writing rules for this post (and defaults for the series):
 - **README top aligned with the story.** Every convinced reader clicks the
   repo link; the README is the landing page. Not a full rewrite — the top
   must echo the post (what it is, for whom, the day-shape).
-- **Discord re-created** (decided 2026-08-19; the canceled
-  `marketing/relay-discord` is re-filed). Must exist *before* post 1 ships
-  — it is the "where to go" link, and spike readers are not recoverable
-  after the fact.
+- **Quickstart validated end-to-end** — same bucket as the README work:
+  run the install/first-run path from the README on a fresh repo before
+  the post ships. The internal-tool envelope lowers expectations, but a
+  *broken* first run still burns every converted reader; this replaces the
+  old plan's cold-start test at a fraction of its cost.
+- **Community home, right-sized** (re-decided 2026-08-19): the post needs
+  a "where to go" link before it ships, but an empty Discord is negative
+  signal — the `marketing/discord` ticket decides between GitHub
+  Discussions first (honest size, upgrade later) and Discord now; either
+  must exist before post 1.
+- **Token measurement assigned** — post 3 needs receipts collected during
+  phases 1–2 (same task with vs without contexts; `--prompt-report`,
+  schema-2 usage records). The audit names who/what collects them so
+  phase 3 isn't blocked at writing time.
 - **Measurement thresholds noted** before publishing (privately is fine) —
   so the phase-1 retro can't be post-hoc rationalization.
 
@@ -156,6 +172,28 @@ thank early testers. Nothing to schedule; a standard to hold.
 - **Attribution without telemetry:** per-channel URLs into the blog
   (first-party analytics), laid against PyPI download curve and GitHub
   star timeline vs post timestamps. Phase decisions get made from this.
+- **Craft risk is priced, not ignored:** the plan bets everything on the
+  quality of the writing (no structural novelty backs it up), and that bet
+  is on a demonstrated strength — the founder has front-paged HN twice on
+  prose alone. Post 1 still gets iterations plus a Bookface read before HN.
+
+## Prepared replies (comment-section discipline)
+
+Write these out before post 1 ships; never improvise them in-thread:
+
+- **"Show me / where are the receipts?"** — the repo is public; the days
+  the post describes are readable in git (log, tickets, PRs). No numbers
+  are claimed, but everything is passively verifiable.
+- **"It's just markdown and a CLI — I'll build it myself."** — agreement,
+  never defense: yes, that's why you can trust it. The value is the
+  compounded substrate and the debugged discipline, not the mechanism; a
+  homegrown version spends months re-learning it.
+- **"How many PRs / how much did it actually ship?"** — no benchmark
+  framing; the post claims a practice, not a result. Point at the repo;
+  the proof post, if it ever runs, is the numbers play.
+- **"You're just running it on itself."** — dogfooding is stated in the
+  post itself, alongside non-Coga usage details; the practice is the
+  claim, and the repo running on it is the standing demo.
 
 ## Claim discipline (adapted for the essay series)
 
@@ -177,16 +215,18 @@ remain the long-arc goal but are *not* the bar for the essay posts — by
 construction they convert lightly. The proof post, if it ever runs, is the
 installs play.
 
-## Tickets to (re)create
+## Execution tickets (created 2026-08-19)
 
-Re-derive execution tickets from this file (the old refs are superseded):
-
-- `marketing/phase-0-audit` — the audit above; output is the worklist.
+- `marketing/phase-0-audit` — the audit above (includes the quickstart
+  run-through and the token-measurement assignment); output is the
+  worklist.
 - `marketing/readme-top` — align the README top with the story.
-- `marketing/discord` — re-create the community home (before post 1).
+- `marketing/discord` — right-size and create the community home (before
+  post 1; Discussions-vs-Discord decided in the ticket).
 - `marketing/post-async-megalaunch` — write post 1 (structure above).
 - `marketing/post-you-own-it` — write post 2 (phase 2 angle rules).
-- Later: `marketing/post-doc-as-cache` (+ its measurement collection).
+- `marketing/post-doc-as-cache` — write post 3 (needs the collected
+  measurements).
 
 ## What this context does NOT cover
 

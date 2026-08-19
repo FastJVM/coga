@@ -19,8 +19,10 @@ secrets: null
 Write launch post 1 — the "async megalaunch" story — following the
 structure and writing rules in `marketing/plan`: present tense (never
 genesis), the five beats (chained state → it works without me → but I see
-where it's going → what it became → I'm open-sourcing it), real details, no
-numbers as claims, internal-tool envelope. Publish on the founder's blog;
+where it's going → what it became → I'm open-sourcing it), real details
+drawn from non-Coga repos first (own the dogfooding openly — the public repo
+is the passive receipt), no numbers as claims, internal-tool envelope. Write
+the prepared comment-section replies (see the plan) before shipping. Publish on the founder's blog;
 distribution per phase 1 of the plan (newsletter, Bookface before HN, HN as
 plain story submission).
 

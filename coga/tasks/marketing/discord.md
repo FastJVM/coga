@@ -16,10 +16,12 @@ secrets: null
 
 ## Description
 
-Create the Coga community Discord and wire it as the "where to go" link
-for the launch posts. Must exist before `marketing/post-async-megalaunch`
-ships — spike readers are not recoverable after the fact. Replaces the
-canceled `marketing/relay-discord` (deleted).
+Right-size and create the Coga community home, wired as the "where to go"
+link for the launch posts. Decide in this ticket: GitHub Discussions first
+(honest size for a fresh OSS repo, upgrade later) vs Discord now — an empty
+Discord visible to arrivals is negative signal. Either must exist before
+`marketing/post-async-megalaunch` ships — spike readers are not recoverable
+after the fact. Replaces the canceled `marketing/relay-discord` (deleted).
 
 ## Context
 
