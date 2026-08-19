@@ -3755,3 +3755,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-19 13:50 [recurring/blocker-reminders] [system] launched as recipe (blocker-reminders)
 2026-08-19 13:50 [recurring/blocker-reminders] [system] recipe blocker-reminders exited with code 0
 2026-08-19 13:50 [recurring/blocker-reminders] [system] completed (recipe blocker-reminders exited 0) via coga recurring
+2026-08-19 13:49 [validate-drift-classifier-misses-17-emitted-kinds] [human:nicktoper] launched (assignee=claude, launch_assignee=codex, agent=codex)
+2026-08-19 16:58 [validate-drift-classifier-misses-17-emitted-kinds] [agent:claude] advanced to step 2 (peer-review) → assigned to codex

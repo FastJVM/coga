@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -126,3 +126,74 @@ Verified against the package source during the 2026-08-15 Dream run in the
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: codex/validate-drift-kinds
+worktree: /home/n/Code/codex/coga-validate-drift-kinds
+
+## Implement notes
+
+- Re-derived 35 literal validator kinds from `src/coga/validate.py` and five
+  dynamic GitHub preflight names from `src/coga/github_preflight.py`; the 16
+  kinds in the ticket are exactly the kinds reaching the unknown fallback.
+- Agreed classification: `github-*`, `missing-user`, and `unset-secret-env`
+  stay `human-needed`; the other eight file-backed structural/template kinds,
+  including `unsynthesized-draft-blackboard`, become `pr-proposal`.
+- Coverage will derive literal and f-string kind samples from validator source
+  so a new emitter cannot silently rely on the unknown-kind backstop.
+- Added the regression first: all 16 per-kind cases and the aggregate coverage
+  check failed against the old classifier. After the explicit branches were
+  added, `tests/test_dream_validate_drift.py` passes (30 tests).
+- The unknown fallback remains unchanged. The packaged skill now describes it
+  as a runtime backstop and points to the source-derived coverage guard.
+
+## Verification
+
+- Focused: `tests/test_dream_validate_drift.py` — 30 passed.
+- Full suite: 1810 passed, 1 skipped, 3 failed. All three failures reproduce
+  unchanged on `main` when run directly there:
+  - `test_recipe_preflights_live_summary_before_closing` expects an inherited
+    `SLACK_WEBHOOK_URL` that is absent.
+  - `test_named_launch_keeps_control_only_malformed_ledger_blocked_on_retry`
+    and `test_sweep_retry_revalidates_control_only_malformed_ledger` now hit
+    the control-branch gate before their older ledger assertions.
+- These failures do not exercise validate-drift or any changed file; no
+  unrelated fixes have been attempted.
+
+## Expanded verification cleanup
+
+The owner asked to fix the three baseline failures and remove the skip on this
+branch.
+
+- Autoclose failure combined two stale test assumptions: the autouse Slack
+  fixture deliberately removes `SLACK_WEBHOOK_URL` and then resolves that
+  exact fixture reference to a stub URL. The test now points its config at a
+  distinct explicitly-unset variable, so it reaches the intended live-summary
+  preflight failure without depending on the caller's environment.
+- Both recurring failures exercise a feature-branch entrypoint even though the
+  shipped control-branch gate now refuses every recurring entrypoint before it
+  reads period state. The retained feature-branch landing path is explicitly a
+  low-level migration surface, so the ledger regressions should target that
+  surface rather than bypass the public gate accidentally.
+- The sole skip is the wheel test's old `pytest.importorskip("hatchling")`.
+  `hatchling` is already a required test extra in `pyproject.toml`; the skip
+  still hides a missing test-environment dependency instead of failing loud.
+- The repaired failure cases plus validate-drift pass together (33 tests), and
+  the wheel module passes all 5 tests in a disposable environment installed
+  with `.[test]`; it no longer skips when the declared dependencies are present.
+- Full declared-dependency suite: 1814 passed, 0 skipped.
+- Scoped validation: 1 task valid, no issues. Example fixture validation: 2
+  tasks valid, no issues (run with the caller's unrelated bare
+  `SLACK_WEBHOOK_URL` export removed from the command environment).
+
+## Final implementation state
+
+- Commits after final rebase:
+  - `cbf46643 Classify all emitted validate drift kinds`
+  - `6d9158ca Repair stale full-suite checks`
+- Rebasing onto `origin/main` at `7ad12388` replayed cleanly; the 17 incoming
+  commits touched none of this branch's six changed files.
+- Post-rebase verification: 1814 passed, 0 skipped; `git diff --check` clean;
+  scoped task and example fixture validation both report no issues.
+- Feature checkout is clean and contains `origin/main`. No push or PR was
+  created in this step.
