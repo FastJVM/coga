@@ -45,7 +45,8 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
 #
 # ``dream`` is a default alias rather than a built-in command: a Dream run is an
 # ordinary recurring task, and ``coga dream`` takes the same path as ``coga
-# recurring launch dream``. ``skill-update`` and ``autoclose`` launch ordinary
+# recurring launch dream``. ``build`` is similarly the first-run alias for
+# ``launch coga-build``. ``skill-update`` and ``autoclose`` launch ordinary
 # recurring tasks on demand, while ``pick`` is the short spelling for the
 # interactive megalaunch picker. ``open-pr`` is the short spelling for the
 # registered ``open-pr`` recipe — the argv rewrite hands the task ref to the
@@ -56,6 +57,7 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
 DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
+    "build": "launch coga-build",
     "skill-update": "recurring launch skill-update",
     "autoclose": "recurring launch autoclose-merged",
     "pick": "megalaunch --pick",

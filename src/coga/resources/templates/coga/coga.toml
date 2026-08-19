@@ -137,6 +137,10 @@ channels = []
 
 [aliases]
 chat = "launch bootstrap/orient"
+# `build` is first-run onboarding — it launches the packaged `coga-build`
+# ticket (one question → agent-led chat → vision → starter tickets). Requires
+# an already-init'd repo; `coga init` captures your name beforehand.
+build = "launch coga-build"
 # `pick` opens the interactive megalaunch picker — a memorable name for
 # `coga megalaunch --pick`. A trailing directory still scopes it
 # (`coga pick marketing`).

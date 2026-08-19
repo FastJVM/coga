@@ -19,7 +19,7 @@ code.
 - **An agent CLI**, installed and authenticated: either
   [Claude Code](https://claude.com/claude-code) or
   [Codex](https://github.com/openai/codex). You need one before anything that
-  launches an agent (`coga launch`, `coga ticket`, `coga chat`). `coga init`
+  launches an agent (`coga launch`, `coga ticket`, `coga build`). `coga init`
   itself works without one.
 - **The GitHub CLI** ([`gh`](https://cli.github.com), then `gh auth login`) is
   recommended but not required at init. PR workflows, the merged-ticket autoclose

@@ -122,6 +122,10 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
         "coga/recurring/dream/ticket.md",
         "src/coga/resources/templates/coga/recurring/dream/ticket.md",
     ),
+    (
+        "coga/workflows/build/onboarding.md",
+        "src/coga/resources/templates/coga/workflows/build/onboarding.md",
+    ),
 )
 
 

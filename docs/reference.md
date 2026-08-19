@@ -389,12 +389,13 @@ Resolve one `op://…` or `env:VAR` reference and print its value to stdout. Und
 Thin sugar over common commands. Positional args after the alias name forward
 to the expanded form.
 
-These seven ship with every install, registered in `aliases.DEFAULT_ALIASES`,
+These eight ship with every install, registered in `aliases.DEFAULT_ALIASES`,
 so they work whether or not `coga.toml` names them:
 
 | Alias | Expands to |
 | --- | --- |
 | `coga chat` | `coga launch bootstrap/orient` |
+| `coga build` | `coga launch coga-build` |
 | `coga dream` | `coga recurring launch dream` |
 | `coga skill-update` | `coga recurring launch skill-update` |
 | `coga autoclose` | `coga recurring launch autoclose-merged` |
@@ -402,7 +403,7 @@ so they work whether or not `coga.toml` names them:
 | `coga open-pr` | `coga run open-pr` |
 | `coga resolve-conflicts` | `coga launch bootstrap/resolve-conflicts` |
 
-The packaged `coga.toml` writes out only `chat`, `pick`, and `dream`;
+The packaged `coga.toml` writes out only `chat`, `build`, `pick`, and `dream`;
 the other four come from the Python defaults, so opening `coga.toml` will not
 show you the full set.
 
