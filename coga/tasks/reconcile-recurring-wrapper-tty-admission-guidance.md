@@ -241,6 +241,7 @@ Dream 2026-W33 stale finding F5 (`coga/tasks/recurring/dream/ticket.md:307,374`)
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+<<<<<<< HEAD
 ## Dev
 
 branch: reconcile-recurring-delegation
@@ -334,3 +335,124 @@ validation resolves delegate targets statically, and the recurring guidance no
 longer sanctions a fake pty or nested agent launch.
 
 Test plan: `python -m pytest` (1757 passed, 1 skipped); source-backed `coga validate --json` is clean on the isolated Coga OS fixture and resolves all recurring templates in the dogfood repo (whose seven unrelated pre-existing `v2/` draft errors remain).
+=======
+## Plan (implement step, 2026-08-18)
+
+Chosen mechanism: **option 1 — declarative `delegate:` frontmatter field** on
+recurring templates, mutually exclusive with `recipe:`.
+
+**The "who marks the period task done" question has a clean answer:** the same
+actor that already does it for recipe-backed period tasks — `recurring_runner`
+itself. `_run_recipe_task` already owns the full lifecycle around a recipe
+subprocess (`mark_in_progress` → run → `mark_done` on exit 0, failure Slack
+otherwise). A new `_run_delegated_task` mirrors that exactly, with the
+subprocess replaced by an in-process `launch_cmd(<bootstrap ref>)` call:
+
+- period task `active` → `mark_in_progress` (actor `system`) before delegating;
+- the delegated `bootstrap/<name>` launch runs in the operator's own terminal
+  (the sweep is a foreground command) under the sweep's idle/max-session
+  liveness bounds and queue guidance — no nested shell-out, no pty;
+- clean return → runner `mark_done`s the period task; liveness timeout →
+  `_stop_if_unfinished_after_launch(timed_out=True)` pauses it as a watchdog
+  timeout and the sweep continues — both identical to existing recurring
+  bookkeeping paths. No session ever runs *on* the period task, so no session
+  inside it needs to run `coga mark done`.
+- a crashed delegated launch leaves the period task `in_progress`; the next
+  sweep resumes it as a dead sweep's orphan and re-delegates — the existing
+  orphan-resume rule, unchanged.
+
+**TTY admission preserved at admission:** the gates at
+`src/coga/recurring.py` read `if not allow_agent and not template.recipe`; a
+delegating template has no `recipe:`, so a headless sweep still refuses it
+*before the period task is created*. Option 2 was rejected for exactly this
+(recipe class is exempt from TTY admission → mid-run failure); option 3
+rejected because the bootstrap runbook is deliberately stateless ("no task per
+run, no `coga bump`/`coga mark`") and folding it into the period task's own
+session would either violate that contract or fork the runbook into two
+copies; the on-demand `coga resolve-conflicts` alias must keep working
+unchanged either way.
+
+Changes:
+- `src/coga/recurring.py`: `Template.delegate` property + load-time validation
+  (non-empty string, `bootstrap/<name>` shape, exclusive with `recipe:`);
+  `DueTask.delegate` field; `scan_due` carries it.
+- `src/coga/recurring_runner.py`: `_run_delegated_task`; sweep loop and
+  `_launch_created`/`run_recurring_named` branch on `delegate` like `recipe`.
+- `src/coga/validate.py`: resolve `delegate:` targets via `resolve_bootstrap`
+  so `coga validate` rejects unknown targets statically.
+- `coga/recurring/resolve-conflicts/ticket.md` + packaged twin: add
+  `delegate:`, delete the wrapper instructions and the two-level-conflating
+  frontmatter comment.
+- `coga/contexts/coga/recurring/SKILL.md` (repo-local only): field docs +
+  replace the pty Gotcha with the `delegate:` shape.
+- `coga/contexts/coga/architecture/SKILL.md` + packaged twin: taxonomy
+  sentence gains the delegate shape.
+- packaged-only `.../contexts/coga/cli/SKILL.md`: recurring section notes
+  delegate templates are TTY-gated like agent templates.
+- Tests in `tests/test_recurring.py`, incl. the acceptance-named
+  headless-admission-refusal test.
+
+## Dev
+
+branch: delegate-recurring
+worktree: /home/n/Code/claude/coga-delegate-recurring
+
+## Implementation result (implement step, 2026-08-18)
+
+Committed as `353e6395` on `delegate-recurring`, rebased onto latest
+`origin/main` (`773cb7ad`). Not pushed; no PR (later steps own that).
+
+What landed, per the plan above (no deviations):
+
+- `src/coga/recurring.py`: `delegate:` validated in `Template.load`
+  (non-empty string, `bootstrap/<name>` shape, no nested path, mutually
+  exclusive with `recipe:`), `Template.delegate` property, `DueTask.delegate`
+  field carried by `scan_due`. The TTY admission gates are untouched — a
+  delegating template has no `recipe:`, so a headless sweep still refuses it
+  pre-create.
+- `src/coga/recurring_runner.py`: `_run_delegated_task` mirrors
+  `_run_recipe_task`'s lifecycle bookkeeping around an in-process
+  `launch_cmd(<bootstrap ref>)` (in_progress → delegated launch → done; a
+  liveness timeout routes through `_stop_if_unfinished_after_launch(timed_out=True)`
+  → paused, sweep continues). Sweep loop and `_launch_created` /
+  `run_recurring_named` branch on `delegate` beside `recipe`.
+- `src/coga/validate.py`: `unknown-delegate-target` issue — delegate refs are
+  resolved statically via `resolve_bootstrap`.
+- Templates/contexts: resolve-conflicts template rewritten (live + packaged
+  twin byte-identical; old wrapper steps and the two-level-conflating
+  frontmatter comment deleted); recurring SKILL.md gained the `delegate:`
+  field doc and its pty Gotcha replaced by the two-level TTY-admission
+  explanation + delegate rule; architecture SKILL.md taxonomy sentence
+  updated (live + packaged twin byte-identical); packaged-only cli SKILL.md
+  TTY-skip paragraph covers delegating templates. Verified there is no
+  packaged `recurring` context to create. `coga/bootstrap/resolve-conflicts`
+  runbook and the `coga resolve-conflicts` alias untouched.
+- Tests: `tests/test_recurring.py` —
+  `test_headless_scan_refuses_delegating_template_at_admission` (the
+  acceptance-named admission test), delegate declaration rejections,
+  `test_delegated_task_launches_target_and_owns_lifecycle` (done/resume/
+  timeout parametrization), `test_bare_recurring_launches_delegate_target_directly`
+  (sweep launches `bootstrap/resolve-conflicts`, never the period task, and
+  the period task ends `done`); `tests/test_validate.py` unknown/valid
+  delegate-target cases; `tests/test_packaging.py` wrapper pin updated to pin
+  the new shape (delegate field present, no `coga mark done` / `script -qec`
+  instructions in the body).
+
+Verification: `python3.12 -m pytest` → 1806 passed, 1 skipped, 3 failed —
+the 3 failures (`test_autoclose.py::test_recipe_preflights_live_summary_before_closing`,
+`test_recurring.py::test_named_launch_keeps_control_only_malformed_ledger_blocked_on_retry`,
+`test_recurring.py::test_sweep_retry_revalidates_control_only_malformed_ledger`)
+fail identically on unmodified `main` in this environment (verified by
+running them from the primary checkout before any change), so they are
+pre-existing and untouched, not masked. Possible follow-up ticket material.
+`coga validate --json` from the worktree matches main's issue list except
+`missing-user (config)`, which is only the untracked machine-local
+`coga.local.toml` not existing in a linked worktree.
+
+Template inventory re-confirmed at implementation time: recipes = digest,
+branch-sweep, autoclose-merged (recipe `autoclose`), blocker-reminders,
+skill-update; agent-backed = dream (in-session); resolve-conflicts is now the
+only `delegate:` template and no template instructs a nested `coga launch` —
+the context Gotcha now prohibits the shape generically and names the field
+instead.
+>>>>>>> 96ce5a83 (Ticket: reconcile-recurring-wrapper-tty-admission-guidance — step 2 (peer-review))
