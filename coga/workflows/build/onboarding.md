@@ -65,15 +65,20 @@ Rules for the batch:
   one flat list (slug + one line each, neutral order); don't rank, don't bucket
   (not even "build" vs "decision"), don't suggest a starting point.
 
-Create each ticket as a **bare draft, non-interactively** — do not launch a
-per-ticket authoring interview. The capability this step depends on is
-non-interactive bulk draft creation, which ships today via `create_task`
-(surfaced as `coga create <slug>`); if/when `coga ticket` consolidates
-creation (`marketing/coga-ticket-creates`), use `coga ticket <slug>` instead.
-The command name is the only thing that changes — this step does not block on
-that ticket.
+Create each ticket as a **draft, non-interactively** — do not launch a
+per-ticket authoring interview. Every draft must carry an explicit workflow so
+the handoff really is launchable:
+
+- implementation work: `coga create "<title>" --workflow
+  code/design-then-implement` (the ticket is intentionally thin, so its first
+  step turns the what+why into a reviewed spec);
+- decide/evaluate work: `coga create "<title>" --workflow draft-for-human`
+  (the agent prepares the decision material and the human owns the judgment).
+
+After each non-interactive create, add `product/vision` to `contexts:` and write
+its thin what+why body. Do not leave any starter ticket with `workflow: null`:
+such a draft cannot be activated or launched.
 
 End in chat (no separate approval step): present the flat list, get the user's
 approval, then hand over the generic launch command — e.g. "Here's your starter
-batch — launch any one with `coga launch <ticket-slug>`." Then `coga mark
-done`.
+batch — launch any one with `coga launch <ticket-slug>`." Then `coga bump`.

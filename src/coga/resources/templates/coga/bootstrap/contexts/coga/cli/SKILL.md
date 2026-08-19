@@ -203,9 +203,12 @@ commands belong behind the registered `coga run` recipe surface.
   path under `tasks/` (`marketing/coga-crm`), matching what `coga status`
   prints — the bare leaf alone won't resolve.
 - `coga launch <slug> --agent <type>` — explicit one-off agent-type override
-  (e.g. `--agent claude`). It may assist on a human-owned step, prints that
-  unusual handoff in the launch banner, and never rewrites the ticket's
-  `assignee:`. Without the flag, a human handoff is still refused.
+  (e.g. `--agent claude`). Within that supervised launch, it follows directly
+  consecutive workflow steps declared `assignee: agent`; another role ends the
+  continuation. It may assist on a human-owned step, prints that unusual
+  handoff in the launch banner, and never rewrites the ticket's `assignee:`;
+  human-step assists never propagate. Without the flag, a human handoff is
+  still refused.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent.

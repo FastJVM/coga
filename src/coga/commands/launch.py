@@ -461,10 +461,19 @@ def launch(
     assignee = ticket.assignee
     if not assignee:
         setup_bail(f"Task {ref.id_slug} has no assignee")
+    current_step = ticket.current_step()
+    agent_role_override = bool(
+        not is_bootstrap
+        and agent_override is not None
+        and assignee == ticket.agent
+        and isinstance(current_step, dict)
+        and current_step.get("assignee") == "agent"
+    )
     human_assist = (
         not is_bootstrap
         and agent_override is not None
         and assignee not in cfg.agents
+        and not agent_role_override
     )
     single_checkout_assist_branch = (
         post_alignment_setup_call(
@@ -736,15 +745,19 @@ def launch(
     suppress_assist_refresh = False
     try:
         first_step = True
+        consecutive_agent_override = False
         while True:
             ticket = _read(ref)
 
             # Resolve the agent for THIS step from the ticket's current
             # assignee, so the supervisor can rotate claude <-> codex across
-            # the workflow. The `--agent` override applies only to the first
-            # step; chained steps follow the ticket. A human-owned first step
-            # reaches here only through that explicit assist. Later human
-            # handoffs stop in `_harness_stop_reason` before a relaunch.
+            # the workflow. A one-off `--agent` override follows directly
+            # consecutive steps carrying the `agent` role so a same-agent
+            # workflow stays on the explicitly selected CLI. Any role change
+            # ends that continuation; later steps follow the ticket. A
+            # human-owned first step reaches here only through an explicit
+            # assist, which never propagates. Later human handoffs stop in
+            # `_harness_stop_reason` before a relaunch.
             assist_session = (
                 first_step
                 and human_assist
@@ -753,9 +766,24 @@ def launch(
             publish_assist_branch = (
                 single_checkout_assist_branch if assist_session else None
             )
-            step_assignee = (
-                (agent_override or ticket.assignee) if first_step else ticket.assignee
+            current_step = ticket.current_step()
+            current_role = (
+                current_step.get("assignee")
+                if isinstance(current_step, dict)
+                else None
             )
+            if first_step:
+                step_assignee = agent_override or ticket.assignee
+                consecutive_agent_override = bool(
+                    agent_override
+                    and not human_assist
+                    and current_role == "agent"
+                )
+            elif consecutive_agent_override and current_role == "agent":
+                step_assignee = agent_override
+            else:
+                consecutive_agent_override = False
+                step_assignee = ticket.assignee
             first_step = False
             try:
                 agent = cfg.agent_type(step_assignee) if step_assignee else None
@@ -954,7 +982,15 @@ def launch(
 
             typer.echo("Launch: reading task state after agent exit")
             updated_ticket = read_ticket(ref)
-            stop_reason = _harness_stop_reason(ref, ticket, updated_ticket, cfg)
+            stop_reason = _harness_stop_reason(
+                ref,
+                ticket,
+                updated_ticket,
+                cfg,
+                chain_agent_override=(
+                    agent_override if consecutive_agent_override else None
+                ),
+            )
             if stop_reason is not None:
                 typer.echo(stop_reason)
                 break
@@ -2256,7 +2292,12 @@ def _format_agent_command_for_console(cmd: list[str], prompt: str) -> str:
 
 
 def _harness_stop_reason(
-    ref: TaskRef, before: Ticket, after: Ticket, cfg: Config
+    ref: TaskRef,
+    before: Ticket,
+    after: Ticket,
+    cfg: Config,
+    *,
+    chain_agent_override: str | None = None,
 ) -> str | None:
     if after.status != "in_progress":
         if after.status in TERMINAL_STATUSES:
@@ -2293,6 +2334,12 @@ def _harness_stop_reason(
     # "did the nickname change" — a skill-less agent step is still the agent's
     # turn and chains. (Same-agent steps were always chained; this also covers
     # the cross-agent hop the single-agent loop used to stop at.)
+    if (
+        chain_agent_override is not None
+        and current.get("assignee") == "agent"
+        and chain_agent_override in cfg.agents
+    ):
+        return None
     if not after.assignee or after.assignee not in cfg.agents:
         who = after.assignee or "unassigned"
         return f"{ref.id_slug}: next step hands off to {who}; returning to caller"

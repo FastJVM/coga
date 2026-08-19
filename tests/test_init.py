@@ -20,6 +20,7 @@ from coga.config import load_config
 from coga.managed_skills import ManagedSkillError, ManagedSkillSummary
 from coga.notification import post
 from coga.skill_manager import SkillResult
+from coga.ticket import Ticket
 
 
 _PACKAGED_COGA_TOML = (
@@ -959,8 +960,9 @@ def test_init_ships_build_ticket_template(
     assert "step: 1 (gather-and-spec)" in text
     assert "Empty until the `gather-and-spec` step runs at first launch" in text
     # The placeholder is stamped with the captured name; it never ships live.
-    assert "owner: tester" in text
-    assert "human: tester" in text
+    seeded = Ticket.read(ticket)
+    assert seeded.owner == "tester"
+    assert seeded.frontmatter["human"] == "tester"
     assert "new-user" not in text
     # Single-file format: the blackboard rides inside ticket.md behind one
     # fence; no per-task blackboard.md / log.md siblings.
@@ -971,6 +973,12 @@ def test_init_ships_build_ticket_template(
     assert not (tasks / "coga-build").exists()
     assert not (tasks / "coga-build" / "blackboard.md").exists()
     assert not (tasks / "coga-build" / "log.md").exists()
+    onboarding = (
+        target / "coga" / "workflows" / "build" / "onboarding.md"
+    ).read_text()
+    assert "--workflow\n  code/design-then-implement" in onboarding
+    assert "--workflow draft-for-human" in onboarding
+    assert "such a draft cannot be activated or launched" in onboarding
     # Bare init on an empty repo points at `coga build` (the alias that
     # launches this ticket) rather than at a manual launch.
     assert "Run `coga build`" in result.output
@@ -1152,15 +1160,35 @@ def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
     stamped = init_cmd._stamp_user_into_delivered_tickets(coga_os, "marc")
 
     assert set(stamped) == {"alpha", "beta"}
-    alpha = (tasks / "alpha" / "ticket.md").read_text()
-    assert "owner: marc" in alpha and "human: marc" in alpha
-    assert "assignee: claude" in alpha  # non-placeholder line untouched
-    assert "new-user" not in alpha
-    beta = (tasks / "beta" / "ticket.md").read_text()
-    assert "assignee: marc" in beta
-    assert "new-user" not in beta
+    alpha_path = tasks / "alpha" / "ticket.md"
+    alpha = Ticket.read(alpha_path)
+    assert alpha.owner == "marc"
+    assert alpha.frontmatter["human"] == "marc"
+    assert alpha.assignee == "claude"  # non-placeholder line untouched
+    assert "new-user" not in alpha_path.read_text()
+    beta_path = tasks / "beta" / "ticket.md"
+    beta = Ticket.read(beta_path)
+    assert beta.assignee == "marc"
+    assert "new-user" not in beta_path.read_text()
     template = (tasks / "_template" / "ticket.md").read_text()
     assert "replace-with-human-name" in template  # left alone
+
+
+@pytest.mark.parametrize("name", ["Jane: Doe", "yes", "Nick #1", "[alice]"])
+def test_stamp_user_quotes_yaml_sensitive_names(tmp_path: Path, name: str) -> None:
+    coga_os = tmp_path / "coga"
+    ticket_path = coga_os / "tasks" / "coga-build.md"
+    ticket_path.parent.mkdir(parents=True)
+    ticket_path.write_text(
+        "---\nowner: new-user\nhuman: new-user\nassignee: new-user\n---\n"
+    )
+
+    init_cmd._stamp_user_into_delivered_tickets(coga_os, name)
+
+    ticket = Ticket.read(ticket_path)
+    assert ticket.owner == name
+    assert ticket.frontmatter["human"] == name
+    assert ticket.assignee == name
 
 
 # --- vendored-CLI location, pin, and host gitignore --------------------------

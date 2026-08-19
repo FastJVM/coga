@@ -8,6 +8,7 @@ It builds the self-contained venv that backs the `coga` console script.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 import re
 import shlex
@@ -223,6 +224,11 @@ def _stamp_user_into_delivered_tickets(coga_os: Path, name: str) -> list[str]:
     live owner. Returns the slugs that were stamped.
     """
     stamped: list[str] = []
+    # JSON string syntax is valid YAML string syntax. Always quote the captured
+    # name so values such as ``yes``, ``Jane: Doe``, and ``Nick #1`` remain the
+    # exact string written to coga.local.toml instead of becoming a boolean,
+    # invalid YAML, or a value truncated by a YAML comment.
+    encoded_name = json.dumps(name, ensure_ascii=False)
     tasks = coga_os / "tasks"
     if not tasks.is_dir():
         return stamped
@@ -230,7 +236,9 @@ def _stamp_user_into_delivered_tickets(coga_os: Path, name: str) -> list[str]:
     # `<dir>/ticket.md` (both end in `.md`).
     for ticket in sorted(tasks.glob("**/*.md")):
         text = ticket.read_text()
-        new_text, count = _NEW_USER_LINE.subn(rf"\1: {name}", text)
+        new_text, count = _NEW_USER_LINE.subn(
+            lambda match: f"{match.group(1)}: {encoded_name}", text
+        )
         if count:
             ticket.write_text(new_text)
             stamped.append(
