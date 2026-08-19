@@ -3697,3 +3697,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-19 11:37 [marketing/phase-0-audit] [human:nicktoper] created (status=draft)
 2026-08-19 11:37 [marketing/readme-top] [human:nicktoper] created (status=draft)
 2026-08-19 11:37 [marketing/discord] [human:nicktoper] created (status=draft)
+2026-08-19 11:37 [marketing/post-async-megalaunch] [human:nicktoper] created (status=draft)
