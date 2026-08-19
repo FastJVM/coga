@@ -3700,3 +3700,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-19 11:37 [marketing/post-async-megalaunch] [human:nicktoper] created (status=draft)
 2026-08-19 11:37 [marketing/post-you-own-it] [human:nicktoper] created (status=draft)
 2026-08-19 11:37 [marketing/post-doc-as-cache] [human:nicktoper] created (status=draft)
+2026-08-19 11:39 [bootstrap/orient] [human:nick] launched (assignee=codex, agent=codex)
