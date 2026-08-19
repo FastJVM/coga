@@ -748,7 +748,11 @@ def test_recipe_preflights_live_summary_before_closing(
         branch="needs-summary",
     )
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/28": "MERGED"})
-    monkeypatch.delenv("SLACK_WEBHOOK_URL")
+    config = repo / "coga.toml"
+    config.write_text(
+        config.read_text().replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
+    )
+    monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
 
     with pytest.raises(typer.Exit):
         am.run_autoclose_recipe(load_config(repo), [])
