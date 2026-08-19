@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -96,6 +96,13 @@ The blackboard is a notepad to be written to often as the human and agent works 
 pr: https://github.com/FastJVM/coga/pull/701
 branch: restore-coga-build
 worktree: /home/n/Code/codex/coga-put-build-back
+
+## Open-pr notes (2026-08-19)
+
+Branch was stale against `origin/main` (state-sync commits landed after peer
+review); rebased cleanly in the worktree and re-ran the full suite — 1,805
+passed, 1 skipped, same two pre-existing `test_recurring.py` control-branch
+failures recorded above. `coga open-pr` then pushed and opened PR #701.
 
 ## Implement notes (2026-08-18)
 
