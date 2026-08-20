@@ -5,7 +5,7 @@ status: in_progress
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -260,3 +260,153 @@ sync); `example/coga/` is the seeded fixture for end-to-end behavior.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: layout-contexts-dir
+worktree: /home/n/Code/claude/coga-layout-contexts-dir
+
+## Decisions (implement step)
+
+- **Spelling:** `[layout] contexts = "docs/contexts"` — kept as proposed. A new
+  top-level `[layout]` table registered in `_ALLOWED_SHARED_SECTIONS`, with its
+  own `_ALLOWED_LAYOUT_KEYS = {"contexts"}`. Shared `coga.toml` only (repo-layout
+  fact), not `coga.local.toml`.
+- **Anchor: the git checkout root**, found by walking up from `repo_root` for a
+  `.git` entry (dir or worktree file). This is the one anchor well-defined in
+  both layouts, per the ticket's Context. `docs/contexts` therefore means
+  `<checkout>/docs/contexts` under the nested *and* root layouts. Tradeoff
+  accepted: a monorepo-nested coga (`tools/ops/coga/`) must spell the full
+  `tools/ops/docs/contexts` rather than `docs/contexts`.
+- **Fail loud at config load** when the key is set: reject absolute paths,
+  reject `..`/symlink escapes out of the checkout, reject a missing or
+  non-directory target, and reject the case where no `.git` checkout root
+  exists to anchor against. Unset key = no checks run at all, so default
+  behavior is byte-identical.
+- **Config surface:** `Config.contexts_dir: Path | None = None` (the resolved
+  override) plus a `contexts_root` property returning
+  `contexts_dir or repo_root / "contexts"`. Optional-with-default keeps every
+  existing `Config(...)` construction (`managed_skills.py`, `tests/test_git.py`)
+  working untouched; callers read `cfg.contexts_root`.
+- **Git sync fork (direction 1, as required):** `_coga_state_pathspecs` becomes
+  config-derived — takes `cfg`, substitutes the real contexts path for the
+  literal `"contexts"` entry in the root-layout tuple, and appends a sibling
+  contexts pathspec in the nested layout when it is not already covered by the
+  `coga` spec. Same for `authoring.snapshot_authoring_files` / `support_paths`,
+  which now iterate resolved roots instead of `cfg.repo_root / name`.
+
+## Verification (implement step)
+
+Default unset — byte-identical, as required:
+
+- `python -m pytest`: 1810 passed, 1 skipped, **3 failed**. All three fail
+  identically on `main` at 3600a6fe (verified by running them against main's
+  `src/`): `test_autoclose.py::test_recipe_preflights_live_summary_before_closing`
+  and two `test_recurring.py` malformed-sweep-ledger tests. Pre-existing and
+  unrelated to this change.
+- `coga validate --json` on `example/coga/` and on this repo, run against
+  main's `src/` and the branch's `src/`: **identical output** modulo the
+  `generated_at` timestamp.
+
+Non-default path, exercised for real against this repo (contexts moved to
+`docs/contexts/`, `[layout] contexts = "docs/contexts"`):
+
+- `coga validate --json`: **identical** to the default-layout run — every
+  context ref still resolves.
+- `resolve_context_path`: `dev/code`, `coga/architecture`, and
+  `coga/principles` all resolved to `docs/contexts/...`, **not** to the
+  packaged bootstrap copies. This is the silent-corruption case the ticket
+  called out, and it is covered.
+- `coga launch <slug> --prompt-report`: composed the `ticket_context`
+  `dev/code` layer at 8.4 KiB from the relocated directory.
+- git state sweep: `_coga_state_pathspecs` returned `['coga', 'docs/contexts']`
+  and `_changed_paths_under` picked up an edit to
+  `docs/contexts/coga/codebase/SKILL.md`. The sibling contexts directory is
+  inside the sweep.
+
+Then reverted. See the incident below.
+
+## Incident — the verification recipe lands the relocation on `main`
+
+**Recording this because the ticket's own "Verification" section tells the next
+agent to do exactly what caused it.** "Point *this* repo's `coga.toml` at a
+relocated contexts directory, move the files, and confirm green on
+... `coga validate --json`, `coga launch <slug> --prompt-report` ... — **then
+revert**" cannot be followed as written. Every Coga CLI command fires the
+catch-all `sync_coga_state` sweep at its dispatch boundary, and that sweep is
+precisely the machinery this ticket widens. So the *first* `coga validate` run
+after the relocation committed the move plus the `[layout]` key as
+`e93307ac "Sync coga state"` and landed it on `origin/main` — and the pull-back
+then relocated the primary checkout's working tree too. There is no window in
+which the experiment is only local; the revert step comes too late by design.
+
+Recovery, already done: `12ff7c1a Revert "Sync coga state"` on `main`, pushed.
+`git diff 3600a6fe..12ff7c1a -- coga/ docs/contexts src/coga/resources` is
+empty, so main's content is exactly what it was before. The feature branch was
+reset back to `3600a6fe` and the relocation undone in the worktree, leaving only
+the intended change. No history was rewritten; the accident and its revert are
+both visible in `main`'s log.
+
+Next time, run that experiment with `[git] enabled = false` in
+`coga.local.toml`, or in a throwaway clone — never in a checkout whose sweep
+can reach the real remote. Worth folding into the ticket's Verification section
+before anyone repeats it.
+
+## What changed
+
+Code:
+
+- `config.py` — new `[layout]` table (`_ALLOWED_SHARED_SECTIONS` +
+  `_ALLOWED_LAYOUT_KEYS`), `_parse_layout` validator, `find_checkout_root`,
+  `Config.contexts_dir` field + `Config.contexts_root` property.
+- `paths.py` — `context_path` reads `cfg.contexts_root`; dead `context_dir`
+  deleted (no callers, per the ticket).
+- `git.py` — `_coga_state_pathspecs(root, cfg)` is config-derived in both
+  branches, with a `_pathspec_covers` helper. Nested layout appends the
+  contexts spec only when `coga` does not already cover it; root layout
+  *substitutes* the real path for the literal `"contexts"` entry, so a vacated
+  default directory stops being swept as Coga state.
+- `authoring.py` — new `authoring_sync_roots(cfg)`; `snapshot_authoring_files`
+  and `support_paths` resolve off config instead of `cfg.repo_root / name`.
+
+Tests: `tests/test_layout_contexts.py` (new end-to-end: resolve → create →
+compose → validate → sync against a relocated directory, plus a default-layout
+control), plus focused cases in `test_config.py` (9), `test_git.py` (2, one per
+layout), `test_authoring.py` (1), `test_paths.py` (1 new + 2 stubs updated for
+the new `contexts_root` accessor).
+
+Docs/contexts: a new "The contexts directory is relocatable" section in the
+`coga/architecture` context (both copies) documenting the checkout-root anchor
+and the fail-loud rules; `[layout]` added to its unknown-key allowlist
+paragraph; `docs/concepts.md` gained the human-facing explanation.
+
+## Deliberately deferred — prose sweep follow-up
+
+The ticket allows splitting the ~25-site prose sweep. I did the sites where
+being wrong *changes behavior*, and deferred the rest. Done here:
+
+- Executable agent instructions whose hardcoded globs would silently scan
+  nothing after a relocation: `bootstrap/dream/scan/contract-audit/SKILL.md`,
+  `bootstrap/ticket/SKILL.md` (both the `ls` enumeration and the new-context
+  path), `retro/done-ticket/SKILL.md`, `browser/dochub/SKILL.md`.
+- General-rule statements: `architecture` (3 sites), `principles`,
+  packaged `coga/cli`, `docs/concepts.md` local-first paragraph.
+
+Deferred to a follow-up ticket, with reasons:
+
+- `docs/migrating-to-coga.md:12,73` — a historical rename table describing what
+  the v1→v2 migration did. Accurate as history; rewording it would falsify it.
+- `docs/concepts.md:11,223`, `docs/development.md:100`,
+  `docs/cli-extension-audit.md:12`, `docs/cli-extension-external-surface.md:6`,
+  `README.md:70-71` — these link to or name *this repo's own* context files at
+  their real current path. They are correct, not conditionally wrong, unless
+  and until coga adopts the knob itself (explicitly out of scope here).
+- `src/coga/commands/init.py:220` — the AGENTS.md/CLAUDE.md body written into
+  every new repo. `coga init` never scaffolds `[layout]`, so what it writes is
+  accurate for every repo it creates.
+- `src/coga/commands/update.py:43-45` — `_LEGACY_COGA_GITIGNORE_ENTRIES` are
+  literal historical strings older versions wrote into `coga/.gitignore`, used
+  only to dedupe them away. Layout-independent history; changing them would
+  break the cleanup.
+- `coga/contexts/coga/project-stage/SKILL.md:21` — "Moving `contexts/` to live
+  next to tasks would be fine if..." is live product posture that this ticket
+  partly answers. It needs an owner's judgment call, not a mechanical reword.
