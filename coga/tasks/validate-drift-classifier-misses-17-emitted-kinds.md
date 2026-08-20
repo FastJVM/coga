@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -197,3 +197,40 @@ branch.
   scoped task and example fixture validation both report no issues.
 - Feature checkout is clean and contains `origin/main`. No push or PR was
   created in this step.
+
+## Peer review
+
+- `codex review --base main` found one P2: removing the wheel test's Hatchling
+  skip made the documented `pip install -e .` plus standalone `pytest` setup
+  incomplete. The test correctly fails loud because its wheel subprocess uses
+  `--no-build-isolation`, but contributor setup did not install the declared
+  Hatchling test dependency.
+- Review decision: keep the owner-requested no-skip behavior and align the
+  development contract on `pip install -e ".[test]"` in `AGENTS.md`,
+  `docs/development.md`, and `coga/codebase`. Restoring the skip would recreate
+  the masked packaging failure the test-extra dependency was added to prevent.
+- The review tool's broader run excluding the packaging module passed 1809
+  tests. After installing the branch's declared `.[test]` extra in a disposable
+  Python 3.12 environment, the complete pre-rebase suite passed: 1814 passed,
+  0 skipped.
+- Final rebase onto current `origin/main` at `d3746ed0` replayed all three
+  commits cleanly. Post-rebase verification passed 1814 tests with 0 skips;
+  `git diff --check` is clean; task-scoped validation reports one valid task
+  plus only the feature checkout's expected gitignored `missing-user` warning;
+  the example fixture reports 2 valid tasks with no issues.
+- Final feature commits are `4e8729fb` (classifier and coverage), `9d52c056`
+  (stale full-suite checks), and `9e06440f` (peer-review test-setup contract).
+  The feature worktree is clean, contains `origin/main`, and is three commits
+  ahead.
+
+## PR
+
+Classify every validator kind currently emitted by `coga validate`: route
+file-backed structural and template drift to reviewable PR proposals while
+keeping GitHub, identity, and secret-environment failures human-owned. Add a
+source-derived regression guard for literal and dynamically generated kinds,
+correct the packaged validate-drift contract, repair the three stale baseline
+tests and hidden packaging skip exposed by full verification, and document the
+declared `.[test]` development setup required by the fail-loud wheel check.
+
+Test plan: `python -m pytest` (1814 passed, 0 skipped); task-scoped validation reports 1 valid task; example validation reports 2 valid tasks with no issues; `git diff --check` passes.
