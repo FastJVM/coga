@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -96,8 +96,10 @@ record — its blackboard is gone by then.
 
 ## Plan
 
-Root cause is measurable and does not need a live Dream run to confirm: the two
-scan skills mandate a read that cannot fit.
+The contract-level defect is measurable without another live Dream run: the two
+scan skills mandate a read that cannot fit, then make one final message the only
+delivery path. The prior run does not distinguish the immediate stop mechanism
+(context exhaustion versus liveness), so the fix removes both dependencies.
 
 - `coga/tasks/**/*.md` — 696,419 bytes
 - `coga/contexts/**` + `coga/skills/**` — 697,646 bytes
@@ -112,9 +114,10 @@ findings can be emitted. Phase 4's Retro subagent survived the same session
 because it works ticket-by-ticket and its value lands in PRs and deletes on
 disk, not in one terminal message.
 
-That covers items 1 and 4 of the ticket's "What to work out": the cause is a
-corpus/context ceiling, not a liveness timeout, and the corpus really is too
-large for one subagent read.
+That covers the actionable part of items 1 and 4: the corpus really is too large
+for the specified one-subagent read, and all-or-nothing final delivery makes
+any early stop silent regardless of whether the immediate trigger is a context
+ceiling or a liveness failure.
 
 ### Design
 
@@ -132,14 +135,14 @@ large for one subagent read.
 
 ### Tradeoff (item 4, weighed)
 
-The "single full-corpus read" existed so the running delta could de-duplicate
-across the whole corpus. Sharding gives that up: cross-shard duplicates are
-caught at merge time from title/target/paragraph, not from full evidence.
-Accepted because the alternative is a sweep that returns nothing at all — a
-slightly weaker dedup over real findings beats perfect dedup over zero
-findings. Mitigation: every shard gets the full corpus *index* (paths + sizes),
-so a finding can name a target outside its own shard, and Dream's merge pass
-may re-read a specific file when two findings look like the same one.
+The "single full-corpus read" existed so the running delta could compare
+tickets with knowledge and de-duplicate across the whole corpus. Area shards
+now preserve the first property by carrying both ticket and knowledge evidence;
+relevant evidence may be repeated across assignments, and an enriched compact
+index routes targeted cross-area reads. Global merge-time de-duplication is
+still weaker than holding all evidence in one context, and duplicated evidence
+costs extra reads. Accepted because concrete cross-corpus classification remains
+intact while every worker stays bounded and can deliver partial work.
 
 ### Files
 
@@ -150,7 +153,10 @@ may re-read a specific file when two findings look like the same one.
 - `bootstrap/dream/scan/contract-audit/SKILL.md`
 - `coga/recurring/dream/ticket.md` + packaged copy — Phases 2/3 orchestration,
   run-summary vocabulary
+- `coga/contexts/coga/architecture/SKILL.md` + packaged copy — canonical
+  sharded-scan and `partial` result contract
 - `tests/test_dream_worker_templates.py`
+- `tests/test_packaging.py`
 
 ### Note on the ticket's file list
 
@@ -169,7 +175,8 @@ worktree: /home/n/Code/claude/coga-dream-scan-shards
 
 ## Implemented
 
-Commit `857b1bde` on `dream-scan-shards`.
+Commits `ca8c99d5` (implementation) and `b7be1585` (peer-review fixes) on
+`dream-scan-shards`, rebased onto `origin/main` at `80239dae`.
 
 - **new** `.../bootstrap/skills/bootstrap/dream/scan/scan-protocol/SKILL.md` —
   the shared delivery contract both scans follow: the scan directory
@@ -180,34 +187,38 @@ Commit `857b1bde` on `dream-scan-shards`.
   `0 findings` is explicitly a valid result and a missing line explicitly is
   not. It also states that the subagent's final message is not the delivery
   mechanism — Dream reads `findings.md` from disk.
-- `knowledge-scan/SKILL.md` — sharded (tickets group, knowledge group), defers
-  delivery to the protocol, and states the de-duplication tradeoff in the skill
-  itself rather than only here. Taxonomy and the `extract` grouping are
-  unchanged.
+- `knowledge-scan/SKILL.md` — area shards contain both ticket and knowledge
+  evidence, with compact routing metadata and bounded targeted reads for
+  cross-area comparisons. It states the de-duplication/repeated-read tradeoff;
+  taxonomy and the `extract` grouping are unchanged.
 - `contract-audit/SKILL.md` — sharded by contract-surface group, plus a
-  dedicated copy-divergence shard that runs
-  `diff -r coga/ src/coga/resources/templates/coga/` instead of reading both
-  trees into context, and an explicit note that `coga/.agent-skills/` is a
+  dedicated copy-divergence shard driven by the explicit
+  `IDENTICAL_LIVE_PACKAGED_PAIRS` contract. It never recursively diffs the
+  intentionally different roots, and documents that `coga/.agent-skills/` is a
   generated symlink view rather than a copy to compare.
 - `coga/recurring/dream/ticket.md` + packaged copy — new
   `### Decide-half scan mechanics (Phases 2 and 3)` section: mktemp the scan
-  directory, size with `find -printf '%s %p\n'`, chunk to budget, run the
-  shards, reconcile `manifest.md` against the completion lines
-  ("Do not treat a missing line as zero findings"), re-shard and retry once,
-  then merge and de-duplicate into `## Findings`. `partial` added to the
-  run-summary vocabulary; console progress now reports shards launched vs
-  shards completed. Both copies verified byte-identical.
+  directory, size portably with `find ... -exec wc -c`, chunk ownership and
+  evidence to budget, run the shards, reconcile active manifest leaves against
+  completion lines ("Do not treat a missing line as zero findings"), append an
+  explicit parent-to-child supersession on retry, then merge and de-duplicate
+  into `## Findings`. `partial` is in the run-summary vocabulary; console
+  progress reports shards launched vs completed. Both copies are byte-identical.
+- `coga/contexts/coga/architecture/SKILL.md` + packaged copy — describes the
+  shared protocol, leaf reconciliation, durable findings, and `partial` result.
 - `tests/test_dream_worker_templates.py` — the two existing scan tests updated
   for the sharded contract, plus
   `test_dream_scans_stream_durable_findings_and_report_completion` and
-  `test_dream_shards_and_reconciles_the_scan_phases`.
+  `test_dream_shards_and_reconciles_the_scan_phases`; packaging coverage now
+  proves the new protocol ships and the changed live/packaged pairs stay equal.
 
 ### Answers to the ticket's four questions
 
-1. **Cause** — a context ceiling, not a liveness timeout. The scans were
-   specified to read more than a subagent can hold, and delivered everything in
-   one terminal message, so an exhausted subagent returned nothing. Phase 4
-   survived because its value lands in PRs and deletes on disk as it goes.
+1. **Cause** — the specified sweep is larger than one bounded subagent read,
+   and its all-or-nothing final delivery makes any early stop result-less. The
+   captured run cannot distinguish context exhaustion from the immediate
+   liveness mechanism; the new design depends on neither. Phase 4 survived
+   because its value landed on disk as it went.
 2. **Detectable** — yes, and now required. Explicit per-shard completion lines
    plus Dream's manifest reconciliation make "ran, found nothing" (`no-op`) a
    different state from "never returned" (`partial` + `human-needed`).
@@ -228,7 +239,8 @@ autoclose preflight and the recurring control-branch gate). Verified failing at
 - `tests/test_recurring.py::test_named_launch_keeps_control_only_malformed_ledger_blocked_on_retry`
 - `tests/test_recurring.py::test_sweep_retry_revalidates_control_only_malformed_ledger`
 
-Otherwise `python3.12 -m pytest` on the branch is 1795 passed, 1 skipped.
+Otherwise `python3.12 -m pytest -p no:cacheprovider` on the rebased branch is
+1796 passed, 1 skipped.
 (The repo's `python` is 3.9; the suite needs `python3.12`.)
 
 ## Note
@@ -237,3 +249,39 @@ Otherwise `python3.12 -m pytest` on the branch is 1795 passed, 1 skipped.
 until the branch merges: the view is generated from the primary checkout's
 packaged templates, so a skill added on a feature branch links itself after
 merge. Nothing to do.
+
+## Peer review
+
+`codex review --base main` returned five must-fix findings:
+
+- the ticket-only and knowledge-only shard groups cannot perform the required
+  cross-corpus comparison;
+- `diff -r coga/ src/coga/resources/templates/coga/` compares intentionally
+  different roots and emits about 828 KB / 4,105 lines in this checkout;
+- retry child shards cannot satisfy an append-only manifest that still expects
+  their incomplete parent;
+- `find -printf` is GNU-only and fails on macOS/BSD; and
+- both architecture context copies still describe one subagent per phase and
+  omit the new `partial` result.
+
+All five are resolved in `b7be1585`. The shard partition is by area with both
+ticket and knowledge evidence in each assignment; the manifest appends explicit
+parent-to-child supersession records and reconciles only leaf assignments. Copy
+checks use the repo's explicit `IDENTICAL_LIVE_PACKAGED_PAIRS` contract rather
+than a recursive tree diff, and portable `find ... -exec wc -c {} \\;` replaces
+`-printf`. Focused tests pass (14 passed, 1 skipped); both pre- and post-rebase
+full suites have 1796 passed, 1 skipped, with only the three failures reproduced
+on `main` above. A final `git fetch origin main` still resolved to `80239dae`;
+the branch is clean and two commits ahead. Scoped validation reports one task
+OK with no issues.
+
+## PR
+
+Shard Dream's knowledge scan and contract audit into bounded, area-aware
+subagents that stream findings and heartbeats to disk, report explicit zero or
+partial results, and retry through append-only manifest supersession. Preserve
+ticket-vs-knowledge comparisons inside each area, audit only explicit
+live/packaged counterpart pairs, use portable corpus sizing, and keep the
+canonical architecture contract synchronized.
+
+Tests: `python3.12 -m pytest -p no:cacheprovider` — 1796 passed, 1 skipped; 3 pre-existing `main` failures in autoclose preflight and recurring control-branch tests.
