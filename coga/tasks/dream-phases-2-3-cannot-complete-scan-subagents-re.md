@@ -170,6 +170,7 @@ both need the edit.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/703
 branch: dream-scan-shards
 worktree: /home/n/Code/claude/coga-dream-scan-shards
 
