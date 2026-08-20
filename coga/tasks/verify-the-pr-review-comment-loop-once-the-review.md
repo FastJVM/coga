@@ -5,21 +5,48 @@ status: draft
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts: []
 skills: []
-workflow: null
+workflow: direct/body
 secrets: null
 ---
 
 ## Description
 
-Placeholder. Do not start this until the current `code/with-review` queue has
-drained — every ticket now sitting on step 4 (review) is closed out, and the
-`skills: []` frozen-snapshot population has aged out of the live set.
+Verification-only ticket. Runs as a single `direct/body` step: this body is the
+spec, and its phases execute in order.
 
-When that holds, verify four things about the review-comment loop and record
-the result:
+### Phase 0 — precondition gate (run first, stop if it fails)
+
+**Do not start phases 1–4 until the `code/with-review` review queue has
+drained.** This ticket exists to check the *steady state*; running it against a
+live backlog measures the backlog instead and produces a false result.
+
+Run the check:
+
+```
+grep -rn '^step: .*(review)$' coga/tasks/*.md coga/tasks/*/ticket.md
+```
+
+The gate is satisfied when that returns **no rows** whose ticket status is
+`active`, `in_progress`, `blocked`, or `paused` — i.e. no live ticket is parked
+on a review step. (Two were parked when this gate was written:
+`put-build-back` on `step: 4 (review)` and `recurring-recipe-question` on
+`step: 5 (review)`. Both must be closed out or moved off review first.)
+
+If the gate is **not** satisfied: record the current queue in the blackboard,
+stop, and escalate per launch mode — ask the attending human, or `coga block`
+with the remaining tickets named as the reason. Do not proceed to phase 1, and
+do not mark the ticket done.
+
+If the gate **is** satisfied: note in the blackboard which tickets retired since
+2026-08-17 (that set is the input to phase 2), then continue.
+
+### Phases 1–4 — the verification
+
+Once phase 0 passes, verify four things about the review-comment loop and
+record the result:
 
 1. **Merged PRs actually close their tickets.** `coga autoclose` (or the
    `autoclose-merged` sweep) bumps every ticket whose `## Dev` `pr:` has
@@ -30,10 +57,16 @@ the result:
    this ticket was written, check its PR for `isResolved: false` threads that
    got no reply and no code change. One dropped comment is already recorded
    below (PR 696).
-3. **Every live `review` step carries `code/address-pr-comments`.** Grep the
-   frozen `workflow:` snapshots of tickets on a review step for
-   `skills: []`. Two tickets had that shape when this was written, so the
-   assist path composed no skill layer for them.
+3. **Newly frozen `review` steps carry `code/address-pr-comments`.** Note that
+   phase 0 guarantees no ticket is *currently* parked on a review step, so
+   checking live review steps would be vacuous. Check the frozen snapshots
+   instead: for every ticket created since 2026-08-17 that carries a
+   `code/with-review` snapshot, confirm its `review` step lists
+   `code/address-pr-comments` rather than `skills: []`. Two tickets had the
+   empty shape when this was written (#698 — snapshots freeze at creation and
+   never refresh), so the assist path composed no skill layer for them. The
+   question is whether that population has fully aged out, or whether new
+   tickets are still freezing empty.
 4. **Decide whether the loop needs a trigger at all.** Today nothing fetches
    review comments: the `review` step is `assignee: owner`, so the launch
    supervisor stops, megalaunch reports `skipped-human-gate`, and no core code
