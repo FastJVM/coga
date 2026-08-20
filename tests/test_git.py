@@ -5439,3 +5439,89 @@ def test_cli_main_skips_end_of_command_sweep_on_retryable_state_exit(monkeypatch
     with pytest.raises(SystemExit):
         cli.main()
     assert calls == [cfg]
+
+
+# --- relocated contexts: the state sweep must follow `[layout] contexts` -------
+
+
+def test_sync_coga_state_sweeps_relocated_contexts_dir(git_repo):
+    """A contexts directory moved out of `coga/` is still Coga state.
+
+    The nested-layout pathspec collapses to the single `coga` directory, so a
+    relocated `docs/contexts/` falls outside it unless the pathspecs are
+    derived from config. Without that, agent edits to contexts stop being
+    committed and synced — silently.
+    """
+    relocated = git_repo.root / "docs" / "contexts" / "team" / "style"
+    relocated.mkdir(parents=True)
+    with (git_repo.coga_os / "coga.toml").open("a") as f:
+        f.write('[layout]\ncontexts = "docs/contexts"\n')
+    cfg = load_config(git_repo.coga_os)
+
+    # Product code outside both trees stays out of the sweep, as always.
+    outside = git_repo.root / "outside.txt"
+    outside.write_text("original\n")
+    git_repo.git("add", "outside.txt")
+    git_repo.git("commit", "-m", "seed outside")
+    git_repo.git("push", "origin", "main")
+    outside.write_text("locally modified\n")
+
+    (relocated / "SKILL.md").write_text("# House style\n")
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    assert git_repo.origin_tracks("docs/contexts/team/style/SKILL.md")
+    assert "docs/" not in git_repo.git("status", "--porcelain")
+    assert "outside.txt" in git_repo.git("status", "--porcelain")
+
+
+def test_sync_coga_state_root_layout_follows_relocated_contexts(tmp_path, real_git):
+    """In the root layout the relocated path *replaces* the `contexts` spec.
+
+    Substituting rather than appending matters: once contexts move, a leftover
+    `contexts/` at the checkout root is ordinary user content, and sweeping it
+    as Coga state would commit files the repo never handed to coga.
+    """
+    root = tmp_path / "repo"
+    origin = tmp_path / "origin.git"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=root, check=True)
+    subprocess.run(["git", "init", "--bare", "-q", str(origin)], check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=root, check=True)
+
+    (root / "coga.toml").write_text("version = 1\n")
+    (root / "tasks").mkdir()
+    (root / "docs" / "contexts").mkdir(parents=True)
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=root, check=True)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=root, check=True)
+    subprocess.run(["git", "push", "-q", "origin", "main"], cwd=root, check=True)
+
+    moved = root / "docs" / "contexts" / "team" / "style"
+    moved.mkdir(parents=True)
+    (moved / "SKILL.md").write_text("# House style\n")
+    # The vacated default location now holds unrelated user content.
+    stale = root / "contexts"
+    stale.mkdir()
+    (stale / "notes.md").write_text("not coga state\n")
+
+    git.sync_coga_state(
+        _cfg(root, contexts_dir=root / "docs" / "contexts"),
+        message="Sync coga state",
+    )
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=root, check=True, capture_output=True, text=True,
+    ).stdout
+    assert "docs/contexts" not in status
+    # Untracked directories collapse to a single `contexts/` entry in porcelain.
+    assert "?? contexts/" in status
+    tracked = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "main"],
+        cwd=origin, check=True, capture_output=True, text=True,
+    ).stdout.splitlines()
+    assert "docs/contexts/team/style/SKILL.md" in tracked
+    assert "contexts/notes.md" not in tracked

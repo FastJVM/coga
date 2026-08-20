@@ -734,7 +734,7 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
             return []
         excludes = [
             f":(exclude){spec}"
-            for spec in _coga_state_pathspecs(root, cfg.repo_root)
+            for spec in _coga_state_pathspecs(root, cfg)
         ]
         # `-z` (NUL-delimited, no path quoting) so a product file with
         # non-ASCII characters is named verbatim in the `mark done` error rather
@@ -1264,7 +1264,7 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
             sys.stderr.write(f"[git] not a git repo (sync skipped): {message}\n")
             return
 
-        state_pathspecs = _coga_state_pathspecs(root, subtree)
+        state_pathspecs = _coga_state_pathspecs(root, cfg)
         changed = _changed_paths_under(root, state_pathspecs)
         if not changed:
             return
@@ -2357,11 +2357,36 @@ def _dispatch_branch_sync(
         raise
 
 
-def _coga_state_pathspecs(root: Path, coga_root: Path) -> list[str]:
-    rel = _relative_to_root(root, coga_root)
+def _coga_state_pathspecs(root: Path, cfg: Config) -> list[str]:
+    """Git pathspecs covering everything Coga owns as state, relative to `root`.
+
+    Config-derived rather than a fixed list, because `[layout] contexts` can
+    move the contexts directory anywhere in the checkout — including *outside*
+    the coga root, which is the whole point of the key. In the nested layout
+    the single `coga` spec no longer covers a relocated `docs/contexts/`, so
+    the contexts path is appended as its own spec; in the root layout the
+    literal `contexts` entry is substituted rather than appended, so the sweep
+    never scans the vacated default location.
+
+    With `[layout] contexts` unset both branches produce exactly what they
+    produced before the key existed: the contexts directory is already covered
+    by `coga` (nested) or is literally `contexts` (root layout).
+    """
+    contexts_rel = _relative_to_root(root, cfg.contexts_root)
+    rel = _relative_to_root(root, cfg.repo_root)
     if rel != ".":
-        return [rel]
-    return list(_ROOT_LAYOUT_COGA_PATHS)
+        if _pathspec_covers(rel, contexts_rel):
+            return [rel]
+        return [rel, contexts_rel]
+    return [
+        contexts_rel if spec == "contexts" else spec
+        for spec in _ROOT_LAYOUT_COGA_PATHS
+    ]
+
+
+def _pathspec_covers(parent: str, child: str) -> bool:
+    """True when git pathspec `parent` already selects everything under `child`."""
+    return child == parent or child.startswith(f"{parent}/")
 
 
 def _changed_paths_under(root: Path, pathspecs: str | Iterable[str]) -> list[str]:

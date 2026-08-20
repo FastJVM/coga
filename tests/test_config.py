@@ -1087,3 +1087,142 @@ def test_megalaunch_table_gets_migration_error(repo: Path) -> None:
 
     with pytest.raises(ConfigError, match="budget guard was removed"):
         load_config(repo)
+
+
+# --- [layout] contexts ---------------------------------------------------------
+
+
+@pytest.fixture
+def layout_repo(repo: Path) -> Path:
+    """The `repo` fixture inside a real git checkout.
+
+    `[layout]` paths anchor at the checkout root (`find_checkout_root`), so
+    these tests need a `.git` to anchor against. The layout here is the *root*
+    one — coga.toml sits at the checkout root — which is the case where
+    `repo_root` and the checkout root coincide and the anchor is easiest to
+    get wrong.
+    """
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True, capture_output=True, text=True,
+    )
+    return repo
+
+
+def _set_layout_contexts(repo: Path, value: str) -> None:
+    with (repo / "coga.toml").open("a") as f:
+        f.write(f'[layout]\ncontexts = "{value}"\n')
+
+
+def test_layout_contexts_unset_keeps_default_location(repo: Path) -> None:
+    """Byte-identical default: no key, no override, no checkout probe."""
+    cfg = load_config(repo)
+    assert cfg.contexts_dir is None
+    assert cfg.contexts_root == repo / "contexts"
+
+
+def test_layout_contexts_resolves_against_checkout_root(layout_repo: Path) -> None:
+    (layout_repo / "docs" / "contexts").mkdir(parents=True)
+    _set_layout_contexts(layout_repo, "docs/contexts")
+
+    cfg = load_config(layout_repo)
+    assert cfg.contexts_root == (layout_repo / "docs" / "contexts").resolve()
+
+
+def test_layout_contexts_resolves_from_nested_coga_root(tmp_path: Path) -> None:
+    """In the nested layout the anchor is still the checkout, not `coga/`.
+
+    This is the whole point of anchoring at the checkout root: the same
+    `docs/contexts` value must name `<checkout>/docs/contexts` here, not
+    `<checkout>/coga/docs/contexts`.
+    """
+    subprocess.run(
+        ["git", "init", "-b", "main", str(tmp_path)],
+        check=True, capture_output=True, text=True,
+    )
+    coga_os = tmp_path / "coga"
+    coga_os.mkdir()
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        mode = "local"
+
+        [layout]
+        contexts = "docs/contexts"
+        """,
+    )
+    _write(coga_os / "coga.local.toml", "user = \"marc\"\n")
+    (tmp_path / "docs" / "contexts").mkdir(parents=True)
+
+    cfg = load_config(coga_os)
+    assert cfg.contexts_root == (tmp_path / "docs" / "contexts").resolve()
+
+
+def test_layout_contexts_missing_directory_fails_loud(layout_repo: Path) -> None:
+    """A typo'd directory must not silently fall back to the packaged batteries."""
+    _set_layout_contexts(layout_repo, "docs/contexs")
+    with pytest.raises(ConfigError, match="does not exist"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_file_rejected(layout_repo: Path) -> None:
+    (layout_repo / "docs").mkdir()
+    (layout_repo / "docs" / "contexts").write_text("not a dir\n")
+    _set_layout_contexts(layout_repo, "docs/contexts")
+    with pytest.raises(ConfigError, match="not a directory"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_absolute_path_rejected(layout_repo: Path) -> None:
+    _set_layout_contexts(layout_repo, "/etc/contexts")
+    with pytest.raises(ConfigError, match="must be a relative path"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_escaping_checkout_rejected(
+    layout_repo: Path, tmp_path: Path
+) -> None:
+    """`..` out of the checkout is rejected — that state could never be synced."""
+    outside = tmp_path.parent / "outside-contexts"
+    outside.mkdir(exist_ok=True)
+    _set_layout_contexts(layout_repo, f"../{outside.name}")
+    with pytest.raises(ConfigError, match="outside the git checkout"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_outside_git_checkout_rejected(repo: Path) -> None:
+    """With no checkout there is no anchor, so the key fails loud rather than
+    guessing one of the two layouts."""
+    (repo / "docs" / "contexts").mkdir(parents=True)
+    _set_layout_contexts(repo, "docs/contexts")
+    with pytest.raises(ConfigError, match="not inside a git checkout"):
+        load_config(repo)
+
+
+def test_layout_contexts_empty_value_rejected(layout_repo: Path) -> None:
+    _set_layout_contexts(layout_repo, "")
+    with pytest.raises(ConfigError, match="non-empty string"):
+        load_config(layout_repo)
+
+
+def test_layout_unknown_key_rejected(layout_repo: Path) -> None:
+    """`[layout]` is a fixed-schema table: a stray key fails load, so a repo
+    never silently keeps its skills where it thought it had moved them."""
+    with (layout_repo / "coga.toml").open("a") as f:
+        f.write('[layout]\nskills = "docs/skills"\n')
+    with pytest.raises(ConfigError, match=r"\[layout\] in coga.toml has unknown"):
+        load_config(layout_repo)
+
+
+def test_layout_in_local_toml_rejected(layout_repo: Path) -> None:
+    """Where contexts live is shared repo policy, not a machine-local one."""
+    with (layout_repo / "coga.local.toml").open("a") as f:
+        f.write('[layout]\ncontexts = "docs/contexts"\n')
+    with pytest.raises(ConfigError, match=r"coga.local.toml has unknown"):
+        load_config(layout_repo)

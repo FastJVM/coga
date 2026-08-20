@@ -23,6 +23,20 @@ from coga.validate import assert_task_valid
 AUTHORING_SYNC_DIRS = ("tasks", "contexts", "skills")
 
 
+def authoring_sync_roots(cfg: Config) -> tuple[Path, ...]:
+    """Absolute roots the authoring interview may create or modify files under.
+
+    Resolved off config rather than joined onto `cfg.repo_root`, because
+    `[layout] contexts` can move the contexts directory outside the coga root
+    entirely. A hardcoded join would leave a relocated context edited during
+    authoring unhashed before the session and therefore unsynced after it.
+    """
+    return tuple(
+        cfg.contexts_root if name == "contexts" else cfg.repo_root / name
+        for name in AUTHORING_SYNC_DIRS
+    )
+
+
 class AuthoringError(Exception):
     """Raised when post-authoring validation or sync setup fails."""
 
@@ -46,8 +60,7 @@ def snapshot_authoring_state(cfg: Config) -> AuthoringSnapshot:
 def snapshot_authoring_files(cfg: Config) -> dict[Path, str]:
     """Hash files the authoring interview is allowed to create or modify."""
     snapshot: dict[Path, str] = {}
-    for root_name in AUTHORING_SYNC_DIRS:
-        root = cfg.repo_root / root_name
+    for root in authoring_sync_roots(cfg):
         if not root.is_dir():
             continue
         for path in sorted(root.rglob("*")):
@@ -92,8 +105,8 @@ def authored_task_refs(
 def support_paths(cfg: Config, changed_paths: set[Path]) -> list[Path]:
     """Return changed non-task support files authored by the interview."""
     support: list[Path] = []
-    for root_name in ("contexts", "skills"):
-        root = (cfg.repo_root / root_name).resolve(strict=False)
+    for support_root in (cfg.contexts_root, cfg.repo_root / "skills"):
+        root = support_root.resolve(strict=False)
         for path in changed_paths:
             try:
                 path.resolve(strict=False).relative_to(root)

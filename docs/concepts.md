@@ -99,10 +99,29 @@ body. The difference is what kind of knowledge they carry:
   skill that applies to the whole ticket regardless of step can instead go in
   the ticket's `skills:` frontmatter list.
 
-Both resolve **local-first**: a file under `coga/contexts/` or `coga/skills/`
-overrides a bundled one of the same name that ships with the package. To change
-a shipped context or skill, copy it to the matching path and edit — no plugin
-API, no fork.
+Both resolve **local-first**: a file under the repo's contexts directory or
+`coga/skills/` overrides a bundled one of the same name that ships with the
+package. To change a shipped context or skill, copy it to the matching path and
+edit — no plugin API, no fork.
+
+Contexts live at `coga/contexts/` by default, but because they are the one
+primitive humans hand-edit as prose, a repo can move them somewhere its writers
+actually work:
+
+```toml
+# coga.toml
+[layout]
+contexts = "docs/contexts"
+```
+
+The path is relative to your Git checkout root — the same value means the same
+place whether `coga.toml` sits in a nested `coga/` or at the repo root — and
+must stay inside the checkout, since contexts are git-backed state like
+everything else. Set it and the whole system follows: composition, validation,
+ref resolution, and the git sync that commits agent edits. Point it at a
+directory that does not exist and Coga fails at config load rather than quietly
+falling back to the bundled contexts. Skills have no such knob; they are
+process knowledge for agents, not prose for humans.
 
 ## Workflows and steps
 

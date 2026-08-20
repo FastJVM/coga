@@ -84,7 +84,10 @@ Do:
 
 - read the done ticket directory for each slug passed to this skill;
 - read every context file under local `coga/contexts/**/SKILL.md` and package
-  `bootstrap/contexts/**/SKILL.md`;
+  `bootstrap/contexts/**/SKILL.md`; **if `coga.toml` sets `[layout] contexts`,
+  the local contexts directory is that path, not `coga/contexts/` — resolve it
+  before globbing, here and everywhere below, or every local context silently
+  reads as absent and the extraction re-adds knowledge the repo already has;**
 - read every skill file under local `coga/skills/**/SKILL.md` and package
   `bootstrap/skills/**/SKILL.md`;
 - decide whether each ticket contains new, useful durable knowledge;
@@ -299,7 +302,7 @@ marker for the same source task.
    | --- | --- |
    | Already covered | Drop; mention only in notes if important. |
    | New detail for an existing context | Patch the smallest fitting context block. |
-   | New coherent topic | Create a focused context under `coga/contexts/<namespace>/<name>/SKILL.md`. |
+   | New coherent topic | Create a focused context under `<contexts-dir>/<namespace>/<name>/SKILL.md`. |
    | Duplicate or stale existing context | Merge, rewrite, or delete the obsolete block/file. |
    | Repeatable process knowledge | Update an existing skill, or create a focused skill if none fits. |
    | One-off execution detail | Drop. |

@@ -122,8 +122,26 @@ class Config:
     # unset, and recurring stays ungated. See
     # `coga.recurring_runner.recurring_owner_refusal`.
     owner: str = ""
+    # Resolved absolute path of the repo's contexts directory when
+    # `[layout] contexts` relocates it out of `coga/contexts/`. None means the
+    # key is unset and the default location applies — read `contexts_root`, not
+    # this field. See `_parse_layout` for the anchoring and containment rules.
+    contexts_dir: Path | None = None
 
     # --- convenience accessors -------------------------------------------------
+
+    @property
+    def contexts_root(self) -> Path:
+        """Directory holding this repo's contexts, `coga/contexts/` by default.
+
+        The single place the local contexts directory is named. `paths.py`
+        builds every context path off this, so a repo that relocates its
+        contexts with `[layout] contexts` moves them for composition,
+        validation, ref resolution, git state sync, and authoring sync alike.
+        """
+        if self.contexts_dir is not None:
+            return self.contexts_dir
+        return self.repo_root / "contexts"
 
     @property
     def project_name(self) -> str:
@@ -195,6 +213,31 @@ def find_repo_root(start: Path | None = None) -> Path:
         "Run `coga` from inside a Coga repo — a coga/ nested in a subdir "
         "is only discovered from inside that subdir's subtree."
     )
+
+
+def find_checkout_root(repo_root: Path) -> Path | None:
+    """The git checkout containing the coga root, or None if there is none.
+
+    The anchor for `[layout]` paths. `repo_root` cannot serve as that anchor:
+    in the nested layout it is `<checkout>/coga/`, but in the root layout it
+    *is* the checkout root, so the same relative path would mean two different
+    places. The checkout root is the one directory that sits above the coga
+    root in both, which is what makes `contexts = "docs/contexts"` mean
+    `<checkout>/docs/contexts` either way.
+
+    Detected by walking up for a `.git` entry: a directory holding a `HEAD` in
+    an ordinary clone, or a plain file in a linked worktree or submodule — so
+    coga's own feature worktrees anchor at their own checkout rather than at
+    the primary one. The `HEAD` probe matters because a bare `.git` *directory*
+    with nothing in it is not a repository to git either, and treating one as
+    the anchor would silently resolve `[layout]` paths against a directory that
+    has no checkout at all.
+    """
+    for candidate in [repo_root.resolve(), *repo_root.resolve().parents]:
+        marker = candidate / ".git"
+        if marker.is_file() or (marker / "HEAD").is_file():
+            return candidate
+    return None
 
 
 # --- loader --------------------------------------------------------------------
@@ -275,6 +318,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         launch_idle_timeout_present,
         launch_max_session,
     ) = _parse_launch(shared.get("launch"))
+    contexts_dir = _parse_layout(shared.get("layout"), root)
 
     # The operator's `user` must be set explicitly in `coga.local.toml` — coga
     # never guesses it. A guessed name (git `user.name`, OS username) can
@@ -324,6 +368,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         launch_idle_timeout_present=launch_idle_timeout_present,
         launch_max_session=launch_max_session,
         owner=owner,
+        contexts_dir=contexts_dir,
     )
 
 
@@ -376,6 +421,7 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "ticket",
     "aliases",
     "extensions",
+    "layout",
 })
 _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "user",
@@ -411,6 +457,10 @@ _ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset(
     {"idle_timeout", "max_session"}
 )
 _ALLOWED_TICKET_KEYS: frozenset[str] = frozenset({"fields"})
+# `[layout]` is shared repo policy — where this repo keeps hand-edited prose —
+# so it is deliberately absent from `_ALLOWED_LOCAL_SECTIONS`: one clone must
+# not resolve a context ref somewhere another clone doesn't.
+_ALLOWED_LAYOUT_KEYS: frozenset[str] = frozenset({"contexts"})
 
 
 def _reject_unknown_sections(shared: dict, local: dict) -> None:
@@ -444,6 +494,9 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
     )
     _reject_unknown_keys(
         local.get("git"), _ALLOWED_LOCAL_GIT_KEYS, "[git] in coga.local.toml"
+    )
+    _reject_unknown_keys(
+        shared.get("layout"), _ALLOWED_LAYOUT_KEYS, "[layout] in coga.toml"
     )
 
 
@@ -576,8 +629,7 @@ def _parse_ticket_fields(raw: dict | None) -> dict[str, TicketField]:
             raise ConfigError(
                 f"[ticket.fields.{name}] collides with the canonical ticket "
                 f"frontmatter key {name!r}. Pick a different name. "
-                "See `coga/contexts/coga/architecture/SKILL.md` for the "
-                "reserved set."
+                "See the `coga/architecture` context for the reserved set."
             )
         bad_keys = sorted(set(data) - _ALLOWED_TICKET_FIELD_KEYS)
         if bad_keys:
@@ -994,6 +1046,78 @@ def _parse_git(shared: dict | None) -> tuple[str, str]:
             raise ConfigError("[git].control_branch must be a non-empty string")
         control_branch = value.strip()
     return remote, control_branch
+
+
+def _parse_layout(raw: object, repo_root: Path) -> Path | None:
+    """Resolve `[layout] contexts` to an absolute directory, or None if unset.
+
+    Every check here is fail-loud on purpose. `resolve_context_path` falls back
+    to the packaged `bootstrap/contexts/` batteries when a ref misses locally,
+    which is right for a single missing ref and catastrophic for a mistyped
+    *directory*: every repo-local context would silently vanish from composed
+    prompts while `coga/architecture` still resolved to the bundled copy. So a
+    misconfigured directory has to fail at load, before anything composes.
+
+    The value is a relative path anchored at the git checkout root (see
+    `find_checkout_root`), and must resolve to an existing directory inside
+    that checkout. Absolute paths and `..` escapes are rejected — coga's state
+    is git-backed, and contexts that live outside the checkout could be neither
+    committed nor synced.
+
+    An unset key skips all of it, so a repo that never touches `[layout]`
+    behaves exactly as it did before the key existed.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ConfigError("[layout] in coga.toml must be a table")
+    value = raw.get("contexts")
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError(
+            "[layout].contexts must be a non-empty string, for example "
+            '`contexts = "docs/contexts"`.'
+        )
+    candidate = Path(value)
+    if candidate.is_absolute():
+        raise ConfigError(
+            f"[layout].contexts must be a relative path, got {value!r}. It is "
+            "resolved against the git checkout root, so write it as "
+            "`docs/contexts`, not as an absolute path."
+        )
+
+    checkout = find_checkout_root(repo_root)
+    if checkout is None:
+        raise ConfigError(
+            f"[layout].contexts is set to {value!r}, but {repo_root} is not "
+            "inside a git checkout. `[layout]` paths are resolved against the "
+            "checkout root — the only anchor that means the same thing in the "
+            "nested (`<checkout>/coga/`) and root (`<checkout>/`) layouts. "
+            "Run `git init` at the checkout root, or remove the key to use the "
+            "default `contexts/` directory beside coga.toml."
+        )
+
+    resolved = (checkout / candidate).resolve()
+    if resolved != checkout and checkout not in resolved.parents:
+        raise ConfigError(
+            f"[layout].contexts ({value!r}) resolves to {resolved}, which is "
+            f"outside the git checkout at {checkout}. Contexts are git-backed "
+            "state; a directory outside the checkout could not be committed or "
+            "synced."
+        )
+    if not resolved.exists():
+        raise ConfigError(
+            f"[layout].contexts points at {resolved}, which does not exist. "
+            "Create the directory (and move the existing contexts into it), or "
+            "remove the key to use the default `contexts/` directory beside "
+            "coga.toml."
+        )
+    if not resolved.is_dir():
+        raise ConfigError(
+            f"[layout].contexts points at {resolved}, which is not a directory."
+        )
+    return resolved
 
 
 def _parse_launch(

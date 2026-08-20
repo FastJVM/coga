@@ -42,7 +42,8 @@ refresh.
 resources. It does not modify a repo. `coga init`
 does not materialize those package resources into `coga/bootstrap/`; Coga
 resolves them directly from the installed package after checking project-local
-`coga/skills`, `coga/contexts`, and `coga/workflows`.
+`coga/skills`, the configured contexts directory (`coga/contexts` unless
+`[layout] contexts` moves it), and `coga/workflows`.
 
 ## coga uninstall [--yes] [--purge]
 
