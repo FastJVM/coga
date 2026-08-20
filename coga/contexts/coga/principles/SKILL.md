@@ -106,7 +106,7 @@ behavior on `main` without a human merge gate; silent knowledge updates.
 
 **Receipt:** **Dream** (`coga/recurring/dream/`) reads tickets + blackboards,
 classifies drift, and opens **proposal PRs** — "propose, human disposes."
-the blackboard region (in `ticket.md`) is working memory; the contexts directory is long-term memory, merged by
+the blackboard region (in `ticket.md`) is working memory; `contexts/` is long-term memory, merged by
 hand. The correction loop is the human instance of this; Dream is the agent
 instance. (Sessions are stateless — the prompt is a pure function of the files on
 disk now, never a carried-over session — which is what makes an edit between runs

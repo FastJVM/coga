@@ -37,9 +37,7 @@ no in-memory state.
   trail is not in the task file — it lives in one repo-global `coga/log.md`
   (written by CLI commands only), each line tagged with its task ref.
 - **Contexts** are domain knowledge — what's true about the world.
-  Project-local contexts live in the repo's configured contexts directory —
-  `coga/contexts/` unless `[layout] contexts` moves it (see "The contexts
-  directory is relocatable" below); bundled Coga batteries live
+  Project-local contexts live in `coga/contexts/`; bundled Coga batteries live
   in the installed package's `bootstrap/contexts/` resources. Attached to
   tickets via `contexts:` frontmatter list. Local contexts override bundled
   contexts with the same ref.
@@ -149,7 +147,7 @@ no in-memory state.
   install into `coga/skills/` through the public skill installer instead of
   being copied from templates; install failures for optional skills warn
   without breaking offline init. Copy a skill or context to the matching
-  `coga/skills/` or configured-contexts-directory ref to override it.
+  `coga/skills/` or `coga/contexts/` ref to override it.
 - **Dream** is Coga's generic ticket cleanup pass. It is a recurring task
   template (`coga/recurring/dream/`) plus a `dream` alias — not a
   built-in command. `coga recurring` creates and launches it when its
@@ -228,49 +226,12 @@ Extensions live in the same frontmatter the prompt composer already
 reads, so no extra layer is needed — the field is in every composed
 prompt by virtue of being on the ticket.
 
-## The contexts directory is relocatable
-
-Contexts are the one Coga primitive humans hand-edit as prose, and burying
-them inside the machine-owned `coga/` tree puts them out of reach of the tools
-people actually write docs in. So the directory is tunable:
-
-```toml
-[layout]
-contexts = "docs/contexts"
-```
-
-Unset — the default — contexts stay at `coga/contexts/`, byte-identical to
-before the key existed. Set, the directory moves and *everything* follows it:
-ref resolution, prompt composition, `coga validate`, `coga create` /
-`coga ticket`, the git state sweep, and authoring sync. `cfg.contexts_root` is
-the single accessor; nothing else joins the path itself.
-
-**The value is anchored at the git checkout root, not at the coga root.** This
-is the part a reader gets wrong. `Config.repo_root` is `<checkout>/coga/` in
-the nested layout but *is* the checkout root in the root layout, so the same
-relative path would name two different places. The checkout root sits above
-the coga root in both, which makes `docs/contexts` mean
-`<checkout>/docs/contexts` either way. A coga root nested deeper in a monorepo
-(`tools/ops/coga/`) therefore spells the full `tools/ops/docs/contexts`.
-
-Every failure mode is loud at config load, because the quiet one is
-catastrophic: `resolve_context_path` falls back to the packaged
-`bootstrap/contexts/` batteries on a miss, so a mistyped *directory* would let
-`coga/architecture` keep resolving to the bundled copy while every repo-local
-context silently vanished from composed prompts. So load rejects an absolute
-path, a `..` escape out of the checkout, a directory that does not exist or is
-not a directory, and a repo with no checkout to anchor against. The per-ref
-local-first fallback is unchanged — that is how bundled batteries work.
-
-`[layout]` is shared `coga.toml` policy and is rejected in `coga.local.toml`:
-where a repo keeps its prose is a fact about the repo, not about one machine.
-
 ## Config loading fails loud on unknown keys
 
 `load_config` validates `coga.toml` **and** `coga.local.toml` against a fixed
 schema. Any unrecognized key, at **any level of a fixed-schema table** —
 top-level sections, `[notification]`, `[notification.slack]`, `[git]`, `[launch]`,
-`[layout]`, `[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
+`[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
 the offending key and listing the valid ones, in either file. This generalizes
 the enforcement `[ticket.fields.*]` already had: a misspelled `[notification.slak]`
 no longer silently resolves to "no webhook" and takes Slack dark. Adding a new
@@ -869,7 +830,7 @@ deterministic workers and is the wrong archetype to copy for a subagent scan. Th
 Dream template body delegates each scan phase to a subagent running the
 skill and keeps only the delegation framing plus the `## Findings` write
 target inline. Known limitation: the contract audit's own corpus globs
-(the configured contexts directory, `coga/skills/**`) do not cover package-backed
+(`coga/contexts/**`, `coga/skills/**`) do not cover package-backed
 `bootstrap/skills/**`, so the bundled Dream skills — the scan skills included
 — sit outside the surface that audit reads.
 

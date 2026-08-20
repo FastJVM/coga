@@ -13,8 +13,7 @@ site-specific layer on top of two substrates:
   driving DocHub through that CLI.
 - **`browser/dom-backed`** — the DOM-backed control standard context
   (snapshot → ref → act, fail loud, capture artifacts). This is a Coga
-  **context** (ref `browser/dom-backed`, under the repo's contexts
-  directory), not a loadable
+  **context** (`coga/contexts/browser/dom-backed/`), not a loadable
   skill — attach/read it as a context. DocHub follows it, with **one
   sanctioned coordinate exception** documented under Technique B.
 
