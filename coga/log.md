@@ -3778,3 +3778,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-19 22:16 [move-cogacontext-to-roodoc-so-its-easier-for-human] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-19 22:16 [migrate-recurring-templates-to-ticket-py-shims-and] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-19 22:16 [autoclose-skips-annotated-pr-lines] [megalaunch] activated (draft → active) — explicit megalaunch pick
+2026-08-19 22:16 [dream-phases-2-3-cannot-complete-scan-subagents-re] [megalaunch] launched via coga megalaunch
+2026-08-19 22:26 [dream-phases-2-3-cannot-complete-scan-subagents-re] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
