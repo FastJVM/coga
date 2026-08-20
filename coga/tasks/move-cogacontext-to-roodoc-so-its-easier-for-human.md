@@ -1,7 +1,7 @@
 ---
 slug: move-cogacontext-to-roodoc-so-its-easier-for-human
 title: move cogacontext to roodoc so its easier for human
-status: active
+status: in_progress
 owner: nick
 human: nick
 agent: claude
