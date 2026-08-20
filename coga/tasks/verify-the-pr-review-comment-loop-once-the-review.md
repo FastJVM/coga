@@ -1,15 +1,22 @@
 ---
 slug: verify-the-pr-review-comment-loop-once-the-review
 title: Verify the PR review-comment loop once the review queue drains
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: direct/body
+workflow:
+  name: direct/body
+  steps:
+  - name: execute
+    skills:
+    - direct/body
+    assignee: agent
 secrets: null
+step: 1 (execute)
 ---
 
 ## Description
