@@ -6,9 +6,10 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
-contexts: []
+contexts:
+- dev/code
 skills: []
-workflow: null
+workflow: code/with-self-review
 secrets: null
 ---
 
@@ -25,24 +26,76 @@ already tolerate exactly this.
 
 ### The regex
 
-`src/coga/autoclose.py:53`:
+`src/coga/autoclose.py:115` (line numbers below are as of 2026-08-19; prefer the
+symbol names, the file has already drifted once):
 
 ```python
 _PR_LINE_RE = re.compile(r"^\s*(?:-\s*)?pr:\s*(\S+)\s*$", re.MULTILINE)
 ```
 
-The comment directly above it (`:48-52`) already reasons about this failure
+The comment directly above it (`:109-114`) already reasons about this failure
 mode for the `- ` list-prefix case — "a bulleted `pr:` line is invisible to the
 sweep, so a merged final-step ticket is silently skipped and left stranded
 `in_progress`" — and then the same sentence applies verbatim to a trailing
 annotation, which the `$` anchor still rejects.
 
-The siblings at `:61` and `:65` capture `(.+?)` and normalize afterwards:
+The siblings at `:122` and `:127` capture `(.+?)` and normalize afterwards:
 
 ```python
 _BRANCH_LINE_RE = re.compile(r"^\s*(?:-\s*)?branch:\s*(.+?)\s*$", re.MULTILINE)
 _WORKTREE_LINE_RE = re.compile(r"^\s*(?:-\s*)?worktree:\s*(.+?)\s*$", re.MULTILINE)
 ```
+
+`parse_branch_name` / `parse_worktree_path` (`:139`, `:163`) do the normalizing:
+a leading backtick delimits the value through its matching closing backtick
+(which is what makes `` branch: `name` (annotation) `` work), and an unmatched
+backtick falls back to whole-line stripping. Whatever shape the `pr:` fix takes,
+it should land in the same place — normalization inside `parse_pr_url`, not a
+third bespoke line-regex dialect. A URL cannot contain whitespace, so dropping
+the `$` anchor and keeping the `(\S+)` capture is likely sufficient on its own;
+add backtick-stripping so the `` pr: `<url>` (annotation) `` shape the siblings
+document also parses.
+
+### Blast radius is wider than the sweep
+
+`parse_pr_url` is shared infra, not an autoclose-private helper. Consumers as of
+2026-08-19:
+
+- `src/coga/step_gate.py:45` — backs the `requires: pr` bump gate. An annotated
+  `pr:` line therefore also makes `coga bump` refuse to advance the PR step of
+  `code/with-review` / `code/with-self-review`, reporting "no PR recorded" for a
+  ticket that has one.
+- `src/coga/open_pr.py:338, :533` — the idempotency check (`already`) and the
+  post-write round-trip verification (`parse_pr_url(current) != url`). Note
+  `open_pr.py` has its *own* `_PR_LINE_RE` at `:149` (`pr:.*$`) which already
+  tolerates annotations and rewrites the **whole** line — so a re-run of
+  `coga open-pr` silently discards any annotation a human added. Out of scope to
+  change, but worth knowing before writing the round-trip test.
+- `src/coga/branchcleanup.py:468` — branch-sweep / retire protection.
+- `src/coga/pr_assist.py:82`, `src/coga/commands/launch.py:307, :1574, :1936`.
+
+The fix is one regex, but the test plan should cover the gate and the open-pr
+round-trip, not only the sweep.
+
+### Tests
+
+`tests/test_autoclose.py` holds the existing parser tests
+(`test_parse_pr_url_finds_under_dev`, `test_parse_pr_url_returns_none_without_dev_section`)
+— extend there. `tests/test_autoclose_sweep.py` and `tests/test_retire.py` cover
+the sweep and retire paths.
+
+### Doc sync
+
+`dev/code` is the only place documenting the `pr:` line's shape, and its bullet
+("the full PR URL, one line") is the odd one out — its `branch:` / `worktree:`
+siblings both state the backtick-delimit-then-annotate rule. Once the regex
+tolerates annotations, update that bullet to state the same rule. Per
+`CLAUDE.md`, change **both** copies:
+
+- `coga/contexts/dev/code/SKILL.md` (live repo copy)
+- `src/coga/resources/templates/coga/bootstrap/contexts/dev/code/SKILL.md` (packaged)
+
+They are byte-identical today; keep them so.
 
 ### Live casualty
 
