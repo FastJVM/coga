@@ -13,10 +13,11 @@ git clone https://github.com/FastJVM/coga
 cd coga
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e ".[test]"
 ```
 
-That exposes the `coga` CLI pointing at your working tree. If pip's global
+That exposes the `coga` CLI pointing at your working tree and installs the
+declared test tools, including pytest and Hatchling. If pip's global
 hash-checking mode blocks the editable install (`there is no single file to
 hash`), install with `uv` or prefix the one command with `PIP_REQUIRE_HASHES=0`
 — same escape hatches as a normal install (see [getting
@@ -60,10 +61,12 @@ for end-to-end behavior.
 python -m pytest
 ```
 
-Install `pytest` in your dev environment first. When you change prompt
-composition, workflow freezing, config loading, or task creation, update the
-seeded `example/` repo or related fixtures so the smoke path stays
-representative. And after config, workflow, or task-model changes, run:
+The editable test-extra install above is required: the wheel-packaging test
+runs without build isolation so a missing Hatchling dependency fails loud.
+When you change prompt composition, workflow freezing, config loading, or task
+creation, update the seeded `example/` repo or related fixtures so the smoke
+path stays representative. And after config, workflow, or task-model changes,
+run:
 
 ```sh
 coga validate --json

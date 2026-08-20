@@ -195,7 +195,7 @@ force-include is what guarantees they ship.
 
 ## Daily commands
 
-- Install editable: `python -m pip install -e .`
+- Install editable with declared test tools: `python -m pip install -e ".[test]"`
 - Run CLI: `coga --help`
 - Tests: `python -m pytest`
 - Validate config + tasks: `coga validate --json`
