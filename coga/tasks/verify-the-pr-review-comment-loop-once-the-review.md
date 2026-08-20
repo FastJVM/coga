@@ -1,7 +1,7 @@
 ---
 slug: verify-the-pr-review-comment-loop-once-the-review
 title: Verify the PR review-comment loop once the review queue drains
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -140,3 +140,42 @@ and a frozen snapshot never refreshes.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Run 2026-08-20 — phase 0 gate FAILED, stopped before phase 1
+
+Ran the gate check verbatim:
+
+```
+grep -rn '^step: .*(review)$' coga/tasks/*.md coga/tasks/*/ticket.md
+```
+
+Four rows, **all `status: in_progress`** — so the gate is not satisfied. The two
+named in the body (`put-build-back`, `recurring-recipe-question`) are still
+parked, and two more have arrived since the gate was written.
+
+| ticket | step | status | PR | PR state |
+| --- | --- | --- | --- | --- |
+| `put-build-back` | 4 (review) | in_progress | 701 | OPEN |
+| `recurring-recipe-question` | 5 (review) | in_progress | 700 | OPEN |
+| `validate-drift-classifier-misses-17-emitted-kinds` | 4 (review) | in_progress | 702 | OPEN |
+| `dream-phases-2-3-cannot-complete-scan-subagents-re` | 4 (review) | in_progress | 703 | OPEN |
+
+All four PRs are **open, none merged** (`gh pr view <n> --json state,mergedAt`),
+so the queue has not merely gone un-swept — the reviews themselves are
+outstanding. Draining requires the owner to review and merge 700–703, then let
+`autoclose` (or a bump) move the tickets off review.
+
+Per the body's phase 0 rule this run does **not** proceed to phases 1–4 and does
+**not** mark the ticket done: measuring now would measure the live backlog, not
+the steady state. Blocking with the four tickets named.
+
+Nothing else was investigated this run, so phases 1–4 start from a clean slate
+on relaunch. The 2026-08-17 snapshot in `## Context` is still the baseline; the
+retired-since set for phase 2 must be recomputed at that time, and it will
+include whichever of these four land in the meantime.
+
+---
+
+## Blockers
+
+- [ ] [2026-08-20 11:24] [agent:claude] id=20260820T112458 Phase 0 precondition gate failed: four tickets are still in_progress on a code/with-review review step, with all four PRs still OPEN (unmerged) — coga/tasks/put-build-back.md (step 4, PR 701), coga/tasks/recurring-recipe-question.md (step 5, PR 700), coga/tasks/validate-drift-classifier-misses-17-emitted-kinds.md (step 4, PR 702), coga/tasks/dream-phases-2-3-cannot-complete-scan-subagents-re.md (step 4, PR 703). The ticket body forbids running phases 1-4 against a live backlog. Need the owner to review and merge PRs 700-703 (or move those tickets off review), then relaunch this ticket.
