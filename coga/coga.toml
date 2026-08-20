@@ -166,3 +166,6 @@ chat = "launch bootstrap/orient"
 pick = "megalaunch --pick"
 claude = "launch bootstrap/orient --agent claude"
 codex = "launch bootstrap/orient --agent codex"
+
+[layout]
+contexts = "docs/contexts"
