@@ -153,10 +153,10 @@ no in-memory state.
   built-in command. `coga recurring` creates and launches it when its
   weekly schedule is due; the `coga dream` alias (`recurring launch dream`)
   creates and launches it on demand. The parent task runs six ordered phases:
-  two registered recipes invoked directly, two subagent scans, a delegated Retro
-  pass, and a disposition phase. Its body scans the ticket set, runs fixed Coga
-  housekeeping, proposes cleanup, and writes reviewable results to its
-  blackboard.
+  two registered recipes invoked directly, two sharded subagent scans, a
+  delegated Retro pass, and a disposition phase. Its body scans the ticket
+  set, runs fixed Coga housekeeping, proposes cleanup, and writes reviewable
+  results to its blackboard.
 - **REM** is repo/user-specific recurring maintenance. A REM run is an
   ordinary recurring task whose body defines that repo's operational checks,
   domain skills, output conventions, and review gates.
@@ -824,12 +824,16 @@ audit) are skills too, but **prompt-only**: they live under
 `bootstrap/skills/bootstrap/dream/scan/<name>/` (referenced as
 `bootstrap/dream/scan/<name>`), a sibling segment to the deterministic workers'
 `tasks/`. A prompt-only scan skill carries just `name` + `description`
-frontmatter and the classification contract as its body — no executable entry
-point and no `## Known Skill Contract` block; that shape belongs to the
-deterministic workers and is the wrong archetype to copy for a subagent scan. The
-Dream template body delegates each scan phase to a subagent running the
-skill and keeps only the delegation framing plus the `## Findings` write
-target inline. Known limitation: the contract audit's own corpus globs
+frontmatter and its prompt contract as the body — no executable entry point and
+no `## Known Skill Contract` block; that shape belongs to the deterministic
+workers and is the wrong archetype to copy for a subagent scan. The phase skills
+carry their classification and partition rules, while the sibling
+`bootstrap/dream/scan/scan-protocol` skill carries their shared bounded-read,
+durable-output, heartbeat, completion, and retry-supersession rules. The Dream
+template body builds the scan index and append-only manifest, delegates each
+phase across bounded shard subagents, reconciles only active leaf assignments,
+and merges their on-disk findings into `## Findings`; a final message is not the
+delivery mechanism. Known limitation: the contract audit's own corpus globs
 (`coga/contexts/**`, `coga/skills/**`) do not cover package-backed
 `bootstrap/skills/**`, so the bundled Dream skills — the scan skills included
 — sit outside the surface that audit reads.
@@ -870,7 +874,7 @@ with these fields:
 Each registered recipe writes its own `## Dream Skill: <name>` section to the
 Dream task's blackboard. The orchestrator appends one `## Dream Run Summary`
 that lists each skill's result using a small fixed vocabulary:
-`no-op`, `reported`, `proposed`, `direct-fixed`, `pr-opened`,
+`no-op`, `reported`, `partial`, `proposed`, `direct-fixed`, `pr-opened`,
 `human-needed`.
 
 Destructive behavior (deleting task directories, deleting git refs,

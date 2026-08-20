@@ -19,26 +19,57 @@ ends by stating how many it found — including zero.
 ## The scan directory
 
 Dream creates one scan directory per phase and passes its absolute path to every
-shard subagent along with that shard's assignment. It holds three files:
+shard subagent along with that shard's assignment. It holds four files:
 
-- `manifest.md` — Dream-written, one line per shard: shard id, the exact paths
-  that shard owns, and their total bytes. Dream owns this file; shards read it
-  and never write to it.
+- `manifest.md` — a Dream-written, append-only assignment log. A shard row
+  records its id, attempt number, exact owned paths, any duplicated evidence
+  paths, and their total bytes. A supersession row records that a failed parent
+  was replaced by one or more retry children. Dream owns this file; shards read
+  it and never write to it.
 - `index.md` — Dream-written, the full corpus index for the phase: every
-  candidate path and its size, across all shards. A shard reads only its own
-  assignment, but the index lets it name a target that lives in another shard.
+  candidate path, its size and kind, plus compact routing metadata when the
+  phase skill requires it. The index is a discovery map, not permission to read
+  the whole corpus again.
 - `findings.md` — append-only, shared by every shard. This is where findings
   are delivered.
 - `progress.md` — append-only, shared by every shard. Heartbeat and completion
   lines.
 
-Append with `>>` and never rewrite these files; concurrent shards share them.
+Write `index.md` once before launching. Append every later record with `>>` and
+never rewrite the shared files; concurrent shards share them.
+
+Use these manifest record shapes:
+
+```
+shard <id> attempt=<1 | 2> bytes=<N> owns: <paths>; evidence: <paths or none>
+supersede <parent-id> -> <child-id>[, <child-id> ...]
+```
+
+The active manifest is its **leaf assignments**: shard rows whose ids have not
+appeared on the left of a `supersede` row. Reconciliation checks only those
+leaves. This keeps the log append-only without requiring a failed parent to
+later produce an impossible completion line.
 
 ## Shard budget
 
-A shard's assignment is at most **150 KB of Markdown across at most 40 files**.
-Dream sizes shards with `find <paths> -type f -name '*.md' -printf '%s %p\n'`
-before launching anything.
+A shard's owned and evidence paths together are at most **150 KB of Markdown
+across at most 40 distinct files**. Evidence may appear in more than one shard,
+but every corpus file has exactly one owning shard. Dream sizes files portably
+before launching anything; for example:
+
+```
+find <paths> -type f -name '*.md' -exec wc -c {} \;
+```
+
+Do not use GNU-only `find -printf`; Dream must run with the default BSD tools on
+macOS too.
+
+A shard fully reads its owned paths and may read the evidence paths named in
+its assignment. When a concrete comparison needs another indexed file, use a
+targeted grep or range read rather than reading that file whole, and count the
+bytes actually read against the same budget. If the comparison cannot fit,
+write an `incomplete` line naming the needed evidence so Dream can include it in
+the retry assignment. The index alone never substitutes for the comparison.
 
 Two reading rules keep a shard inside its budget:
 
@@ -115,14 +146,21 @@ message; do not hold any finding that is not already in `findings.md`.
 
 ## What Dream does with this
 
-Dream reconciles `manifest.md` against the completion lines in `progress.md`:
+Dream reconciles the active leaf assignments in `manifest.md` against the
+completion lines in `progress.md`. Leaf completion proves corpus coverage; the
+phase's finding total comes from the de-duplicated `findings.md` across **all**
+attempts, including durable findings written by a parent before it was
+superseded. Supersession changes coverage expectations, never delivery:
 
-- every shard complete → the phase result is `reported`, or `no-op` when the
-  total is zero findings;
+- every leaf complete → the phase result is `reported`, or `no-op` only when
+  the merged findings total is zero;
 - any shard missing a completion line, or carrying an `incomplete` line → Dream
-  re-shards that assignment into halves and retries it **once**; if it still
-  does not complete, the phase result is `partial` and the unread paths and the
-  scan directory path go into the run summary as `human-needed`.
+  appends a `supersede` row, appends one or more smaller attempt-2 child rows,
+  and retries those children **once**. Use a single child when one indivisible
+  file merely needs a fresh attempt. A superseded parent's late completion does
+  not satisfy or invalidate its children. If any attempt-2 leaf still does not
+  complete, the phase result is `partial` and the unread paths and the scan
+  directory path go into the run summary as `human-needed`.
 
 Dream then merges `findings.md` into the Dream task's blackboard `## Findings`
 section, de-duplicating across shards. Because de-duplication now happens over

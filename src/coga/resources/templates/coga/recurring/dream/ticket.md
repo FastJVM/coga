@@ -94,24 +94,30 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
    its absolute path. Both scans and the shard subagents follow
    `bootstrap/dream/scan/scan-protocol`, which defines the directory's
    `manifest.md`, `index.md`, `findings.md`, and `progress.md`.
-2. **Index and shard.** Size the phase's corpus with
-   `find <paths> -type f -name '*.md' -printf '%s %p\n'`. Write the full index
-   to `index.md`, then chunk the corpus into shards of at most 150 KB across at
-   most 40 files, keeping a task directory's files together and never splitting
-   a file. Write one line per shard to `manifest.md`.
+2. **Index and shard.** Size the phase's corpus portably with
+   `find <paths> -type f -name '*.md' -exec wc -c {} \;` — do not use GNU-only
+   `find -printf`. Enrich those sizes with the compact routing metadata the
+   phase skill names and write the full index to `index.md`. Then build the
+   phase skill's ownership + evidence assignments at no more than 150 KB across
+   at most 40 distinct files, keeping a task directory's Markdown together and
+   never splitting a file. Append one attempt-1 shard row per assignment to
+   `manifest.md`.
 3. **Run the shards.** Delegate each shard to a subagent using the phase's scan
    skill, passing the scan directory's absolute path, the shard id, and that
    shard's exact paths. Shards append to the shared `findings.md` and
    `progress.md`; they do not report findings back through their final message.
-4. **Reconcile before believing the result.** Compare `manifest.md` against the
-   completion lines in `progress.md`. Every shard must have written
+4. **Reconcile before believing the result.** Compare the active leaf shard rows
+   in `manifest.md` against the completion lines in `progress.md`. Every leaf
+   shard must have written
    `<shard-id> complete — <N> findings`; `0 findings` is an explicit, valid
    result, and a shard with no line at all is a shard that never returned. Do
    not treat a missing line as zero findings.
-5. **Retry once, then report honestly.** Re-shard any missing or `incomplete`
-   assignment into halves and retry it once. If it still does not complete, the
-   phase result is `partial`: keep the scan directory, and record its path, the
-   unread paths, and a `human-needed` line in the run summary.
+5. **Retry once, then report honestly.** For any missing or `incomplete`
+   assignment, append a manifest `supersede <parent> -> <children>` row plus
+   smaller attempt-2 child rows and retry those leaves once. If an attempt-2
+   leaf still does not complete, the phase result is `partial`: keep the scan
+   directory, and record its path, the unread paths, and a `human-needed` line
+   in the run summary.
 6. **Merge into the blackboard.** Read `findings.md` and merge it into this
    task's `## Findings`, de-duplicating across shards — two shards may describe
    one underlying issue from different evidence; re-read a named file when you
@@ -120,8 +126,10 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
 
 Delete the scan directory only after its findings are merged into the
 blackboard, and only when the phase completed. Report each scan's result as
-`reported` with the shard and finding counts, `no-op` when every shard completed
-with zero findings, or `partial` when any shard did not complete.
+`reported` with the shard and merged finding counts, `no-op` when every active
+leaf completed and the de-duplicated findings across all attempts total zero,
+or `partial` when any active leaf did not complete. Superseding a shard changes
+the coverage check; it never discards findings that shard already appended.
 
 ### Phase 2 — knowledge scan
 

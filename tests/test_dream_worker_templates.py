@@ -178,9 +178,14 @@ def test_dream_documents_the_knowledge_scan_skill() -> None:
     assert "every ticket body and blackboard" in skill_norm
     assert "every context, skill, and workflow file" in skill_norm
     assert "`bootstrap/dream/scan/scan-protocol`" in skill_text
-    # The de-duplication tradeoff the sharding costs is stated, not hidden.
-    assert "de-duplication now happens in Dream's merge pass" in skill_norm
-    assert "index.md` carries the full corpus index" in skill_norm
+    # The de-duplication tradeoff the sharding costs is stated, while the
+    # required ticket-vs-knowledge comparison is preserved inside area shards.
+    assert "merge-time de-duplication compares titles, targets, and paragraphs" in skill_norm
+    assert "both sides of the comparison in each shard" in skill_norm
+    assert "Do not create disjoint ticket-only and knowledge-only shard groups" in skill_norm
+    assert "For every ticket it includes path, bytes, slug, title, status" in skill_norm
+    assert "the index entry alone is not evidence" in skill_norm
+    assert "at least two independent tickets" in skill_norm
     assert "`extract`" in skill_text
     assert "`stale`" in skill_text
     assert "`gap`" in skill_text
@@ -214,11 +219,14 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     assert "Frozen task artifacts under `coga/tasks/` are historical" in skill_text
     assert "script:" not in skill_text
     assert "## Known Skill Contract" not in skill_text
-    # The audit shards too, and the copy-divergence shard diffs the trees
-    # instead of reading both of them into context.
+    # The audit shards too, and copy divergence checks explicit counterpart
+    # pairs instead of diffing intentionally different trees.
     assert "bounded shards, not one sweep" in skill_norm
     assert "`bootstrap/dream/scan/scan-protocol`" in skill_text
-    assert "diff -r coga/ src/coga/resources/templates/coga/" in skill_text
+    assert "`IDENTICAL_LIVE_PACKAGED_PAIRS`" in skill_text
+    assert "compare each pair with `cmp`" in skill_norm
+    assert "recursive diff" in skill_norm
+    assert "diff -r coga/ src/coga/resources/templates/coga/" not in skill_text
     assert "never read it whole" in skill_norm
     # Phase 6 disposition routes `drift` findings to a proposal PR.
     assert "Every Phase 2 and Phase 3 finding gets a durable home" in text
@@ -285,8 +293,21 @@ def test_dream_scans_stream_durable_findings_and_report_completion() -> None:
 
     # Bounded reading is what makes a shard finishable.
     assert "150 KB" in protocol
+    assert "owned and evidence paths together" in norm
     assert "Never read a file over 60 KB whole" in norm
     assert "Never read `coga/log.md` whole" in norm
+    assert "find <paths> -type f -name '*.md' -exec wc -c {} \\;" in protocol
+    assert "find -printf" in protocol
+
+    # Retry children supersede an incomplete parent, so successful leaves can
+    # reconcile without waiting for the failed parent to complete.
+    assert "supersede <parent-id> -> <child-id>" in protocol
+    assert "leaf assignments" in norm
+    assert "reconciliation checks only those leaves" in norm.lower()
+    assert "A superseded parent's late completion" in norm
+    assert "phase's finding total comes from the de-duplicated `findings.md`" in norm
+    assert "including durable findings written by a parent" in norm
+    assert "Supersession changes coverage expectations, never delivery" in norm
 
 
 def test_dream_shards_and_reconciles_the_scan_phases() -> None:
@@ -300,10 +321,12 @@ def test_dream_shards_and_reconciles_the_scan_phases() -> None:
     assert "`bootstrap/dream/scan/scan-protocol`" in text
     assert "mktemp -d" in text
     assert "manifest.md" in text and "index.md" in text
-    assert "at most 150 KB across at most 40 files" in norm
-    assert "Compare `manifest.md` against the completion lines" in norm
+    assert "no more than 150 KB across at most 40 distinct files" in norm
+    assert "Compare the active leaf shard rows" in norm
     assert "Do not treat a missing line as zero findings" in norm
-    assert "retry it once" in norm
+    assert "supersede <parent> -> <children>" in norm
+    assert "retry those leaves once" in norm
+    assert "de-duplicated findings across all attempts total zero" in norm
     assert "the phase result is `partial`" in norm
     assert "de-duplicating across shards" in norm
     # `partial` joins the run-summary vocabulary so an incomplete scan is
@@ -313,3 +336,26 @@ def test_dream_shards_and_reconciles_the_scan_phases() -> None:
     # A sharded scan still covers the whole corpus before Phase 4 deletes
     # done-ticket evidence.
     assert "sharded corpus read; classifies every finding" in text
+
+
+def test_dream_sharding_updates_the_architecture_contract() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    live = repo_root / "coga" / "contexts" / "coga" / "architecture" / "SKILL.md"
+    packaged = (
+        RESOURCES
+        / "templates"
+        / "coga"
+        / "bootstrap"
+        / "contexts"
+        / "coga"
+        / "architecture"
+        / "SKILL.md"
+    )
+    text = live.read_text()
+    norm = " ".join(text.split())
+
+    assert live.read_bytes() == packaged.read_bytes()
+    assert "two sharded subagent scans" in norm
+    assert "retry-supersession rules" in norm
+    assert "reconciles only active leaf assignments" in norm
+    assert "`no-op`, `reported`, `partial`, `proposed`" in norm

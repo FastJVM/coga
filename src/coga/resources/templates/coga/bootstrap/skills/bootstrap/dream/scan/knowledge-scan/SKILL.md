@@ -18,26 +18,48 @@ before you start — it is the delivery contract, and this skill only adds what 
 specific to the knowledge scan.
 
 Sharding replaced a single full-corpus read that could not fit. That read
-existed so one running delta could de-duplicate across the whole corpus; the
-de-duplication now happens in Dream's merge pass over the bounded findings file
-instead. The tradeoff is real and accepted: merge-time de-duplication compares
-titles, targets, and paragraphs rather than full evidence, which is weaker than
-one delta over everything but strictly better than a sweep that returns nothing.
-The scan directory's `index.md` carries the full corpus index, so a shard can
-still name a target that lives outside its own assignment.
+existed so one running delta could compare tickets against knowledge and
+de-duplicate across the whole corpus. The tradeoff is real: merge-time
+de-duplication compares titles, targets, and paragraphs rather than retaining
+all evidence in one context. Area shards preserve the more important
+cross-corpus comparison by carrying both ticket and knowledge evidence; a
+slightly repeated read over real findings is better than a sweep that returns
+nothing.
+
+The scan directory's `index.md` is the bounded routing layer. For every ticket
+it includes path, bytes, slug, title, status, context refs, skill refs, and
+workflow name. For every context, skill, and workflow it includes path, bytes,
+name, description or heading, and namespace. These are compact metadata, not a
+replacement for reading the named evidence.
 
 ## Shard partition
 
-Dream partitions this scan's corpus into two groups, then chunks each group to
-the protocol's budget:
+Dream partitions this scan **by area, with both sides of the comparison in each
+shard**. Do not create disjoint ticket-only and knowledge-only shard groups.
+Derive an area's first routing key from ticket context/skill/workflow refs and
+from knowledge namespaces, then use task paths and titles for tickets with no
+refs.
 
-- **tickets** — `coga/tasks/**/*.md`, the bare task files and the `ticket.md` of
-  each task directory, bodies and blackboards both.
-- **knowledge** — `coga/contexts/**/SKILL.md`, `coga/skills/**`, and
-  `coga/workflows/**`.
+- **Ticket evidence** — every bare task Markdown file and every task
+  directory's `ticket.md`, body and blackboard both.
+- **Knowledge evidence** — `coga/contexts/**/SKILL.md`, every Markdown file
+  under `coga/skills/**`, and `coga/workflows/**`.
 
-Keep a task directory's files in one shard. Do not split a single file across
-shards.
+Each corpus file has one owning shard, but a relevant knowledge or ticket file
+may be duplicated as evidence in another area's assignment. Keep a task
+directory's Markdown files together and do not split a single file. The owned
+and evidence paths together must stay inside the shared protocol's byte and
+file limits.
+
+Before classifying an `extract` or `gap`, compare the ticket evidence with the
+matching context, skill, and workflow evidence in that area. For a possible
+cross-area target, use the full index to locate it and read a targeted excerpt;
+the index entry alone is not evidence that knowledge is present or absent.
+Before calling a pattern repeated enough for `gap`, search the indexed ticket
+paths and read the matching excerpts from at least two independent tickets.
+If the needed comparison cannot fit in this assignment, finish no finding from
+that candidate: write `incomplete` with the exact extra evidence paths so Dream
+can place them together in a smaller retry shard.
 
 ## Findings
 

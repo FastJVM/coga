@@ -30,6 +30,8 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/scan/"
+    "scan-protocol/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/browser/"
     "build-automation/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/browser/"
@@ -101,6 +103,11 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     ),
     (
+        "coga/contexts/coga/architecture/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/"
+        "SKILL.md",
+    ),
+    (
         "coga/workflows/draft-for-human.md",
         "src/coga/resources/templates/coga/workflows/draft-for-human.md",
     ),
@@ -111,6 +118,10 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
     (
         "coga/bootstrap/resolve-conflicts/ticket.md",
         "src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
+    ),
+    (
+        "coga/recurring/dream/ticket.md",
+        "src/coga/resources/templates/coga/recurring/dream/ticket.md",
     ),
 )
 

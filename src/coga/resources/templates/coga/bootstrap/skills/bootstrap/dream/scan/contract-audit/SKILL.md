@@ -39,12 +39,17 @@ budget:
 - **skills** — `coga/skills/**/SKILL.md`.
 - **templates and docs** — `coga/recurring/*/ticket.md`, `README.md`,
   `docs/*.md`, `CLAUDE.md`, `AGENTS.md`.
-- **copy divergence** — one shard for the whole live/packaged comparison. Do not
-  read both trees to compare them. Run
-  `diff -r coga/ src/coga/resources/templates/coga/` (and `git ls-files` to
-  confirm which copies are tracked rather than generated), then read only the
-  files the diff actually flags. Note that `coga/.agent-skills/` is a generated,
-  gitignored symlink view of the packaged skills, not a copy to compare.
+- **copy divergence** — one shard over actual counterpart pairs only. In the
+  Coga source repo, read `IDENTICAL_LIVE_PACKAGED_PAIRS` from
+  `tests/test_packaging.py`, confirm both paths in each pair are tracked, and
+  compare each pair with `cmp`. Also check an additional pair only when a
+  living contract explicitly names it as a synchronized twin. Do **not** run a
+  recursive diff between `coga/` and
+  `src/coga/resources/templates/coga/`: most of those roots intentionally have
+  no counterpart and runtime state such as `coga/log.md` intentionally differs.
+  In a downstream repo with no packaged source tree or explicit pair list,
+  omit this group. `coga/.agent-skills/` is a generated, gitignored symlink view
+  of the packaged skills, not a copy to compare.
 
 ## Findings
 
