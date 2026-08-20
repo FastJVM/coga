@@ -3777,3 +3777,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-19 22:16 [verify-the-pr-review-comment-loop-once-the-review] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-19 22:16 [move-cogacontext-to-roodoc-so-its-easier-for-human] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-19 22:16 [migrate-recurring-templates-to-ticket-py-shims-and] [megalaunch] activated (draft → active) — explicit megalaunch pick
+2026-08-19 22:16 [autoclose-skips-annotated-pr-lines] [megalaunch] activated (draft → active) — explicit megalaunch pick
