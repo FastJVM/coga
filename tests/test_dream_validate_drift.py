@@ -204,6 +204,7 @@ def test_classifies_recurring_state_stuck_as_human_needed() -> None:
         "duplicate-task-number",
         "invalid-recurring-schedule",
         "missing-step-instructions",
+        "unrunnable-script-entry-point",
         "unsynthesized-draft-blackboard",
     ],
 )
