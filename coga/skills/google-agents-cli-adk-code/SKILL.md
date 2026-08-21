@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-adk-code
-    github-ref: refs/tags/v1.3.1
+    github-ref: refs/tags/v1.4.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: b12dde7cd9d5523893667e7858c16960d0922c7c
+    github-tree-sha: ab74335f88438ba1541055715f9d90b88fd0deb3
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.3.1
+    version: 1.4.0
 name: google-agents-cli-adk-code
 ---
 # ADK Code Reference

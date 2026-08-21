@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-observability
-    github-ref: refs/tags/v1.3.1
+    github-ref: refs/tags/v1.4.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 795ea07573fec3cea9d78c9ae36c4fa3d37ad446
+    github-tree-sha: b726457ffba0e2c683ef3b7448205e125298a2eb
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.3.1
+    version: 1.4.0
 name: google-agents-cli-observability
 ---
 # ADK Observability Guide
@@ -34,6 +34,7 @@ Already ran `agents-cli deploy`? Two options:
 |------|----------|
 | `references/cloud-trace-and-logging.md` | Scaffolded project details — Terraform-provisioned resources, environment variables, verification commands, enabling/disabling locally |
 | `references/bigquery-agent-analytics.md` | BQ Agent Analytics plugin — enabling, key features, GCS offloading, tool provenance |
+| `references/feedback-mechanism.md` | Adding a user-feedback endpoint — request model, structured logging, log sink → BigQuery |
 
 ---
 

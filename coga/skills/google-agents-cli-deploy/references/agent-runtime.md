@@ -18,7 +18,7 @@ reasoning_engine adapter still constructs an `AdkApp` internally to dispatch the
 native `:streamQuery`/`:query` contract).
 
 The container serves the ADK HTTP surface (`/run_sse`, `/apps/...`), the A2A
-routes under `/a2a/{app_name}` (JSON-RPC + agent card), `/feedback`, and the
+routes under `/a2a/{app_name}` (JSON-RPC + agent card), and the
 reasoning_engine adapter routes `/api/reasoning_engine` +
 `/api/stream_reasoning_engine` (the native `:streamQuery`/`:query` contract used
 by the Console Playground and Gemini Enterprise ADK registration). It deploys as
@@ -106,9 +106,9 @@ agents-cli run --url https://LOCATION-aiplatform.googleapis.com/v1/projects/PROJ
 To query Agent Runtime programmatically:
 
 ```python
-import vertexai
+import agentplatform
 
-client = vertexai.Client(location="us-east1")
+client = agentplatform.Client(location="us-east1")
 agent = client.agent_engines.get(name="projects/PROJECT/locations/LOCATION/reasoningEngines/ENGINE_ID")
 
 async for event in agent.async_stream_query(message="Hello!", user_id="test"):

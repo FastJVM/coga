@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-scaffold
-    github-ref: refs/tags/v1.3.1
+    github-ref: refs/tags/v1.4.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 2bfbec99c972129f1e8a38ba2b7e3c4d79551639
+    github-tree-sha: 3a9fdf8f8b845a98eae02272e5178f5d8de4fc32
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.3.1
+    version: 1.4.0
 name: google-agents-cli-scaffold
 ---
 # ADK Project Scaffolding Guide
@@ -169,7 +169,7 @@ After scaffolding, immediately load `/google-agents-cli-workflow` — it contain
 your scaffolded project, then run provisioning from the recipe's own `Makefile` (e.g.
 `make setup-infra`). Start from its `AGENTS.md`.
 
-**Verifying your agent works:** Use `agents-cli run "test prompt"` for quick smoke tests, then `agents-cli eval generate` and `agents-cli eval grade` for systematic validation. Do NOT write pytest tests that assert on LLM response content — that belongs in eval.
+**Verifying your agent works:** Use `agents-cli run "test prompt"` for quick smoke tests, then `agents-cli eval run` for systematic validation. Do NOT write pytest tests that assert on LLM response content, that belongs in eval.
 
 ---
 

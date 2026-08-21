@@ -14,7 +14,7 @@ No configuration required. Works in local dev (`agents-cli playground`) and all 
 
 All provisioned automatically by `deployment/terraform/single-project/telemetry.tf` (and the `cicd/` variant):
 
-- **Log sinks** — Route GenAI inference logs and feedback logs directly to BigQuery (partitioned tables)
+- **Log sinks** — Route GenAI inference logs directly to BigQuery (partitioned tables)
 - **BigQuery dataset** — Telemetry dataset with external tables over GCS data and pre-created log export table
 - **Pre-created log export table** — Cloud Logging BQ export schema (labels flattened: dots become underscores). Cloud Logging names the sink table after the log id, so it varies by deployment target: `gen_ai_client_inference_operation_details` (Cloud Run / GKE) or `aiplatform_googleapis_com_reasoning_engine_stdout` (Agent Runtime, where GenAI logs arrive via stdout)
 - **GCS logs bucket** — Stores completions as NDJSON
@@ -22,6 +22,8 @@ All provisioned automatically by `deployment/terraform/single-project/telemetry.
 - **Completions view** — Joins BQ log export data with GCS-stored prompt/response data
 
 Check `deployment/terraform/single-project/telemetry.tf` for exact configuration. IAM bindings grant log sink service accounts `roles/bigquery.dataEditor` on the telemetry dataset.
+
+**Collecting user feedback?** The same infrastructure supports a feedback mechanism (endpoint + structured logging → log sink → BigQuery). See `references/feedback-mechanism.md`.
 
 ## Environment Variables
 

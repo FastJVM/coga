@@ -470,11 +470,11 @@ Pass `auth_scheme` + `auth_credential` from the auth helpers above for authentic
 
 ### MCP Tools
 
-Connect to MCP servers to use external tools. Use `StdioConnectionParams` for local dev, `SseConnectionParams` for production.
+Connect to MCP servers to use external tools (needs the `mcp` extra: scaffolded projects ship `google-adk[gcp,otel-gcp]`, so add `mcp` and re-sync). Use `StdioConnectionParams` for local dev, `StreamableHTTPConnectionParams` for remote HTTP servers.
 
 ```python
 from google.adk.tools.mcp_tool import McpToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams, SseConnectionParams
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams, StreamableHTTPConnectionParams
 from mcp import StdioServerParameters
 
 # Local MCP server via stdio
@@ -494,9 +494,17 @@ agent = Agent(
     ...
 )
 
-# Remote MCP server via SSE (production)
+# Remote MCP server, e.g. Cloud Run with --no-allow-unauthenticated. ID tokens
+# expire in ~1h, so mint per call via `header_provider` (ADK calls it on every
+# tool call); a static `headers` dict goes stale. Audience = root, not /mcp.
+from google.auth.transport.requests import Request
+from google.oauth2.id_token import fetch_id_token
+
 McpToolset(
-    connection_params=SseConnectionParams(url="https://mcp.example.com/sse"),
+    connection_params=StreamableHTTPConnectionParams(url=f"{MCP_SERVER_URL}/mcp"),
+    header_provider=lambda ctx: {
+        "Authorization": f"Bearer {fetch_id_token(Request(), MCP_SERVER_URL)}"
+    },
 )
 ```
 
@@ -648,7 +656,7 @@ app = App(
 
 ### Context Compaction
 
-Prevent context overflow on long sessions by summarizing older events in a sliding window:
+Prevent context overflow on long sessions by compacting older events into summaries. Use **token-based** compaction: it triggers on actual prompt-token volume, so it handles unpredictable inputs (pasted code, large tool results) better than a fixed turn count.
 
 ```python
 from google.adk.apps import App
@@ -660,8 +668,8 @@ app = App(
     name="my_app",
     root_agent=root_agent,
     events_compaction_config=EventsCompactionConfig(
-        compaction_interval=20,  # summarize every 20 events
-        overlap_size=3,          # include last 3 events in next window for continuity
+        token_threshold=32000,   # compact once prompt tokens reach this
+        event_retention_size=5,  # keep the last 5 raw events un-compacted
         # Optional: custom summarizer model
         summarizer=LlmEventSummarizer(llm=Gemini(model="gemini-3.6-flash")),
     ),

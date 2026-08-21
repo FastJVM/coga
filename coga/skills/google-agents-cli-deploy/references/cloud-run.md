@@ -16,7 +16,7 @@ Scaffolded projects include a `Dockerfile` using single-stage build with `uv` fo
 
 ## FastAPI Endpoints
 
-Scaffolded apps serve the ADK HTTP surface (`/run_sse`, `/apps/...`), A2A routes under `/a2a/{app_name}` (JSON-RPC + agent card — A2A is built into every ADK agent), and `/feedback`. Exact routes vary by template; check `app/fast_api_app.py`.
+Scaffolded apps serve the ADK HTTP surface (`/run_sse`, `/apps/...`), A2A routes under `/a2a/{app_name}` (JSON-RPC + agent card — A2A is built into every ADK agent). Exact routes vary by template; check `app/fast_api_app.py`.
 
 ## Session Types
 

@@ -129,7 +129,7 @@ custom_metrics:
     judge_model_sampling_count: 3
 ```
 
-Run with `agents-cli eval grade --config tests/eval/eval_config.yaml`.
+Run with `agents-cli eval run --config tests/eval/eval_config.yaml`.
 
 ---
 
