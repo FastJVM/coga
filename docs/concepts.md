@@ -123,11 +123,13 @@ clone can reproduce it. Set it and the whole system follows: composition,
 validation, ref resolution, and the git sync that commits both the new files
 and tracked removals from the former contexts root. A scaffolded config with
 the key set also makes `coga init` create and commit its initial local contexts
-at that checkout-root-relative destination. A missing, empty,
-fully-ignored, checkout-wide, Git-administrative, nested-checkout, or
-pathspec-like value fails at config load rather than quietly dropping contexts
-or widening the state sweep. Skills have no such knob; they are process
-knowledge for agents, not prose for humans.
+at that checkout-root-relative destination; `coga uninstall` lists and removes
+that directory as part of the Coga footprint. A missing, empty, ignored,
+symlinked, checkout-wide, coga-root-containing, Git-administrative,
+nested-checkout, or pathspec-like value fails at config load; so does a real
+context `SKILL.md` hidden by an ignore rule. These checks prevent Coga from
+quietly dropping composed contexts or widening the state sweep. Skills have no
+such knob; they are process knowledge for agents, not prose for humans.
 
 ## Workflows and steps
 

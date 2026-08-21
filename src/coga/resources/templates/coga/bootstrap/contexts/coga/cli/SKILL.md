@@ -47,10 +47,11 @@ resolves them directly from the installed package after checking project-local
 
 ## coga uninstall [--yes] [--purge]
 
-Remove the Coga footprint from the current repo: `coga/`, the agent skill
-symlinks in `.claude/` and `.codex/`, unmodified Coga orientation guides
-(`CLAUDE.md` / `AGENTS.md`), the coga-managed `.gitignore` block, and the
-`~/.local/bin/coga` shim if it points back into this repo.
+Remove the Coga footprint from the current repo: `coga/`, the configured
+contexts directory when it lives outside `coga/`, the agent skill symlinks in
+`.claude/` and `.codex/`, unmodified Coga orientation guides (`CLAUDE.md` /
+`AGENTS.md`), the coga-managed `.gitignore` block, and the `~/.local/bin/coga`
+shim if it points back into this repo.
 
 It prints the plan and asks for confirmation; `--yes` skips the prompt for
 scripted runs. Edited `CLAUDE.md` / `AGENTS.md` files are renamed to

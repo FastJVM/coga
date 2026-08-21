@@ -703,7 +703,8 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
 
     Compares the current HEAD against the control branch with a merge-base
     (three-dot) diff, `--name-only`, restricted to paths **outside** the Coga
-    OS-state subtree (the same pathspecs `sync_coga_state` owns, negated). The
+    OS-state subtree (the same current pathspecs `sync_coga_state` owns, plus a
+    former contexts root recorded at the control base, all negated). The
     three-dot form isolates what HEAD introduced since it forked, so an
     independently-advanced control branch is not mistaken for stranded work; and
     a HEAD already level with the control branch (the on-`main` `mark done`) is a
@@ -733,10 +734,23 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
         head = _run_git(root, "rev-parse", "HEAD").strip()
         if head == base:
             return []
-        excludes = [
-            f":(exclude){spec}"
-            for spec in _coga_state_pathspecs(root, cfg)
-        ]
+        state_pathspecs = _coga_state_pathspecs(root, cfg)
+        config_rel = _relative_to_root(root, cfg.repo_root / "coga.toml")
+        base_contexts = _contexts_root_from_revision(
+            root, cfg, config_rel, base
+        )
+        if base_contexts is not None:
+            base_contexts_rel = _relative_to_root(root, base_contexts)
+            if not any(
+                _pathspec_covers(spec, base_contexts_rel)
+                for spec in state_pathspecs
+            ):
+                # A feature branch may commit the relocation itself. Its
+                # three-dot diff then contains a deletion at the control
+                # branch's former contexts root; that is Coga state, not
+                # stranded product code.
+                state_pathspecs.append(base_contexts_rel)
+        excludes = [f":(exclude){spec}" for spec in state_pathspecs]
         # `-z` (NUL-delimited, no path quoting) so a product file with
         # non-ASCII characters is named verbatim in the `mark done` error rather
         # than git-quoted — the same reason `_changed_paths_under` uses it.
@@ -1237,11 +1251,11 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
 
     Scope is the core `coga/` subtree (`cfg.repo_root`, where `coga.toml` lives)
     plus `cfg.contexts_root` when `[layout] contexts` moves it outside that
-    subtree. During a move, tracked deletions from HEAD's former contexts root
-    are included too. This is *not* the forbidden `git add -A`: product code
-    outside those explicit roots is never swept in. Enumeration is a scoped
-    full `git status`, so modifications, deletions, renames, and new untracked
-    files are captured.
+    subtree. During a move, tracked deletions from the last tree where the
+    former contexts root was active are included too. This is *not* the
+    forbidden `git add -A`: product code outside those explicit roots is never
+    swept in. Enumeration is a scoped full `git status`, so modifications,
+    deletions, renames, and new untracked files are captured.
 
     Branch and union-file handling mirror `sync_paths`: the `merge=union` files
     (`log.md`, the digest spool) are committed locally + union-merged onto the
@@ -2399,14 +2413,12 @@ def _removed_paths_from_previous_contexts_root(
     The current config can name only the destination. In a root-layout repo the
     destination deliberately replaces the old `contexts` sweep path, and when
     one external directory replaces another neither old root is otherwise in
-    scope. Read the pre-change config from HEAD and add only tracked deletions
-    beneath that former root: this completes a move without adopting unrelated
-    new files left behind in the vacated directory.
+    scope. Find the most recent historical config that named a distinct root,
+    then add deletions only for paths that existed in that historical tree and
+    still survive in HEAD. This works whether config + content move together or
+    the config lands before the old copy is removed, without adopting unrelated
+    new files later created in the vacated directory.
     """
-    previous = _contexts_root_from_head(root, cfg)
-    if previous is None or previous == cfg.contexts_root.resolve():
-        return []
-    previous_rel = _relative_to_root(root, previous)
     out = _run_git(
         root,
         "--literal-pathspecs",
@@ -2417,16 +2429,71 @@ def _removed_paths_from_previous_contexts_root(
         "-z",
         "HEAD",
         "--",
-        previous_rel,
     )
-    return [path for path in out.split("\x00") if path]
+    deleted = [path for path in out.split("\x00") if path]
+    if not deleted:
+        # The historical lookup may span many coga.toml revisions. Most sweeps
+        # have no deletion at all, so keep that cost off the ordinary path.
+        return []
+    previous_state = _previous_contexts_root_snapshot(root, cfg)
+    if previous_state is None:
+        return []
+    previous, revision = previous_state
+    previous_rel = _relative_to_root(root, previous)
+    historical = _tracked_tree_paths(root, revision, previous_rel)
+    survivors = historical & _tracked_tree_paths(root, "HEAD", previous_rel)
+    if not survivors:
+        return []
+    return [path for path in deleted if path in survivors]
 
 
-def _contexts_root_from_head(root: Path, cfg: Config) -> Path | None:
-    """Resolve HEAD's configured contexts root without requiring it to exist."""
+def _previous_contexts_root_snapshot(
+    root: Path, cfg: Config
+) -> tuple[Path, str] | None:
+    """Former contexts root and the last tree where that root was active.
+
+    If the setting is only in the working tree, HEAD is that snapshot. If the
+    setting already landed, walk the contiguous run of config revisions naming
+    the current root and use the parent of the transition commit. Reading the
+    older config-changing commit directly would miss contexts added between
+    that commit and the later relocation.
+    """
     config_rel = _relative_to_root(root, cfg.repo_root / "coga.toml")
     try:
-        data = _tree_bytes(root, "HEAD", config_rel)
+        head_root = _contexts_root_from_revision(root, cfg, config_rel, "HEAD")
+        if head_root is None:
+            return None
+        current = cfg.contexts_root.resolve()
+        if head_root != current:
+            return head_root, "HEAD"
+        revisions = _run_git(
+            root, "log", "--format=%H", "--", config_rel
+        ).splitlines()
+    except GitError:
+        return None
+
+    boundary: str | None = None
+    for revision in revisions:
+        historical = _contexts_root_from_revision(root, cfg, config_rel, revision)
+        if historical == current:
+            boundary = revision
+            continue
+        break
+    if boundary is None:
+        return None
+    snapshot = f"{boundary}^"
+    previous = _contexts_root_from_revision(root, cfg, config_rel, snapshot)
+    if previous is None or previous == current:
+        return None
+    return previous, snapshot
+
+
+def _contexts_root_from_revision(
+    root: Path, cfg: Config, config_rel: str, revision: str
+) -> Path | None:
+    """Resolve one revision's configured contexts root without requiring it."""
+    try:
+        data = _tree_bytes(root, revision, config_rel)
     except GitError:
         return None
     if data is None:
@@ -2460,6 +2527,22 @@ def _contexts_root_from_head(root: Path, cfg: Config) -> Path | None:
     if resolved == resolved_root or resolved_root not in resolved.parents:
         return None
     return resolved
+
+
+def _tracked_tree_paths(root: Path, revision: str, pathspec: str) -> set[str]:
+    """Tracked leaf paths under a literal pathspec in one committed tree."""
+    out = _run_git(
+        root,
+        "--literal-pathspecs",
+        "ls-tree",
+        "-r",
+        "--name-only",
+        "-z",
+        revision,
+        "--",
+        pathspec,
+    )
+    return {path for path in out.split("\x00") if path}
 
 
 def _pathspec_covers(parent: str, child: str) -> bool:

@@ -20,7 +20,8 @@ Create `coga/` from the package templates. `PATH` is the target directory
   tickets and agents refer to you by.
 
 ### `coga uninstall`
-Remove this repo's Coga footprint (and optionally the global package).
+Remove this repo's Coga footprint, including a configured contexts directory
+outside `coga/` (and optionally the global package).
 
 - `-y`, `--yes` — skip the confirmation prompt (for scripts).
 - `--purge` — also uninstall the global `coga` package from the machine (affects

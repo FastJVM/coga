@@ -751,8 +751,15 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         typer.echo(
             f"Wrote {', '.join(written_guides)} (agent orientation — Claude Code / Codex)."
         )
+    external_contexts = False
+    if relocated_contexts is not None:
+        try:
+            relocated_contexts.relative_to(coga_os)
+        except ValueError:
+            external_contexts = True
+    state_label = "Coga state" if external_contexts else "coga/"
     if commit_sha is not None:
-        typer.echo(f"Committed coga/ as {commit_sha[:12]} (push when ready).")
+        typer.echo(f"Committed {state_label} as {commit_sha[:12]} (push when ready).")
     elif commit_failure is not None:
         # Backstop for commit failures the up-front identity check can't see
         # (failing hooks, odd repo state): coga/ is on disk, so don't roll
@@ -775,7 +782,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             ]
         )
         typer.secho(
-            f"Warning: coga/ was written but NOT committed — "
+            f"Warning: {state_label} was written but NOT committed — "
             f"{commit_failure.phase} failed with:\n"
             f"{textwrap.indent(commit_failure.error, '  ')}\n"
             f"Fix the cause, then stage and commit every generated path:\n"

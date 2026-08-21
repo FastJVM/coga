@@ -1060,10 +1060,10 @@ def _parse_layout(raw: object, repo_root: Path) -> Path | None:
 
     The value is a relative path anchored at the git checkout root (see
     `find_checkout_root`), and must resolve to a reproducible child directory
-    inside that checkout. Absolute/outside/checkout-root paths, Git pathspec
-    metacharacters, and empty or fully ignored directories are rejected —
-    coga's state is git-backed, so the directory must be safely selectable and
-    survive a clone.
+    inside that checkout. Absolute/outside/checkout-root paths, symlinked path
+    components, Git pathspec metacharacters, and empty or ignored context trees
+    are rejected — coga's state is git-backed, so the directory must be safely
+    selectable and survive a clone.
 
     An unset key skips all of it, so a repo that never touches `[layout]`
     behaves exactly as it did before the key existed.
@@ -1146,6 +1146,26 @@ def resolve_layout_contexts_path(raw: object, repo_root: Path) -> Path | None:
             "checkout itself would make Coga's scoped state sweep select every "
             "dirty product file."
         )
+    lexical = checkout
+    for part in candidate.parts:
+        if part in ("", "."):
+            continue
+        lexical = lexical.parent if part == ".." else lexical / part
+        if lexical.is_symlink():
+            raise ConfigError(
+                f"[layout].contexts ({value!r}) traverses the symlink at "
+                f"{lexical}. Choose a real directory path inside the checkout; "
+                "otherwise Git can preserve the target files without preserving "
+                "the configured path that fresh clones need."
+            )
+    resolved_repo_root = repo_root.resolve()
+    if resolved == resolved_repo_root or resolved in resolved_repo_root.parents:
+        raise ConfigError(
+            f"[layout].contexts ({value!r}) resolves to {resolved}, which "
+            f"contains the coga root at {resolved_repo_root}. Choose a dedicated "
+            "directory that does not contain coga itself; otherwise the contexts "
+            "pathspec would sweep sibling product files as Coga state."
+        )
     if checkout not in resolved.parents:
         raise ConfigError(
             f"[layout].contexts ({value!r}) resolves to {resolved}, which is "
@@ -1172,15 +1192,33 @@ def resolve_layout_contexts_path(raw: object, repo_root: Path) -> Path | None:
 
 
 def _require_trackable_context_entry(checkout: Path, contexts_root: Path) -> None:
-    """Require one file Git can reproduce below a configured contexts root.
+    """Require a reproducible configured root and context artifacts.
 
     Git does not record directories. Accept tracked files and untracked,
     non-ignored files because the next Coga state sweep will add the latter;
     reject an empty or fully ignored tree before its shared config can land by
-    itself and break every fresh clone at config load.
+    itself and break every fresh clone at config load. Also reject an ignore
+    rule covering the root or any real context ``SKILL.md``: composition would
+    otherwise read state the sweep can never carry to another clone. The
+    shipped ``_template`` is intentionally ignored scaffolding rather than a
+    resolvable context, so it is exempt.
     """
     rel = contexts_root.relative_to(checkout).as_posix()
     try:
+        ignored_root = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(checkout),
+                "check-ignore",
+                "--quiet",
+                "--no-index",
+                "--",
+                f"{rel}/",
+            ],
+            capture_output=True,
+            check=False,
+        )
         result = subprocess.run(
             [
                 "git",
@@ -1203,24 +1241,53 @@ def _require_trackable_context_entry(checkout: Path, contexts_root: Path) -> Non
             "[layout].contexts requires Git to verify that the configured "
             "directory can survive a clone, but `git` is not on PATH."
         ) from exc
+    if ignored_root.returncode == 0:
+        raise ConfigError(
+            f"[layout].contexts points at {contexts_root}, but that directory "
+            "is ignored by Git. Existing tracked files can mask this rule while "
+            "new contexts are silently omitted from the state sweep. Remove the "
+            "matching ignore rule, then retry."
+        )
+    if ignored_root.returncode != 1:
+        detail = ignored_root.stderr.decode(errors="replace").strip()
+        raise ConfigError(
+            "[layout].contexts could not verify the configured directory with "
+            f"`git check-ignore`: {detail or f'exit {ignored_root.returncode}'}."
+        )
     if result.returncode != 0:
         detail = result.stderr.decode(errors="replace").strip()
         raise ConfigError(
             "[layout].contexts could not verify the configured directory with "
             f"`git ls-files`: {detail or f'exit {result.returncode}'}."
         )
-    entries = [
-        checkout / os.fsdecode(path)
+    entries = {
+        (checkout / os.fsdecode(path)).absolute()
         for path in result.stdout.split(b"\0")
         if path
-    ]
-    if not any(path.is_file() or path.is_symlink() for path in entries):
+    }
+    trackable = {
+        path for path in entries if path.is_file() or path.is_symlink()
+    }
+    if not trackable:
         raise ConfigError(
             f"[layout].contexts points at {contexts_root}, but that directory "
             "contains no tracked or unignored file, so Git cannot reproduce it "
             "in a fresh clone. Add a context file or a trackable marker such as "
             "`.gitkeep`, then retry."
         )
+
+    for artifact in contexts_root.rglob("SKILL.md"):
+        relative = artifact.relative_to(contexts_root)
+        if "_template" in relative.parts:
+            continue
+        if artifact.absolute() not in trackable:
+            raise ConfigError(
+                f"[layout].contexts contains {relative}, but that context file "
+                "is neither tracked nor unignored in the host checkout. Coga "
+                "would compose it locally while the state sweep silently "
+                "omitted it. Remove the matching ignore rule or force-add the "
+                "context file, then retry."
+            )
 
 
 def _parse_launch(

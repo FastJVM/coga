@@ -41,9 +41,9 @@ the actual files the system runs on, not a sandboxed extension point.
 hosted service, a plugin fence); a config surface that exposes only part of the
 logic.
 
-**Receipt:** edit any markdown under `coga/` → the next `coga launch` uses
-it. The ~2-minute correction loop: see a mistake → edit the context → commit →
-next run is fixed.
+**Receipt:** edit any markdown under `coga/`, or a context under the configured
+contexts directory → the next `coga launch` uses it. The ~2-minute correction
+loop: see a mistake → edit the context → commit → next run is fixed.
 
 ## 2. Agents do, humans think — offload everything mechanizable
 

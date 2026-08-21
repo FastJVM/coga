@@ -31,8 +31,8 @@ repos only; no scan. Launching this ticket starts the chat.
 ## Context
 
 Empty until the `gather-and-spec` step runs at first launch — the agreed vision
-is written to `coga/contexts/product/vision/SKILL.md` and raw intake notes
-stay on the blackboard.
+is written to `product/vision/SKILL.md` under the configured contexts directory
+(`coga/contexts/` by default), and raw intake notes stay on the blackboard.
 
 <!-- coga:blackboard -->
 

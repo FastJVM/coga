@@ -252,8 +252,10 @@ contexts = "docs/contexts"
 Unset — the default — contexts stay at `coga/contexts/`, byte-identical to
 before the key existed. Set, the directory moves and *everything* follows it:
 ref resolution, prompt composition, `coga validate`, `coga create` /
-`coga ticket`, the git state sweep, and authoring sync. `cfg.contexts_root` is
-the single accessor; nothing else joins the path itself.
+`coga ticket`, the git state sweep, authoring sync, and the `coga init` /
+`coga uninstall` lifecycle. `cfg.contexts_root` is the single accessor; the
+product-stranding guard also excludes both the current root and a former root
+recorded at its control-branch base. Nothing else joins the live path itself.
 
 **The value is anchored at the git checkout root, not at the coga root.** This
 is the part a reader gets wrong. `Config.repo_root` is `<checkout>/coga/` in
@@ -270,19 +272,24 @@ catastrophic: `resolve_context_path` falls back to the packaged
 `bootstrap/contexts/` batteries on a miss, so a mistyped *directory* would let
 `coga/architecture` keep resolving to the bundled copy while every repo-local
 context silently vanished from composed prompts. So load rejects an absolute
-path, a `..` escape out of the checkout, the checkout root itself, Git pathspec
-metacharacters that could broaden the state sweep, Git's administrative
-directory or a nested checkout, a directory that does not exist or is not a
-directory, and a repo with no checkout to anchor against. A configured root
-must also contain at least one tracked or unignored file so Git can reproduce
-it in a fresh clone; use a trackable `.gitkeep` when the root is intentionally
-empty. The per-ref local-first fallback is unchanged — that is how bundled
-batteries work.
+path, a `..` escape out of the checkout, the checkout root or another ancestor
+of the coga root, symlinked path components, Git pathspec metacharacters that
+could broaden the state sweep, Git's administrative directory or a nested
+checkout, a directory that does not exist or is not a directory, and a repo
+with no checkout to anchor against. A configured root must also contain at
+least one tracked or unignored
+file, must not itself be ignored, and must not contain an ignored real context
+`SKILL.md`, so Git can reproduce everything Coga composes in a fresh clone;
+use a trackable `.gitkeep` when the root is intentionally empty. The ignored
+`_template` scaffold is exempt. The per-ref local-first fallback is unchanged
+— that is how bundled batteries work.
 
-When the setting changes, the state sweep reads the pre-change config from
-`HEAD` and commits tracked deletions from that former contexts root along with
-the destination. It does not keep sweeping the vacated root: unrelated new
-files created there remain ordinary repo content.
+The CLI reloads config at the end-of-command publication boundary, because a
+long-running agent session can change the setting after dispatch. When the
+setting changes, the state sweep finds the most recent distinct contexts root
+in committed config history and commits tracked deletions from that former root
+along with the destination. It does not keep sweeping the vacated root:
+unrelated new files created there remain ordinary repo content.
 
 `[layout]` is shared `coga.toml` policy and is rejected in `coga.local.toml`:
 where a repo keeps its prose is a fact about the repo, not about one machine.

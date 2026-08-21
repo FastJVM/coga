@@ -57,6 +57,7 @@ EXPECTED_FILES = {
     "coga/.gitignore",
     "coga/coga.toml",
     "coga/context.md",
+    "coga/contexts/.gitignore",
     "coga/contexts/_template/SKILL.md",
     "coga/skills/_template/SKILL.md",
     "coga/skills/direct/body/SKILL.md",
@@ -99,6 +100,10 @@ def _seed_fake_templates(templates: Path) -> None:
     )
     (templates / "coga.toml").write_text("version = 1\n")
     (templates / "context.md").write_text("context\n")
+    (templates / "contexts").mkdir()
+    (templates / "contexts" / ".gitignore").write_text(
+        "**/_template/\n**/_template.md\n"
+    )
     # Packaged skills + canonical coga/* contexts live under bootstrap/ in the
     # package resource tree, not in initialized repos.
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
