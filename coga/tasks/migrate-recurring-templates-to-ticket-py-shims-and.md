@@ -1,7 +1,7 @@
 ---
 slug: migrate-recurring-templates-to-ticket-py-shims-and
 title: 'Migrate recurring templates to ticket.py shims and delete recipe:'
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
