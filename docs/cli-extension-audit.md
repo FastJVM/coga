@@ -54,7 +54,8 @@ skill; the command remains only because the pre/post hook is irreducible.
 
 The structural consequence: aliases may capture any fixed argv rewrite whose
 first token is a real built-in. Current defaults cover bootstrap launches,
-recurring launches, registered recipes, and the `megalaunch --pick` spelling.
+recurring launches, registered recipes, the `build` onboarding task, and the
+`megalaunch --pick` spelling.
 Parameterized command tickets remain fixed alias targets because the caller's
 remaining argv passes through unchanged.
 
@@ -119,8 +120,8 @@ Browser automation is the one intentionally unaliased launch target.
 ## The concrete finding (verified, not assumed)
 
 **One unaliased bootstrap launch target remains intentionally.**
-`DEFAULT_ALIASES` covers `chat`, `dream`, `skill-update`, `autoclose`, `pick`,
-`open-pr`, and `resolve-conflicts`.
+`DEFAULT_ALIASES` covers `chat`, `dream`, `build`, `skill-update`,
+`autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
 `bootstrap/browser-automation` remains available only through its explicit
 launch spelling; it is orchestration rather than a stable top-level verb.
 
@@ -167,8 +168,8 @@ pure-passthrough set for aliasing is exactly the two named above.
   not a launchable thing. Do not mistake a `bootstrap/skills/...` path for an
   aliasable bootstrap ticket.
 
-- **`DEFAULT_ALIASES` ships seven.** `chat`, `dream`, `skill-update`,
-  `autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
+- **`DEFAULT_ALIASES` ships eight.** `chat`, `dream`, `build`,
+  `skill-update`, `autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
   `open-pr` fronts a registered recipe; `resolve-conflicts` demonstrates the
   agent-backed command ticket.
 

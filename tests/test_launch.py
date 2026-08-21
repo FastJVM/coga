@@ -1790,6 +1790,61 @@ def test_launch_llm_chains_consecutive_agent_steps(
     assert ticket.step == "3 (review)"
 
 
+def test_launch_agent_override_follows_consecutive_agent_role_steps(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit agent keeps a same-role chain on the selected CLI.
+
+    This is the shape used by coga-build: both onboarding steps declare the
+    workflow role ``agent``. The override remains in-memory and never rewrites
+    the ticket's durable assignee.
+    """
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    # The packaged onboarding ticket starts with agent/assignee=claude. Prove
+    # an explicit Codex selection carries both steps even after the operator
+    # configures a Codex-only repo and that durable default is no longer known.
+    _write(
+        active_task / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [notification.slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
+        [agents.codex]
+        cli = "codex"
+        file = "AGENTS.md"
+        """,
+    )
+    calls: list[list[str]] = []
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        result = CliRunner().invoke(app, ["bump", slug])
+        assert result.exit_code == 0, result.output
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", slug, "--agent", "codex"])
+
+    assert result.exit_code == 0, result.output
+    assert [call[0] for call in calls] == ["codex", "codex"]
+    ticket = Ticket.read(Path(ref["path"]))
+    assert ticket.step == "3 (review)"
+    assert ticket.assignee == "marc"
+
+
 def test_launch_chains_when_ticket_has_ticket_level_skills(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,

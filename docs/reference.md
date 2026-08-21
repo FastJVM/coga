@@ -56,8 +56,11 @@ untouched. Trailing `ARGS` arrive as ordered values in an appended
 `## Launch arguments` prompt block.
 
 - `--agent <nickname>` — explicitly use this agent for one launch instead of
-  the ticket assignee. This can assist on a human-owned step without rewriting
-  `assignee:`; without the flag, a human handoff is still refused.
+  the ticket assignee. Within that supervised launch, the override follows
+  directly consecutive workflow steps declared `assignee: agent`; another role
+  ends the continuation. It can assist on a human-owned step without rewriting
+  `assignee:`, but that assist never propagates; without the flag, a human
+  handoff is still refused.
 - `--prompt-report` — print the composed prompt layers and approximate token
   counts, then exit **without** launching.
 - `--idle-timeout <seconds>` — tear down a stalled interactive REPL after this
@@ -389,12 +392,13 @@ Resolve one `op://…` or `env:VAR` reference and print its value to stdout. Und
 Thin sugar over common commands. Positional args after the alias name forward
 to the expanded form.
 
-These seven ship with every install, registered in `aliases.DEFAULT_ALIASES`,
+These eight ship with every install, registered in `aliases.DEFAULT_ALIASES`,
 so they work whether or not `coga.toml` names them:
 
 | Alias | Expands to |
 | --- | --- |
 | `coga chat` | `coga launch bootstrap/orient` |
+| `coga build` | `coga launch coga-build` |
 | `coga dream` | `coga recurring launch dream` |
 | `coga skill-update` | `coga recurring launch skill-update` |
 | `coga autoclose` | `coga recurring launch autoclose-merged` |
@@ -402,7 +406,7 @@ so they work whether or not `coga.toml` names them:
 | `coga open-pr` | `coga run open-pr` |
 | `coga resolve-conflicts` | `coga launch bootstrap/resolve-conflicts` |
 
-The packaged `coga.toml` writes out only `chat`, `pick`, and `dream`;
+The packaged `coga.toml` writes out only `chat`, `build`, `pick`, and `dream`;
 the other four come from the Python defaults, so opening `coga.toml` will not
 show you the full set.
 

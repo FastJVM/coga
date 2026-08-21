@@ -53,8 +53,8 @@ Capture runs in `spawn_agent_session`'s `finally` around the real agent
 subprocess — **after** the session has exited (so it never races the agent's
 own log appends) and **before** callers handle non-zero/timeout results. The
 shared spawn path is deliberately the gate: ordinary task work, chained steps,
-`coga chat`, `coga ticket`, other bootstrap launches, and megalaunch all emit
-exactly one record per agent process.
+`coga chat`, `coga ticket`, onboarding (`coga build`) and other bootstrap
+launches, and megalaunch all emit exactly one record per agent process.
 
 It is gated tightly:
 

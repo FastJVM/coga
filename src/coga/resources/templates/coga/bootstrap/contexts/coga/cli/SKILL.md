@@ -59,6 +59,20 @@ uninstall commands. With `--purge`, it also uninstalls the global package; if
 the running CLI is this repo's vendored copy, there is no separate global
 package to remove.
 
+## coga build
+
+First-run onboarding entry point — the command to tell new users about. `build`
+is not a built-in; it is a default alias for `launch coga-build`, so it
+launches the packaged `coga-build` ticket through the normal `coga launch`
+path (one question → agent-led chat → vision → starter tickets). Because it
+dispatches through `coga launch` CLI parsing it requires an already-init'd
+repo, and capturing your name is `coga init`'s job, not `build`'s. There is no
+separate `coga setup` command — initialize the repo with `coga init`, then run
+`coga build` with Claude Code or `coga build --agent codex` with Codex. The
+explicit override follows the onboarding workflow's directly consecutive
+`assignee: agent` steps, so both steps use Codex without rewriting the seeded
+ticket.
+
 ## coga create "\<title\>" [--workflow \<name\>]
 
 Scaffold a new raw `draft` ticket and post `✨` when a notification channel
@@ -192,9 +206,12 @@ commands belong behind the registered `coga run` recipe surface.
   path under `tasks/` (`marketing/coga-crm`), matching what `coga status`
   prints — the bare leaf alone won't resolve.
 - `coga launch <slug> --agent <type>` — explicit one-off agent-type override
-  (e.g. `--agent claude`). It may assist on a human-owned step, prints that
-  unusual handoff in the launch banner, and never rewrites the ticket's
-  `assignee:`. Without the flag, a human handoff is still refused.
+  (e.g. `--agent claude`). Within that supervised launch, it follows directly
+  consecutive workflow steps declared `assignee: agent`; another role ends the
+  continuation. It may assist on a human-owned step, prints that unusual
+  handoff in the launch banner, and never rewrites the ticket's `assignee:`;
+  human-step assists never propagate. Without the flag, a human handoff is
+  still refused.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent.
@@ -920,12 +937,13 @@ Default aliases shipped by `coga init`:
 ```toml
 [aliases]
 chat = "launch bootstrap/orient"
+build = "launch coga-build"
 dream = "recurring launch dream"
 pick = "megalaunch --pick"
 ```
 
-Seven aliases are registered as built-in defaults in `aliases.DEFAULT_ALIASES`,
-so they dispatch even in repos whose `coga.toml` predates the line — the three
+Eight aliases are registered as built-in defaults in `aliases.DEFAULT_ALIASES`,
+so they dispatch even in repos whose `coga.toml` predates the line — the four
 above plus four the packaged `coga.toml` never mentions:
 
 ```

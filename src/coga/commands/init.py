@@ -8,7 +8,9 @@ It builds the self-contained venv that backs the `coga` console script.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -32,7 +34,9 @@ from coga.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
+from coga.config import load_config
 from coga.dependencies import DEPENDENCIES, install_hint
+from coga.logfile import append_log
 from coga.managed_skills import (
     ManagedSkillError,
     ManagedSkillSummary,
@@ -114,7 +118,7 @@ def render_local_toml(name: str) -> str:
 # Files/dirs that don't count as pre-existing user content when deciding
 # whether a target dir is "empty" — `.git`/`.DS_Store` plus everything init
 # itself creates. Anything else present before init runs marks the repo as
-# already-filled (a real project), which changes the closing next-step hint.
+# already-filled (a real project), which suppresses onboarding-ticket seeding.
 _INIT_IGNORE: frozenset[str] = frozenset(
     {".git", ".DS_Store", "coga", "CLAUDE.md", "AGENTS.md", ".claude", ".codex", ".gitignore"}
 )
@@ -177,6 +181,72 @@ def _host_ignores_coga(target: Path) -> bool:
     except OSError:
         return False
     return result.returncode == 0
+
+
+# Delivered onboarding ticket, pruned from the copied tree on a filled repo
+# (a real project doesn't want the bootstrap interview seeded for it).
+_ONBOARDING_TICKET_DIRS: tuple[str, ...] = ("coga-build",)
+
+
+def _prune_onboarding_tickets(coga_os: Path) -> list[str]:
+    """Remove the delivered onboarding ticket dir(s) from a freshly copied tree.
+
+    Returns the names removed (for the caller's report). Used on filled repos,
+    where the bootstrap interview should not be seeded.
+    """
+    pruned: list[str] = []
+    tasks = coga_os / "tasks"
+    for name in _ONBOARDING_TICKET_DIRS:
+        # A delivered onboarding task may be file-form (`tasks/<name>.md`) or
+        # directory-form (`tasks/<name>/`).
+        ticket_dir = tasks / name
+        ticket_file = tasks / f"{name}.md"
+        if ticket_dir.is_dir():
+            shutil.rmtree(ticket_dir)
+            pruned.append(name)
+        elif ticket_file.is_file():
+            ticket_file.unlink()
+            pruned.append(name)
+    return pruned
+
+
+# Matches an owner/human/assignee line whose value is exactly the `new-user`
+# placeholder. Deliberately does NOT match `replace-with-human-name` (the
+# `_template`/recurring token, owned by `create_task`/recurring) — only the
+# placeholder that would otherwise ship as a live value.
+_NEW_USER_LINE = re.compile(r"^(owner|human|assignee):[ \t]*new-user[ \t]*$", re.M)
+
+
+def _stamp_user_into_delivered_tickets(coga_os: Path, name: str) -> list[str]:
+    """Replace the `new-user` placeholder with `name` in every delivered ticket.
+
+    Rewrites `owner:`/`human:`/`assignee:` lines that read `new-user` across
+    every delivered task ticket — both file-form `tasks/<slug>.md` and
+    directory-form `tasks/**/ticket.md` — so the placeholder never ships as a
+    live owner. Returns the slugs that were stamped.
+    """
+    stamped: list[str] = []
+    # JSON string syntax is valid YAML string syntax. Always quote the captured
+    # name so values such as ``yes``, ``Jane: Doe``, and ``Nick #1`` remain the
+    # exact string written to coga.local.toml instead of becoming a boolean,
+    # invalid YAML, or a value truncated by a YAML comment.
+    encoded_name = json.dumps(name, ensure_ascii=False)
+    tasks = coga_os / "tasks"
+    if not tasks.is_dir():
+        return stamped
+    # `**/*.md` covers both shapes: a file-form `<slug>.md` and a directory-form
+    # `<dir>/ticket.md` (both end in `.md`).
+    for ticket in sorted(tasks.glob("**/*.md")):
+        text = ticket.read_text()
+        new_text, count = _NEW_USER_LINE.subn(
+            lambda match: f"{match.group(1)}: {encoded_name}", text
+        )
+        if count:
+            ticket.write_text(new_text)
+            stamped.append(
+                ticket.parent.name if ticket.name == "ticket.md" else ticket.stem
+            )
+    return stamped
 
 
 # Orientation file dropped at the host repo root for agent CLIs that look for
@@ -437,10 +507,10 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     _check_git_identity(target)
 
     # Decide empty-vs-filled against the pristine dir, before init writes
-    # anything of its own — it picks which closing next-step a fresh user gets.
+    # anything of its own — a filled repo skips onboarding-ticket seeding.
     # A target without its own `.git` is a nested init below an established
     # host repo's root: always treat it as filled, even when the subdir itself
-    # is empty — the "talk it through first" hint is for genuinely new repos.
+    # is empty — the onboarding interview is for genuinely new repos.
     nested = not (target / ".git").exists()
     is_empty = _repo_is_empty(target) and not nested
 
@@ -465,6 +535,15 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         # from user additions.
         _refresh_coga_gitignore(template_root, coga_os)
 
+        # On a filled repo, drop the onboarding ticket(s) the template ships — a
+        # real project doesn't want the bootstrap interview seeded for it.
+        pruned_onboarding = (
+            _prune_onboarding_tickets(coga_os) if not is_empty else []
+        )
+        # Stamp the captured name over the `new-user` placeholder in whatever
+        # tickets remain, so the placeholder never ships as a live owner.
+        _stamp_user_into_delivered_tickets(coga_os, name)
+
         managed_skills = _install_managed_skills_or_exit(coga_os)
         install_venv(coga_os, source)
         write_bin_wrapper(coga_os / ".coga" / "bin")
@@ -473,6 +552,16 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
 
         local_toml = coga_os / "coga.local.toml"
         local_toml.write_text(render_local_toml(name))
+        if is_empty:
+            # The template cannot know when this repo is initialized. Record
+            # the seeded onboarding task through the ordinary audit writer so
+            # its creation time is real rather than baked into every install.
+            append_log(
+                load_config(coga_os),
+                "coga-build",
+                "coga:init",
+                "created (mode=interactive, status=active)",
+            )
 
         bin_dir = coga_os / ".coga" / "bin"
         shim = _try_install_shim(bin_dir / "coga")
@@ -502,6 +591,11 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     typer.echo(
         f'Wrote {local_toml} (machine-local config — gitignored) with user = "{name}".'
     )
+    if pruned_onboarding:
+        typer.echo(
+            "Skipped the onboarding ticket (this dir already has a project) — "
+            "create tasks with `coga ticket` when you're ready."
+        )
     typer.echo(f"Vendored CLI coga {vendored_version} from {source.display}.")
     if wired_agents:
         names = ", ".join(wired_agents)
@@ -571,20 +665,22 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         f"Edit {coga_os}/coga.toml — set your agents, notification channels, "
         "and aliases."
     )
-    # `coga chat` / `coga launch` drive an agent CLI that init deliberately
+    # `coga build` / `coga launch` drive an agent CLI that init deliberately
     # does not require (see `coga.dependencies`) — name the prerequisite here
     # so a fresh user isn't sent into the flow only to hit "not found in PATH".
     steps.append(
         "Install an agent CLI, if you haven't — coga drives Claude Code "
         f"({install_hint('claude')}) or Codex ({install_hint('codex')}). "
-        "Launching agents (`coga chat`, `coga launch`, `coga ticket`) needs "
+        "Launching agents (`coga build`, `coga launch`, `coga ticket`) needs "
         "one installed and authenticated."
     )
     if is_empty:
         steps.append(
-            "Run `coga chat` — it drops you into a coga-aware session with the "
-            "canonical contexts loaded, so you can talk through what you want to "
-            "build and turn it into tickets."
+            "Run `coga build` with Claude Code, or `coga build --agent codex` "
+            "with Codex — it launches the coga-build onboarding: one question "
+            "about what you want to build, then an agent-led chat that ends in "
+            "a short vision you sign off on and a flat batch of starter tickets "
+            "you can immediately `coga launch`."
         )
     else:
         steps.append(
