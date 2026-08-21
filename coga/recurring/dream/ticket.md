@@ -93,7 +93,10 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
 1. **Create the scan directory.** `mktemp -d` one directory per phase and keep
    its absolute path. Both scans and the shard subagents follow
    `bootstrap/dream/scan/scan-protocol`, which defines the directory's
-   `manifest.md`, `index.md`, `findings.md`, and `progress.md`.
+   `manifest.md`, `index.md`, `findings.md`, and `progress.md`. Immediately
+   create all four as empty regular files before indexing or launching any
+   shard. `findings.md` must exist even when every shard reports zero findings;
+   absence is never a clean result.
 2. **Index and shard.** Size the phase's corpus portably with
    `find <paths> -type f -name '*.md' -exec wc -c {} \;` — do not use GNU-only
    `find -printf`. Enrich those sizes with the compact routing metadata the

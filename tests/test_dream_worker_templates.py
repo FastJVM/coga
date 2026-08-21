@@ -284,6 +284,11 @@ def test_dream_scans_stream_durable_findings_and_report_completion() -> None:
     assert "`findings.md`" in protocol
     assert "`progress.md`" in protocol
     assert "It does not parse your final message" in norm
+    assert "Dream initializes all four as empty regular files" in norm
+    assert (
+        "`findings.md` therefore exists even when every shard reports zero findings"
+        in norm
+    )
 
     # An explicit zero is a result; a missing line is not.
     assert "<shard-id> complete — <N> findings" in protocol
@@ -321,6 +326,10 @@ def test_dream_shards_and_reconciles_the_scan_phases() -> None:
     assert "`bootstrap/dream/scan/scan-protocol`" in text
     assert "mktemp -d" in text
     assert "manifest.md" in text and "index.md" in text
+    assert "Immediately create all four as empty regular files" in norm
+    assert (
+        "`findings.md` must exist even when every shard reports zero findings" in norm
+    )
     assert "no more than 150 KB across at most 40 distinct files" in norm
     assert "Compare the active leaf shard rows" in norm
     assert "Do not treat a missing line as zero findings" in norm

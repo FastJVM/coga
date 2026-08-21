@@ -35,6 +35,12 @@ shard subagent along with that shard's assignment. It holds four files:
 - `progress.md` — append-only, shared by every shard. Heartbeat and completion
   lines.
 
+Dream initializes all four as empty regular files immediately after creating
+the directory, before it launches any shard. It then writes `index.md` once and
+appends assignment rows to `manifest.md`. `findings.md` therefore exists even
+when every shard reports zero findings; a missing findings file is never a
+clean-scan result.
+
 Write `index.md` once before launching. Append every later record with `>>` and
 never rewrite the shared files; concurrent shards share them.
 
