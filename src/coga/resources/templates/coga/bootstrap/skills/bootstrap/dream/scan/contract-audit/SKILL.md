@@ -19,10 +19,12 @@ Read that skill first; this one only adds what is specific to the audit.
 
 ## The contract surface
 
-The living contract surface is every `coga/contexts/**/SKILL.md` and
-`coga/skills/**/SKILL.md`, the `coga/recurring/<name>/ticket.md` templates
-(recurring tasks are ticket-format directories), `README.md`, `docs/*.md`, and
-the agent instruction files `CLAUDE.md` and `AGENTS.md`.
+The living contract surface is every `SKILL.md` under the repo's configured
+contexts directory (`coga/contexts/` unless `[layout] contexts` in `coga.toml`
+moves it — resolve that key before globbing) and `coga/skills/**/SKILL.md`, the
+`coga/recurring/<name>/ticket.md` templates (recurring tasks are ticket-format
+directories), `README.md`, `docs/*.md`, and the agent instruction files
+`CLAUDE.md` and `AGENTS.md`.
 
 Frozen task artifacts under `coga/tasks/` are historical records, not
 contracts — a stale reference inside a retired ticket is not a finding. Audit
@@ -35,7 +37,7 @@ slug, never read it whole.
 Dream partitions the surface into groups and chunks each to the protocol's
 budget:
 
-- **contexts** — `coga/contexts/**/SKILL.md`.
+- **contexts** — every `SKILL.md` under the configured contexts directory.
 - **skills** — `coga/skills/**/SKILL.md`.
 - **templates and docs** — `coga/recurring/*/ticket.md`, `README.md`,
   `docs/*.md`, `CLAUDE.md`, `AGENTS.md`.

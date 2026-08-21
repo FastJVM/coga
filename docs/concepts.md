@@ -99,10 +99,37 @@ body. The difference is what kind of knowledge they carry:
   skill that applies to the whole ticket regardless of step can instead go in
   the ticket's `skills:` frontmatter list.
 
-Both resolve **local-first**: a file under `coga/contexts/` or `coga/skills/`
-overrides a bundled one of the same name that ships with the package. To change
-a shipped context or skill, copy it to the matching path and edit — no plugin
-API, no fork.
+Both resolve **local-first**: a file under the repo's contexts directory or
+`coga/skills/` overrides a bundled one of the same name that ships with the
+package. To change a shipped context or skill, copy it to the matching path and
+edit — no plugin API, no fork.
+
+Contexts live at `coga/contexts/` by default, but because they are the one
+primitive humans hand-edit as prose, a repo can move them somewhere its writers
+actually work:
+
+```toml
+# coga.toml
+[layout]
+contexts = "docs/contexts"
+```
+
+The path is relative to your Git checkout root — the same value means the same
+place whether `coga.toml` sits in a nested `coga/` or at the repo root — and
+must name a child directory inside the checkout, since contexts are git-backed
+state like everything else. The directory needs at least one tracked or
+unignored file (`.gitkeep` is enough when it is intentionally empty), so a fresh
+clone can reproduce it. Set it and the whole system follows: composition,
+validation, ref resolution, and the git sync that commits both the new files
+and tracked removals from the former contexts root. A scaffolded config with
+the key set also makes `coga init` create and commit its initial local contexts
+at that checkout-root-relative destination; `coga uninstall` lists and removes
+that directory as part of the Coga footprint. A missing, empty, ignored,
+symlinked, checkout-wide, coga-root-containing, Git-administrative,
+nested-checkout, or pathspec-like value fails at config load; so does a real
+context `SKILL.md` hidden by an ignore rule. These checks prevent Coga from
+quietly dropping composed contexts or widening the state sweep. Skills have no
+such knob; they are process knowledge for agents, not prose for humans.
 
 ## Workflows and steps
 

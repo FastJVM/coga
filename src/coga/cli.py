@@ -39,7 +39,7 @@ from coga.commands import unblock as unblock_cmd
 from coga.commands import usage as usage_cmd
 from coga.commands import validate as validate_cmd
 from coga.commands.update import read_pin, read_pin_source
-from coga.config import ConfigError, find_repo_root, load_config
+from coga.config import Config, ConfigError, find_repo_root, load_config
 from coga.repl_supervisor import ASSIST_BRANCH_ENV, EXPECTED_TASK_ENV
 
 
@@ -147,7 +147,7 @@ _SWEEPING_MARK_SUBCOMMANDS = frozenset(
 )
 
 
-def _sweep_coga_state(cfg) -> None:
+def _sweep_coga_state(cfg: Config | None) -> None:
     """Catch-all: commit anything still dirty under `coga/` after a mutating
     command, so machine side-effects and human hand-edits converge on git at the
     next invocation (the "no daemon" alternative to instant commits).
@@ -158,10 +158,22 @@ def _sweep_coga_state(cfg) -> None:
     The sweep is itself non-fatal (`git.sync_coga_state` swallows git failures),
     so it never masks the command's own exit.
     """
-    if cfg is None:
+    if cfg is None or not _should_sweep_coga_state(sys.argv):
         return
-    if _should_sweep_coga_state(sys.argv):
-        git.sync_coga_state(cfg)
+    try:
+        # A launched agent may edit coga.toml and move the context tree while
+        # the command is running. The eager config fed aliases at dispatch;
+        # reusing it here would sweep the old root and could commit the new
+        # config without its destination. Reload at the publication boundary.
+        live_cfg = load_config(cfg.repo_root, require_user=False)
+    except ConfigError as exc:
+        typer.secho(
+            f"[git] current config is invalid (state sweep skipped): {exc}",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return
+    git.sync_coga_state(live_cfg)
 
 
 def _should_sweep_coga_state(argv: list[str]) -> bool:

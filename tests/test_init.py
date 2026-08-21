@@ -57,6 +57,7 @@ EXPECTED_FILES = {
     "coga/.gitignore",
     "coga/coga.toml",
     "coga/context.md",
+    "coga/contexts/.gitignore",
     "coga/contexts/_template/SKILL.md",
     "coga/skills/_template/SKILL.md",
     "coga/skills/direct/body/SKILL.md",
@@ -99,6 +100,10 @@ def _seed_fake_templates(templates: Path) -> None:
     )
     (templates / "coga.toml").write_text("version = 1\n")
     (templates / "context.md").write_text("context\n")
+    (templates / "contexts").mkdir()
+    (templates / "contexts" / ".gitignore").write_text(
+        "**/_template/\n**/_template.md\n"
+    )
     # Packaged skills + canonical coga/* contexts live under bootstrap/ in the
     # package resource tree, not in initialized repos.
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
@@ -251,7 +256,7 @@ FAKE_SOURCE = _fake_install_source()
 
 
 @pytest.fixture
-def fake_vendor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def fake_vendor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Fake the packaged templates and the vendor source/version resolution.
 
     Resolving the install source and reading the installed version back from
@@ -263,6 +268,7 @@ def fake_vendor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setattr(update_cmd, "packaged_template_root", lambda: package_templates)
     monkeypatch.setattr(init_cmd, "resolve_install_source", lambda: FAKE_SOURCE)
     monkeypatch.setattr(init_cmd, "vendored_cli_version", lambda venv_dir: FAKE_VERSION)
+    return package_templates
 
 
 @pytest.fixture
@@ -489,6 +495,123 @@ def test_init_into_empty_dir(
 
     assert "version = 1" in (target / "coga" / "coga.toml").read_text()
     assert fake_managed_skill_sync.install_calls == [target / "coga"]
+
+
+def test_init_materializes_configured_contexts_at_checkout_root(
+    tmp_path: Path,
+    fake_vendor: Path,
+    fake_venv,
+    fake_managed_skill_sync,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scaffolded layout override moves and commits the initial contexts.
+
+    Use a nested monorepo target so the test also proves init shares config's
+    checkout-root anchor instead of treating the target or coga root as the
+    base for `docs/contexts`.
+    """
+    checkout = tmp_path / "company"
+    target = checkout / "tools" / "ops"
+    target.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(checkout)], check=True)
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.name", "Coga Test"],
+        check=True,
+    )
+    (fake_vendor / "coga.toml").write_text(
+        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n'
+    )
+    monkeypatch.setattr(init_cmd, "packaged_template_root", lambda: fake_vendor)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    relocated = checkout / "docs" / "contexts"
+    assert (relocated / "_template" / "SKILL.md").is_file()
+    assert not (target / "coga" / "contexts").exists()
+    tracked = subprocess.run(
+        ["git", "-C", str(checkout), "ls-files"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert "docs/contexts/.gitignore" in tracked
+    assert "docs/contexts/_template/SKILL.md" not in tracked
+    assert "tools/ops/coga/coga.toml" in tracked
+    assert load_config(target / "coga").contexts_root == relocated.resolve()
+    assert subprocess.run(
+        ["git", "-C", str(checkout), "status", "--porcelain"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout == ""
+
+
+def test_init_relocates_contexts_before_empty_repo_onboarding_log(
+    tmp_path: Path,
+    fake_vendor: Path,
+    fake_venv,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The first config load must see the scaffolded destination already."""
+    checkout = tmp_path / "company"
+    checkout.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(checkout)], check=True)
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.name", "Coga Test"],
+        check=True,
+    )
+    (fake_vendor / "coga.toml").write_text(
+        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n'
+    )
+    monkeypatch.setattr(init_cmd, "packaged_template_root", lambda: fake_vendor)
+
+    result = CliRunner().invoke(app, ["init", str(checkout), "--user", "tester"])
+
+    assert result.exit_code == 0, result.output
+    assert (checkout / "docs" / "contexts" / ".gitignore").is_file()
+    assert "[coga-build] [coga:init] created" in (
+        checkout / "coga" / "log.md"
+    ).read_text()
+
+
+def test_init_rejects_ignored_configured_contexts_before_writing(
+    tmp_path: Path,
+    fake_vendor: Path,
+    fake_venv,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checkout = tmp_path / "company"
+    checkout.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(checkout)], check=True)
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(checkout), "config", "user.name", "Coga Test"],
+        check=True,
+    )
+    (checkout / ".gitignore").write_text("docs/contexts/\n")
+    (fake_vendor / "coga.toml").write_text(
+        'version = 1\n\n[layout]\ncontexts = "docs/contexts"\n'
+    )
+    monkeypatch.setattr(init_cmd, "packaged_template_root", lambda: fake_vendor)
+
+    result = CliRunner().invoke(app, ["init", str(checkout), "--user", "tester"])
+
+    assert result.exit_code == 2
+    assert "host repository ignores that path" in result.output
+    assert not (checkout / "coga").exists()
+    assert not (checkout / "docs" / "contexts").exists()
 
 
 @pytest.mark.parametrize(
@@ -1823,7 +1946,8 @@ def test_init_writes_agent_guides(
         # Identical content for both — orientation that points at canonical contexts.
         assert body == init_cmd.AGENT_GUIDE_TEMPLATE
         assert "canonical contexts are package-backed" in body
-        assert "override them with local files under `coga/contexts/coga/`" in body
+        assert "override them with local files under `<contexts-dir>/coga/`" in body
+        assert "`coga/contexts/` by default, or `[layout] contexts`" in body
         assert "coga launch bootstrap/orient" in body
 
     assert "Wrote CLAUDE.md, AGENTS.md" in result.output

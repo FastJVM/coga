@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from textwrap import dedent
 
@@ -167,6 +168,61 @@ def test_finalize_authored_syncs_task_and_support_paths(
             ref.path,
             [ref.path, context_path, skill_path],
             "Ticket: sync-support — authored",
+        )
+    ]
+
+
+def test_finalize_authored_syncs_relocated_contexts_dir(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Authoring sync follows `[layout] contexts` out of the coga root.
+
+    Mirrors `test_finalize_authored_syncs_task_and_support_paths`, but with the
+    contexts directory relocated. Both the pre-session snapshot and the
+    support-path scan hardcoded `cfg.repo_root / "contexts"`, which would leave
+    a context written during the interview unhashed and therefore unsynced.
+    """
+    checkout = repo.parent
+    subprocess.run(
+        ["git", "init", "-b", "main", str(checkout)],
+        check=True, capture_output=True, text=True,
+    )
+    (checkout / "docs" / "contexts").mkdir(parents=True)
+    (checkout / "docs" / "contexts" / ".gitkeep").write_text("")
+    with (repo / "coga.toml").open("a") as f:
+        f.write('[layout]\ncontexts = "docs/contexts"\n')
+
+    cfg = load_config(repo)
+    ref = _create_task(repo, "Relocated contexts")
+    before = snapshot_authoring_state(cfg)
+
+    context_path = checkout / "docs" / "contexts" / "team" / "note" / "SKILL.md"
+    _write(
+        context_path,
+        """
+        ---
+        name: team/note
+        description: note.
+        ---
+        """,
+    )
+
+    calls: list[tuple[Path, list[Path], str]] = []
+    monkeypatch.setattr(
+        "coga.authoring.git.sync_paths",
+        lambda cfg, anchor, paths, *, message: calls.append(
+            (anchor, list(paths), message)
+        ),
+    )
+
+    finalize_authored(cfg, before_snapshot=before, ref=ref)
+
+    assert calls == [
+        (
+            ref.path,
+            [ref.path, context_path],
+            "Ticket: relocated-contexts — authored",
         )
     ]
 

@@ -633,16 +633,21 @@ last per-command sync and would otherwise sit dirty forever:
   directly in the working tree — no command ran, so nothing committed it.
 
 `src/coga/git.py::sync_coga_state(cfg, *, message="Sync coga state")` closes
-both. In the normal nested layout it commits **everything dirty under the
-`coga/` subtree** (`cfg.repo_root`, where `coga.toml` lives). In older/root
-layouts where `coga.toml` lives at the git toplevel, it scopes to the known
-Coga OS pathspecs (`tasks`, `contexts`, `skills`, `workflows`, `recurring`,
-`bootstrap`, `coga.toml`, `context.md`, `log.md`) instead of treating the whole
-git root as Coga state. A full `git status` under those pathspecs captures
+both. In the normal nested layout it commits everything dirty under the
+`coga/` subtree (`cfg.repo_root`, where `coga.toml` lives), plus the configured
+contexts directory when `[layout] contexts` places it outside that subtree. In
+older/root layouts where `coga.toml` lives at the git toplevel, it scopes to the
+known Coga OS pathspecs (`tasks`, configured contexts, `skills`, `workflows`,
+`recurring`, `bootstrap`, `coga.toml`, `context.md`, `log.md`) instead of
+treating the whole git root as Coga state. The configured contexts path
+substitutes for the default `contexts` entry; the vacated path is not kept as a
+permanent state boundary. A full `git status` under those pathspecs captures
 modifications, deletions, renames, **and new untracked files**. This is *not*
 the forbidden `git add -A`: the subtree/pathspec boundary is exactly the
 OS-state line the "Scope is narrow" rule draws, so product code (`src/`,
-`tests/`) is structurally never swept in. Branch handling and the
+`tests/`) is structurally never swept in. During a relocation, tracked
+deletions under the most recent former contexts root are included without
+adopting unrelated files left there. Branch handling and the
 `merge=union` split reuse the same machinery as `sync_paths` (union files —
 `log.md`, the digest spool — committed locally + union-merged onto the control
 branch, never landed via the wholesale-replace overlay from a feature branch).
@@ -656,8 +661,12 @@ never a crash.
 It is wired at one boundary, *in addition to* — never replacing — the
 per-transition syncs, which keep the readable git history and digest filtering:
 
-- **The CLI dispatch boundary** (`cli.py::main`'s `finally` around `app()`),
-  for mutating commands only. Read-only commands (`status`, `show`, `validate`,
+- **The CLI dispatch boundary** (`cli.py::main` around `app()`), for mutating
+  commands only. It reloads config after the command so a context relocation
+  made during a long-running agent session publishes the destination rather
+  than reusing the dispatch-time path. An invalid live config skips the sweep
+  loudly instead of committing a broken layout. Read-only commands (`status`,
+  `show`, `validate`,
   `usage`), read-only group subcommands (`skill status`, `recurring list`,
   `secret get`), no-args/help group invocations (`mark`, `skill`),
   `init`/`uninstall`, and `--help`/option invocations are excluded —

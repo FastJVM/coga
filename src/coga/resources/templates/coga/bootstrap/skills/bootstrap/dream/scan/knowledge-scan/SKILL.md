@@ -42,8 +42,11 @@ refs.
 
 - **Ticket evidence** — every bare task Markdown file and every task
   directory's `ticket.md`, body and blackboard both.
-- **Knowledge evidence** — `coga/contexts/**/SKILL.md`, every Markdown file
-  under `coga/skills/**`, and `coga/workflows/**`.
+- **Knowledge evidence** — every `SKILL.md` under the repo's configured
+  contexts directory (`coga/contexts/` unless `[layout] contexts` in
+  `coga.toml` moves it — resolve that checkout-root-relative key before
+  globbing), every Markdown file under `coga/skills/**`, and
+  `coga/workflows/**`.
 
 Each corpus file has one owning shard, but a relevant knowledge or ticket file
 may be duplicated as evidence in another area's assignment. Keep a task

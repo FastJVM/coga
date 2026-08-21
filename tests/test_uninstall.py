@@ -79,6 +79,39 @@ def test_uninstall_removes_full_footprint(
     assert ".claude/skills/coga" not in gi
 
 
+def test_uninstall_removes_relocated_contexts_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _seed_footprint(tmp_path, monkeypatch)
+    (target / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+    (target / "coga" / "coga.toml").write_text(
+        'version = 1\n[layout]\ncontexts = "docs/contexts"\n'
+    )
+    context = target / "docs" / "contexts" / "team" / "style" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("# Style\n")
+
+    result = CliRunner().invoke(app, ["uninstall", "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert "remove docs/contexts/ (configured contexts directory)" in result.output
+    assert not (target / "docs" / "contexts").exists()
+    assert not (target / "coga").exists()
+
+
+def test_uninstall_broken_config_warns_without_guessing_external_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _seed_footprint(tmp_path, monkeypatch)
+    (target / "coga" / "coga.toml").write_text("this is not = valid toml\n")
+
+    result = CliRunner().invoke(app, ["uninstall", "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert "any relocated contexts directory will be left in place" in result.output
+    assert not (target / "coga").exists()
+
+
 def test_uninstall_aborts_on_no_confirmation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
