@@ -34,7 +34,9 @@ from coga.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
+from coga.config import load_config
 from coga.dependencies import DEPENDENCIES, install_hint
+from coga.logfile import append_log
 from coga.managed_skills import (
     ManagedSkillError,
     ManagedSkillSummary,
@@ -550,6 +552,16 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
 
         local_toml = coga_os / "coga.local.toml"
         local_toml.write_text(render_local_toml(name))
+        if is_empty:
+            # The template cannot know when this repo is initialized. Record
+            # the seeded onboarding task through the ordinary audit writer so
+            # its creation time is real rather than baked into every install.
+            append_log(
+                load_config(coga_os),
+                "coga-build",
+                "coga:init",
+                "created (mode=interactive, status=active)",
+            )
 
         bin_dir = coga_os / ".coga" / "bin"
         shim = _try_install_shim(bin_dir / "coga")
@@ -664,10 +676,11 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     )
     if is_empty:
         steps.append(
-            "Run `coga build` — it launches the coga-build onboarding: one "
-            "question about what you want to build, then an agent-led chat that "
-            "ends in a short vision you sign off on and a flat batch of starter "
-            "tickets you can immediately `coga launch`."
+            "Run `coga build` with Claude Code, or `coga build --agent codex` "
+            "with Codex — it launches the coga-build onboarding: one question "
+            "about what you want to build, then an agent-led chat that ends in "
+            "a short vision you sign off on and a flat batch of starter tickets "
+            "you can immediately `coga launch`."
         )
     else:
         steps.append(

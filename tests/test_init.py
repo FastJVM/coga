@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import os
 import shutil
 import subprocess
@@ -13,6 +14,7 @@ import pytest
 from typer.testing import CliRunner
 
 import coga.agent_skills as agent_skills
+import coga.logfile as logfile
 from coga.cli import app
 from coga.commands import init as init_cmd
 from coga.commands import update as update_cmd
@@ -26,6 +28,15 @@ from coga.ticket import Ticket
 _PACKAGED_COGA_TOML = (
     Path(__file__).resolve().parents[1]
     / "src" / "coga" / "resources" / "templates" / "coga" / "coga.toml"
+)
+_PACKAGED_LOG = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "coga"
+    / "resources"
+    / "templates"
+    / "coga"
+    / "log.md"
 )
 
 
@@ -543,6 +554,11 @@ def test_packaged_template_first_run_works_without_slack(
     assert "[notification.slack].webhook" not in result.output
 
 
+def test_packaged_log_has_no_baked_history() -> None:
+    """Init owns the timestamped onboarding event; the static template cannot."""
+    assert _PACKAGED_LOG.read_text() == ""
+
+
 def test_init_reports_installed_managed_skills(
     tmp_path: Path,
     fake_vendor,
@@ -982,6 +998,32 @@ def test_init_ships_build_ticket_template(
     # Bare init on an empty repo points at `coga build` (the alias that
     # launches this ticket) rather than at a manual launch.
     assert "Run `coga build`" in result.output
+    assert "`coga build --agent codex` with Codex" in result.output
+
+
+def test_init_records_onboarding_creation_at_runtime(
+    tmp_path: Path,
+    fake_vendor,
+    fake_venv,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The seeded task's audit event records this init, not a template date."""
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2031, 2, 3, 4, 5, tzinfo=tz)
+
+    monkeypatch.setattr(logfile, "datetime", FrozenDateTime)
+    target = _make_git_repo(tmp_path / "company")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+
+    assert result.exit_code == 0, result.output
+    assert (target / "coga" / "log.md").read_text() == (
+        "2031-02-03 04:05 [coga-build] [coga:init] "
+        "created (mode=interactive, status=active)\n"
+    )
 
 
 def test_init_stamps_new_user_out_of_every_delivered_ticket(
@@ -1061,6 +1103,7 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     assert 'coga ticket "' in result.output
     assert "Skipped the onboarding ticket" in result.output
     assert "Run `coga build`" not in result.output
+    assert (target / "coga" / "log.md").read_text() == ""
 
 
 def test_init_next_steps_name_the_agent_cli_prerequisite(
@@ -1077,6 +1120,8 @@ def test_init_next_steps_name_the_agent_cli_prerequisite(
     assert "Install an agent CLI" in result.output
     assert "https://claude.com/claude-code" in result.output
     assert "https://github.com/openai/codex" in result.output
+    assert "Run `coga build` with Claude Code" in result.output
+    assert "`coga build --agent codex` with Codex" in result.output
 
 
 def test_init_filled_repo_ignores_coga_managed_files(

@@ -68,7 +68,10 @@ path (one question → agent-led chat → vision → starter tickets). Because i
 dispatches through `coga launch` CLI parsing it requires an already-init'd
 repo, and capturing your name is `coga init`'s job, not `build`'s. There is no
 separate `coga setup` command — initialize the repo with `coga init`, then run
-`coga build`.
+`coga build` with Claude Code or `coga build --agent codex` with Codex. The
+explicit override follows the onboarding workflow's directly consecutive
+`assignee: agent` steps, so both steps use Codex without rewriting the seeded
+ticket.
 
 ## coga create "\<title\>" [--workflow \<name\>]
 
