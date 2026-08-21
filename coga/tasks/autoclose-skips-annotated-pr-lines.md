@@ -1,7 +1,7 @@
 ---
 slug: autoclose-skips-annotated-pr-lines
 title: Autoclose skips annotated PR lines
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
