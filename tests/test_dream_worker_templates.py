@@ -170,9 +170,22 @@ def test_dream_documents_the_knowledge_scan_skill() -> None:
     assert "### Phase 2 — knowledge scan" in text
     assert "`bootstrap/dream/scan/knowledge-scan`" in text
     assert "Classify each finding as exactly one of:" not in text
-    assert "single full-corpus read of the run" in skill_norm
+    # The scan covers the whole corpus, but as bounded shards: a single
+    # full-corpus read is larger than a subagent can hold, and the run that
+    # tried it returned no findings at all.
+    assert "It is the single full-corpus read of the run" not in skill_norm
+    assert "bounded shards, not one sweep" in skill_norm
     assert "every ticket body and blackboard" in skill_norm
     assert "every context, skill, and workflow file" in skill_norm
+    assert "`bootstrap/dream/scan/scan-protocol`" in skill_text
+    # The de-duplication tradeoff the sharding costs is stated, while the
+    # required ticket-vs-knowledge comparison is preserved inside area shards.
+    assert "merge-time de-duplication compares titles, targets, and paragraphs" in skill_norm
+    assert "both sides of the comparison in each shard" in skill_norm
+    assert "Do not create disjoint ticket-only and knowledge-only shard groups" in skill_norm
+    assert "For every ticket it includes path, bytes, slug, title, status" in skill_norm
+    assert "the index entry alone is not evidence" in skill_norm
+    assert "at least two independent tickets" in skill_norm
     assert "`extract`" in skill_text
     assert "`stale`" in skill_text
     assert "`gap`" in skill_text
@@ -206,6 +219,15 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     assert "Frozen task artifacts under `coga/tasks/` are historical" in skill_text
     assert "script:" not in skill_text
     assert "## Known Skill Contract" not in skill_text
+    # The audit shards too, and copy divergence checks explicit counterpart
+    # pairs instead of diffing intentionally different trees.
+    assert "bounded shards, not one sweep" in skill_norm
+    assert "`bootstrap/dream/scan/scan-protocol`" in skill_text
+    assert "`IDENTICAL_LIVE_PACKAGED_PAIRS`" in skill_text
+    assert "compare each pair with `cmp`" in skill_norm
+    assert "recursive diff" in skill_norm
+    assert "diff -r coga/ src/coga/resources/templates/coga/" not in skill_text
+    assert "never read it whole" in skill_norm
     # Phase 6 disposition routes `drift` findings to a proposal PR.
     assert "Every Phase 2 and Phase 3 finding gets a durable home" in text
     assert "- `drift` — open a proposal PR" in text
@@ -242,3 +264,107 @@ def test_cleanup_orphan_markers_declares_contract() -> None:
     assert "reports eligible candidates as `human-needed`" in norm
     assert "coga run cleanup-orphan-markers" in text
     assert "script: run.py" not in text
+
+
+def test_dream_scans_stream_durable_findings_and_report_completion() -> None:
+    """Both decide-half scans deliver findings through an on-disk file and end
+    with an explicit per-shard completion line, so Dream can tell "scan ran,
+    found nothing" from "scan never returned"."""
+    protocol = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text()
+    norm = " ".join(protocol.split())
+
+    assert protocol.startswith("---\n")
+    assert "name: bootstrap/dream/scan/scan-protocol" in protocol
+    assert "## Known Skill Contract" not in protocol
+    assert "script:" not in protocol
+
+    # Findings land on disk as they are decided, never only in a final message.
+    assert "the moment you decide it" in norm
+    assert "Never accumulate findings in context to emit at the end" in norm
+    assert "`findings.md`" in protocol
+    assert "`progress.md`" in protocol
+    assert "It does not parse your final message" in norm
+    assert "Dream initializes all four as empty regular files" in norm
+    assert (
+        "`findings.md` therefore exists even when every shard reports zero findings"
+        in norm
+    )
+
+    # An explicit zero is a result; a missing line is not.
+    assert "<shard-id> complete — <N> findings" in protocol
+    assert "`0 findings` is a real result" in norm
+    assert "A shard that writes no line at all is treated as a shard that never returned" in norm
+    assert "<shard-id> incomplete —" in protocol
+
+    # Bounded reading is what makes a shard finishable.
+    assert "150 KB" in protocol
+    assert "owned and evidence paths together" in norm
+    assert "Never read a file over 60 KB whole" in norm
+    assert "Never read `coga/log.md` whole" in norm
+    assert "find <paths> -type f -name '*.md' -exec wc -c {} \\;" in protocol
+    assert "find -printf" in protocol
+
+    # Retry children supersede an incomplete parent, so successful leaves can
+    # reconcile without waiting for the failed parent to complete.
+    assert "supersede <parent-id> -> <child-id>" in protocol
+    assert "leaf assignments" in norm
+    assert "reconciliation checks only those leaves" in norm.lower()
+    assert "A superseded parent's late completion" in norm
+    assert "phase's finding total comes from the de-duplicated `findings.md`" in norm
+    assert "including durable findings written by a parent" in norm
+    assert "Supersession changes coverage expectations, never delivery" in norm
+
+
+def test_dream_shards_and_reconciles_the_scan_phases() -> None:
+    """Dream sizes the corpus, shards it, and reconciles launched shards
+    against completion lines before believing a scan's result."""
+    text = DREAM_PROMPT.read_text()
+    norm = " ".join(text.replace("**", "").split())
+
+    assert "### Decide-half scan mechanics (Phases 2 and 3)" in text
+    assert "bounded shards writing durable findings to disk" in norm
+    assert "`bootstrap/dream/scan/scan-protocol`" in text
+    assert "mktemp -d" in text
+    assert "manifest.md" in text and "index.md" in text
+    assert "Immediately create all four as empty regular files" in norm
+    assert (
+        "`findings.md` must exist even when every shard reports zero findings" in norm
+    )
+    assert "no more than 150 KB across at most 40 distinct files" in norm
+    assert "Compare the active leaf shard rows" in norm
+    assert "Do not treat a missing line as zero findings" in norm
+    assert "supersede <parent> -> <children>" in norm
+    assert "retry those leaves once" in norm
+    assert "de-duplicated findings across all attempts total zero" in norm
+    assert "the phase result is `partial`" in norm
+    assert "de-duplicating across shards" in norm
+    # `partial` joins the run-summary vocabulary so an incomplete scan is
+    # visible in the summary instead of reading as a clean run.
+    assert "`no-op`, `reported`, `partial`, `proposed`" in norm
+    assert "how many shards were launched and how many wrote a completion line" in norm
+    # A sharded scan still covers the whole corpus before Phase 4 deletes
+    # done-ticket evidence.
+    assert "sharded corpus read; classifies every finding" in text
+
+
+def test_dream_sharding_updates_the_architecture_contract() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    live = repo_root / "coga" / "contexts" / "coga" / "architecture" / "SKILL.md"
+    packaged = (
+        RESOURCES
+        / "templates"
+        / "coga"
+        / "bootstrap"
+        / "contexts"
+        / "coga"
+        / "architecture"
+        / "SKILL.md"
+    )
+    text = live.read_text()
+    norm = " ".join(text.split())
+
+    assert live.read_bytes() == packaged.read_bytes()
+    assert "two sharded subagent scans" in norm
+    assert "retry-supersession rules" in norm
+    assert "reconciles only active leaf assignments" in norm
+    assert "`no-op`, `reported`, `partial`, `proposed`" in norm

@@ -30,7 +30,9 @@ Write short progress updates to the console before and after each phase:
 validate-drift, knowledge scan, contract audit, Retro pass,
 cleanup-orphan-markers, disposition, and the final status mark. Include the
 command or file path being
-acted on and the result count when available. If a phase is skipped, say why.
+acted on and the result count when available. For the sharded scan phases, say
+how many shards were launched and how many wrote a completion line. If a phase
+is skipped, say why.
 The blackboard remains the durable record; console progress is for the human
 watching the run.
 
@@ -43,8 +45,9 @@ corpus while every done ticket still exists (Phase 4 may delete the eligible
 ones), so nothing is missed, and their findings steer the Retro pass.
 
 1. **validate-drift** — deterministic repo hygiene (registered recipe).
-2. **knowledge scan** — one full-corpus read; classifies every finding.
-3. **contract audit** — checks the contract surface against code reality.
+2. **knowledge scan** — sharded corpus read; classifies every finding.
+3. **contract audit** — sharded check of the contract surface against code
+   reality.
 4. **retro/done-ticket** — extracts durable knowledge from every eligible done
    ticket in one pass.
 5. **cleanup-orphan-markers** — delete-only orphan cleanup (registered recipe).
@@ -79,22 +82,74 @@ or `log.md`, and append-only history goes to the repo-global `coga/log.md`. It
 does not rewrite existing files, synthesize `ticket.md`, freeze workflows, or
 change lifecycle/assignee state.
 
+### Decide-half scan mechanics (Phases 2 and 3)
+
+Both decide-half scans are read-only sweeps over Coga's own corpus, and both run
+the same way: **bounded shards writing durable findings to disk**, never one
+subagent sweep whose result arrives only in its final message. The corpus is
+larger than a subagent can hold, and a scan that stops early after delivering
+nothing is indistinguishable from a clean repo. Run each scan like this:
+
+1. **Create the scan directory.** `mktemp -d` one directory per phase and keep
+   its absolute path. Both scans and the shard subagents follow
+   `bootstrap/dream/scan/scan-protocol`, which defines the directory's
+   `manifest.md`, `index.md`, `findings.md`, and `progress.md`. Immediately
+   create all four as empty regular files before indexing or launching any
+   shard. `findings.md` must exist even when every shard reports zero findings;
+   absence is never a clean result.
+2. **Index and shard.** Size the phase's corpus portably with
+   `find <paths> -type f -name '*.md' -exec wc -c {} \;` — do not use GNU-only
+   `find -printf`. Enrich those sizes with the compact routing metadata the
+   phase skill names and write the full index to `index.md`. Then build the
+   phase skill's ownership + evidence assignments at no more than 150 KB across
+   at most 40 distinct files, keeping a task directory's Markdown together and
+   never splitting a file. Append one attempt-1 shard row per assignment to
+   `manifest.md`.
+3. **Run the shards.** Delegate each shard to a subagent using the phase's scan
+   skill, passing the scan directory's absolute path, the shard id, and that
+   shard's exact paths. Shards append to the shared `findings.md` and
+   `progress.md`; they do not report findings back through their final message.
+4. **Reconcile before believing the result.** Compare the active leaf shard rows
+   in `manifest.md` against the completion lines in `progress.md`. Every leaf
+   shard must have written
+   `<shard-id> complete — <N> findings`; `0 findings` is an explicit, valid
+   result, and a shard with no line at all is a shard that never returned. Do
+   not treat a missing line as zero findings.
+5. **Retry once, then report honestly.** For any missing or `incomplete`
+   assignment, append a manifest `supersede <parent> -> <children>` row plus
+   smaller attempt-2 child rows and retry those leaves once. If an attempt-2
+   leaf still does not complete, the phase result is `partial`: keep the scan
+   directory, and record its path, the unread paths, and a `human-needed` line
+   in the run summary.
+6. **Merge into the blackboard.** Read `findings.md` and merge it into this
+   task's `## Findings`, de-duplicating across shards — two shards may describe
+   one underlying issue from different evidence; re-read a named file when you
+   are unsure whether two findings are the same. Group the `extract` findings by
+   the context/skill area they touch.
+
+Delete the scan directory only after its findings are merged into the
+blackboard, and only when the phase completed. Report each scan's result as
+`reported` with the shard and merged finding counts, `no-op` when every active
+leaf completed and the de-duplicated findings across all attempts total zero,
+or `partial` when any active leaf did not complete. Superseding a shard changes
+the coverage check; it never discards findings that shard already appended.
+
 ### Phase 2 — knowledge scan
 
-Delegate this phase to a subagent using the
-`bootstrap/dream/scan/knowledge-scan` skill. This decide-half scan happens
-before Phase 4 so done-ticket evidence is still available.
+Shard this phase to subagents using the `bootstrap/dream/scan/knowledge-scan`
+skill, following the scan mechanics above. This decide-half scan happens before
+Phase 4 so done-ticket evidence is still available.
 
-Write the returned findings to this task's blackboard under `## Findings`;
+Merge the shards' findings into this task's blackboard under `## Findings`;
 Phase 4 reads that section when batching knowledge PRs.
 
 ### Phase 3 — contract audit
 
-Delegate this phase to a subagent using the
-`bootstrap/dream/scan/contract-audit` skill. This decide-half audit complements
+Shard this phase to subagents using the `bootstrap/dream/scan/contract-audit`
+skill, following the scan mechanics above. This decide-half audit complements
 Phase 1's deterministic repo-hygiene check.
 
-Write the returned findings to this task's blackboard under `## Findings`,
+Merge the shards' findings into this task's blackboard under `## Findings`,
 alongside the Phase 2 findings; Phase 6 reads that section when routing
 proposal PRs.
 
@@ -244,8 +299,8 @@ Route each finding by class:
 
 Then append one top-level `## Dream Run Summary` section to this task's
 blackboard: the generation time, a phase result table using the vocabulary
-`no-op`, `reported`, `proposed`, `direct-fixed`, `pr-opened`, `human-needed`,
-the finding counts with one-line summaries, links to every PR opened and draft
+`no-op`, `reported`, `partial`, `proposed`, `direct-fixed`, `pr-opened`,
+`human-needed`, the finding counts with one-line summaries, links to every PR opened and draft
 ticket created, and any `human-needed` decisions or review gates. Keep it short
 enough for a human to scan.
 
