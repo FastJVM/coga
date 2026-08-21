@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 import subprocess
 import sys
@@ -24,6 +25,9 @@ VALIDATE_DRIFT = (
     / "tasks"
     / "validate-drift"
 )
+VALIDATE_SOURCE = (
+    Path(__file__).resolve().parents[1] / "src" / "coga" / "validate.py"
+)
 
 
 def _source_pythonpath() -> str:
@@ -32,6 +36,39 @@ def _source_pythonpath() -> str:
     if not existing_pythonpath:
         return src_path
     return src_path + os.pathsep + existing_pythonpath
+
+
+def _emitted_validator_kind_samples() -> set[str]:
+    """Derive literal kinds and one sample for every dynamic kind family."""
+    tree = ast.parse(VALIDATE_SOURCE.read_text())
+    kinds: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.keyword) or node.arg != "kind":
+            continue
+        value = node.value
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            kinds.add(value.value)
+            continue
+        if isinstance(value, ast.JoinedStr):
+            parts: list[str] = []
+            for part in value.values:
+                if isinstance(part, ast.Constant) and isinstance(part.value, str):
+                    parts.append(part.value)
+                elif isinstance(part, ast.FormattedValue):
+                    parts.append("dynamic-kind")
+                else:
+                    raise AssertionError(
+                        f"unsupported validator kind f-string part: {ast.dump(part)}"
+                    )
+            kinds.add("".join(parts))
+            continue
+        raise AssertionError(
+            "unsupported validator kind expression; extend the coverage "
+            f"derivation for {ast.dump(value)}"
+        )
+    return kinds
+
+
 ACTION_DIRECT_FIX = validate_drift.ACTION_DIRECT_FIX
 ACTION_HUMAN_NEEDED = validate_drift.ACTION_HUMAN_NEEDED
 ACTION_PR_PROPOSAL = validate_drift.ACTION_PR_PROPOSAL
@@ -155,6 +192,76 @@ def test_classifies_recurring_state_stuck_as_human_needed() -> None:
 
     assert classified.action == ACTION_HUMAN_NEEDED
     assert "parent recurring blackboard" in classified.remediation
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "bad-recurring-template",
+        "broken-recurring-template-skill",
+        "broken-workflow",
+        "duplicate-slug",
+        "duplicate-task-number",
+        "invalid-recurring-schedule",
+        "missing-step-instructions",
+        "unsynthesized-draft-blackboard",
+    ],
+)
+def test_classifies_file_backed_validator_drift_as_pr_proposal(kind: str) -> None:
+    classified = classify_issue(
+        ValidationIssue(
+            kind=kind,
+            task="broken-task",
+            message="drift",
+            severity="error",
+        )
+    )
+
+    assert classified.action == ACTION_PR_PROPOSAL
+    assert "Unknown validator issue kind" not in classified.remediation
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "github-gh-auth",
+        "github-gh-installed",
+        "github-git-auth",
+        "github-git-branch-current",
+        "github-git-branch-state-only-drift",
+        "github-git-remote",
+        "missing-user",
+        "unset-secret-env",
+    ],
+)
+def test_classifies_operator_environment_drift_as_human_needed(kind: str) -> None:
+    classified = classify_issue(
+        ValidationIssue(
+            kind=kind,
+            task="(config)",
+            message="drift",
+            severity="error",
+        )
+    )
+
+    assert classified.action == ACTION_HUMAN_NEEDED
+    assert "Unknown validator issue kind" not in classified.remediation
+
+
+def test_classifier_explicitly_covers_every_emitted_validator_kind() -> None:
+    kinds = _emitted_validator_kind_samples()
+    assert "github-dynamic-kind" in kinds
+
+    unknown = [
+        kind
+        for kind in sorted(kinds)
+        if "Unknown validator issue kind"
+        in classify_issue(
+            ValidationIssue(kind=kind, task="task", message="drift", severity="error")
+        ).remediation
+    ]
+
+    assert unknown == []
 
 
 def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:

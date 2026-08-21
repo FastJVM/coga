@@ -91,7 +91,7 @@ The recipe accepts:
 - `--idle-hours <hours>` — passed through to `coga validate`.
 - `--max-blackboard-kb <kb>` — passed through to `coga validate`.
 
-The classifier covers every validator kind currently emitted by
-`coga validate`. Anything new is routed to `human-needed` with an
-"unknown validator issue kind" remediation so the operator notices the
-new kind and extends the mapping.
+The unknown-kind `human-needed` result is a runtime backstop, not the normal
+route for validator output. A source-derived coverage test follows literal
+issue tags and dynamically generated kind families so a new emitter cannot
+silently rely on that fallback; extend the classifier when the test finds one.

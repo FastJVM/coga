@@ -5,7 +5,6 @@ import sys
 import zipfile
 from pathlib import Path
 
-import pytest
 import tomllib
 
 from coga.ticket import Ticket
@@ -205,7 +204,6 @@ def test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep() -> 
 
 
 def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
-    pytest.importorskip("hatchling")
     repo_root = Path(__file__).resolve().parents[1]
     wheel_dir = tmp_path / "dist"
     wheel_dir.mkdir()

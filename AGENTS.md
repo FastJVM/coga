@@ -23,9 +23,9 @@ Core code lives in `src/coga/`. Keep CLI entrypoints thin in `src/coga/commands/
 When changing shipped Coga OS contexts or templates, check both the live repo copy under `coga/` and the packaged copy under `src/coga/resources/templates/coga/`. Keep them in sync unless the difference is intentional and documented.
 
 ## Build, Test, and Development Commands
-- `python -m pip install -e .` installs the package in editable mode and exposes `coga`.
+- `python -m pip install -e ".[test]"` installs the package in editable mode with the declared test tools and exposes `coga`.
 - `coga --help` or `python -m coga.cli` is the fastest CLI smoke check.
-- `python -m pytest` runs the test suite; install `pytest` in your dev environment first.
+- `python -m pytest` runs the test suite after the test-extra install above.
 - `coga validate --json` validates repo/task structure after config, workflow, or task-model changes.
 
 ## Coding Style & Naming Conventions
