@@ -410,3 +410,23 @@ Deferred to a follow-up ticket, with reasons:
 - `coga/contexts/coga/project-stage/SKILL.md:21` — "Moving `contexts/` to live
   next to tasks would be fine if..." is live product posture that this ticket
   partly answers. It needs an owner's judgment call, not a mechanical reword.
+
+## Peer review findings
+
+`codex review --base main` found five must-fix gaps; all are being fixed in
+this step:
+
+- reject a configured contexts root that resolves to the checkout root, which
+  would otherwise turn the scoped end-of-command state sweep into `git add -A`;
+- carry deletions from the previously configured/default contexts root through
+  the relocation sync, rather than committing only the new copies and leaving
+  stale tracked files behind;
+- reject an empty/fully ignored configured root that Git cannot reproduce in a
+  fresh clone (a trackable context file or marker is required);
+- make the generated AGENTS.md/CLAUDE.md guide config-neutral; and
+- replace Retro's remaining concrete `coga/contexts/**` globs, whose later
+  required-input and inventory steps contradicted its earlier relocation note.
+
+The independent coverage pass also found that Git pathspec metacharacters in a
+valid directory name could broaden the sweep. The fix will keep configured
+paths literal (or fail loud) so the new knob cannot expand Coga's state boundary.
