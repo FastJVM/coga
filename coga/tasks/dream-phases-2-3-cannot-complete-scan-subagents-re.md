@@ -1,7 +1,7 @@
 ---
 slug: dream-phases-2-3-cannot-complete-scan-subagents-re
 title: 'Dream phases 2-3 cannot complete: scan subagents return no findings'
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
