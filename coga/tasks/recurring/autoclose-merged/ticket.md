@@ -1,7 +1,7 @@
 ---
 slug: recurring/autoclose-merged
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,6 +17,7 @@ workflow:
     - coga/autoclose/sweep
     assignee: agent
 secrets: null
+step: 1 (sweep)
 ---
 
 ## Description
@@ -57,12 +58,3 @@ no merged final-step tickets exits successfully and changes nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Autoclose Sweep: retire follow-ups
-
-Generated: 2026-08-19T20:50:09+00:00
-Task: `recurring/autoclose-merged`
-
-1 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
-
-- `read-the-recurring-serviced-period-from-the-log-dr` "Read the recurring serviced-period from the log, drop the blackboard marker": worktree `/home/n/Code/claude/coga-recurring-log-reverse-pass`, branch `fix/recurring-log-reverse-pass` — `coga retire read-the-recurring-serviced-period-from-the-log-dr`
