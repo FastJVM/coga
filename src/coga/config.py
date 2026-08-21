@@ -1059,13 +1059,43 @@ def _parse_layout(raw: object, repo_root: Path) -> Path | None:
     misconfigured directory has to fail at load, before anything composes.
 
     The value is a relative path anchored at the git checkout root (see
-    `find_checkout_root`), and must resolve to an existing directory inside
-    that checkout. Absolute paths and `..` escapes are rejected — coga's state
-    is git-backed, and contexts that live outside the checkout could be neither
-    committed nor synced.
+    `find_checkout_root`), and must resolve to a reproducible child directory
+    inside that checkout. Absolute/outside/checkout-root paths, Git pathspec
+    metacharacters, and empty or fully ignored directories are rejected —
+    coga's state is git-backed, so the directory must be safely selectable and
+    survive a clone.
 
     An unset key skips all of it, so a repo that never touches `[layout]`
     behaves exactly as it did before the key existed.
+    """
+    resolved = resolve_layout_contexts_path(raw, repo_root)
+    if resolved is None:
+        return None
+    if not resolved.exists():
+        raise ConfigError(
+            f"[layout].contexts points at {resolved}, which does not exist. "
+            "Create the directory (and move the existing contexts into it), or "
+            "remove the key to use the default `contexts/` directory beside "
+            "coga.toml."
+        )
+    if not resolved.is_dir():
+        raise ConfigError(
+            f"[layout].contexts points at {resolved}, which is not a directory."
+        )
+    checkout = find_checkout_root(repo_root)
+    assert checkout is not None
+    _require_trackable_context_entry(checkout, resolved)
+    return resolved
+
+
+def resolve_layout_contexts_path(raw: object, repo_root: Path) -> Path | None:
+    """Resolve `[layout] contexts` without requiring its target to exist.
+
+    Config loading adds the filesystem and Git-trackability checks in
+    `_parse_layout`. Fresh scaffolding uses this location-only half before it
+    copies anything, so `coga init` can materialize its context templates at
+    the configured destination without first creating a knowingly-invalid
+    default tree.
     """
     if raw is None:
         return None
@@ -1086,6 +1116,16 @@ def _parse_layout(raw: object, repo_root: Path) -> Path | None:
             "resolved against the git checkout root, so write it as "
             "`docs/contexts`, not as an absolute path."
         )
+    candidate_text = candidate.as_posix()
+    if candidate_text.startswith(":") or any(
+        char in candidate_text for char in ("*", "?", "[")
+    ):
+        raise ConfigError(
+            f"[layout].contexts must not contain Git pathspec metacharacters, "
+            f"got {value!r}. Choose a literal directory name without a leading "
+            "':' or any of '*', '?', '['; otherwise the automatic state sweep "
+            "could select files outside the contexts directory."
+        )
 
     checkout = find_checkout_root(repo_root)
     if checkout is None:
@@ -1099,25 +1139,88 @@ def _parse_layout(raw: object, repo_root: Path) -> Path | None:
         )
 
     resolved = (checkout / candidate).resolve()
-    if resolved != checkout and checkout not in resolved.parents:
+    if resolved == checkout:
+        raise ConfigError(
+            f"[layout].contexts ({value!r}) resolves to the git checkout root "
+            f"at {checkout}. Choose a directory inside the checkout; using the "
+            "checkout itself would make Coga's scoped state sweep select every "
+            "dirty product file."
+        )
+    if checkout not in resolved.parents:
         raise ConfigError(
             f"[layout].contexts ({value!r}) resolves to {resolved}, which is "
             f"outside the git checkout at {checkout}. Contexts are git-backed "
             "state; a directory outside the checkout could not be committed or "
             "synced."
         )
-    if not resolved.exists():
+    git_admin = checkout / ".git"
+    if resolved == git_admin or git_admin in resolved.parents:
         raise ConfigError(
-            f"[layout].contexts points at {resolved}, which does not exist. "
-            "Create the directory (and move the existing contexts into it), or "
-            "remove the key to use the default `contexts/` directory beside "
-            "coga.toml."
+            f"[layout].contexts ({value!r}) resolves inside Git's administrative "
+            f"directory at {git_admin}. Choose a working-tree directory instead."
         )
-    if not resolved.is_dir():
-        raise ConfigError(
-            f"[layout].contexts points at {resolved}, which is not a directory."
-        )
+    for ancestor in (resolved, *resolved.parents):
+        if ancestor == checkout:
+            break
+        if (ancestor / ".git").exists():
+            raise ConfigError(
+                f"[layout].contexts ({value!r}) resolves inside the nested git "
+                f"checkout at {ancestor}. Contexts must belong to the same "
+                f"checkout as {repo_root} so Coga can sync them atomically."
+            )
     return resolved
+
+
+def _require_trackable_context_entry(checkout: Path, contexts_root: Path) -> None:
+    """Require one file Git can reproduce below a configured contexts root.
+
+    Git does not record directories. Accept tracked files and untracked,
+    non-ignored files because the next Coga state sweep will add the latter;
+    reject an empty or fully ignored tree before its shared config can land by
+    itself and break every fresh clone at config load.
+    """
+    rel = contexts_root.relative_to(checkout).as_posix()
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(checkout),
+                "--literal-pathspecs",
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "-z",
+                "--",
+                rel,
+            ],
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise ConfigError(
+            "[layout].contexts requires Git to verify that the configured "
+            "directory can survive a clone, but `git` is not on PATH."
+        ) from exc
+    if result.returncode != 0:
+        detail = result.stderr.decode(errors="replace").strip()
+        raise ConfigError(
+            "[layout].contexts could not verify the configured directory with "
+            f"`git ls-files`: {detail or f'exit {result.returncode}'}."
+        )
+    entries = [
+        checkout / os.fsdecode(path)
+        for path in result.stdout.split(b"\0")
+        if path
+    ]
+    if not any(path.is_file() or path.is_symlink() for path in entries):
+        raise ConfigError(
+            f"[layout].contexts points at {contexts_root}, but that directory "
+            "contains no tracked or unignored file, so Git cannot reproduce it "
+            "in a fresh clone. Add a context file or a trackable marker such as "
+            "`.gitkeep`, then retry."
+        )
 
 
 def _parse_launch(

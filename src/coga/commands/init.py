@@ -8,6 +8,7 @@ It builds the self-contained venv that backs the `coga` console script.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib.resources.abc import Traversable
 import json
 import os
 import re
@@ -16,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import tomllib
 from pathlib import Path
 
 import typer
@@ -34,7 +36,7 @@ from coga.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
-from coga.config import load_config
+from coga.config import ConfigError, load_config, resolve_layout_contexts_path
 from coga.dependencies import DEPENDENCIES, install_hint
 from coga.logfile import append_log
 from coga.managed_skills import (
@@ -58,6 +60,12 @@ user = ""
 # Per-agent permission-skip policy from older installs is removed. Current
 # launch rejects those keys as unknown config because Coga no longer has a
 # ticket-level unattended execution axis.
+"""
+
+_RELOCATED_CONTEXTS_GITIGNORE = """\
+# Per-domain scaffolding templates (bare `_template`, `_template.md`).
+**/_template/
+**/_template.md
 """
 
 
@@ -170,12 +178,25 @@ def _host_ignores_coga(target: Path) -> bool:
     loud before writing anything. `target` may not exist yet, so run
     `git check-ignore` from the nearest existing ancestor.
     """
-    probe = nearest_existing_dir(target)
+    return _host_ignores_path(target / "coga")
+
+
+def _host_ignores_path(path: Path) -> bool:
+    """True when the enclosing checkout's ignore rules exclude `path`."""
+    probe = nearest_existing_dir(path)
     if probe is None:
         return False
     try:
         result = subprocess.run(
-            ["git", "-C", str(probe), "check-ignore", "-q", str(target / "coga")],
+            [
+                "git",
+                "-C",
+                str(probe),
+                "check-ignore",
+                "-q",
+                "--no-index",
+                f"{path}{os.sep}",
+            ],
             capture_output=True,
         )
     except OSError:
@@ -258,8 +279,9 @@ AGENT_GUIDE_TEMPLATE = """\
 # Agent guide
 
 This repo uses [coga](https://github.com/FastJVM/coga) to coordinate shared
-task and context state between humans and agents. Everything coordinated lives
-under `coga/`.
+task and context state between humans and agents. Most coordinated files live
+under `coga/`; contexts live in the configured contexts directory —
+`coga/contexts/` by default, or `[layout] contexts` in `coga/coga.toml`.
 
 ## Start here
 
@@ -287,7 +309,8 @@ workflow step are loaded too.
 ## Mental model
 
 The canonical contexts are package-backed and composed automatically; a repo can
-override them with local files under `coga/contexts/coga/`. Read in order:
+override them with local files under `<contexts-dir>/coga/` (by default,
+`coga/contexts/coga/`). Read in order:
 
 - `principles/SKILL.md` — non-negotiables (markdown-first, fail-loud, classical mode)
 - `architecture/SKILL.md` — primitives, planes, prompt composition, locking
@@ -412,6 +435,64 @@ def init(
     _do_init(path or Path("."), user=user)
 
 
+def _template_contexts_destination(
+    template_root: Traversable, coga_os: Path
+) -> Path | None:
+    """Configured contexts destination embedded in a fresh template tree.
+
+    The normal shipped template leaves `[layout]` unset. Keeping this path
+    config-aware prevents a customized or future scaffold that does set it
+    from copying local contexts into the default directory while its own
+    config points somewhere else.
+    """
+    shared = tomllib.loads(template_root.joinpath("coga.toml").read_text())
+    return resolve_layout_contexts_path(shared.get("layout"), coga_os)
+
+
+def _relocate_fresh_contexts(
+    coga_os: Path, destination: Path | None
+) -> tuple[Path | None, tuple[Path, ...]]:
+    """Move scaffolded local contexts to `destination`, when configured.
+
+    Returns the moved directory and any parent directories this call created,
+    allowing `_do_init` to preserve its all-or-nothing cleanup if a later
+    initialization phase raises.
+    """
+    source = (coga_os / "contexts").resolve(strict=False)
+    if destination is None or destination == source:
+        return None, ()
+    if destination.exists():
+        raise FileExistsError(
+            f"configured contexts destination already exists: {destination}"
+        )
+    if not source.is_dir():
+        raise FileNotFoundError(
+            f"installed templates are missing the contexts directory at {source}"
+        )
+
+    created_parents: list[Path] = []
+    parent = destination.parent
+    while not parent.exists():
+        created_parents.append(parent)
+        parent = parent.parent
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        source.rename(destination)
+        relocated_gitignore = destination / ".gitignore"
+        if not relocated_gitignore.exists():
+            relocated_gitignore.write_text(_RELOCATED_CONTEXTS_GITIGNORE)
+    except BaseException:
+        if destination.is_dir():
+            shutil.rmtree(destination, ignore_errors=True)
+        for created in created_parents:
+            try:
+                created.rmdir()
+            except OSError:
+                pass
+        raise
+    return destination, tuple(created_parents)
+
+
 def _do_init(path: Path, *, user: str | None = None) -> None:
     target = path.resolve()
     coga_os = target / "coga"
@@ -518,6 +599,45 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # source checkout, or COGA_REPO_URL override) before any writes, so a bad
     # override fails loud and leaves nothing on disk.
     source = resolve_install_source()
+    template_root = packaged_template_root()
+    try:
+        contexts_destination = _template_contexts_destination(
+            template_root, coga_os
+        )
+    except (ConfigError, OSError, tomllib.TOMLDecodeError) as exc:
+        typer.secho(
+            f"Cannot scaffold Coga from the installed templates: {exc}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    default_contexts = (coga_os / "contexts").resolve(strict=False)
+    if (
+        contexts_destination is not None
+        and contexts_destination != default_contexts
+        and contexts_destination.exists()
+    ):
+        typer.secho(
+            f"Cannot scaffold configured contexts at {contexts_destination}: "
+            "that path already exists, and `coga init` will not merge into or "
+            "overwrite a pre-existing directory.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    if (
+        contexts_destination is not None
+        and contexts_destination != default_contexts
+        and _host_ignores_path(contexts_destination)
+    ):
+        typer.secho(
+            f"Cannot scaffold configured contexts at {contexts_destination}: "
+            "the host repository ignores that path, so Git could not preserve "
+            "the directory in a fresh clone.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
 
     target.mkdir(parents=True, exist_ok=True)
 
@@ -527,13 +647,17 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # A partial init must never survive: it is the dead end where a re-run of
     # `coga init` refuses ("already exists") yet the leftover coga/ has a broken
     # venv / missing user (the re-init wedge).
+    relocated_contexts: Path | None = None
+    created_context_parent_dirs: tuple[Path, ...] = ()
     try:
-        template_root = packaged_template_root()
         copy_fresh_templates(template_root, coga_os)
         # `.gitignore` shipped verbatim by copytree; wrap it in the
         # coga-managed marker block so the fenced region stays distinct
         # from user additions.
         _refresh_coga_gitignore(template_root, coga_os)
+        relocated_contexts, created_context_parent_dirs = (
+            _relocate_fresh_contexts(coga_os, contexts_destination)
+        )
 
         # On a filled repo, drop the onboarding ticket(s) the template ships — a
         # real project doesn't want the bootstrap interview seeded for it.
@@ -568,17 +692,32 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         wired_agents, blocked_agents = _link_skills_for_agents(target, coga_os)
         host_gitignore_changed = ensure_host_gitignore(target)
         written_guides = _write_agent_guides(target)
+        generated_host_paths = list(written_guides)
+        if relocated_contexts is not None:
+            try:
+                relocated_contexts.relative_to(coga_os)
+            except ValueError:
+                generated_host_paths.append(
+                    os.path.relpath(relocated_contexts, target)
+                )
         commit_sha, commit_failure = _git_commit_coga_os(
-            target, coga_os, host_gitignore_changed, written_guides
+            target, coga_os, host_gitignore_changed, generated_host_paths
         )
     except BaseException:
         # Roll back the partial coga/ this run created (only this run — a
         # pre-existing one is refused far above and never reaches here), then
         # re-raise so the original error / exit code / Ctrl-C is preserved.
+        if relocated_contexts is not None and relocated_contexts.is_dir():
+            shutil.rmtree(relocated_contexts, ignore_errors=True)
+        for parent in created_context_parent_dirs:
+            try:
+                parent.rmdir()
+            except OSError:
+                pass
         if coga_os.exists():
             shutil.rmtree(coga_os, ignore_errors=True)
             typer.secho(
-                f"init failed — removed the partial {coga_os}; "
+                f"init failed — removed the partial state rooted at {coga_os}; "
                 f"fix the cause and re-run `coga init`.",
                 fg=typer.colors.YELLOW,
                 err=True,
@@ -960,7 +1099,7 @@ def _git_commit_coga_os(
     include_host_gitignore: bool,
     extra_host_paths: list[str] | None = None,
 ) -> tuple[str | None, GitCommitFailure | None]:
-    """If `target` is a git repo, stage coga/ (+ host .gitignore + extras) and commit.
+    """Commit coga/ plus generated host paths when `target` is a git repo.
 
     Returns `(sha, None)` on success, `(None, None)` on a clean skip (not a
     git repo, or nothing to stage), and `(None, failure)` when a git invocation
@@ -979,7 +1118,7 @@ def _git_commit_coga_os(
     if include_host_gitignore and (target / ".gitignore").is_file():
         paths.append(".gitignore")
     for extra in extra_host_paths or []:
-        if (target / extra).is_file():
+        if (target / extra).exists():
             paths.append(extra)
     phase = "git repository check"
     try:

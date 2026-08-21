@@ -83,11 +83,12 @@ checkout.
 Do:
 
 - read the done ticket directory for each slug passed to this skill;
-- read every context file under local `coga/contexts/**/SKILL.md` and package
-  `bootstrap/contexts/**/SKILL.md`; **if `coga.toml` sets `[layout] contexts`,
-  the local contexts directory is that path, not `coga/contexts/` — resolve it
-  before globbing, here and everywhere below, or every local context silently
-  reads as absent and the extraction re-adds knowledge the repo already has;**
+- resolve `<contexts-dir>` once from `[layout] contexts` in `coga.toml`,
+  anchored at the checkout root; when the key is unset it is `coga/contexts/`;
+  read every local `<contexts-dir>/**/SKILL.md` and package
+  `bootstrap/contexts/**/SKILL.md`; **reuse that resolved path everywhere below,
+  or every local context silently reads as absent and the extraction re-adds
+  knowledge the repo already has;**
 - read every skill file under local `coga/skills/**/SKILL.md` and package
   `bootstrap/skills/**/SKILL.md`;
 - decide whether each ticket contains new, useful durable knowledge;
@@ -185,7 +186,7 @@ preserve the checkout for recovery and stop instead of force-removing it.
 The baseline is the caller's **current working-tree state**, captured before
 delegation in a read-only evidence snapshot, plus the packaged roots
 (`bootstrap/contexts/`, `bootstrap/skills/`) available in the isolated
-checkout. The snapshot must include local `contexts/`, local `skills/`, the
+checkout. The snapshot must include local `<contexts-dir>`, local `coga/skills/`, the
 complete resolved artifact for every selected task (bare Markdown or the whole
 directory including sibling attachments), the repo-global `log.md`, and the
 caller task's live `## Findings` when present. Copies must be ordinary files,
@@ -224,7 +225,7 @@ Required files:
   its ticket body, blackboard region, and any sibling files
 - snapshot copy of the repo-global `coga/log.md`
 - snapshot copy of the caller task's live `## Findings`, when present
-- snapshot copy of local `coga/contexts/**/SKILL.md`
+- snapshot copy of local `<contexts-dir>/**/SKILL.md`
 - package `bootstrap/contexts/**/SKILL.md`
 - snapshot copy of local `coga/skills/**/SKILL.md`
 - package `bootstrap/skills/**/SKILL.md`
@@ -246,7 +247,7 @@ marker for the same source task.
 ## Workflow
 
 1. **Inventory contexts once.**
-   Read all snapshot-local `coga/contexts/**/SKILL.md` and package
+   Read all snapshot-local `<contexts-dir>/**/SKILL.md` and package
    `bootstrap/contexts/**/SKILL.md`. For each context, note its path, `name`,
    `description`, headings, and the knowledge it already covers. This inventory
    is the baseline for deciding whether ticket knowledge is new.

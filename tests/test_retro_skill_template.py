@@ -30,7 +30,10 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "delete every processed source task" in text
     assert "`pr-required` for knowledge edits and the source-task deletions" in text
     assert "`direct-delete` for no-durable-knowledge source tasks" in text
-    assert "read every context file under local `coga/contexts/**/SKILL.md`" in text
+    assert "resolve `<contexts-dir>` once from `[layout] contexts`" in text
+    assert "local `<contexts-dir>/**/SKILL.md`" in text
+    assert "snapshot-local `<contexts-dir>/**/SKILL.md`" in text
+    assert "local `coga/contexts/**/SKILL.md`" not in text
     assert "package\n  `bootstrap/contexts/**/SKILL.md`" in text
     assert "read every skill file under local `coga/skills/**/SKILL.md`" in text
     assert "package\n  `bootstrap/skills/**/SKILL.md`" in text

@@ -116,12 +116,18 @@ contexts = "docs/contexts"
 
 The path is relative to your Git checkout root — the same value means the same
 place whether `coga.toml` sits in a nested `coga/` or at the repo root — and
-must stay inside the checkout, since contexts are git-backed state like
-everything else. Set it and the whole system follows: composition, validation,
-ref resolution, and the git sync that commits agent edits. Point it at a
-directory that does not exist and Coga fails at config load rather than quietly
-falling back to the bundled contexts. Skills have no such knob; they are
-process knowledge for agents, not prose for humans.
+must name a child directory inside the checkout, since contexts are git-backed
+state like everything else. The directory needs at least one tracked or
+unignored file (`.gitkeep` is enough when it is intentionally empty), so a fresh
+clone can reproduce it. Set it and the whole system follows: composition,
+validation, ref resolution, and the git sync that commits both the new files
+and tracked removals from the former contexts root. A scaffolded config with
+the key set also makes `coga init` create and commit its initial local contexts
+at that checkout-root-relative destination. A missing, empty,
+fully-ignored, checkout-wide, Git-administrative, nested-checkout, or
+pathspec-like value fails at config load rather than quietly dropping contexts
+or widening the state sweep. Skills have no such knob; they are process
+knowledge for agents, not prose for humans.
 
 ## Workflows and steps
 

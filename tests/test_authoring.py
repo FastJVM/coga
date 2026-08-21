@@ -189,6 +189,7 @@ def test_finalize_authored_syncs_relocated_contexts_dir(
         check=True, capture_output=True, text=True,
     )
     (checkout / "docs" / "contexts").mkdir(parents=True)
+    (checkout / "docs" / "contexts" / ".gitkeep").write_text("")
     with (repo / "coga.toml").open("a") as f:
         f.write('[layout]\ncontexts = "docs/contexts"\n')
 

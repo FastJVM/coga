@@ -89,6 +89,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -1219,7 +1220,7 @@ def sync_paths(
 
 
 def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
-    """Commit everything dirty under the `coga/` OS-state subtree, from any branch.
+    """Commit dirty Coga OS state, including configured contexts, from any branch.
 
     The catch-all sweep behind the always-on sync contract. The per-transition
     syncs (`sync_task_state` / `sync_paths` / `sync_log`) commit the file a
@@ -1234,12 +1235,13 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
     *next* coga invocation — lazy, on-access, no daemon (see
     `coga/architecture`'s "no database, no daemon, no in-memory state").
 
-    Scope is the `coga/` subtree (`cfg.repo_root`, where `coga.toml` lives), the
-    OS-state boundary. This is *not* the forbidden `git add -A`: it stages only
-    paths under `coga/`, so product code (`src/`, `tests/`) is never swept in —
-    that is exactly the line the "Scope is narrow" rule draws. Enumeration is a
-    full `git status` under the subtree, so modifications, deletions, renames
-    **and new untracked files** are all captured.
+    Scope is the core `coga/` subtree (`cfg.repo_root`, where `coga.toml` lives)
+    plus `cfg.contexts_root` when `[layout] contexts` moves it outside that
+    subtree. During a move, tracked deletions from HEAD's former contexts root
+    are included too. This is *not* the forbidden `git add -A`: product code
+    outside those explicit roots is never swept in. Enumeration is a scoped
+    full `git status`, so modifications, deletions, renames, and new untracked
+    files are captured.
 
     Branch and union-file handling mirror `sync_paths`: the `merge=union` files
     (`log.md`, the digest spool) are committed locally + union-merged onto the
@@ -1266,6 +1268,11 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
 
         state_pathspecs = _coga_state_pathspecs(root, cfg)
         changed = _changed_paths_under(root, state_pathspecs)
+        changed = list(
+            dict.fromkeys(
+                [*changed, *_removed_paths_from_previous_contexts_root(root, cfg)]
+            )
+        )
         if not changed:
             return
 
@@ -2382,6 +2389,77 @@ def _coga_state_pathspecs(root: Path, cfg: Config) -> list[str]:
         contexts_rel if spec == "contexts" else spec
         for spec in _ROOT_LAYOUT_COGA_PATHS
     ]
+
+
+def _removed_paths_from_previous_contexts_root(
+    root: Path, cfg: Config
+) -> list[str]:
+    """Tracked context paths deleted while `[layout] contexts` moved.
+
+    The current config can name only the destination. In a root-layout repo the
+    destination deliberately replaces the old `contexts` sweep path, and when
+    one external directory replaces another neither old root is otherwise in
+    scope. Read the pre-change config from HEAD and add only tracked deletions
+    beneath that former root: this completes a move without adopting unrelated
+    new files left behind in the vacated directory.
+    """
+    previous = _contexts_root_from_head(root, cfg)
+    if previous is None or previous == cfg.contexts_root.resolve():
+        return []
+    previous_rel = _relative_to_root(root, previous)
+    out = _run_git(
+        root,
+        "--literal-pathspecs",
+        "diff",
+        "--no-renames",
+        "--name-only",
+        "--diff-filter=D",
+        "-z",
+        "HEAD",
+        "--",
+        previous_rel,
+    )
+    return [path for path in out.split("\x00") if path]
+
+
+def _contexts_root_from_head(root: Path, cfg: Config) -> Path | None:
+    """Resolve HEAD's configured contexts root without requiring it to exist."""
+    config_rel = _relative_to_root(root, cfg.repo_root / "coga.toml")
+    try:
+        data = _tree_bytes(root, "HEAD", config_rel)
+    except GitError:
+        return None
+    if data is None:
+        return None
+    try:
+        shared = tomllib.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return None
+
+    layout = shared.get("layout")
+    if layout is None or (isinstance(layout, dict) and "contexts" not in layout):
+        candidate = cfg.repo_root / "contexts"
+    else:
+        if not isinstance(layout, dict):
+            return None
+        value = layout.get("contexts")
+        if not isinstance(value, str) or not value.strip():
+            return None
+        relative = Path(value)
+        if relative.is_absolute():
+            return None
+        candidate_text = relative.as_posix()
+        if candidate_text.startswith(":") or any(
+            char in candidate_text for char in ("*", "?", "[")
+        ):
+            return None
+        candidate = root / relative
+
+    resolved_root = root.resolve()
+    resolved = candidate.resolve()
+    if resolved == resolved_root or resolved_root not in resolved.parents:
+        return None
+    return resolved
 
 
 def _pathspec_covers(parent: str, child: str) -> bool:

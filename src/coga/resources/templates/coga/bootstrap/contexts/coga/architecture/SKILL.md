@@ -262,15 +262,27 @@ relative path would name two different places. The checkout root sits above
 the coga root in both, which makes `docs/contexts` mean
 `<checkout>/docs/contexts` either way. A coga root nested deeper in a monorepo
 (`tools/ops/coga/`) therefore spells the full `tools/ops/docs/contexts`.
+`coga init` applies the same anchor when a scaffolded `coga.toml` sets the key:
+it materializes and commits the initial local contexts at that destination.
 
 Every failure mode is loud at config load, because the quiet one is
 catastrophic: `resolve_context_path` falls back to the packaged
 `bootstrap/contexts/` batteries on a miss, so a mistyped *directory* would let
 `coga/architecture` keep resolving to the bundled copy while every repo-local
 context silently vanished from composed prompts. So load rejects an absolute
-path, a `..` escape out of the checkout, a directory that does not exist or is
-not a directory, and a repo with no checkout to anchor against. The per-ref
-local-first fallback is unchanged — that is how bundled batteries work.
+path, a `..` escape out of the checkout, the checkout root itself, Git pathspec
+metacharacters that could broaden the state sweep, Git's administrative
+directory or a nested checkout, a directory that does not exist or is not a
+directory, and a repo with no checkout to anchor against. A configured root
+must also contain at least one tracked or unignored file so Git can reproduce
+it in a fresh clone; use a trackable `.gitkeep` when the root is intentionally
+empty. The per-ref local-first fallback is unchanged — that is how bundled
+batteries work.
+
+When the setting changes, the state sweep reads the pre-change config from
+`HEAD` and commits tracked deletions from that former contexts root along with
+the destination. It does not keep sweeping the vacated root: unrelated new
+files created there remain ordinary repo content.
 
 `[layout]` is shared `coga.toml` policy and is rejected in `coga.local.toml`:
 where a repo keeps its prose is a fact about the repo, not about one machine.
