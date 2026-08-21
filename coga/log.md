@@ -3813,3 +3813,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-21 11:53 [validate-drift-classifier-misses-17-emitted-kinds] [human:nicktoper] auto-bumped on merge of PR #702 → done
 2026-08-21 11:53 [recurring/autoclose-merged] [system] recipe autoclose exited with code 0
 2026-08-21 11:53 [recurring/autoclose-merged] [system] completed (recipe autoclose exited 0) via coga recurring
+2026-08-21 11:53 [recurring/digest] [system] started (active → in_progress) via recurring recipe digest
