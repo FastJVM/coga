@@ -815,7 +815,7 @@ def _run_recipe_task(cfg: Config, task: DueTask) -> int:
     except SecretError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return 2
-    env = apply_task_env(env, cfg, ref)
+    env = apply_task_env(env, cfg, ref, ticket)
 
     if ticket.status == "active":
         cur = ticket.current_step()

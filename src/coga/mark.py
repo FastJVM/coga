@@ -13,6 +13,7 @@ shape stays identical regardless of who triggered the transition.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 import typer
 
@@ -21,8 +22,13 @@ from coga.blackboard import prelaunch_blackboard_synthesis_reason
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import append_log
-from coga.paths import log_path, recurring_dir, resolve_workflow_path
-from coga.period_state import StateSnapshot, read_snapshot, stale_keys
+from coga.paths import log_path, resolve_workflow_path
+from coga.period_state import (
+    StateSnapshot,
+    parent_ticket_path,
+    read_snapshot,
+    stale_keys,
+)
 from coga.notification import digest_spool_path, notify, post
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
@@ -100,6 +106,33 @@ def _state_guard(cfg: Config, ref: TaskRef) -> Callable[[str], None]:
     return git.ticket_state_guard(cfg, ref.ticket_path)
 
 
+def _prepare_outcome_spool(
+    cfg: Config,
+    mutation_snapshot: git.FileMutationRollback | None,
+) -> Path | None:
+    """Resolve/migrate the digest spool and arm a strict expected creation."""
+    spool_path = digest_spool_path(cfg)
+    if mutation_snapshot is None or spool_path is None:
+        return spool_path
+    if spool_path not in mutation_snapshot.originals:
+        raise git.FeaturePublicationError(
+            f"strict outcome snapshot does not cover digest spool {spool_path}"
+        )
+    original = mutation_snapshot.originals[spool_path]
+    current = spool_path.read_bytes()
+    if current == original:
+        mutation_snapshot.require_unchanged(spool_path)
+    elif original is None:
+        # Legacy migration created the new spool after the command acquired
+        # its lease; the pre-lease snapshot explicitly covered that absence.
+        mutation_snapshot.arm({spool_path: current})
+    else:
+        raise git.FeaturePublicationError(
+            f"digest spool changed before strict outcome publication: {spool_path}"
+        )
+    return spool_path
+
+
 def mark_done(
     cfg: Config,
     ref: TaskRef,
@@ -113,6 +146,10 @@ def mark_done(
     echo: str | None = None,
     force: bool = False,
     publish_current_branch: bool = False,
+    feature_publication: git.FeaturePublicationLease | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
+    after_sync: Callable[[], None] | None = None,
 ) -> None:
     """Flip a ticket to `done`: write frontmatter, log, notify.
 
@@ -130,41 +167,100 @@ def mark_done(
     `force=True` to override. See `_assert_no_stranded_product_code`.
 
     A completion gate may set `publish_current_branch=True` so the terminal
-    task-state commit is also published to the current feature branch.
+    task-state commit is also published to the current feature branch. A
+    recorded-assist caller supplies ``feature_publication`` plus an armed
+    ``mutation_snapshot`` to publish the terminal ticket, audit, and any
+    digest-spool append as one strict feature/control transition.
     """
     if not force:
         _assert_no_stranded_product_code(cfg, ref, ticket)
     owner = ticket.owner or cfg.current_user
+    spool_path = _prepare_outcome_spool(cfg, mutation_snapshot)
     ticket.frontmatter["status"] = "done"
     ticket.frontmatter.pop("step", None)
+    if mutation_snapshot is not None:
+        mutation_snapshot.require_unchanged(ref.ticket_path)
+    ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
+    if mutation_snapshot is not None:
+        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     assert_task_valid(cfg, ref, action="mark done")
-    append_log(cfg, ref.id_slug, actor, log_message)
-    if echo is not None:
-        typer.echo(echo)
-    notify(
-        cfg,
-        slack_text,
-        kind="done",
-        detail=digest_detail,
-        ticket=ref.id_slug,
-        owner=owner,
-        watchers=ticket.watchers,
-        task_path=ref.path,
-        image_url=image_url,
-        # The ticket is already `done` on disk; an undeliverable broadcast is
-        # reported (stderr + log.md) but never aborts the transition — see
-        # `notification.post`.
-        fatal=False,
-    )
+    audit_append = append_log(cfg, ref.id_slug, actor, log_message)
+    if mutation_snapshot is not None:
+        mutation_snapshot.arm_append(log_path(cfg), audit_append)
+
+    notification_spooled = False
+
+    def announce() -> None:
+        nonlocal notification_spooled
+        notify(
+            cfg,
+            slack_text,
+            kind="done",
+            detail=digest_detail,
+            ticket=ref.id_slug,
+            owner=owner,
+            watchers=ticket.watchers,
+            task_path=ref.path,
+            image_url=image_url,
+            # The ticket is already `done` on disk; an undeliverable broadcast
+            # is reported but never aborts the transition.
+            fatal=False,
+            record_failure=feature_publication is None,
+        )
+        if spool_path is not None:
+            notification_spooled = True
+            if mutation_snapshot is not None:
+                mutation_snapshot.arm({spool_path: spool_path.read_bytes()})
+
+    # A digest event is local union-safe state, so strict publication includes
+    # it in the same exact generated commit. A live notification waits until
+    # the feature/control transition is durable.
+    if feature_publication is not None and spool_path is not None:
+        if mutation_snapshot is None:
+            raise git.FeaturePublicationError(
+                "strict done publication is missing its mutation snapshot"
+            )
+        mutation_snapshot.require_unchanged(spool_path)
+        announce()
     snapshot = read_snapshot(ref.path)
-    _sync_done_state(
+
+    def sync_state() -> None:
+        _sync_done_state(
+            cfg,
+            ref,
+            snapshot,
+            publish_current_branch=publish_current_branch,
+            feature_publication=feature_publication,
+            feature_publication_guard=feature_publication_guard,
+            mutation_snapshot=mutation_snapshot,
+            after_sync=after_sync,
+            spool_path=(
+                spool_path
+                if notification_spooled and feature_publication is not None
+                else None
+            ),
+        )
+
+    if feature_publication is not None:
+        sync_state()
+        if echo is not None:
+            typer.echo(echo)
+        if not notification_spooled:
+            announce()
+    else:
+        if echo is not None:
+            typer.echo(echo)
+        announce()
+        sync_state()
+    _warn_if_state_not_advanced(
         cfg,
         ref,
+        ticket,
+        owner,
         snapshot,
-        publish_current_branch=publish_current_branch,
+        record_failure=feature_publication is None,
     )
-    _warn_if_state_not_advanced(cfg, ref, ticket, owner, snapshot)
 
 
 class CancellationError(RuntimeError):
@@ -182,6 +278,10 @@ def mark_canceled(
     digest_detail: str,
     image_url: str | None = None,
     echo: str | None = None,
+    feature_publication: git.FeaturePublicationLease | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
+    after_sync: Callable[[], None] | None = None,
 ) -> None:
     """Flip any non-terminal ticket to ``canceled`` and record why.
 
@@ -201,6 +301,7 @@ def mark_canceled(
 
     prior_status = ticket.status
     owner = ticket.owner or cfg.current_user
+    spool_path = _prepare_outcome_spool(cfg, mutation_snapshot)
     prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     prospective.frontmatter["status"] = "canceled"
     prospective.frontmatter.pop("step", None)
@@ -211,39 +312,94 @@ def mark_canceled(
         ticket_override=prospective,
     )
     ticket.frontmatter = prospective.frontmatter
+    if mutation_snapshot is not None:
+        mutation_snapshot.require_unchanged(ref.ticket_path)
+    ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
-    append_log(
+    if mutation_snapshot is not None:
+        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
+    audit_append = append_log(
         cfg,
         ref.id_slug,
         actor,
         f"canceled ({prior_status} → canceled): {reason}",
     )
-    if echo is not None:
-        typer.echo(echo)
-    notify(
-        cfg,
-        slack_text,
-        kind="canceled",
-        detail=digest_detail,
-        ticket=ref.id_slug,
-        owner=owner,
-        watchers=ticket.watchers,
-        task_path=ref.path,
-        image_url=image_url,
-        fatal=False,
-    )
-    paths = [ref.path]
-    spool_path = digest_spool_path(cfg)
-    if spool_path is not None:
-        paths.append(spool_path)
-    git.sync_paths(
-        cfg,
-        ref.path,
-        paths,
-        message=f"Ticket: {ref.id_slug} — canceled",
-        land_union_files_to_control=True,
-        guard=_state_guard(cfg, ref),
-    )
+    if mutation_snapshot is not None:
+        mutation_snapshot.arm_append(log_path(cfg), audit_append)
+
+    notification_spooled = False
+
+    def announce() -> None:
+        nonlocal notification_spooled
+        notify(
+            cfg,
+            slack_text,
+            kind="canceled",
+            detail=digest_detail,
+            ticket=ref.id_slug,
+            owner=owner,
+            watchers=ticket.watchers,
+            task_path=ref.path,
+            image_url=image_url,
+            fatal=False,
+            record_failure=feature_publication is None,
+        )
+        if spool_path is not None:
+            notification_spooled = True
+            if mutation_snapshot is not None:
+                mutation_snapshot.arm({spool_path: spool_path.read_bytes()})
+
+    if feature_publication is not None and spool_path is not None:
+        if mutation_snapshot is None:
+            raise git.FeaturePublicationError(
+                "strict canceled publication is missing its mutation snapshot"
+            )
+        mutation_snapshot.require_unchanged(spool_path)
+        announce()
+
+    def sync_state() -> None:
+        strict_spool = (
+            spool_path
+            if notification_spooled and feature_publication is not None
+            else None
+        )
+        git.sync_task_state(
+            cfg,
+            ref.path,
+            message=f"Ticket: {ref.id_slug} — canceled",
+            guard=_state_guard(cfg, ref),
+            feature_publication=feature_publication,
+            feature_publication_guard=feature_publication_guard,
+            after_strict_publication=after_sync,
+            generated_paths=(
+                mutation_snapshot.generated
+                if mutation_snapshot is not None
+                else None
+            ),
+            extra_paths=([strict_spool] if strict_spool is not None else []),
+            land_union_files_to_control=strict_spool is not None,
+        )
+
+    if feature_publication is not None:
+        sync_state()
+        if echo is not None:
+            typer.echo(echo)
+        if not notification_spooled:
+            announce()
+    else:
+        if echo is not None:
+            typer.echo(echo)
+        announce()
+        # Preserve cancellation's established immediate union landing for the
+        # digest spool on ordinary branches.
+        git.sync_paths(
+            cfg,
+            ref.path,
+            [ref.path, *([spool_path] if spool_path is not None else [])],
+            message=f"Ticket: {ref.id_slug} — canceled",
+            land_union_files_to_control=True,
+            guard=_state_guard(cfg, ref),
+        )
 
 
 def _sync_done_state(
@@ -252,35 +408,70 @@ def _sync_done_state(
     snapshot: StateSnapshot | None,
     *,
     publish_current_branch: bool = False,
+    feature_publication: git.FeaturePublicationLease | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
+    after_sync: Callable[[], None] | None = None,
+    spool_path: Path | None = None,
 ) -> None:
     message = f"Ticket: {ref.id_slug} — done"
     guard = _state_guard(cfg, ref)
-    publish_kwargs = (
-        {"publish_current_branch": True} if publish_current_branch else {}
-    )
-    if snapshot is None:
-        git.sync_task_state(
+    if feature_publication is None:
+        publish_kwargs = (
+            {"publish_current_branch": True} if publish_current_branch else {}
+        )
+        if snapshot is None:
+            git.sync_task_state(
+                cfg,
+                ref.path,
+                message=message,
+                guard=guard,
+                **publish_kwargs,
+            )
+            return
+        paths = [ref.path]
+        parent_ticket = parent_ticket_path(cfg, snapshot)
+        if parent_ticket.parent.is_dir():
+            paths.append(parent_ticket)
+        git.sync_paths(
             cfg,
             ref.path,
+            paths,
             message=message,
             guard=guard,
             **publish_kwargs,
         )
         return
 
-    paths = [ref.path]
+    extra_paths: list[Path] = []
     # The parent template's working state (high-water / state keys) lives in the
     # blackboard region of its single-file ticket.md, so sync that file.
-    parent_ticket = recurring_dir(cfg) / snapshot.parent / "ticket.md"
-    if parent_ticket.parent.is_dir():
-        paths.append(parent_ticket)
-    git.sync_paths(
+    if snapshot is not None:
+        parent_ticket = parent_ticket_path(cfg, snapshot)
+        if (
+            parent_ticket.parent.is_dir()
+            and mutation_snapshot is not None
+            and parent_ticket in mutation_snapshot.originals
+        ):
+            extra_paths.append(parent_ticket)
+    if spool_path is not None:
+        extra_paths.append(spool_path)
+    git.sync_task_state(
         cfg,
         ref.path,
-        paths,
         message=message,
         guard=guard,
-        **publish_kwargs,
+        publish_current_branch=publish_current_branch,
+        feature_publication=feature_publication,
+        feature_publication_guard=feature_publication_guard,
+        after_strict_publication=after_sync,
+        generated_paths=(
+            mutation_snapshot.generated
+            if mutation_snapshot is not None
+            else None
+        ),
+        extra_paths=extra_paths,
+        land_union_files_to_control=spool_path is not None,
     )
 
 
@@ -290,6 +481,8 @@ def _warn_if_state_not_advanced(
     ticket: Ticket,
     owner: str,
     snapshot: StateSnapshot | None,
+    *,
+    record_failure: bool = True,
 ) -> None:
     """Flag a period task that completed without advancing its declared state.
 
@@ -326,6 +519,7 @@ def _warn_if_state_not_advanced(
             owner=owner,
             watchers=ticket.watchers,
             important=True,
+            record_failure=record_failure,
         )
     except Exception as exc:  # advisory broadcast — never break completion
         import sys
@@ -555,6 +749,14 @@ def mark_in_progress(
         mutation_snapshot.arm_append(log_path(cfg), audit_append)
 
     def sync_state() -> None:
+        if feature_publication is None:
+            git.sync_task_state(
+                cfg,
+                ref.path,
+                message=f"Ticket: {ref.id_slug} — in_progress",
+                guard=_state_guard(cfg, ref),
+            )
+            return
         git.sync_task_state(
             cfg,
             ref.path,
@@ -614,6 +816,7 @@ def mark_blocked(
     feature_publication_guard: Callable[[str], None] | None = None,
     mutation_snapshot: git.FileMutationRollback | None = None,
     after_sync: Callable[[], None] | None = None,
+    state_guard: Callable[[str], None] | None = None,
 ) -> None:
     """Flip a ticket to `blocked` without changing its workflow step."""
     owner = ticket.owner or cfg.current_user
@@ -637,7 +840,7 @@ def mark_blocked(
             cfg,
             ref.path,
             message=f"Ticket: {ref.id_slug} — blocked",
-            guard=_state_guard(cfg, ref),
+            guard=state_guard or _state_guard(cfg, ref),
             feature_publication=feature_publication,
             feature_publication_guard=feature_publication_guard,
             after_strict_publication=after_sync,
@@ -683,6 +886,10 @@ def mark_paused(
     slack_text: str | None = None,
     digest_detail: str | None = None,
     echo: str | None = None,
+    feature_publication: git.FeaturePublicationLease | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
+    after_sync: Callable[[], None] | None = None,
 ) -> None:
     """Flip a ticket to `paused`: write frontmatter and log.
 
@@ -697,9 +904,35 @@ def mark_paused(
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
+    if mutation_snapshot is not None:
+        mutation_snapshot.require_unchanged(ref.ticket_path)
+    ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
+    if mutation_snapshot is not None:
+        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     assert_task_valid(cfg, ref, action="mark paused")
-    append_log(cfg, ref.id_slug, actor, log_message)
+    audit_append = append_log(cfg, ref.id_slug, actor, log_message)
+    if mutation_snapshot is not None:
+        mutation_snapshot.arm_append(log_path(cfg), audit_append)
+
+    def sync_state() -> None:
+        git.sync_task_state(
+            cfg,
+            ref.path,
+            message=f"Ticket: {ref.id_slug} — paused",
+            guard=_state_guard(cfg, ref),
+            feature_publication=feature_publication,
+            feature_publication_guard=feature_publication_guard,
+            after_strict_publication=after_sync,
+            generated_paths=(
+                mutation_snapshot.generated
+                if mutation_snapshot is not None
+                else None
+            ),
+        )
+
+    if feature_publication is not None:
+        sync_state()
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:
@@ -714,13 +947,10 @@ def mark_paused(
             task_path=ref.path,
             important=True,
             fatal=False,
+            record_failure=feature_publication is None,
         )
-    git.sync_task_state(
-        cfg,
-        ref.path,
-        message=f"Ticket: {ref.id_slug} — paused",
-        guard=_state_guard(cfg, ref),
-    )
+    if feature_publication is None:
+        sync_state()
 
 
 __all__ = [

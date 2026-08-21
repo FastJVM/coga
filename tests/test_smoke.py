@@ -84,6 +84,17 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert by_slug["triage-inbound-email"].path.parent == seeded / "tasks" / "auto"
     assert read_ticket(by_slug["declined-dream-finding"]).status == "canceled"
 
+    # A directory-form task with the reserved ticket.py sibling runs its
+    # deterministic half directly. CliRunner is non-TTY and no agent process
+    # is involved; the script owns its lifecycle completion.
+    scripted_ref = by_slug["deterministic-repo-check"]
+    scripted = CliRunner().invoke(app, ["launch", scripted_ref.id_slug])
+    assert scripted.exit_code == 0, scripted.output
+    assert read_ticket(scripted_ref).status == "done"
+    assert "ticket.py ran headlessly at 1 (execute)" in read_blackboard(
+        scripted_ref.ticket_path
+    )
+
     # 2. Compose prompt includes every section.
     task_ref = by_slug[ref["slug"]]
     ticket = read_ticket(task_ref)

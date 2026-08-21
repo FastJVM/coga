@@ -315,6 +315,216 @@ class FileMutationRollback:
         return tuple(refused)
 
 
+def capture_task_file_bytes(
+    task_path: Path,
+    *,
+    context: str = "strict task snapshot",
+) -> dict[Path, bytes]:
+    """Capture publishable regular task leaves without ignored local files.
+
+    Git ignores are a hard publication boundary, not merely a convenience for
+    ordinary ``git add``. Strict publishers build commits through a temporary
+    index and can therefore bypass Git's normal ignore check; omit every
+    ignored, untracked leaf explicitly while retaining tracked files that now
+    match an ignore rule.
+    """
+    task_path = task_path.absolute()
+    if task_path.is_symlink():
+        raise FeaturePublicationError(
+            f"{context} contains symbolic link {task_path}"
+        )
+    if task_path.is_file():
+        candidates = [task_path]
+    elif task_path.is_dir():
+        # Classify Git-ignored entries before inspecting their file type.  An
+        # ignored local environment may legitimately contain symlinks, FIFOs,
+        # or sockets; those leaves are outside the publication boundary and
+        # must not make a strict snapshot fail.  ``git check-ignore`` excludes
+        # tracked matches, so a tracked symlink remains visible here and is
+        # still rejected below.
+        discovered = [child.absolute() for child in sorted(task_path.rglob("*"))]
+        root = _toplevel(task_path)
+        ignored = (
+            _ignored_untracked_paths(root, discovered)
+            if root is not None and discovered
+            else frozenset()
+        )
+        candidates = []
+        for child in discovered:
+            if child in ignored:
+                continue
+            if child.is_symlink():
+                raise FeaturePublicationError(
+                    f"{context} contains symbolic link {child}"
+                )
+            if child.is_dir():
+                continue
+            if not child.is_file():
+                raise FeaturePublicationError(
+                    f"{context} is not a regular file: {child}"
+                )
+            candidates.append(child.absolute())
+    else:
+        candidates = []
+
+    # A file-form task is the selected task anchor itself, not an incidental
+    # ignored leaf.  Directory-form candidates were already filtered above.
+    ignored = frozenset()
+    return {
+        path: path.read_bytes()
+        for path in candidates
+        if path not in ignored
+    }
+
+
+def capture_revision_file_bytes(
+    task_path: Path,
+    revision: str,
+    *,
+    context: str = "strict task revision",
+) -> dict[Path, bytes]:
+    """Capture every regular task leaf from one exact Git revision.
+
+    This is the committed counterpart to :func:`capture_task_file_bytes`.
+    Recovery code uses it only after a feature/control lease proves the named
+    revision is authoritative, then conditionally replaces invalid generated
+    worktree bytes with this exact task tree.  Git symlinks and submodules stay
+    outside Coga's task-state publication model and therefore fail closed.
+    """
+    task_path = task_path.absolute()
+    root = _toplevel(task_path)
+    if root is None:
+        raise FeaturePublicationError(
+            f"{context} requires a git checkout"
+        )
+    task_rel = _relative_to_root(root, task_path)
+    try:
+        output = _run_git(
+            root,
+            "ls-tree",
+            "-r",
+            "-z",
+            revision,
+            "--",
+            task_rel,
+        )
+    except GitError as exc:
+        raise FeaturePublicationError(
+            f"could not read {context} at {revision}: {exc}"
+        ) from exc
+
+    captured: dict[Path, bytes] = {}
+    for entry in output.split("\x00"):
+        if not entry:
+            continue
+        metadata, rel = entry.split("\t", 1)
+        mode, kind, _oid = metadata.split(" ", 2)
+        if kind != "blob" or mode not in {"100644", "100755"}:
+            raise FeaturePublicationError(
+                f"{context} contains non-regular Git entry {rel}"
+            )
+        data = _tree_bytes(root, revision, rel)
+        if data is None:  # pragma: no cover - ls-tree/cat-file invariant
+            raise FeaturePublicationError(
+                f"{context} lost Git entry {rel} while reading {revision}"
+            )
+        captured[(root / rel).absolute()] = data
+    return captured
+
+
+def _ignored_untracked_paths(
+    root: Path,
+    paths: Iterable[Path],
+) -> frozenset[Path]:
+    """Return paths Git ignores, excluding tracked ignore-pattern matches."""
+    relative: list[str] = []
+    for path in paths:
+        try:
+            relative.append(str(path.absolute().relative_to(root.absolute())))
+        except ValueError:
+            continue
+    if not relative:
+        return frozenset()
+
+    payload = b"\0".join(os.fsencode(path) for path in relative) + b"\0"
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "check-ignore", "-z", "--stdin"],
+            input=payload,
+            capture_output=True,
+            check=False,
+            env={**os.environ, **_noninteractive_git_env()},
+        )
+    except FileNotFoundError as exc:
+        raise FeaturePublicationError(
+            "could not enforce ignored-file publication boundaries: `git` "
+            "was not found on PATH"
+        ) from exc
+    if result.returncode not in {0, 1}:
+        detail = result.stderr.decode(errors="replace").strip()
+        raise FeaturePublicationError(
+            "could not enforce ignored-file publication boundaries: "
+            f"`git check-ignore` exited {result.returncode}: {detail}"
+        )
+    return frozenset(
+        (root / os.fsdecode(item)).absolute()
+        for item in result.stdout.split(b"\0")
+        if item
+    )
+
+
+def capture_task_mutation_snapshot(
+    task_path: Path,
+    *,
+    extra_paths: Iterable[Path] = (),
+    union_paths: Iterable[Path] = (),
+) -> FileMutationRollback:
+    """Capture every publishable task leaf and tracked deletion for strict reuse.
+
+    A deterministic script may write an attachment before invoking a lifecycle
+    command. That command must treat the exact existing task tree as its input,
+    publish it with the transition, and roll back only its own later writes.
+    Enumerating ``HEAD`` as well as the worktree records deleted tracked leaves
+    as ``None``; symbolic links and special files are refused because the
+    strict byte-overlay commit cannot preserve their identity safely.
+    """
+    task_path = task_path.absolute()
+    originals: dict[Path, bytes | None] = dict(
+        capture_task_file_bytes(
+            task_path,
+            context="strict task mutation input",
+        )
+    )
+
+    root = _toplevel(task_path)
+    if root is not None:
+        task_rel = _relative_to_root(root, task_path)
+        tracked = _run_git(
+            root,
+            "ls-tree",
+            "-r",
+            "-z",
+            "--name-only",
+            "HEAD",
+            "--",
+            task_rel,
+        )
+        for rel in (item for item in tracked.split("\x00") if item):
+            path = (root / rel).absolute()
+            originals.setdefault(
+                path,
+                path.read_bytes() if path.is_file() else None,
+            )
+
+    for path in extra_paths:
+        resolved = path.absolute()
+        originals[resolved] = resolved.read_bytes() if resolved.is_file() else None
+    return FileMutationRollback(
+        originals=originals,
+        union_paths=frozenset(path.absolute() for path in union_paths),
+    )
+
+
 def _restore_file_bytes(path: Path, data: bytes | None) -> None:
     if data is None:
         if path.is_file():
@@ -393,6 +603,8 @@ def sync_task_state(
     feature_publication_guard: _FeaturePublicationGuard | None = None,
     after_strict_publication: Callable[[], None] | None = None,
     generated_paths: Mapping[Path, bytes | None] | None = None,
+    extra_paths: Iterable[Path] = (),
+    land_union_files_to_control: bool = False,
 ) -> None:
     """Commit the task directory's files and push to the control branch.
 
@@ -436,7 +648,10 @@ def sync_task_state(
     error escapes. ``generated_paths`` supplies the state writer's armed
     byte snapshot; strict commits overlay only those exact leaves on the leased
     feature tree, so later worktree edits and unchanged attachments cannot be
-    swept into the transaction.
+    swept into the transaction. ``extra_paths`` lets a lifecycle transaction
+    include explicitly owned siblings such as the digest spool; callers set
+    ``land_union_files_to_control`` when those merge=union leaves must reach
+    control in the same durable boundary.
     """
     if feature_publication is not None:
         publish_current_branch = True
@@ -453,9 +668,10 @@ def sync_task_state(
     sync_paths(
         cfg,
         task_path,
-        [task_path],
+        [task_path, *extra_paths],
         message=message,
         guard=guard,
+        land_union_files_to_control=land_union_files_to_control,
         publish_current_branch=publish_current_branch,
         expected_current_branch=expected_current_branch,
         expected_current_branch_oid=expected_current_branch_oid,
@@ -2221,6 +2437,8 @@ def guard_ticket_state(
     base: str,
     *,
     allow_step_rewind: bool = False,
+    allow_terminal_change: bool = False,
+    expected_lifecycle: tuple[str | None, str | None, str | None] | None = None,
 ) -> None:
     """Refuse to land one ticket over a newer copy already on `base`.
 
@@ -2229,7 +2447,9 @@ def guard_ticket_state(
     transition knows exactly which ticket it is about to overlay, so it binds
     this to that ticket and hands the result to `sync_paths(guard=...)`. Same
     rules, same refusal: a terminal control-branch status is never replaced, and
-    step/status never move backward.
+    step/status never move backward. Automatic unresolved-resume cleanup is the
+    narrow exception: it may set ``allow_terminal_change`` only while also
+    pinning ``expected_lifecycle`` to the exact script result it is undoing.
 
     Pass the ticket file (`TaskRef.ticket_path`), not the task directory — the
     comparison reads ticket frontmatter, and a directory rel matches nothing.
@@ -2237,17 +2457,33 @@ def guard_ticket_state(
     root = _toplevel(ticket_path)
     if root is None:
         return
+    if expected_lifecycle is not None:
+        rel = _relative_to_root(root, ticket_path)
+        committed_bytes = _tree_bytes(root, base, rel)
+        actual = _ticket_lifecycle_state(committed_bytes)
+        if actual != expected_lifecycle:
+            raise StateRegressionError(
+                f"{rel}: expected control lifecycle "
+                f"{_lifecycle_state_summary(expected_lifecycle)}, but found "
+                f"{_ticket_state_summary(committed_bytes)}"
+            )
     _guard_coga_state_regressions(
         cfg,
         root,
         [_relative_to_root(root, ticket_path)],
         base,
         allow_step_rewind=allow_step_rewind,
+        allow_terminal_change=allow_terminal_change,
     )
 
 
 def ticket_state_guard(
-    cfg: Config, ticket_path: Path, *, allow_step_rewind: bool = False
+    cfg: Config,
+    ticket_path: Path,
+    *,
+    allow_step_rewind: bool = False,
+    allow_terminal_change: bool = False,
+    expected_lifecycle: tuple[str | None, str | None, str | None] | None = None,
 ) -> _StateGuard:
     """Bind `guard_ticket_state` to one ticket, ready for `sync_paths(guard=)`.
 
@@ -2257,12 +2493,19 @@ def ticket_state_guard(
     tip refetched after a non-fast-forward retry.
 
     `allow_step_rewind=True` is for `coga bump --to/--backward` only — see
-    `_ticket_state_regression_reason`.
+    `_ticket_state_regression_reason`. ``allow_terminal_change`` is reserved for
+    automatic unresolved-resume cleanup and must be paired with the exact
+    pre-cleanup ``expected_lifecycle``.
     """
 
     def guard(base: str) -> None:
         guard_ticket_state(
-            cfg, ticket_path, base, allow_step_rewind=allow_step_rewind
+            cfg,
+            ticket_path,
+            base,
+            allow_step_rewind=allow_step_rewind,
+            allow_terminal_change=allow_terminal_change,
+            expected_lifecycle=expected_lifecycle,
         )
 
     return guard
@@ -2356,6 +2599,7 @@ def _guard_coga_state_regressions(
     base: str,
     *,
     allow_step_rewind: bool = False,
+    allow_terminal_change: bool = False,
 ) -> None:
     """Fail loud before a catch-all sweep commits stale task frontmatter.
 
@@ -2382,6 +2626,7 @@ def _guard_coga_state_regressions(
             committed=committed_state,
             working=working_state,
             allow_step_rewind=allow_step_rewind,
+            allow_terminal_change=allow_terminal_change,
         )
         if reason is None:
             continue
@@ -2451,6 +2696,7 @@ def _ticket_state_regression_reason(
     committed: _TicketState,
     working: _TicketState,
     allow_step_rewind: bool = False,
+    allow_terminal_change: bool = False,
 ) -> str | None:
     """Why landing `working` over `committed` would lose state, or `None`.
 
@@ -2481,7 +2727,8 @@ def _ticket_state_regression_reason(
         return detail
 
     if (
-        committed.status in TERMINAL_STATUSES
+        not allow_terminal_change
+        and committed.status in TERMINAL_STATUSES
         and working.status != committed.status
     ):
         return (
@@ -4431,6 +4678,7 @@ def _prepare_feature_branch_publication(
     fast_forward_if_behind: bool = True,
     require_single_push_url: bool = False,
     push_url: str | None = None,
+    permitted_dirty_bytes: Mapping[str, bytes | None] | None = None,
 ) -> _FeaturePublicationState:
     """Align a merely-behind feature checkout before a generated commit.
 
@@ -4483,7 +4731,9 @@ def _prepare_feature_branch_publication(
         # returning early here used to let dirty bytes enter prompt composition
         # and the later scoped commit.
         strict_changed = set(_changed_paths_under(root, "."))
-        permitted = {preserve_union_rel} if preserve_union_rel else set()
+        permitted = set(permitted_dirty_bytes or ())
+        if preserve_union_rel:
+            permitted.add(preserve_union_rel)
         unexpected = sorted(strict_changed - permitted)
         if unexpected:
             return _FeaturePublicationState(
@@ -4493,6 +4743,26 @@ def _prepare_feature_branch_publication(
                     f"checkout at {remote}/{branch} has other changes: "
                     f"{', '.join(unexpected)}"
                 ),
+                remote_oid=remote_tip,
+            )
+        captured_rels = list(permitted_dirty_bytes or ())
+        if captured_rels and _has_staged_changes(root, captured_rels):
+            return _FeaturePublicationState(
+                aligned=False,
+                may_commit=False,
+                detail="captured task output has staged changes",
+                remote_oid=remote_tip,
+            )
+        dirty_refusal = _permitted_dirty_bytes_refusal(
+            root,
+            local_tip,
+            permitted_dirty_bytes or {},
+        )
+        if dirty_refusal is not None:
+            return _FeaturePublicationState(
+                aligned=False,
+                may_commit=False,
+                detail=dirty_refusal,
                 remote_oid=remote_tip,
             )
         if preserve_union_rel and _has_staged_changes(root, [preserve_union_rel]):
@@ -4589,7 +4859,9 @@ def _prepare_feature_branch_publication(
         if strict_changed is not None
         else set(_changed_paths_under(root, "."))
     )
-    permitted = {preserve_union_rel} if preserve_union_rel else set()
+    permitted = set(permitted_dirty_bytes or ())
+    if preserve_union_rel:
+        permitted.add(preserve_union_rel)
     unexpected = sorted(changed - permitted)
     if unexpected:
         return _FeaturePublicationState(
@@ -4711,12 +4983,44 @@ def _prepare_feature_branch_publication(
     )
 
 
+def _permitted_dirty_bytes_refusal(
+    root: Path,
+    base_oid: str,
+    expected_by_rel: Mapping[str, bytes | None],
+) -> str | None:
+    """Return why a captured strict task leaf is no longer byte/mode exact."""
+    for rel, expected in expected_by_rel.items():
+        path = root / rel
+        if path.is_symlink():
+            return f"captured task path {rel} became a symbolic link"
+        if expected is None:
+            if path.exists():
+                return f"captured deleted task path {rel} was recreated"
+            continue
+        if not path.is_file():
+            return f"captured task path {rel} is no longer a regular file"
+        try:
+            current = path.read_bytes()
+        except OSError as exc:
+            return f"could not re-read captured task path {rel}: {exc}"
+        if current != expected:
+            return f"captured task path {rel} changed during lease acquisition"
+        committed_mode = _tree_entry_mode(root, base_oid, rel)
+        if committed_mode is not None and committed_mode not in {"100644", "100755"}:
+            return f"captured task path {rel} replaced a non-regular Git entry"
+        expected_mode = committed_mode or "100644"
+        if _regular_worktree_mode(root, rel) != expected_mode:
+            return f"captured task path {rel} changed file mode"
+    return None
+
+
 def feature_publication_lease(
     cfg: Config,
     task_path: Path,
     branch: str,
     *,
     allow_append_only_log: bool = False,
+    allowed_dirty_paths: Mapping[Path, bytes | None] | None = None,
 ) -> FeaturePublicationLease:
     """Normalize every lower-level lease probe into a fail-closed refusal."""
     try:
@@ -4725,6 +5029,7 @@ def feature_publication_lease(
             task_path,
             branch,
             allow_append_only_log=allow_append_only_log,
+            allowed_dirty_paths=allowed_dirty_paths,
         )
     except FeaturePublicationError:
         raise
@@ -4740,6 +5045,7 @@ def _feature_publication_lease(
     branch: str,
     *,
     allow_append_only_log: bool = False,
+    allowed_dirty_paths: Mapping[Path, bytes | None] | None = None,
 ) -> FeaturePublicationLease:
     """Verify and lease one exact aligned feature/control state.
 
@@ -4780,6 +5086,16 @@ def _feature_publication_lease(
         else None
     )
     push_url = _single_assist_push_url(root, cfg.git_remote)
+    permitted_dirty_bytes: dict[str, bytes | None] = {}
+    for path, data in (allowed_dirty_paths or {}).items():
+        candidate = path.absolute()
+        try:
+            candidate.relative_to(root.absolute())
+        except ValueError as exc:
+            raise FeaturePublicationError(
+                f"captured assist path is outside the repository: {candidate}"
+            ) from exc
+        permitted_dirty_bytes[_relative_to_root(root, candidate)] = data
     publication = _prepare_feature_branch_publication(
         root,
         cfg.git_remote,
@@ -4788,6 +5104,7 @@ def _feature_publication_lease(
         fast_forward_if_behind=False,
         require_single_push_url=True,
         push_url=push_url,
+        permitted_dirty_bytes=permitted_dirty_bytes,
     )
     local_oid = _run_git(root, "rev-parse", "HEAD").strip()
     if (
@@ -4986,6 +5303,9 @@ def _path_exists(root: Path, rel: str) -> bool:
 
 
 __all__ = [
+    "capture_revision_file_bytes",
+    "capture_task_file_bytes",
+    "capture_task_mutation_snapshot",
     "FileMutationRollback",
     "FeaturePublicationError",
     "FeaturePublicationLease",

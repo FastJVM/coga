@@ -27,6 +27,7 @@ from coga.commands.launch import (
 )
 from coga.config import AgentType, load_config
 from coga.github_preflight import CheckResult
+from coga.launch_script import ScriptPublicationError, run_script_phase
 from coga.repl_supervisor import (
     ASSIST_AGENT_ENV,
     ASSIST_BRANCH_ENV,
@@ -3751,6 +3752,7 @@ def _seed_single_checkout_human_review(
     title: str,
     status: str,
     branch: str = "feature/review",
+    force_directory: bool = False,
 ) -> tuple[dict[str, str], Path]:
     cfg = load_config(git_repo.coga_os)
     created = create_task(
@@ -3762,8 +3764,12 @@ def _seed_single_checkout_human_review(
         assignee="claude",
         watchers=[],
         status="active",
+        force_directory=force_directory,
     )
-    ticket_path = Path(created["path"])
+    created_path = Path(created["path"])
+    ticket_path = (
+        created_path / "ticket.md" if created_path.is_dir() else created_path
+    )
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["status"] = status
     ticket.frontmatter["step"] = "2 (review)"
@@ -3790,6 +3796,885 @@ def _seed_single_checkout_human_review(
     git_repo.git("commit", "-m", "feature: reviewed branch")
     git_repo.git("push", "-u", "origin", branch)
     return created, ticket_path
+
+
+def test_recorded_assist_script_publishes_direct_task_output(
+    git_repo,
+) -> None:
+    """Strict script output can start from a clean leased feature tip."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Publish deterministic review output",
+        status="in_progress",
+        force_directory=True,
+    )
+    task_dir = ticket_path.parent
+    script_path = task_dir / "ticket.py"
+    _write(
+        script_path,
+        """
+        import os
+        from pathlib import Path
+
+        Path(os.environ["COGA_TASK_DIR"], "result.txt").write_text(
+            "deterministic result\\n"
+        )
+        """,
+    )
+    script_rel = str(script_path.relative_to(git_repo.root))
+    git_repo.git("add", script_rel)
+    git_repo.git("commit", "-m", "ticket: add deterministic phase")
+    git_repo.git("push", "origin", "feature/review")
+
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    ticket = Ticket.read(ref.ticket_path)
+
+    def guard(expected_oid: str) -> None:
+        actual_oid = git_repo.git(
+            "rev-parse",
+            "refs/heads/feature/review",
+            cwd=git_repo.origin,
+        ).strip()
+        assert actual_oid == expected_oid
+
+    result = run_script_phase(
+        cfg,
+        ref,
+        ticket,
+        stateless=False,
+        publish_aligned_branch="feature/review",
+        assist_agent="claude",
+        assist_pr_url="https://github.com/example/repo/pull/8",
+        feature_publication_guard=guard,
+    )
+
+    assert result.exit_code == 0
+    result_rel = str((task_dir / "result.txt").relative_to(git_repo.root))
+    for branch in ("feature/review", "main"):
+        assert git_repo.git(
+            "show",
+            f"refs/heads/{branch}:{result_rel}",
+            cwd=git_repo.origin,
+        ) == "deterministic result\n"
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_recorded_assist_preserves_nonzero_exit_from_malformed_ticket(
+    git_repo,
+) -> None:
+    """Strict recovery restores valid state without replacing the child exit."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Audit malformed deterministic review",
+        status="in_progress",
+        force_directory=True,
+    )
+    script_path = ticket_path.parent / "ticket.py"
+    _write(
+        script_path,
+        """
+        import os
+        from pathlib import Path
+
+        Path(os.environ["COGA_TASK_TICKET"]).write_text("not a ticket\\n")
+        raise SystemExit(17)
+        """,
+    )
+    git_repo.git("add", str(script_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: add malformed deterministic failure")
+    git_repo.git("push", "origin", "feature/review")
+
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+
+    def guard(expected_oid: str) -> None:
+        actual_oid = git_repo.git(
+            "rev-parse",
+            "refs/heads/feature/review",
+            cwd=git_repo.origin,
+        ).strip()
+        assert actual_oid == expected_oid
+
+    result = run_script_phase(
+        cfg,
+        ref,
+        Ticket.read(ref.ticket_path),
+        stateless=False,
+        publish_aligned_branch="feature/review",
+        assist_agent="claude",
+        assist_pr_url="https://github.com/example/repo/pull/8",
+        feature_publication_guard=guard,
+    )
+
+    assert result.exit_code == 17
+    assert result.ticket is not None
+    assert result.ticket.status == "in_progress"
+    assert result.ticket.step == "2 (review)"
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    for branch in ("feature/review", "main"):
+        published = Ticket.parse(
+            git_repo.git(
+                "show",
+                f"refs/heads/{branch}:{ticket_rel}",
+                cwd=git_repo.origin,
+            )
+        )
+        assert published.status == "in_progress"
+        assert published.step == "2 (review)"
+    assert "script exited with code 17" in (git_repo.coga_os / "log.md").read_text()
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_recorded_assist_recovers_published_bump_before_malformed_exit(
+    git_repo,
+) -> None:
+    """Invalid post-bump output restores the newly published lifecycle tip."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Keep published bump after malformed deterministic failure",
+        status="in_progress",
+        force_directory=True,
+    )
+    script_path = ticket_path.parent / "ticket.py"
+    _write(
+        script_path,
+        """
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        from coga import pr_assist
+        from coga.cli import main
+        from coga.notification import slack
+
+        def live_pr_head(cfg, ticket, branch, **kwargs):
+            output = subprocess.check_output(
+                ["git", "ls-remote", "origin", f"refs/heads/{branch}"],
+                text=True,
+            )
+            return output.split()[0]
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        os.environ["SLACK_WEBHOOK_URL"] = "https://hooks.slack.test/example"
+        pr_assist.verify_recorded_assist_pr_head = live_pr_head
+        slack.requests.post = lambda *args, **kwargs: Response()
+        sys.argv = ["coga", "bump", os.environ["COGA_TASK_SLUG"]]
+        try:
+            main()
+        except SystemExit as exc:
+            if exc.code not in (None, 0):
+                raise
+        Path(os.environ["COGA_TASK_TICKET"]).write_text("not a ticket\\n")
+        raise SystemExit(17)
+        """,
+    )
+    git_repo.git("add", str(script_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: bump then malform deterministic state")
+    git_repo.git("push", "origin", "feature/review")
+
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+
+    def guard(expected_oid: str) -> None:
+        actual_oid = git_repo.git(
+            "rev-parse",
+            "refs/heads/feature/review",
+            cwd=git_repo.origin,
+        ).strip()
+        assert actual_oid == expected_oid
+
+    result = run_script_phase(
+        cfg,
+        ref,
+        Ticket.read(ref.ticket_path),
+        stateless=False,
+        publish_aligned_branch="feature/review",
+        assist_agent="claude",
+        assist_pr_url="https://github.com/example/repo/pull/8",
+        feature_publication_guard=guard,
+    )
+
+    assert result.exit_code == 17
+    assert result.ticket is not None
+    assert result.ticket.status == "in_progress"
+    assert result.ticket.step == "3 (merge)"
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    for branch in ("feature/review", "main"):
+        published = Ticket.parse(
+            git_repo.git(
+                "show",
+                f"refs/heads/{branch}:{ticket_rel}",
+                cwd=git_repo.origin,
+            )
+        )
+        assert published.status == "in_progress"
+        assert published.step == "3 (merge)"
+    assert "script exited with code 17" in (git_repo.coga_os / "log.md").read_text()
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_recorded_assist_restores_structurally_invalid_script_result(
+    git_repo,
+) -> None:
+    """A parseable but invalid ticket never reaches the feature/control refs."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Reject invalid deterministic review",
+        status="in_progress",
+        force_directory=True,
+    )
+    script_path = ticket_path.parent / "ticket.py"
+    _write(
+        script_path,
+        """
+        import os
+        from pathlib import Path
+
+        path = Path(os.environ["COGA_TASK_TICKET"])
+        path.write_text(
+            path.read_text().replace("<!-- coga:blackboard -->", "")
+        )
+        """,
+    )
+    git_repo.git("add", str(script_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "ticket: add invalid deterministic result")
+    git_repo.git("push", "origin", "feature/review")
+
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+
+    def guard(expected_oid: str) -> None:
+        actual_oid = git_repo.git(
+            "rev-parse",
+            "refs/heads/feature/review",
+            cwd=git_repo.origin,
+        ).strip()
+        assert actual_oid == expected_oid
+
+    with pytest.raises(ScriptPublicationError, match="invalid ticket result"):
+        run_script_phase(
+            cfg,
+            ref,
+            Ticket.read(ref.ticket_path),
+            stateless=False,
+            publish_aligned_branch="feature/review",
+            assist_agent="claude",
+            assist_pr_url="https://github.com/example/repo/pull/8",
+            feature_publication_guard=guard,
+        )
+
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    for branch in ("feature/review", "main"):
+        published = git_repo.git(
+            "show",
+            f"refs/heads/{branch}:{ticket_rel}",
+            cwd=git_repo.origin,
+        )
+        assert published.count("<!-- coga:blackboard -->") == 1
+        assert Ticket.parse(published).status == "in_progress"
+    assert "script exited with code 0" in (git_repo.coga_os / "log.md").read_text()
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_recorded_assist_script_republishes_nested_bump(
+    git_repo,
+) -> None:
+    """An in-script bump consumes its own strict feature/control lease."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Advance deterministic review",
+        status="in_progress",
+        force_directory=True,
+    )
+    task_dir = ticket_path.parent
+    script_path = task_dir / "ticket.py"
+    _write(
+        script_path,
+        """
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        from coga import pr_assist
+        from coga.cli import main
+
+        Path(os.environ["COGA_TASK_DIR"], "result.txt").write_text(
+            "deterministic bump result\\n"
+        )
+
+        def live_pr_head(cfg, ticket, branch, **kwargs):
+            output = subprocess.check_output(
+                ["git", "ls-remote", "origin", f"refs/heads/{branch}"],
+                text=True,
+            )
+            return output.split()[0]
+
+        pr_assist.verify_recorded_assist_pr_head = live_pr_head
+        sys.argv = ["coga", "bump", os.environ["COGA_TASK_SLUG"]]
+        main()
+        """,
+    )
+    script_rel = str(script_path.relative_to(git_repo.root))
+    git_repo.git("add", script_rel)
+    git_repo.git("commit", "-m", "ticket: add deterministic bump")
+    git_repo.git("push", "origin", "feature/review")
+
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    ticket = Ticket.read(ref.ticket_path)
+
+    def guard(expected_oid: str) -> None:
+        actual_oid = git_repo.git(
+            "rev-parse",
+            "refs/heads/feature/review",
+            cwd=git_repo.origin,
+        ).strip()
+        assert actual_oid == expected_oid
+
+    result = run_script_phase(
+        cfg,
+        ref,
+        ticket,
+        stateless=False,
+        publish_aligned_branch="feature/review",
+        assist_agent="claude",
+        assist_pr_url="https://github.com/example/repo/pull/8",
+        feature_publication_guard=guard,
+    )
+
+    assert result.exit_code == 0
+    assert result.ticket is not None
+    assert result.ticket.step == "3 (merge)"
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    for branch in ("feature/review", "main"):
+        published = Ticket.parse(
+            git_repo.git(
+                "show",
+                f"refs/heads/{branch}:{ticket_rel}",
+                cwd=git_repo.origin,
+            )
+        )
+        assert published.step == "3 (merge)"
+        assert git_repo.git(
+            "show",
+            "refs/heads/"
+            f"{branch}:{(task_dir / 'result.txt').relative_to(git_repo.root)}",
+            cwd=git_repo.origin,
+        ) == "deterministic bump result\n"
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_recorded_assist_script_republishes_nested_mark_done(
+    git_repo,
+) -> None:
+    """An in-script terminal transition is strict and leaves no split refs."""
+    spool_path = git_repo.coga_os / "recurring" / "digest" / "spool.md"
+    _write(
+        spool_path,
+        """
+        # Daily digest spool
+
+        ## Spool (pending)
+
+        consumed_through:
+        """,
+    )
+    git_repo.git("add", str(spool_path.relative_to(git_repo.root)))
+    git_repo.git("commit", "-m", "digest: seed outcome spool")
+    git_repo.git("push", "origin", "main")
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Finish deterministic review",
+        status="in_progress",
+        force_directory=True,
+    )
+    task_dir = ticket_path.parent
+    script_path = task_dir / "ticket.py"
+    _write(
+        script_path,
+        """
+        import os
+        import subprocess
+        import sys
+
+        from coga import pr_assist
+        from coga.cli import main
+        from coga.notification import slack
+
+        def live_pr_head(cfg, ticket, branch, **kwargs):
+            output = subprocess.check_output(
+                ["git", "ls-remote", "origin", f"refs/heads/{branch}"],
+                text=True,
+            )
+            return output.split()[0]
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        os.environ["SLACK_WEBHOOK_URL"] = "https://hooks.slack.test/example"
+        pr_assist.verify_recorded_assist_pr_head = live_pr_head
+        slack.requests.post = lambda *args, **kwargs: Response()
+        sys.argv = [
+            "coga",
+            "mark",
+            "done",
+            os.environ["COGA_TASK_SLUG"],
+        ]
+        main()
+        """,
+    )
+    script_rel = str(script_path.relative_to(git_repo.root))
+    git_repo.git("add", script_rel)
+    git_repo.git("commit", "-m", "ticket: add deterministic completion")
+    git_repo.git("push", "origin", "feature/review")
+
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+
+    def guard(expected_oid: str) -> None:
+        actual_oid = git_repo.git(
+            "rev-parse",
+            "refs/heads/feature/review",
+            cwd=git_repo.origin,
+        ).strip()
+        assert actual_oid == expected_oid
+
+    result = run_script_phase(
+        cfg,
+        ref,
+        Ticket.read(ref.ticket_path),
+        stateless=False,
+        publish_aligned_branch="feature/review",
+        assist_agent="claude",
+        assist_pr_url="https://github.com/example/repo/pull/8",
+        feature_publication_guard=guard,
+    )
+
+    assert result.exit_code == 0
+    assert result.ticket is not None
+    assert result.ticket.status == "done"
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    for branch in ("feature/review", "main"):
+        published = Ticket.parse(
+            git_repo.git(
+                "show",
+                f"refs/heads/{branch}:{ticket_rel}",
+                cwd=git_repo.origin,
+            )
+        )
+        assert published.status == "done"
+        assert published.step is None
+        published_spool = git_repo.git(
+            "show",
+            f"refs/heads/{branch}:{spool_path.relative_to(git_repo.root)}",
+            cwd=git_repo.origin,
+        )
+        assert '"kind":"done"' in published_spool
+        assert f'"ticket":"{created["slug"]}"' in published_spool
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+@pytest.mark.parametrize("terminal_command", ["mark-done", "bump"])
+def test_recorded_assist_period_completion_publishes_parent_without_ignored_files(
+    git_repo,
+    terminal_command: str,
+) -> None:
+    """Strict period completion owns parent state but never ignored local data."""
+    parent_ticket = (
+        git_repo.coga_os / "recurring" / "review-cursor" / "ticket.md"
+    )
+    _write(
+        parent_ticket,
+        """
+        ---
+        title: Review cursor
+        assignee: claude
+        ---
+
+        <!-- coga:blackboard -->
+        cursor: old
+        """,
+    )
+    spool_path = git_repo.coga_os / "recurring" / "digest" / "spool.md"
+    _write(
+        spool_path,
+        """
+        # Daily digest spool
+
+        ## Spool (pending)
+
+        consumed_through:
+        """,
+    )
+    git_repo.git(
+        "add",
+        str(parent_ticket.relative_to(git_repo.root)),
+        str(spool_path.relative_to(git_repo.root)),
+    )
+    git_repo.git("commit", "-m", "recurring: seed period state")
+    git_repo.git("push", "origin", "main")
+
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title=f"Finish period review with {terminal_command}",
+        status="in_progress",
+        force_directory=True,
+    )
+    task_dir = ticket_path.parent
+    ticket = Ticket.read(ticket_path)
+    if terminal_command == "bump":
+        assert isinstance(ticket.workflow, dict)
+        ticket.workflow["steps"] = ticket.workflow["steps"][:2]
+    ticket.write(ticket_path)
+    _write(
+        task_dir / ".state-snapshot.json",
+        """
+        {
+          "parent": "review-cursor",
+          "keys": {"cursor": "old"}
+        }
+        """,
+    )
+    _write(task_dir / ".gitignore", "secret.env\n")
+    _write(
+        task_dir / "ticket.py",
+        f"""
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        from coga import pr_assist
+        from coga.cli import main
+        from coga.notification import slack
+
+        def live_pr_head(cfg, ticket, branch, **kwargs):
+            output = subprocess.check_output(
+                ["git", "ls-remote", "origin", f"refs/heads/{{branch}}"],
+                text=True,
+            )
+            return output.split()[0]
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        task_dir = Path(os.environ["COGA_TASK_DIR"])
+        (task_dir / "secret.env").write_text("TOKEN=do-not-publish\\n")
+        parent = task_dir.parents[1] / "recurring" / "review-cursor" / "ticket.md"
+        parent.write_text(parent.read_text().replace("cursor: old", "cursor: new"))
+        os.environ["SLACK_WEBHOOK_URL"] = "https://hooks.slack.test/example"
+        pr_assist.verify_recorded_assist_pr_head = live_pr_head
+        slack.requests.post = lambda *args, **kwargs: Response()
+        command = {terminal_command!r}
+        sys.argv = (
+            ["coga", "bump", os.environ["COGA_TASK_SLUG"]]
+            if command == "bump"
+            else ["coga", "mark", "done", os.environ["COGA_TASK_SLUG"]]
+        )
+        main()
+        """,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: add strict period completion")
+    git_repo.git("push", "origin", "feature/review")
+
+    cfg = load_config(git_repo.coga_os)
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+
+    def guard(expected_oid: str) -> None:
+        actual_oid = git_repo.git(
+            "rev-parse",
+            "refs/heads/feature/review",
+            cwd=git_repo.origin,
+        ).strip()
+        assert actual_oid == expected_oid
+
+    result = run_script_phase(
+        cfg,
+        ref,
+        Ticket.read(ref.ticket_path),
+        stateless=False,
+        publish_aligned_branch="feature/review",
+        assist_agent="claude",
+        assist_pr_url="https://github.com/example/repo/pull/8",
+        feature_publication_guard=guard,
+    )
+
+    assert result.exit_code == 0
+    assert result.ticket is not None
+    assert result.ticket.status == "done"
+    parent_rel = str(parent_ticket.relative_to(git_repo.root))
+    secret_path = task_dir / "secret.env"
+    secret_rel = str(secret_path.relative_to(git_repo.root))
+    assert secret_path.read_text() == "TOKEN=do-not-publish\n"
+    for branch in ("feature/review", "main"):
+        assert "cursor: new" in git_repo.git(
+            "show",
+            f"refs/heads/{branch}:{parent_rel}",
+            cwd=git_repo.origin,
+        )
+        assert (
+            git_repo.git(
+                "ls-tree",
+                "-r",
+                "--name-only",
+                branch,
+                "--",
+                secret_rel,
+                cwd=git_repo.origin,
+            ).strip()
+            == ""
+        )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_blocked_recorded_assist_terminal_script_is_reblocked(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unanswered resumed ask overrides a strictly published completion."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Reblock completed deterministic review",
+        status="blocked",
+        force_directory=True,
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    script_path = ticket_path.parent / "ticket.py"
+    _write(
+        script_path,
+        """
+        import os
+        import subprocess
+        import sys
+
+        from coga import pr_assist
+        from coga.cli import main
+        from coga.notification import slack
+
+        def live_pr_head(cfg, ticket, branch, **kwargs):
+            output = subprocess.check_output(
+                ["git", "ls-remote", "origin", f"refs/heads/{branch}"],
+                text=True,
+            )
+            return output.split()[0]
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        os.environ["SLACK_WEBHOOK_URL"] = "https://hooks.slack.test/example"
+        pr_assist.verify_recorded_assist_pr_head = live_pr_head
+        slack.requests.post = lambda *args, **kwargs: Response()
+        sys.argv = ["coga", "mark", "done", os.environ["COGA_TASK_SLUG"]]
+        main()
+        """,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: complete blocked deterministic review")
+    git_repo.git("push", "origin", "feature/review")
+
+    class Response:
+        status_code = 200
+        text = "ok"
+
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.test/example")
+    monkeypatch.setattr(
+        "coga.notification.slack.requests.post",
+        lambda *args, **kwargs: Response(),
+    )
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+
+    launch_module.launch(
+        created["slug"],
+        agent_override="claude",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    expected = ("blocked", "2 (review)", "marc")
+    local = Ticket.read(ticket_path)
+    assert (local.status, local.step, local.assignee) == expected
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    for branch in ("feature/review", "main"):
+        published = Ticket.parse(
+            git_repo.git(
+                "show",
+                f"refs/heads/{branch}:{ticket_rel}",
+                cwd=git_repo.origin,
+            )
+        )
+        assert (published.status, published.step, published.assignee) == expected
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_recorded_assist_script_handoff_keeps_strict_agent_publication(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Routing follows the durable agent without dropping the PR-state lease."""
+    config_path = git_repo.coga_os / "coga.toml"
+    config_path.write_text(
+        config_path.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    workflow_path = git_repo.coga_os / "workflows" / "code.md"
+    workflow_path.write_text(
+        workflow_path.read_text().replace(
+            "  - name: merge\n",
+            "  - name: merge\n"
+            "    assignee: agent\n"
+            "  - name: verify\n"
+            "    assignee: agent\n",
+        )
+        + "\n## verify\n\nVerify the published state.\n"
+    )
+    git_repo.git(
+        "add",
+        str(config_path.relative_to(git_repo.root)),
+        str(workflow_path.relative_to(git_repo.root)),
+    )
+    git_repo.git("commit", "-m", "config: add assist agent and verify step")
+    git_repo.git("push", "origin", "main")
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Publish configured-agent handoff",
+        status="in_progress",
+        force_directory=True,
+    )
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["agent"] = "claude"
+    assert isinstance(ticket.workflow, dict)
+    ticket.workflow["steps"][2]["assignee"] = "agent"
+    ticket.write(ticket_path)
+    script_path = ticket_path.parent / "ticket.py"
+    _write(
+        script_path,
+        """
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        task_dir = Path(os.environ["COGA_TASK_DIR"])
+        with (task_dir / "assist-identities.txt").open("a") as handle:
+            handle.write(
+                f"{os.environ['COGA_TASK_STEP']}|"
+                f"{os.environ['COGA_ASSIST_AGENT']}|"
+                f"{os.environ['COGA_ASSIST_BRANCH']}\\n"
+            )
+
+        if os.environ["COGA_TASK_STEP"].startswith("2 "):
+            from coga import pr_assist
+            from coga.cli import main
+
+            def live_pr_head(cfg, ticket, branch, **kwargs):
+                output = subprocess.check_output(
+                    ["git", "ls-remote", "origin", f"refs/heads/{branch}"],
+                    text=True,
+                )
+                return output.split()[0]
+
+            pr_assist.verify_recorded_assist_pr_head = live_pr_head
+            sys.argv = ["coga", "bump", os.environ["COGA_TASK_SLUG"]]
+            main()
+        """,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: add configured-agent handoff")
+    git_repo.git("push", "origin", "feature/review")
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda coga_os: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+    spawns: list[dict[str, object]] = []
+
+    def record_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
+        spawns.append(kwargs)
+        if len(spawns) == 1:
+            child_env = kwargs["env"]
+            assert isinstance(child_env, dict)
+            with monkeypatch.context() as child:
+                for key in (
+                    "COGA_SUPERVISED",
+                    EXPECTED_TASK_ENV,
+                    EXPECTED_STEP_ENV,
+                ):
+                    value = child_env.get(key)
+                    if value is not None:
+                        child.setenv(key, str(value))
+                child.setenv(ASSIST_AGENT_ENV, str(kwargs["assist_agent"]))
+                child.setenv(
+                    ASSIST_BRANCH_ENV,
+                    str(kwargs["publish_aligned_branch"]),
+                )
+                child.setenv(
+                    ASSIST_PR_ENV,
+                    "https://github.com/example/repo/pull/8",
+                )
+                bumped = CliRunner().invoke(app, ["bump", created["slug"]])
+                assert bumped.exit_code == 0, bumped.output
+        return launch_module.AgentSessionResult(0, "done")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.spawn_agent_session",
+        record_spawn,
+    )
+
+    launch_module.launch(
+        created["slug"],
+        agent_override="codex",
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+        queue_guidance=False,
+    )
+
+    assert len(spawns) == 2
+    for spawn in spawns:
+        assert spawn["publish_aligned_branch"] == "feature/review"
+        assert spawn["assist_agent"] == "claude"
+    assert Ticket.read(ticket_path).assignee == "claude"
+    assert Ticket.read(ticket_path).step == "4 (verify)"
+    identities_path = ticket_path.parent / "assist-identities.txt"
+    expected_identities = [
+        "2 (review)|codex|feature/review",
+        "3 (merge)|claude|feature/review",
+        "4 (verify)|claude|feature/review",
+    ]
+    assert identities_path.read_text().splitlines() == expected_identities
+    identities_rel = str(identities_path.relative_to(git_repo.root))
+    for branch in ("feature/review", "main"):
+        assert git_repo.git(
+            "show",
+            f"refs/heads/{branch}:{identities_rel}",
+            cwd=git_repo.origin,
+        ).splitlines() == expected_identities
+    assert git_repo.git("status", "--porcelain").strip() == ""
 
 
 def test_human_assist_alignment_keeps_original_prefix_target(
@@ -4099,6 +4984,128 @@ def test_blocked_human_assist_interrupt_republishes_unresolved_reblock(
         f"main:{rel}",
         cwd=git_repo.origin,
     )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_blocked_script_exception_reblock_refusal_uses_no_sweep_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A refusal raised inside script exception cleanup cannot escape raw."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Refuse nested deterministic reblock",
+        status="blocked",
+        force_directory=True,
+    )
+    append_blocker(ticket_path, "agent:claude", "which retry ceiling?")
+    assert ticket_path.parent.is_dir()
+    _write(ticket_path.parent / "ticket.py", "raise RuntimeError('not run')\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed blocked deterministic assist")
+    git_repo.git("push", "origin", "feature/review")
+
+    _allow_interactive_tty(monkeypatch)
+    _allow_recorded_assist_pr(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.run_script_chain",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            RuntimeError("script setup crashed")
+        ),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._reblock_unresolved_resume",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            launch_module._AssistPublicationRefused(
+                "lost automatic reblock lease",
+                post_session=True,
+            )
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            str(created["slug"]),
+            agent_override="claude",
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert "lost automatic reblock lease" in capsys.readouterr().err
+
+
+def test_blocked_malformed_script_reblock_is_published_before_child_exit(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fallback restoration is durable on control before exit 17 escapes."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Reblock malformed deterministic failure",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        force_directory=True,
+    )
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    assert ref.task_dir is not None
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(ref.ticket_path)
+    append_blocker(ref.ticket_path, "agent:claude", "which retry ceiling?")
+    _write(
+        ref.task_dir / "ticket.py",
+        """
+        import os
+        from pathlib import Path
+
+        Path(os.environ["COGA_TASK_TICKET"]).write_text("not a ticket\\n")
+        raise SystemExit(17)
+        """,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "ticket: seed malformed blocked script")
+    git_repo.git("push", "origin", "main")
+    _allow_interactive_tty(monkeypatch)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch(
+            created["slug"],
+            agent_override=None,
+            prompt_report=False,
+            idle_timeout=None,
+            max_session=None,
+            return_timeout=False,
+            queue_guidance=False,
+        )
+
+    assert excinfo.value.code == 17
+    assert Ticket.read(ref.ticket_path).status == "blocked"
+    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    remote_ticket = Ticket.parse(
+        git_repo.git(
+            "show",
+            f"refs/heads/main:{ticket_rel}",
+            cwd=git_repo.origin,
+        )
+    )
+    assert remote_ticket.status == "blocked"
+    remote_log = git_repo.git(
+        "show",
+        "refs/heads/main:coga/log.md",
+        cwd=git_repo.origin,
+    )
+    assert "script exited with code 17" in remote_log
+    assert "unresolved blocker still open" in remote_log
     assert git_repo.git("status", "--porcelain").strip() == ""
 
 

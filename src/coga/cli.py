@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shlex
 import signal
 import sys
@@ -39,6 +40,7 @@ from coga.commands import usage as usage_cmd
 from coga.commands import validate as validate_cmd
 from coga.commands.update import read_pin, read_pin_source
 from coga.config import ConfigError, find_repo_root, load_config
+from coga.repl_supervisor import ASSIST_BRANCH_ENV, EXPECTED_TASK_ENV
 
 
 def _print_version_and_exit(value: bool) -> None:
@@ -191,6 +193,21 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
     return False
 
 
+def _inherited_assist_scope() -> bool:
+    """Whether this process must leave all fallback publication disabled.
+
+    A ticket script receives both values only after launch verifies a recorded
+    single-checkout assist. Its supported lifecycle commands publish through an
+    exact feature/control lease. If parsing, validation, or dispatch fails
+    before that publisher runs, the broad CLI sweep must not commit the bytes
+    the strict path deliberately left unowned.
+    """
+    return bool(
+        os.environ.get(ASSIST_BRANCH_ENV, "").strip()
+        and os.environ.get(EXPECTED_TASK_ENV, "").strip()
+    )
+
+
 def _register_alias_placeholder(name: str, expansion: str) -> None:
     """Register a no-op Typer command for `--help` discoverability.
 
@@ -337,6 +354,7 @@ def main() -> None:
         typer.secho(f"→ coga {' '.join(full)}", fg=typer.colors.BLUE, err=True)
         sys.argv = [sys.argv[0]] + full
 
+    inherited_assist = _inherited_assist_scope()
     try:
         app()
     except SystemExit as exc:
@@ -345,13 +363,17 @@ def main() -> None:
         # retryable local state. That covers a stale/diverged control checkout
         # and a refused assist log lease: in either case the sweep would commit
         # exactly the bytes the narrow publisher intentionally left dirty.
-        if exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+        if (
+            not inherited_assist
+            and exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+        ):
             _sweep_coga_state(cfg)
         raise
     except BaseException:
-        # Any other crash keeps the pre-change `finally` behavior: sweep, then
-        # let the exception surface.
-        _sweep_coga_state(cfg)
+        # A strict assist never falls back to the broad subtree sweep: an early
+        # parser/validator crash has not acquired its scoped publication lease.
+        if not inherited_assist:
+            _sweep_coga_state(cfg)
         raise
     else:
         # End-of-command boundary: commit any dirty `coga/` OS state the command
@@ -359,7 +381,8 @@ def main() -> None:
         # `app()` whether it returned or raised `SystemExit`/`typer.Exit`; the
         # on-disk markdown is the source of truth, and atomic writes mean a
         # mid-command crash never leaves a half-written file to commit.
-        _sweep_coga_state(cfg)
+        if not inherited_assist:
+            _sweep_coga_state(cfg)
 
 
 if __name__ == "__main__":

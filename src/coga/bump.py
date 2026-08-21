@@ -7,11 +7,13 @@ rewinds move to an earlier workflow step. Status transitions
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import typer
 
 from coga import git
 from coga.config import Config
-from coga.logfile import append_log
+from coga.logfile import append_log, log_path
 from coga.notification import post
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
@@ -88,6 +90,10 @@ def advance_step(
     echo: str | None = None,
     rewind: bool = False,
     publish_current_branch: bool = False,
+    feature_publication: git.FeaturePublicationLease | None = None,
+    feature_publication_guard: Callable[[str], None] | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
+    after_sync: Callable[[], None] | None = None,
 ) -> None:
     """Move a ticket to a workflow step.
 
@@ -105,14 +111,61 @@ def advance_step(
     guard — the human is the authority on their own rewind — while leaving the
     rest of the guard on, so a rewind still cannot bury a ticket another
     checkout has already closed or advanced past.
+
+    A recorded-assist caller supplies ``feature_publication`` and an armed
+    ``mutation_snapshot`` so the step and audit reach the PR and control refs
+    under one exact lease before any handoff notification is emitted.
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
     if new_assignee is not None:
         ticket.frontmatter["assignee"] = new_assignee
+    if mutation_snapshot is not None:
+        mutation_snapshot.require_unchanged(ref.ticket_path)
+    ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
+    if mutation_snapshot is not None:
+        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     assert_task_valid(cfg, ref, action=f"bump to step {next_step} ({new_step_name})")
-    append_log(cfg, ref.id_slug, actor, log_message)
+    audit_append = append_log(cfg, ref.id_slug, actor, log_message)
+    if mutation_snapshot is not None:
+        mutation_snapshot.arm_append(log_path(cfg), audit_append)
+
+    def sync_state() -> None:
+        message = f"Ticket: {ref.id_slug} — step {next_step} ({new_step_name})"
+        guard = git.ticket_state_guard(
+            cfg, ref.ticket_path, allow_step_rewind=rewind
+        )
+        if feature_publication is None:
+            git.sync_task_state(
+                cfg,
+                ref.path,
+                message=message,
+                guard=guard,
+                publish_current_branch=publish_current_branch,
+            )
+            return
+        git.sync_task_state(
+            cfg,
+            ref.path,
+            message=message,
+            guard=guard,
+            publish_current_branch=publish_current_branch,
+            feature_publication=feature_publication,
+            feature_publication_guard=feature_publication_guard,
+            after_strict_publication=after_sync,
+            generated_paths=(
+                mutation_snapshot.generated
+                if mutation_snapshot is not None
+                else None
+            ),
+        )
+
+    # A recorded-assist child owns a strict feature/control transaction. Make
+    # that durable before any user-visible handoff notification; ordinary bump
+    # calls keep their established output-before-sync ordering.
+    if feature_publication is not None:
+        sync_state()
     if echo is not None:
         typer.echo(echo)
     if notify_slack:
@@ -126,16 +179,10 @@ def advance_step(
             owner=owner,
             watchers=ticket.watchers,
             fatal=False,
+            record_failure=feature_publication is None,
         )
-    git.sync_task_state(
-        cfg,
-        ref.path,
-        message=f"Ticket: {ref.id_slug} — step {next_step} ({new_step_name})",
-        guard=git.ticket_state_guard(
-            cfg, ref.ticket_path, allow_step_rewind=rewind
-        ),
-        publish_current_branch=publish_current_branch,
-    )
+    if feature_publication is None:
+        sync_state()
 
 
 __all__ = [

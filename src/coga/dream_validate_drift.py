@@ -211,6 +211,17 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "unrunnable-script-entry-point":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Open a small PR after reading the ticket and its reserved "
+                "`ticket.py`. Repair or remove the deterministic entry point "
+                "without converting its behavior into agent judgment."
+            ),
+        )
+
     if kind == "duplicate-slug":
         return ClassifiedIssue(
             issue=issue,

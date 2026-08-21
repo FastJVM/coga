@@ -197,6 +197,8 @@ def assist_pr_publication_guard(
 def assist_publication_from_env(
     cfg: Config,
     ref: TaskRef,
+    *,
+    mutation_snapshot: git.FileMutationRollback | None = None,
 ) -> AssistPublication | None:
     """Rebuild a scoped assist capability inherited by an in-session command."""
     agent = os.environ.get(ASSIST_AGENT_ENV, "").strip()
@@ -219,7 +221,17 @@ def assist_publication_from_env(
         raise git.FeaturePublicationError(
             f"inherited assist capability names unknown launch agent {agent!r}"
         )
-    lease = git.feature_publication_lease(cfg, ref.path, branch)
+    lease = git.feature_publication_lease(
+        cfg,
+        ref.path,
+        branch,
+        allow_append_only_log=mutation_snapshot is not None,
+        allowed_dirty_paths=(
+            mutation_snapshot.originals
+            if mutation_snapshot is not None
+            else None
+        ),
+    )
     return AssistPublication(
         lease=lease,
         guard=assist_pr_publication_guard(
@@ -232,8 +244,24 @@ def assist_publication_from_env(
     )
 
 
+def assist_publication_requested(ref: TaskRef) -> bool:
+    """Whether inherited environment state scopes a strict assist to ``ref``.
+
+    This is deliberately a local, non-authorizing predicate. Lifecycle
+    commands use it only to capture every possible mutation target before the
+    network-backed lease is acquired; ``assist_publication_from_env`` remains
+    the operation that validates the complete capability.
+    """
+    branch = os.environ.get(ASSIST_BRANCH_ENV, "").strip()
+    expected_task = os.environ.get(EXPECTED_TASK_ENV, "").strip()
+    if not branch or not expected_task:
+        return False
+    return Path(expected_task).resolve() == ref.path.resolve()
+
+
 __all__ = [
     "AssistPublication",
+    "assist_publication_requested",
     "assist_pr_publication_guard",
     "assist_publication_from_env",
     "verify_recorded_assist_pr_head",

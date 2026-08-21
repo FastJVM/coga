@@ -113,6 +113,11 @@ def read_snapshot(task_dir: Path) -> StateSnapshot | None:
     return StateSnapshot(parent=parent, keys=keys)
 
 
+def parent_ticket_path(cfg: Config, snapshot: StateSnapshot) -> Path:
+    """Return the recurring parent ticket named by a period snapshot."""
+    return recurring_dir(cfg) / snapshot.parent / "ticket.md"
+
+
 def stale_keys(cfg: Config, snapshot: StateSnapshot) -> list[str]:
     """Declared keys whose current parent-blackboard value equals the snapshot.
 
@@ -120,7 +125,7 @@ def stale_keys(cfg: Config, snapshot: StateSnapshot) -> list[str]:
     advancing that key. Returns the stale keys in their declared (snapshot)
     order; an empty list means every declared key moved (a healthy run).
     """
-    ticket = recurring_dir(cfg) / snapshot.parent / "ticket.md"
+    ticket = parent_ticket_path(cfg, snapshot)
     if not ticket.parent.is_dir():
         return []
     text = read_blackboard(ticket, blackboard_required=False) if ticket.is_file() else ""
@@ -136,6 +141,7 @@ __all__ = [
     "SNAPSHOT_FILE",
     "StateSnapshot",
     "parse_keys",
+    "parent_ticket_path",
     "write_snapshot",
     "read_snapshot",
     "stale_keys",

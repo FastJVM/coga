@@ -369,6 +369,45 @@ def test_validate_tolerates_legacy_non_null_script_key(repo: Path) -> None:
     assert all(issue.severity == "warn" for issue in issues)
 
 
+def test_validate_checks_only_the_reserved_ticket_py_entry_point(repo: Path) -> None:
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Deterministic task",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
+        force_directory=True,
+    )
+    task_dir = Path(created["path"])
+    (task_dir / "helper.py").write_text("this is not valid Python\n")
+    (task_dir / "ticket.py").write_text("print('ok')\n")
+
+    good = validate_task(cfg, created["slug"])
+
+    assert not [
+        issue
+        for issue in good.issues
+        if issue.kind == "unrunnable-script-entry-point"
+    ]
+
+    (task_dir / "ticket.py").write_text("def broken(:\n")
+    broken = validate_task(cfg, created["slug"])
+
+    issue = next(
+        issue
+        for issue in broken.issues
+        if issue.kind == "unrunnable-script-entry-point"
+    )
+    assert issue.task == created["slug"]
+    assert issue.severity == "error"
+    assert "ticket.py" in issue.message
+    assert "does not compile" in issue.message
+
+
 def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
     """A frozen step's `requires:` must name a registered completion gate; a
     bogus token is a hard `bad-shape` error (the activation/bump gate would

@@ -17,6 +17,7 @@ Per-task primitives:
 
 Checks (whole-repo):
 - Task dirs have a single ticket.md (with exactly one blackboard fence).
+- A reserved ticket.py entry point compiles as Python.
 - ticket.md parses as YAML frontmatter + body.
 - Frontmatter has the canonical key set with the right shapes.
 - contexts / skills / workflow step skills resolve to real files.
@@ -58,6 +59,7 @@ from coga.config import (
     parse_inline_secrets,
 )
 from coga.logfile import last_activity
+from coga.launch_script import SCRIPT_ENTRY_POINT
 from coga.lifecycle import TERMINAL_STATUSES, VALID_STATUSES
 from coga.taskfile import BLACKBOARD_FENCE, fence_count
 from coga.period_state import read_snapshot, stale_keys
@@ -374,6 +376,8 @@ def _check_one_task(
         ))
         return out
 
+    out.extend(_check_script_entry_point(ref))
+
     warning = blackboard_size_warning(
         ref.ticket_path,
         max_bytes=max_blackboard_bytes,
@@ -490,6 +494,42 @@ def _check_one_task(
                 ))
 
     return out
+
+
+def _check_script_entry_point(ref: TaskRef) -> list[Issue]:
+    """Report a reserved ``ticket.py`` that Python cannot execute.
+
+    The filename changes launch behavior, so a broken file must fail loud at
+    validation time. Other Python attachments are ordinary ticket files and
+    deliberately remain outside this check.
+    """
+
+    if ref.task_dir is None:
+        return []
+    entry = ref.task_dir / SCRIPT_ENTRY_POINT
+    if not entry.exists():
+        return []
+    if not entry.is_file():
+        return [
+            Issue(
+                kind="unrunnable-script-entry-point",
+                task=ref.id_slug,
+                message=f"{entry} is not a regular file",
+                severity="error",
+            )
+        ]
+    try:
+        compile(entry.read_bytes(), str(entry), "exec")
+    except (OSError, SyntaxError, ValueError) as exc:
+        return [
+            Issue(
+                kind="unrunnable-script-entry-point",
+                task=ref.id_slug,
+                message=f"{entry} does not compile: {exc}",
+                severity="error",
+            )
+        ]
+    return []
 
 
 def _check_frontmatter_schema(

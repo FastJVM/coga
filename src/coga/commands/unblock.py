@@ -161,12 +161,27 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
     # Pin the first blackboard write before the network-backed assist lease.
     # A ticket edit made while that lease is acquired must fail the byte CAS,
     # not become the rollback baseline for this unblock.
-    pre_lease_snapshot = git.FileMutationRollback.capture(
-        (ref.ticket_path, log_path(cfg)),
-        union_paths=(log_path(cfg),),
+    assist_requested = pr_assist.assist_publication_requested(ref)
+    pre_lease_snapshot = (
+        git.capture_task_mutation_snapshot(
+            ref.path,
+            extra_paths=(log_path(cfg),),
+            union_paths=(log_path(cfg),),
+        )
+        if assist_requested
+        else git.FileMutationRollback.capture(
+            (ref.ticket_path, log_path(cfg)),
+            union_paths=(log_path(cfg),),
+        )
     )
     try:
-        assist = pr_assist.assist_publication_from_env(cfg, ref)
+        assist = pr_assist.assist_publication_from_env(
+            cfg,
+            ref,
+            mutation_snapshot=(
+                pre_lease_snapshot if assist_requested else None
+            ),
+        )
     except git.FeaturePublicationError as exc:
         raise _UnblockError(
             str(exc),

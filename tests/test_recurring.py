@@ -6676,7 +6676,6 @@ def test_feature_branch_landing_keeps_malformed_control_ledger_blocked_on_retry(
     git_repo.git("add", "coga/contexts", "coga/recurring")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
-    git_repo.checkout_branch("feature/malformed-named-ledger")
     git_repo.push_competing_commit(
         "coga/log.md",
         "2026-08-13 17:22 [recurring/weekly-check] [system] "
@@ -6736,7 +6735,6 @@ def test_feature_branch_sweep_revalidates_malformed_control_ledger_on_retry(
     git_repo.git("add", "coga/contexts", "coga/recurring")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
-    git_repo.checkout_branch("feature/malformed-sweep-ledger")
     git_repo.push_competing_commit(
         "coga/log.md",
         "2026-08-13 17:22 [recurring/weekly-check] [system] "
