@@ -1,7 +1,7 @@
 ---
 slug: recurring/digest
 title: Daily digest
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,6 +17,7 @@ workflow:
     - coga/digest/flush
     assignee: agent
 secrets: null
+step: 1 (flush)
 ---
 
 ## Description
