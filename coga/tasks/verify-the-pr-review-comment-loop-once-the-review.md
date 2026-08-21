@@ -179,3 +179,9 @@ include whichever of these four land in the meantime.
 ## Blockers
 
 - [ ] [2026-08-20 11:24] [agent:claude] id=20260820T112458 Phase 0 precondition gate failed: four tickets are still in_progress on a code/with-review review step, with all four PRs still OPEN (unmerged) — coga/tasks/put-build-back.md (step 4, PR 701), coga/tasks/recurring-recipe-question.md (step 5, PR 700), coga/tasks/validate-drift-classifier-misses-17-emitted-kinds.md (step 4, PR 702), coga/tasks/dream-phases-2-3-cannot-complete-scan-subagents-re.md (step 4, PR 703). The ticket body forbids running phases 1-4 against a live backlog. Need the owner to review and merge PRs 700-703 (or move those tickets off review), then relaunch this ticket.
+
+---
+
+## Blocker reminders
+
+- 3023242c0745 last_reminded: 2026-08-21 11:54
