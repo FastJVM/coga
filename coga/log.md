@@ -3811,3 +3811,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-21 11:53 [dream-phases-2-3-cannot-complete-scan-subagents-re] [human:nicktoper] auto-bumped on merge of PR #703 → done
 2026-08-21 11:53 [put-build-back] [human:nicktoper] auto-bumped on merge of PR #701 → done
 2026-08-21 11:53 [validate-drift-classifier-misses-17-emitted-kinds] [human:nicktoper] auto-bumped on merge of PR #702 → done
+2026-08-21 11:53 [recurring/autoclose-merged] [system] recipe autoclose exited with code 0
+2026-08-21 11:53 [recurring/autoclose-merged] [system] completed (recipe autoclose exited 0) via coga recurring
