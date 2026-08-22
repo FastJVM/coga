@@ -2054,11 +2054,18 @@ def test_script_template_bypasses_agent_tty_gate(repo: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("starting_status", "script_code", "expected_status"),
+    (
+        "starting_status",
+        "script_code",
+        "expected_status",
+        "failure_important",
+        "expected_url",
+    ),
     [
-        ("active", 0, "in_progress"),
-        ("active", 17, "in_progress"),
-        ("in_progress", 0, "in_progress"),
+        ("active", 0, "in_progress", True, None),
+        ("active", 17, "in_progress", False, FLOW_WEBHOOK),
+        ("active", 17, "in_progress", True, IMPORTANT_WEBHOOK),
+        ("in_progress", 0, "in_progress", True, None),
     ],
 )
 def test_period_script_runs_with_period_context_secrets_and_lifecycle(
@@ -2067,6 +2074,8 @@ def test_period_script_runs_with_period_context_secrets_and_lifecycle(
     starting_status: str,
     script_code: int,
     expected_status: str,
+    failure_important: bool,
+    expected_url: str | None,
 ) -> None:
     """The copied `ticket.py` runs with the period task's scoped environment.
 
@@ -2120,10 +2129,10 @@ def test_period_script_runs_with_period_context_secrets_and_lifecycle(
     monkeypatch.setattr(launch_script, "append_log", lambda *a, **k: None)
     monkeypatch.setattr(launch_script.git, "sync_log", lambda *a, **k: None)
 
-    posts: list[str] = []
+    deliveries: list[tuple[str, str]] = []
 
     def capture_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
-        posts.append((json or {}).get("text", ""))
+        deliveries.append((url, (json or {}).get("text", "")))
 
         class Response:
             status_code = 200
@@ -2133,7 +2142,13 @@ def test_period_script_runs_with_period_context_secrets_and_lifecycle(
 
     monkeypatch.setattr("coga.notification.slack.requests.post", capture_post)
 
-    result = launch_script.run_script_phase(cfg, ref, ticket, stateless=False)
+    result = launch_script.run_script_phase(
+        cfg,
+        ref,
+        ticket,
+        stateless=False,
+        failure_important=failure_important,
+    )
 
     assert result.exit_code == script_code
     assert Ticket.read(ref.ticket_path).status == expected_status
@@ -2150,10 +2165,17 @@ def test_period_script_runs_with_period_context_secrets_and_lifecycle(
     assert env["COGA_TASK_LOG"] == str((repo / "log.md").resolve())
     assert env["COGA_COGA_OS_ROOT"] == str(repo.resolve())
     assert env["COGA_REPO_ROOT"] == str(repo.parent.resolve())
-    failures = [text for text in posts if "💥 script failed" in text]
+    failures = [
+        (url, text)
+        for url, text in deliveries
+        if "💥 script failed" in text
+    ]
     assert bool(failures) is (script_code != 0)
+    assert [url for url, _text in failures] == (
+        [] if expected_url is None else [expected_url]
+    )
     if script_code != 0:
-        assert f"exit {script_code}" in failures[0]
+        assert f"exit {script_code}" in failures[0][1]
 
 
 def test_scan_due_explains_removed_megalaunch_skill(repo: Path) -> None:
@@ -4777,12 +4799,14 @@ def test_recurring_launch_invokes_launch(
         max_session: float | None = None,
         return_timeout: bool = False,
         queue_guidance: bool = False,
+        script_failure_important: bool = False,
     ) -> None:
         assert return_timeout is False
         assert idle_timeout == 900.0
         assert max_session is None
         # On-demand named launches are automatic queue launches too.
         assert queue_guidance is True
+        assert script_failure_important is True
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         assert ticket.status == "active"
         calls.append(task)
@@ -5263,6 +5287,31 @@ def test_non_timeout_unfinished_pause_stays_silent(
     assert Ticket.read(ref.ticket_path).status == "paused"
 
 
+@pytest.mark.parametrize(
+    ("script_stopped", "expected_status"),
+    [(True, "blocked"), (False, "paused")],
+    ids=["script-signal", "agent-unfinished"],
+)
+def test_only_script_owned_block_is_preserved_after_recurring_launch(
+    repo: Path,
+    script_stopped: bool,
+    expected_status: str,
+) -> None:
+    """A script block is completion; an unfinished agent block is parked."""
+    cfg, ref = _in_progress_period(repo)
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(ref.ticket_path)
+
+    recurring_cmd._stop_if_unfinished_after_launch(
+        cfg,
+        ref,
+        script_stopped=script_stopped,
+    )
+
+    assert Ticket.read(ref.ticket_path).status == expected_status
+
+
 def test_bare_recurring_records_liveness_timeout_not_human_pause(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5607,6 +5656,7 @@ def test_automatic_sweep_launches_carry_queue_guidance(
 
     assert len(seen) == 1
     assert seen[0]["queue_guidance"] is True
+    assert seen[0]["script_failure_important"] is True
 
 
 def test_interactive_sweep_launches_omit_queue_guidance(
@@ -5632,6 +5682,7 @@ def test_interactive_sweep_launches_omit_queue_guidance(
 
     assert len(seen) == 1
     assert seen[0]["queue_guidance"] is False
+    assert seen[0]["script_failure_important"] is True
 
 
 def test_named_recurring_launch_carries_queue_guidance(
@@ -5653,6 +5704,7 @@ def test_named_recurring_launch_carries_queue_guidance(
 
     assert len(seen) == 1
     assert seen[0]["queue_guidance"] is True
+    assert seen[0]["script_failure_important"] is True
 
 
 # --- coga recurring promote: task → template authoring ------------------------

@@ -120,6 +120,15 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     ),
     (
+        "coga/contexts/coga/patterns/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/patterns/SKILL.md",
+    ),
+    (
+        "coga/contexts/coga/principles/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/principles/"
+        "SKILL.md",
+    ),
+    (
         "coga/contexts/coga/architecture/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/"
         "SKILL.md",

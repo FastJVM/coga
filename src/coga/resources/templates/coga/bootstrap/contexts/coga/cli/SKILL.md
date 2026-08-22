@@ -172,9 +172,13 @@ finalizer, so the ordinary step-completion verb also closes the ticket.
 
 ## coga launch \<target\>
 
-Compose every relevant file (rules + repo context + ticket contexts +
-current step's skill + blackboard + ticket body) into one prompt and
-start the configured agent. Accepts `status: active` or `in_progress`
+Resolve the target, then classify it by one fixed filename. A directory-form
+ticket carrying `ticket.py` beside `ticket.md` runs that file headlessly first,
+without composing a prompt or probing an agent CLI; the script owns its own
+lifecycle transition. If the script leaves its step open, or the ticket has no
+such sibling, launch composes every relevant file (rules + repo context + ticket
+contexts + current step's skill + blackboard + ticket body) into one prompt and
+starts the configured agent. Launch accepts `status: active` or `in_progress`
 directly; a `draft` / `paused` ticket is activated inline first — typing
 `coga launch` is the readiness signal, so it activates the ticket for you
 rather than refusing. A `blocked` ticket resumes the same way when the launch
@@ -193,13 +197,13 @@ blocked ticket is the human act and resumes it the same interactive way); a
 terminal `done` or `canceled` ticket is refused because it is closed. A ticket
 that can't be activated — no workflow, or an empty `required` extension field
 — still fails loud with the same remedy `mark active` gives. Launching an
-`active` ticket then marks it
-`in_progress` (posting `▶️`) before spawning the agent; launching an
-already-`in_progress` ticket resumes it without another status flip. Launch
-always spawns the assignee's agent and requires stdin and stdout to both be
-terminals. Trailing positional arguments arrive in an ordered
-`## Launch arguments` block appended to the prompt. Deterministic headless
-commands belong behind the registered `coga run` recipe surface.
+`active` ticket then marks it `in_progress` (posting `▶️`) before its first
+script or agent phase; launching an already-`in_progress` ticket resumes it
+without another status flip. Only an agent phase requires stdin and stdout to
+both be terminals. Trailing positional arguments arrive in an ordered
+`## Launch arguments` block appended to an agent prompt; `ticket.py` receives
+no operands. Repository-independent deterministic commands with stable argv /
+stdout / exit contracts remain behind the registered `coga run` recipe surface.
 
 - `coga launch <slug>` — accepts any unique prefix (git-short-SHA-style).
   A top-level task is its bare leaf slug; a nested task is referenced by its
@@ -214,7 +218,8 @@ commands belong behind the registered `coga run` recipe surface.
   still refused.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
-  spawning an agent.
+  spawning an agent. It refuses a `ticket.py` target because the deterministic
+  phase runs before composition and prompt reporting never executes ticket code.
 - `coga launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
 - `coga launch bootstrap/browser-automation` — stateless browser-automation

@@ -766,6 +766,7 @@ def run_recurring_scan(
                 idle_timeout=idle_timeout,
                 max_session=max_session,
                 return_timeout=True,
+                script_failure_important=True,
                 # An automatic sweep's agent must announce-and-continue and end
                 # owner decisions in `coga block` — a conversational ask hangs
                 # the queue until a liveness timeout fails the task.
@@ -783,7 +784,10 @@ def run_recurring_scan(
                 return code
             kind = None
         _stop_if_unfinished_after_launch(
-            cfg, task.ref, timed_out=(kind == "timeout")
+            cfg,
+            task.ref,
+            timed_out=(kind == "timeout"),
+            script_stopped=(kind == "script"),
         )
     return 2 if forced_refusals else 0
 
@@ -996,6 +1000,7 @@ def _launch_created(
             idle_timeout=idle_timeout,
             max_session=max_session,
             return_timeout=False,
+            script_failure_important=True,
             # Same queue posture as the full sweep: automatic launches get the
             # announce-and-continue / block-don't-ask guidance; `--interactive`
             # human-stepped runs keep plain launches.
@@ -2065,7 +2070,11 @@ def _git_toplevel(start: Path) -> Path | None:
 
 
 def _stop_if_unfinished_after_launch(
-    cfg: Config, ref: TaskRef, *, timed_out: bool = False
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    timed_out: bool = False,
+    script_stopped: bool = False,
 ) -> None:
     """Pause a recurring task when its agent launch returns unfinished.
 
@@ -2080,12 +2089,19 @@ def _stop_if_unfinished_after_launch(
     run. We pause it (so the next scan doesn't relaunch the orphan) but log and
     broadcast it as a watchdog *timeout*, with a system actor, then continue the
     sweep so one wedge can't starve the tasks behind it.
+
+    A script that deliberately records `blocked` has also completed its
+    deterministic phase: preserve that supported lifecycle signal. An agent
+    session that blocks is still paused by the scheduled-run contract, so this
+    exception is gated on the launcher's script-only stop kind.
     """
     if not (ref.ticket_path).exists():
         return
 
     ticket = read_ticket(ref)
     if ticket.status in TERMINAL_STATUSES or ticket.status == "paused":
+        return
+    if script_stopped and ticket.status == "blocked":
         return
 
     if timed_out:

@@ -332,9 +332,11 @@ This extension seam has five important constraints:
   template's `ticket.py` is copied into each period task and run as
   `[sys.executable, "<task>/ticket.py"]` with no operands; per-run argv belongs
   on an explicit `coga run` invocation instead. The script owns the whole
-  deterministic run *including its own completion* — it ends in `coga bump`
-  (or `coga mark done`), and the launcher never advances the workflow on its
-  behalf. A non-zero exit leaves the period task `in_progress`.
+  deterministic run *including its own completion* — it ends in `coga bump` /
+  `coga mark done`, or records an unavailable prerequisite with `coga block`;
+  the launcher never advances the workflow on its behalf. A blocked script
+  completion stays `blocked`; a non-zero exit leaves the period task
+  `in_progress`.
 - **A scheduled agent run must reach `done` in one launch.** When a bare
   `coga recurring` sweep gets control back from an unfinished agent launch, it
   pauses the period task before continuing. That includes an intermediate
