@@ -115,8 +115,11 @@ _DEV_SECTION_RE = re.compile(
 # same sentence applied to a trailing annotation (`pr: <url> (no CI here)`),
 # which an anchored `(\S+)$` capture rejected while the `branch:` / `worktree:`
 # siblings tolerated it. Capture the rest of the line like they do and
-# normalize in `parse_pr_url`.
-_PR_LINE_RE = re.compile(r"^\s*(?:-\s*)?pr:\s*(.+?)\s*$", re.MULTILINE)
+# normalize in `parse_pr_url`. Spell the surrounding runs `[ \t]` rather than
+# `\s`: `\s` matches newlines, so a non-greedy `(.+?)` on an empty `pr:` line
+# would reach past it and capture the next non-blank line, which is not a
+# `pr:` line at all.
+_PR_LINE_RE = re.compile(r"^[ \t]*(?:-[ \t]*)?pr:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
 _PR_NUMBER_RE = re.compile(r"/pull/(\d+)")
 # The `branch:` line is written inconsistently across existing tickets:
 # `branch: my-branch`, `- branch: \`my-branch\``, ``branch: `my-branch` ``.
@@ -131,31 +134,46 @@ _BRANCH_LINE_RE = re.compile(r"^\s*(?:-\s*)?branch:\s*(.+?)\s*$", re.MULTILINE)
 _WORKTREE_LINE_RE = re.compile(r"^\s*(?:-\s*)?worktree:\s*(.+?)\s*$", re.MULTILINE)
 
 
+def _delimited_value(raw: str) -> str:
+    """Normalize one captured `## Dev` line value.
+
+    A leading backtick delimits the value through its matching closing
+    backtick, which is what lets a caller append a trailing annotation
+    (``branch: `name` (Magicator repo)``). An unmatched backtick falls back to
+    whole-line stripping, so a half-written line still yields something usable.
+    Shared by the `pr:` / `branch:` / `worktree:` parsers so the three fields
+    cannot drift apart on the next edit.
+    """
+    value = raw.strip()
+    closing_tick = value.find("`", 1) if value.startswith("`") else -1
+    if closing_tick >= 0:
+        return value[1:closing_tick].strip()
+    return value.strip("`").strip()
+
+
 def parse_pr_url(blackboard_text: str) -> str | None:
     """Return the `pr:` URL under `## Dev`, or None if absent.
 
-    Mirrors `parse_branch_name`'s normalization: a leading backtick delimits the
-    value through its matching closing backtick, and an unmatched backtick falls
-    back to whole-line stripping. A URL never contains whitespace, so only the
-    first token is kept and a trailing annotation
-    (`pr: <url> (no CI configured)`) still yields the bare URL. Returns None for
-    a missing, empty, or placeholder value.
+    Normalizes like `parse_branch_name` via `_delimited_value`, then keeps only
+    the first whitespace-delimited token, since a URL never contains
+    whitespace — so a trailing annotation (`pr: <url> (no CI configured)`)
+    still yields the bare URL. Returns None for a missing, empty, or
+    placeholder value.
+
+    Scans *every* `pr:` line rather than only the first. The old anchored regex
+    simply failed to match a placeholder line and kept searching; rejecting it
+    in the guard instead would strand a ticket that records `pr: (not opened
+    yet)` and later appends the real link below it — the same silent skip this
+    parser exists to prevent.
     """
     section = _DEV_SECTION_RE.search(blackboard_text)
     if not section:
         return None
-    match = _PR_LINE_RE.search(section.group(1))
-    if not match:
-        return None
-    url = match.group(1).strip()
-    closing_tick = url.find("`", 1) if url.startswith("`") else -1
-    if closing_tick >= 0:
-        url = url[1:closing_tick].strip()
-    else:
-        url = url.strip("`").strip()
-    parts = url.split()
-    url = parts[0] if parts else ""
-    return url if _looks_like_pr_url(url) else None
+    for match in _PR_LINE_RE.finditer(section.group(1)):
+        tokens = _delimited_value(match.group(1)).split()
+        if tokens and _looks_like_pr_url(tokens[0]):
+            return tokens[0]
+    return None
 
 
 def _looks_like_pr_url(value: str) -> bool:
@@ -188,13 +206,7 @@ def parse_branch_name(blackboard_text: str) -> str | None:
     match = _BRANCH_LINE_RE.search(section.group(1))
     if not match:
         return None
-    name = match.group(1).strip()
-    closing_tick = name.find("`", 1) if name.startswith("`") else -1
-    if closing_tick >= 0:
-        name = name[1:closing_tick].strip()
-    else:
-        name = name.strip("`").strip()
-    return name or None
+    return _delimited_value(match.group(1)) or None
 
 
 def parse_worktree_path(blackboard_text: str) -> str | None:
@@ -212,12 +224,7 @@ def parse_worktree_path(blackboard_text: str) -> str | None:
     match = _WORKTREE_LINE_RE.search(section.group(1))
     if not match:
         return None
-    path = match.group(1).strip()
-    closing_tick = path.find("`", 1) if path.startswith("`") else -1
-    if closing_tick >= 0:
-        path = path[1:closing_tick].strip()
-    else:
-        path = path.strip("`").strip()
+    path = _delimited_value(match.group(1))
     if not path or path.startswith("("):
         return None
     return path

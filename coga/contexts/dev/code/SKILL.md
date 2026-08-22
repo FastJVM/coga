@@ -128,9 +128,11 @@ When to write each:
   path outside the primary checkout so it does not appear as an
   untracked directory in the control-plane checkout.
 - **`pr:`** — the full PR URL, one line. A trailing annotation after the URL
-  is fine (`pr: <url> (no CI configured on the repo)`), same as the two fields
-  above; the value must still be a real link — a placeholder like
-  `pr: (not opened yet)` reads as no PR at all. In workflows whose PR step uses
+  is fine (`pr: <url> (no CI configured on the repo)`) — and unlike the two
+  fields above, `pr:` needs no backticks around the value to make one safe,
+  because a bare `pr:` value ends at the first whitespace. The value must still
+  be a real link: a placeholder like `pr: (not opened yet)` reads as no PR at
+  all. In workflows whose PR step uses
   `code/open-pr` (e.g. `code/with-review`, `code/with-self-review`,
   `code/design-then-implement`), you do **not** write this line by hand: the
   `code/open-pr` agent step runs `coga open-pr <slug>` from the primary control

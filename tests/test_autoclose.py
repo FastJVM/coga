@@ -214,6 +214,23 @@ def test_parse_pr_url_placeholder_value_is_none(value: str) -> None:
     assert am.parse_pr_url(text) is None
 
 
+def test_parse_pr_url_skips_a_placeholder_line_above_the_real_one() -> None:
+    # The guard rejects a value the regex now happily matches, so the scan has
+    # to keep going. Anchoring on the first `pr:` line would strand a ticket
+    # that recorded a placeholder and appended the real link underneath it.
+    text = (
+        "## Dev\n\npr: (not opened yet)\npr: https://github.com/o/r/pull/8\n"
+    )
+    assert am.parse_pr_url(text) == "https://github.com/o/r/pull/8"
+
+
+def test_parse_pr_url_does_not_bleed_past_an_empty_pr_line() -> None:
+    # `\s` matches newlines, so a `\s*$` tail on the non-greedy capture would
+    # let an empty `pr:` line swallow the next non-blank line.
+    text = "## Dev\n\npr:\n\nhttps://github.com/o/r/pull/99\n"
+    assert am.parse_pr_url(text) is None
+
+
 def test_parse_branch_name_bare_form() -> None:
     text = "## Dev\n\nbranch: feature-x\npr: https://github.com/o/r/pull/1\n"
     assert am.parse_branch_name(text) == "feature-x"
