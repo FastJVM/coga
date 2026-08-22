@@ -131,8 +131,8 @@ When to write each:
   is fine (`pr: <url> (no CI configured on the repo)`) — and unlike the two
   fields above, `pr:` needs no backticks around the value to make one safe,
   because a bare `pr:` value ends at the first whitespace. The value must still
-  be a real link: a placeholder like `pr: (not opened yet)` reads as no PR at
-  all. In workflows whose PR step uses
+  contain `/pull/<number>`: a placeholder like `pr: (not opened yet)` or any
+  other link reads as no PR at all. In workflows whose PR step uses
   `code/open-pr` (e.g. `code/with-review`, `code/with-self-review`,
   `code/design-then-implement`), you do **not** write this line by hand: the
   `code/open-pr` agent step runs `coga open-pr <slug>` from the primary control

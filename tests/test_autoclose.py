@@ -203,9 +203,16 @@ def test_parse_pr_url_unclosed_backtick_falls_back_to_bare_form() -> None:
 
 
 @pytest.mark.parametrize(
-    "value", ["(not opened yet)", "none - blocked on CI", "TBD", "see the other ticket"]
+    "value",
+    [
+        "(not opened yet)",
+        "none - blocked on CI",
+        "TBD",
+        "see the other ticket",
+        "https://github.com/o/r/issues/58",
+    ],
 )
-def test_parse_pr_url_placeholder_value_is_none(value: str) -> None:
+def test_parse_pr_url_placeholder_or_non_pr_value_is_none(value: str) -> None:
     # `parse_worktree_path` rejects placeholders the same way. Unguarded, the
     # unanchored capture would hand `(not` / `none` to `gh pr view`, whose
     # GhError aborts the whole sweep (exit 2) — trading one silently skipped

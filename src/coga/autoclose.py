@@ -183,12 +183,12 @@ def _looks_like_pr_url(value: str) -> bool:
     are higher: the old `$`-anchored regex rejected `pr: (not opened yet)` and
     `pr: none - blocked on CI` by accident, and without a guard those captures
     reach `gh pr view`, whose `GhError` aborts the *whole* autoclose sweep with
-    exit 2 instead of skipping one ticket. Accept anything carrying a URL scheme
-    or a readable `/pull/<n>`; reject the rest.
+    exit 2 instead of skipping one ticket. Require the documented full PR URL
+    shape: downstream consumers also need its `/pull/<n>` component.
     """
     if not value or value.startswith("("):
         return False
-    return "://" in value or parse_pr_number(value) is not None
+    return parse_pr_number(value) is not None
 
 
 def parse_branch_name(blackboard_text: str) -> str | None:
