@@ -201,6 +201,7 @@ Verified against the package source during the 2026-08-15 Dream run in the
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/706
 branch: pr-line-annotations
 worktree: /home/n/Code/claude/coga-pr-line-annotations
 
