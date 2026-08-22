@@ -97,14 +97,17 @@ worktree: <path-to-feature-worktree>
 pr: <pr-url>
 ```
 
-`branch:` and `worktree:` are machine-readable fields. A bare value consumes
-the whole remainder of its line, which keeps worktree paths containing spaces
-valid. Keep arbitrary prose out of a bare value. When a repository annotation
-is useful, either backtick-delimit the value before the annotation:
+`branch:`, `worktree:`, and `pr:` are machine-readable fields. A bare
+`branch:` / `worktree:` value consumes the whole remainder of its line, which
+keeps worktree paths containing spaces valid; a bare `pr:` value ends at the
+first whitespace, since a URL never contains any. Keep arbitrary prose out of a
+bare value. When a repository annotation is useful, either backtick-delimit the
+value before the annotation:
 
 ```
 branch: `feature/name` (Magicator repo)
 worktree: `/tmp/path with spaces` (Magicator repo)
+pr: `https://github.com/acme/repo/pull/7` (Magicator repo)
 ```
 
 or put the annotation on a separate line:
@@ -112,6 +115,7 @@ or put the annotation on a separate line:
 ```
 branch: feature/name
 worktree: /tmp/path with spaces
+pr: https://github.com/acme/repo/pull/7
 Repository note: Magicator repo
 ```
 
@@ -123,7 +127,12 @@ When to write each:
 - **`worktree:`** — the moment you create the feature worktree. Use a
   path outside the primary checkout so it does not appear as an
   untracked directory in the control-plane checkout.
-- **`pr:`** — the full PR URL, one line. In workflows whose PR step uses
+- **`pr:`** — the full PR URL, one line. A trailing annotation after the URL
+  is fine (`pr: <url> (no CI configured on the repo)`) — and unlike the two
+  fields above, `pr:` needs no backticks around the value to make one safe,
+  because a bare `pr:` value ends at the first whitespace. The value must still
+  contain `/pull/<number>`: a placeholder like `pr: (not opened yet)` or any
+  other link reads as no PR at all. In workflows whose PR step uses
   `code/open-pr` (e.g. `code/with-review`, `code/with-self-review`,
   `code/design-then-implement`), you do **not** write this line by hand: the
   `code/open-pr` agent step runs `coga open-pr <slug>` from the primary control

@@ -210,6 +210,29 @@ def test_recorded_local_branch_attributes_only_human_non_coga_commits(
         )
 
 
+def test_parse_task_reads_annotated_pr_line(tmp_path: Path) -> None:
+    tasks_dir = tmp_path / "coga" / "tasks"
+    task = tasks_dir / "demo.md"
+    pr_url = "https://github.com/acme/widgets/pull/7"
+    _write(
+        task,
+        f"""
+        ---
+        slug: demo
+        human: nicktoper
+        ---
+        <!-- coga:blackboard -->
+        ## Dev
+        pr: {pr_url} (no CI configured on the repo)
+        """,
+    )
+
+    info = human_minutes.parse_task(task, tasks_dir=tasks_dir)
+
+    assert info.pr_url == pr_url
+    assert info.artifact == pr_url
+
+
 def test_json_report_merges_log_git_github_and_usage_records(
     tmp_path: Path, capsys
 ) -> None:
