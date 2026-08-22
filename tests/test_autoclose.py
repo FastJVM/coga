@@ -181,6 +181,39 @@ def test_parse_pr_url_list_item_form() -> None:
     assert am.parse_pr_url(text) == "https://github.com/o/r/pull/416"
 
 
+def test_parse_pr_url_trailing_annotation_form() -> None:
+    # `pr: <url> (annotation)` — the shape `_BRANCH_LINE_RE` / `_WORKTREE_LINE_RE`
+    # already tolerated but the `$`-anchored `_PR_LINE_RE` did not, so a merged
+    # final-step ticket annotated this way was silently skipped by the sweep.
+    text = (
+        "## Dev\n\n- pr: https://github.com/o/r/pull/55 "
+        "(no CI configured on the repo)\n"
+    )
+    assert am.parse_pr_url(text) == "https://github.com/o/r/pull/55"
+
+
+def test_parse_pr_url_backtick_wrapped_with_annotation() -> None:
+    text = "## Dev\n\npr: `https://github.com/o/r/pull/56` (Magicator repo)\n"
+    assert am.parse_pr_url(text) == "https://github.com/o/r/pull/56"
+
+
+def test_parse_pr_url_unclosed_backtick_falls_back_to_bare_form() -> None:
+    text = "## Dev\n\npr: `https://github.com/o/r/pull/57\n"
+    assert am.parse_pr_url(text) == "https://github.com/o/r/pull/57"
+
+
+@pytest.mark.parametrize(
+    "value", ["(not opened yet)", "none - blocked on CI", "TBD", "see the other ticket"]
+)
+def test_parse_pr_url_placeholder_value_is_none(value: str) -> None:
+    # `parse_worktree_path` rejects placeholders the same way. Unguarded, the
+    # unanchored capture would hand `(not` / `none` to `gh pr view`, whose
+    # GhError aborts the whole sweep (exit 2) — trading one silently skipped
+    # ticket for a failure on every remaining one.
+    text = f"## Dev\n\npr: {value}\n"
+    assert am.parse_pr_url(text) is None
+
+
 def test_parse_branch_name_bare_form() -> None:
     text = "## Dev\n\nbranch: feature-x\npr: https://github.com/o/r/pull/1\n"
     assert am.parse_branch_name(text) == "feature-x"
@@ -333,6 +366,26 @@ def test_sweep_merged_bumps_final_step_with_merged_pr(
 
     log = "\n".join(task_log_lines(cfg, slug))
     assert "auto-bumped on merge of PR #7" in log
+
+
+def test_sweep_merged_bumps_final_step_with_annotated_pr_line(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The live casualty: a final-step ticket whose `pr:` line carried a trailing
+    # note sat stranded `in_progress` after its PR merged, because the sweep
+    # read the annotated line as "no PR".
+    slug, path = _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/70 (no CI configured on the repo)",
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/70": "MERGED"})
+
+    cfg = load_config(repo)
+    result = am.sweep_merged(cfg, quiet=True)
+
+    assert len(result.closed) == 1
+    assert Ticket.read(path).status == "done"
 
 
 def test_sweep_merged_skips_non_final_step(

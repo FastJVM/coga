@@ -111,8 +111,12 @@ _DEV_SECTION_RE = re.compile(
 # `## Dev` lines are written both bare (`pr: <url>`) and bulleted
 # (`- pr: <url>`), and the bulleted shape is perfectly natural. Without the
 # prefix group a bulleted `pr:` line is invisible to the sweep, so a merged
-# final-step ticket is silently skipped and left stranded `in_progress`.
-_PR_LINE_RE = re.compile(r"^\s*(?:-\s*)?pr:\s*(\S+)\s*$", re.MULTILINE)
+# final-step ticket is silently skipped and left stranded `in_progress`. The
+# same sentence applied to a trailing annotation (`pr: <url> (no CI here)`),
+# which an anchored `(\S+)$` capture rejected while the `branch:` / `worktree:`
+# siblings tolerated it. Capture the rest of the line like they do and
+# normalize in `parse_pr_url`.
+_PR_LINE_RE = re.compile(r"^\s*(?:-\s*)?pr:\s*(.+?)\s*$", re.MULTILINE)
 _PR_NUMBER_RE = re.compile(r"/pull/(\d+)")
 # The `branch:` line is written inconsistently across existing tickets:
 # `branch: my-branch`, `- branch: \`my-branch\``, ``branch: `my-branch` ``.
@@ -128,12 +132,45 @@ _WORKTREE_LINE_RE = re.compile(r"^\s*(?:-\s*)?worktree:\s*(.+?)\s*$", re.MULTILI
 
 
 def parse_pr_url(blackboard_text: str) -> str | None:
-    """Return the `pr:` URL under `## Dev`, or None if absent."""
+    """Return the `pr:` URL under `## Dev`, or None if absent.
+
+    Mirrors `parse_branch_name`'s normalization: a leading backtick delimits the
+    value through its matching closing backtick, and an unmatched backtick falls
+    back to whole-line stripping. A URL never contains whitespace, so only the
+    first token is kept and a trailing annotation
+    (`pr: <url> (no CI configured)`) still yields the bare URL. Returns None for
+    a missing, empty, or placeholder value.
+    """
     section = _DEV_SECTION_RE.search(blackboard_text)
     if not section:
         return None
-    pr = _PR_LINE_RE.search(section.group(1))
-    return pr.group(1) if pr else None
+    match = _PR_LINE_RE.search(section.group(1))
+    if not match:
+        return None
+    url = match.group(1).strip()
+    closing_tick = url.find("`", 1) if url.startswith("`") else -1
+    if closing_tick >= 0:
+        url = url[1:closing_tick].strip()
+    else:
+        url = url.strip("`").strip()
+    parts = url.split()
+    url = parts[0] if parts else ""
+    return url if _looks_like_pr_url(url) else None
+
+
+def _looks_like_pr_url(value: str) -> bool:
+    """Whether a `pr:` capture is a link rather than a placeholder.
+
+    `parse_worktree_path` rejects placeholders the same way, but here the stakes
+    are higher: the old `$`-anchored regex rejected `pr: (not opened yet)` and
+    `pr: none - blocked on CI` by accident, and without a guard those captures
+    reach `gh pr view`, whose `GhError` aborts the *whole* autoclose sweep with
+    exit 2 instead of skipping one ticket. Accept anything carrying a URL scheme
+    or a readable `/pull/<n>`; reject the rest.
+    """
+    if not value or value.startswith("("):
+        return False
+    return "://" in value or parse_pr_number(value) is not None
 
 
 def parse_branch_name(blackboard_text: str) -> str | None:

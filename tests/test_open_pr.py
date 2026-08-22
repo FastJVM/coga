@@ -163,6 +163,38 @@ def test_open_pr_opens_and_records_url(tmp_path, monkeypatch):
     assert parse_pr_url(read_blackboard(ticket)) == url
 
 
+def test_open_pr_preserves_an_annotated_pr_line_that_already_matches(
+    tmp_path, monkeypatch
+):
+    """An annotated `pr:` line naming this same PR survives the round trip.
+
+    The post-write check compares `parse_pr_url(current_blackboard)` to the URL.
+    While that parse rejected annotated lines it read `None != url`, so
+    `set_dev_pr` rewrote the whole line and destroyed the annotation.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    url = "https://github.com/acme/repo/pull/21"
+    _install_fake_gh(monkeypatch, bin_dir, create_url=url)
+
+    wt = _feature_worktree(repo, tmp_path, "feature-annotated", commit=True)
+    ticket = _write_ticket(
+        repo.coga_os,
+        "annotated",
+        branch="feature-annotated",
+        worktree=wt,
+        pr=f"{url} (no CI configured on the repo)",
+    )
+
+    cfg = load_config(repo.coga_os)
+    assert open_pr(cfg, slug="annotated", blackboard_path=ticket) == url
+
+    blackboard = read_blackboard(ticket)
+    assert f"pr: {url} (no CI configured on the repo)" in blackboard
+    assert parse_pr_url(blackboard) == url
+
+
 def test_open_pr_refuses_canceled_ticket_before_git_mutation(tmp_path) -> None:
     repo = init_git_repo(tmp_path)
     ticket_path = _write_ticket(
