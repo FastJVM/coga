@@ -104,9 +104,10 @@ coga/
   coga.toml             ← shared config (committed)
   coga.local.toml       ← machine-local (NEVER committed; secrets here)
   context.md             ← repo-context layer of the composed prompt
-  recurring/<name>/      ← recurring task template directories
-                           (single-file ticket.md; history in the
-                           repo-global coga/log.md)
+  recurring/<name>/      ← recurring task template directories (ticket.md,
+                           plus the exact sibling ticket.py when the job is
+                           deterministic — copied into every period task;
+                           history in the repo-global coga/log.md)
   tasks/<slug>/          ← directory-form ticket.md plus optional attachments;
                            exact sibling ticket.py is its deterministic phase
   tasks/<dir>/.../<slug>/ ← tickets in sub-dirs at any depth (ref'd by path)
@@ -335,7 +336,7 @@ wrong checkout silently produces wrong results in both directions:
   the live value drifts — the `recurring/autoclose-merged` serviced-period
   date did exactly this, independently re-diagnosed as a "pre-existing failure"
   across at least four dev tasks (a recurring verification tax). Strip
-  runtime-mutated fields (recipe cursors, timestamped log lines — see
+  runtime-mutated fields (run cursors, timestamped log lines — see
   `_strip_runtime_state`) or freeze the period before comparing; assert
   structure, not a hardcoded date.
 

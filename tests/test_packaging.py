@@ -120,6 +120,15 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     ),
     (
+        "coga/contexts/coga/patterns/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/patterns/SKILL.md",
+    ),
+    (
+        "coga/contexts/coga/principles/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/principles/"
+        "SKILL.md",
+    ),
+    (
         "coga/contexts/coga/architecture/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/"
         "SKILL.md",
@@ -143,6 +152,50 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
     (
         "coga/workflows/build/onboarding.md",
         "src/coga/resources/templates/coga/workflows/build/onboarding.md",
+    ),
+    # The five recurring templates and their one-step workflows carry the
+    # `ticket.py` migration in both copies. `digest/post` is the odd one: its
+    # packaged twin is the *bundled* `bootstrap/workflows/` copy, not an init
+    # payload under `templates/coga/workflows/`.
+    (
+        "coga/workflows/digest/post.md",
+        "src/coga/resources/templates/coga/bootstrap/workflows/digest/post.md",
+    ),
+    (
+        "coga/workflows/autoclose-merged/sweep.md",
+        "src/coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
+    ),
+    (
+        "coga/workflows/blocker-reminders/run.md",
+        "src/coga/resources/templates/coga/workflows/blocker-reminders/run.md",
+    ),
+    (
+        "coga/workflows/branch-sweep/sweep.md",
+        "src/coga/resources/templates/coga/workflows/branch-sweep/sweep.md",
+    ),
+    (
+        "coga/workflows/skill-update/run.md",
+        "src/coga/resources/templates/coga/workflows/skill-update/run.md",
+    ),
+    (
+        "coga/recurring/autoclose-merged/ticket.py",
+        "src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py",
+    ),
+    (
+        "coga/recurring/blocker-reminders/ticket.py",
+        "src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.py",
+    ),
+    (
+        "coga/recurring/branch-sweep/ticket.py",
+        "src/coga/resources/templates/coga/recurring/branch-sweep/ticket.py",
+    ),
+    (
+        "coga/recurring/digest/ticket.py",
+        "src/coga/resources/templates/coga/recurring/digest/ticket.py",
+    ),
+    (
+        "coga/recurring/skill-update/ticket.py",
+        "src/coga/resources/templates/coga/recurring/skill-update/ticket.py",
     ),
 )
 

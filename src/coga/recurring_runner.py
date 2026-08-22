@@ -24,8 +24,6 @@ from coga.commands.launch import _interactive_stdio_has_tty
 from coga.config import (
     Config,
     ConfigError,
-    SecretError,
-    build_launch_env,
     load_config,
     parse_owner,
 )
@@ -49,14 +47,10 @@ from coga.recurring import (
 )
 from coga.period_state import SNAPSHOT_FILE, parse_keys
 from coga.mark import (
-    StrandedProductCode,
     mark_active,
-    mark_done,
-    mark_in_progress,
     mark_paused,
 )
-from coga.notification import notify, post
-from coga.task_env import apply_task_env, host_repo_root
+from coga.notification import notify
 from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
@@ -669,8 +663,8 @@ def run_recurring_scan(
     is identical to a normal run.
 
     `agent_override` temporarily selects the configured agent for agent-backed
-    tasks. It never rewrites the ticket, and registered recipe tasks keep
-    their deterministic execution path.
+    tasks. It never rewrites the ticket, and a period task carrying `ticket.py`
+    keeps its deterministic execution path.
 
     A git-backed interactive run requires the configured control branch to be
     checked out, but does not require its remote tip to be reachable. A child
@@ -753,32 +747,47 @@ def run_recurring_scan(
                 forced_refusals += 1
                 typer.secho(str(exc), fg=typer.colors.RED, err=True)
                 continue
-        if task.recipe:
-            code = _run_recipe_task(cfg, task)
+        # One dispatch for every template: `coga launch` classifies the period
+        # task from its own directory, so a `ticket.py` template runs
+        # deterministically and an agent template composes a prompt, without
+        # this sweep holding a second copy of that rule.
+        #
+        # Sequential by design: each launch blocks until the session exits
+        # before the next begins. `scan_due` filters out templates that cannot
+        # run in the current stdio context (an agent run with no TTY), and the
+        # liveness backstops release any that launch but then stall. `launch`
+        # returns "timeout" when a backstop fired so we record the wedge
+        # honestly below instead of pausing it as a human would.
+        try:
+            kind = launch_cmd(
+                task.ref.id_slug,
+                agent_override=agent_override,
+                prompt_report=False,
+                idle_timeout=idle_timeout,
+                max_session=max_session,
+                return_timeout=True,
+                script_failure_important=True,
+                # An automatic sweep's agent must announce-and-continue and end
+                # owner decisions in `coga block` — a conversational ask hangs
+                # the queue until a liveness timeout fails the task.
+                # `--interactive` is a human stepping through by hand, so it
+                # keeps plain launches.
+                queue_guidance=not interactive,
+            )
+        except SystemExit as exc:
+            # A failed `ticket.py` exits the launch. Return that code instead
+            # of unwinding the process, so the sweep stops where the old recipe
+            # dispatch stopped *and* the command still reaches its exit-boundary
+            # git sync. The task is deliberately left unfinished, not paused.
+            code = _exit_status(exc)
             if code:
                 return code
-            continue
-        # Sequential by design: each launch blocks until the agent session
-        # exits before the next begins. `scan_due` filters out templates that
-        # cannot run in the current stdio context (an agent run with no TTY), and
-        # the liveness backstops release any that launch but then stall. `launch`
-        # returns "timeout" when a backstop fired so we record the wedge honestly
-        # below instead of pausing it as a human would.
-        kind = launch_cmd(
-            task.ref.id_slug,
-            agent_override=agent_override,
-            prompt_report=False,
-            idle_timeout=idle_timeout,
-            max_session=max_session,
-            return_timeout=True,
-            # An automatic sweep's agent must announce-and-continue and end
-            # owner decisions in `coga block` — a conversational ask hangs the
-            # queue until a liveness timeout fails the task. `--interactive`
-            # is a human stepping through by hand, so it keeps plain launches.
-            queue_guidance=not interactive,
-        )
+            kind = None
         _stop_if_unfinished_after_launch(
-            cfg, task.ref, timed_out=(kind == "timeout")
+            cfg,
+            task.ref,
+            timed_out=(kind == "timeout"),
+            script_stopped=(kind == "script"),
         )
     return 2 if forced_refusals else 0
 
@@ -801,123 +810,6 @@ def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
         agent_override=args.agent,
         require_fresh_control=args.require_fresh_control,
     )
-
-
-def _run_recipe_task(cfg: Config, task: DueTask) -> int:
-    """Run one recipe-backed period task with ordinary lifecycle bookkeeping."""
-    if task.ref is None or task.recipe is None:
-        raise RecurringError("recipe-backed recurring task is missing its target")
-
-    ref = task.ref
-    ticket = read_ticket(ref)
-    try:
-        env = build_launch_env(cfg, ticket.secrets)
-    except SecretError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        return 2
-    env = apply_task_env(env, cfg, ref, ticket)
-
-    if ticket.status == "active":
-        cur = ticket.current_step()
-        step_note = f" (step {ticket.step_index()}: {cur['name']})" if cur else ""
-        try:
-            mark_in_progress(
-                cfg,
-                ref,
-                ticket,
-                actor="system",
-                log_message=(
-                    "started (active → in_progress) via recurring recipe "
-                    f"{task.recipe}"
-                ),
-                slack_text=(
-                    f"▶️ recipe started *{ref.id_slug}* "
-                    f"\"{ticket.title}\"{step_note}"
-                ),
-                echo=f"{ref.id_slug}: in_progress",
-            )
-        except TaskValidationError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-            return 2
-
-    append_log(
-        cfg,
-        ref.id_slug,
-        "system",
-        f"launched as recipe ({task.recipe})",
-    )
-    git.sync_log(cfg, message=f"Log: {ref.id_slug}")
-
-    result = subprocess.run(
-        [sys.executable, "-m", "coga.cli", "run", task.recipe],
-        env=env,
-        cwd=host_repo_root(cfg),
-        check=False,
-    )
-    code = result.returncode
-    if ref.ticket_path.exists():
-        append_log(
-            cfg,
-            ref.id_slug,
-            "system",
-            f"recipe {task.recipe} exited with code {code}",
-        )
-
-    if code:
-        post(
-            cfg,
-            f"💥 recipe failed on *{ref.id_slug}* "
-            f"\"{ticket.title}\": {task.recipe} exited {code}",
-            task_path=ref.path,
-            owner=ticket.owner or cfg.current_user,
-            watchers=ticket.watchers,
-            important=True,
-        )
-        typer.secho(
-            f"{ref.id_slug}: recipe {task.recipe} exited with {code}; "
-            "task left unfinished.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return code
-
-    typer.echo(f"{ref.id_slug}: recipe {task.recipe} ran successfully")
-    if not ref.ticket_path.exists():
-        return 0
-
-    after_recipe = Ticket.read(ref.ticket_path)
-    if after_recipe.status in TERMINAL_STATUSES:
-        return 0
-    try:
-        mark_done(
-            cfg,
-            ref,
-            after_recipe,
-            actor="system",
-            log_message=(
-                f"completed (recipe {task.recipe} exited 0) via coga recurring"
-            ),
-            slack_text=(
-                f"✅ recipe completed *{ref.id_slug}* "
-                f"\"{after_recipe.title}\""
-            ),
-            digest_detail=f"→ done (recipe: {task.recipe})",
-            echo=f"{ref.id_slug}: done",
-        )
-    except StrandedProductCode as exc:
-        listed = "\n".join(f"    {path}" for path in exc.paths)
-        typer.secho(
-            f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow "
-            "has no push/PR step, but this checkout committed tracked product "
-            f"code not on the control branch:\n{listed}",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return 2
-    except TaskValidationError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        return 2
-    return 0
 
 
 def run_recurring_named(
@@ -948,7 +840,6 @@ def run_recurring_named(
         return 2
     try:
         outcome = create_named(cfg, name)
-        recipe = Template.load(recurring_dir(cfg) / name).recipe
     except RecurringError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return 2
@@ -1003,7 +894,6 @@ def run_recurring_named(
     return _launch_created(
         cfg,
         ref,
-        recipe=recipe,
         interactive=interactive,
         agent_override=agent_override,
     )
@@ -1068,7 +958,6 @@ def _launch_created(
     cfg: Config,
     ref: TaskRef,
     *,
-    recipe: str | None = None,
     interactive: bool = False,
     agent_override: str | None = None,
 ) -> int:
@@ -1099,35 +988,40 @@ def _launch_created(
 
     verb = "Resuming" if ticket.status == "in_progress" else "Launching"
     typer.echo(f"{verb} {ref.id_slug}")
-    if recipe:
-        return _run_recipe_task(
-            cfg,
-            DueTask(
-                template=ref.slug,
-                ref=ref,
-                last_fire=datetime.now(),
-                created=False,
-                status=ticket.status or "",
-                recipe=recipe,
-            ),
-        )
     from coga.commands.launch import launch as launch_cmd
 
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
-    launch_cmd(
-        ref.id_slug,
-        agent_override=agent_override,
-        prompt_report=False,
-        idle_timeout=idle_timeout,
-        max_session=max_session,
-        return_timeout=False,
-        # Same queue posture as the full sweep: automatic launches get the
-        # announce-and-continue / block-don't-ask guidance; `--interactive`
-        # human-stepped runs keep plain launches.
-        queue_guidance=not interactive,
-    )
+    try:
+        launch_cmd(
+            ref.id_slug,
+            agent_override=agent_override,
+            prompt_report=False,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+            return_timeout=False,
+            script_failure_important=True,
+            # Same queue posture as the full sweep: automatic launches get the
+            # announce-and-continue / block-don't-ask guidance; `--interactive`
+            # human-stepped runs keep plain launches.
+            queue_guidance=not interactive,
+        )
+    except SystemExit as exc:
+        # A failed `ticket.py` is this command's result, not a process abort:
+        # returning the code keeps the caller's exit-boundary git sync.
+        return _exit_status(exc)
     return 0
+
+
+def _exit_status(exc: SystemExit) -> int:
+    """The integer result of a launch that exited instead of returning.
+
+    `SystemExit.code` is `None` for a clean exit and may be a message string;
+    a non-integer code is a failure by CPython's own convention.
+    """
+    if exc.code is None:
+        return 0
+    return exc.code if isinstance(exc.code, int) else 2
 
 
 def _valid_agent_override(cfg: Config, agent_override: str | None) -> bool:
@@ -1180,7 +1074,7 @@ def _sync_recurring_create(
     # The serviced-period ledger is the repo-global, union-merged `coga/log.md`
     # (appended by `_record_run`), which never rides the cross-branch overlay —
     # so this sync reconciles no scheduler state at all. The template ticket
-    # stays in the overlay only for the *recipe* cursors it carries
+    # stays in the overlay only for the *run* cursors it carries
     # (`state_keys` values, the digest's `### Digest State`).
     template_ticket = template_dir / "ticket.md"
     original_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
@@ -1488,7 +1382,7 @@ def _control_template_or_local(
     """Control's template `ticket.md`, falling back to the local copy.
 
     The template no longer carries scheduler state — the serviced-period ledger
-    is the repo-global log — but it still carries *recipe* cursors
+    is the repo-global log — but it still carries *run* cursors
     (`state_keys` values, the digest's `### Digest State`). Control wins because
     its copy holds whichever cursor advanced most recently, so a stale checkout
     adopts it instead of re-running from a stale cursor.
@@ -1898,7 +1792,7 @@ def _reconcile_forced_period_after_control_restore(
 
     Returns the template text to keep locally. The serviced-period ledger is
     the repo-global log, so nothing scheduler-owned is merged here; the
-    template is touched only for the *recipe* cursors it carries.
+    template is touched only for the *run* cursors it carries.
     """
     control_ticket = _show_path(root, ref, ticket_rel)
     if not record_period:
@@ -2026,7 +1920,7 @@ def _adopt_control_template(
     ref: str,
     local_ticket: str,
 ) -> None:
-    """Point the local template at control's copy of its recipe cursors."""
+    """Point the local template at control's copy of its run cursors."""
     template_ticket.write_text(
         _control_template_or_local(root, ref, ticket_rel, local_ticket)
     )
@@ -2176,7 +2070,11 @@ def _git_toplevel(start: Path) -> Path | None:
 
 
 def _stop_if_unfinished_after_launch(
-    cfg: Config, ref: TaskRef, *, timed_out: bool = False
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    timed_out: bool = False,
+    script_stopped: bool = False,
 ) -> None:
     """Pause a recurring task when its agent launch returns unfinished.
 
@@ -2191,12 +2089,19 @@ def _stop_if_unfinished_after_launch(
     run. We pause it (so the next scan doesn't relaunch the orphan) but log and
     broadcast it as a watchdog *timeout*, with a system actor, then continue the
     sweep so one wedge can't starve the tasks behind it.
+
+    A script that deliberately records `blocked` has also completed its
+    deterministic phase: preserve that supported lifecycle signal. An agent
+    session that blocks is still paused by the scheduled-run contract, so this
+    exception is gated on the launcher's script-only stop kind.
     """
     if not (ref.ticket_path).exists():
         return
 
     ticket = read_ticket(ref)
     if ticket.status in TERMINAL_STATUSES or ticket.status == "paused":
+        return
+    if script_stopped and ticket.status == "blocked":
         return
 
     if timed_out:

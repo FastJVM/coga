@@ -286,16 +286,18 @@ def test_validate_accepts_a_valid_recurring_schedule_and_skips_parked_ones(
 
 
 @pytest.mark.parametrize(
-    ("recipe_line", "message"),
-    [
-        ('recipe: ""', "`recipe` must be a non-empty string"),
-        ("recipe: []", "`recipe` must be a non-empty string"),
-        ("recipe: not-registered", "unknown recipe 'not-registered'"),
-    ],
+    "recipe_line",
+    ['recipe: ""', "recipe: []", "recipe: not-registered"],
 )
-def test_validate_rejects_invalid_recurring_recipe(
-    repo: Path, recipe_line: str, message: str
+def test_validate_tolerates_the_deleted_recurring_recipe_key(
+    repo: Path, recipe_line: str
 ) -> None:
+    """`recipe:` left the template format; a leftover key is inert, not an error.
+
+    Deterministic execution is deduced from the reserved `ticket.py` sibling,
+    so validation has no registry to check the stale value against — exactly
+    like the legacy `script: null` keys below.
+    """
     _write(
         repo / "recurring" / "recipe-check" / "ticket.md",
         f"""
@@ -309,13 +311,44 @@ def test_validate_rejects_invalid_recurring_recipe(
 
     report = run(load_config(repo))
 
-    issue = next(
+    assert not [
         issue
         for issue in report.issues
         if issue.kind == "bad-recurring-template"
+    ]
+
+
+def test_validate_reports_broken_recurring_template_entry_point(
+    repo: Path,
+) -> None:
+    """A template's `ticket.py` is checked before any period task exists.
+
+    It is copied verbatim into every period task, so a file that cannot even
+    compile is a run that fails at the next firing — the same class of surprise
+    the deleted `recipe:` registry check used to catch.
+    """
+    _write(
+        repo / "recurring" / "script-check" / "ticket.md",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Script check
+        ---
+        """,
     )
-    assert issue.task == "recurring/recipe-check"
-    assert message in issue.message
+    (repo / "recurring" / "script-check" / "ticket.py").write_text(
+        "def broken(\n"
+    )
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "unrunnable-script-entry-point"
+    )
+    assert issue.task == "recurring/script-check"
+    assert "does not compile" in issue.message
 
 
 def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:

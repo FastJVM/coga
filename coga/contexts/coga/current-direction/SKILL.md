@@ -15,7 +15,7 @@ Last updated: 2026-07-30.
   namespace/identity marker; the schedule period is recorded in the
   repo-global `coga/log.md` as a `created|reused <task-ref> for <period>`
   line. That append-only record *is* the dedup source — a mark in the template
-  blackboard was reachable by any recipe rewriting that region, which made
+  blackboard was reachable by any run rewriting that region, which made
   serviced periods re-fire.
 
 - **The lifecycle stays ordinary and Dream owns cleanup.** `coga recurring`
