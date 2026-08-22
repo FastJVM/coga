@@ -103,10 +103,13 @@ no in-memory state.
   visible template error in scans and status, never an "already ran" result. It lives
   there because the log is append-only and union-merged — a co-writer
   rewriting a region of a template's blackboard cannot destroy an appended
-  line, and the record outlives the period task Dream reaps. A template may select a known deterministic implementation with
-  `recipe:`; the scanner executes that recipe in an isolated `coga run`
-  subprocess with the period task's scoped secrets and `COGA_TASK_*`
-  metadata. Other templates launch the ordinary agent workflow.
+  line, and the record outlives the period task Dream reaps. A template with a
+  reserved `ticket.py` sibling has a deterministic half; the creator copies
+  that file into each period task, and the scanner hands every template to one
+  `coga launch` call, which runs it as an isolated subprocess with the period
+  task's scoped secrets and `COGA_TASK_*` metadata. Templates without it launch
+  the ordinary agent workflow. Nothing declares the choice — there is no
+  `recipe:` or mode field.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard
   machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
@@ -601,8 +604,10 @@ Deterministic core jobs use `coga run <recipe> [args...]`. The fixed
 or executable-skill plugin surface. Recipes receive ordinary argv, preserve
 argument boundaries and option spelling, propagate their integer return code
 and stdout/stderr, and re-derive `COGA_TASK_*` for instantiated recurring
-tasks. A recurring template selects this path with `recipe:`; without one, its
-period task is an agent launch and therefore needs a TTY.
+tasks — including a ticket's own `ticket.py`, which may import a registered
+recipe function directly. A recurring template's deterministic path is that
+`ticket.py` sibling; without one, its period task is an agent launch and
+therefore needs a TTY.
 
 There is no `autonomy:` field. The old `auto`, `skip_permissions`, and
 `skip_permissions_argv` agent keys are removed; config load rejects them with
@@ -922,13 +927,13 @@ delivery mechanism. Known limitation: the contract audit's own corpus globs
 `bootstrap/skills/**`, so the bundled Dream skills — the scan skills included
 — sit outside the surface that audit reads.
 
-Every launched agent, ticket script, and recurring recipe subprocess receives
+Every launched agent and ticket script subprocess receives
 task metadata as environment variables:
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
 `COGA_TASK_BLACKBOARD`, `COGA_TASK_LOG`, `COGA_TASK_STEP`,
 `COGA_COGA_OS_ROOT`, and `COGA_REPO_ROOT`. `COGA_TASK_STEP` is the frozen
 `<n> (<name>)` value and is absent when the target has no workflow step. The
-shared launch boundaries and recurring recipe runner
+shared launch boundaries
 **clear the whole namespace and re-derive it** from the launched task, so
 nested work cannot inherit the outer task's paths — and a variable the target
 does not export cannot survive by inheritance either. `COGA_COGA_OS_ROOT` is

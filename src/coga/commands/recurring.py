@@ -65,7 +65,7 @@ def main(
         None,
         "--agent",
         help="Agent type to use for agent-backed recurring tasks in this "
-        "sweep. Registered recipe tasks remain deterministic; ticket "
+        "sweep. A template carrying `ticket.py` stays deterministic; ticket "
         "assignees are not rewritten.",
     ),
 ) -> None:
@@ -128,8 +128,8 @@ def launch(
         None,
         "--agent",
         help="Agent type to use for this agent-backed recurring launch. "
-        "Registered recipe tasks remain deterministic; the ticket assignee "
-        "is not rewritten.",
+        "A template carrying `ticket.py` stays deterministic; the ticket "
+        "assignee is not rewritten.",
     ),
 ) -> None:
     """Create a named recurring template now and launch it."""

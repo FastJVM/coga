@@ -2,10 +2,9 @@
 schedule: "0 9 * * 1"
 schedule_comment: "Every Monday at 9am — update clean imported skills into one reviewable PR"
 title: "Skill update"
-recipe: skill-update
-# The recurring runner executes this registered recipe directly with no agent.
-# The one-step workflow keeps the period task's lifecycle and skill contract
-# legible.
+# The reserved `ticket.py` sibling is this task's deterministic half: `coga
+# launch` runs it directly, with no agent and no composed prompt. The one-step
+# workflow keeps the period task's lifecycle and skill contract legible.
 workflow: skill-update/run
 ---
 
@@ -15,7 +14,7 @@ Update every clean imported (Coga-managed) skill in one reviewable PR.
 
 Imported skills live as plain directories under `coga/skills/` with
 `.coga-source.json` provenance. Once a week this ticket fires on its schedule
-and its recipe runs `coga skill update --all --pr`, which:
+and its `ticket.py` runs `coga skill update --all --pr`, which:
 
 1. walks every imported skill with recorded provenance,
 2. rewrites in place each skill whose upstream digest changed and whose local
@@ -32,12 +31,12 @@ skills are not touched here — they refresh when the coga package is upgraded.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
 PR is opened. A week with only follow-up statuses is intentionally loud: after
-writing the `## Skill Update` report, the recipe exits non-zero so this period
+writing the `## Skill Update` report, `ticket.py` exits non-zero so this period
 task remains visible until a human resolves or parks it.
 
 <!-- coga:blackboard -->
 
 This blackboard persists across every run of this recurring task. Each period
-task gets its own blackboard; the `skill-update` recipe appends its
+task gets its own blackboard; the `skill-update` run appends its
 `## Skill Update` report there, not here. This template keeps no durable state
 — every run's output is the skill-update PR and the period task's report.

@@ -72,12 +72,13 @@ Wire the consumer as a `recurring/<job>/` ticket (see `coga/recurring`):
 - The spool lives next to the recurring template as
   `coga/recurring/<job>/spool.md`, so it carries across runs — not in the
   fresh per-period task, which is gone next period.
-- The consumer is a registered recipe named by the template's `recipe:` field;
-  the recurring runner executes it as `coga run <recipe>` in an isolated
-  subprocess. The daily Slack digest is the canonical instance
-  (`recipe: digest` → `commands/digest.run_digest`): see `coga/sync` → "The
-  daily digest — a blackboard producer/consumer", with `coga digest` as the
-  consumer.
+- The consumer is the template's own `ticket.py` — the reserved sibling that
+  makes the job deterministic — which imports the core function and calls it,
+  then closes its step with `coga bump`. `coga launch` runs that file in an
+  isolated subprocess; no declaration field selects it. The daily Slack digest
+  is the canonical instance (`recurring/digest/ticket.py` →
+  `commands/digest.run_digest_recipe`): see `coga/sync` → "The daily digest — a
+  blackboard producer/consumer", with `coga digest` as the consumer.
 
 ## Durability and concurrency
 

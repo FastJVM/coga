@@ -2,10 +2,9 @@
 schedule: "0 10 * * *"
 schedule_comment: "Every day at 10am - remind owners about unresolved blocker asks"
 title: "Blocker reminders"
-recipe: blocker-reminders
-# The recurring runner executes this registered recipe directly with no agent.
-# The one-step workflow keeps the period task's lifecycle and skill contract
-# legible.
+# The reserved `ticket.py` sibling is this task's deterministic half: `coga
+# launch` runs it directly, with no agent and no composed prompt. The one-step
+# workflow keeps the period task's lifecycle and skill contract legible.
 workflow: blocker-reminders/run
 ---
 
@@ -18,7 +17,8 @@ Agents stop through `coga block`, which appends an unresolved ask under
 handshake stays command-owned: run `coga unblock <slug> --answer "..."`, then
 launch or megalaunch can resume the task from the files.
 
-Once a day this recurring recipe scans ordinary tasks, including recurring
+Once a day this recurring task's `ticket.py` scans ordinary tasks, including
+recurring
 period tasks, whose frontmatter says `status: blocked`. For each unresolved
 blocker that has not already been reminded, it:
 

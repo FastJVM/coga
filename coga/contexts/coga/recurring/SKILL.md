@@ -77,11 +77,15 @@ the example under "Extend recurring with a task-specific workflow").
   task would preserve stale run instructions and residue. A live
   stale leftover under `tasks/recurring/<name>/` is resumed before any new
   period work for that template; there is only one instantiated path per
-  template. A recipe-backed task runs in an isolated `coga run <recipe>`
-  subprocess from the host repo with its period ticket's scoped secrets and
-  freshly derived `COGA_TASK_*` metadata. The runner marks `active →
-  in_progress` before starting, marks a successful one-step task `done`, and
-  leaves a non-zero result unfinished after reporting it.
+  template. Every template is launched the same way — the sweep has no
+  dispatch of its own — and `coga launch` classifies each period task from its
+  own directory. A task carrying `ticket.py` runs that file as a subprocess
+  from the host repo with the period ticket's scoped secrets and freshly
+  derived `COGA_TASK_*` metadata; no prompt is composed and no agent starts.
+  The launcher marks `active → in_progress` before starting and then leaves
+  the workflow alone: the script closes its own step (`coga bump`), exactly as
+  an agent does. A non-zero exit halts the launch, leaves the task unfinished,
+  and stops the sweep after reporting it.
 - `coga recurring --force` — ignores schedule and status filters and attempts
   the real period task for every template, reactivating `done` and `paused`
   runs. A `canceled` task remains terminal: the runner reports a controlled
@@ -118,12 +122,12 @@ the example under "Extend recurring with a task-specific workflow").
   error, so a template that would silently never fire fails validation
   instead of surprising you at the next sweep. A parked `_`-prefixed
   directory is exempt — it is inert by design.
-- there is no `mode` field. A known `recipe:` selects deterministic recipe
-  execution directly; without one, the task is agent-backed. Agent templates
-  need a TTY and run under the REPL supervisor; recipes run headlessly.
-- `recipe` — optional fixed Coga recipe name. It must be a non-empty name in
-  the explicit core registry; installed skills are not recipe plugins.
-  `coga validate` rejects unknown names.
+- there is no `mode` field and no `recipe:` field. Execution is **deduced**:
+  a template that carries the reserved sibling `ticket.py` is deterministic;
+  one that does not is agent-backed. Agent templates need a TTY and run under
+  the REPL supervisor; `ticket.py` templates run headlessly. A leftover
+  `recipe:` key from the old format is inert — it selects nothing and is not a
+  validation error.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered
@@ -233,7 +237,7 @@ What promote does to the ticket, and why:
 - The body above the blackboard fence travels verbatim — the `## Description`
   is what each period task runs.
 - The blackboard is **reset**. A task blackboard is one run's scratch; a
-  template blackboard is durable cross-run state (recipe cursors). The old
+  template blackboard is durable cross-run state (run cursors). The old
   text stays in git history.
 - `status:`, `step:`, `slug:`, `human:`, and `agent:` are dropped — per-run and
   per-launch fields the creator re-derives for every period task. `title`,
@@ -274,7 +278,7 @@ its step-skill and `contexts:` references, copies the template body into the
 period task, and appends `coga/period-task` to its contexts. The resulting
 `coga/tasks/recurring/<name>/` ticket uses the normal lifecycle, per-step
 assignee, blocker, and completion machinery. The sweep selects an explicit
-recipe before falling back to an ordinary agent launch, and adds
+deterministic half before falling back to an ordinary agent launch, and adds
 post-launch handling for unfinished runs as described below.
 
 To schedule a task-specific workflow:
@@ -324,12 +328,13 @@ This extension seam has five important constraints:
   that run and is deleted with the task. Put cursors and other cross-run state
   in the recurring template's own blackboard, optionally naming them in
   `state_keys:` so completion warns when a run forgets to advance one.
-- **Recipe resolution is fixed, not extensible from the template.** A
-  `recipe:` value must name one of Coga's registered core recipes. The runner
-  passes no template-defined arguments; recipe-specific argv belongs on an
-  explicit `coga run` invocation. A recipe owns the whole deterministic run:
-  success marks its one-step period task done, while non-zero leaves it
-  `in_progress`.
+- **The deterministic half is one fixed filename, not a plugin table.** A
+  template's `ticket.py` is copied into each period task and run as
+  `[sys.executable, "<task>/ticket.py"]` with no operands; per-run argv belongs
+  on an explicit `coga run` invocation instead. The script owns the whole
+  deterministic run *including its own completion* — it ends in `coga bump`
+  (or `coga mark done`), and the launcher never advances the workflow on its
+  behalf. A non-zero exit leaves the period task `in_progress`.
 - **A scheduled agent run must reach `done` in one launch.** When a bare
   `coga recurring` sweep gets control back from an unfinished agent launch, it
   pauses the period task before continuing. That includes an intermediate
@@ -339,10 +344,11 @@ This extension seam has five important constraints:
   agent workflow. Use the on-demand `coga recurring launch <name>` path (then
   drive the ordinary ticket handoff) or an ordinary task when a run needs
   those intermediate states.
-- **Agent work needs a TTY; recipes can be headless.** An agent-backed
+- **Agent work needs a TTY; a `ticket.py` half does not.** An agent-backed
   template needs stdin and stdout TTYs and runs under the REPL supervisor; a
-  TTY-less sweep skips it with a warning. A registered recipe runs directly
-  without a TTY and is the appropriate shape for an unattended scheduler.
+  TTY-less sweep skips it with a warning. A template carrying `ticket.py` runs
+  directly without a TTY and is the appropriate shape for an unattended
+  scheduler.
 
 The creator performs a deliberate template-to-ticket transform, not an
 arbitrary frontmatter clone. Use the recurring fields documented above. In
@@ -361,7 +367,7 @@ So a recurring task that needs continuity between runs (a last-processed
 commit SHA, a cursor, a posted/skipped flag) keeps that state in **its own**
 blackboard region: the part of `coga/recurring/<name>/ticket.md` below the
 fence. The *schedule* high-water mark is deliberately **not** kept there: it
-lives in the repo-global log, out of reach of any recipe that rewrites a
+lives in the repo-global log, out of reach of any run that rewrites a
 region of this blackboard.
 
 When designing a recurring task that carries cross-run state, name in the
@@ -389,7 +395,7 @@ task, which carries that rule.
   `coga recurring launch <name>` (and aliases like `coga dream`) bypass this
   skip: it's the explicit override.
 - **Why the log and not the template.** A mark in the template blackboard is
-  reachable by every other writer of that region. The digest recipe rewrites
+  reachable by every other writer of that region. The digest run rewrites
   its `### Digest State` section, which swallowed a mark appended after it —
   and each erasure made the next `coga recurring` delete the completed task
   and repost the digest. An appended line cannot be clobbered that way, is
@@ -434,8 +440,8 @@ task, which carries that rule.
   report the local and bundled paths checked; the removed bundled
   `coga/megalaunch/run` ref instead gives its migration directly: megalaunch
   is on-demand only, so delete the leftover recurring template and workflow.
-  Validation also checks `recipe:` against the fixed registry before a period
-  task exists.
+  Validation compiles a template's `ticket.py`, when it has one, before a
+  period task exists.
 - The period task's `## Description` is taken from the `ticket.md` body's
   `## Description` section: everything from that heading to the next
   top-level `## ` heading. **Convention:** keep every other heading in the
@@ -448,7 +454,7 @@ checks meaningful to this repo, team, or user: product or operations health
 checks; customer, email, payment, or deployment follow-ups; repo-specific
 context audits; domain-specific recurring reports; reminders that depend on
 this repo's tasks and blackboards. A REM task is an ordinary template authored
-with the recipe above; it owns its own cadence, ticket scan, skill order,
+with the procedure above; it owns its own cadence, ticket scan, skill order,
 output conventions, and review gates.
 
 REM is not Dream. Dream is Coga's generic ticket cleanup pass; generic Coga
