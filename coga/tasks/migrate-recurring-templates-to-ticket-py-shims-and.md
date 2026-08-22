@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/codebase
 - coga/recurring
@@ -30,7 +30,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -231,3 +231,33 @@ done; nothing was left out.
   exit code instead of unwinding.
 - `tests/test_validate.py` — a broken template `ticket.py` is reported before
   any period task exists; a leftover `recipe:` key is not an error.
+
+## Peer review (2026-08-21)
+
+- Ran `codex review --base main`. It found three material regressions: recurring
+  script failures had fallen back to the routine notification channel, a
+  script-owned `coga block` was overwritten with `paused`, and the packaged
+  `coga/patterns` context still taught the deleted `recipe:` format.
+- Commit `7a5d4d69` fixes all three. Recurring opts the shared launcher into
+  important failure routing; the launcher reports a script-only stop so the
+  sweep preserves a deterministic blocker without changing the intentional
+  pause contract for agent-owned blockers; and the packaged patterns copy is
+  synced and guarded as a live/package pair.
+- The final contract sweep also corrected active stale launch text in the
+  packaged `coga/cli` context, both `coga/principles` copies, the v2 parking-area
+  guide, and the autoclose module contract.
+- Re-fetched and rebased on `origin/main` after review: zero behind, two commits
+  ahead, clean worktree. Verification: `1894 passed`; task-scoped validation
+  clean apart from the isolated worktree's missing gitignored local-user warning;
+  pristine-clone wheel build succeeded with all five shims and corrected
+  packaged contexts present.
+
+## PR
+
+Migrate the five deterministic recurring templates from `recipe:` declarations
+to exact-sibling `ticket.py` shims, route every recurring run through the shared
+launch classifier, and update the live and packaged execution contracts. The
+review follow-up preserves important failure alerts and script-owned blockers.
+
+Test plan: `python -m pytest` (1,894 passed); pristine-clone wheel build passed
+with all five packaged shims present.
