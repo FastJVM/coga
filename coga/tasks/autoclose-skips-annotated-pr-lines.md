@@ -30,7 +30,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -200,4 +200,51 @@ Verified against the package source during the 2026-08-15 Dream run in the
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: pr-line-annotations
+worktree: /home/n/Code/claude/coga-pr-line-annotations
+
+## Implement (done)
+
+**The fix** — `src/coga/autoclose.py`:
+- `_PR_LINE_RE` now captures `(.+?)` like `_BRANCH_LINE_RE` / `_WORKTREE_LINE_RE`
+  instead of an anchored `(\S+)$`.
+- `parse_pr_url` normalizes the capture the same way the siblings do: a leading
+  backtick delimits the value through its matching closing backtick, an
+  unmatched backtick falls back to whole-line stripping, then only the first
+  whitespace-delimited token is kept (a URL never contains whitespace).
+- New `_looks_like_pr_url` guard. **Why:** without it the unanchored capture
+  hands `(not` / `none` from `pr: (not opened yet)` to `gh pr view`, and the
+  resulting `GhError` makes `run_autoclose_recipe` exit 2 — aborting the sweep
+  for every remaining ticket. The guard accepts a value carrying `://` or a
+  readable `/pull/<n>` and rejects the rest.
+
+**Tradeoff accepted:** the guard is by value shape, not a `/pull/<n>` requirement
+(which would reject non-GitHub PR links). A freeform non-URL value therefore
+still parses as "no PR" — deliberate: a silent single-ticket skip beats a
+whole-sweep failure.
+
+**Docs** (`coga/contexts/dev/code/SKILL.md` + the packaged copy, kept
+byte-identical, 9015 bytes each): widened the machine-readable-fields paragraph
+to include `pr:` (noting a bare `pr:` value ends at the first whitespace, unlike
+`branch:` / `worktree:` which consume the line), and stated the annotation rule
+plus the placeholder caveat in the `pr:` bullet. Left
+`coga/skills/code/implement/SKILL.md` alone — it speaks only to `branch:` /
+`worktree:`, which the implement step writes.
+
+**Tests added:**
+- `tests/test_autoclose.py` — annotated / backtick-annotated / unclosed-backtick
+  `parse_pr_url` forms, a parametrized placeholder-rejection test, and an
+  end-to-end `sweep_merged` test closing a final-step ticket whose `pr:` line
+  carries a trailing note (the live `xero-reconcile-reminder` shape).
+- `tests/test_commands.py` — the `requires: pr` bump gate now accepts an
+  annotated line (this ticket's own dogfooding case).
+- `tests/test_open_pr.py` — the open-pr round-trip leaves a matching annotated
+  line intact instead of rewriting it away.
+
+**Verification:** `python -m pytest` in the feature worktree —
+1889 passed, 1 failed. The failure is
+`tests/test_packaging.py::test_wheel_includes_bootstrap_batteries`, environmental
+and pre-existing (`No module named pip` in the venv); it fails identically on
+unmodified `main`. `coga validate` not run: no validation behavior changed.
+Branch rebased onto current `origin/main` (no new commits). Not pushed.
