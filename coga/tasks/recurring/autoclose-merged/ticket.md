@@ -58,3 +58,12 @@ no merged final-step tickets exits successfully and changes nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-08-24T18:42:47+00:00
+Task: `recurring/autoclose-merged`
+
+1 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
+
+- `recurring-recipe-question` "Deduce whether a ticket is a script or an agent prompt": worktree `/tmp/coga-deduce-ticket-script`, branch `deduce-ticket-script` — `coga retire recurring-recipe-question`

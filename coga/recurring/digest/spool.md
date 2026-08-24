@@ -32,3 +32,5 @@ consumed_through: 24f3b7c532a5
 {"id":"24f3b7c532a5","ts":"2026-08-21T11:53","project":"coga","kind":"done","detail":"→ done (recipe: autoclose)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
 {"id":"9531275abd24","ts":"2026-08-21T11:53","project":"coga","kind":"done","detail":"→ done (recipe: digest)","ticket":"recurring/digest","owner":"nicktoper"}
 {"id":"a6ec0c97bcea","ts":"2026-08-21T11:54","project":"coga","kind":"done","detail":"→ done (recipe: blocker-reminders)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+{"id":"415405e3360b","ts":"2026-08-24T11:42","project":"coga","kind":"done","detail":"→ done (recipe: branch-sweep)","ticket":"recurring/branch-sweep","owner":"nicktoper"}
+{"id":"0f53b647eaf6","ts":"2026-08-24T11:42","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/700|PR #700> merged ✅","ticket":"recurring-recipe-question","owner":"nicktoper"}
