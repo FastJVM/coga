@@ -3885,3 +3885,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-24 11:42 [recurring-recipe-question] [human:nicktoper] auto-bumped on merge of PR #700 → done
 2026-08-24 11:42 [recurring/autoclose-merged] [system] recipe autoclose exited with code 0
 2026-08-24 11:42 [recurring/autoclose-merged] [system] completed (recipe autoclose exited 0) via coga recurring
+2026-08-24 11:42 [recurring/resolve-conflicts] [human:nicktoper] started (active → in_progress) via coga launch
