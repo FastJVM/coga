@@ -1,7 +1,7 @@
 ---
 slug: recurring/dream
 title: Dream
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,6 +17,7 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
+step: 1 (execute)
 ---
 
 ## Description
@@ -41,7 +42,9 @@ Write short progress updates to the console before and after each phase:
 validate-drift, knowledge scan, contract audit, Retro pass,
 cleanup-orphan-markers, disposition, and the final status mark. Include the
 command or file path being
-acted on and the result count when available. If a phase is skipped, say why.
+acted on and the result count when available. For the sharded scan phases, say
+how many shards were launched and how many wrote a completion line. If a phase
+is skipped, say why.
 The blackboard remains the durable record; console progress is for the human
 watching the run.
 
@@ -50,12 +53,13 @@ watching the run.
 Dream runs six phases in order. Phases 1–3 **decide** — they read the repo and
 record what to change. Phases 4–6 **execute** — they make the changes. Deciding
 before executing is deliberate: the knowledge scan and contract audit read the
-corpus while every done ticket still exists (Phase 4 deletes them all), so
-nothing is missed, and their findings steer the Retro pass.
+corpus while every done ticket still exists (Phase 4 may delete the eligible
+ones), so nothing is missed, and their findings steer the Retro pass.
 
 1. **validate-drift** — deterministic repo hygiene (registered recipe).
-2. **knowledge scan** — one full-corpus read; classifies every finding.
-3. **contract audit** — checks the contract surface against code reality.
+2. **knowledge scan** — sharded corpus read; classifies every finding.
+3. **contract audit** — sharded check of the contract surface against code
+   reality.
 4. **retro/done-ticket** — extracts durable knowledge from every eligible done
    ticket in one pass.
 5. **cleanup-orphan-markers** — delete-only orphan cleanup (registered recipe).
@@ -90,28 +94,80 @@ or `log.md`, and append-only history goes to the repo-global `coga/log.md`. It
 does not rewrite existing files, synthesize `ticket.md`, freeze workflows, or
 change lifecycle/assignee state.
 
+### Decide-half scan mechanics (Phases 2 and 3)
+
+Both decide-half scans are read-only sweeps over Coga's own corpus, and both run
+the same way: **bounded shards writing durable findings to disk**, never one
+subagent sweep whose result arrives only in its final message. The corpus is
+larger than a subagent can hold, and a scan that stops early after delivering
+nothing is indistinguishable from a clean repo. Run each scan like this:
+
+1. **Create the scan directory.** `mktemp -d` one directory per phase and keep
+   its absolute path. Both scans and the shard subagents follow
+   `bootstrap/dream/scan/scan-protocol`, which defines the directory's
+   `manifest.md`, `index.md`, `findings.md`, and `progress.md`. Immediately
+   create all four as empty regular files before indexing or launching any
+   shard. `findings.md` must exist even when every shard reports zero findings;
+   absence is never a clean result.
+2. **Index and shard.** Size the phase's corpus portably with
+   `find <paths> -type f -name '*.md' -exec wc -c {} \;` — do not use GNU-only
+   `find -printf`. Enrich those sizes with the compact routing metadata the
+   phase skill names and write the full index to `index.md`. Then build the
+   phase skill's ownership + evidence assignments at no more than 150 KB across
+   at most 40 distinct files, keeping a task directory's Markdown together and
+   never splitting a file. Append one attempt-1 shard row per assignment to
+   `manifest.md`.
+3. **Run the shards.** Delegate each shard to a subagent using the phase's scan
+   skill, passing the scan directory's absolute path, the shard id, and that
+   shard's exact paths. Shards append to the shared `findings.md` and
+   `progress.md`; they do not report findings back through their final message.
+4. **Reconcile before believing the result.** Compare the active leaf shard rows
+   in `manifest.md` against the completion lines in `progress.md`. Every leaf
+   shard must have written
+   `<shard-id> complete — <N> findings`; `0 findings` is an explicit, valid
+   result, and a shard with no line at all is a shard that never returned. Do
+   not treat a missing line as zero findings.
+5. **Retry once, then report honestly.** For any missing or `incomplete`
+   assignment, append a manifest `supersede <parent> -> <children>` row plus
+   smaller attempt-2 child rows and retry those leaves once. If an attempt-2
+   leaf still does not complete, the phase result is `partial`: keep the scan
+   directory, and record its path, the unread paths, and a `human-needed` line
+   in the run summary.
+6. **Merge into the blackboard.** Read `findings.md` and merge it into this
+   task's `## Findings`, de-duplicating across shards — two shards may describe
+   one underlying issue from different evidence; re-read a named file when you
+   are unsure whether two findings are the same. Group the `extract` findings by
+   the context/skill area they touch.
+
+Delete the scan directory only after its findings are merged into the
+blackboard, and only when the phase completed. Report each scan's result as
+`reported` with the shard and merged finding counts, `no-op` when every active
+leaf completed and the de-duplicated findings across all attempts total zero,
+or `partial` when any active leaf did not complete. Superseding a shard changes
+the coverage check; it never discards findings that shard already appended.
+
 ### Phase 2 — knowledge scan
 
-Delegate this phase to a subagent using the
-`bootstrap/dream/scan/knowledge-scan` skill. This decide-half scan happens
-before Phase 4 so done-ticket evidence is still available.
+Shard this phase to subagents using the `bootstrap/dream/scan/knowledge-scan`
+skill, following the scan mechanics above. This decide-half scan happens before
+Phase 4 so done-ticket evidence is still available.
 
-Write the returned findings to this task's blackboard under `## Findings`;
+Merge the shards' findings into this task's blackboard under `## Findings`;
 Phase 4 reads that section when batching knowledge PRs.
 
 ### Phase 3 — contract audit
 
-Delegate this phase to a subagent using the
-`bootstrap/dream/scan/contract-audit` skill. This decide-half audit complements
+Shard this phase to subagents using the `bootstrap/dream/scan/contract-audit`
+skill, following the scan mechanics above. This decide-half audit complements
 Phase 1's deterministic repo-hygiene check.
 
-Write the returned findings to this task's blackboard under `## Findings`,
+Merge the shards' findings into this task's blackboard under `## Findings`,
 alongside the Phase 2 findings; Phase 6 reads that section when routing
 proposal PRs.
 
 ### Phase 4 — retro/done-ticket
 
-Extract durable knowledge from done tickets, then delete every one of them.
+Extract durable knowledge from done tickets, then delete every eligible one.
 This pass processes **every eligible done ticket in a single run** — there is
 no per-run ticket cap and nothing is deferred to a later run. One corpus read
 with one running delta across all tickets is both cheaper than repeated capped
@@ -120,8 +176,19 @@ runs and better at de-duplicating repeated facts.
 A done ticket is eligible when:
 
 - its resolved task directory under `coga/tasks/` still exists; and
+- its blackboard `## Dev` section has no real `branch:` or `worktree:` value
+  (absent, empty, and placeholder values such as `(not yet created)` do not
+  block Retro); and
 - no open PR is adding its `## Retro` marker or deleting that resolved task
   directory.
+
+A checkout-bearing done ticket is retirement debt, not Retro input. Do not
+delegate it to `retro/done-ticket` and do not invoke `coga retire` from Dream:
+leave the ticket and its `## Dev` evidence on disk so the exact human-typed
+`coga retire <slug>` command remains valid. List it as deferred retirement debt
+in the run summary. After retirement consumes that evidence and removes the
+source ticket, the ordinary existence gate makes it disappear from Dream's
+candidate set.
 
 A ticket whose directory is already gone is not a candidate; git history holds
 its record. A processed `## Retro` marker on a still-present directory does not
@@ -172,7 +239,8 @@ directory. Delete the evidence snapshot too. Agent-native cleanup is not
 guaranteed after a mutating run. If durability or cleanup cannot be verified,
 preserve the paths and surface a blocker.
 
-A done `recurring/<name>` ticket from this sweep is eligible like any other.
+A done `recurring/<name>` ticket from this sweep is eligible like any other
+when it records no feature checkout.
 Period tickets carry nothing durable (their output is the notification post or
 PR they already produced), so Retro direct-deletes them via `coga delete
 recurring/<name>` — no PR or marker — while leaving the recurring template's
@@ -243,8 +311,8 @@ Route each finding by class:
 
 Then append one top-level `## Dream Run Summary` section to this task's
 blackboard: the generation time, a phase result table using the vocabulary
-`no-op`, `reported`, `proposed`, `direct-fixed`, `pr-opened`, `human-needed`,
-the finding counts with one-line summaries, links to every PR opened and draft
+`no-op`, `reported`, `partial`, `proposed`, `direct-fixed`, `pr-opened`,
+`human-needed`, the finding counts with one-line summaries, links to every PR opened and draft
 ticket created, and any `human-needed` decisions or review gates. Keep it short
 enough for a human to scan.
 
@@ -272,191 +340,3 @@ Git history preserves the completed run.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Run State
-
-Period serviced: `2026-W34` (per `coga/log.md`: `created recurring/dream for 2026-W34`).
-
-- **Phase 1 validate-drift** — done. 23 issues, all `human-needed` (0 direct-fix,
-  0 pr-proposal). Recipe writes only to this blackboard; it printed nothing to
-  stdout, so the first invocation looked like a no-op and was run twice. The
-  duplicate `## Dream Skill: validate-drift` section was removed. Passed as a
-  lead to the Phase 3 contract audit.
-- **Phase 2 knowledge scan** — delegated to subagent (read-only).
-- **Phase 3 contract audit** — delegated to subagent (read-only).
-
-### Phase 4 preflight (done before delegation)
-
-Eligible done tickets — 11. Gate: resolved dir exists on disk **and** no open PR
-adds its `## Retro` marker or deletes its directory. Checked all 7 open PRs;
-only #695 and #691 touch `coga/tasks/` and neither touches a done ticket.
-
-1. `decide-the-fate-of-two-premise-dead-v2-drafts-whos`
-2. `important-alerts-the-task-owner-drop-important-rec`
-3. `megalaunch-does-not-set-coga-expected-task`
-4. `process-pr-comments-during-review`
-5. `recurring-can-only-be-launched-by-owner`
-6. `retire-coga-important-support-second-webhook`
-7. `recurring/autoclose-merged`
-8. `recurring/blocker-reminders`
-9. `recurring/branch-sweep`
-10. `recurring/digest`
-11. `recurring/skill-update`
-
-All 11 verified present on `origin/main` (so each can be deleted durably —
-Retro stops on an uncommitted-only task). Local `HEAD` == `origin/main` ==
-`60c98639`.
-
-Isolation: linked worktrees are writable here (probe created and removed
-cleanly), so the `git clone --no-hardlinks` fallback is not needed.
-Machine-local config to copy into the isolated checkout: `coga/coga.local.toml`
-(config lives under the Coga OS root, not the repo root).
-
-Evidence snapshot: 11 task artifacts + `coga/log.md` + `coga/contexts/` +
-`coga/skills/` + `coga/.agent-skills/`, ordinary copies, no symlinks.
-`## Findings` is appended to it once Phases 2-3 return.
-
-### Phase 2/3 delegation — first attempt failed
-
-Both scan subagents were spawned concurrently at ~14:26 and died silently
-without returning findings (output streams froze at 14:27 and 14:31; no agent
-reachable at 14:35). Neither produced a findings list. Retrying the delegation
-one subagent at a time.
-
-### Phase 2/3 — FAILED (capability unavailable)
-
-Subagent delegation does not deliver results in this session. Three attempts:
-
-- `knowledge-scan` (14:26) — read ~120KB of corpus, froze at 14:27, never returned.
-- `contract-audit` (14:26) — read ~53KB incl. `coga/log.md`, froze at 14:31, never returned.
-- `knowledge-scan-2` (14:36, retry with a tightened reading budget) — produced no
-  transcript at all and returned nothing by 14:42.
-
-Both original agents later emitted `idle_notification` / `idleReason: available`
-and, when messaged directly asking for whatever findings they had, replied only
-with another idle notification — no content either time.
-
-Consequence: `## Findings` is **empty** for this run. Phases 2 and 3 are
-`human-needed`. Per the body's dispatch contract ("a phase failing does not
-permit a replacement"), the scans were **not** re-run inline in Dream's own
-context — delegation is also what keeps the full-corpus read out of Dream's
-context so Phases 4-6 stay affordable.
-
-Phase 6 therefore has no findings to route: no `stale`/`drift` proposal PRs and
-no `gap` draft tickets are created this run. That is an absence of input, not a
-clean bill of health — the scans never ran.
-
-## Phase 4 — retro/done-ticket (in progress, isolated worktree)
-
-Delegated to one subagent in a linked worktree at
-`/home/n/Code/claude/coga/.claude/worktrees/agent-a357abc7c01e0a27c`
-(branch `worktree-agent-a357abc7c01e0a27c`, git-common-dir shared with the
-primary checkout, so `coga delete --keep-control-checkout` is the correct delete
-form). Preflight boundary proof passed; `coga/coga.local.toml` copied in at mode
-600, unstaged. Evidence snapshot was made read-only before delegation.
-
-The subagent writes a step-by-step progress log to
-`scratchpad/retro-progress.log` — added as a hedge after the Phase 2/3 agents
-died silently. That log, not the agent's final message, is what makes this
-phase's work recoverable.
-
-Classification (all 11 tickets, one running delta):
-
-- **Knowledge-bearing — 1**: `process-pr-comments-during-review` → PR
-  [#698](https://github.com/FastJVM/coga/pull/698) "New context: a frozen
-  workflow snapshot never refreshes", branch
-  `codex/retro-workflow-freeze-knowledge`. Edits the live + packaged
-  `architecture` context, records the `## Retro` marker, and deletes the source
-  ticket in the same PR.
-- **No durable knowledge — 10** (direct-deleted, no marker, no PR): the five
-  `recurring/*` period tickets (facts already covered by
-  `coga/{recurring,sync,patterns}` + the `coga/*` sweep skills),
-  `megalaunch-does-not-set-coga-expected-task`,
-  `recurring-can-only-be-launched-by-owner`,
-  `important-alerts-the-task-owner-drop-important-rec`,
-  `decide-the-fate-of-two-premise-dead-v2-drafts-whos`, and
-  `retire-coga-important-support-second-webhook` — each already covered by an
-  existing context or skill block the subagent cited by line.
-
-## Dream Skill: cleanup-orphan-markers
-
-Generated: 2026-08-17T21:53:08+00:00
-Task: `recurring/dream`
-
-Result: no-op. No cleanup-eligible processed done tickets still have task directories.
-
-## Findings
-
-**Empty.** Phases 2 and 3 never returned findings (see "Phase 2/3 — FAILED"
-above). This is an absence of input, not a clean bill of health. Consequently
-Phase 6 routed no `stale` or `drift` proposal PRs and created no `gap` tickets
-from scan output.
-
-## Dream Run Summary
-
-Generated: 2026-08-17 14:56 -0700. Period serviced: `2026-W34`.
-
-| # | Phase | Result |
-| --- | --- | --- |
-| 1 | validate-drift | `reported` — 23 issues, all `human-needed` |
-| 2 | knowledge scan | `human-needed` — subagent returned no findings |
-| 3 | contract audit | `human-needed` — subagent returned no findings |
-| 4 | retro/done-ticket | `pr-opened` — 1 knowledge PR, 10 direct deletes |
-| 5 | cleanup-orphan-markers | `no-op` — no orphaned processed markers |
-| 6 | disposition + summary | `reported` — 1 draft ticket; no findings to route |
-
-### Counts
-
-- Validator issues: 23 — all `human-needed`, none auto-repairable. Mix of
-  `stuck-in-progress` (4 top-level + 1 `v2/*`), `unknown-assignee` (5 `v2/*`,
-  assignee `nicktoper` is not an agent type), `unfrozen-workflow` (6
-  `v2/cleanup-core-commands/*` + `v2/fix-windows-cli-import-crash`, hand-authored
-  and awaiting first launch), `missing-step` (3 errors), and
-  `unsynthesized-draft-blackboard` (4 errors on `v2/*` drafts).
-- Done tickets processed: 11 of 11 eligible — 1 knowledge-bearing, 10 with no
-  durable knowledge. None left on disk at `origin/main`.
-- Scan findings: 0 (phases failed).
-
-### PRs opened
-
-- [#698](https://github.com/FastJVM/coga/pull/698) — "New context: a frozen
-  workflow snapshot never refreshes". Edits `coga/contexts/coga/architecture/SKILL.md`
-  and its packaged copy, records the `## Retro` marker for
-  `process-pr-comments-during-review`, and deletes that source ticket in the same
-  PR. **Open, needs human review — Dream does not auto-merge.**
-
-### Draft tickets created
-
-- `dream-phases-2-3-cannot-complete-scan-subagents-re` — carries the Phase 2/3
-  failure forward, since this task's blackboard is deleted at the next firing.
-
-### Direct deletes (no PR, no marker; recovery via `git restore`)
-
-Landed on `origin/main`: `recurring/autoclose-merged` `282f57a4`,
-`recurring/blocker-reminders` `70142629`, `recurring/branch-sweep` `b14c817f`,
-`recurring/digest` `83997788`, `recurring/skill-update` `019e162c`,
-`megalaunch-does-not-set-coga-expected-task` `d10be102`,
-`recurring-can-only-be-launched-by-owner` `59181000`,
-`important-alerts-the-task-owner-drop-important-rec` `adea44dc`,
-`retire-coga-important-support-second-webhook` `faa8b9ae`,
-`decide-the-fate-of-two-premise-dead-v2-drafts-whos` `0de678ef`.
-Caller-verified: all 10 absent from `origin/main`; PR branch pushed; isolated
-worktree clean, config copy removed, worktree + temp branch removed; evidence
-snapshot deleted. `codex/retro-workflow-freeze-knowledge` deliberately kept
-while #698 is open.
-
-### human-needed / review gates
-
-1. **PR #698 awaits review.** Until it merges, `process-pr-comments-during-review`
-   is still on `origin/main` — correct, but it means one done ticket survives this
-   run by design.
-2. **All 23 validator issues need owner decisions** — every one is a lifecycle,
-   ownership, or draft-state call that Dream must not make silently. The 4
-   `unsynthesized-draft-blackboard` errors and 3 `missing-step` errors block
-   activation of those `v2/*` drafts.
-3. **Phases 2 and 3 did not run.** No knowledge or contract-drift sweep happened
-   this week; the contract surface is unaudited. Tracked by the draft ticket above.
-4. **This checkout is 11 commits behind `origin/main`** and still has the 10
-   deleted task directories on disk — expected, because
-   `--keep-control-checkout` deliberately does not refresh the operator's
-   checkout. A `git pull` here will clear them.
