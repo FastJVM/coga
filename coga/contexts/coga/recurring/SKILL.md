@@ -522,9 +522,15 @@ The output is unchanged; the loop is what got added after it
 
 The loop runs after **every** sweep, including one with nothing due and one
 that died partway through — a sweep that failed mid-run is the one most worth
-analyzing. That cadence is also why the analyst is told what is already
-ticketed: the open `autofix/` tickets go into the prompt so a template that
-fails every night answers `duplicate` instead of minting a ticket a night.
+analyzing. On-demand `coga recurring launch <name>` (so `coga dream`,
+`coga autoclose`, `coga skill-update`) closes the same loop: it runs a real
+template, so a wedge or a failed `ticket.py` there is as worth ticketing as one
+in the sweep. A gate that refuses to launch — a closed or human-parked
+template, one already handled on control — is not a run and is not analyzed.
+
+That cadence is also why the analyst is told what is already ticketed: the open
+`autofix/` tickets go into the prompt so a template that fails every night
+answers `duplicate` instead of minting a ticket a night.
 
 Two properties keep a broken analyst from becoming a broken sweep:
 

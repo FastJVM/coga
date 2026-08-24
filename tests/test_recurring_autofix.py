@@ -153,6 +153,21 @@ def test_record_strips_ansi_and_keeps_the_tail_of_a_long_blackboard() -> None:
     assert "truncated" in text
 
 
+def test_an_on_demand_run_is_not_labelled_a_sweep() -> None:
+    """`coga dream` runs one template; calling that a sweep that scanned
+    nothing would mislead the analyst about what it is reading."""
+    record = RunRecord(
+        started=datetime(2026, 8, 24, 9, 0, 0), repo="coga", on_demand="dream"
+    )
+    record.add(
+        TaskOutcome(template="dream", slug="recurring/dream", result="completed")
+    )
+    text = record.render()
+    assert "# Recurring launch: dream" in text
+    assert "on-demand `coga recurring launch dream`" in text
+    assert "templates scanned" not in text
+
+
 def test_prompt_lists_open_autofix_tickets_for_dedupe() -> None:
     prompt = build_prompt(
         "run record here",
@@ -205,20 +220,6 @@ def test_a_missing_or_reaped_task_still_leaves_an_outcome(cfg_repo) -> None:
 # --- classifying one task's run -----------------------------------------------
 
 
-def _due(ref):  # type: ignore[no-untyped-def]
-    from datetime import datetime as _dt
-
-    from coga.recurring import DueTask
-
-    return DueTask(
-        template="nightly-check",
-        ref=ref,
-        last_fire=_dt(2026, 8, 24, 3, 0, 0),
-        created=True,
-        status="active",
-    )
-
-
 def _ref_with_status(cfg, status: str):  # type: ignore[no-untyped-def]
     from coga.create import create_task
     from coga.tasks import resolve_task
@@ -251,7 +252,7 @@ def test_a_script_that_closed_its_step_is_completed_not_unfinished(cfg_repo) -> 
     from coga.recurring_runner import _task_outcome
 
     ref = _ref_with_status(cfg_repo, "done")
-    outcome = _task_outcome(cfg_repo, _due(ref), kind="script")
+    outcome = _task_outcome(cfg_repo, "nightly-check", ref, kind="script")
     assert outcome.result == "completed"
     assert not outcome.is_problem
 
@@ -260,7 +261,7 @@ def test_a_script_that_stopped_early_is_unfinished(cfg_repo) -> None:
     from coga.recurring_runner import _task_outcome
 
     ref = _ref_with_status(cfg_repo, "in_progress")
-    outcome = _task_outcome(cfg_repo, _due(ref), kind="script")
+    outcome = _task_outcome(cfg_repo, "nightly-check", ref, kind="script")
     assert outcome.result == "unfinished"
     assert "before the step closed" in outcome.detail
 
@@ -269,7 +270,7 @@ def test_a_wedged_run_is_recorded_as_timed_out(cfg_repo) -> None:
     from coga.recurring_runner import _task_outcome
 
     ref = _ref_with_status(cfg_repo, "paused")
-    outcome = _task_outcome(cfg_repo, _due(ref), kind="timeout")
+    outcome = _task_outcome(cfg_repo, "nightly-check", ref, kind="timeout")
     assert outcome.result == "timed-out"
     assert outcome.is_problem
 
@@ -278,7 +279,7 @@ def test_a_blocked_script_phase_names_the_script(cfg_repo) -> None:
     from coga.recurring_runner import _task_outcome
 
     ref = _ref_with_status(cfg_repo, "blocked")
-    outcome = _task_outcome(cfg_repo, _due(ref), kind="script")
+    outcome = _task_outcome(cfg_repo, "nightly-check", ref, kind="script")
     assert outcome.result == "unfinished"
     assert "`ticket.py` phase recorded a blocker" in outcome.detail
 
@@ -290,7 +291,7 @@ def test_the_outcome_carries_the_run_blackboard(cfg_repo) -> None:
     ref.ticket_path.write_text(
         ref.ticket_path.read_text() + "\nvalidate-drift found 3 broken refs.\n"
     )
-    outcome = _task_outcome(cfg_repo, _due(ref), kind="script")
+    outcome = _task_outcome(cfg_repo, "nightly-check", ref, kind="script")
     assert "validate-drift found 3 broken refs." in outcome.blackboard
 
 
@@ -415,6 +416,58 @@ def test_the_run_log_is_written_machine_locally_even_without_a_ticket(
     logs = list((cfg_repo.repo_root / ".coga" / "recurring-runs").glob("*.md"))
     assert len(logs) == 1
     assert "ZoneInfoNotFoundError" in logs[0].read_text()
+
+
+# --- the on-demand entry point -------------------------------------------------
+
+
+def test_on_demand_launch_closes_the_same_loop(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, autofix_enabled
+) -> None:
+    """`coga recurring launch <name>` — and so `coga dream` — analyzes its run.
+
+    It creates and launches a real template, so a wedge or a failed
+    `ticket.py` there is exactly as worth ticketing as one in the sweep.
+    """
+    from coga import recurring_runner
+
+    from coga.ticket import Ticket
+
+    ref = _ref_with_status(cfg_repo, "active")
+
+    def finishing_launch(slug, **kwargs):  # type: ignore[no-untyped-def]
+        ticket = Ticket.read(ref.ticket_path)
+        ticket.frontmatter["status"] = "done"
+        ticket.write(ref.ticket_path)
+        return None
+
+    monkeypatch.setattr("coga.commands.launch.launch", finishing_launch)
+
+    record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
+    code = recurring_runner._launch_created(
+        cfg_repo, ref, record=record, template="nightly-check"
+    )
+
+    assert code == 0
+    assert [o.result for o in record.outcomes] == ["completed"]
+    assert record.outcomes[0].template == "nightly-check"
+
+
+def test_a_refused_on_demand_launch_is_not_a_run(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, autofix_enabled
+) -> None:
+    """A paused or closed template never launched, so there is nothing to analyze."""
+    from coga import recurring_runner
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch",
+        lambda slug, **kwargs: pytest.fail("launched a parked template"),
+    )
+
+    ref = _ref_with_status(cfg_repo, "paused")
+    record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
+    assert recurring_runner._launch_created(cfg_repo, ref, record=record) == 0
+    assert record.outcomes == []
 
 
 # --- the recipe surface --------------------------------------------------------

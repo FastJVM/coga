@@ -193,6 +193,10 @@ nothing more.
 - The one-shot argv is built in for `claude` and `codex`. Any other CLI needs
   `[agents.<name>].analyze` in `coga.toml` (e.g. `analyze = "-p {prompt}"`);
   without it the loop skips loudly rather than opening a REPL nobody can drive.
+- `coga recurring launch NAME` closes the same loop, so the `coga dream`,
+  `coga autoclose`, and `coga skill-update` aliases analyze their run too. A
+  launch a gate refuses (closed or paused template) is not a run and is not
+  analyzed.
 
 Subcommands:
 

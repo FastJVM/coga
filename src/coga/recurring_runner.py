@@ -846,7 +846,11 @@ def _launch_due_tasks(
             # git sync. The task is deliberately left unfinished, not paused.
             code = _exit_status(exc)
             if code:
-                record.add(_task_outcome(cfg, task, result="failed", exit_code=code))
+                record.add(
+                    _task_outcome(
+                        cfg, task.template, task.ref, result="failed", exit_code=code
+                    )
+                )
                 return code
             kind = None
         _stop_if_unfinished_after_launch(
@@ -855,13 +859,14 @@ def _launch_due_tasks(
             timed_out=(kind == "timeout"),
             script_stopped=(kind == "script"),
         )
-        record.add(_task_outcome(cfg, task, kind=kind))
+        record.add(_task_outcome(cfg, task.template, task.ref, kind=kind))
     return 2 if forced_refusals else 0
 
 
 def _task_outcome(
     cfg: Config,
-    task: DueTask,
+    template: str,
+    ref: TaskRef | None,
     *,
     kind: str | None = None,
     result: str = "",
@@ -875,7 +880,7 @@ def _task_outcome(
     the run had to say. `_stop_if_unfinished_after_launch` has already parked an
     unfinished run, which is what makes `paused` legible here.
     """
-    status = outcome_for_ref(cfg, task.ref)
+    status = outcome_for_ref(cfg, ref)
     detail = ""
     if not result:
         # Status first, `kind` only to explain it. `kind == "script"` says the
@@ -910,13 +915,13 @@ def _task_outcome(
                 "the run exited without a terminal transition; the sweep parked it"
             )
     return TaskOutcome(
-        template=task.template,
-        slug=task.ref.id_slug if task.ref else task.template,
+        template=template,
+        slug=ref.id_slug if ref else template,
         result=result,
         exit_code=exit_code,
         final_status=status,
         detail=detail,
-        blackboard=blackboard_for_ref(task.ref),
+        blackboard=blackboard_for_ref(ref),
     )
 
 
@@ -1019,12 +1024,31 @@ def run_recurring_named(
     else:
         typer.echo(f"{ref.id_slug} already created for this period")
 
-    return _launch_created(
-        cfg,
-        ref,
+    # An on-demand `coga recurring launch <name>` (the `coga dream`,
+    # `coga autoclose`, and `coga skill-update` aliases) is a real run of a real
+    # template, so it closes the same loop the scheduled sweep does.
+    record = RunRecord(
+        started=datetime.now(),
+        repo=cfg.repo_root.name,
+        on_demand=name,
         interactive=interactive,
         agent_override=agent_override,
     )
+    try:
+        return _launch_created(
+            cfg,
+            ref,
+            interactive=interactive,
+            agent_override=agent_override,
+            record=record,
+            template=name,
+        )
+    finally:
+        # Only when something actually ran: `_launch_created` records the run
+        # it performed, so an empty record means a gate refused to launch —
+        # a closed or human-parked template, or one already handled on control.
+        if record.outcomes:
+            run_autofix(cfg, record, agent_override=agent_override)
 
 
 def _sync_control_checkout_ahead(
@@ -1088,6 +1112,8 @@ def _launch_created(
     *,
     interactive: bool = False,
     agent_override: str | None = None,
+    record: RunRecord | None = None,
+    template: str = "",
 ) -> int:
     """Launch (or resume) a created recurring task.
 
@@ -1098,6 +1124,12 @@ def _launch_created(
     and `coga launch` re-composes it from its current `step:`.
     `done`/`canceled`/`paused` are left alone — re-launching closed or
     human-parked work would be wrong, and saying so beats silently doing nothing.
+
+    `record`, when given, collects this run's outcome for the autofix loop. It
+    is filled in here rather than by the caller because this is where the two
+    "nothing actually ran" gates live: a task already handled on the control
+    branch, and a closed or human-parked one. Neither is a run, and analyzing a
+    sweep that never happened would only burn a call.
     """
     if not (ref.ticket_path).is_file():
         typer.secho(
@@ -1137,7 +1169,20 @@ def _launch_created(
     except SystemExit as exc:
         # A failed `ticket.py` is this command's result, not a process abort:
         # returning the code keeps the caller's exit-boundary git sync.
-        return _exit_status(exc)
+        code = _exit_status(exc)
+        if record is not None:
+            record.add(
+                _task_outcome(
+                    cfg,
+                    template or ref.slug,
+                    ref,
+                    result="failed" if code else "",
+                    exit_code=code or None,
+                )
+            )
+        return code
+    if record is not None:
+        record.add(_task_outcome(cfg, template or ref.slug, ref))
     return 0
 
 

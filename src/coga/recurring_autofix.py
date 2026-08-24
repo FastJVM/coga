@@ -135,6 +135,11 @@ class RunRecord:
 
     started: datetime
     repo: str = ""
+    # Set to the template name for an on-demand `coga recurring launch <name>`
+    # (the `coga dream` / `coga autoclose` / `coga skill-update` aliases), so
+    # the analyst is not told a one-template run was a scheduled sweep that
+    # somehow scanned nothing.
+    on_demand: str = ""
     force: bool = False
     interactive: bool = False
     agent_override: str | None = None
@@ -164,12 +169,22 @@ class RunRecord:
         if self.agent_override:
             mode.append(f"--agent {self.agent_override}")
 
+        if self.on_demand:
+            title = f"Recurring launch: {self.on_demand}"
+            default_mode = f"on-demand `coga recurring launch {self.on_demand}`"
+        else:
+            title = "Recurring sweep"
+            default_mode = "bare sweep"
+
         lines = [
-            f"# Recurring sweep — {self.started:%Y-%m-%d %H:%M:%S}",
+            f"# {title} — {self.started:%Y-%m-%d %H:%M:%S}",
             "",
             f"- repo: {self.repo or '(unknown)'}",
-            f"- mode: {' '.join(mode) if mode else 'bare sweep'}",
-            f"- templates scanned: {len(self.scan_lines)}",
+            f"- mode: {' '.join(mode) if mode else default_mode}",
+        ]
+        if not self.on_demand:
+            lines.append(f"- templates scanned: {len(self.scan_lines)}")
+        lines += [
             f"- tasks run: {len(self.outcomes)}",
             f"- problems: {len(self.problems)}",
             "",
