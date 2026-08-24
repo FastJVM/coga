@@ -150,15 +150,24 @@ working on a task. If two people launch the same ticket, the divergence is
 visible and recoverable in Git — which Coga prefers to the stale-lock, `--force`,
 orphan-cleanup tax of a real mutex.
 
-## Agents and recipes
+## Agents and scripts
 
-`coga launch` always composes a prompt and spawns the assignee's agent CLI in a
-live REPL. Skills attached to workflow steps are prompt contracts; workflow
-steps do not become executable plugins.
+`coga launch` decides between the two from the ticket directory alone. A
+reserved `ticket.py` sibling is the ticket's deterministic half and runs as a
+plain subprocess — no prompt, no agent, no TTY. Without one, launch composes a
+prompt and spawns the assignee's agent CLI in a live REPL. A ticket can have
+both: the script runs first and the agent continues the same step. Nothing
+declares which — no mode field, no `recipe:`, no autonomy flag; the file's
+presence is the whole signal, and any other attachment stays an ordinary
+attachment.
 
-Deterministic Coga commands live behind the fixed `coga run` recipe registry.
-Recurring templates select one with `recipe:` when they need a headless path;
-templates without a recipe launch an agent and require a TTY.
+Skills attached to workflow steps remain prompt contracts; workflow steps do
+not become executable plugins, and Coga never imports ticket code — it
+subprocesses a path. Fixed deterministic core commands stay reachable by name
+through the `coga run` recipe registry, which a `ticket.py` may import from.
+Recurring templates keep their deterministic half beside `ticket.md`; the
+creator copies it into each period task, and a template without one launches an
+agent and requires a TTY.
 
 The two agent CLIs — **Claude Code** and **Codex** — are interchangeable.
 They're configured in `coga.toml` under `[agents.*]`, and the `other-agent`

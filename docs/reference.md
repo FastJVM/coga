@@ -130,12 +130,14 @@ separately from successfully `completed` work.
 ### `coga recurring [COMMAND]`
 Scan recurring task templates under `coga/recurring/` and launch any that are
 due. With no subcommand it invokes the registered `recurring-scan` recipe.
-Templates may select a fixed deterministic implementation with `recipe:`;
-those period tasks run without an agent or TTY, receive their ticket's scoped
-secrets and `COGA_TASK_*` metadata, and follow the normal
-`active → in_progress → done` success lifecycle. A non-zero recipe exit leaves
-the task unfinished and reports the failure. Templates without a recipe launch
-an agent and require a TTY.
+A template carrying the reserved `ticket.py` sibling has a deterministic half;
+the creator copies that file into each period task, and `coga launch` runs it
+without an agent or TTY, with the ticket's scoped secrets and `COGA_TASK_*`
+metadata. The script completes its own step (`coga bump`) — the launcher never
+advances the workflow on its behalf — and a non-zero exit leaves the task
+unfinished and reports the failure. Templates without `ticket.py` launch an
+agent and require a TTY. Nothing declares which: there is no `recipe:` or mode
+field, only the file.
 
 If the committed `coga.toml` sets a top-level `owner = "<name>"`, every
 recurring *launch* — the bare sweep, `--force`, `coga run recurring-scan`, and
@@ -173,8 +175,9 @@ Subcommands:
   dream`, `coga skill-update`, and `coga autoclose` aliases wrap.
   - `--interactive` — launch as a human-stepped run, leaving REPL liveness
     backstops unarmed; ticket files aren't modified.
-  - `--agent <type>` — agent to use for an agent-backed launch (recipe tasks
-    keep their declared path; the ticket assignee isn't rewritten).
+  - `--agent <type>` — agent to use for an agent-backed launch (a period task
+    carrying `ticket.py` keeps its deterministic path; the ticket assignee
+    isn't rewritten).
 - **`coga recurring promote TASK --schedule "<cron>"`** — move an existing task
   into `coga/recurring/<name>/` as a recurring template: task-only frontmatter
   is dropped, the blackboard is reset for cross-run state, and the validated

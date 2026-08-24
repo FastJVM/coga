@@ -2,10 +2,9 @@
 schedule: "0 8 * * *"
 schedule_comment: "Every day at 8am - close merged final-step tickets before the 9am digest"
 title: "Autoclose merged tickets"
-recipe: autoclose
-# The recurring runner executes this registered recipe directly with no agent.
-# The one-step workflow keeps the period task's lifecycle and skill contract
-# legible.
+# The reserved `ticket.py` sibling is this task's deterministic half: `coga
+# launch` runs it directly, with no agent and no composed prompt. The one-step
+# workflow keeps the period task's lifecycle and skill contract legible.
 workflow: autoclose-merged/sweep
 ---
 
@@ -16,7 +15,7 @@ workflow is at its final step.
 
 Tickets can get stuck `in_progress` after the owner merges the PR on GitHub but
 forgets to run `coga mark done`. Once a day this recurring task fires before
-the daily digest. Its recipe runs the existing merged-ticket sweep,
+the daily digest. Its `ticket.py` runs the existing merged-ticket sweep,
 which:
 
 1. scans active and in-progress tickets,
@@ -45,7 +44,7 @@ no merged final-step tickets exits successfully and changes nothing.
 <!-- coga:blackboard -->
 
 This blackboard persists across every run of this recurring task. The
-`autoclose` recipe keeps no durable state here - every run's output
+`autoclose` sweep keeps no durable state here - every run's output
 is the tickets it marks done and the resulting digest spool records.
 
 The one thing a run appends is a `## Autoclose Sweep: retire follow-ups`

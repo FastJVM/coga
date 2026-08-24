@@ -157,7 +157,7 @@ def launch(
         False,
         "--return-timeout",
         hidden=True,
-        help="Internal: return 'timeout' instead of exiting with the timeout code.",
+        help="Internal: return the script/timeout stop kind to the caller.",
     ),
     queue_guidance: bool = typer.Option(
         False,
@@ -169,20 +169,33 @@ def launch(
         "continues — ending in `coga block` for owner decisions — instead of "
         "pausing the queue on a conversational ask.",
     ),
+    script_failure_important: bool = typer.Option(
+        False,
+        "--script-failure-important",
+        hidden=True,
+        help=(
+            "Internal: route ticket.py failures to the important notification "
+            "channel."
+        ),
+    ),
 ) -> str | None:
     """Compose context, start work on a task.
 
-    Returns the termination *kind* of the last interactive REPL the supervisor
-    tore down when `return_timeout` is true — `"timeout"` when a liveness limit
-    fired — or None for any other ending (clean done, chain completion,
-    non-interactive launch). `coga recurring` uses this internal path to record
-    a timed-out sweep launch honestly instead of mistaking it for a human pause;
+    Returns an internal termination kind when `return_timeout` is true:
+    `"timeout"` when a liveness limit tore down an agent REPL, or `"script"`
+    when a deterministic phase stopped without handing off to an agent. Returns
+    None for any other ending. `coga recurring` uses those distinctions to
+    record timeouts honestly and preserve lifecycle signals written by a script;
     public CLI timeouts exit with the supervisor's non-zero timeout code.
     """
     # In-process callers (recurring, retire) invoke this Typer command function
     # directly without passing every parameter, so an omitted `args` arrives as
     # Typer's ArgumentInfo sentinel rather than None. Normalize once up front.
     launch_args: list[str] = list(args) if isinstance(args, (list, tuple)) else []
+    # In-process callers that omit a Typer option receive its OptionInfo object,
+    # not the declared default. Only the concrete internal opt-in enables the
+    # important route.
+    script_failure_important = script_failure_important is True
 
     try:
         cfg = load_config()
@@ -663,6 +676,7 @@ def launch(
                 ),
                 assist_pr_url=aligned_assist_pr_url,
                 feature_publication_guard=assist_pr_guard,
+                failure_important=script_failure_important,
             )
             cfg = script_outcome.cfg or cfg
             ref = script_outcome.ref or ref
@@ -702,7 +716,7 @@ def launch(
                         "returning to caller"
                     )
                 refresh_after_script()
-                return None
+                return "script" if return_timeout else None
 
             if script_outcome.ticket is None:
                 _bail(
@@ -1021,6 +1035,7 @@ def launch(
         raise
 
     suppress_assist_refresh = False
+    ended_by_script = False
     try:
         first_step = True
         consecutive_agent_override = False
@@ -1042,6 +1057,7 @@ def launch(
                         ),
                         assist_pr_url=aligned_assist_pr_url,
                         feature_publication_guard=assist_pr_guard,
+                        failure_important=script_failure_important,
                     )
                 except (SecretError, TaskValidationError, FileNotFoundError) as exc:
                     _bail(str(exc))
@@ -1054,6 +1070,7 @@ def launch(
                 if not script_outcome.needs_agent:
                     if script_outcome.stop_reason:
                         typer.echo(script_outcome.stop_reason)
+                    ended_by_script = True
                     break
                 if script_outcome.ticket is None:
                     _bail(
@@ -1434,6 +1451,8 @@ def launch(
                     "suppressed.",
                     exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
                 )
+
+    return "script" if return_timeout and ended_by_script else None
 
 
 # --- helpers ------------------------------------------------------------------

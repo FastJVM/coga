@@ -5,9 +5,10 @@ description: Update clean imported Coga-managed skills into one reviewable PR, a
 
 # Skill Update
 
-This skill documents the `skill-update` recipe used by the
-`recurring/skill-update/` task. The recipe runs `coga skill update --all
---pr`: every clean update lands in one draft PR on a dedicated branch, while
+This skill documents the skill-update run behind the
+`recurring/skill-update/` task, whose `ticket.py` calls
+`coga.skill_update.run_skill_update_recipe` directly — no agent, no composed
+prompt. The run performs `coga skill update --all --pr`: every clean update lands in one draft PR on a dedicated branch, while
 any skill that cannot be updated cleanly — a local adaptation, a provenance
 conflict, a fetch failure — is left untouched and reported so a human can
 follow up. Bundled (package-backed) skills are not updated here; they ship
@@ -22,7 +23,8 @@ PR.
 
 - Purpose: update clean imported skills into one reviewable PR and report the
   skills that need human follow-up.
-- Runs: `coga run skill-update` in the period task's inherited task context.
+- Runs: the period task's `ticket.py` in its inherited task context; the
+  same behavior is available by hand as `coga run skill-update`.
 - Inputs: the installed skills under `coga/skills/`, their recorded
   `.coga-source.json` provenance, and (for the PR) git plus `gh` against the
   control-plane checkout.
@@ -37,7 +39,7 @@ PR.
 - Stop and ask: any skill reported with a follow-up status (a conflict, a
   skipped local adaptation, or a failure) needs a human — the skill reports it
   and does not force the update. If those follow-ups are the only result and
-  no PR is opened, the recipe exits non-zero after writing the report so the
+  no PR is opened, `ticket.py` exits non-zero after writing the report so the
   period task remains visible.
 - Output: append `## Skill Update` to the task blackboard, bucketing every
   skill by its update status and linking the PR when one was opened.
@@ -50,9 +52,9 @@ From the host repo root:
 coga run skill-update
 ```
 
-Coga injects `COGA_TASK_SLUG` and `COGA_TASK_BLACKBOARD`; the recipe appends
-its result to that blackboard. The recurring runner supplies those variables
-from the instantiated period task. A stateless bootstrap target has no
+Coga injects `COGA_TASK_SLUG` and `COGA_TASK_BLACKBOARD`; the run appends
+its result to that blackboard. `coga launch` supplies those variables from the
+instantiated period task before it runs `ticket.py`. A stateless bootstrap target has no
 blackboard, so run from one the recipe writes its report to stdout rather than
 into a packaged `bootstrap/<name>/ticket.md`.
 

@@ -9,12 +9,13 @@ The PR link convention lives in the `dev/code` context: a `pr:` line
 under `## Dev` on the blackboard. We parse it directly; coga-the-CLI
 treats the blackboard as plain text on purpose.
 
-One caller: the `autoclose-merged` recurring recipe, which runs
-`sweep_merged` on a schedule to finish tickets whose PR merged out of
-band. That daily sweep is the *sole* trigger for auto-closing merged
-tickets — there is intentionally no manual command and no launch-time or
-status-time side effect. Accepted tradeoff: a ticket merged today won't
-auto-close until the next sweep (≤24h lag).
+The `autoclose-merged` recurring ticket's `ticket.py` is the scheduled caller:
+it runs `sweep_merged` to finish tickets whose PR merged out of band. The same
+implementation remains available explicitly as the registered `coga run
+autoclose` command; there is intentionally no dedicated top-level command and
+no launch-time or status-time side effect. Accepted tradeoff: absent an
+explicit run, a ticket merged today won't auto-close until the next sweep
+(≤24h lag).
 
 `coga status` deliberately does NOT call this — it is a read-only view
 (principle 6, fail loud, forbids `status`/`show`/`validate` from mutating

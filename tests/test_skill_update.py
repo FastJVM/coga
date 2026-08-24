@@ -179,19 +179,25 @@ def test_skill_update_skill_declares_contract() -> None:
 
 def test_skill_update_ships_as_a_recurring_template() -> None:
     """The skill updater is a standalone recurring task, not a Dream phase.
-    The packaged template wires a weekly ticket to the fixed `skill-update`
-    recipe and keeps a one-step workflow for ordinary task lifecycle."""
+    The packaged template pairs a weekly ticket with the reserved `ticket.py`
+    deterministic half and keeps a one-step workflow for ordinary task
+    lifecycle. No declaration field selects that mode — the file does."""
     coga_os = SKILL_UPDATE.parents[3]
-    ticket = (coga_os / "recurring" / "skill-update" / "ticket.md").read_text()
+    template_dir = coga_os / "recurring" / "skill-update"
+    ticket = (template_dir / "ticket.md").read_text()
+    script = (template_dir / "ticket.py").read_text()
     workflow = (coga_os / "workflows" / "skill-update" / "run.md").read_text()
 
     assert ticket.startswith("---\n")
     assert "schedule:" in ticket
     assert 'title: "Skill update"' in ticket
     assert "mode:" not in ticket
-    assert "recipe: skill-update" in ticket
+    assert "recipe:" not in ticket
     assert "workflow: skill-update/run" in ticket
     assert "coga skill update --all --pr" in ticket
+
+    assert "from coga.skill_update import run_skill_update_recipe" in script
+    assert "run_skill_update_recipe(load_config(), [])" in script
 
     assert "name: skill-update/run" in workflow
     assert "- bootstrap/skill-update" in workflow

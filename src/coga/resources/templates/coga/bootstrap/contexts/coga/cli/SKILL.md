@@ -172,9 +172,13 @@ finalizer, so the ordinary step-completion verb also closes the ticket.
 
 ## coga launch \<target\>
 
-Compose every relevant file (rules + repo context + ticket contexts +
-current step's skill + blackboard + ticket body) into one prompt and
-start the configured agent. Accepts `status: active` or `in_progress`
+Resolve the target, then classify it by one fixed filename. A directory-form
+ticket carrying `ticket.py` beside `ticket.md` runs that file headlessly first,
+without composing a prompt or probing an agent CLI; the script owns its own
+lifecycle transition. If the script leaves its step open, or the ticket has no
+such sibling, launch composes every relevant file (rules + repo context + ticket
+contexts + current step's skill + blackboard + ticket body) into one prompt and
+starts the configured agent. Launch accepts `status: active` or `in_progress`
 directly; a `draft` / `paused` ticket is activated inline first — typing
 `coga launch` is the readiness signal, so it activates the ticket for you
 rather than refusing. A `blocked` ticket resumes the same way when the launch
@@ -193,13 +197,13 @@ blocked ticket is the human act and resumes it the same interactive way); a
 terminal `done` or `canceled` ticket is refused because it is closed. A ticket
 that can't be activated — no workflow, or an empty `required` extension field
 — still fails loud with the same remedy `mark active` gives. Launching an
-`active` ticket then marks it
-`in_progress` (posting `▶️`) before spawning the agent; launching an
-already-`in_progress` ticket resumes it without another status flip. Launch
-always spawns the assignee's agent and requires stdin and stdout to both be
-terminals. Trailing positional arguments arrive in an ordered
-`## Launch arguments` block appended to the prompt. Deterministic headless
-commands belong behind the registered `coga run` recipe surface.
+`active` ticket then marks it `in_progress` (posting `▶️`) before its first
+script or agent phase; launching an already-`in_progress` ticket resumes it
+without another status flip. Only an agent phase requires stdin and stdout to
+both be terminals. Trailing positional arguments arrive in an ordered
+`## Launch arguments` block appended to an agent prompt; `ticket.py` receives
+no operands. Repository-independent deterministic commands with stable argv /
+stdout / exit contracts remain behind the registered `coga run` recipe surface.
 
 - `coga launch <slug>` — accepts any unique prefix (git-short-SHA-style).
   A top-level task is its bare leaf slug; a nested task is referenced by its
@@ -214,7 +218,8 @@ commands belong behind the registered `coga run` recipe surface.
   still refused.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
-  spawning an agent.
+  spawning an agent. It refuses a `ticket.py` target because the deterministic
+  phase runs before composition and prompt reporting never executes ticket code.
 - `coga launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
 - `coga launch bootstrap/browser-automation` — stateless browser-automation
@@ -378,7 +383,7 @@ leftover asks on a non-blocked ticket are `coga validate`'s drift to catch, not
 this view's. It is still read-only: it never resolves blockers, relaunches
 work, or probes the network.
 
-The recipe-backed `recurring/blocker-reminders` task uses the same blocked-task
+The script-backed `recurring/blocker-reminders` task uses the same blocked-task
 contract to re-notify owners about unresolved blockers and records a
 `## Blocker reminders` watermark on the blocked task after a live reminder
 attempt.
@@ -422,9 +427,9 @@ section names a PR that has merged on GitHub. Looks each PR up via
 workflow at all. Mid-workflow merges stay alone — those need a human eye.
 
 There is no `coga automerge` command; it was retired. The behavior lives in
-the registered `autoclose` recipe (`runner.RECIPES` →
-`autoclose.sweep_merged`), reached either as the `coga autoclose` alias
-(`recurring launch autoclose-merged`) or directly as `coga run autoclose`.
+`autoclose.sweep_merged`, reached either as the `coga autoclose` alias
+(`recurring launch autoclose-merged`, whose period task runs the template's
+`ticket.py`) or directly as the registered `coga run autoclose`.
 
 It is not wired into any implicit trigger: `coga status` does **not** trigger
 it (it is a strictly read-only view that never hits the network or mutates
@@ -484,7 +489,7 @@ Refuses if the target task is not `status: done`. Use `coga delete` for an
 abandoned ticket where retro has nothing to extract. Checkout hygiene is
 best-effort: a cleanup failure is reported and never aborts the retire run.
 Sweeping branches with no live ticket remains the separate `branch-sweep`
-recipe's job.
+job's.
 
 ## coga skill
 
@@ -784,10 +789,11 @@ recurring --all ~/Code` without racing two checkouts of one remote workspace.
 
 Pass `--agent <type>` to run every agent-backed task in the sweep with that
 configured agent type. The override is ephemeral: it does not rewrite ticket
-assignees, and deterministic recipe/script tasks keep their declared execution
-path. For non-recipe tasks the scanner delegates to `coga launch --agent`, so
-the explicit flag may also assist a current human-owned step. The command
-passes the override to the scanner as ordinary `--agent` argv.
+assignees, and a period task carrying `ticket.py` keeps its deterministic
+execution path. The scanner delegates every template to `coga launch --agent`,
+which classifies each period task from its own directory, so the explicit flag
+may also assist a current human-owned step. The command passes the override to
+the scanner as ordinary `--agent` argv.
 
 For each template (skipping `_`-prefixed files) `coga recurring` enforces
 **one live task per template**: if the generated task at `recurring/<name>` is
@@ -819,8 +825,8 @@ region, and it outlives the reaped task.
 
 `coga recurring --interactive` is the human-stepped debug knob for a recurring
 run. It requires an attended TTY and leaves the recurring liveness backstops
-unarmed; a declared recipe runs directly and every other template launches an
-agent.
+unarmed; a template carrying `ticket.py` runs that file directly and every
+other template launches an agent.
 
 `coga recurring --force` **forces a real, full run of every template**. It is
 *not* a sandbox: the only difference from a bare `coga recurring` is that it
@@ -839,10 +845,11 @@ slug-based suppression, no orphan reaping, and no fold-back-to-template-log
 step. Use it to force this period's work to re-run without waiting for the
 schedule.
 
-Agent templates (no `recipe:`) are skipped when `coga recurring` has no
-stdin/stdout TTY, because the agent REPL
+Agent templates — those with no `ticket.py` beside their `ticket.md` — are
+skipped when `coga recurring` has no stdin/stdout TTY, because the agent REPL
 cannot be driven. Templates intended for cron or other unattended schedulers
-should select a registered recipe.
+should carry that deterministic half. There is no mode field to set: the file's
+presence is the whole declaration.
 
 **Queue guidance.** Like megalaunch, automatic recurring launches (the bare
 sweep, `--force`, and on-demand `recurring launch <name>` — everything except
