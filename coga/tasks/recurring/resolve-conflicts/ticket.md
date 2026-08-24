@@ -1,7 +1,7 @@
 ---
 slug: recurring/resolve-conflicts
 title: Resolve PR conflicts
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,7 +17,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -67,3 +66,12 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Prior firings (W33/W34) both found 0 open PRs. W33 hit a one-off
   permission-classifier denial on the delegated Bash call; using the same
   `script -qec` TTY wrapper that worked then.
+- Result: delegated command ran under the sanctioned pty wrapper and exited 0
+  via done-sentinel. Confirmed via coga/log.md L3891 (not the pty stream, per
+  the coga/recurring context): "resolve-conflicts sweep: 3 open PRs checked —
+  3 up-to-date, 0 rebased-pushed, 0 conflict, 0 skipped-dirty, 0
+  verify-failed. No PRs need attention."
+- PRs in scope this period: #704 (layout-contexts-dir), #705
+  (recurring-ticket-py), #706 (pr-line-annotations). No branch was force-pushed.
+- No permission-classifier denial this time; the W33 issue remains
+  session-local, not a standing gap.
