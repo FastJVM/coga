@@ -41,9 +41,9 @@ the actual files the system runs on, not a sandboxed extension point.
 hosted service, a plugin fence); a config surface that exposes only part of the
 logic.
 
-**Receipt:** edit any markdown under `coga/` → the next `coga launch` uses
-it. The ~2-minute correction loop: see a mistake → edit the context → commit →
-next run is fixed.
+**Receipt:** edit any markdown under `coga/`, or a context under the configured
+contexts directory → the next `coga launch` uses it. The ~2-minute correction
+loop: see a mistake → edit the context → commit → next run is fixed.
 
 ## 2. Agents do, humans think — offload everything mechanizable
 
@@ -111,7 +111,7 @@ behavior on `main` without a human merge gate; silent knowledge updates.
 
 **Receipt:** **Dream** (`coga/recurring/dream/`) reads tickets + blackboards,
 classifies drift, and opens **proposal PRs** — "propose, human disposes."
-the blackboard region (in `ticket.md`) is working memory; `contexts/` is long-term memory, merged by
+the blackboard region (in `ticket.md`) is working memory; the contexts directory is long-term memory, merged by
 hand. The correction loop is the human instance of this; Dream is the agent
 instance. (Sessions are stateless — the prompt is a pure function of the files on
 disk now, never a carried-over session — which is what makes an edit between runs

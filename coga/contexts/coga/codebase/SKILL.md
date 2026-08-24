@@ -8,9 +8,10 @@ description: Where things live in the coga source tree, and how to run tests and
 The repo has two halves:
 
 - **`src/coga/`** — the Python package. The CLI implementation.
-- **`coga/`** — the user-facing OS layout (config, tasks,
-  skills, workflows, contexts, prompts). What coga *operates on*,
-  not coga itself.
+- **`coga/`** — the core user-facing OS layout (config, tasks,
+  skills, workflows, prompts, and contexts by default). `[layout] contexts`
+  may place the contexts directory elsewhere in the checkout. This is what
+  coga *operates on*, not coga itself.
 
 Always be clear which half you're editing. They have different
 review bars.
@@ -112,7 +113,7 @@ coga/
                            exact sibling ticket.py is its deterministic phase
   tasks/<dir>/.../<slug>/ ← tickets in sub-dirs at any depth (ref'd by path)
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
-  contexts/<ns>/<name>/  ← project-local domain knowledge / overrides
+  contexts/<ns>/<name>/  ← default project-local domain knowledge / overrides
   workflows/<ns>/<name>.md ← step definitions (local-first over bootstrap/workflows/)
   .agent-skills/         ← generated local-plus-bundled skill view for agents
 ```
@@ -125,8 +126,10 @@ instructions. Coga's own bundled ticket scripts are exercised from `tests/`
 against `example/`; a user repo may keep its script tests beside the ticket,
 but Coga neither discovers nor runs them.
 
-Coga resolves skills and contexts from project-local roots first, then from
-the package-backed bootstrap roots inside the installed `coga` package. It
+Coga resolves skills and contexts from project-local roots first — skills from
+`coga/skills/`, contexts from the configured contexts directory
+(`coga/contexts/` by default) — then from the package-backed bootstrap roots
+inside the installed `coga` package. It
 does the same for bundled reusable workflows and stateless bootstrap launch
 tickets. `coga/bootstrap/` is not materialized into working repos. Claude Code
 and Codex are pointed at the generated `coga/.agent-skills/` view, which

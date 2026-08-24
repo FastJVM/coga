@@ -1,9 +1,10 @@
 """`coga uninstall` — the symmetric inverse of `coga init`.
 
 `coga init` writes a self-contained coga footprint into a host repo: the
-`coga/` tree (with its own vendored venv), agent skill symlinks, root-level
-`CLAUDE.md`/`AGENTS.md` orientation guides, a coga-managed `.gitignore` block,
-a `~/.local/bin/coga` shim, and the global `coga` pip/pipx package.
+`coga/` tree (with its own vendored venv), the configured contexts directory,
+agent skill symlinks, root-level `CLAUDE.md`/`AGENTS.md` orientation guides, a
+coga-managed `.gitignore` block, a `~/.local/bin/coga` shim, and the global
+`coga` pip/pipx package.
 `coga uninstall` removes that footprint so trying Coga is a reversible
 decision.
 
@@ -18,6 +19,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -31,7 +33,7 @@ from coga.commands.update import (
     remove_host_gitignore,
     running_cli_location,
 )
-from coga.config import ConfigError, find_repo_root
+from coga.config import ConfigError, find_repo_root, resolve_layout_contexts_path
 
 
 # Agent skill links init wires up: `<target>/<dir>/skills/coga` symlinks.
@@ -49,6 +51,8 @@ class _Plan:
 
     target: Path
     coga_os: Path | None = None
+    contexts_root: Path | None = None
+    contexts_warning: str | None = None
     skill_links: list[Path] = field(default_factory=list)
     guides_remove: list[Path] = field(default_factory=list)
     guides_backup: list[Path] = field(default_factory=list)
@@ -58,6 +62,7 @@ class _Plan:
     def is_empty(self) -> bool:
         return not (
             self.coga_os
+            or self.contexts_root
             or self.skill_links
             or self.guides_remove
             or self.guides_backup
@@ -125,6 +130,12 @@ def _build_plan(target: Path, coga_os: Path) -> _Plan:
 
     if coga_os.is_dir():
         plan.coga_os = coga_os
+    contexts_root, plan.contexts_warning = _configured_contexts_root(coga_os)
+    if contexts_root is not None and contexts_root.is_dir():
+        try:
+            contexts_root.relative_to(coga_os.resolve())
+        except ValueError:
+            plan.contexts_root = contexts_root
 
     for dirname in _AGENT_SKILL_DIRS:
         link = target / dirname / "skills" / "coga"
@@ -152,6 +163,25 @@ def _build_plan(target: Path, coga_os: Path) -> _Plan:
     return plan
 
 
+def _configured_contexts_root(coga_os: Path) -> tuple[Path | None, str | None]:
+    """Resolve an uninstallable contexts root, or return a visible warning.
+
+    Use the same checkout-root anchoring and containment rules as config load,
+    but do not require the destination to exist or be Git-trackable: uninstall
+    is also the recovery path for a partially broken installation. An invalid
+    config never makes uninstall guess an external destructive target.
+    """
+    try:
+        shared = tomllib.loads((coga_os / "coga.toml").read_text())
+        resolved = resolve_layout_contexts_path(shared.get("layout"), coga_os)
+    except (ConfigError, OSError, tomllib.TOMLDecodeError) as exc:
+        return None, (
+            "could not safely resolve `[layout] contexts` from coga.toml "
+            f"({exc}); any relocated contexts directory will be left in place"
+        )
+    return resolved, None
+
+
 def _print_plan(target: Path, coga_os: Path, plan: _Plan, purge: bool) -> None:
     def rel(path: Path) -> str:
         try:
@@ -162,6 +192,13 @@ def _print_plan(target: Path, coga_os: Path, plan: _Plan, purge: bool) -> None:
     typer.echo(f"Uninstalling Coga from {target}:")
     if plan.coga_os:
         typer.echo(f"  - remove {rel(plan.coga_os)}/ (the whole Coga tree + vendored venv)")
+    if plan.contexts_root:
+        typer.echo(
+            f"  - remove {rel(plan.contexts_root)}/ "
+            "(configured contexts directory)"
+        )
+    if plan.contexts_warning:
+        typer.secho(f"  ! {plan.contexts_warning}", fg=typer.colors.YELLOW)
     for link in plan.skill_links:
         typer.echo(f"  - unlink {rel(link)} (agent skill discovery)")
     for path in plan.guides_remove:
@@ -188,6 +225,20 @@ def _print_plan(target: Path, coga_os: Path, plan: _Plan, purge: bool) -> None:
 
 
 def _execute_plan(plan: _Plan) -> None:
+    # Remove external contexts before deleting coga.toml, the durable record of
+    # where they live. A refusal here therefore leaves the installation intact
+    # and retryable instead of orphaning human-edited state.
+    if plan.contexts_root:
+        try:
+            shutil.rmtree(plan.contexts_root)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            _bail(f"Failed to remove {plan.contexts_root}: {exc}")
+        if plan.contexts_root.exists():
+            _bail(f"Failed to remove {plan.contexts_root}: path still exists")
+        typer.echo(f"Removed {plan.contexts_root}/")
+
     if plan.coga_os:
         try:
             shutil.rmtree(plan.coga_os)

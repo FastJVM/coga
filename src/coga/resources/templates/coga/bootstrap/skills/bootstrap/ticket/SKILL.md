@@ -120,7 +120,8 @@ Before suggesting anything, ground yourself in what actually exists:
   ref.
 - `ls coga/contexts/*/ <package-bootstrap>/contexts/*/` — known contexts
   (path shape: `<namespace>/<name>/SKILL.md`; reference shape in tickets:
-  `<namespace>/<name>`).
+  `<namespace>/<name>`). If `coga.toml` sets `[layout] contexts`, list that
+  directory instead of `coga/contexts/`; the reference shape is unchanged.
 - `ls coga/skills/*/` — known skills (same path/reference shape).
 - `coga.toml` `[agents.*]` — known agent types (e.g. `claude`, `codex`).
 
@@ -226,7 +227,9 @@ the external registries for a candidate and decide import / adapt / write. Only
 write a local skill from scratch when nothing external fits. Contexts (domain
 knowledge) are repo-specific — write those locally as below.
 
-- New context: `coga/contexts/<namespace>/<name>/SKILL.md` with
+- New context: `<contexts-dir>/<namespace>/<name>/SKILL.md` — where
+  `<contexts-dir>` is `coga/contexts/` unless `coga.toml` sets
+  `[layout] contexts` — with
   frontmatter `name: <namespace>/<name>` and a one-sentence `description:`.
   Body is domain knowledge — facts, edge cases, what's out of scope. No
   process.

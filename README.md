@@ -64,7 +64,8 @@ the work one legible control plane.
 ## The correction loop
 
 The important demo is not an agent succeeding. It is an agent being wrong in a
-way you can fix permanently:
+way you can fix permanently. This example uses the default contexts directory;
+substitute the repo's `[layout] contexts` directory when configured:
 
 ```sh
 $ $EDITOR coga/contexts/payments/refunds/SKILL.md  # correct the missing rule
