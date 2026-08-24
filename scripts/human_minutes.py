@@ -29,6 +29,8 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from coga.autoclose import parse_pr_url
+
 
 DEFAULT_TIMEZONE = "America/Los_Angeles"
 DEFAULT_GAP_MINUTES = 10.0
@@ -43,7 +45,6 @@ _LOG_RE = re.compile(
 _DEV_SECTION_RE = re.compile(
     r"^##\s+Dev\s*\n(.*?)(?=\n##\s|\Z)", re.MULTILINE | re.DOTALL
 )
-_PR_LINE_RE = re.compile(r"^\s*(?:-\s*)?pr:\s*(\S+)\s*$", re.MULTILINE)
 _BRANCH_LINE_RE = re.compile(
     r"^\s*(?:-\s*)?branch:\s*(.+?)\s*$", re.MULTILINE
 )
@@ -348,7 +349,7 @@ def parse_task(path: Path, *, tasks_dir: Path) -> TaskInfo:
     slug = frontmatter.get("slug") or fallback_slug
     dev_match = _DEV_SECTION_RE.search(text)
     dev = dev_match.group(1) if dev_match else ""
-    pr_url = _parse_dev_url(_PR_LINE_RE, dev)
+    pr_url = parse_pr_url(text)
     artifact = _parse_dev_url(_ARTIFACT_LINE_RE, dev) or pr_url
     branch = _parse_branch(dev)
     humans = tuple(
