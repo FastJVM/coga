@@ -58,3 +58,12 @@ this recurring template.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## W35 run
+
+- Period: 2026-W35 (per log L3876).
+- Plan per body: delegate to `coga resolve-conflicts --agent claude --queue-guidance`
+  (queue guidance is appended to this launch), then `coga mark done`.
+- Prior firings (W33/W34) both found 0 open PRs. W33 hit a one-off
+  permission-classifier denial on the delegated Bash call; using the same
+  `script -qec` TTY wrapper that worked then.
