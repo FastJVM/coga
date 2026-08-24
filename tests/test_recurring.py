@@ -3934,9 +3934,19 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     cfg = load_config(repo)
-    canceled = SimpleNamespace(ref=SimpleNamespace(id_slug="canceled-period"))
-    later = SimpleNamespace(ref=SimpleNamespace(id_slug="later-period"))
-    scan = SimpleNamespace(forced=[canceled, later], due=[])
+    canceled = SimpleNamespace(
+        template="canceled-period",
+        ref=SimpleNamespace(
+            id_slug="canceled-period", ticket_path=Path("no-such-ticket.md")
+        ),
+    )
+    later = SimpleNamespace(
+        template="later-period",
+        ref=SimpleNamespace(
+            id_slug="later-period", ticket_path=Path("no-such-ticket.md")
+        ),
+    )
+    scan = SimpleNamespace(forced=[canceled, later], due=[], tasks=[], errors=[])
     launched: list[str] = []
 
     monkeypatch.setattr(
@@ -3978,7 +3988,12 @@ def test_forced_recurring_scan_prepares_then_launches_task(
 ) -> None:
     """Forced runs prepare, then hand every template to one `launch` call."""
     cfg = load_config(repo)
-    task = SimpleNamespace(ref=SimpleNamespace(id_slug="recurring/script-check"))
+    task = SimpleNamespace(
+        template="script-check",
+        ref=SimpleNamespace(
+            id_slug="recurring/script-check", ticket_path=Path("no-such-ticket.md")
+        ),
+    )
     prepared: list[object] = []
     launched: list[str] = []
 
@@ -3990,7 +4005,9 @@ def test_forced_recurring_scan_prepares_then_launches_task(
     monkeypatch.setattr(
         recurring_cmd,
         "scan_due",
-        lambda *args, **kwargs: SimpleNamespace(forced=[task], due=[]),
+        lambda *args, **kwargs: SimpleNamespace(
+            forced=[task], due=[], tasks=[], errors=[]
+        ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
     monkeypatch.setattr(recurring_cmd, "_print_table", lambda *args, **kwargs: None)
@@ -4025,8 +4042,18 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
     ordinary refusal path they had under the old recipe dispatch.
     """
     cfg = load_config(repo)
-    first = SimpleNamespace(ref=SimpleNamespace(id_slug="recurring/failing"))
-    second = SimpleNamespace(ref=SimpleNamespace(id_slug="recurring/later"))
+    first = SimpleNamespace(
+        template="failing",
+        ref=SimpleNamespace(
+            id_slug="recurring/failing", ticket_path=Path("no-such-ticket.md")
+        ),
+    )
+    second = SimpleNamespace(
+        template="later",
+        ref=SimpleNamespace(
+            id_slug="recurring/later", ticket_path=Path("no-such-ticket.md")
+        ),
+    )
     launched: list[str] = []
 
     def failing_launch(slug: str, **kwargs: object) -> str | None:
@@ -4043,7 +4070,9 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
     monkeypatch.setattr(
         recurring_cmd,
         "scan_due",
-        lambda *args, **kwargs: SimpleNamespace(forced=[], due=[first, second]),
+        lambda *args, **kwargs: SimpleNamespace(
+            forced=[], due=[first, second], tasks=[], errors=[]
+        ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
     monkeypatch.setattr(recurring_cmd, "_print_table", lambda *args, **kwargs: None)

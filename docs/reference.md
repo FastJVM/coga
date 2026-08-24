@@ -75,8 +75,9 @@ untouched. Trailing `ARGS` arrive as ordered values in an appended
 
 Run one deterministic Coga recipe from the fixed core registry. The known
 names are `autoclose`, `digest`, `blocker-reminders`, `branch-sweep`,
-`validate-drift`, `cleanup-orphan-markers`, `recurring-scan`, `skill-update`,
-`open-pr`, and `delete-task`; unknown names exit 2 and list that set.
+`validate-drift`, `cleanup-orphan-markers`, `recurring-scan`,
+`autofix-analyze`, `skill-update`, `open-pr`, and `delete-task`; unknown names
+exit 2 and list that set.
 
 Trailing arguments are forwarded as an ordinary `list[str]`, preserving token
 boundaries and option spelling. Recipe output passes through and the recipe's
@@ -168,6 +169,30 @@ would let an uncommitted machine-local setting override a committed policy.
   sweep exits non-zero after finishing. Delete the canceled task before
   starting a fresh run.
 - `--agent <type>` — agent to use for agent-backed recurring tasks in this sweep.
+  Also selects the CLI used for the autofix analysis below.
+
+Every sweep ends with the **autofix loop**. The scan records what each period
+task did — how the launch ended, whether a liveness backstop fired, the
+resulting ticket status, and the period task's blackboard — then makes one
+text-only agent call to read that record. A real problem becomes an `active`
+ticket under `coga/tasks/autofix/` on the `code/with-self-review` workflow with
+the record committed beside it as `run-log.md`, so the next `coga megalaunch`
+can pick up the fix; an already-ticketed problem is reported as a duplicate
+instead. The sweep's own console output and exit code are unchanged — an
+analyst that is missing, times out, or exits non-zero is loud on stderr and
+nothing more.
+
+- `COGA_AUTOFIX=0` disables the loop.
+- `COGA_AUTOFIX_TIMEOUT` (seconds, default 300) bounds the call; `<= 0` disarms
+  the timeout.
+- Every run record is also written to `.coga/recurring-runs/<stamp>.md`
+  (gitignored), whether or not it is ticketed.
+- `coga run autofix-analyze [RUN_LOG] [--dry-run] [--agent TYPE]` re-runs the
+  analysis over a recorded run by hand; with no path it reads the most recent
+  one.
+- The one-shot argv is built in for `claude` and `codex`. Any other CLI needs
+  `[agents.<name>].analyze` in `coga.toml` (e.g. `analyze = "-p {prompt}"`);
+  without it the loop skips loudly rather than opening a REPL nobody can drive.
 
 Subcommands:
 

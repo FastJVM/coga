@@ -52,6 +52,15 @@ class AgentType:
     # token `{prompt}` is replaced with the composed prompt. Empty string lets
     # launch use its built-in defaults for known CLIs, then positional fallback.
     discussion: str = ""
+    # Optional argv override for the recurring sweep's post-run analysis call
+    # (`coga/recurring_autofix.py`). Not a launch: this is a one-shot,
+    # text-in/text-out call with no PTY, no REPL, and no lifecycle — the
+    # analyst reads a run record and answers, and Coga does every mutation.
+    # Parsed via `shlex.split`; the literal token `{prompt}` is replaced with
+    # the analysis prompt. Empty string uses the built-in defaults for known
+    # `claude` / `codex` CLIs; an unknown CLI with no override skips the
+    # analysis loudly rather than guessing an argv.
+    analyze: str = ""
 
 
 @dataclass(frozen=True)
@@ -436,6 +445,7 @@ _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
     "name_flag",
     "session_id_flag",
     "discussion",
+    "analyze",
 })
 _ALLOWED_NOTIFICATION_KEYS: frozenset[str] = frozenset({"channels", "slack"})
 _ALLOWED_SLACK_KEYS: frozenset[str] = frozenset({
@@ -542,6 +552,12 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
                 f"agents.{name}.session_id_flag must be a string "
                 f"(got {type(session_id_flag).__name__})"
             )
+        analyze = data.get("analyze", "")
+        if not isinstance(analyze, str):
+            raise ConfigError(
+                f"agents.{name}.analyze must be a string "
+                f"(got {type(analyze).__name__})"
+            )
         out[name] = AgentType(
             name=name,
             cli=data["cli"],
@@ -550,6 +566,7 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
             name_flag=data.get("name_flag", ""),
             session_id_flag=session_id_flag,
             discussion=discussion,
+            analyze=analyze,
         )
     for name, data in (local_raw or {}).items():
         if not isinstance(data, Mapping):

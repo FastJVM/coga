@@ -19,6 +19,7 @@ EXPECTED_RECIPES = (
     "validate-drift",
     "cleanup-orphan-markers",
     "recurring-scan",
+    "autofix-analyze",
     "skill-update",
     "open-pr",
     "delete-task",

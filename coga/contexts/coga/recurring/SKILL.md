@@ -491,6 +491,70 @@ is removed: Dream marks itself `done` and stops, then the next firing's scan
 deletes that prior-period task before creating the new Dream run. Git history
 is the audit trail; the log's serviced-period record remains persistent.
 
+## The autofix loop closes the sweep
+
+Every sweep ends with one analysis call. `coga recurring` used to print what it
+did and exit — and under cron that console output is the only place a failing
+`ticket.py`, a wedged agent REPL, or a refused forced launch was ever
+described.
+The output is unchanged; the loop is what got added after it
+(`src/coga/recurring_autofix.py`):
+
+1. **The sweep builds a run record as it works** — per period task: how the
+   launch ended (clean, timed out, stopped by a failing `ticket.py`, left
+   unfinished, refused by `--force`), the ticket's status afterwards, and the
+   period task's **blackboard**, plus any template that failed to load. It is
+   *built*, not scraped: tee-ing fd 1 would make `isatty` false and every
+   interactive agent launch would then refuse itself. The blackboard is read
+   instead because it is where a `ticket.py` phase and an agent session both
+   already write what they found — the durable report channel, which the
+   console is not.
+2. **One agent call reads that record** and answers `ok`, `duplicate`, or
+   `problem` plus a ticket body. This is the only place Coga spawns an agent
+   without a PTY — a one-shot, text-in/text-out call with no REPL and no
+   lifecycle. It cannot answer a permission prompt, so it is told not to mutate
+   anything; Coga does every write itself.
+3. **A `problem` becomes an `active` ticket** under `coga/tasks/autofix/` on
+   the `code/with-self-review` workflow, with the run record committed beside
+   it as `run-log.md`. The next `coga megalaunch` picks it up; the human gate
+   is the workflow's owner PR review, and a finding that turns out to be
+   transient closes through the workflow's already-satisfied path.
+
+The loop runs after **every** sweep, including one with nothing due and one
+that died partway through — a sweep that failed mid-run is the one most worth
+analyzing. That cadence is also why the analyst is told what is already
+ticketed: the open `autofix/` tickets go into the prompt so a template that
+fails every night answers `duplicate` instead of minting a ticket a night.
+
+Two properties keep a broken analyst from becoming a broken sweep:
+
+- **It never changes the sweep's exit code.** The sweep's return value reports
+  on the work it ran; an analyst that times out, exits non-zero, or is not
+  installed is loud on stderr and nothing more.
+- **It fails toward surfacing.** An unparseable reply is treated as a problem
+  carrying the raw text, because the alternative is a broken analyst quietly
+  swallowing every failure it was hired to report.
+
+One consequence to keep in mind when writing a `ticket.py` phase: whatever it
+writes to the period task's blackboard travels verbatim into the analysis
+prompt and, when a ticket is created, into a committed `run-log.md`. Coga never
+logs a resolved secret value itself, and a run must not write one to its
+blackboard either — that existing rule now has a second reason.
+
+Operating it:
+
+- `COGA_AUTOFIX=0` disables the loop; `COGA_AUTOFIX_TIMEOUT` (seconds) bounds
+  the call, which defaults to 300s and disarms at `<= 0`.
+- Every run record is also written machine-locally to
+  `.coga/recurring-runs/<stamp>.md` (gitignored — one operator's sweep
+  transcript is not team state), whether or not it gets ticketed.
+- `coga run autofix-analyze [<run-log.md>] [--dry-run]` re-runs the analysis
+  over a recorded run by hand; with no path it takes the most recent one.
+- The argv for the one-shot call is built in for `claude` and `codex`. Another
+  CLI needs `[agents.<name>].analyze` in `coga.toml` (e.g.
+  `analyze = "-p {prompt}"`); without it the loop skips loudly rather than
+  guessing an argv and opening a REPL nobody can drive.
+
 ## Gotchas
 
 - A stray top-level `## ` heading anywhere in the body — including inside a
