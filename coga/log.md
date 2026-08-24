@@ -3857,3 +3857,22 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-21 18:43 [autoclose-skips-annotated-pr-lines] [system] {"agent":"claude","agent_turns":3,"cache_creation_input_tokens":217303,"cache_read_input_tokens":222157,"cli":"claude","content_status":"ok","elapsed_seconds":34.086349,"ended_at":"2026-08-22T01:43:14.012752Z","human_turns":0,"input_tokens":16,"model":"claude-opus-5","outcome":"`pr:` is recorded. Bumping to hand off.","outcome_status":"completed","output_tokens":1815,"provider":"anthropic","request":null,"schema":2,"session_id":"5cdb826b-04b7-45ab-b952-b4df93cee4b7","slug":"autoclose-skips-annotated-pr-lines","started_at":"2026-08-22T01:42:39.926403Z","step":"pr","title":"Autoclose skips annotated PR lines","ts":"2026-08-22T01:43:14.012752Z","usage_status":"ok"}
 2026-08-22 11:13 [parse-agents-rejects-cogalocaltoml] [human:zach] created (status=draft)
 2026-08-22 11:14 [bumppy-requires-exactly-two-agents] [human:zach] created (status=draft)
+2026-08-24 11:41 [recurring/autoclose-merged] [system] created (status=active)
+2026-08-24 11:41 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-08-24
+2026-08-24 11:41 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-08-24
+2026-08-24 11:41 [recurring/blocker-reminders] [system] created (status=active)
+2026-08-24 11:41 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-08-24
+2026-08-24 11:41 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-08-24
+2026-08-24 11:41 [recurring/branch-sweep] [system] created (status=active)
+2026-08-24 11:41 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-W35
+2026-08-24 11:41 [recurring/digest] [system] created (status=active)
+2026-08-24 11:41 [recurring/digest] [system] deleted completed prior-period task before 2026-08-24
+2026-08-24 11:41 [recurring/digest] [system] created recurring/digest for 2026-08-24
+2026-08-24 11:41 [recurring/dream] [system] created (status=active)
+2026-08-24 11:41 [recurring/dream] [system] deleted completed prior-period task before 2026-W35
+2026-08-24 11:41 [recurring/dream] [system] created recurring/dream for 2026-W35
+2026-08-24 11:41 [recurring/resolve-conflicts] [system] created (status=active)
+2026-08-24 11:41 [recurring/resolve-conflicts] [system] deleted completed prior-period task before 2026-W35
+2026-08-24 11:41 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W35
+2026-08-24 11:41 [recurring/skill-update] [system] created (status=active)
+2026-08-24 11:41 [recurring/skill-update] [system] created recurring/skill-update for 2026-W35
