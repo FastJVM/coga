@@ -31,3 +31,4 @@ context. The git high-water mark lives separately in the digest ticket's
 
 consumed_through: f2582ef9174f
 {"id":"f2582ef9174f","ts":"2026-08-24T11:44","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — W35 sweep: delegated coga resolve-conflicts checked 3 open PRs (#704/#705/#706) — all up-to-date, 0 conflicts, no pushes, no attention needed.","ticket":"recurring/resolve-conflicts","owner":"nicktoper"}
+{"id":"c1bdd910a6c4","ts":"2026-08-24T11:44","project":"coga","kind":"done","detail":"→ done (recipe: digest)","ticket":"recurring/digest","owner":"nicktoper"}
