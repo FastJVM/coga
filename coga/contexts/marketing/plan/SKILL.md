@@ -210,12 +210,14 @@ Write these out before post 1 ships; never improvise them in-thread:
 
 ## Claim discipline (adapted for the essay series)
 
-- Descriptive claims only; **no productivity multiplier anywhere**. Coga has
-  never published a multiplier figure and must not start: the surviving claim
-  is the two-person/output-of-ten bet in `docs/vision.md` ("The thesis"),
-  stated as a bet and never as a result, and `docs/velocity-report.md` holds
-  that line in public ("this report makes no '5x,' '10x,' or percentage
-  productivity claim").
+- Descriptive claims only; **no measured productivity multiplier anywhere**.
+  Coga has never published a multiplier as a *result* and must not start. The
+  one ratio it does publish is the two-person/output-of-ten bet in
+  `docs/vision.md` ("The thesis"), echoed in `README.md` — stated as a bet, a
+  thesis about what the tool is for, and never as something measured. Keep that
+  one and keep its framing; `docs/velocity-report.md` holds the same line in
+  public ("this report makes no '5x,' '10x,' or percentage productivity
+  claim"). The rule bites on *results*, not on the thesis.
 - Essay posts claim *ideas*, not results — so they carry no numbers and
   need no receipts. The moment a post states a figure as a result, it
   graduates into the proof-post regime (pre-registration, recomputability)
