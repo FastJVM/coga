@@ -1,5 +1,5 @@
 ---
-name: "browser/playwright"
+name: "playwright"
 description: "Use when the task requires automating a real browser from the terminal (navigation, form filling, snapshots, screenshots, data extraction, UI-flow debugging) via `playwright-cli` or the bundled wrapper script."
 ---
 
@@ -33,13 +33,17 @@ Once `npx` is present, proceed with the wrapper script. A global install of `pla
 
 ## Skill path (set once)
 
-In this Coga repo, prefer the repo-local skill path:
+In a Coga repo, prefer the generated agent-skill view. It resolves to whichever
+copy is in effect — a `coga/skills/browser/playwright` override when the repo has
+one, the package-backed battery otherwise — so the same line works in every
+checkout:
 
 ```bash
-export PWCLI="$PWD/coga/skills/browser/playwright/scripts/playwright_cli.sh"
+export PWCLI="$PWD/coga/.agent-skills/browser/playwright/scripts/playwright_cli.sh"
 ```
 
-For a user-scoped Codex install, use the upstream default:
+For a user-scoped Codex install, where the skill lives outside any Coga repo,
+use the upstream default:
 
 ```bash
 export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"

@@ -1,14 +1,26 @@
 # Playwright CLI Reference
 
-Use the wrapper script unless the CLI is already installed globally:
+Use the wrapper script unless the CLI is already installed globally.
+
+In a Coga repo the wrapper ships with the skill, so point `PWCLI` at the
+generated agent-skill view (same path `SKILL.md` uses) — it resolves to a local
+override or the package-backed battery, whichever the repo has:
+
+```bash
+export PWCLI="$PWD/coga/.agent-skills/browser/playwright/scripts/playwright_cli.sh"
+"$PWCLI" --help
+```
+
+Only for a user-scoped Codex install — where the skill lives outside any Coga
+repo — use the upstream default instead:
 
 ```bash
 export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 export PWCLI="$CODEX_HOME/skills/playwright/scripts/playwright_cli.sh"
-"$PWCLI" --help
 ```
 
 User-scoped skills install under `$CODEX_HOME/skills` (default: `~/.codex/skills`).
+That path does **not** exist inside a Coga checkout; do not use it there.
 
 Optional convenience alias:
 
