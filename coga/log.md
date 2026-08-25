@@ -3984,3 +3984,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-25 11:13 [autoclose-skips-annotated-pr-lines] [human:nicktoper] auto-bumped on merge of PR #706 → done
 2026-08-25 11:21 [retire-autoclose-skips-annotated-pr-lines] [retire] created (status=active)
 2026-08-25 11:27 [make-the-autofix-analyst-legible-and-its-agent-sel] [human:nicktoper] created (status=draft)
+2026-08-25 11:27 [fix-the-autofix-analyst] [human:nicktoper] created (status=draft)
