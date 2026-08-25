@@ -133,7 +133,13 @@ def test_dream_and_scheduler_cleanup_done_recurring_tickets() -> None:
 
     # Phase 4 cleans completed recurring tasks produced earlier in this sweep.
     assert "A done `recurring/<name>` ticket from this sweep is eligible" in norm
-    assert "Retro direct-deletes them via `coga delete recurring/<name>`" in norm
+    # Direct-delete is the default, not the rule: the blackboard decides. Both
+    # halves are asserted so neither can drift away on its own.
+    assert (
+        "Retro normally direct-deletes them via `coga delete recurring/<name>`"
+        in norm
+    )
+    assert "never direct-delete on the ticket's class alone" in norm
 
     # The scanner is the liveness fallback: it deletes an unreaped completed
     # artifact before creating the next period's fresh task. Dream therefore
