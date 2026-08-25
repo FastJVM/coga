@@ -3942,3 +3942,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-24 22:38 [no-durable-runbook-covers-running-coga-headless] [human:nicktoper] created (status=draft)
 2026-08-24 22:38 [no-comms-writing-skill-the-process-is-smeared-thro] [human:nicktoper] created (status=draft)
 2026-08-24 22:38 [triage-the-v2-parking-area-empty-descriptions-prem] [human:nicktoper] created (status=draft)
+2026-08-24 22:38 [dream-reconciliation-must-count-distinct-shard-ids] [human:nicktoper] created (status=draft)
