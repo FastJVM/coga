@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/recurring
 skills: []
@@ -31,7 +31,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (pr)
+step: 4 (review)
 ---
 
 ## Description
