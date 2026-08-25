@@ -148,11 +148,17 @@ Last updated: 2026-07-30.
   run-level summary, and surfaces context/skill/workflow drift.
 - **First enabled Dream skill pass:** `validate-drift` for deterministic repo
   validation and safe file-presence repairs; `retro/done-ticket` for batched
-  durable-knowledge extraction from completed tasks. Dream loads the
-  context/skill corpus once per run, processes every eligible done ticket with
-  a running knowledge delta, batches them into coherent PRs of at most five
-  source tickets each, and keeps each knowledge PR small enough to describe
-  with one clear title.
+  durable-knowledge extraction from completed tasks. Dream's decide-half scans
+  no longer read the corpus once per run: the corpus outgrew a single subagent,
+  and a shard that stopped early was indistinguishable from a clean repo. They
+  now run as **bounded shards** — Dream indexes the corpus, assigns each shard
+  at most 150 KB across at most 40 files, and every shard appends findings to a
+  shared on-disk `findings.md` as it decides them plus an explicit completion
+  line stating its count, including zero (see
+  `bootstrap/dream/scan/scan-protocol`). The done-ticket half is unchanged:
+  Dream still processes every eligible done ticket with a running knowledge
+  delta, batches them into coherent PRs of at most five source tickets each, and
+  keeps each knowledge PR small enough to describe with one clear title.
 - **REM is repo/user-specific recurring maintenance.** It is opt-in user space:
   each repo authors its own template under `coga/recurring/` (see the
   `coga/recurring` context), defining its own cadence, scan, domain skills,
@@ -280,9 +286,12 @@ drove it are done and pruned — `rename-slack-to-a-notification-system-with-plu
 `slack-post-ignores-http-response-so-bad-webhook-fa` are all completed and no
 longer on disk.
 
-The only Slack idea still parked is a v2 draft:
-`use-slack-as-a-sync-channel-for-tickets` — inbound Slack → ticket sync. It is
-not active work; see "Deliberately deferred" below.
+Two Slack ideas are still parked, both under `coga/tasks/v2/`:
+`use-slack-as-a-sync-channel-for-tickets` (`status: draft`) — inbound Slack →
+ticket sync — and `issue-inbox-slack` (`status: paused`) — enriching the
+existing outbound posts into a readable inbox, where a panic carries its
+blocker reason and required action and every post links the next step,
+webhook-only. Neither is active work; see "Deliberately deferred" below.
 
 ## Deliberately deferred
 

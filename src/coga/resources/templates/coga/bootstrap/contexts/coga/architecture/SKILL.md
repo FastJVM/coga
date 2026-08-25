@@ -876,8 +876,8 @@ account state committed to git.
   `gh` auth.
 - **Repo / install identity.** The repo is identified by the git checkout and
   `coga/` config. Coga creates no hosted account or telemetry identity.
-- **Skill / task capability.** A task's capabilities are its ticket-level
-  `secrets:` list, declared **inline** — each entry is a single-key map
+- **Skill / task capability.** A task's *declared* capabilities are its
+  ticket-level `secrets:` list, declared **inline** — each entry is a single-key map
   `NAME: <ref>` whose `<ref>` is an `env:VAR` or `op://vault/item/field`
   indirection (both safe to commit — they are pointers, not values; a raw
   literal is rejected). There is no central `[secrets]` catalog: the ticket
@@ -890,6 +890,16 @@ account state committed to git.
   dispatch in `config.py`** (`parse_inline_secrets` / `select_launch_secrets`),
   not a provider registry: a future provider is another explicit branch on the
   same shared secret path.
+
+  **This is a declaration, not a sandbox.** `config.build_launch_env()` starts
+  from the **full parent environment** and removes only the source variables an
+  `env:VAR` ref names, then adds back the resolved, scoped aliases. Every other
+  variable the operator's shell carries is inherited by the child — including
+  `OP_SERVICE_ACCOUNT_TOKEN`, which Coga never scrubs, so a launched agent can
+  run `op read` against anything that service account can reach regardless of
+  what the ticket declared. The `secrets:` list bounds what Coga *resolves and
+  names* for a task; it does not bound what the task's process can reach. Real
+  confinement needs process isolation Coga does not yet have.
 
 ## One shared agent-spawn path
 

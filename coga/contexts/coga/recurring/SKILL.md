@@ -571,15 +571,27 @@ Operating it:
   cleanup. Use the recurring task's own blackboard region in
   `coga/recurring/<name>/ticket.md`.
 
-- **A wrapper that delegates to an agent-backed command needs a pty *and* a
-  log-based success check.** Some recurring templates own only the schedule and
-  hand the real work to an ordinary Coga command (`recurring/resolve-conflicts`
-  → `coga resolve-conflicts --agent <type>`). Two things bite there:
-  - **`coga launch` refuses an agent launch without a TTY on *both* stdin and
-    stdout**, and an agent's own tool shell supplies neither — so running the
-    delegation straight from a tool call is *refused*, not merely degraded. Run
-    it under a pty and bound it, e.g.
-    `timeout 900 script -qec 'coga resolve-conflicts --agent claude' /dev/null`.
+- **A wrapper that delegates to an agent-backed command inherits the outer
+  supervisor's admission, and still needs a log-based success check.** Some
+  recurring templates own only the schedule and hand the real work to an
+  ordinary Coga command (`recurring/resolve-conflicts` → `coga
+  resolve-conflicts --agent <type>`, itself an alias for `launch
+  bootstrap/resolve-conflicts`). Two things to get right:
+  - **Keep the delegating template agent-backed and invoke the command plainly.**
+    `coga launch` refuses an agent launch without a TTY on *both* stdin and
+    stdout, so a headless sweep is refused before the period task is even
+    created — the admission decision belongs to the outer launch, not to the
+    wrapper. Because the template stays agent-backed, recurring's TTY
+    admission, `--agent` override, idle timeout, and max-session watchdog
+    already govern the whole delegated process tree, so the wrapper just runs
+    `coga resolve-conflicts --agent <current-agent-type>` and waits. Do **not**
+    improvise a fake pty around it — a recipe like
+    `timeout 900 script -qec '…' /dev/null` was tried and is not the sanctioned
+    pattern: it re-does bounding the outer supervisor already provides and
+    reads to an agent harness's permission classifier as an unfamiliar shell
+    construct to deny. If the delegation is being refused for want of a TTY,
+    the fix is to run the sweep from a real terminal, not to synthesize one a
+    level down.
   - **Do not read success from the captured output.** The delegated session is
     torn down by the done sentinel seconds after its roll-up posts, and the pty
     stream is ANSI noise, so the wrapper's stdout is not a usable signal.
