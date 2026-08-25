@@ -116,10 +116,20 @@ coga/
                            exact sibling ticket.py is its deterministic phase
   tasks/<dir>/.../<slug>/ ← tickets in sub-dirs at any depth (ref'd by path)
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
+                           (imported skills land flat: skills/<name>/)
   contexts/<ns>/<name>/  ← default project-local domain knowledge / overrides
   workflows/<ns>/<name>.md ← step definitions (local-first over bootstrap/workflows/)
   .agent-skills/         ← generated local-plus-bundled skill view for agents
 ```
+
+`<ns>/<name>/` is the convention for skills this repo *authors* — `code/`,
+`coga/`, `browser/`, `direct/`. It is not a requirement, and imported skills do
+not follow it: `coga skill install` lays a Coga-managed skill down flat at
+`coga/skills/<ref>/` under its upstream ref name, so this repo also carries
+seven flat `google-agents-cli-*` directories (declared in
+`src/coga/resources/managed-skills.toml`) alongside `_template/`. Skill
+resolution reads the directory path either way; prefer a namespace for anything
+you write, and expect the flat form for anything you imported.
 
 File-form `tasks/<slug>.md` tickets cannot carry attachments and therefore
 cannot be script-backed. In a directory-form ticket, only `ticket.py` is
@@ -203,12 +213,15 @@ Two non-obvious traps make this a clean-checkout-only failure that hides in dev:
   `git clone` / `git worktree` (what a release or `pip install git+…` uses) has
   no symlinks, so the collision is fatal. Always verify a packaging fix against
   **both** tree shapes.
-- **The only wheel-building test silently skips.** `tests/test_packaging.py`
-  opens with `pytest.importorskip("hatchling")`. With no build backend in the
-  venv it skips, so the suite is green while the wheel is unbuildable. Keep
-  `hatchling` a tracked **dev/test** dep (`[project.optional-dependencies].test`,
-  never runtime `requirements.txt` — coga never imports it at runtime) so the
-  test actually runs.
+- **The only wheel-building test needs a build backend in the venv.**
+  `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` shells out
+  to `python -m pip wheel --no-build-isolation --no-deps .` and asserts exit 0
+  before checking the archive's names. There is no `importorskip` guard: with no
+  `hatchling` in the venv the build fails and the test **fails** rather than
+  skipping — loud, but as environment noise that reads like a packaging
+  regression. Keep `hatchling` a tracked **dev/test** dep
+  (`[project.optional-dependencies].test`, never runtime `requirements.txt` —
+  coga never imports it at runtime) so a failure here means what it says.
 
 Fix shape: exclude the colliding dir from the walk (`exclude` glob) and let the
 `force-include` be its single deterministic shipper — mirroring the existing
