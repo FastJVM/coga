@@ -47,7 +47,34 @@ def _has_pr(blackboard_text: str) -> object:
     return parse_pr_url(blackboard_text)
 
 
+def _has_branch_linkage(blackboard_text: str) -> object:
+    # Lazy for the same import-cycle reason as `_has_pr`.
+    from coga.autoclose import parse_branch_name, parse_worktree_path
+
+    branch = parse_branch_name(blackboard_text)
+    if not branch or branch.startswith("("):
+        return False
+    # `parse_worktree_path` rejects a `(`-prefixed placeholder itself, so the
+    # branch half above is the only one that needs the explicit guard.
+    return bool(parse_worktree_path(blackboard_text))
+
+
 STEP_GATES: dict[str, StepGate] = {
+    "branch": StepGate(
+        check=_has_branch_linkage,
+        remediation=(
+            "This step must record both `branch:` and `worktree:` under `## Dev` "
+            "on the blackboard, and `coga bump` only sees the ticket copy in the "
+            "checkout it runs from. If you wrote `## Dev` from inside the feature "
+            "checkout, the write landed in that checkout's copy: either record "
+            "the two lines in the ticket copy of this checkout, or re-run bump "
+            "from the checkout that has the write. Confirm the recorded lines "
+            "describe *this* attempt's branch and checkout — a stale `## Dev` "
+            "left by an earlier attempt satisfies this gate but strands the "
+            "current one. Or `coga block --task {slug} --reason \"...\"` if the "
+            "branch was lost."
+        ),
+    ),
     "pr": StepGate(
         check=_has_pr,
         remediation=(

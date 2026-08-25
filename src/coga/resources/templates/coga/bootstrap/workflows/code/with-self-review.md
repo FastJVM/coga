@@ -4,6 +4,7 @@ description: Code change with an agent self-QA pass (/code-review + /simplify, f
 steps:
   - name: implement
     assignee: agent
+    requires: branch
     skills:
       - code/implement
   - name: self-qa
@@ -32,6 +33,22 @@ blackboard first. This is the only direct agent close path in this workflow;
 ordinary code changes still go through implement, self-QA, PR, and the
 owner-controlled review gate. A missing decision or ambiguous verification is a
 real blocker (`coga block`), not an already-satisfied closure.
+
+## implement
+
+Follow the `code/implement` skill. This step declares `requires: branch`: `coga
+bump` refuses to advance until both `branch:` and `worktree:` are recorded under
+`## Dev` **in the ticket copy of the checkout `coga bump` runs from**. Like
+`requires: pr` below, that is a data check rather than a matter of the agent's
+say-so — and it is what makes the stranded-write failure loud. If `## Dev` is
+written from inside the feature checkout while `coga bump` runs from the primary
+checkout, the write is invisible to the bump (and to the ticket sync it
+performs), and the pr step later fails with "No usable `branch:`
+recorded" even though implement did record it. Record the two lines in the
+checkout you bump from, or re-run bump from the checkout that has the write.
+The gate is presence-based, not freshness-based, so on a relaunched or retried
+implement, confirm the recorded lines describe *this* attempt's branch and
+checkout.
 
 ## pr
 

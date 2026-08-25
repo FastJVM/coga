@@ -127,6 +127,17 @@ When to write each:
 - **`worktree:`** — the moment you create the feature worktree. Use a
   path outside the primary checkout so it does not appear as an
   untracked directory in the control-plane checkout.
+
+  Both `branch:` and `worktree:` must be written into the ticket copy of the
+  checkout `coga bump` will run from. In the workflows above the implement step
+  declares `requires: branch`, so `coga bump` refuses to advance until it reads
+  both lines in *that* copy. Writing `## Dev` from inside the feature checkout
+  and then bumping from the primary checkout strands the write on the feature
+  branch: bump syncs a ticket that never saw it, and `coga open-pr` fails a step
+  later with "No usable `branch:` recorded" even though implement did record it.
+  Either write the lines in the checkout you bump from, or run `coga bump` from
+  the checkout that has the write. The gate checks presence, not freshness — on
+  a retried implement, confirm the recorded lines describe the current attempt.
 - **`pr:`** — the full PR URL, one line. A trailing annotation after the URL
   is fine (`pr: <url> (no CI configured on the repo)`) — and unlike the two
   fields above, `pr:` needs no backticks around the value to make one safe,
