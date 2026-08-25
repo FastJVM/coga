@@ -1,7 +1,7 @@
 ---
 slug: recurring/skill-update
 title: Skill update
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,7 +17,6 @@ workflow:
     - bootstrap/skill-update
     assignee: agent
 secrets: null
-step: 1 (update)
 ---
 
 ## Description
@@ -81,3 +80,17 @@ PR: https://github.com/FastJVM/coga/pull/708
 - `coga/gmail`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
 - `coga/google-calendar`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
 - `retro/done-ticket`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+
+### Run notes
+
+- First attempt failed (exit 2): `git push` rejected with `! [rejected] coga/skill-update -> coga/skill-update (stale info)`.
+  PR #678 merged and its remote branch was deleted, but the local
+  `refs/remotes/origin/coga/skill-update` tracking ref still pointed at the old
+  SHA, so the force-with-lease push saw a lease it could not satisfy.
+  `git fetch --prune origin` cleared it and the rerun succeeded. This will
+  recur every period after a merge+delete unless `coga skill update --pr`
+  prunes (or fetches) the branch ref before pushing — worth a follow-up ticket.
+- This period task directory has no `ticket.py`, so the run fired as an agent
+  phase rather than headless. The template at
+  `coga/recurring/skill-update/ticket.py` does have it; this instance was
+  created before the template gained the file. Next period instantiates cleanly.
