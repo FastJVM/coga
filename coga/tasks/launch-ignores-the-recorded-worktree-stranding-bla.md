@@ -1,7 +1,7 @@
 ---
 slug: launch-ignores-the-recorded-worktree-stranding-bla
 title: Launch ignores the recorded worktree, stranding blackboard writes
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -33,7 +33,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 5 (review)
 ---
 
 ## Description
