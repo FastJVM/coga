@@ -3974,3 +3974,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-25 10:56 [recurring/autoclose-merged] [human:nicktoper] task done
 2026-08-25 10:57 [recurring/autoclose-merged] [system] script exited with code 0
 2026-08-25 10:57 [recurring/digest] [system] started (active → in_progress) via coga launch
+2026-08-25 10:57 [recurring/digest] [system] launched as a script (ticket.py)
