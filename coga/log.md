@@ -3934,3 +3934,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-24 22:37 [document-the-ticket-blackboard-writer-s-contract] [human:nicktoper] created (status=draft)
 2026-08-24 22:38 [vendored-skills-carry-no-coga-source-json-so-coga] [human:nicktoper] created (status=draft)
 2026-08-24 22:38 [ticket-specs-should-cite-symbols-not-line-numbers] [human:nicktoper] created (status=draft)
+2026-08-24 22:38 [carry-adjacent-bugs-out-of-a-blackboard-before-ret] [human:nicktoper] created (status=draft)
