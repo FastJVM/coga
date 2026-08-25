@@ -292,6 +292,10 @@ roughly two-thirds stale, one pointing at the wrong module). Grep for the symbol
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+branch: implement-branch-gate
+worktree: /home/n/Code/claude/coga-implement-branch-gate
+
 ## Design step (2026-08-19)
 
 ### Reproduction — mechanism confirmed
