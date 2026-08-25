@@ -33,9 +33,28 @@ step: 1 (implement)
 
 ## Description
 
+Coga ships a real skill-provenance mechanism: `.coga-source.json` (schema `coga.skill-source.v1`)
+is written by `coga skill install-url` and read by `coga skill status` / `coga skill update`
+(`src/coga/skill_manager.py`), and it is documented in `docs/reference.md`. **Not one skill under
+`coga/skills/` carries that file.**
 
+The weekly `recurring/skill-update` template asserts the opposite — "Imported skills live as plain
+directories under `coga/skills/` with `.coga-source.json` provenance" — and runs
+`coga skill update --all --pr` to "walk every imported skill with recorded provenance". It walks
+nothing that way. Two skills are self-declared verbatim imports with hand-written provenance
+instead (`anthropic/skill-creator/ATTRIBUTION.md` pins upstream `anthropics/skills` at `f458cee3`;
+`browser/playwright/NOTICE.txt` names `microsoft/playwright-cli`), and `coga skill status` reports
+both as unmanaged.
+
+Decide: backfill `.coga-source.json` for the genuinely vendored packs, or change the template's
+claim to match reality. Note `coga skill update --all` also delegates gh-backed skills, which the
+template does not mention.
 
 ## Context
+
+Found by Dream 2026-08-24 — Phase 2 shards 13, 14, 15 independently (merged), corroborated by
+Phase 3 shards ca-04 and ca-05. The seven `google-agents-cli-*` packs are currently touched by
+open PR #708, so sequence this after that merges.
 
 <!-- coga:blackboard -->
 

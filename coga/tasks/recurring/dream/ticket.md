@@ -720,3 +720,31 @@ Generated: 2026-08-25T05:37:20+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Phase 6 — artifacts opened
+
+### Draft tickets created (12, `gap` route) — all with populated Description + Context
+`document-the-ticket-blackboard-writer-s-contract`, `vendored-skills-carry-no-coga-source-json-so-coga`,
+`ticket-specs-should-cite-symbols-not-line-numbers`, `carry-adjacent-bugs-out-of-a-blackboard-before-ret`,
+`give-a-ticket-s-superseded-design-one-documented-h`, `no-skill-exists-for-the-cold-evaluator-review-of-a`,
+`the-ticket-interview-never-asks-what-done-means`, `packaged-repos-ship-recurring-templates-without-th`,
+`no-durable-runbook-covers-running-coga-headless`, `no-comms-writing-skill-the-process-is-smeared-thro`,
+`triage-the-v2-parking-area-empty-descriptions-prem`, `dream-reconciliation-must-count-distinct-shard-ids`
+(all `--workflow code/with-review`, which froze correctly — confirming the withdrawn ca-05 finding).
+
+### Knowledge PRs from Phase 4 (Retro)
+- **#710** blocker-reminder watermark -> `coga/contexts/coga/sync/SKILL.md` + packaged twin; deletes `recurring/blocker-reminders`.
+- **#711** `skill update --pr` stale lease -> `coga/contexts/coga/recurring/SKILL.md` `## Gotchas`; deletes `recurring/skill-update`.
+- **#712** orphaned retire shell disposition -> `coga/contexts/coga/current-direction/SKILL.md` + `src/coga/resources/retire.md`; deletes both `retire-*` tickets.
+- 4 direct deletes landed on `origin/main`: `recurring/autoclose-merged` (4bf326a7), `recurring/branch-sweep` (4adc730f), `recurring/digest` (0c055108), `recurring/resolve-conflicts` (92237024).
+
+### Proposal PRs from Phase 6 (`stale` + `drift`)
+- **#713** `CLAUDE.md` + `AGENTS.md` — phantom "locking" reference dropped (searched first: the repo's
+  documented stance is explicitly anti-lock, so there was nothing to repoint at); CLAUDE.md install
+  line corrected to the `.[test]` extra. Consequence flagged for the reviewer: the two files are now
+  byte-identical, since the install divergence was itself the drift.
+- **#714** `coga/contexts/coga/secrets/SKILL.md` — all 3 fixes landed, each verified at source.
+  Not a packaged pair (only one copy on disk). **Deliberately did not settle** the open
+  `service-account-scoping-single-vault-rule-conflict` ticket (still `in_progress` at step 2 awaiting
+  an owner decision); the edit records observed practice and says so in the PR body.
+

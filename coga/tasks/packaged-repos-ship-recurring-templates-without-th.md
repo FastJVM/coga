@@ -33,9 +33,19 @@ step: 1 (implement)
 
 ## Description
 
+`coga/contexts/coga/recurring/SKILL.md` is ~35 KB carrying the recurring system's whole contract:
+template directory shape, `schedule:` / `workflow:` / `state_keys:` frontmatter, the control-branch
+and `owner` gates, the serviced-period ledger in `coga/log.md`, the `ticket.py` deduction rule, and
+promotion rules. It is **not** in the packaged bootstrap contexts
+(`src/coga/resources/templates/coga/bootstrap/contexts/coga/`), while the recurring *templates*
+themselves are packaged.
 
+So a fresh `coga init` repo gets working recurring templates and none of the knowledge explaining
+them. Decide whether to package the context, or to split a smaller operator-facing subset.
 
 ## Context
+
+Found by Dream 2026-08-24, Phase 2 knowledge scan (shard-08), classified `gap`.
 
 <!-- coga:blackboard -->
 

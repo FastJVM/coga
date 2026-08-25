@@ -33,9 +33,21 @@ step: 1 (implement)
 
 ## Description
 
+Several tickets carry an `## Evaluator review` section: a deliberately cold reading of a design
+spec by an agent with no prior context, used to catch assumptions the author could not see. It is a
+repeated, valuable ritual with no skill behind it, so each run improvises the rubric.
 
+Write it as `coga/skills/code/review-design/SKILL.md`, or decide it belongs as a step in the
+`code/design-then-implement` workflow.
 
 ## Context
+
+Found by Dream 2026-08-24, Phase 2 knowledge scan (shard-05), classified `gap`.
+
+Note the interaction with Phase 1: `coga validate` flags `## Evaluator review` as an
+`unsynthesized-draft-blackboard` authoring section on three `v2/` drafts. If this ritual becomes a
+skill, the validator needs to know the section is legitimate — otherwise formalizing it makes
+validate noisier, not quieter.
 
 <!-- coga:blackboard -->
 
