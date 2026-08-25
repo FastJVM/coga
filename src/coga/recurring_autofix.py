@@ -39,6 +39,7 @@ consequence.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shlex
@@ -85,6 +86,18 @@ DEFAULT_ANALYZE_TEMPLATES = {
 # become the new way a cron sweep hangs forever. `COGA_AUTOFIX_TIMEOUT`
 # (seconds) overrides; `COGA_AUTOFIX=0` disables the loop entirely.
 _ANALYZE_TIMEOUT_SECONDS = 300.0
+_CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS = 10.0
+
+_CLAUDE_API_KEY_ENV = "ANTHROPIC_API_KEY"
+_CLAUDE_AUTH_FAILURE_MARKERS = (
+    "authentication_error",
+    "authentication failed",
+    "billing_error",
+    "credit balance",
+    "invalid api key",
+    "payment required",
+    "unauthorized",
+)
 
 # Linux caps one argv element at 128 KiB and the prompt rides argv, so the
 # record is budgeted well under that. Each blackboard keeps its *tail* — a run
@@ -342,6 +355,64 @@ def build_analyze_command(agent: AgentType, prompt: str) -> list[str]:
     return [agent.cli, *tokens]
 
 
+def _claude_subscription_fallback_env(
+    agent: AgentType,
+    failed: subprocess.CompletedProcess[str],
+    env: dict[str, str],
+    *,
+    cwd: Path,
+) -> dict[str, str] | None:
+    """A verified Claude subscription env after an API-key auth failure.
+
+    Claude Code gives an ambient ``ANTHROPIC_API_KEY`` precedence over its
+    signed-in claude.ai account. That is normally the caller's intended auth
+    choice, so a working key is never replaced. When the key fails for an auth
+    or billing reason, however, the recurring analyst can recover through the
+    already-authenticated CLI account instead of losing the whole autofix
+    pass. API-key-only installations keep the original failure.
+    """
+    if (
+        failed.returncode == 0
+        or Path(agent.cli).name != "claude"
+        or _CLAUDE_API_KEY_ENV not in env
+    ):
+        return None
+    detail = "\n".join((failed.stdout or "", failed.stderr or "")).lower()
+    if not any(marker in detail for marker in _CLAUDE_AUTH_FAILURE_MARKERS):
+        return None
+
+    fallback_env = dict(env)
+    fallback_env.pop(_CLAUDE_API_KEY_ENV, None)
+    try:
+        status = subprocess.run(
+            [agent.cli, "auth", "status"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            env=fallback_env,
+            timeout=_CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if status.returncode != 0:
+        return None
+    try:
+        payload = json.loads(status.stdout)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if (
+        payload.get("loggedIn") is not True
+        or payload.get("authMethod") != "claude.ai"
+        or payload.get("apiKeySource")
+    ):
+        return None
+    return fallback_env
+
+
 def open_autofix_tickets(cfg: Config) -> list[tuple[str, str, str]]:
     """Live `autofix/` tickets as `(slug, title, status)` — the dedupe input."""
     out: list[tuple[str, str, str]] = []
@@ -485,16 +556,41 @@ def analyze_record(
         )
     prompt = build_prompt(record_text, open_autofix_tickets(cfg))
     cmd = build_analyze_command(agent, prompt)
+    cwd = cfg.repo_root.parent if cfg.repo_root.name == "coga" else cfg.repo_root
+    env = os.environ.copy()
+    used_subscription_fallback = False
     try:
         result = subprocess.run(
             cmd,
-            cwd=cfg.repo_root.parent if cfg.repo_root.name == "coga" else cfg.repo_root,
+            cwd=cwd,
             capture_output=True,
             text=True,
             errors="replace",
+            env=env,
             timeout=_analyze_timeout(),
             check=False,
         )
+        fallback_env = _claude_subscription_fallback_env(
+            agent, result, env, cwd=cwd
+        )
+        if fallback_env is not None:
+            typer.secho(
+                "Autofix: Claude API-key authentication failed; retrying with "
+                "the signed-in claude.ai subscription.",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+            used_subscription_fallback = True
+            result = subprocess.run(
+                cmd,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                env=fallback_env,
+                timeout=_analyze_timeout(),
+                check=False,
+            )
     except FileNotFoundError as exc:
         raise AutofixUnavailable(f"could not run {agent.cli!r}: {exc}") from exc
     except subprocess.TimeoutExpired as exc:
@@ -505,7 +601,9 @@ def analyze_record(
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "").strip()
         raise AutofixUnavailable(
-            f"{agent.cli} exited {result.returncode}"
+            f"{agent.cli}"
+            + (" subscription retry" if used_subscription_fallback else "")
+            + f" exited {result.returncode}"
             + (f": {_tail(detail, 500)}" if detail else "")
         )
     if not (result.stdout or "").strip():

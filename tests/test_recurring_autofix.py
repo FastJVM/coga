@@ -97,6 +97,115 @@ def test_unknown_cli_without_a_template_refuses_rather_than_guessing() -> None:
     assert "analyze" in str(exc.value)
 
 
+def test_a_working_claude_api_key_is_used_without_an_auth_probe(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "working-key")
+    calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((cmd, kwargs["env"]))
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            "VERDICT: problem\n"
+            "TITLE: Fix the exhausted downstream key\n"
+            "---\n"
+            "The run reported: Credit balance is too low.\n",
+            "",
+        )
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    assert autofix.analyze_record(cfg_repo, "failing run").verdict == "problem"
+    assert len(calls) == 1
+    assert calls[0][1]["ANTHROPIC_API_KEY"] == "working-key"
+
+
+def test_claude_billing_failure_retries_with_a_verified_subscription(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, capfd
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        env = kwargs["env"]
+        calls.append((cmd, env))
+        if cmd[1:] == ["auth", "status"]:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                '{"loggedIn":true,"authMethod":"claude.ai",'
+                '"subscriptionType":"max"}',
+                "",
+            )
+        analysis_attempt = sum(
+            previous[0][1:] != ["auth", "status"] for previous in calls
+        )
+        if analysis_attempt == 1:
+            return subprocess.CompletedProcess(
+                cmd, 1, "Credit balance is too low", ""
+            )
+        return subprocess.CompletedProcess(cmd, 0, "VERDICT: ok\n", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    assert autofix.analyze_record(cfg_repo, "healthy run").verdict == "ok"
+    assert [cmd[1:] == ["auth", "status"] for cmd, _env in calls] == [
+        False,
+        True,
+        False,
+    ]
+    assert calls[0][1]["ANTHROPIC_API_KEY"] == "out-of-credit-key"
+    assert "ANTHROPIC_API_KEY" not in calls[1][1]
+    assert "ANTHROPIC_API_KEY" not in calls[2][1]
+    assert "retrying with the signed-in claude.ai subscription" in (
+        capfd.readouterr().err
+    )
+
+
+def test_claude_api_key_failure_stays_loud_without_a_subscription(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        if cmd[1:] == ["auth", "status"]:
+            return subprocess.CompletedProcess(
+                cmd, 0, '{"loggedIn":false,"authMethod":"none"}', ""
+            )
+        return subprocess.CompletedProcess(cmd, 1, "Credit balance is too low", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable, match="Credit balance"):
+        autofix.analyze_record(cfg_repo, "healthy run")
+    assert [cmd[1:] == ["auth", "status"] for cmd in calls] == [False, True]
+
+
+def test_an_unrelated_claude_failure_never_switches_authentication(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "configured-key")
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 1, "network unavailable", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable, match="network unavailable"):
+        autofix.analyze_record(cfg_repo, "healthy run")
+    assert len(calls) == 1
+
+
 # --- the run record ------------------------------------------------------------
 
 

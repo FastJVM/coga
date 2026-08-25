@@ -193,6 +193,11 @@ nothing more.
 - The one-shot argv is built in for `claude` and `codex`. Any other CLI needs
   `[agents.<name>].analyze` in `coga.toml` (e.g. `analyze = "-p {prompt}"`);
   without it the loop skips loudly rather than opening a REPL nobody can drive.
+- An ambient `ANTHROPIC_API_KEY` keeps Claude Code's normal precedence. If its
+  call fails specifically on authentication or billing and the CLI has an
+  existing signed-in claude.ai account without that variable, autofix
+  announces one retry through the subscription. Working keys, API-key-only
+  setups, unrelated failures, and other agent CLIs do not switch auth.
 - `coga recurring launch NAME` closes the same loop, so the `coga dream`,
   `coga autoclose`, and `coga skill-update` aliases analyze their run too. A
   launch a gate refuses (closed or paused template) is not a run and is not

@@ -560,6 +560,13 @@ Operating it:
   CLI needs `[agents.<name>].analyze` in `coga.toml` (e.g.
   `analyze = "-p {prompt}"`); without it the loop skips loudly rather than
   guessing an argv and opening a REPL nobody can drive.
+- Claude Code normally honors an ambient `ANTHROPIC_API_KEY`. If that key's
+  call fails specifically for authentication or billing, the analyst checks
+  for an existing signed-in claude.ai account with the variable removed and,
+  when one is available, announces and makes one subscription-authenticated
+  retry. A working key remains the first and only call; an API-key-only setup
+  keeps its original failure; unrelated failures and other agent CLIs never
+  switch authentication.
 
 ## Gotchas
 
