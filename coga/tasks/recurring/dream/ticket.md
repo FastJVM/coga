@@ -584,3 +584,139 @@ Index of what Dream saw. Full finding text for this run is kept at
 ### `drift` (1, from Phase 2)
 - `README.md` still promises the launch experiment `marketing/plan` superseded on 2026-08-19.
 
+### Finding added by this run's own reconciliation (Dream self-observation)
+
+- **class: `gap`** — target `coga/.agent-skills/bootstrap/dream/scan/scan-protocol/SKILL.md`
+  (and its packaged twin). The protocol says Dream "reconciles the active leaf assignments in
+  `manifest.md` against the completion lines in `progress.md`" but never says to de-duplicate those
+  lines by shard id. `progress.md` is append-only and shared, and a shard can append its completion
+  line twice: in this run `ca-06` did exactly that, which made a naive line count read 8/8 while
+  `ca-04` was still working. Dream then treated `ca-04` as never-returned and superseded a healthy
+  shard. The rule the protocol should state: **count distinct shard ids, not completion lines**, and
+  reconcile only at the barrier. Cost here was one wasted retry, but the same bug in the other
+  direction (two shards, one duplicated line) would let Dream declare full coverage while a shard
+  was genuinely missing.
+
+- **class: `drift` — WITHDRAWN, false positive.** `ca-05` reported that Dream Phase 6's
+  `coga create --workflow code/with-review` names a workflow that does not exist, having checked only
+  `find coga/workflows`. Verified against `src/coga/paths.py:resolve_workflow_path`: local workflows
+  are tried first, then the bundled `bootstrap/workflows/`, where `code/with-review.md`,
+  `code/design-then-implement.md`, and `code/with-self-review.md` all exist. Confirmed empirically —
+  all three refs resolve. Phase 6's gap route works; this finding is dropped, not routed.
+
+### Phase 3 — contract audit: `reported`
+
+8/8 active leaf shards complete (`ca-04` superseded by `ca-04b` after a premature reconciliation;
+`ca-04b` confirmed 0 new findings, so `ca-04`'s coverage was genuine and its 5 findings stand).
+24 findings; **23 after withdrawing the `code/with-review` false positive**. All class `drift`.
+Full text: `/tmp/.../scratchpad/phase3-findings.md`.
+
+**`ca-08` copy divergence: 0 findings.** All 25 pairs in `IDENTICAL_LIVE_PACKAGED_PAIRS` compare
+byte-identical; no live/packaged twin has drifted.
+
+**docs/ — the largest drift cluster (11)**
+- `docs/cli-extension-audit.md` (4): says ten `coga run` recipes, `src/coga/runner.py:27-39` registers
+  eleven; its "exhaustive" built-in verb table omits three shipped Typer commands (incl. `uninstall`);
+  its recurring-template inventory is missing live templates; cites a stale `cli.py:74-93` range.
+- `docs/reference.md`: promises "every public `coga` command" but its `coga delete` entry omits the
+  shipped `--keep-control-checkout` flag.
+- `docs/getting-started.md`: says a workflow is frozen "at creation"; architecture says freezing is
+  gated at activation.
+- `docs/README.md`: describes `migrating-to-coga.md` as onboarding an existing operation; the file is
+  a Relay→Coga rename guide.
+- `docs/velocity-report.md`: its verification `rg` command returns zero matches as written.
+- `docs/market-thesis.md`: capability matrix still sells ticket execution "modes", a removed concept.
+- `CLAUDE.md`/`AGENTS.md` (2): both claim `architecture/SKILL.md` defines "locking" (it has no such
+  section — **corroborates Phase 2 shard-12**); CLAUDE.md's install/test lines omit the `.[test]`
+  extra that AGENTS.md and `pyproject.toml` require.
+
+**contexts (5)**
+- `coga/secrets:8` — `secrets:` described as `op://`-only; `parse_inline_secrets` also accepts
+  `env:VAR`. **Corroborates Phase 2 shard-02.**
+- `coga/sync:117` — sends the reader to a `coga/cli` context for a Slack snippet that context lacks.
+- `coga/sync:254-256,266-269` — documented `post()`/`notify()` signatures omit the `record_failure`
+  keyword both take.
+- `coga/codebase:206-211` — claims `tests/test_packaging.py` opens with
+  `pytest.importorskip("hatchling")`. **Independently verified: no such call exists in that file.**
+- `docs/gdrive-mcp:29` — claims the Drive MCP server has "no update or delete tools"; the server
+  exposed to agents has both. **Independently verified against the live tool surface.**
+
+**marketing / recurring templates (3)**
+- `marketing/plan:17-18` — names two superseded tickets under the wrong namespace, and neither exists.
+- `coga/recurring/skill-update/ticket.md:126-137` — describes only `.coga-source.json` provenance, but
+  `--all` also delegates gh-backed skills.
+- (vendored skill findings from `ca-04` are folded into the Phase 2 vendored-provenance cluster.)
+
+**vendored skills (4, from ca-04)** — corroborate and sharpen the Phase 2 cluster:
+`skill-creator/ATTRIBUTION.md` points at a nonexistent ticket; skill-creator and playwright carry no
+`.coga-source.json` so `coga skill status` calls them unmanaged; `dochub` defers three load-bearing
+recipes to an opaque memory store (contradicts principle 4); playwright's documented `"$PWCLI"`
+invocation fails because the wrapper script is not executable; three namespaced skills declare a bare
+`name:` that is not their skill ref.
+
+## Phase 6 disposition plan (staged during Phase 4)
+
+Findings do not get one PR each — that would be ~55 PRs. They are batched into coherent
+proposal PRs by target file/area, which is what the `pr-required` route is for.
+
+### Cross-phase conflict found while staging
+
+Phase 1 (`validate-drift`) classifies four `v2/` drafts as `unsynthesized-draft-blackboard`
+PR-proposals: `autotrigger-ticket-type`, `measure-relay-prompt-scope-and-agent-precision`,
+`split-context-to-doc-user-accessible-and-editable`, `use-worktree-when-starting-a-dev-task`.
+Phase 2 independently found that **two of those four are premise-dead**:
+`autotrigger-ticket-type` (every cross-reference in it is dead) and `split-context-to-doc`
+(its parked design question is already answered by shipped precedent).
+
+Synthesizing a premise-dead draft's authoring notes into its body is wasted work — the draft
+should be cancelled, not polished. Cancelling is a lifecycle change and human-only, so these do
+**not** get a synthesis PR. They go into the v2 triage ticket below. Only the other two keep the
+Phase 1 synthesis route.
+
+### Proposal PRs (`stale` + `drift`), batched
+
+1. `coga/contexts/coga/secrets/SKILL.md` — 4 findings (env:VAR form, single-vault contradiction,
+   op:// scope overclaim). P2+P3 corroborate each other.
+2. `coga/contexts/coga/sync/SKILL.md` — 5 (rewind status rules, 3 missing post() sites, garbled
+   bullet, missing `record_failure` kwarg, dead `coga/cli` snippet pointer).
+3. `CLAUDE.md` + `AGENTS.md` — 2 (phantom "locking" section; missing `.[test]` extra).
+4. docs/ contract fixes — cli-extension-audit (4), reference.md `--keep-control-checkout`,
+   getting-started freeze-timing, docs/README migrating description, velocity-report rg command,
+   market-thesis "modes".
+5. `coga/contexts/coga/{architecture,codebase,current-direction,recurring}/SKILL.md` — 6.
+6. marketing — `plan` (4) + `positioning` (1) + `README.md` launch experiment (drift).
+7. vendored skills — dochub memory store, playwright `$PWCLI` + artifact dir, skill-creator
+   ATTRIBUTION + bare `name:`. **Excludes `google-agents-cli-*` (open PR #708 overlap).**
+8. misc contract fixes — `coga/workflows/_template.md` assignee tokens, `coga/contexts/_template`
+   size rule, `docs/gdrive-mcp` update/delete claim, `browser/dom-backed` phantom test track,
+   `example/coga/coga.toml` Slack opt-in.
+9. Dream template self-contradiction — period tickets "carry nothing durable" vs the recurring
+   context. Must edit all three copies (live `coga/recurring/dream/`, this task's ticket, packaged).
+
+**Deferred to open PRs, no conflicting PR opened:** `coga/contexts/dev/code/SKILL.md` and
+`coga/skills/code/implement/SKILL.md` findings (PR #709); all `google-agents-cli-*` findings (PR #708).
+
+### Draft tickets (`gap`)
+
+Batched where a single design decision covers several findings:
+- ticket-blackboard writing rules (no context carries them)
+- vendored-skill provenance: nothing under `coga/skills/` carries `.coga-source.json`
+- cite symbols not line numbers (live + packaged `code/design`)
+- carrying adjacent bugs out of a blackboard Retro will delete
+- where a ticket's superseded design goes
+- cold "Evaluator review" of a design spec has no skill
+- ticket interview never asks what "done" means
+- packaged repos ship recurring templates without the `coga/recurring` context
+- headless-Coga runbook (three v2 drafts rebuild it)
+- comms-writing skill
+- v2 parking-area triage: 18 empty-description drafts, premise-dead cohort (incl. the two above),
+  `script:` missing from the known-stale table, the `relay-os/` mapping that resolves nowhere,
+  and the fact that `coga validate` is permanently red because of this directory
+- Dream's own reconciliation gap (count distinct shard ids, not completion lines)
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-08-25T05:37:20+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
