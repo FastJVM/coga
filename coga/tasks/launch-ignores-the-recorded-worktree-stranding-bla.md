@@ -33,7 +33,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -295,6 +295,86 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: implement-branch-gate
 worktree: /home/n/Code/claude/coga-implement-branch-gate
+
+## PR
+
+**Gate the implement step on recorded branch/worktree linkage**
+
+`coga bump` only ever reads and syncs the ticket copy of the checkout it runs
+in. When an implement agent writes `## Dev` inside the feature checkout and
+bumps from the primary checkout, the bump advances silently on a ticket that
+never saw the write, and the failure surfaces one step later as `coga open-pr`'s
+misleading "No usable `branch:` recorded under `## Dev`" — even though implement
+did record it.
+
+This adds a `branch` completion-gate token to the existing `requires:` registry
+in `src/coga/step_gate.py`, satisfied only when the blackboard carries a usable
+`branch:` **and** a usable `worktree:` line. The three packaged code workflows
+declare `requires: branch` on their `implement` step. Because the gate is
+evaluated against the same `TaskRef` copy that `git.sync_task_state` syncs
+moments later, a passing gate proves by construction that the write and the sync
+agree on one checkout. Both compliant flows still pass: `## Dev` written and
+bumped from the primary checkout, and `## Dev` written and bumped from the
+feature checkout (where `sync_task_state`'s feature-branch path already lands it
+correctly). Only the split is refused — in-session, while the implement agent is
+still alive to fix it.
+
+Both lines are checked because `coga open-pr` rejects on either one missing; a
+branch-only gate would just relocate the late failure. The `(placeholder)` guard
+is on the branch half only — `parse_worktree_path` already rejects a
+`(`-prefixed value, `parse_branch_name` does not.
+
+No changes to `bump.py`, `launch.py`, spawn infra, or `sync_task_state`.
+Existing tickets keep their frozen ungated workflows; the gate applies to
+tickets created after this change.
+
+Test plan: `python -m pytest` (1984 passed; one pre-existing environment failure
+— `test_wheel_includes_bootstrap_batteries` needs `pip` in the venv and fails
+identically on unmodified `main`), and `coga validate --json` clean against
+`example/`.
+
+## Implement step (2026-08-25)
+
+### What landed
+
+- `src/coga/step_gate.py`: `_has_branch_linkage` (lazy `coga.autoclose` import,
+  matching `_has_pr`'s cycle note) + `"branch"` registered in `STEP_GATES` with
+  `publish_current_branch` left at its `False` default.
+- Remediation string teaches the stranded-write mechanism, names **both**
+  required lines (the generic `gate_unmet_reason` prefix renders only the token
+  name, so it would otherwise say "requires a recorded `branch` artifact" when
+  `worktree:` is the missing field), and tells the agent to confirm the lines
+  describe *this* attempt — the only mitigation for the presence-not-freshness
+  hole.
+- `requires: branch` on the `implement` step of all three packaged code
+  workflows, each with an `## implement` prose section styled after the existing
+  `requires: pr` paragraphs.
+- `coga/skills/code/implement/SKILL.md` (steps 3 and 9, acceptance list) and
+  `coga/contexts/dev/code/SKILL.md` (the `worktree:` bullet), mirrored into the
+  packaged copies — both pairs verified byte-identical after the edit.
+- Five new tests in `tests/test_commands.py` beside the `requires: pr` block,
+  using a new `_record_dev` helper mirroring `_record_pr`: blocked with no
+  `## Dev`, blocked on `branch: (pending)`, blocked when `worktree:` is missing,
+  the single-checkout assist layout (primary checkout *is* the recorded
+  worktree) bumping cleanly with `publish_current_branch == False`, and rewind
+  ignoring the gate.
+
+### Decisions
+
+- No redundant worktree-placeholder check or test, per the AC — the parser
+  already handles it.
+- The example fixture stays ungated (owner decision, 2026-08-24); `coga validate
+  --json` is clean against it unchanged.
+- Verified the chicken-and-egg warning was honored: `## Dev` was written from the
+  primary checkout only, and `git show origin/main:coga/tasks/<slug>.md` carries
+  the `branch:` line before this bump.
+
+### Notes for later
+
+- Full suite: 1984 passed, 1 pre-existing failure
+  (`tests/test_packaging.py::test_wheel_includes_bootstrap_batteries`, "No module
+  named pip" in the venv) — reproduces on unmodified `main`, unrelated to this
+  change.
 
 ## Design step (2026-08-19)
 
