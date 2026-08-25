@@ -2693,6 +2693,104 @@ def test_picker_window_keeps_cursor_visible() -> None:
     assert _picker_window(total=50, cursor=20, rows=0) == (0, 50)
 
 
+def test_picker_view_fits_the_terminal_at_every_size() -> None:
+    """The rendered picker is exactly one line per candidate plus 5 of chrome.
+
+    `_picker_window` budgets in candidates while the terminal budgets in lines,
+    so anything that wraps — a row, the hint line, a scroll indicator — costs
+    more than its one budgeted line. Live keeps only the *first* screenful of
+    an overflowing render, so the cursor disappears on the way down the list.
+    """
+    from rich.console import Console
+
+    from coga.commands.megalaunch import _picker_view
+    from coga.tasks import TaskRef
+
+    def candidate(index: int, title: str, owner: str = "zach") -> tuple:
+        # Slugs are derived from titles, so real ones run this long. A short
+        # stand-in leaves the table inside its width budget and the layout
+        # never gets stressed.
+        slug = f"a-command-that-reads-machine-local-config-gives-a-{index:02d}"
+        return (
+            TaskRef(
+                slug=slug,
+                path=Path(f"coga/tasks/{slug}.md"),
+                file_form=True,
+            ),
+            Ticket(
+                frontmatter={
+                    "title": title,
+                    "status": "in_progress",
+                    "owner": owner,
+                    "step": "1 (implement)",
+                },
+                body="",
+            ),
+        )
+
+    candidates = [
+        candidate(
+            index,
+            f"candidate {index} with a deliberately long title that wraps on "
+            "any terminal narrower than a billboard",
+        )
+        for index in range(39)
+    ]
+    # A long value in a narrow column pushes the table over budget, which is
+    # what makes Rich shrink every column and wrap the "[x]" checkbox.
+    candidates[7] = candidate(7, "short", owner="replace-with-human-name")
+    # Mid-list cursors matter: only there are both scroll indicators drawn, so
+    # only there does an under-reserved chrome budget overflow.
+    cursors = [0, 1, len(candidates) // 2, len(candidates) - 2, len(candidates) - 1]
+
+    for width, height in [(100, 50), (80, 24), (50, 30), (40, 30), (100, 5)]:
+        # `max(1, ...)` is the floor for degenerate terminals: a 5-line
+        # terminal still needs one row plus 5 lines of chrome.
+        rows = max(1, height - 5)
+        expected = min(len(candidates), rows) + 5
+        for cursor in cursors:
+            console = Console(width=width, height=height)
+            # No explicit `height` render option: Rich would pad or crop to it
+            # and the assertion would pass vacuously.
+            lines = console.render_lines(
+                _picker_view(candidates, {cursor}, cursor, console)
+            )
+            # Exact, not `<=`: a wrapped row can still happen to fit the
+            # terminal while breaking the one-line-per-candidate invariant.
+            # Both scroll-indicator slots are always rendered, blank when there
+            # is nothing above or below, so chrome is an unconditional 5 lines
+            # and the frame does not jitter by a row at either end of the list.
+            assert len(lines) == expected, (
+                f"{width}x{height} cursor={cursor} rendered {len(lines)} lines, "
+                f"expected {expected}"
+            )
+            # Fitting is only half of it: the cursor's row has to be one of the
+            # rows actually drawn. It carries the reverse style, which — unlike
+            # the "❯" marker column — survives however narrow the terminal.
+            highlighted = sum(
+                any(segment.style and segment.style.reverse for segment in line)
+                for line in lines
+            )
+            assert highlighted == 1, (
+                f"cursor row not drawn at {width}x{height} cursor={cursor}"
+            )
+            # Truncation alone fits the terminal but can still gut the layout:
+            # if Rich has to shrink every column it empties the one-cell marker
+            # and three-cell checkbox first, and the picker stops showing where
+            # the cursor is or what is selected. 50 cells is the narrowest
+            # width these survive; below that all seven columns cannot fit.
+            if width >= 50:
+                rendered = [
+                    "".join(segment.text for segment in line) for line in lines
+                ]
+                assert any("❯" in text for text in rendered), (
+                    f"cursor marker collapsed at {width}x{height} cursor={cursor}"
+                )
+                assert any("[x]" in text for text in rendered), (
+                    f"checkbox collapsed at {width}x{height} cursor={cursor}"
+                )
+
+
 def test_read_key_resize_beats_pending_keypress(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
