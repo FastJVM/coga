@@ -400,3 +400,28 @@ named launch distinct timeout policies; and restore an originally active
 period task after a pre-spawn refusal while preserving `in_progress` for a
 genuinely spawned crash or a resumed orphan. Add focused regression coverage
 before rebasing.
+
+## Peer-review continuation (2026-08-25)
+
+`codex review --base origin/main` on the surviving `delegate-recurring`
+branch found three further must-fix integration gaps:
+
+- delegation was read from the current recurring template instead of frozen
+  into each materialized period task, so editing or removing a template could
+  silently reroute an already-live run; direct `coga launch recurring/<name>`
+  also bypassed delegation entirely;
+- a `delegate:` target with `ticket.py` could return through launch's script
+  path before the delegated lifecycle callback ran, leaving the period task
+  eligible for repeated deterministic execution;
+- scheduled-sweep watchdog timeouts paused the task but were recorded as
+  `unfinished`, losing the timeout classification used by run history.
+
+Confirmed fix direction: make `delegate` an optional canonical, recurring-only
+task field copied at creation; make sweep retries, named runs, and direct task
+launches route exclusively from that frozen value; reject script-backed
+bootstrap delegates before task creation and again when validating a frozen
+task (deterministic recurring work belongs in the recurring template's own
+`ticket.py`); and return a structured delegated result so callers preserve the
+watchdog termination kind. The tradeoff is a small recurring-aware branch in
+the ordinary launch path, in exchange for one immutable source of dispatch
+truth and no wrapper session.

@@ -93,6 +93,7 @@ its packaged copy.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/724
 branch: autofix-claude-auth-fallback
 worktree: /tmp/coga-autofix-auth-fallback
 
