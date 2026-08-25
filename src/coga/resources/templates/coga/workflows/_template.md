@@ -30,5 +30,9 @@ matching role field (`owner:`, `human:`, `agent:`) and rewrites `assignee:`
 to that nickname. `other-agent` has no ticket field of its own: it resolves
 to the *peer* agent, the configured `[agents.*]` type that is not the
 ticket's `agent:`, which is how the shipped `code/*` workflows hand a
-review step to the agent that did not write the change. Steps that omit
-`assignee:` leave the assignee unchanged.
+review step to the agent that did not write the change. That resolution
+needs **exactly two** configured `[agents.*]` types, with the ticket's
+`agent:` as one of them — the peer is only unambiguous when exactly one
+candidate remains. With one type, or three or more, the bump fails loud
+rather than guessing; fix `coga.toml` or the ticket's `agent:` if you hit
+that. Steps that omit `assignee:` leave the assignee unchanged.
