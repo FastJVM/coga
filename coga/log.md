@@ -3982,3 +3982,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-25 10:57 [recurring/blocker-reminders] [human:nicktoper] task done
 2026-08-25 10:58 [recurring/blocker-reminders] [system] script exited with code 0
 2026-08-25 11:13 [autoclose-skips-annotated-pr-lines] [human:nicktoper] auto-bumped on merge of PR #706 → done
+2026-08-25 11:21 [retire-autoclose-skips-annotated-pr-lines] [retire] created (status=active)
