@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -159,4 +159,82 @@ today and are unrelated to this bug.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: megalaunch-picker-viewport
+worktree: /home/zach2179/dev/coga-megalaunch-picker-viewport
+commit: f094a72e (rebased onto origin/main dbc8dfc9)
+
+## What changed
+
+All in `src/coga/commands/megalaunch.py` + `tests/test_megalaunch.py`.
+
+1. `no_wrap=True, overflow="ellipsis"` on **every** table column — not just
+   slug/step/title as the ticket listed. See "Finding" below for why the others
+   had to be included.
+2. Same on the hint line and both scroll-indicator `Text` objects.
+3. Reserved chrome 4 -> 5, and both indicator slots are now always rendered
+   (blank when there is nothing above/below), so the reserve is unconditional.
+4. `_picker_window` docstring corrected: `Live` defaults to
+   `vertical_overflow="ellipsis"` and keeps the **first** screenful. Its math is
+   untouched.
+5. New `test_picker_view_fits_the_terminal_at_every_size`.
+
+## Finding: truncation alone breaks the layout (beyond the ticket's plan)
+
+The ticket's step 1 is necessary but not sufficient, and applying it literally
+made things worse in a different way. Once the wide columns are `no_wrap`, the
+table *measures* wider than the terminal (real slugs run to 60 chars, titles to
+110). Rich's `Table._calculate_column_widths` then falls through to its
+last-resort branch — `ratio_reduce(excess, [1] * n, widths, widths)` — which
+shrinks **every** column evenly. At 100 cells that emptied the one-cell cursor
+marker and the three-cell checkbox: the picker fit the terminal but no longer
+showed where the cursor was or what was selected. `width=` on those columns does
+not save them; it only protects against `_collapse_widths`, not the even
+reduction.
+
+Fix: give Rich the slack from the elastic columns only, by declaring
+slug/owner/title flexible (`ratio=2/1/3`) with `expand=True` on the table. Rich
+then uses `ratio_distribute` over those three and never reaches the even
+reduction, so the fixed narrow columns survive. Verified all seven columns
+intact from 120 cells down to 50; below 50 they genuinely cannot all fit and the
+display degrades (height invariant still holds).
+
+Ratios and `expand=True` are a small addition to the ticket's plan, kept because
+without them the stated fix trades one visible bug for another.
+
+## Verification
+
+- `python -m pytest` in the worktree: **1981 passed**, post-rebase.
+- `coga validate --json` against `example/`: `ok_count: 3`, no issues. (Needs
+  `env -u SLACK_WEBHOOK_URL` — a bare value in this shell's env trips an
+  unrelated config check.)
+- The new test fails on `main` (`100x50 cursor=0 rendered 232 lines, expected
+  44`) and on a mutant that keeps truncation but drops the ratios
+  (`cursor marker collapsed at 100x50`). It asserts an **exact** frame height,
+  not `<=`: a wrapped row can still happen to fit the terminal, and a `<=`
+  assertion let the collapsed-checkbox case through while I was iterating.
+- Real-data sweep against weather-events' 39 non-terminal tickets (longest slug
+  60, longest title 110), rendered through `rich.live_render.LiveRender` — which
+  is what actually applies the crop — at 100x50, 80x24, 50x30 and 120x40, for
+  **every one of the 39 cursor positions**: no crop, cursor row drawn, marker
+  and checkbox intact at all four sizes.
+
+Note the last item is still a pure-function check. It simulates the crop but
+never touches a TTY, so the manual gate on peer-review stands as written.
+
+## Note: testing against a worktree needs PYTHONPATH
+
+The editable install is a plain `.pth` pointing at `/home/zach2179/dev/coga/src`,
+so `python -m pytest` inside a feature worktree silently imports the **primary
+checkout's** source. My first run "failed the fix" that way. Run
+`PYTHONPATH=$PWD/src python -m pytest` from the worktree. Worth knowing for the
+peer-review step.
+
+## Adjacent, not fixed here (follow-up candidates)
+
+- Below ~50 columns the picker drops columns and the marker/checkbox collapse.
+  Degrading deliberately (hide status/owner/step when narrow) would be better
+  than letting Rich decide, but that is a UX change, not this bug.
+- `_picker_view` / `_picker_window` arguably belong in `src/coga/megalaunch.py`
+  per the codebase context. The ticket puts that relocation out of scope.
