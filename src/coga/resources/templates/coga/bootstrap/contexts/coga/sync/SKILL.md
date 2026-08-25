@@ -62,11 +62,16 @@ Live cadence surface — posts immediately to the named destination:
 - the megalaunch drain summary — non-empty aggregate result; flow.
 - the `autoclose-merged` sweep's retire-pending summary — the sweep closed
   tickets whose worktrees still need `coga retire`; flow. Deliberately a live
-  `post` rather than a spool record: `notify` accepts only per-ticket outcomes
-  (`done` / `canceled` / `recurring-error`), and a sweep-level summary is none
-  of the three, so it arrives with the sweep instead of a day later.
-- recurring autofix filing a ticket for a failed recurring run — both the
-  sweep's own `run_autofix` and the `coga run autofix-analyze` recipe; flow.
+  `post` rather than a spool record: `notify` restricts the event *kind*
+  (`done` / `canceled` / `recurring-error`), not the scope — its `ticket`
+  argument is optional, and a sweep-level `recurring-error` is spooled without
+  one. There is simply no retire-followup kind in that set, so this summary
+  arrives with the sweep instead of a day later.
+- recurring autofix filing a ticket for a problem it diagnosed in a recurring
+  run — not only a failed one: a run that exits zero but whose blackboard shows
+  it silently did nothing, or recorded real errors, is classified a problem too.
+  Both the sweep's own `run_autofix` and the `coga run autofix-analyze` recipe;
+  flow.
 
 Outcome digest surface — spooled into the daily digest (live fallback below):
 
