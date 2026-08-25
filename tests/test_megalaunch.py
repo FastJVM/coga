@@ -2706,7 +2706,12 @@ def test_picker_view_fits_the_terminal_at_every_size() -> None:
     from coga.commands.megalaunch import _picker_view
     from coga.tasks import TaskRef
 
-    def candidate(index: int, title: str, owner: str = "zach") -> tuple:
+    def candidate(
+        index: int,
+        title: str,
+        owner: str = "zach",
+        step: str = "1 (implement)",
+    ) -> tuple:
         # Slugs are derived from titles, so real ones run this long. A short
         # stand-in leaves the table inside its width budget and the layout
         # never gets stressed.
@@ -2722,7 +2727,7 @@ def test_picker_view_fits_the_terminal_at_every_size() -> None:
                     "title": title,
                     "status": "in_progress",
                     "owner": owner,
-                    "step": "1 (implement)",
+                    "step": step,
                 },
                 body="",
             ),
@@ -2736,9 +2741,15 @@ def test_picker_view_fits_the_terminal_at_every_size() -> None:
         )
         for index in range(39)
     ]
-    # A long value in a narrow column pushes the table over budget, which is
-    # what makes Rich shrink every column and wrap the "[x]" checkbox.
-    candidates[7] = candidate(7, "short", owner="replace-with-human-name")
+    # Long values in narrow columns push the table over budget, which is what
+    # makes Rich shrink every column and wrap the "[x]" checkbox. This step is
+    # an existing valid workflow label, not a synthetic extreme.
+    candidates[7] = candidate(
+        7,
+        "short",
+        owner="replace-with-human-name",
+        step="2 (human-owns-and-finishes)",
+    )
     # Mid-list cursors matter: only there are both scroll indicators drawn, so
     # only there does an under-reserved chrome budget overflow.
     cursors = [0, 1, len(candidates) // 2, len(candidates) - 2, len(candidates) - 1]

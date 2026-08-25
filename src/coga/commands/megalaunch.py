@@ -395,7 +395,7 @@ def _picker_view(
     # all-no_wrap table measures wider than the terminal (slugs and titles run
     # long), Rich falls through to its last-resort even reduction, and *every*
     # column shrinks — the marker and checkbox collapse to nothing. Declaring
-    # the three elastic columns flexible (`ratio` + `expand`) hands Rich the
+    # the elastic columns flexible (`ratio` + `expand`) hands Rich the
     # slack it needs from them alone, so the fixed narrow columns survive down
     # to ~50 cells.
     table = Table(show_lines=False, show_edge=False, pad_edge=False, expand=True)
@@ -404,7 +404,7 @@ def _picker_view(
     table.add_column("slug", ratio=2, no_wrap=True, overflow="ellipsis")
     table.add_column("status", no_wrap=True, overflow="ellipsis")
     table.add_column("owner", ratio=1, no_wrap=True, overflow="ellipsis")
-    table.add_column("step", no_wrap=True, overflow="ellipsis")
+    table.add_column("step", ratio=1, no_wrap=True, overflow="ellipsis")
     table.add_column("title", ratio=3, no_wrap=True, overflow="ellipsis")
     for index in range(start, end):
         ref, ticket = candidates[index]
