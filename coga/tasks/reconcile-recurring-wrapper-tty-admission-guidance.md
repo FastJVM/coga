@@ -425,3 +425,29 @@ task (deterministic recurring work belongs in the recurring template's own
 watchdog termination kind. The tradeoff is a small recurring-aware branch in
 the ordinary launch path, in exchange for one immutable source of dispatch
 truth and no wrapper session.
+
+## Peer-review fixes applied (2026-08-25)
+
+- `delegate` is now an optional canonical field reserved for materialized
+  `tasks/recurring/*` tickets. Creation freezes the normalized target there;
+  `scan_due`, named launches, and direct `coga launch recurring/<name>` all
+  dispatch from the ticket snapshot rather than current template frontmatter.
+- Agent delegation now rejects a bootstrap target carrying `ticket.py` before
+  a fresh or replacement period task is created. Task/template validation
+  reports the same invalid shape, and runtime rechecks a frozen target before
+  spawn in case the bootstrap definition changed later.
+- Delegated runs now return `DelegatedRunResult(exit_code, kind)`. A scheduled
+  timeout still pauses and continues with exit zero, but its run record retains
+  `timed-out`; a named/direct timeout remains nonzero and retryable.
+- Durable recurring, architecture, CLI, and extension-model guidance now
+  documents the frozen field and agent-only target boundary. All three packaged
+  twins remain byte-identical to their live copies; the recurring context stays
+  intentionally repo-local.
+
+Focused verification: 19 exact delegate/lifecycle/validation regressions pass;
+the broader affected-module run reached 709 passes. Its seven launch failures
+were caused solely by a relative `PYTHONPATH=src` becoming invalid inside test
+subprocess checkouts and all seven pass with the feature worktree's absolute
+source path. The packaging wheel check separately lacks `hatchling` in this
+interpreter; neither result reflects changed product behavior. Full verification
+still follows the required rebase.
