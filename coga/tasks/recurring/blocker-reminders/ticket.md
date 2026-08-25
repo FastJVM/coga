@@ -1,7 +1,7 @@
 ---
 slug: recurring/blocker-reminders
 title: Blocker reminders
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,7 +17,6 @@ workflow:
     - coga/blockers/remind
     assignee: agent
 secrets: null
-step: 1 (remind)
 ---
 
 ## Description
@@ -48,4 +47,33 @@ selection; it only makes unresolved asks visible again.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Run 2026-08-24 — sweep clean, 0 reminders posted
+
+Period serviced: `2026-08-24` (newest `created recurring/blocker-reminders for
+<period>` line in `coga/log.md`).
+
+Ran the deterministic sweep with `coga run blocker-reminders` (this period task
+directory had no `ticket.py` sibling, so the recipe was invoked directly through
+the registered `coga run` name — same entrypoint `ticket.py` calls).
+
+Output: `[blockers] no unresolved blockers to remind.` exit 0.
+
+Two tasks are `status: blocked`, and both unresolved asks were already
+watermarked, so nothing was posted and no blocked-task file changed:
+
+| task | blocker opened | fingerprint | last_reminded |
+| --- | --- | --- | --- |
+| `unblock-rewind` | 2026-08-13 22:51 (agent:codex) | `9ce2d8481594` | 2026-08-14 10:59 |
+| `verify-the-pr-review-comment-loop-once-the-review` | 2026-08-20 11:24 (agent:claude) | `3023242c0745` | 2026-08-21 11:54 |
+
+Observation for the owner (no change made — outside this run's scope): the
+watermark is a permanent dedup key, not a cooldown. `remind_blocked_tasks`
+skips any fingerprint already present in `## Blocker reminders`, so each
+blocker gets exactly **one** reminder over its whole lifetime. `unblock-rewind`
+has been blocked 11 days on a single reminder from 2026-08-14. That matches the
+ticket body as written ("has not already been reminded"), so it is by design
+rather than a defect — but if the intent is recurring visibility, the watermark
+would need to become a re-remind interval. Worth a separate ticket if so.
+
+No cross-run state to persist: dedup state lives on each blocked task, as the
+parent blackboard records.
