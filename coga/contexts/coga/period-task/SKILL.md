@@ -8,9 +8,11 @@ description: For the agent running one firing of a recurring task. Persistent st
 You were created by `coga recurring` from a recurring task. Your
 task directory under `coga/tasks/recurring/<name>/` is the scratch space
 for this run. The path is stable for the template. A completed run remains
-there as an ordinary `status: done` task until Dream direct-deletes it; if it
-survives, a later recurring scan deletes it before recreating the path for a
-new period. The composed prompt header gives your exact task directory. Your
+there as an ordinary `status: done` task until Dream's retro pass disposes of
+it — normally a direct delete, but when your blackboard records something
+durable (a reusable gotcha under `## Gotchas`) that is extracted into a
+knowledge PR first, so write anything worth keeping down; if it survives, a
+later recurring scan deletes it before recreating the path for a new period. The composed prompt header gives your exact task directory. Your
 own blackboard (the region of your `ticket.md`, below the
 `<!-- coga:blackboard -->` fence) disappears when that cleanup happens.
 

@@ -21,7 +21,9 @@ Last updated: 2026-07-30.
 - **The lifecycle stays ordinary and Dream owns cleanup.** `coga recurring`
   creates a normal `active` task, `coga launch` moves it through the usual
   ticket lifecycle, and a completed run sits as `status: done` until Dream's
-  retro pass direct-deletes it. Since the instantiated task is deleted after a
+  retro pass disposes of it — direct-deleted by default, or extracted into a
+  knowledge PR first when its blackboard holds something durable, exactly like
+  any other done ticket. Since the instantiated task is deleted after a
   completed run, a leftover `tasks/recurring/<name>/` directory is the orphan
   signal: `in_progress` is resumed before fresh period work, and `paused` stays
   human-parked. A missing task dir plus a valid logged serviced period whose
