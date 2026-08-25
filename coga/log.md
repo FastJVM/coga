@@ -3936,3 +3936,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-24 22:38 [ticket-specs-should-cite-symbols-not-line-numbers] [human:nicktoper] created (status=draft)
 2026-08-24 22:38 [carry-adjacent-bugs-out-of-a-blackboard-before-ret] [human:nicktoper] created (status=draft)
 2026-08-24 22:38 [give-a-ticket-s-superseded-design-one-documented-h] [human:nicktoper] created (status=draft)
+2026-08-24 22:38 [no-skill-exists-for-the-cold-evaluator-review-of-a] [human:nicktoper] created (status=draft)
