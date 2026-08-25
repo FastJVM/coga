@@ -72,18 +72,46 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 - Source task is not `status: done` → escalate via `coga block` with the
   reason. Retire only operates on done tickets.
 - Source task is missing → first decide **which** kind of missing. If the slug
-  is wrong or unknown, escalate. If the source artifact is absent from the
-  working tree *and* from the control branch because a prior Retro pass
-  (usually under Dream) already direct-deleted it, this shell is **orphaned,
-  not broken**: retire's whole contract — knowledge extracted, ticket deleted —
-  is already satisfied by the skill this shell exists to drive. Confirm the
-  `Ticket: <slug> — deleted` commit is an ancestor of the control branch
-  (`git merge-base --is-ancestor <sha> <remote>/<control-branch>`), record that
-  evidence on this shell's blackboard, and `coga mark done` it as already
-  satisfied. Do **not** `git restore` the source to rerun Retro, and do **not**
-  `coga block` — the missing-source stop condition guards against a wrong slug,
-  not against a retirement that already happened. Blocking here parks a task
-  whose desired end state already exists.
+  is wrong or unknown, escalate.
+
+  Otherwise ask two questions in order.
+
+  **Is it gone from the control branch?** That branch is the authority, not
+  your working tree. Retro direct-deletes from a linked worktree with
+  `coga delete --keep-control-checkout`, which deliberately leaves the
+  operator's checkout untouched, so the source directory can still sit on your
+  disk while already being absent from `<remote>/<control-branch>`. Requiring
+  absence in both places would send this shell into a Retro run whose fresh
+  isolated base lacks the source — which stops, recreating exactly the blocker
+  this path exists to avoid. Fetch and check the control branch; a stale local
+  copy is not evidence that the task is still live.
+
+  **Did Retro actually process it?** Absence alone does not answer this. Every
+  deletion — Retro's and an ordinary user's `coga delete <slug>` — writes the
+  same `Ticket: <slug> — deleted` subject, so that commit being an ancestor of
+  the control branch proves the directory is gone, not that any knowledge was
+  extracted. Closing on the generic commit alone would silently skip Retro and
+  discard durable knowledge. Require evidence that ties the deletion to a
+  Retro/Dream pass, such as:
+  - the deleting commit (or its PR) also adds or updates the source task's
+    `## Retro` marker — the knowledge-bearing route;
+  - a Dream run's `## Findings` / `## Dream Run Summary`, or a retro PR body,
+    naming this slug as processed;
+  - a `coga/log.md` line or retro PR recording the no-durable-knowledge
+    direct-delete for this slug.
+
+  With absence from the control branch **and** Retro evidence, this shell is
+  **orphaned, not broken**: retire's whole contract — knowledge extracted,
+  ticket deleted — is already satisfied by the skill this shell exists to
+  drive. Record the evidence on this shell's blackboard and `coga mark done`
+  it as already satisfied. Do **not** `git restore` the source to rerun Retro,
+  and do **not** `coga block` — the missing-source stop condition guards
+  against a wrong slug, not against a retirement that already happened.
+
+  With absence but **no** Retro evidence, something deleted the ticket without
+  extracting from it. Do not mark this shell done; escalate via `coga block`
+  naming the slug and the bare deletion commit, so a human decides whether to
+  restore and rerun Retro.
 - A complete evidence snapshot, machine-local config copy, or isolated
   worktree/clone execution is unavailable → escalate; never run Retro in this
   task's checkout as a fallback.

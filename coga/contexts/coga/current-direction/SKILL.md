@@ -190,10 +190,17 @@ Last updated: 2026-07-30.
   launches, its source artifact is already gone from the control branch via
   Retro's direct-delete path. The shell is then orphaned, not broken — both
   halves of its contract (extract knowledge, delete the ticket) are done, by
-  the skill the shell exists to drive. Verify the `Ticket: <slug> — deleted`
-  commit is an ancestor of the control branch, record that on the shell's
-  blackboard, and mark it done as already satisfied. Never `git restore` the
-  source to rerun Retro — that re-litigates a disposition the owner already
+  the skill the shell exists to drive. Judge that from the **control branch**,
+  not the working tree — `--keep-control-checkout` deliberately leaves the
+  operator's copy in place, so a locally-present source proves nothing — and
+  require evidence that Retro actually ran: the `Ticket: <slug> — deleted`
+  subject is what *every* `coga delete` writes, including a user's, so on its
+  own it proves the directory is gone, not that knowledge was extracted. Pair
+  it with a `## Retro` marker on the deleting commit/PR, a Dream run naming the
+  slug, or a logged no-durable-knowledge direct-delete; then record that on the
+  shell's blackboard and mark it done as already satisfied. Absence with no
+  such evidence is a plain unretired deletion — block instead. Never
+  `git restore` the source to rerun Retro — that re-litigates a disposition the owner already
   accepted — and never `coga block`: the shell's "source task is missing" stop
   condition guards against a *wrong slug*, not an already-completed
   retirement. This shape has now recurred three times
