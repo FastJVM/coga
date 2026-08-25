@@ -679,10 +679,12 @@ recipe function directly. A recurring template's deterministic path is that
 needs a TTY at admission. That agent work takes one of two shapes: by default
 an agent session launched on the period task itself, or — with
 `delegate: bootstrap/<name>` — a stateless bootstrap launch the sweep performs
-in-process while keeping the period task's lifecycle bookkeeping, so a template
-never instructs its agent to shell out to a nested `coga launch`. `delegate:`
-and a `ticket.py` sibling are mutually exclusive: a template either runs its own
-deterministic phase or hands its whole period to one bootstrap launch.
+in-process while keeping the period task's lifecycle bookkeeping. Only that
+bootstrap session's scoped done sentinel completes the period; a natural exit
+does not. A template therefore never instructs its agent to shell out to a
+nested `coga launch`. `delegate:` and a `ticket.py` sibling are mutually
+exclusive: a template either runs its own deterministic phase or hands its
+whole period to one bootstrap launch.
 
 There is no `autonomy:` field. The old `auto`, `skip_permissions`, and
 `skip_permissions_argv` agent keys are removed; config load rejects them with

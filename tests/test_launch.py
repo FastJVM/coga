@@ -2587,6 +2587,112 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        ReplOutcome(exit_code=0, kind="done"),
+        ReplOutcome(exit_code=0, kind="natural"),
+        ReplOutcome(exit_code=7, kind="natural"),
+        ReplOutcome(exit_code=143, kind="crash"),
+        ReplOutcome(exit_code=_TIMEOUT_EXIT_CODE, kind="timeout"),
+    ],
+    ids=("done", "natural-zero", "natural-nonzero", "crash", "timeout"),
+)
+def test_launch_returns_spawned_bootstrap_termination_kind(
+    bootstrap_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: ReplOutcome,
+) -> None:
+    """An in-process delegator can distinguish the bootstrap done sentinel
+    from every spawned failure; only pre-spawn refusals still raise SystemExit.
+    """
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: outcome,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    kind = launch_module.launch(
+        "bootstrap/ticket",
+        args=[],
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        queue_guidance=True,
+    )
+
+    assert kind == outcome.kind
+
+
+def test_launch_before_spawn_callback_runs_at_bootstrap_spawn_boundary(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The in-process hook runs after preflight but before the agent starts."""
+    events: list[str] = []
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    def fake_supervisor(*args, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
+        assert events == ["before-spawn"]
+        events.append("spawn")
+        return ReplOutcome(exit_code=0, kind="done")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    kind = launch_module.launch_with_before_spawn(
+        "bootstrap/ticket",
+        agent_override=None,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        queue_guidance=True,
+        before_spawn=lambda: events.append("before-spawn"),
+    )
+
+    assert kind == "done"
+    assert events == ["before-spawn", "spawn"]
+
+
+def test_launch_before_spawn_callback_skipped_on_preflight_refusal(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A CLI preflight refusal cannot publish caller-owned start state."""
+    events: list[str] = []
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch_with_before_spawn(
+            "bootstrap/ticket",
+            agent_override=None,
+            idle_timeout=900.0,
+            max_session=None,
+            return_timeout=True,
+            queue_guidance=True,
+            before_spawn=lambda: events.append("before-spawn"),
+        )
+
+    assert excinfo.value.code == 2
+    assert events == []
+
+
 def test_local_bootstrap_ticket_resolves_without_packaged_twin(
     bootstrap_repo: Path,
 ) -> None:

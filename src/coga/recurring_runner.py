@@ -59,6 +59,7 @@ from coga.mark import (
     mark_paused,
 )
 from coga.notification import notify
+from coga.repl_supervisor import _TIMEOUT_EXIT_CODE
 from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
@@ -830,6 +831,7 @@ def _launch_due_tasks(
                 idle_timeout=idle_timeout,
                 max_session=max_session,
                 queue_guidance=not interactive,
+                continue_after_timeout=True,
             )
             # Main's sweep records every run it performed; `run_autofix` fires
             # only when `record.outcomes` is non-empty, so a delegated run that
@@ -982,6 +984,7 @@ def _run_delegated_task(
     idle_timeout: float | None = None,
     max_session: float | None = None,
     queue_guidance: bool = True,
+    continue_after_timeout: bool,
 ) -> int:
     """Run one delegating period task by launching its bootstrap target.
 
@@ -995,26 +998,31 @@ def _run_delegated_task(
     subprocess. No agent session ever runs on the period task itself, so no
     wrapper has to shell out to a nested `coga launch` or manufacture a pty.
 
-    A clean delegated return marks the period task done (the bootstrap
-    target's own success signal stays its Slack roll-up); a liveness timeout
-    pauses it as a watchdog timeout, like any sweep launch, and lets the
-    sweep continue. A delegated launch that dies harder leaves the task
-    `in_progress`, and the next sweep resumes the orphan by re-delegating.
+    Only the bootstrap target's done sentinel marks the period task done; a
+    natural or crashed REPL exit leaves it `in_progress` and fails loud. A
+    liveness timeout pauses and continues only for a multi-task sweep. A named
+    launch instead returns the timeout code and leaves the task retryable as
+    `in_progress`. The period start transition sits on launch's final
+    pre-spawn callback, so a resolution/TTY/CLI/composition/secret refusal
+    leaves an `active` task untouched and an existing orphan resumable.
     """
     if task.ref is None or task.delegate is None:
         raise RecurringError("delegating recurring task is missing its target")
 
     ref = task.ref
-    ticket = read_ticket(ref)
 
-    if ticket.status == "active":
-        cur = ticket.current_step()
-        step_note = f" (step {ticket.step_index()}: {cur['name']})" if cur else ""
-        try:
+    def start_period() -> None:
+        """Publish period lifecycle only after delegate preflights succeed."""
+        current = read_ticket(ref)
+        if current.status == "active":
+            cur = current.current_step()
+            step_note = (
+                f" (step {current.step_index()}: {cur['name']})" if cur else ""
+            )
             mark_in_progress(
                 cfg,
                 ref,
-                ticket,
+                current,
                 actor="system",
                 log_message=(
                     "started (active → in_progress) via recurring delegation "
@@ -1022,39 +1030,63 @@ def _run_delegated_task(
                 ),
                 slack_text=(
                     f"▶️ delegated run started *{ref.id_slug}* "
-                    f"\"{ticket.title}\"{step_note}"
+                    f"\"{current.title}\"{step_note}"
                 ),
                 echo=f"{ref.id_slug}: in_progress",
             )
-        except TaskValidationError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-            return 2
+        elif current.status != "in_progress":
+            raise RecurringError(
+                f"cannot launch delegated target {task.delegate}: period task "
+                f"{ref.id_slug} changed to {current.status!r} during preflight"
+            )
 
-    append_log(
-        cfg,
-        ref.id_slug,
-        "system",
-        f"launched delegated target {task.delegate}",
-    )
-    git.sync_log(cfg, message=f"Log: {ref.id_slug}")
+        append_log(
+            cfg,
+            ref.id_slug,
+            "system",
+            f"launched delegated target {task.delegate}",
+        )
+        git.sync_log(cfg, message=f"Log: {ref.id_slug}")
 
-    from coga.commands.launch import launch as launch_cmd
+    from coga.commands.launch import launch_with_before_spawn as launch_cmd
 
-    kind = launch_cmd(
-        task.delegate,
-        agent_override=agent_override,
-        prompt_report=False,
-        idle_timeout=idle_timeout,
-        max_session=max_session,
-        return_timeout=True,
-        queue_guidance=queue_guidance,
-    )
+    try:
+        kind = launch_cmd(
+            task.delegate,
+            agent_override=agent_override,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+            return_timeout=True,
+            queue_guidance=queue_guidance,
+            before_spawn=start_period,
+        )
+    except (RecurringError, TaskValidationError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
     if kind == "timeout":
-        # The delegated session wedged and a liveness backstop tore it down.
-        # Record that against the period task the way any sweep launch would,
-        # then continue to the next due template.
-        _stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
-        return 0
+        if continue_after_timeout:
+            # The delegated session wedged and a liveness backstop tore it
+            # down. A multi-task sweep parks this run and continues so the
+            # wedge cannot starve later templates.
+            _stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+            return 0
+        typer.secho(
+            f"{ref.id_slug}: delegated target {task.delegate} timed out; "
+            "task left in_progress for an explicit retry.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return _TIMEOUT_EXIT_CODE
+
+    if kind != "done":
+        typer.secho(
+            f"{ref.id_slug}: delegated target {task.delegate} ended without "
+            f"its done signal (termination={kind or 'unknown'}); task left "
+            "in_progress.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return 2
 
     if not ref.ticket_path.exists():
         return 0
@@ -1320,6 +1352,7 @@ def _launch_created(
             idle_timeout=idle_timeout,
             max_session=max_session,
             queue_guidance=not interactive,
+            continue_after_timeout=False,
         )
         if record is not None:
             record.add(

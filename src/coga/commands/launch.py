@@ -157,7 +157,8 @@ def launch(
         False,
         "--return-timeout",
         hidden=True,
-        help="Internal: return the script/timeout stop kind to the caller.",
+        help="Internal: return the script/timeout stop kind, or a spawned "
+        "bootstrap session's termination kind, to the caller.",
     ),
     queue_guidance: bool = typer.Option(
         False,
@@ -181,13 +182,73 @@ def launch(
 ) -> str | None:
     """Compose context, start work on a task.
 
-    Returns an internal termination kind when `return_timeout` is true:
-    `"timeout"` when a liveness limit tore down an agent REPL, or `"script"`
-    when a deterministic phase stopped without handing off to an agent. Returns
-    None for any other ending. `coga recurring` uses those distinctions to
-    record timeouts honestly and preserve lifecycle signals written by a script;
-    public CLI timeouts exit with the supervisor's non-zero timeout code.
+    Returns an internal termination kind when `return_timeout` is true. For an
+    ordinary task launch that is `"timeout"` when a liveness limit tore down an
+    agent REPL, or `"script"` when a deterministic phase stopped without handing
+    off to an agent; None for any other ending. A spawned *bootstrap* session
+    instead returns its own termination kind (`"done"`, `"natural"`, `"crash"`,
+    or `"timeout"`) so an in-process delegator can tell the done sentinel from
+    an early exit and a pre-spawn `SystemExit`. `coga recurring` uses those
+    distinctions to record timeouts honestly, preserve lifecycle signals written
+    by a script, and finish a delegated period only on its done signal; public
+    CLI timeouts exit with the supervisor's non-zero timeout code.
     """
+    return _launch(
+        task,
+        args=args,
+        agent_override=agent_override,
+        prompt_report=prompt_report,
+        idle_timeout=idle_timeout,
+        max_session=max_session,
+        return_timeout=return_timeout,
+        queue_guidance=queue_guidance,
+        before_spawn=None,
+    )
+
+
+def launch_with_before_spawn(
+    task: str,
+    *,
+    agent_override: str | None,
+    idle_timeout: float | None,
+    max_session: float | None,
+    return_timeout: bool,
+    queue_guidance: bool,
+    before_spawn: Callable[[], None],
+) -> str | None:
+    """Run the shared launch path with one callback at the spawn boundary.
+
+    Recurring delegation uses this typed in-process seam to publish its period
+    task's `in_progress` state only after target resolution, TTY/CLI checks,
+    prompt composition, and secret preflights have all succeeded, but before
+    the bootstrap agent actually starts. The CLI surface remains callback-free.
+    """
+    return _launch(
+        task,
+        args=None,
+        agent_override=agent_override,
+        prompt_report=False,
+        idle_timeout=idle_timeout,
+        max_session=max_session,
+        return_timeout=return_timeout,
+        queue_guidance=queue_guidance,
+        before_spawn=before_spawn,
+    )
+
+
+def _launch(
+    task: str,
+    *,
+    args: list[str] | None,
+    agent_override: str | None,
+    prompt_report: bool,
+    idle_timeout: float | None,
+    max_session: float | None,
+    return_timeout: bool,
+    queue_guidance: bool,
+    before_spawn: Callable[[], None] | None,
+) -> str | None:
+    """Implementation shared by the Typer command and in-process launch seam."""
     # In-process callers (recurring, retire) invoke this Typer command function
     # directly without passing every parameter, so an omitted `args` arrives as
     # Typer's ArgumentInfo sentinel rather than None. Normalize once up front.
@@ -1041,6 +1102,7 @@ def launch(
         consecutive_agent_override = False
         while True:
             ticket = _read(ref)
+            is_first_step = first_step
 
             if entry is not None and ticket.step not in script_steps_run:
                 try:
@@ -1151,10 +1213,15 @@ def launch(
             # rotates to an agent (e.g. codex) whose CLI isn't on PATH. Stop
             # cleanly and hand back to the human rather than blocking.
             if shutil.which(agent.cli) is None:
-                typer.secho(
+                message = (
                     f"{ref.id_slug}: next step needs agent {step_assignee!r} "
-                    f"but {agent_cli_missing_message(agent.cli)} Stopping; "
-                    f"then run `coga launch {ref.id_slug}` to continue.",
+                    f"but {agent_cli_missing_message(agent.cli)}"
+                )
+                if is_bootstrap and return_timeout:
+                    _bail(f"{message} No agent was started.")
+                typer.secho(
+                    f"{message} Stopping; then run `coga launch "
+                    f"{ref.id_slug}` to continue.",
                     fg=typer.colors.YELLOW,
                     err=True,
                 )
@@ -1166,7 +1233,7 @@ def launch(
 
             _echo_launch_iteration(ref, ticket)
             spawn_ticket = ticket
-            before_spawn: Callable[[], None] | None = None
+            session_before_spawn = before_spawn if is_first_step else None
             if publish_assist_branch is not None:
                 if not isinstance(ref, TaskRef) or assist_pr_guard is None:
                     _bail(
@@ -1192,7 +1259,19 @@ def launch(
                         publication_guard=assist_pr_guard,
                     )
 
-                before_spawn = publish_lifecycle
+                if session_before_spawn is None:
+                    session_before_spawn = publish_lifecycle
+                else:
+                    existing_before_spawn = session_before_spawn
+
+                    def publish_then_callback(
+                        publish: Callable[[], None] = publish_lifecycle,
+                        callback: Callable[[], None] = existing_before_spawn,
+                    ) -> None:
+                        publish()
+                        callback()
+
+                    session_before_spawn = publish_then_callback
             step_env = build_supervised_step_env(
                 env,
                 task_path=ref.path,
@@ -1237,7 +1316,7 @@ def launch(
                         else None
                     ),
                     feature_publication_guard=assist_pr_guard,
-                    before_spawn=before_spawn,
+                    before_spawn=session_before_spawn,
                 )
             except _AssistPublicationRefused as exc:
                 suppress_assist_refresh = True
@@ -1310,7 +1389,12 @@ def launch(
                     fg=typer.colors.YELLOW,
                     err=True,
                 )
+                if return_timeout and is_bootstrap:
+                    return session.termination_kind
                 sys.exit(session.exit_code)
+
+            if return_timeout and is_bootstrap:
+                return session.termination_kind
 
             # An agent may delete its own task directory as a final action —
             # e.g. a Dream run retiring itself once its findings are durable.

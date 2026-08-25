@@ -137,12 +137,14 @@ the example under "Extend recurring with a task-specific workflow").
   the sweep marks the period task `in_progress`, performs the delegated launch
   in-process — in the operator's own terminal, under the sweep's `--agent`
   override, queue guidance, and idle/max-session liveness bounds — then marks
-  the period task `done` on a clean return (or pauses it as a watchdog
-  timeout). Because the delegated run is still an agent launch, a delegating
-  template stays in the agent-backed admission class: a headless sweep refuses
-  it *before the period task is created*, exactly like any other agent
-  template. `coga validate` resolves the target statically and reports a
-  missing one as `unknown-delegate-target`.
+  the period task `done` only when the bootstrap target emits its done
+  sentinel. A natural/crashed exit fails with the period left retryable; a
+  multi-task sweep pauses a watchdog timeout and continues, while a named
+  launch fails and leaves it `in_progress` for retry. Because the delegated run
+  is still an agent launch, a delegating template stays in the agent-backed
+  admission class: a headless sweep refuses it *before the period task is
+  created*, exactly like any other agent template. `coga validate` resolves the
+  target statically and reports a missing one as `unknown-delegate-target`.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered
@@ -599,10 +601,11 @@ Operating it:
   sanctioned workaround; it was, and agent harnesses refused to execute it.
   With `delegate: bootstrap/<name>` there is no inner shell-out at all: the
   sweep itself performs the delegated launch in the operator's terminal and
-  keeps the period task's lifecycle bookkeeping (in_progress → done, or a
-  watchdog pause on timeout), so no wrapper agent session exists in between.
-  The delegated command's own success signal — e.g. its `coga slack` roll-up
-  line in `coga/log.md` — stays what it always was.
+  keeps the period task's lifecycle bookkeeping, so no wrapper agent session
+  exists in between. The delegated command's own success signal — e.g. its
+  `coga slack` roll-up line in `coga/log.md`, which emits the bootstrap done
+  sentinel — is the only path to period completion; a natural REPL exit is not
+  success.
 
 - **A job that pushes to a dedicated long-lived branch must prune the remote
   ref before pushing.** `coga skill update --pr` reuses one fixed branch

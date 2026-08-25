@@ -33,6 +33,7 @@ from coga.recurring import (
     scan_due,
     serviced_periods,
 )
+from coga.repl_supervisor import _TIMEOUT_EXIT_CODE
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
 from coga.tasks import TaskRef, list_tasks
 from coga.ticket import Ticket
@@ -2273,26 +2274,45 @@ def test_headless_scan_refuses_delegating_template_at_admission(
 
 
 @pytest.mark.parametrize(
-    ("starting_status", "launch_kind", "expected_status", "expected_transitions"),
+    (
+        "starting_status",
+        "launch_kind",
+        "continue_after_timeout",
+        "expected_code",
+        "expected_status",
+        "expected_transitions",
+    ),
     [
-        ("active", None, "done", ["in_progress", "done"]),
-        ("in_progress", None, "done", ["done"]),
-        ("active", "timeout", "paused", ["in_progress", "paused"]),
+        ("active", "done", True, 0, "done", ["in_progress", "done"]),
+        ("in_progress", "done", True, 0, "done", ["done"]),
+        ("active", "timeout", True, 0, "paused", ["in_progress", "paused"]),
+        (
+            "active",
+            "timeout",
+            False,
+            _TIMEOUT_EXIT_CODE,
+            "in_progress",
+            ["in_progress"],
+        ),
+        ("active", "natural", True, 2, "in_progress", ["in_progress"]),
+        ("active", "crash", True, 2, "in_progress", ["in_progress"]),
     ],
 )
 def test_delegated_task_launches_target_and_owns_lifecycle(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     starting_status: str,
-    launch_kind: str | None,
+    launch_kind: str,
+    continue_after_timeout: bool,
+    expected_code: int,
     expected_status: str,
     expected_transitions: list[str],
 ) -> None:
     """The runner owns the delegating period task's lifecycle: it marks
     `in_progress`, launches the bootstrap target in-process (never an agent
-    session on the period task), then marks `done` on a clean return — or
-    pauses the task as a watchdog timeout when the delegated session's
-    liveness backstop fired.
+    session on the period task), then marks `done` only for its done sentinel.
+    A sweep may pause-and-continue after a watchdog timeout; named timeouts and
+    natural/crashed exits fail while leaving the task retryable.
     """
     _write_delegating_template(repo, "delegate-check")
     cfg = load_config(repo)
@@ -2340,6 +2360,7 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
                 kwargs.get("queue_guidance"),
             )
         )
+        kwargs["before_spawn"]()
         return launch_kind
 
     monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
@@ -2347,7 +2368,7 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
     monkeypatch.setattr(recurring_cmd, "mark_paused", fake_mark_paused)
     monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
 
     code = recurring_cmd._run_delegated_task(
         cfg,
@@ -2363,9 +2384,10 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
         idle_timeout=900.0,
         max_session=None,
         queue_guidance=True,
+        continue_after_timeout=continue_after_timeout,
     )
 
-    assert code == 0
+    assert code == expected_code
     assert transitions == expected_transitions
     assert Ticket.read(ref.ticket_path).status == expected_status
     # The delegated launch targets the bootstrap ticket — never the period
@@ -2373,6 +2395,73 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
     assert launches == [
         ("bootstrap/resolve-conflicts", "claude", 900.0, None, True, True)
     ]
+
+
+@pytest.mark.parametrize(
+    ("starting_status", "expected_transitions"),
+    [
+        ("active", []),
+        ("in_progress", []),
+    ],
+)
+def test_delegated_preflight_refusal_does_not_start_period(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    starting_status: str,
+    expected_transitions: list[str],
+) -> None:
+    """A refusal before agent spawn leaves a new active period untouched and
+    preserves an existing in-progress orphan so a real prior run is not erased.
+    """
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    ref = outcome.ref
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = starting_status
+    ticket.write(ref.ticket_path)
+    transitions: list[str] = []
+
+    def fake_mark_in_progress(
+        task_cfg, task_ref, current: Ticket, **kwargs  # type: ignore[no-untyped-def]
+    ) -> None:
+        transitions.append("in_progress")
+        current.frontmatter["status"] = "in_progress"
+        current.write(task_ref.ticket_path)
+
+    def refuse_before_spawn(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        raise SystemExit(2)
+
+    monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
+    monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", refuse_before_spawn
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        recurring_cmd._run_delegated_task(
+            cfg,
+            DueTask(
+                template="delegate-check",
+                ref=ref,
+                last_fire=datetime(2026, 4, 22, 9, 0, 0),
+                created=True,
+                status=starting_status,
+                delegate="bootstrap/resolve-conflicts",
+            ),
+            agent_override="claude",
+            idle_timeout=900.0,
+            max_session=None,
+            queue_guidance=True,
+            continue_after_timeout=True,
+        )
+
+    assert excinfo.value.code == 2
+    assert transitions == expected_transitions
+    assert Ticket.read(ref.ticket_path).status == starting_status
 
 
 def test_bare_recurring_launches_delegate_target_directly(
@@ -2387,13 +2476,14 @@ def test_bare_recurring_launches_delegate_target_directly(
 
     launches: list[tuple[str, str | None, bool | None]] = []
 
-    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
         launches.append(
             (task, kwargs.get("agent_override"), kwargs.get("queue_guidance"))
         )
-        return None
+        kwargs["before_spawn"]()
+        return "done"
 
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
 
     def capture_slack(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
         class R:
@@ -2412,6 +2502,47 @@ def test_bare_recurring_launches_delegate_target_directly(
         repo / "tasks" / "recurring" / "delegate-check" / "ticket.md"
     )
     assert ticket.status == "done"
+
+
+def test_named_recurring_delegate_timeout_fails_and_remains_retryable(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The one-task entrypoint must not turn a watchdog kill into success or
+    park the task; a second explicit launch can resume the in-progress period.
+    """
+    shutil.rmtree(repo / "recurring" / "weekly-check")
+    _write_delegating_template(repo, "delegate-check")
+    monkeypatch.chdir(repo)
+    _allow_interactive_recurring(monkeypatch)
+    outcomes = iter(("timeout", "done"))
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        assert task == "bootstrap/resolve-conflicts"
+        assert kwargs.get("return_timeout") is True
+        kwargs["before_spawn"]()
+        return next(outcomes)
+
+    monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
+
+    def capture_slack(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        class R:
+            status_code = 200
+            text = "ok"
+
+        return R()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
+
+    first = CliRunner().invoke(app, ["recurring", "launch", "delegate-check"])
+    assert first.exit_code == _TIMEOUT_EXIT_CODE, first.output
+    ticket_path = (
+        repo / "tasks" / "recurring" / "delegate-check" / "ticket.md"
+    )
+    assert Ticket.read(ticket_path).status == "in_progress"
+
+    retry = CliRunner().invoke(app, ["recurring", "launch", "delegate-check"])
+    assert retry.exit_code == 0, retry.output
+    assert Ticket.read(ticket_path).status == "done"
 
 
 def test_scan_due_explains_removed_megalaunch_skill(repo: Path) -> None:
