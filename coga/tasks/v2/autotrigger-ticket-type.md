@@ -21,6 +21,7 @@ workflow:
   - name: report-to-relay
     skills: []
     assignee: agent
+step: 1 (agent-produces)
 ---
 
 ## Description
