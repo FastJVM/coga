@@ -332,19 +332,30 @@ can still fix it, and both compliant flows (variants 1 and B) pass unchanged.
   placeholders named in the ticket Context; no new ticket, and they were not
   edited.
 
-## Open Questions
+## Design decisions (owner, 2026-08-24)
 
-- **Token name:** `dev` (matches the `## Dev` section it checks) vs `branch`.
-  Spec says `dev`; trivial to rename in review-design.
-- **Data check only?** The gate checks that `branch:`/`worktree:` parse as
-  usable; it does *not* check the worktree exists on disk. Proposal: keep it a
-  pure data check (gate philosophy per `step_gate.py` docstring; existence is
-  environment-dependent and open-pr already verifies it). OK?
-- **Example fixture ripple:** adding `requires: dev` to
-  `example/coga/workflows/code/with-review.md` means smoke tests that bump
-  past implement must first record `## Dev`. Accept that test churn, or leave
-  the fixture ungated? Spec assumes: accept it, so the smoke path stays
-  representative.
-- **Retrofit:** existing in-flight code tickets keep their frozen ungated
-  workflows. Proposal: no retrofit — frozen `workflow:` is human-owned; hand
-  edit per ticket only if a human wants the guard on a live task.
+Answers to the design step's open questions — these are settled; implement
+follows them.
+
+- **Token name:** `branch` (not `dev`). Registered in `STEP_GATES` as
+  `"branch"`; the implement step declares `requires: branch`.
+- **Data check only:** yes. The gate checks that the `## Dev` lines parse as
+  usable values; it does **not** stat the worktree path or touch Git. Existence
+  is environment-dependent and `open_pr.py:328` already verifies it.
+- **Example fixture:** accept the churn. `example/coga/workflows/code/*.md`
+  gets `requires: branch` on the implement step, and any smoke test that bumps
+  past implement records a `## Dev` block first, so the fixture path stays
+  representative of shipped behavior.
+- **Retrofit:** none. Existing in-flight code tickets keep their frozen ungated
+  workflows; frozen `workflow:` is human-owned and gets hand-edited only if a
+  human wants the guard on a live task. (This ticket itself is one of them — its
+  own implement step stays ungated.)
+
+### Still to confirm before implement
+
+- **Gate scope:** `open_pr.py` requires *both* `branch:` (`:312-319`) and
+  `worktree:` (`:321-327`). A `branch` gate that checks only `branch:` still
+  lets a bump through that open-pr then rejects for a missing `worktree:`.
+  Proposal: the `branch` token checks both lines (name follows the primary
+  artifact, like `pr`), so the gate exactly covers what the next step needs.
+
