@@ -26,7 +26,8 @@ the `coga/cli` *context*. Read this for the worked classification; read
    post-dispatch hook**.
 
 2. **Built-in command heads** — `src/coga/commands/*.py`, registered in
-   `cli.py:74-93`. These hold the irreducible command-shaped parts: argument
+   `cli.py` by the block of `app.command(...)` / `app.add_typer(...)` calls
+   that follows the `_root` `@app.callback()`. These hold the irreducible command-shaped parts: argument
    resolution, guards, and calls into focused core modules when an
    alias has no hook point.
 
@@ -68,9 +69,11 @@ remaining argv passes through unchanged.
 | Verb | Mechanism | Alias-able? | Why |
 |------|-----------|-------------|-----|
 | `init` | built-in | No | Scaffolds `coga/`, vendors the running CLI into `.coga/.venv`, installs venv deps. Heavy side effects. |
+| `uninstall` | built-in | No | Symmetric inverse of `init`: removes the repo-local footprint plus the machine-global shim, with a confirmation prompt. Heavy side effects. |
 | `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket and validates it; raw creation is intentionally Slack-silent. |
 | `ticket` | thin built-in head + `coga.authoring` finalize | No | **Canonical proof.** Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. |
 | `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |
+| `megalaunch` | built-in | No | Sweep / `--pick` / `--relaunch` over one engine: launchability filtering, a TTY picker, staged prepare→activate→launch, fixed-point dependency drain. The `pick` default alias is sugar for `megalaunch --pick`, not a replacement. |
 | `status` | built-in | No | Reads tree + renders tables. Logic, not a passthrough to another command. |
 | `show` | built-in | No | Reads + Rich-renders ticket/blackboard/log. |
 | `bump` | built-in | No | Advances `step:`, appends `log.md`, post-write validate. |
@@ -80,8 +83,9 @@ remaining argv passes through unchanged.
 | `block` / `unblock` | built-in | No | Records/resolves concrete blocker asks, owns blocked-state transitions, syncs state, and notifies. |
 | `slack` | built-in | No | Posts FYI to Slack. |
 | `digest` | built-in | No | Spool read → git fetch → render → post → state update. (See digest disambiguation.) |
+| `usage` | built-in | No | Reads token-usage records from the repo-global log and rolls them up by task/model/agent/step. Logic, not a passthrough. |
 | `validate` | built-in | No | Static repo/config diagnostic, `--fix` creates missing files. |
-| `run` | thin built-in + fixed `coga.runner.RECIPES` table | No | Forwards ordinary trailing argv to one of ten explicit importable core recipes; no env translation, entry-point discovery, or skill plugins. |
+| `run` | thin built-in + fixed `coga.runner.RECIPES` table | No | Forwards ordinary trailing argv to one of eleven explicit importable core recipes (`autoclose`, `digest`, `blocker-reminders`, `branch-sweep`, `validate-drift`, `cleanup-orphan-markers`, `recurring-scan`, `autofix-analyze`, `skill-update`, `open-pr`, `delete-task`); no env translation, entry-point discovery, or skill plugins. |
 | `skill` (group) | built-in | No | `gh skill` wrapper: install/update/remove/status, provenance, digests. |
 | `mark` (group) | built-in | No | Status transitions + Slack + workflow gating + post-write validate. |
 | `recurring` (group) | thin built-in scan head + registered `recurring-scan` recipe / `coga.recurring_runner` | No | The public head converts flags to ordinary argv; the runner does schedule scan, get-or-create, lifecycle bookkeeping, and the dedup high-water mark, then hands every template to one `coga launch` call that classifies it. |
@@ -114,6 +118,7 @@ task. There is no mode field.
 | Template | Execution | Mechanism today | Alias-able? | Why |
 |----------|-----------|-----------------|-------------|-----|
 | `dream` | agent (interactive) | `dream` default alias → `recurring launch dream` | Yes — already aliased | Pure passthrough. |
+| `resolve-conflicts` | agent | explicit `recurring launch resolve-conflicts` | **No — the name is taken** | The template carries only the weekly schedule; the work is the `bootstrap/resolve-conflicts` command ticket, and the `resolve-conflicts` default alias already points at `launch bootstrap/resolve-conflicts`. |
 | `skill-update` | script | `skill-update` default alias → `recurring launch skill-update` | Yes — already aliased | Pure passthrough. |
 | `autoclose-merged` | script | `autoclose` default alias → `recurring launch autoclose-merged` | Yes — already aliased | Pure passthrough under the shorter public name. |
 | `digest` | script | name occupied by `coga digest` built-in | **No — disqualified by name collision** | `recurring launch digest` *is* a pure passthrough, but the natural alias name `digest` is already a built-in (a different operation). See below. |
@@ -253,5 +258,5 @@ the audit's path to it.
   `coga.autoclose.sweep_merged`.
 - Bootstrap tickets: package
   `bootstrap/{browser-automation,orient,resolve-conflicts,ticket}/ticket.md`.
-- Recurring templates: `coga/recurring/{autoclose-merged,digest,dream,skill-update}/`.
+- Recurring templates: `coga/recurring/{autoclose-merged,blocker-reminders,branch-sweep,digest,dream,resolve-conflicts,skill-update}/`.
 - Alias test coverage (not `coga validate`): `tests/test_aliases.py`.

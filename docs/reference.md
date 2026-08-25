@@ -328,7 +328,12 @@ otherwise it direct-deletes the task (recover with `git restore`).
 - `--no-launch` — create the retire task but don't launch it.
 
 ### `coga delete TASK`
-Remove a task directory. Recovery is via `git restore`.
+Remove a task directory, then sync the removal to the control branch. Recovery
+is via `git restore`.
+
+- `--keep-control-checkout` — push the deletion without fast-forwarding another
+  checkout that holds the control branch. Only valid from a linked worktree
+  (it exits 2 from the primary checkout). Used by Retro.
 
 ## Inspecting
 

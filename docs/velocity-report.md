@@ -34,7 +34,7 @@ The contract is inspectable in the workflow snapshots under
 with Coga. Search the snapshots with:
 
 ```sh
-rg -n -U 'name: (implement|peer-review).*?assignee: (agent|other-agent)' coga/tasks
+rg -n -U --multiline-dotall 'name: (implement|peer-review).*?assignee: (agent|other-agent)' coga/tasks
 ```
 
 ### Peak in the reporting window: 31 agent-operated workstreams in one week

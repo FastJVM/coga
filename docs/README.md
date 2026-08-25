@@ -27,8 +27,9 @@ Then, as you need them:
 - **[Vision](vision.md)** — the essay: why Coga exists, the classical-vs-romantic
   framing, and the thesis behind a two-person team running like ten. This is the
   "why"; the docs above are the "how."
-- **[Migrating to Coga](migrating-to-coga.md)** — moving an existing operation
-  onto the substrate.
+- **[Migrating from Relay to Coga](migrating-to-coga.md)** — the rename: the
+  mechanical steps to move an existing Relay repo onto the Coga package,
+  command, directories, and config.
 - **[Releasing](releasing.md)** — cutting a Coga release (contributor-facing).
 
 ## The shortest possible summary
