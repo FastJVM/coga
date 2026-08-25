@@ -1,6 +1,6 @@
 ---
 name: docs/gdrive-mcp
-description: Capability contract of the Google Drive MCP server — what file creation can and cannot convert, the no-update/no-delete limits, and read-side gotchas for Docs and Sheets tasks.
+description: Capability contract of the Google Drive MCP server — what file creation can and cannot convert, why revisions are re-uploads rather than edits, and read-side gotchas for Docs and Sheets tasks.
 ---
 
 # Google Drive MCP capability contract
@@ -26,8 +26,15 @@ Facts learned across tasks (conductor-report 2026-06, coga-crm
 
 ## Updates, deletes, reads
 
-- The server has **no update or delete tools**. Revising a Doc/Sheet
-  means uploading a new file; superseded files are trashed by the human.
+- `update_file` edits **metadata only** — the title, and the parent
+  folder (i.e. a move). There is no content-update tool, so revising a
+  Doc/Sheet still means uploading a **new** file rather than editing the
+  existing one in place.
+- `trash_file` **does** exist. Superseded files do not have to wait on
+  the human: move the old file to the owner's trash yourself once the
+  replacement is confirmed, and say in the report which file you
+  trashed. It is a trash, not a permanent delete — the human can
+  restore it. There is no permanent-delete tool.
 - Read side: spreadsheet content reads/exports return only the first
   tab, and data validation (dropdowns) never shows in an export.
   Verification of multi-tab structure rests on the human's report.
