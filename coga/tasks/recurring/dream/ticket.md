@@ -412,3 +412,53 @@ Result: 29 issue(s): 0 direct fix, 4 PR proposal, 25 human-needed.
   Remediation: The ticket's current `step:` is not in its frozen workflow. Lifecycle correction is human-only; ask the owner to relaunch, rewind, or hand-edit the step.
 - `v2/use-worktree-when-starting-a-dev-task`: `missing-step` (error) - `workflow:` is set but `step:` is missing
   Remediation: The ticket's current `step:` is not in its frozen workflow. Lifecycle correction is human-only; ask the owner to relaunch, rewind, or hand-edit the step.
+
+## Run Progress
+
+- Phase 1 validate-drift: **reported** — `coga run validate-drift` → 29 issues (0 direct-fix, 4 PR-proposal, 25 human-needed). Section below. (Recipe ran twice due to an operator retry; duplicate section removed from this blackboard.)
+- Phase 2 knowledge scan: 15 shards launched over a 215-file / 1447 KB corpus (coga/tasks, coga/contexts, coga/skills, coga/workflows). Scan dir recorded in Findings section when merged.
+- Phase 3 contract audit: pending.
+
+## Phase 4 eligibility (computed pre-delegation)
+
+Open PRs at scan time: **#708** (`coga/skill-update`, edits 11 `coga/skills/google-agents-cli-*` files) and
+**#709** (`implement-branch-gate`, edits `coga/contexts/dev/code/SKILL.md`, `coga/skills/code/implement/SKILL.md`,
+their packaged twins, 3 packaged `code/*` workflows, `src/coga/step_gate.py`, `tests/test_commands.py`).
+Neither PR touches any `coga/tasks/` candidate directory, so no candidate is gated.
+
+**Phase 6 overlap constraint** (record now, apply at disposition): any `stale`/`drift` finding targeting
+`coga/contexts/dev/code/SKILL.md` or `coga/skills/code/implement/SKILL.md` must NOT get its own PR — PR #709
+already edits those files; note the overlap and defer to that PR's review. Same for the
+`coga/skills/google-agents-cli-*/SKILL.md` files under PR #708.
+
+### Eligible for Retro (8) — no real `branch:`/`worktree:` in `## Dev`, directory present, no gating PR
+
+Period tickets (carry nothing durable → direct-delete, no PR, no marker):
+- `recurring/autoclose-merged`
+- `recurring/blocker-reminders`
+- `recurring/branch-sweep`
+- `recurring/digest`
+- `recurring/resolve-conflicts`
+- `recurring/skill-update`
+
+Ordinary done tickets (Retro reads for durable knowledge, then deletes):
+- `retire-decide-the-fate-of-two-premise-dead-v2-drafts-whos`
+- `retire-recurring-can-only-be-launched-by-owner`
+
+### Deferred retirement debt (11) — checkout-bearing done tickets, NOT Retro input
+
+Each records a real `branch:` + `worktree:` in `## Dev`; left on disk so the human-typed `coga retire <slug>`
+stays valid. Dream does not invoke `coga retire`.
+
+- `autoclose-should-name-the-retire-follow-up` (autoclose-retire-hint)
+- `dream-phases-2-3-cannot-complete-scan-subagents-re` (dream-scan-shards)
+- `put-build-back` (restore-coga-build)
+- `read-the-recurring-serviced-period-from-the-log-dr` (fix/recurring-log-reverse-pass)
+- `recurring-last-serviced-period-compares-as-a-strin` (codex/validate-recurring-periods)
+- `recurring-recipe-question` (deduce-ticket-script)
+- `refuse-recurring-runs-from-a-non-control-branch` (fix/recurring-control-branch-gate)
+- `remove-coga-build-and-project` (remove-build-project)
+- `remove-legacy-config-compatibility-shims` (remove-legacy-config-shims)
+- `review-slack-channels` (route-important-failures)
+- `validate-drift-classifier-misses-17-emitted-kinds` (codex/validate-drift-kinds)
+
