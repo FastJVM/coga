@@ -355,10 +355,15 @@ def _pick_selection(candidates: list[tuple[TaskRef, Ticket]]) -> list[str]:
 def _picker_window(total: int, cursor: int, rows: int) -> tuple[int, int]:
     """Half-open [start, end) of candidate indices to show for this cursor.
 
-    Rich's Live crops a taller-than-terminal render to the last screenful, so
-    without windowing the top of a long list scrolls off and the cursor can
-    sit on an invisible row. We scroll the viewport to keep the cursor inside
-    it, leaving a one-row margin at each edge when there is more list to reveal.
+    Rich's Live defaults to vertical_overflow="ellipsis", which keeps the
+    *first* screenful of a taller-than-terminal render (LiveRender renders
+    `lines[: height - 1]` plus an ellipsis line). So without windowing the
+    bottom of a long list is never drawn and the cursor vanishes on the way
+    down. We scroll the viewport to keep the cursor inside it, leaving a
+    one-row margin at each edge when there is more list to reveal.
+
+    This only holds if each candidate costs exactly one terminal line —
+    `_picker_view` is responsible for that, by truncating rather than wrapping.
     """
     if rows <= 0 or total <= rows:
         return 0, total
@@ -374,19 +379,33 @@ def _picker_view(
     cursor: int,
     console: Console,
 ) -> Group:
-    # Reserve rows for the table header, the hint line, and the two possible
-    # scroll indicators so the viewport always fits within the terminal.
-    rows = max(1, console.size.height - 4)
+    # Chrome is an unconditional 5 lines: 2 for the table (header row + header
+    # rule), 1 for the hint, and 2 for the scroll indicators — which are always
+    # rendered, blank when there is nothing above/below, so the reserve holds at
+    # the list ends too and the frame doesn't jitter by a row as you scroll past
+    # them.
+    rows = max(1, console.size.height - 5)
     start, end = _picker_window(len(candidates), cursor, rows)
 
-    table = Table(show_lines=False, show_edge=False, pad_edge=False)
-    table.add_column("")
-    table.add_column("sel")
-    table.add_column("slug")
-    table.add_column("status")
-    table.add_column("owner")
-    table.add_column("step")
-    table.add_column("title")
+    # `_picker_window` budgets in candidates, so every row must cost exactly one
+    # terminal line. `no_wrap`/`ellipsis` on every column is what buys that —
+    # a wrapped row costs more than its one budgeted line and overflows.
+    #
+    # The ratios matter as much as the truncation. Left to itself, an
+    # all-no_wrap table measures wider than the terminal (slugs and titles run
+    # long), Rich falls through to its last-resort even reduction, and *every*
+    # column shrinks — the marker and checkbox collapse to nothing. Declaring
+    # the elastic columns flexible (`ratio` + `expand`) hands Rich the
+    # slack it needs from them alone, so the fixed narrow columns survive down
+    # to ~50 cells.
+    table = Table(show_lines=False, show_edge=False, pad_edge=False, expand=True)
+    table.add_column("", width=1, no_wrap=True, overflow="ellipsis")
+    table.add_column("sel", width=3, no_wrap=True, overflow="ellipsis")
+    table.add_column("slug", ratio=2, no_wrap=True, overflow="ellipsis")
+    table.add_column("status", no_wrap=True, overflow="ellipsis")
+    table.add_column("owner", ratio=1, no_wrap=True, overflow="ellipsis")
+    table.add_column("step", ratio=1, no_wrap=True, overflow="ellipsis")
+    table.add_column("title", ratio=3, no_wrap=True, overflow="ellipsis")
     for index in range(start, end):
         ref, ticket = candidates[index]
         table.add_row(
@@ -400,19 +419,21 @@ def _picker_view(
             ticket.title,
             style="reverse" if index == cursor else None,
         )
-    parts: list[Text | Table] = []
-    if start > 0:
-        parts.append(Text(f"  ↑ {start} more above", style="dim"))
-    parts.append(table)
-    if end < len(candidates):
-        parts.append(Text(f"  ↓ {len(candidates) - end} more below", style="dim"))
-    parts.append(
-        Text(
-            "↑/↓ move · Space toggle · a all · n none · Enter launch · q quit",
-            style="dim",
-        )
+    # These sit outside the table and wrap on their own, so they need the same
+    # truncation the columns got — the hint line alone is 64 cells wide.
+    def _line(text: str) -> Text:
+        return Text(text, style="dim", no_wrap=True, overflow="ellipsis")
+
+    return Group(
+        _line(f"  ↑ {start} more above" if start > 0 else ""),
+        table,
+        _line(
+            f"  ↓ {len(candidates) - end} more below"
+            if end < len(candidates)
+            else ""
+        ),
+        _line("↑/↓ move · Space toggle · a all · n none · Enter launch · q quit"),
     )
-    return Group(*parts)
 
 
 def _drain_post_text(run: MegalaunchRun) -> str | None:
