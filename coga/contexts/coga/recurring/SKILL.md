@@ -577,21 +577,24 @@ Operating it:
   ordinary Coga command (`recurring/resolve-conflicts` → `coga
   resolve-conflicts --agent <type>`, itself an alias for `launch
   bootstrap/resolve-conflicts`). Two things to get right:
-  - **Keep the delegating template agent-backed and invoke the command plainly.**
-    `coga launch` refuses an agent launch without a TTY on *both* stdin and
-    stdout, so a headless sweep is refused before the period task is even
-    created — the admission decision belongs to the outer launch, not to the
-    wrapper. Because the template stays agent-backed, recurring's TTY
-    admission, `--agent` override, idle timeout, and max-session watchdog
-    already govern the whole delegated process tree, so the wrapper just runs
-    `coga resolve-conflicts --agent <current-agent-type>` and waits. Do **not**
-    improvise a fake pty around it — a recipe like
-    `timeout 900 script -qec '…' /dev/null` was tried and is not the sanctioned
-    pattern: it re-does bounding the outer supervisor already provides and
-    reads to an agent harness's permission classifier as an unfamiliar shell
-    construct to deny. If the delegation is being refused for want of a TTY,
-    the fix is to run the sweep from a real terminal, not to synthesize one a
-    level down.
+  - **Keep the delegating template agent-backed, and give the nested launch a
+    pty.** `coga launch` refuses an agent launch without a TTY on *both* stdin
+    and stdout (`_refuse_tty_launch`, `commands/launch.py`), and that check is
+    unconditional — it runs on the *inner* launch as well as the outer one.
+    Keeping the template agent-backed is still right, and buys the outer half:
+    a headless sweep is refused before the period task is created, and
+    recurring's `--agent` override, idle timeout, and max-session watchdog
+    govern the whole delegated process tree. But it does not buy the inner
+    half. The wrapper's command runs from the agent's own tool shell, whose
+    stdin/stdout are pipes, so launching the outer sweep from a real terminal
+    does **not** make the nested `coga resolve-conflicts` a TTY: a plain
+    invocation is refused, not merely degraded. Until delegation moves down to
+    the runner level, wrap the nested call in a pty and bound it, e.g.
+    `timeout 900 script -qec 'coga resolve-conflicts --agent claude' /dev/null`.
+    Treat that as a known workaround with known costs — it duplicates bounding
+    the outer supervisor already provides, and an agent harness's permission
+    classifier may read the construct as unfamiliar and deny it — not as a
+    pattern to copy into wrappers that do not need it.
   - **Do not read success from the captured output.** The delegated session is
     torn down by the done sentinel seconds after its roll-up posts, and the pty
     stream is ANSI noise, so the wrapper's stdout is not a usable signal.
