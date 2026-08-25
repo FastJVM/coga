@@ -60,6 +60,13 @@ Live cadence surface — posts immediately to the named destination:
   may duplicate work; important, under the existing best-effort warning guard.
 - the Dream validate-drift summary — bounded maintenance result; flow.
 - the megalaunch drain summary — non-empty aggregate result; flow.
+- the `autoclose-merged` sweep's retire-pending summary — the sweep closed
+  tickets whose worktrees still need `coga retire`; flow. Deliberately a live
+  `post` rather than a spool record: `notify` accepts only per-ticket outcomes
+  (`done` / `canceled` / `recurring-error`), and a sweep-level summary is none
+  of the three, so it arrives with the sweep instead of a day later.
+- recurring autofix filing a ticket for a failed recurring run — both the
+  sweep's own `run_autofix` and the `coga run autofix-analyze` recipe; flow.
 
 Outcome digest surface — spooled into the daily digest (live fallback below):
 
@@ -84,8 +91,8 @@ never both a spool record and a live post for one event.
 
 Silent lifecycle surface — no notification post, no spool record:
 
-- `coga create` and `coga ticket "<title>"'s raw draft
-  creation.
+- `coga create` and `coga ticket "<title>"` — neither raw draft creation
+  surface posts.
 - `coga mark active` and manual `coga mark paused`.
 - `coga bump` with no `--message`.
 - Successful `coga recurring` creates.
@@ -114,8 +121,19 @@ subsequent launches are resume attempts.
 A fresh `coga init` selects no notification channels (`[notification]
 channels = []`), so a brand-new user runs `draft`/`mark`/`launch`/`bump`
 without configuring anything. Notifications are opt-in: a repo turns Slack on
-by selecting the channel and pointing it at a webhook (see `coga/cli` for the
-exact snippet). With no channel selected, `notification.post` takes its
+by selecting the channel and pointing it at a webhook:
+
+```toml
+[notification]
+channels = ["slack"]
+
+[notification.slack]
+webhook = "env:SLACK_WEBHOOK_URL"
+important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
+```
+
+(`docs/operations.md` carries the same block inside the operational
+walkthrough.) With no channel selected, `notification.post` takes its
 no-channel branch — one stderr line, no crash. When `[notification].channels`
 is absent entirely, Slack is inferred only from the presence of a
 `[notification.slack]` table; without one, channels resolve to `()`.
@@ -252,7 +270,8 @@ new string:
 ## Notification implementation pointers
 
 - `src/coga/notification/__init__.py::post(cfg, message, *, task_path=None, owner=None,
-  watchers=None, image_url=None, important=False, fatal=True)` — the **live** path. Three branches: not
+  watchers=None, image_url=None, important=False, fatal=True,
+  record_failure=True)` — the **live** path. Three branches: not
   configured channel(s). Slack has three branches: not enabled → stderr;
   enabled + no webhook → crash; enabled + webhook → POST, then on failure
   report (stderr + `log.md`) and either crash (`fatal=True`, the default) or
@@ -265,8 +284,8 @@ new string:
   mention rendering, and the webhook POST.
 - `src/coga/notification/__init__.py::notify(cfg, slack_text, *, kind, detail, ticket=None,
   owner=None, watchers=None, task_path=None, image_url=None, important=False,
-  fatal=True)` — the **outcome digest** path. `important` and `fatal` are
-  forwarded only to the live-post fallback. It accepts only `done`, `canceled`, and `recurring-error`
+  fatal=True, record_failure=True)` — the **outcome digest** path. `important`
+  and `fatal` are forwarded only to the live-post fallback. It accepts only `done`, `canceled`, and `recurring-error`
   records. When `digest_spool_path(cfg)` is non-None (the
   `recurring/digest/spool.md` file is installed), it appends a structured record
   to the spool without a destination field; otherwise it falls back to
@@ -317,7 +336,10 @@ new string:
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress session
   start); `blocker_reminders.py::remind_blocked_tasks`; the script-failure path
   in `launch_script.py` (important); the stale-period-state warning in
-  `mark.py` (important); `dream_validate_drift.py` (flow); and
+  `mark.py` (important); `dream_validate_drift.py` (flow);
+  `autoclose.py::_report_retire_followups` (the retire-pending sweep summary,
+  flow, `fatal=False`); `recurring_autofix.py` on both its ticket-filing paths
+  (`run_autofix` and `run_autofix_analyze_recipe`, flow); and
   `commands/megalaunch.py` (flow). `commands/digest.py` is the flow delivery
   consumer for the outcome aggregate. Outcome producers (`notify`):
   `mark.mark_done` (including the autoclose sweep), `mark.mark_canceled`, the
@@ -605,9 +627,19 @@ child writes) pass no guard.
 `advance_step` with forward bumps, so guarding it naively would refuse exactly
 the thing the human asked for. `advance_step(rewind=True)` therefore passes
 `allow_step_rewind`, which drops *only* the step-backward rule. The status
-rules stay armed: a rewind never changes status, so a status regression during
-one means the checkout is stale rather than the human deliberate — rewinding a
-ticket another checkout has already closed is still refused.
+rules stay armed, and `advance_step` writes only `step:` (plus `assignee:`), so
+a status difference during a rewind means the checkout is stale rather than the
+human deliberate — rewinding a ticket another checkout has already closed is
+still refused.
+
+Those status rules are narrower than "status may not move backward" sounds. The
+progress comparison ranks only the statuses in `git._STATUS_PROGRESS` — `draft`
+0 < `active` 1 < `in_progress` 2 < `done`/`canceled` 3 — and fires only when
+*both* sides are on that ladder. `blocked` and `paused` are absent from it, so
+a landing that involves either on one side skips the progress rule entirely; and
+because `done` and `canceled` tie at 3, it is the separate terminal-status rule
+— never the progress rule — that refuses swapping one terminal status for the
+other.
 
 A refusal is loud but non-fatal, and deliberately lands *after* the local
 ticket write: `StateRegressionError` is caught at the sync entry point, the
