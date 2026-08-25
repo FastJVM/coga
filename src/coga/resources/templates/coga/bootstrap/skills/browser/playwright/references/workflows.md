@@ -2,7 +2,8 @@
 
 Use the wrapper script and snapshot often.
 Assume `PWCLI` is set and `pwcli` is an alias for `"$PWCLI"`.
-In this repo, run commands from `output/playwright/<label>/` to keep artifacts contained.
+When capturing artifacts for a Coga task, write them under that task's
+`artifacts/` directory (per `SKILL.md`) unless the ticket says otherwise.
 
 ## Standard interaction loop
 

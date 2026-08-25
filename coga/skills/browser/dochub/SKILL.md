@@ -26,9 +26,16 @@ it for placing annotations, placing a signature, and sending for signature.
 If the document is a fillable AcroForm PDF, set its **text / radio / checkbox**
 values *before* uploading to DocHub. DocHub's in-browser preparation mode
 cannot reliably pre-fill radios and checkboxes; pre-filling with pypdf bypasses
-that. See memory `project_acroform_prefill_pattern` for the recipe. The browser
-flow below then only adds the **signature** and **sends** — it is not where you
-fill form fields.
+that. The browser flow below then only adds the **signature** and **sends** — it
+is not where you fill form fields.
+
+> **GAP — recipe unavailable.** The concrete pypdf pre-fill recipe was only ever
+> held in an external agent memory store (`project_acroform_prefill_pattern`)
+> that this repo does not have, and its content is lost. Coga keeps state
+> legible and in-repo, so there is no pointer to follow. Treat this step as
+> **not yet documented**: derive the pre-fill with pypdf yourself for the
+> document at hand, and write the working recipe back into this file (or a
+> sibling `references/` note) so the next run has it.
 
 ## Technique A — Text annotations (fully agent-driven)
 
@@ -71,7 +78,13 @@ anchors the field's **bottom edge to the click point**. Consequences:
   Synthetic `el.click()` no-ops on DocHub's placement controls.
 - **Never** set position via `style.transform`. It is cosmetic only and
   **reverts on send** — the field snaps back to its model position and your
-  visual placement is lost. See memory `project_dochub_signature_placement`.
+  visual placement is lost.
+
+> **GAP — supporting detail unavailable.** The longer write-up of this failure
+> mode lived in an external memory store (`project_dochub_signature_placement`)
+> this repo does not have, and its content is lost. The rule above and the
+> dry-run guardrail below are the whole of what survives; there is nothing
+> further to look up.
 
 ### Record (first run — human in the loop)
 
@@ -133,9 +146,15 @@ coga/skills/browser/dochub/coords/<template>.json
 
 `page` is 1-based. All `*_pct` values are percentages of the rendered page box.
 `click_anchor_y_pct` is the y of the field bottom (the click point), distinct
-from `y_pct` (the field top). The legacy precedent for these exact Huntington
-values lives in memory `project_huntington_lease_esign_coords`; new placements
-go in the in-repo coords file, not memory.
+from `y_pct` (the field top). New placements go in the in-repo coords file.
+
+> **GAP — precedent values unavailable.** The recorded Huntington-lease
+> coordinates lived in an external memory store
+> (`project_huntington_lease_esign_coords`) this repo does not have, and their
+> content is lost. The JSON above is a **shape example, not real recorded
+> data** — do not replay it. Any document, Huntington included, needs its
+> placement re-recorded (Technique B) into
+> `coga/skills/browser/dochub/coords/<template>.json`.
 
 ## Failure & artifacts
 
