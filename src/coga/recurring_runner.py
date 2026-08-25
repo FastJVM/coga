@@ -55,7 +55,10 @@ from coga.recurring_autofix import (
 )
 from coga.period_state import SNAPSHOT_FILE, parse_keys
 from coga.mark import (
+    StrandedProductCode,
     mark_active,
+    mark_done,
+    mark_in_progress,
     mark_paused,
 )
 from coga.notification import notify

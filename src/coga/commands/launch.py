@@ -201,6 +201,7 @@ def launch(
         idle_timeout=idle_timeout,
         max_session=max_session,
         return_timeout=return_timeout,
+        script_failure_important=script_failure_important,
         queue_guidance=queue_guidance,
         before_spawn=None,
     )
@@ -213,6 +214,7 @@ def launch_with_before_spawn(
     idle_timeout: float | None,
     max_session: float | None,
     return_timeout: bool,
+    script_failure_important: bool = False,
     queue_guidance: bool,
     before_spawn: Callable[[], None],
 ) -> str | None:
@@ -231,6 +233,7 @@ def launch_with_before_spawn(
         idle_timeout=idle_timeout,
         max_session=max_session,
         return_timeout=return_timeout,
+        script_failure_important=script_failure_important,
         queue_guidance=queue_guidance,
         before_spawn=before_spawn,
     )
@@ -245,6 +248,7 @@ def _launch(
     idle_timeout: float | None,
     max_session: float | None,
     return_timeout: bool,
+    script_failure_important: bool,
     queue_guidance: bool,
     before_spawn: Callable[[], None] | None,
 ) -> str | None:

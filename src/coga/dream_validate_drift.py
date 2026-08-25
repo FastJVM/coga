@@ -188,6 +188,7 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
         "bad-recurring-template",
         "broken-recurring-template-skill",
         "invalid-recurring-schedule",
+        "unknown-delegate-target",
     }:
         return ClassifiedIssue(
             issue=issue,

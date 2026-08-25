@@ -2228,9 +2228,14 @@ def test_template_rejects_invalid_delegate_declarations(
         Template.load(repo / "recurring" / "delegate-check")
 
 
-def test_template_rejects_delegate_combined_with_recipe(repo: Path) -> None:
-    """`delegate:` and `recipe:` pick opposite admission classes — one
-    template cannot be both TTY-gated agent work and a headless recipe."""
+def test_template_rejects_delegate_combined_with_script(repo: Path) -> None:
+    """`delegate:` and a `ticket.py` sibling pick opposite admission classes —
+    one template cannot be both TTY-gated agent work and a headless script.
+
+    The `recipe:` field this rule originally guarded against is gone; the
+    reserved entry point is what selects deterministic execution now, so the
+    exclusion is against that file's presence.
+    """
     _write_recurring(
         repo,
         "delegate-check",
@@ -2238,10 +2243,12 @@ def test_template_rejects_delegate_combined_with_recipe(repo: Path) -> None:
         ---
         schedule: "0 9 * * *"
         title: Delegate check
-        recipe: digest
         delegate: bootstrap/resolve-conflicts
         ---
         """,
+    )
+    (repo / "recurring" / "delegate-check" / "ticket.py").write_text(
+        "raise SystemExit(0)\n"
     )
 
     with pytest.raises(
@@ -4362,6 +4369,7 @@ def test_forced_recurring_scan_prepares_then_launches_task(
         ref=SimpleNamespace(
             id_slug="recurring/script-check", ticket_path=Path("no-such-ticket.md")
         ),
+        delegate=None,
     )
     prepared: list[object] = []
     launched: list[str] = []
@@ -4416,12 +4424,14 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
         ref=SimpleNamespace(
             id_slug="recurring/failing", ticket_path=Path("no-such-ticket.md")
         ),
+        delegate=None,
     )
     second = SimpleNamespace(
         template="later",
         ref=SimpleNamespace(
             id_slug="recurring/later", ticket_path=Path("no-such-ticket.md")
         ),
+        delegate=None,
     )
     launched: list[str] = []
 
