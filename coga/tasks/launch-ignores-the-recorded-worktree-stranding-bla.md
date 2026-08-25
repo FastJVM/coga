@@ -293,6 +293,7 @@ roughly two-thirds stale, one pointing at the wrong module). Grep for the symbol
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/709
 branch: implement-branch-gate
 worktree: /home/n/Code/claude/coga-implement-branch-gate
 
