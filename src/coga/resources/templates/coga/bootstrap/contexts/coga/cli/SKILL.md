@@ -898,11 +898,13 @@ bounds the call, every run record is also kept at
 `.coga/recurring-runs/<stamp>.md`, and `coga run autofix-analyze` re-runs the
 analysis over a recorded run by hand. Claude normally honors an ambient
 `ANTHROPIC_API_KEY`; only when that call fails on authentication or billing
-does autofix check for a signed-in claude.ai account without the variable and
-announce one subscription retry. Working keys and unrelated failures do not
-switch auth. `coga recurring launch <name>` closes the same loop, so the `coga
-dream` / `coga autoclose` / `coga skill-update` aliases analyze their run too.
-See `coga/recurring`.
+does autofix check for a first-party paid claude.ai subscription without the
+variable and announce one retry. The fallback is limited to Claude's built-in
+analysis argv and standard auth routing; custom analysis argv, a custom
+Anthropic base URL, or custom Anthropic headers retain the original failure.
+Working keys and unrelated failures do not switch auth. `coga recurring launch
+<name>` closes the same loop, so the `coga dream` / `coga autoclose` / `coga
+skill-update` aliases analyze their run too. See `coga/recurring`.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 

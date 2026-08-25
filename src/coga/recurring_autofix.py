@@ -89,6 +89,11 @@ _ANALYZE_TIMEOUT_SECONDS = 300.0
 _CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS = 10.0
 
 _CLAUDE_API_KEY_ENV = "ANTHROPIC_API_KEY"
+_CLAUDE_AUTH_ROUTING_ENV = (
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_CUSTOM_HEADERS",
+)
+_CLAUDE_SUBSCRIPTION_TYPES = frozenset({"enterprise", "max", "pro", "team"})
 _CLAUDE_AUTH_FAILURE_MARKERS = (
     "authentication_error",
     "authentication failed",
@@ -369,12 +374,18 @@ def _claude_subscription_fallback_env(
     choice, so a working key is never replaced. When the key fails for an auth
     or billing reason, however, the recurring analyst can recover through the
     already-authenticated CLI account instead of losing the whole autofix
-    pass. API-key-only installations keep the original failure.
+    pass. The fallback stays deliberately narrow: only the built-in Claude
+    argv with standard auth routing can be checked by the separate status
+    command, and that command must report an entitled first-party subscription
+    allowed by local login policy. API-key-only installations keep the original
+    failure.
     """
     if (
         failed.returncode == 0
         or Path(agent.cli).name != "claude"
-        or _CLAUDE_API_KEY_ENV not in env
+        or agent.analyze
+        or not env.get(_CLAUDE_API_KEY_ENV)
+        or any(env.get(name) for name in _CLAUDE_AUTH_ROUTING_ENV)
     ):
         return None
     detail = "\n".join((failed.stdout or "", failed.stderr or "")).lower()
@@ -404,10 +415,15 @@ def _claude_subscription_fallback_env(
         return None
     if not isinstance(payload, dict):
         return None
+    subscription_type = payload.get("subscriptionType")
     if (
         payload.get("loggedIn") is not True
         or payload.get("authMethod") != "claude.ai"
         or payload.get("apiKeySource")
+        or payload.get("apiProvider") not in (None, "firstParty")
+        or payload.get("forcedLoginMethod") not in (None, "claudeai")
+        or not isinstance(subscription_type, str)
+        or subscription_type.casefold() not in _CLAUDE_SUBSCRIPTION_TYPES
     ):
         return None
     return fallback_env
@@ -560,20 +576,24 @@ def analyze_record(
     env = os.environ.copy()
     used_subscription_fallback = False
     try:
-        result = subprocess.run(
-            cmd,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            errors="replace",
-            env=env,
-            timeout=_analyze_timeout(),
-            check=False,
-        )
-        fallback_env = _claude_subscription_fallback_env(
-            agent, result, env, cwd=cwd
-        )
-        if fallback_env is not None:
+        while True:
+            result = subprocess.run(
+                cmd,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                env=env,
+                timeout=_analyze_timeout(),
+                check=False,
+            )
+            if used_subscription_fallback:
+                break
+            fallback_env = _claude_subscription_fallback_env(
+                agent, result, env, cwd=cwd
+            )
+            if fallback_env is None:
+                break
             typer.secho(
                 "Autofix: Claude API-key authentication failed; retrying with "
                 "the signed-in claude.ai subscription.",
@@ -581,16 +601,7 @@ def analyze_record(
                 err=True,
             )
             used_subscription_fallback = True
-            result = subprocess.run(
-                cmd,
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                errors="replace",
-                env=fallback_env,
-                timeout=_analyze_timeout(),
-                check=False,
-            )
+            env = fallback_env
     except FileNotFoundError as exc:
         raise AutofixUnavailable(f"could not run {agent.cli!r}: {exc}") from exc
     except subprocess.TimeoutExpired as exc:

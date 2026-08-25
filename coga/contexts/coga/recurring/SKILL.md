@@ -563,10 +563,14 @@ Operating it:
 - Claude Code normally honors an ambient `ANTHROPIC_API_KEY`. If that key's
   call fails specifically for authentication or billing, the analyst checks
   for an existing signed-in claude.ai account with the variable removed and,
-  when one is available, announces and makes one subscription-authenticated
-  retry. A working key remains the first and only call; an API-key-only setup
-  keeps its original failure; unrelated failures and other agent CLIs never
-  switch authentication.
+  when `claude auth status` confirms a first-party Pro, Max, Team, or Enterprise
+  subscription permitted by local login policy, announces and makes one
+  subscription-authenticated retry. The retry is limited to Claude's built-in
+  analysis argv and standard auth routing: a custom `[agents.<name>].analyze`,
+  `ANTHROPIC_BASE_URL`, or `ANTHROPIC_CUSTOM_HEADERS` keeps the original failure
+  because a bare status probe cannot prove which credentials that call would
+  use. A working key remains the first and only call; an API-key-only setup,
+  unrelated failure, or other agent CLI never switches authentication.
 
 ## Gotchas
 

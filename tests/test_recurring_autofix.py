@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -127,6 +128,8 @@ def test_claude_billing_failure_retries_with_a_verified_subscription(
     cfg_repo, monkeypatch: pytest.MonkeyPatch, capfd
 ) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    monkeypatch.delenv("ANTHROPIC_CUSTOM_HEADERS", raising=False)
     calls: list[tuple[list[str], dict[str, str]]] = []
 
     def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
@@ -137,7 +140,8 @@ def test_claude_billing_failure_retries_with_a_verified_subscription(
                 cmd,
                 0,
                 '{"loggedIn":true,"authMethod":"claude.ai",'
-                '"subscriptionType":"max"}',
+                '"apiProvider":"firstParty","subscriptionType":"max",'
+                '"forcedLoginMethod":"claudeai"}',
                 "",
             )
         analysis_attempt = sum(
@@ -166,18 +170,31 @@ def test_claude_billing_failure_retries_with_a_verified_subscription(
     )
 
 
-def test_claude_api_key_failure_stays_loud_without_a_subscription(
-    cfg_repo, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "status_payload",
+    (
+        '{"loggedIn":false,"authMethod":"none"}',
+        '{"loggedIn":true,"authMethod":"claude.ai",'
+        '"subscriptionType":null}',
+        '{"loggedIn":true,"authMethod":"claude.ai",'
+        '"subscriptionType":"max","forcedLoginMethod":"console"}',
+        '{"loggedIn":true,"authMethod":"claude.ai",'
+        '"subscriptionType":"max","apiKeySource":"apiKeyHelper"}',
+    ),
+    ids=("signed-out", "no-entitlement", "forced-console", "other-api-key"),
+)
+def test_claude_api_key_failure_stays_loud_without_a_usable_subscription(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, status_payload: str
 ) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    monkeypatch.delenv("ANTHROPIC_CUSTOM_HEADERS", raising=False)
     calls: list[list[str]] = []
 
     def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         if cmd[1:] == ["auth", "status"]:
-            return subprocess.CompletedProcess(
-                cmd, 0, '{"loggedIn":false,"authMethod":"none"}', ""
-            )
+            return subprocess.CompletedProcess(cmd, 0, status_payload, "")
         return subprocess.CompletedProcess(cmd, 1, "Credit balance is too low", "")
 
     monkeypatch.setattr(autofix.subprocess, "run", fake_run)
@@ -186,6 +203,51 @@ def test_claude_api_key_failure_stays_loud_without_a_subscription(
     with pytest.raises(autofix.AutofixUnavailable, match="Credit balance"):
         autofix.analyze_record(cfg_repo, "healthy run")
     assert [cmd[1:] == ["auth", "status"] for cmd in calls] == [False, True]
+
+
+def test_a_custom_claude_analyze_argv_never_switches_authentication(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    cfg_repo.agents["claude"] = replace(
+        cfg_repo.agents["claude"],
+        analyze="--settings analyst-settings.json -p {prompt}",
+    )
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 1, "Credit balance is too low", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable, match="Credit balance"):
+        autofix.analyze_record(cfg_repo, "healthy run")
+    assert len(calls) == 1
+    assert "--settings" in calls[0]
+
+
+@pytest.mark.parametrize(
+    "routing_env", ("ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS")
+)
+def test_custom_claude_auth_routing_never_switches_authentication(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, routing_env: str
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    monkeypatch.setenv(routing_env, "configured")
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 1, "Credit balance is too low", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable, match="Credit balance"):
+        autofix.analyze_record(cfg_repo, "healthy run")
+    assert len(calls) == 1
 
 
 def test_an_unrelated_claude_failure_never_switches_authentication(
