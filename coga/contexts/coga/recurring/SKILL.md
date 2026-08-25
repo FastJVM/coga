@@ -603,6 +603,20 @@ Operating it:
     task, and surface a delegated failure instead of marking the period task
     done as if the sweep succeeded.
 
+- **A job that pushes to a dedicated long-lived branch must prune the remote
+  ref before pushing.** `coga skill update --pr` reuses one fixed branch
+  (`coga/skill-update`) and pushes it with a bare `git push --force-with-lease`
+  (`src/coga/skill_manager.py`), with no fetch first. Once the previous
+  period's PR is merged *and its remote branch deleted*, the local
+  `refs/remotes/<remote>/coga/skill-update` still points at the old SHA, so the
+  lease cannot be satisfied and the push fails with
+  `! [rejected] coga/skill-update -> coga/skill-update (stale info)` — exit 2,
+  and the period task looks like a real failure. This recurs **every period
+  after a merge+delete cycle**, not once. `git fetch --prune <remote>` clears
+  the dead tracking ref and the rerun succeeds; pruning is local-only, touches
+  no remote state, and is safe to run before retrying. Any recurring job that
+  force-pushes a reused branch inherits the same trap.
+
 ## What this context does NOT cover
 
 Scheduler wiring, how to write a run's skill or body
