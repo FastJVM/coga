@@ -1,0 +1,44 @@
+---
+slug: make-the-autofix-analyst-legible-and-its-agent-sel
+title: Make the autofix analyst legible and its agent selectable
+status: draft
+owner: nicktoper
+human: nicktoper
+agent: claude
+assignee: claude
+contexts: []
+skills: []
+workflow:
+  name: code/with-self-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: self-qa
+    skills:
+    - code/self-qa
+    assignee: agent
+  - name: pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+secrets: null
+step: 1 (implement)
+---
+
+## Description
+
+
+
+## Context
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.
