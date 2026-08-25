@@ -1,7 +1,7 @@
 ---
 slug: retire-autoclose-skips-annotated-pr-lines
 title: Retire autoclose-skips-annotated-pr-lines
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
