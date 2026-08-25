@@ -29,15 +29,7 @@ context. The git high-water mark lives separately in the digest ticket's
 
 
 
-consumed_through: f2582ef9174f
-{"id":"f2582ef9174f","ts":"2026-08-24T11:44","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — W35 sweep: delegated coga resolve-conflicts checked 3 open PRs (#704/#705/#706) — all up-to-date, 0 conflicts, no pushes, no attention needed.","ticket":"recurring/resolve-conflicts","owner":"nicktoper"}
-{"id":"c1bdd910a6c4","ts":"2026-08-24T11:44","project":"coga","kind":"done","detail":"→ done (recipe: digest)","ticket":"recurring/digest","owner":"nicktoper"}
-{"id":"5d7a8d5c05a4","ts":"2026-08-24T21:57","project":"coga","kind":"done","detail":"claude finished: update → done ✅ — Skill update: 1 updated, 0 follow-up — PR https://github.com/FastJVM/coga/pull/708","ticket":"recurring/skill-update","owner":"nicktoper"}
-{"id":"68e2bb6486be","ts":"2026-08-24T21:58","project":"coga","kind":"done","detail":"claude finished: remind → done ✅ — Blocker reminders 2026-08-24: sweep clean, 0 reminders — both blocked tasks (unblock-rewind, verify-the-pr-review-comment-loop) already watermarked.","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
-{"id":"58dd9eb67899","ts":"2026-08-24T22:51","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — Dream 2026-W35: 12 PRs (#710-#721), 14 draft tickets, 4 period tickets deleted, 5 false positives caught. 29 validate issues need owner decisions.","ticket":"recurring/dream","owner":"nicktoper"}
-{"id":"7dd76266b458","ts":"2026-08-25T10:56","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/706|PR #706> merged ✅","ticket":"autoclose-skips-annotated-pr-lines","owner":"nicktoper"}
-{"id":"905fc5fc6c57","ts":"2026-08-25T10:56","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/709|PR #709> merged ✅","ticket":"launch-ignores-the-recorded-worktree-stranding-bla","owner":"nicktoper"}
-{"id":"882eb7d06909","ts":"2026-08-25T10:56","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/722|PR #722> merged ✅","ticket":"megalaunch-only-shows-one-page","owner":"zach"}
-{"id":"ae5010bc78b9","ts":"2026-08-25T10:56","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/705|PR #705> merged ✅","ticket":"migrate-recurring-templates-to-ticket-py-shims-and","owner":"nicktoper"}
-{"id":"e4ac73f669da","ts":"2026-08-25T10:56","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/704|PR #704> merged ✅","ticket":"move-cogacontext-to-roodoc-so-its-easier-for-human","owner":"nick"}
+
+consumed_through: b544ec1432d1
 {"id":"b544ec1432d1","ts":"2026-08-25T10:56","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
+{"id":"5081af6db1c8","ts":"2026-08-25T10:57","project":"coga","kind":"done","detail":"claude finished: flush → done ✅","ticket":"recurring/digest","owner":"nicktoper"}
