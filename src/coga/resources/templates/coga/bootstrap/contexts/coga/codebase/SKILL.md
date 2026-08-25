@@ -26,7 +26,10 @@ review bars.
   name-to-function registry behind `coga run`; recipes are ordinary
   importable functions in focused core modules, not discovered skill files.
   `task_env.py` builds the shared `COGA_TASK_*` contract for agents and
-  deterministic subprocesses. `launch_script.py` classifies and runs the
+  deterministic subprocesses. `recurring_autofix.py` owns the sweep's run
+  record and the post-run analysis call — the one text-only, PTY-less agent
+  spawn in the tree, registered as the `autofix-analyze` recipe rather than
+  added as a second launch seam. `launch_script.py` classifies and runs the
   reserved `ticket.py` sibling without importing edge code.
   `commands/launch.py` runs that deterministic phase before deciding whether
   to compose and spawn an agent; trailing launch args remain an ordered agent

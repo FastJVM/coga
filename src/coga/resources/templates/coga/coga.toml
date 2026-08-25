@@ -33,6 +33,11 @@ session_id_flag = "--session-id"
 # sessions (`coga chat`, `coga ticket`) so the human's first ask becomes
 # the session title instead of a 20KB Coga prompt.
 discussion = "--append-system-prompt {prompt}"
+# `analyze` is the one-shot, non-interactive argv the recurring sweep's autofix
+# loop uses to have this CLI read a finished run (text in, text out — no REPL).
+# `claude` and `codex` have working built-in defaults, so this line only needs
+# writing for another CLI; without one, the loop skips loudly.
+# analyze = "-p {prompt}"
 
 [agents.codex]
 cli = "codex"

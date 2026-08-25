@@ -657,6 +657,17 @@ separate human gate and does not inherit this relaxation.
 Blocked tickets can resume inline only from an interactive TTY. Their first
 job is to resolve or re-block the open asks.
 
+Every sweep ends with the **autofix loop**: the scan builds a structured
+record of what each period task did (how the launch ended, resulting status,
+and the period task's blackboard), one text-only agent call
+reads that record, and a real problem becomes an `active` ticket under
+`coga/tasks/autofix/` with the record committed beside it. That call is the
+single place Coga spawns an agent without a PTY — one shot, text in, text out,
+no REPL and no lifecycle, so it cannot answer a permission prompt; Coga
+performs every mutation itself from the parsed reply. It lives behind the
+registered `autofix-analyze` recipe for that reason, and it never changes the
+sweep's exit code. `COGA_AUTOFIX=0` disables it. See `coga/recurring`.
+
 Deterministic core jobs use `coga run <recipe> [args...]`. The fixed
 `runner.RECIPES` table is explicit: there is no file discovery, config import,
 or executable-skill plugin surface. Recipes receive ordinary argv, preserve

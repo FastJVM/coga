@@ -295,9 +295,16 @@ guardrail and task-to-task comparison, not exact provider billing.
 Invoke one deterministic core recipe through Coga's fixed registry. The
 registered names are `autoclose`, `digest`, `blocker-reminders`,
 `branch-sweep`, `validate-drift`, `cleanup-orphan-markers`,
-`recurring-scan`, `skill-update`, `open-pr`, and `delete-task`. Unknown names
+`recurring-scan`, `autofix-analyze`, `skill-update`, `open-pr`, and
+`delete-task`. Unknown names
 exit 2 and print that known set; recipes are not discovered from skills,
 config, or entry points.
+
+`coga run autofix-analyze [<run-log.md>] [--dry-run] [--agent <type>]` is the
+hand-run half of the recurring autofix loop: it re-reads a recorded sweep (the
+most recent under `.coga/recurring-runs/` when no path is given) and tickets
+what it finds under `coga/tasks/autofix/`. Every `coga recurring` sweep already
+runs the same analysis in-process when it finishes.
 
 Two of them take a task ref as their single argument. `coga run open-pr
 <task>` publishes a code ticket's recorded branch and prints the bare PR URL
@@ -876,6 +883,22 @@ minutes; set `COGA_REPL_IDLE_TIMEOUT` (seconds) to change it, or to `0` /
 a non-finite value to disarm the backstop for recurring launches. When
 configured, `COGA_REPL_MAX_SESSION` / `[launch].max_session` threads the same
 way as a wall-clock cap.
+
+**Autofix loop.** Every sweep ends by analyzing itself. The scan records what
+each period task actually did — how the launch ended, whether a liveness
+backstop fired, the ticket status afterwards, its blackboard — and
+one text-only agent call reads that record and answers `ok`, `duplicate`, or
+`problem`. A problem becomes an `active` ticket under `coga/tasks/autofix/` on
+the `code/with-self-review` workflow, carrying the run record as `run-log.md`,
+so the next `coga megalaunch` can pick up the fix. The console output of the
+sweep is unchanged, and the analysis never changes the sweep's exit code — a
+missing CLI, a timeout, or a non-zero analyst is loud on stderr and nothing
+more. `COGA_AUTOFIX=0` disables the loop, `COGA_AUTOFIX_TIMEOUT` (seconds)
+bounds the call, every run record is also kept at
+`.coga/recurring-runs/<stamp>.md`, and `coga run autofix-analyze` re-runs the
+analysis over a recorded run by hand. `coga recurring launch <name>` closes the
+same loop, so the `coga dream` / `coga autoclose` / `coga skill-update` aliases
+analyze their run too. See `coga/recurring`.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 

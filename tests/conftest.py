@@ -171,6 +171,26 @@ def _clear_supervised_session_env(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _disable_autofix(monkeypatch, request):
+    """Default-off the recurring autofix loop so no test spawns an agent.
+
+    `coga recurring` ends every sweep with a one-shot analysis call to the
+    configured agent CLI. That CLI is really on PATH on a developer machine,
+    so without this the recurring tests shell out to `claude` for real —
+    slow, non-hermetic, and billed. Tests that exercise the loop request the
+    `autofix_enabled` fixture (autouse runs first, so its `setenv` wins)."""
+    if "autofix_enabled" in request.fixturenames:
+        return
+    monkeypatch.setenv("COGA_AUTOFIX", "0")
+
+
+@pytest.fixture
+def autofix_enabled(monkeypatch):
+    """Opt back into the autofix loop for tests that cover it."""
+    monkeypatch.setenv("COGA_AUTOFIX", "1")
+
+
+@pytest.fixture(autouse=True)
 def _stub_git(monkeypatch, request):
     """Default-off git sync so the bulk of tests don't touch git.
 

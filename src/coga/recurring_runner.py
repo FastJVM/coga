@@ -45,6 +45,14 @@ from coga.recurring import (
     create_named,
     scan_due,
 )
+from coga.recurring_autofix import (
+    RunRecord,
+    TaskOutcome,
+    blackboard_for_ref,
+    outcome_for_ref,
+    run_autofix,
+    scan_lines_for_record,
+)
 from coga.period_state import SNAPSHOT_FILE, parse_keys
 from coga.mark import (
     mark_active,
@@ -717,22 +725,71 @@ def run_recurring_scan(
     )
     _print_table(scan, force=force)
 
+    # The autofix loop's view of this sweep. Built as we go rather than scraped
+    # from the console: fd 1 must stay a TTY or every interactive launch below
+    # would refuse itself. See `coga/recurring_autofix.py`.
+    record = RunRecord(
+        started=datetime.now(),
+        repo=cfg.repo_root.name,
+        force=force,
+        interactive=interactive,
+        agent_override=agent_override,
+        scan_lines=scan_lines_for_record(scan, force=force),
+        scan_errors=list(scan.errors),
+    )
+
     # `force` launches every materialized task regardless of status;
     # the bare sweep launches only the launchable (active/in_progress) ones.
     due = scan.forced if force else scan.due
     if not due:
-        typer.echo(
+        message = (
             "No recurring templates to launch." if force else "No recurring tasks due."
         )
+        typer.echo(message)
+        record.note(message)
+        run_autofix(cfg, record, agent_override=agent_override)
         return 0
 
+    label = "task(s)" if force else "due task(s)"
+    typer.echo(f"\nLaunching {len(due)} {label} sequentially...\n")
+    record.note(f"launching {len(due)} {label} sequentially")
+
+    # `finally`, not a trailing call: a sweep that dies partway through — a
+    # `ticket.py` exiting non-zero, `_stop_if_unfinished_after_launch` exiting
+    # on an invalid ticket — is exactly the run most worth analyzing.
+    try:
+        return _launch_due_tasks(
+            cfg,
+            due,
+            record,
+            force=force,
+            interactive=interactive,
+            agent_override=agent_override,
+        )
+    finally:
+        run_autofix(cfg, record, agent_override=agent_override)
+
+
+def _launch_due_tasks(
+    cfg: Config,
+    due: list[DueTask],
+    record: RunRecord,
+    *,
+    force: bool,
+    interactive: bool,
+    agent_override: str | None,
+) -> int:
+    """Run each due period task in order, recording what each one did.
+
+    Split out of `run_recurring_scan` so the sweep has one place to hand the
+    finished `RunRecord` to the autofix loop, however the loop ends — including
+    the early return on a failed `ticket.py`.
+    """
     # `--interactive` is a human stepping through by hand, so leave the spawned
     # REPL unbounded; an automatic sweep arms the liveness backstops so one stuck
     # agent can't block the tasks behind it.
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
-    label = "task(s)" if force else "due task(s)"
-    typer.echo(f"\nLaunching {len(due)} {label} sequentially...\n")
     from coga.commands.launch import launch as launch_cmd
 
     forced_refusals = 0
@@ -746,6 +803,14 @@ def run_recurring_scan(
             except RecurringError as exc:
                 forced_refusals += 1
                 typer.secho(str(exc), fg=typer.colors.RED, err=True)
+                record.add(
+                    TaskOutcome(
+                        template=task.template,
+                        slug=task.ref.id_slug if task.ref else task.template,
+                        result="refused",
+                        detail=str(exc),
+                    )
+                )
                 continue
         # One dispatch for every template: `coga launch` classifies the period
         # task from its own directory, so a `ticket.py` template runs
@@ -781,6 +846,11 @@ def run_recurring_scan(
             # git sync. The task is deliberately left unfinished, not paused.
             code = _exit_status(exc)
             if code:
+                record.add(
+                    _task_outcome(
+                        cfg, task.template, task.ref, result="failed", exit_code=code
+                    )
+                )
                 return code
             kind = None
         _stop_if_unfinished_after_launch(
@@ -789,7 +859,70 @@ def run_recurring_scan(
             timed_out=(kind == "timeout"),
             script_stopped=(kind == "script"),
         )
+        record.add(_task_outcome(cfg, task.template, task.ref, kind=kind))
     return 2 if forced_refusals else 0
+
+
+def _task_outcome(
+    cfg: Config,
+    template: str,
+    ref: TaskRef | None,
+    *,
+    kind: str | None = None,
+    result: str = "",
+    exit_code: int | None = None,
+) -> TaskOutcome:
+    """Classify one period task's run for the record.
+
+    A launched task has no exit code worth reading in the ordinary case — the
+    supervisor tears the session down on a lifecycle transition — so the
+    ticket's status after the run *is* the outcome, and its blackboard is what
+    the run had to say. `_stop_if_unfinished_after_launch` has already parked an
+    unfinished run, which is what makes `paused` legible here.
+    """
+    status = outcome_for_ref(cfg, ref)
+    detail = ""
+    if not result:
+        # Status first, `kind` only to explain it. `kind == "script"` says the
+        # deterministic phase ended the launch — including the ordinary success
+        # where it closed the step itself — so reading it as a failure would
+        # report every healthy `ticket.py` template as unfinished.
+        if kind == "timeout":
+            result = "timed-out"
+            detail = (
+                "liveness watchdog tore the session down before it signalled done"
+            )
+        elif status is None:
+            result = "completed"
+            detail = "task directory was removed during the run"
+        elif status in TERMINAL_STATUSES:
+            result = "completed"
+        elif status == "blocked":
+            result = "unfinished"
+            detail = (
+                "the deterministic `ticket.py` phase recorded a blocker"
+                if kind == "script"
+                else "the agent blocked on a human answer"
+            )
+        elif kind == "script":
+            result = "unfinished"
+            detail = (
+                "the deterministic `ticket.py` phase stopped before the step closed"
+            )
+        else:
+            result = "unfinished"
+            detail = (
+                "the run exited without a terminal transition; the sweep parked it"
+            )
+    return TaskOutcome(
+        template=template,
+        slug=ref.id_slug if ref else template,
+        result=result,
+        exit_code=exit_code,
+        final_status=status,
+        detail=detail,
+        blackboard=blackboard_for_ref(ref),
+    )
 
 
 def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
@@ -891,12 +1024,31 @@ def run_recurring_named(
     else:
         typer.echo(f"{ref.id_slug} already created for this period")
 
-    return _launch_created(
-        cfg,
-        ref,
+    # An on-demand `coga recurring launch <name>` (the `coga dream`,
+    # `coga autoclose`, and `coga skill-update` aliases) is a real run of a real
+    # template, so it closes the same loop the scheduled sweep does.
+    record = RunRecord(
+        started=datetime.now(),
+        repo=cfg.repo_root.name,
+        on_demand=name,
         interactive=interactive,
         agent_override=agent_override,
     )
+    try:
+        return _launch_created(
+            cfg,
+            ref,
+            interactive=interactive,
+            agent_override=agent_override,
+            record=record,
+            template=name,
+        )
+    finally:
+        # Only when something actually ran: `_launch_created` records the run
+        # it performed, so an empty record means a gate refused to launch —
+        # a closed or human-parked template, or one already handled on control.
+        if record.outcomes:
+            run_autofix(cfg, record, agent_override=agent_override)
 
 
 def _sync_control_checkout_ahead(
@@ -960,6 +1112,8 @@ def _launch_created(
     *,
     interactive: bool = False,
     agent_override: str | None = None,
+    record: RunRecord | None = None,
+    template: str = "",
 ) -> int:
     """Launch (or resume) a created recurring task.
 
@@ -970,6 +1124,12 @@ def _launch_created(
     and `coga launch` re-composes it from its current `step:`.
     `done`/`canceled`/`paused` are left alone — re-launching closed or
     human-parked work would be wrong, and saying so beats silently doing nothing.
+
+    `record`, when given, collects this run's outcome for the autofix loop. It
+    is filled in here rather than by the caller because this is where the two
+    "nothing actually ran" gates live: a task already handled on the control
+    branch, and a closed or human-parked one. Neither is a run, and analyzing a
+    sweep that never happened would only burn a call.
     """
     if not (ref.ticket_path).is_file():
         typer.secho(
@@ -1009,7 +1169,20 @@ def _launch_created(
     except SystemExit as exc:
         # A failed `ticket.py` is this command's result, not a process abort:
         # returning the code keeps the caller's exit-boundary git sync.
-        return _exit_status(exc)
+        code = _exit_status(exc)
+        if record is not None:
+            record.add(
+                _task_outcome(
+                    cfg,
+                    template or ref.slug,
+                    ref,
+                    result="failed" if code else "",
+                    exit_code=code or None,
+                )
+            )
+        return code
+    if record is not None:
+        record.add(_task_outcome(cfg, template or ref.slug, ref))
     return 0
 
 
