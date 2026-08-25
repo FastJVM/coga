@@ -748,3 +748,85 @@ Result: no-op. No cleanup-eligible processed done tickets still have task direct
   `service-account-scoping-single-vault-rule-conflict` ticket (still `in_progress` at step 2 awaiting
   an owner decision); the edit records observed practice and says so in the PR body.
 
+## Dream Run Summary
+
+Generated: 2026-08-25T05:55Z · period `2026-W35` · agent claude · repo `FastJVM/coga`
+
+### Phase results
+
+| # | Phase | Result | Detail |
+|---|-------|--------|--------|
+| 1 | validate-drift | `reported` | 29 issues: 0 direct-fix, 4 PR-proposal, 25 human-needed |
+| 2 | knowledge scan | `reported` | 15/15 leaf shards, 0 retries; 78 raw -> 73 merged findings |
+| 3 | contract audit | `reported` | 8/8 leaf shards, 1 retry (`ca-04`->`ca-04b`); 24 raw -> 23 findings |
+| 4 | retro/done-ticket | `pr-opened` | 8/8 eligible processed; 3 knowledge PRs + 4 direct deletes; 0 done tickets left on disk |
+| 5 | cleanup-orphan-markers | `no-op` | no orphaned markers (Phase 4 PRs delete their own sources) |
+| 6 | disposition | `pr-opened` / `proposed` | 9 proposal PRs, 14 draft tickets |
+
+### Findings
+
+96 findings across Phases 2-3 (73 + 23). **5 were overturned as false positives** — 1 withdrawn by
+Dream at merge time, 4 rejected by PR agents during verification. All 5 were caught before landing;
+a ~5% false-positive rate on a scan of this size, with verification doing its job:
+
+- `code/with-review` "workflow does not exist" — resolves via the bundled bootstrap fallback (withdrawn by Dream).
+- `getting-started.md` "frozen at creation" — true; `create.py` calls `wf.freeze()` at creation (#718).
+- `marketing/plan` "wrong namespace" — both tickets genuinely lived at `coga/tasks/v2/` (#717).
+- `architecture` "`requires:` has more than one token" — `STEP_GATES` registers exactly `pr` (#720).
+- `example/coga/coga.toml` "seeds a Slack opt-in" — fixture has `channels = []`, no Slack table (#721).
+
+The last one had a real defect underneath in a different shape; refiled rather than dropped.
+
+### PRs opened (12 — all `pr-required`, none auto-merged)
+
+**Phase 4 knowledge PRs** (each records its `## Retro` marker and deletes its own source):
+- #710 blocker-reminder watermark -> `coga/sync` + packaged twin
+- #711 `skill update --pr` stale lease -> `coga/recurring` `## Gotchas`
+- #712 orphaned retire-shell disposition -> `coga/current-direction` + `src/coga/resources/retire.md`
+
+**Phase 6 proposal PRs:**
+- #713 `CLAUDE.md` + `AGENTS.md` — phantom "locking" ref, `.[test]` extra
+- #714 `coga/secrets` — `env:VAR` form, vault-scope contradiction, `op://` overclaim
+- #715 `coga/sync` — garbled bullet, rewind rule, 3 missing `post()` sites, stale signatures, dead pointer
+- #716 Dream template — period-ticket rule, all 3 copies
+- #717 marketing — 4 plan fixes, positioning fork, README
+- #718 docs — 8 fixes (cli-extension-audit x4, reference, README, velocity-report, market-thesis)
+- #719 vendored skills — ATTRIBUTION, `name:` x3, script exec bit, artifact dir, dochub gaps
+- #720 core contexts — 6 fixes across architecture/codebase/current-direction/recurring
+- #721 misc — workflow template tokens, context size rule, gdrive-mcp, dom-backed runner
+
+### Direct deletes landed on `origin/main`
+`recurring/autoclose-merged` (4bf326a7), `recurring/branch-sweep` (4adc730f),
+`recurring/digest` (0c055108), `recurring/resolve-conflicts` (92237024).
+
+### Draft tickets created (14)
+
+12 from `gap` findings + 2 filed during Phase 6 verification
+(`a-slack-repo-without-important-webhook-can-abort-t`,
+`live-and-packaged-twin-pairs-are-edited-together-b`). All carry a populated Description and Context.
+
+### `human-needed`
+
+1. **Slack notifications did not post.** `coga slack` was denied by the permission classifier during
+   Phase 4; 0 of 3 Retro FYIs and the Dream run summary did not reach Slack. Not worked around. Needs
+   a human or a Bash permission rule for `coga slack`.
+2. **25 validate-drift issues** need owner decisions: 10 `stuck-in-progress` (one idle 824h),
+   8 `unfrozen-workflow`, 6 `unknown-assignee`, 3 `missing-step`.
+3. **11 checkout-bearing done tickets are deferred retirement debt** — each records a real
+   `branch:`/`worktree:`, so `coga retire <slug>` must be typed by a human. Listed above.
+4. **Phase 1 / Phase 2 conflict on 4 v2 drafts** — 2 of the 4 proposed for blackboard synthesis are
+   premise-dead and should be cancelled instead. Routed to `triage-the-v2-parking-area-*`.
+5. **12 PRs await review.** Dream never auto-merges.
+
+### Deviation from this template, taken deliberately
+
+The body says period tickets "carry nothing durable" and are direct-deleted. Two of six
+(`recurring/blocker-reminders`, `recurring/skill-update`) held real durable knowledge, which
+`coga/contexts/coga/recurring` says to check for. Dream extracted them (PRs #710, #711) instead of
+deleting, and PR #716 fixes the template to match. The other four were direct-deleted as specified.
+
+### Cleanup verified
+Retro worktree + temp branches removed, copied `coga.local.toml` deleted, 9 agent worktrees removed,
+scan directories and evidence snapshot deleted after merge. All 9 `dream/*` PR branches confirmed on
+the remote. Working tree clean.
+
