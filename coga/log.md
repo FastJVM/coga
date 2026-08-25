@@ -3901,3 +3901,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-24 11:45 [recurring/skill-update] [system] recipe skill-update exited with code 2
 2026-08-24 11:56 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-08-24 21:24 [megalaunch-only-shows-one-page] [human:zach] created (status=draft)
+2026-08-24 21:37 [detect-stranded-ticket-writes-across-checkouts] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
