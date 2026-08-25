@@ -3969,3 +3969,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-25 10:56 [autoclose-skips-annotated-pr-lines] [human:nicktoper] auto-bumped on merge of PR #706 → done
 2026-08-25 10:56 [launch-ignores-the-recorded-worktree-stranding-bla] [human:nicktoper] auto-bumped on merge of PR #709 → done
 2026-08-25 10:56 [megalaunch-only-shows-one-page] [human:nicktoper] auto-bumped on merge of PR #722 → done
+2026-08-25 10:56 [migrate-recurring-templates-to-ticket-py-shims-and] [human:nicktoper] auto-bumped on merge of PR #705 → done
