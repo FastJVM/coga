@@ -1,7 +1,7 @@
 ---
 slug: megalaunch-only-shows-one-page
 title: megalaunch-only-shows-one-page
-status: in_progress
+status: done
 owner: zach
 human: zach
 agent: claude
@@ -28,7 +28,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
