@@ -1,7 +1,7 @@
 ---
 slug: fix-the-autofix-analyst
 title: Fix the autofix analyst
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude

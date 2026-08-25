@@ -3986,3 +3986,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-25 11:27 [make-the-autofix-analyst-legible-and-its-agent-sel] [human:nicktoper] created (status=draft)
 2026-08-25 11:27 [fix-the-autofix-analyst] [human:nicktoper] created (status=draft)
 2026-08-25 11:31 [fix-the-autofix-analyst] [human:nicktoper] activated (draft → active) — auto on launch
+2026-08-25 11:31 [fix-the-autofix-analyst] [human:nicktoper] started (active → in_progress) via coga launch
