@@ -106,10 +106,20 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Agent mode" in prompt
     assert "Blackboard" in prompt
 
-    # 3. Advance steps. The PR step cannot advance until its required artifact
-    #    is recorded, then the remaining bumps walk to and finish the last step.
+    # 3. Advance steps. Each gated step refuses until its required artifact is
+    #    recorded — `implement` needs branch/worktree linkage, `pr` needs the
+    #    PR URL — then the remaining bumps walk to and finish the last step.
     runner = CliRunner()
     slug = ref["slug"]
+    r = runner.invoke(app, ["bump", slug])
+    assert r.exit_code == 2
+    assert "requires a recorded `branch`" in r.output
+    replace_blackboard(
+        task_path,
+        read_blackboard(task_path)
+        + "\n\n## Dev\nbranch: feat/stripe-retry\n"
+        + "worktree: /tmp/example-stripe-retry\n",
+    )
     r = runner.invoke(app, ["bump", slug])
     assert r.exit_code == 0, r.output
     r = runner.invoke(app, ["bump", slug])
@@ -118,7 +128,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     replace_blackboard(
         task_path,
         read_blackboard(task_path)
-        + "\n\n## Dev\npr: https://github.com/acme/example/pull/1\n",
+        + "pr: https://github.com/acme/example/pull/1\n",
     )
     for _ in range(2):
         r = runner.invoke(app, ["bump", slug])

@@ -10,6 +10,7 @@ steps:
     assignee: owner
   - name: implement
     assignee: agent
+    requires: branch
     skills:
       - code/implement
   - name: open-pr
@@ -31,6 +32,22 @@ answers anything under `## Open Questions` on the blackboard. Edit the
 ticket directly to correct scope or approach. When the spec is right,
 run `coga bump` to hand off to `implement`. If the design is wrong
 enough to redo, relaunch the `design` step instead of bumping.
+
+## implement
+
+Follow the `code/implement` skill. This step declares `requires: branch`: `coga
+bump` refuses to advance until both `branch:` and `worktree:` are recorded under
+`## Dev` **in the ticket copy of the checkout `coga bump` runs from**. Like
+`requires: pr` below, that is a data check rather than a matter of the agent's
+say-so — and it is what makes the stranded-write failure loud. If `## Dev` is
+written from inside the feature checkout while `coga bump` runs from the primary
+checkout, the write is invisible to the bump (and to the ticket sync it
+performs), and the open-pr step later fails with "No usable `branch:`
+recorded" even though implement did record it. Record the two lines in the
+checkout you bump from, or re-run bump from the checkout that has the write.
+The gate is presence-based, not freshness-based, so on a relaunched or retried
+implement, confirm the recorded lines describe *this* attempt's branch and
+checkout.
 
 ## open-pr
 

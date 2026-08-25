@@ -4,6 +4,7 @@ description: Code change implemented by one agent, then peer-reviewed by the oth
 steps:
   - name: implement
     assignee: agent
+    requires: branch
     skills:
       - code/implement
   - name: peer-review
@@ -42,6 +43,22 @@ versa. Each step is a clean session with a freshly composed prompt; it
 only returns control to the human at the final `review` step (an
 owner/human handoff), or on a terminal (`done`/`canceled`), `paused`, or
 `blocked` state.
+
+## implement
+
+Follow the `code/implement` skill. This step declares `requires: branch`: `coga
+bump` refuses to advance until both `branch:` and `worktree:` are recorded under
+`## Dev` **in the ticket copy of the checkout `coga bump` runs from**. Like
+`requires: pr` below, that is a data check rather than a matter of the agent's
+say-so — and it is what makes the stranded-write failure loud. If `## Dev` is
+written from inside the feature checkout while `coga bump` runs from the primary
+checkout, the write is invisible to the bump (and to the ticket sync it
+performs), and the open-pr step later fails with "No usable `branch:`
+recorded" even though implement did record it. Record the two lines in the
+checkout you bump from, or re-run bump from the checkout that has the write.
+The gate is presence-based, not freshness-based, so on a relaunched or retried
+implement, confirm the recorded lines describe *this* attempt's branch and
+checkout.
 
 ## peer-review
 

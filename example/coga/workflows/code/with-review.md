@@ -6,6 +6,7 @@ steps:
     skills:
       - infra/testing-conventions
     assignee: agent
+    requires: branch
   - name: pr
     assignee: agent
     requires: pr
@@ -15,8 +16,13 @@ steps:
     assignee: owner
 ---
 
+## implement
+Create the feature branch and its checkout, then record both under `## Dev` as
+`branch:` and `worktree:` lines. `requires: branch` refuses the bump until they
+are present in the ticket copy of the checkout you bump from.
+
 ## pr
-Create a branch, push, open a PR. Title the PR after the task title.
+Push the recorded branch and open a PR. Title the PR after the task title.
 
 ## approve
 Review the PR. If changes are needed, comment and wait. If approved, advance.

@@ -36,6 +36,14 @@ later `code/open-pr` step does that, after self-review and fixes.
    example, ``worktree: `/path with spaces` (other repo)``). See the `dev/code`
    context for the full convention.
 
+   **Write `## Dev` in the checkout you will bump from.** `coga bump` reads and
+   syncs the ticket copy of the checkout it runs in, and nothing else. Writing
+   these lines in the feature checkout and bumping from the primary checkout
+   strands them on the feature branch, and `coga open-pr` then fails with "No
+   usable `branch:` recorded" even though you did record it. Workflows whose
+   implement step declares `requires: branch` refuse the bump instead of failing
+   a step later — see step 9.
+
    **Read-only Git fallback.** A managed agent sandbox may allow source edits
    while mounting the primary checkout's `.git` metadata read-only. If
    `git worktree add` fails for that reason, do not stop at a conversational
@@ -96,7 +104,12 @@ later `code/open-pr` step does that, after self-review and fixes.
 9. **Bump — this is what ends the step.** Return to the primary
    checkout and run `coga bump <slug>`. This advances the workflow to
    the next step and is the *only* thing that does so — there is no
-   autobump. If you stop here without running it, the workflow stalls
+   autobump. Where the workflow declares `requires: branch` on this step,
+   `coga bump` refuses to advance unless it reads usable `branch:` and
+   `worktree:` lines under `## Dev` in *this* checkout's ticket copy — that
+   is the enforcement for step 3. If it refuses, record the lines here (or
+   re-run bump from the checkout that already has them) rather than working
+   around it, and on a retried implement confirm they describe this attempt. If you stop here without running it, the workflow stalls
    on `implement`, the later steps (open the PR, review) never start,
    and your work is invisible even though the code is committed on
    disk. Do not end the session until `coga bump` has run cleanly; if
@@ -107,7 +120,7 @@ later `code/open-pr` step does that, after self-review and fixes.
 
 - Local branch and feature checkout (linked worktree or independent fallback
   clone) exist; both are recorded under `## Dev`
-  on the blackboard.
+  on the blackboard, in the ticket copy of the checkout `coga bump` runs from.
 - Tests pass locally.
 - Changes committed (no working-tree modifications left).
 - The branch contains the latest `origin/main`.
