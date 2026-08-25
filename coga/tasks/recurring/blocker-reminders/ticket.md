@@ -77,3 +77,10 @@ would need to become a re-remind interval. Worth a separate ticket if so.
 
 No cross-run state to persist: dedup state lives on each blocked task, as the
 parent blackboard records.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Blocker reminders fire exactly once per blocker, never on an interval

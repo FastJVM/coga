@@ -46,8 +46,16 @@ Live cadence surface — posts immediately to the named destination:
 - `recurring/blocker-reminders` — unresolved blocked-task reminders, owner
   named, with the `coga unblock <slug> --answer "..."` command shape. The
   run records a `## Blocker reminders` watermark on the blocked task only
-  after attempting the live post, so the same blocker is not reminded on every
-  scan; flow.
+  after attempting the live post; flow. That watermark is a **permanent dedup
+  key, not a cooldown**: `record_reminder` refuses any blocker fingerprint
+  already listed under `## Blocker reminders`, so each blocker is reminded
+  exactly **once over its whole lifetime**, no matter how many daily sweeps
+  run afterwards. A task that stays blocked for weeks therefore goes silent
+  after its single reminder, and a clean sweep reporting `no unresolved
+  blockers to remind` can mean "every open ask is already watermarked" rather
+  than "nothing is blocked" — read the blocked tasks, not the sweep's exit
+  line. Re-reminding on an interval would be a behavior change (turning the
+  watermark into a `last_reminded` cooldown), not a bug fix.
 - `coga slack` — explicit FYI (manual broadcast escape hatch); flow unless the
   sender supplies `--important`.
 - `coga bump --message "<FYI>"` — explicit FYI attached to step movement.
