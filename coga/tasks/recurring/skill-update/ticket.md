@@ -94,3 +94,10 @@ PR: https://github.com/FastJVM/coga/pull/708
   phase rather than headless. The template at
   `coga/recurring/skill-update/ticket.py` does have it; this instance was
   created before the template gained the file. Next period instantiates cleanly.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: `coga skill update --pr` needs a pruned remote ref after every merge+delete
