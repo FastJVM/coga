@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-adk-code
-    github-ref: refs/tags/v1.4.0
+    github-ref: refs/tags/v1.4.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: ab74335f88438ba1541055715f9d90b88fd0deb3
+    github-tree-sha: 8ffffd62f9196fae069d536ed8a992eba1f3d6ad
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.4.0
+    version: 1.4.1
 name: google-agents-cli-adk-code
 ---
 # ADK Code Reference
@@ -46,7 +46,7 @@ def get_weather(city: str) -> dict:
 
 root_agent = Agent(
     name="my_agent",
-    model="gemini-3.6-flash",
+    model="gemini-3.7-flash",
     instruction="You are a helpful assistant that ...",
     tools=[get_weather],
 )

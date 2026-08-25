@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-workflow
-    github-ref: refs/tags/v1.4.0
+    github-ref: refs/tags/v1.4.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: de5d6d0a2bcec4324ed1cd5a005a9ff52ca67b4c
+    github-tree-sha: 7200740a4414eca2cf623d351898337010945993
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.4.0
+    version: 1.4.1
 name: google-agents-cli-workflow
 ---
 # Agent Development Workflow & Guidelines
@@ -22,8 +22,8 @@ name: google-agents-cli-workflow
 > **Before writing agent code, make sure a scaffolded project exists (see Phase 2).** Skipping scaffolding loses eval boilerplate, CI/CD config, and project conventions.
 
 
-> Requires: google-agents-cli ~= 1.4.0
-> If version is behind, run: uv tool install "google-agents-cli~=1.4.0"
+> Requires: google-agents-cli ~= 1.4.1
+> If version is behind, run: uv tool install "google-agents-cli~=1.4.1"
 
 > Check version: agents-cli info
 > [Install uv](https://docs.astral.sh/uv/getting-started/installation/index.md) first if needed.
@@ -234,7 +234,7 @@ Before finalizing any code replacement, verify the following:
   ```python
   root_agent = Agent(
       name="recipe_suggester",  # OK, related to new purpose
-      model="gemini-3.6-flash",  # PRESERVED
+      model="gemini-3.7-flash",  # PRESERVED
       instruction="You are a recipe suggester."  # OK, the direct target
   )
   ```

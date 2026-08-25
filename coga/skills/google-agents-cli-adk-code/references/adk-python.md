@@ -44,7 +44,7 @@ def get_weather(city: str) -> dict:
 
 my_agent = Agent(
     name="weather_agent",
-    model="gemini-3.6-flash",
+    model="gemini-3.7-flash",
     instruction="You help users check the weather. Use the get_weather tool.",
     description="Provides weather information.",  # Important for multi-agent delegation
     tools=[get_weather]
@@ -59,7 +59,7 @@ from google.adk.agents import Agent
 
 agent = Agent(
     name="my_agent",
-    model="gemini-3.6-flash",
+    model="gemini-3.7-flash",
     instruction="Your instructions here. Use {state_key} for dynamic injection.",
     description="Description for delegation.",
 
@@ -109,7 +109,7 @@ class Evaluation(BaseModel):
 
 evaluator = Agent(
     name="evaluator",
-    model="gemini-3.6-flash",
+    model="gemini-3.7-flash",
     instruction="Evaluate the input and provide structured feedback.",
     output_schema=Evaluation,
     output_key="evaluation_result",
@@ -147,14 +147,14 @@ from google.adk.agents import SequentialAgent, Agent
 
 summarizer = Agent(
     name="summarizer",
-    model="gemini-3.6-flash",
+    model="gemini-3.7-flash",
     instruction="Summarize the input.",
     output_key="summary"
 )
 
 question_gen = Agent(
     name="question_generator",
-    model="gemini-3.6-flash",
+    model="gemini-3.7-flash",
     instruction="Generate questions based on: {summary}"
 )
 
@@ -240,13 +240,13 @@ For a production LoopAgent with EscalationChecker, BuiltInPlanner, and grounding
 
     researcher = Agent(
         name="researcher",
-        model="gemini-3.6-flash",
+        model="gemini-3.7-flash",
         mode="task",                        # 'chat' (default) | 'task' | 'single_turn'
         output_schema=ResearchOutput,
         description="Researches a topic.",  # required for delegation
         instruction="Research the topic, then call finish_task.",
     )
-    coordinator = Agent(name="coordinator", model="gemini-3.6-flash", sub_agents=[researcher])
+    coordinator = Agent(name="coordinator", model="gemini-3.7-flash", sub_agents=[researcher])
     ```
     Modes: `task` (multi-turn, structured I/O) · `single_turn` (autonomous, no user turn). Sub-agents need a `description`; default I/O schemas (`goal`/`background` in, `result` out) are used if none set. Disabled inside graph `Workflow`s.
 
@@ -304,7 +304,7 @@ class EscalationChecker(BaseAgent):
 # Vertex AI (prod)
 # Set: GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, GOOGLE_GENAI_USE_VERTEXAI=True
 
-agent = Agent(model="gemini-3.6-flash", ...)
+agent = Agent(model="gemini-3.7-flash", ...)
 ```
 
 ### Other Models via LiteLLM
@@ -323,7 +323,7 @@ agent = Agent(model=LiteLlm(model="ollama_chat/llama3:instruct"), ...)
 from google.adk.models import Gemini
 
 # Vertex AI hosted Gemini (set GOOGLE_GENAI_USE_VERTEXAI=True)
-agent = Agent(model=Gemini(model="gemini-3.6-flash"), ...)
+agent = Agent(model=Gemini(model="gemini-3.7-flash"), ...)
 ```
 
 Provider guides: [Anthropic](https://adk.dev/agents/models/anthropic/index.md), [Ollama](https://adk.dev/agents/models/ollama/index.md), [vLLM](https://adk.dev/agents/models/vllm/index.md), [LiteLLM](https://adk.dev/agents/models/litellm/index.md)
@@ -671,7 +671,7 @@ app = App(
         token_threshold=32000,   # compact once prompt tokens reach this
         event_retention_size=5,  # keep the last 5 raw events un-compacted
         # Optional: custom summarizer model
-        summarizer=LlmEventSummarizer(llm=Gemini(model="gemini-3.6-flash")),
+        summarizer=LlmEventSummarizer(llm=Gemini(model="gemini-3.7-flash")),
     ),
 )
 ```
@@ -805,7 +805,7 @@ manager = A2uiSchemaManager(...)        # loads catalog(s) + few-shot examples
 instruction = manager.generate_system_prompt(...)
 
 # 2. Use it as the agent instruction
-root_agent = Agent(name="ui_agent", model="gemini-3.6-flash", instruction=instruction)
+root_agent = Agent(name="ui_agent", model="gemini-3.7-flash", instruction=instruction)
 
 # 3. Validate the model's JSON output, then wrap as an A2A DataPart
 #    (MIME application/a2ui+json) via a2ui.a2a before streaming to the client.
