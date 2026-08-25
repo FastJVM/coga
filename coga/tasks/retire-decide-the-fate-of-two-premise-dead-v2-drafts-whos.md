@@ -145,3 +145,10 @@ disposition.
 
 No isolated checkout, snapshot, or `coga.local.toml` copy was created this run —
 there was no Retro pass to isolate — so there is nothing to clean up.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: An orphaned `retire-<slug>` shell closes as already satisfied

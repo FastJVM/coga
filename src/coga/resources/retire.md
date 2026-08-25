@@ -71,7 +71,19 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 
 - Source task is not `status: done` → escalate via `coga block` with the
   reason. Retire only operates on done tickets.
-- Source task is missing → escalate; the slug is wrong.
+- Source task is missing → first decide **which** kind of missing. If the slug
+  is wrong or unknown, escalate. If the source artifact is absent from the
+  working tree *and* from the control branch because a prior Retro pass
+  (usually under Dream) already direct-deleted it, this shell is **orphaned,
+  not broken**: retire's whole contract — knowledge extracted, ticket deleted —
+  is already satisfied by the skill this shell exists to drive. Confirm the
+  `Ticket: <slug> — deleted` commit is an ancestor of the control branch
+  (`git merge-base --is-ancestor <sha> <remote>/<control-branch>`), record that
+  evidence on this shell's blackboard, and `coga mark done` it as already
+  satisfied. Do **not** `git restore` the source to rerun Retro, and do **not**
+  `coga block` — the missing-source stop condition guards against a wrong slug,
+  not against a retirement that already happened. Blocking here parks a task
+  whose desired end state already exists.
 - A complete evidence snapshot, machine-local config copy, or isolated
   worktree/clone execution is unavailable → escalate; never run Retro in this
   task's checkout as a fallback.

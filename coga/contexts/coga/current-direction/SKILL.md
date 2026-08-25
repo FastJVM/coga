@@ -184,6 +184,22 @@ Last updated: 2026-07-30.
   concurrent work. When a managed sandbox cannot create the linked worktree,
   Retro uses an independent clone and ordinary `coga delete`; its separate Git
   metadata provides the same operator-checkout boundary.
+- **An orphaned `retire-<slug>` shell closes as already satisfied.** Dream's
+  batched Retro pass and a human's `coga retire <slug>` can both target the
+  same done ticket, and Dream usually wins: by the time the retire shell
+  launches, its source artifact is already gone from the control branch via
+  Retro's direct-delete path. The shell is then orphaned, not broken — both
+  halves of its contract (extract knowledge, delete the ticket) are done, by
+  the skill the shell exists to drive. Verify the `Ticket: <slug> — deleted`
+  commit is an ancestor of the control branch, record that on the shell's
+  blackboard, and mark it done as already satisfied. Never `git restore` the
+  source to rerun Retro — that re-litigates a disposition the owner already
+  accepted — and never `coga block`: the shell's "source task is missing" stop
+  condition guards against a *wrong slug*, not an already-completed
+  retirement. This shape has now recurred three times
+  (`retire-coga-important-support-second-webhook`, settled by the owner in
+  `coga/log.md` on 2026-08-14, then twice more), so it is precedent, not a
+  judgement call.
 
 ## Recent decisions (assignees flattened out)
 

@@ -140,3 +140,10 @@ state exists. Nothing to clean up: no worktree, clone, snapshot, or copied
 `coga.local.toml` was created by this run.
 
 Phase 2: marking done with the direct-delete summary.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: An orphaned `retire-<slug>` shell closes as already satisfied
