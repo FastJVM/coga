@@ -462,3 +462,125 @@ stays valid. Dream does not invoke `coga retire`.
 - `review-slack-channels` (route-important-failures)
 - `validate-drift-classifier-misses-17-emitted-kinds` (codex/validate-drift-kinds)
 
+## Findings
+
+Index of what Dream saw. Full finding text for this run is kept at
+`/tmp/claude-1000/-home-n-Code-claude-coga/c229fbd2-d626-4ffa-bdbe-98a273bc49a2/scratchpad/phase2-findings.md`
+(Phase 6 reads it when authoring proposal PRs). Durable homes are the PRs and draft tickets, not this section.
+
+**Phase 2 — knowledge scan: `reported`.** 15/15 leaf shards complete on first attempt, no retries.
+78 raw findings; **73 after de-duplication** (5 cross-shard duplicates merged, noted inline).
+
+### `extract` (10) — done-ticket knowledge for Phase 4, grouped by area
+
+**area: bootstrap/retro/done-ticket**
+- `dream-phases-2-3-cannot-complete-scan-subagents-re` — Retro's durable on-disk progress-log hedge is still a per-run instruction, not skill contract. It is the only reason Phase 4 survived the W34 run.
+- `retire-decide-the-fate-of-two-premise-dead-v2-drafts-whos` — an orphaned `retire-<slug>` shell whose source Dream already direct-deleted has no documented disposition. Has happened twice; correct answer is close the shell as already satisfied, do not `git restore`.
+
+**area: coga/codebase**
+- `dream-phases-2-3-cannot-complete-scan-subagents-re` — a skill added on a feature branch is invisible in that checkout's gitignored `.agent-skills/` view; agents keep re-deriving this.
+- `move-cogacontext-to-roodoc-so-its-easier-for-human` — repo-layout experiments must run with git sync off or in a throwaway clone; the "then revert" recipe cannot be followed as written.
+
+**area: coga/architecture**
+- `put-build-back` — `coga launch --agent <type>` propagates the override across *directly consecutive* agent steps without rewriting ticket frontmatter.
+
+**area: coga/cli**
+- `remove-legacy-config-compatibility-shims` — the alias-collision "fail loud, not silent" rule has one undocumented exemption; loud failure aborted a cross-repo `coga recurring --all` sweep from a legacy checkout.
+
+**area: coga/recurring**
+- `recurring-last-serviced-period-compares-as-a-strin` — seeding a serviced record is the supported way to suppress a new template's first firing.
+- `retire-recurring-can-only-be-launched-by-owner` — retire stop conditions treat "already retired" as a wrong slug.
+
+**area: recurring-system**
+- `recurring/blocker-reminders` — the `## Blocker reminders` watermark is a permanent dedup key, not a cooldown: reminders fire exactly once per blocker. Confirmed in `src/coga/blocker_reminders.py`.
+- `recurring/skill-update` — `coga skill update --pr` fails with a stale lease after every merge+delete of the previous period's branch.
+
+> Note: the last two are **period tickets**. Phase 4's body says period tickets carry nothing durable and are direct-deleted — but these two shards found real durable knowledge in their blackboards, and `coga/contexts/coga/recurring` explicitly says a wrapper run that discovers a gotcha is worth extracting. See the `stale` finding on that contradiction below; it is routed to Phase 6, and Phase 4 must extract these two before deleting.
+
+### `stale` (33 after merge) — a context/skill contradicting repo reality
+
+**coga/contexts/coga/secrets/SKILL.md** (3 — one PR)
+- omits the `env:VAR` reference form `parse_inline_secrets` supports (`src/coga/config.py:1360`).
+- says the SA is "scoped to a single vault" while the same section tells operators to accrue vaults by trust level.
+- claims the SA token makes "every `op://` ref" resolve; config values are not `op://`-aware at all.
+
+**coga/contexts/coga/sync/SKILL.md** (3 — one PR)
+- overstates which status rules stay armed during a human rewind (vs `_STATUS_PROGRESS`).
+- live-notification inventory is no longer exhaustive — three `post()` sites missing.
+- the `coga create` / `coga ticket` silent-surface bullet is garbled mid-sentence and does not parse.
+
+**coga/contexts/coga/architecture/SKILL.md** (2)
+- the canonical `requires:` gate section still describes `pr` as the only token (vs `STEP_GATES`, `src/coga/step_gate.py`).
+- implies ticket `secrets:` bounds worker capability, but `build_launch_env()` inherits the SA token.
+
+**coga/contexts/coga/current-direction/SKILL.md** (2)
+- still describes Dream's scan as a single full-corpus read — the design this very run replaced.
+- claims only one Slack idea is parked; `v2/issue-inbox-slack.md` is a second live parked draft.
+
+**coga/contexts/coga/recurring/SKILL.md** (1)
+- `## Gotchas` still sanctions a `script -qec` pty recipe no agent harness can run.
+
+**coga/contexts/marketing/** (5 — merged from 6; shard-07 and shard-12 both found the deleted-tickets claim)
+- `plan` says two shelved tickets are "not deleted" — both are gone *(merged: shard-07 + shard-12)*, and its shelved proof-post machinery lives in tracked repo files the plan never names.
+- `plan`'s claim discipline points at a "5x" bet that is not in `docs/vision.md` and never was.
+- `plan` scores "Discord joins" while its own phase 0 leaves the community home undecided.
+- `positioning` still calls the A/B fork undecided after `plan` pinned fork A.
+
+**Agent instruction files** (2)
+- `CLAUDE.md` + `AGENTS.md` both advertise an `architecture` "locking" section that context does not have.
+- `CLAUDE.md` still documents the pre-`.[test]` install contract.
+
+**Vendored / skills layout** (7)
+- `coga/recurring/skill-update/ticket.md` asserts `.coga-source.json` provenance no installed skill has.
+- `coga/contexts/coga/codebase` documents a namespaced `skills/<ns>/<name>/` layout the seven flat `google-agents-cli-*` packs do not follow.
+- `anthropic/skill-creator/SKILL.md` declares a flat frontmatter `name` that is not its resolvable ref.
+- `anthropic/skill-creator/ATTRIBUTION.md` points at a ticket that no longer exists.
+- `google-agents-cli-workflow/SKILL.md` tells the agent to reinstall the pack, bypassing the vendored copies.
+- `browser/dochub` defers load-bearing recipes to a memory store this repo does not have.
+- `browser/playwright` — `references/cli.md` sets `$PWCLI` to a nonexistent path; `references/workflows.md` names a different artifact dir than its own SKILL.md.
+
+**Code workflow** (3)
+- `coga/skills/code/design` tells the agent to write into `ticket.md`, which bare-file tickets do not have.
+- `coga/contexts/dev/code` presents retire's worktree removal as the normal outcome when it almost never fires. **[overlaps open PR #709 — defer]**
+- `coga/workflows/_template.md` lists three of the four valid `assignee:` role tokens (omits `other-agent`).
+
+**Templates / seeded fixture** (2)
+- `coga/contexts/_template` teaches a size rule 15 of 20 real contexts violate.
+- `example/coga/coga.toml` seeds a Slack opt-in that halts recurring runs.
+
+**Dream's own contradiction** (1)
+- Dream Phase 4 tells Retro period tickets "carry nothing durable"; `coga/contexts/coga/recurring` says read their blackboard first. Present in all three copies of the Dream template.
+
+**v2 parking-area drafts, premise-dead or self-contradicting** (9)
+- `browser/dom-backed` defers a runner decision to an "active test track" with no trace in the repo.
+- `v2/README.md` known-stale table omits `script:`, which 15 of its own drafts still carry.
+- `v2/README.md` rename table maps `relay-os/…` → `coga/…`, but `workflows/code/*` lives only in the package.
+- `v2/README.md` calls the area "drafts" though a quarter is paused/canceled/in_progress.
+- `v2/audit-rules-md-usage-across-relay-and-decide-wheth` — premise-dead, `rules.md` no longer exists.
+- `v2/document-workflow-less-concept-capture-drafts-as-s` — premise-dead, architecture already documents it.
+- `v2/skill-update-aborts-on-uncommitted-log-file` — primary fix already landed.
+- `v2/autotrigger-ticket-type` — every cross-reference in it is dead.
+- `v2/dev-loop-git-hygiene`, `v2/relay-design-repositories`, `v2/add-relay-skill-search-with-candidate-eval`, `v2/split-context-to-doc` — each settled the other way by shipped precedent.
+
+### `gap` (12 after merge) — repeated pattern with nothing to carry it
+
+- **Ticket specs must cite symbols, not line numbers** — three tickets each hand-wrote the caveat. Target live + packaged `code/design/SKILL.md`. *(merged: shard-03 + shard-05)*
+- **No vendored-skill provenance** — no skill under `coga/skills/` carries `.coga-source.json`, so `coga skill update --all` walks nothing, though the weekly job claims it does. *(merged: shard-13 + shard-14 + shard-15)*
+- **No context carries the rules for writing to a ticket blackboard** — three recurring-area tickets each corrupted a blackboard a different way.
+- **`code/implement` never verifies the `## Dev` write reached the control branch** — the exact gap `launch-ignores-the-recorded-worktree-stranding-bla` documents. **[overlaps open PR #709 — defer]**
+- **Isolated checkouts lose `coga.local.toml`** and no durable doc says so. **[overlaps open PR #709 — defer]**
+- **`code/implement` parks adjacent bugs on a blackboard Retro then deletes** — no step carries them out.
+- **No convention for where a ticket's superseded design goes** — three tickets, three different headings.
+- **The cold "Evaluator review" of a design spec** is a repeated ad-hoc ritual with no skill.
+- **The ticket interview never asks what "done" means** — two tickets asked for it.
+- **A design parked at an owner gate decays**, and only the rebase case is written down.
+- **No durable doc covers running Coga headless** — three v2 drafts each rebuild the same runbook.
+- **No comms-writing skill** — the writing process is smeared through `marketing/plan`.
+- **Packaged repos ship recurring templates without the `coga/recurring` context** (35 KB of the system's whole contract).
+- **Dream's own `gap` findings are parked as v2 drafts and then decay there** — five in one shard alone; the v2 README records two cancelled premise-dead drafts that "were themselves Dream `gap` findings originally". Also: `coga validate` is permanently red and every error comes from the v2 parking area, so a green validate is not achievable in this repo.
+- **18 of 75 v2 drafts have an empty `## Description`** — the README's premise check cannot be run on them.
+- **The v2 premise-check table covers only the pre-rename cohort**; parked drafts cite a "Wave 1 / RC release-gate" plan no durable doc carries.
+
+### `drift` (1, from Phase 2)
+- `README.md` still promises the launch experiment `marketing/plan` superseded on 2026-08-19.
+
