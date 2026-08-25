@@ -1,7 +1,7 @@
 ---
 slug: retire-autoclose-skips-annotated-pr-lines
 title: Retire autoclose-skips-annotated-pr-lines
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -16,7 +16,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -146,3 +145,28 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Retro run
+
+- Preconditions checked on 2026-08-25: fetched `origin/main`; the source artifact
+  is the bare file `coga/tasks/autoclose-skips-annotated-pr-lines.md`, is present
+  on the fresh control-branch tip, and has `status: done` with PR #706 recorded.
+- The caller has `coga/coga.local.toml`, so the required ordinary config copy is
+  available for an isolated checkout. Existing unrelated operator-checkout edits
+  in `coga/log.md` and
+  `coga/tasks/reconcile-recurring-wrapper-tty-admission-guidance.md` are being
+  left untouched.
+- The isolated Retro pass classified the ticket as **no new durable knowledge**:
+  the annotated-`pr:` and placeholder rules are already present in the live and
+  packaged `dev/code` contexts, while the remaining safeguards are explicit in
+  current code/tests. No PR or `## Retro` marker was created.
+- Retro direct-deleted the source with commit
+  `1598bcad9830f9655dc2b95e8cf8d577e6dace1c` (`Ticket:
+  autoclose-skips-annotated-pr-lines — deleted`). Independent verification after
+  a fresh fetch found `origin/main` at that commit, the commit's sole change was
+  deletion of the exact source task file, the source is absent from the control
+  branch, and the isolated linked checkout is clean.
+- Cleanup verified: removed the copied machine-local config, the exact linked
+  checkout and its Git worktree metadata, the unique temporary branch, its
+  parent directory, and the read-only evidence snapshot. No recovery paths
+  remain because the direct deletion is durable on `origin/main`.
