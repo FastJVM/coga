@@ -807,9 +807,13 @@ The last one had a real defect underneath in a different shape; refiled rather t
 
 ### `human-needed`
 
-1. **Slack notifications did not post.** `coga slack` was denied by the permission classifier during
-   Phase 4; 0 of 3 Retro FYIs and the Dream run summary did not reach Slack. Not worked around. Needs
-   a human or a Bash permission rule for `coga slack`.
+1. **Retro's 3 per-PR Slack FYIs did not post.** `coga slack` was denied by the permission
+   classifier inside the Phase 4 Retro subagent's context; it recorded the denial and did not work
+   around it. Dream's own one-line run summary **did** post successfully from the parent session, so
+   the run is announced and the template's notification contract is satisfied. The 3 per-PR FYIs
+   (skill step 12, one per knowledge PR) were deliberately **not** retried from the parent session:
+   re-running an action a subagent was denied is not the parent's call to make. If those FYIs are
+   wanted, a human can post them or grant the subagent surface a permission rule for `coga slack`.
 2. **25 validate-drift issues** need owner decisions: 10 `stuck-in-progress` (one idle 824h),
    8 `unfrozen-workflow`, 6 `unknown-assignee`, 3 `missing-step`.
 3. **11 checkout-bearing done tickets are deferred retirement debt** — each records a real
