@@ -56,6 +56,24 @@ Found by Dream 2026-08-24 — Phase 2 shards 13, 14, 15 independently (merged), 
 Phase 3 shards ca-04 and ca-05. The seven `google-agents-cli-*` packs are currently touched by
 open PR #708, so sequence this after that merges.
 
+### Follow-up surfaced during Dream Phase 6 (PR #719)
+
+PR #719 fixed `name:` frontmatter and the `$PWCLI` path in the live
+`coga/skills/browser/{dochub,playwright}` copies. The **packaged mirrors** under
+`src/coga/resources/templates/coga/bootstrap/skills/browser/` carry the same drift and were
+deliberately left untouched to keep that PR inside its stated scope.
+
+No test covers that pair — they are absent from
+`tests/test_packaging.py::IDENTICAL_LIVE_PACKAGED_PAIRS` — so nothing will catch the divergence.
+CLAUDE.md's rule ("check both the live repo copy under `coga/` and the packaged copy … keep them in
+sync") says they should match. Decide whether to sync them and add the pair to the packaging test, or
+document the divergence as intentional.
+
+Also from #719: the playwright wrapper `coga/skills/browser/playwright/scripts/playwright_cli.sh`
+was committed `100644` while every sibling vendored script is `100755`, so the documented
+`"$PWCLI" …` invocation failed permission-denied. Fixed in #719; worth a validator check so a
+non-executable committed script is caught rather than discovered by a failing agent run.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
