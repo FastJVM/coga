@@ -1,7 +1,7 @@
 ---
 slug: recurring/autoclose-merged
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,7 +17,6 @@ workflow:
     - coga/autoclose/sweep
     assignee: agent
 secrets: null
-step: 1 (sweep)
 ---
 
 ## Description
@@ -58,3 +57,16 @@ no merged final-step tickets exits successfully and changes nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-08-25T17:56:54+00:00
+Task: `recurring/autoclose-merged`
+
+5 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
+
+- `autoclose-skips-annotated-pr-lines` "Autoclose skips annotated PR lines": worktree `/home/n/Code/claude/coga-pr-line-annotations`, branch `pr-line-annotations` — `coga retire autoclose-skips-annotated-pr-lines`
+- `launch-ignores-the-recorded-worktree-stranding-bla` "Launch ignores the recorded worktree, stranding blackboard writes": worktree `/home/n/Code/claude/coga-implement-branch-gate`, branch `implement-branch-gate` — `coga retire launch-ignores-the-recorded-worktree-stranding-bla`
+- `megalaunch-only-shows-one-page` "megalaunch-only-shows-one-page": worktree `/home/zach2179/dev/coga-megalaunch-picker-viewport`, branch `megalaunch-picker-viewport` — `coga retire megalaunch-only-shows-one-page`
+- `migrate-recurring-templates-to-ticket-py-shims-and` "Migrate recurring templates to ticket.py shims and delete recipe:": worktree `/tmp/coga-recurring-ticket-py`, branch `recurring-ticket-py` — `coga retire migrate-recurring-templates-to-ticket-py-shims-and`
+- `move-cogacontext-to-roodoc-so-its-easier-for-human` "move cogacontext to roodoc so its easier for human": worktree `/tmp/coga-layout-contexts-peer.YrKIJA`, branch `layout-contexts-dir` — `coga retire move-cogacontext-to-roodoc-so-its-easier-for-human`

@@ -3971,3 +3971,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-25 10:56 [megalaunch-only-shows-one-page] [human:nicktoper] auto-bumped on merge of PR #722 → done
 2026-08-25 10:56 [migrate-recurring-templates-to-ticket-py-shims-and] [human:nicktoper] auto-bumped on merge of PR #705 → done
 2026-08-25 10:56 [move-cogacontext-to-roodoc-so-its-easier-for-human] [human:nicktoper] auto-bumped on merge of PR #704 → done
+2026-08-25 10:56 [recurring/autoclose-merged] [human:nicktoper] task done
