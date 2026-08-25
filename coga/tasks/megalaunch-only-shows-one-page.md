@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -163,7 +163,7 @@ today and are unrelated to this bug.
 
 branch: megalaunch-picker-viewport
 worktree: /home/zach2179/dev/coga-megalaunch-picker-viewport
-commit: f094a72e (rebased onto origin/main dbc8dfc9)
+commit: 0335ac72 (rebased onto origin/main 9d6a34eb)
 
 ## What changed
 
@@ -194,8 +194,8 @@ not save them; it only protects against `_collapse_widths`, not the even
 reduction.
 
 Fix: give Rich the slack from the elastic columns only, by declaring
-slug/owner/title flexible (`ratio=2/1/3`) with `expand=True` on the table. Rich
-then uses `ratio_distribute` over those three and never reaches the even
+slug/owner/step/title flexible (`ratio=2/1/1/3`) with `expand=True` on the
+table. Rich then uses `ratio_distribute` over those four and never reaches the even
 reduction, so the fixed narrow columns survive. Verified all seven columns
 intact from 120 cells down to 50; below 50 they genuinely cannot all fit and the
 display degrades (height invariant still holds).
@@ -205,7 +205,9 @@ without them the stated fix trades one visible bug for another.
 
 ## Verification
 
-- `python -m pytest` in the worktree: **1981 passed**, post-rebase.
+- Peer-review post-rebase `PYTHONPATH=$PWD/src python -m pytest`:
+  **1981 passed**. The only warning was pytest being unable to write its cache
+  in the managed read-only worktree; it does not affect test results.
 - `coga validate --json` against `example/`: `ok_count: 3`, no issues. (Needs
   `env -u SLACK_WEBHOOK_URL` — a bare value in this shell's env trips an
   unrelated config check.)
@@ -238,3 +240,34 @@ peer-review step.
   than letting Rich decide, but that is a UX change, not this bug.
 - `_picker_view` / `_picker_window` arguably belong in `src/coga/megalaunch.py`
   per the codebase context. The ticket puts that relocation out of scope.
+
+## Peer review
+
+`codex review --base main` found one must-fix P2: the `step` column was still
+fixed-width, so an existing valid label (`2 (human-owns-and-finishes)`) made
+Rich's last-resort reduction collapse both the cursor marker and checkbox at
+50 columns. Made `step` flexible with `ratio=1` and added that real label to
+the regression fixture. The targeted test passes, and a direct 50x6 render
+shows both `❯` and `[x]` intact.
+
+### Manual TTY gate
+
+Passed against a temporary clone of the Coga repo containing 114 real
+non-terminal tickets, using the feature branch source. Ran
+`coga megalaunch --pick` at **100x50**, **80x24**, and **50x30**, held the down
+arrow from cursor 0 through cursor 113, and confirmed the cursor stayed visible
+on every row at all three sizes. Each TTY capture contained 115 picker frames
+(initial + 113 moves + final exit render) and exactly 115 visible `❯` markers;
+the bottom candidate was visible before quitting in every run. No candidates
+were selected or launched.
+
+## PR
+
+Keep the megalaunch picker within its terminal viewport by truncating every
+candidate and chrome line, reserving the correct five lines of chrome, and
+rendering stable blank indicator slots at the list ends. Flexible data columns
+preserve the cursor and checkbox at 50 columns, including for long valid
+workflow-step labels, while the corrected viewport documentation now matches
+Rich's first-screenful overflow behavior.
+
+Test plan: `PYTHONPATH=$PWD/src python -m pytest` (1981 passed) plus live TTY sweeps over 114 candidates at 100x50, 80x24, and 50x30.
