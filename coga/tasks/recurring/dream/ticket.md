@@ -241,10 +241,16 @@ preserve the paths and surface a blocker.
 
 A done `recurring/<name>` ticket from this sweep is eligible like any other
 when it records no feature checkout.
-Period tickets carry nothing durable (their output is the notification post or
-PR they already produced), so Retro direct-deletes them via `coga delete
-recurring/<name>` — no PR or marker — while leaving the recurring template's
-serviced-period record untouched. If a completed period ticket survives into a
+Period tickets *normally* carry nothing durable — their output is the
+notification post or PR they already produced — so Retro normally direct-deletes
+them via `coga delete recurring/<name>` — no PR or marker — while leaving the
+recurring template's serviced-period record untouched. Normally, not always: a
+wrapper run that hit a reusable gotcha writes it to its own blackboard (see
+`## Gotchas`), and that is worth extracting into a knowledge PR before the
+delete. Read the period ticket's blackboard and decide on what is actually
+there; never direct-delete on the ticket's class alone. Keep it cheap — the
+common case really is "nothing durable", so direct-delete as soon as the
+blackboard shows none. If a completed period ticket survives into a
 later firing, the recurring scanner deletes it before creating that period's
 fresh task. The previous Dream run is removed by that scanner fallback before
 this Dream task is created, so Dream never sees or deletes its own predecessor.
