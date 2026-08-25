@@ -3938,3 +3938,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-24 22:38 [give-a-ticket-s-superseded-design-one-documented-h] [human:nicktoper] created (status=draft)
 2026-08-24 22:38 [no-skill-exists-for-the-cold-evaluator-review-of-a] [human:nicktoper] created (status=draft)
 2026-08-24 22:38 [the-ticket-interview-never-asks-what-done-means] [human:nicktoper] created (status=draft)
+2026-08-24 22:38 [packaged-repos-ship-recurring-templates-without-th] [human:nicktoper] created (status=draft)
