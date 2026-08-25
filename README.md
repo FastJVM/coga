@@ -15,8 +15,6 @@ instead of acting as the CPU.
 
 ## See the loop
 
-<!-- The 60-second morning-ritual demo from marketing/add-killer-demo will replace this slot. -->
-
 https://github.com/user-attachments/assets/b310bb0f-2312-4e19-98d4-cc65548b01c1
 
 **[Watch the current 95-second demo →](https://www.youtube.com/watch?v=iwnewxJvRPc)**
@@ -45,8 +43,9 @@ facts we can defend without pretending they prove the bet:
 
 These are observations about how the operation ran, not a benchmark against a
 counterfactual team. [Read the counting rules, source paths, and caveats in the
-velocity report](docs/velocity-report.md). The launch experiment will add the
-more useful number—human-minutes per shipped task—after it has been measured.
+velocity report](docs/velocity-report.md). The more useful number—human-minutes
+per shipped task—is defined there but deliberately unmeasured: producing it
+would take a pre-registered run, and none is scheduled.
 
 ## What it replaces
 

@@ -15,11 +15,12 @@ plan led with a pre-registered 2-week run and a measured result; it was
 gated on megalaunch stability, held its hook hostage to an unknown N, and
 buried the message under the apparatus. The new plan leads with the idea and
 defers every proof. The old program's tickets (`v2/launch-20-minutes-a-day`,
-`v2/add-killer-demo`) describe the superseded plan; their machinery
-(pre-registration, metrics script, demo) is *shelved for the later gated
-proof post*, not deleted — see "Later, gated" below. The fork question in
-`marketing/positioning` is pinned for this series: **fork A** — an internal
-tool, open-sourced, told as a personal story.
+`v2/add-killer-demo`) were **deleted on 2026-08-19**; their text survives only
+in this repo's git history (commits `9a93bff0` and `bedd29e2`). The machinery
+they specified is *shelved for the later gated proof post* — the parts that
+survive as tracked files are named under "Later, gated" below. The fork
+question in `marketing/positioning` is pinned for this series: **fork A** — an
+internal tool, open-sourced, told as a personal story.
 
 ## The play: a series of personal essays
 
@@ -149,11 +150,23 @@ measurements during phases 1–2.
 **Later, gated — the proof post.**
 The 2-week pre-registered experiment ("N merged PRs, the ledger, recompute
 it yourself") survives as an *option*, run only if the series lands and
-megalaunch holds up in daily use. All the old plan's machinery is preserved
-for it: pre-registration git-dated before data, intention-to-treat
-inclusion, the metrics script, token accounting, the fallback framing
-decided before the run (what-broke field report — possibly the best HN
-title of all). Do not spend any of this apparatus on posts 1–3.
+megalaunch holds up in daily use. What survives as tracked files, and where:
+
+- **The metrics script** — `scripts/human_minutes.py` (covered by
+  `tests/test_human_minutes_script.py`): human-attention episodes recomputed
+  from public timestamps, with the measurement parameters pinned as constants
+  (10-minute gap, 2-minute floor, 5-minute sensitivity floor).
+- **Token accounting** — the same script's machine-token ledger, read from
+  the schema-2 usage records.
+- **The pre-registration commitment and its intention-to-treat inclusion
+  rule** — `docs/velocity-report.md`, "Why there is no multiplier here": the
+  pre-registered report "will count every attempt—completed, blocked,
+  rescued, or abandoned—and link each row to its receipt."
+
+Not preserved in any tracked file: the fallback framing (the what-broke field
+report) and the demo brief exist only in the deleted tickets' git history, so
+a future proof post has to re-decide them rather than pick them up. Do not
+spend any of this apparatus on posts 1–3.
 
 **Continuous — public responsiveness is the marketing.**
 For an OSS repo, visible reactivity *is* the campaign: answer issues fast,
@@ -197,8 +210,12 @@ Write these out before post 1 ships; never improvise them in-thread:
 
 ## Claim discipline (adapted for the essay series)
 
-- Descriptive claims only; **no productivity multiplier anywhere**; the 5x
-  stays in `docs/vision.md` as a stated bet, never a result.
+- Descriptive claims only; **no productivity multiplier anywhere**. Coga has
+  never published a multiplier figure and must not start: the surviving claim
+  is the two-person/output-of-ten bet in `docs/vision.md` ("The thesis"),
+  stated as a bet and never as a result, and `docs/velocity-report.md` holds
+  that line in public ("this report makes no '5x,' '10x,' or percentage
+  productivity claim").
 - Essay posts claim *ideas*, not results — so they carry no numbers and
   need no receipts. The moment a post states a figure as a result, it
   graduates into the proof-post regime (pre-registration, recomputability)
@@ -210,7 +227,9 @@ Write these out before post 1 ships; never improvise them in-thread:
 
 Phase 1–3 are scored on **influence and audience**: the idea circulating
 (the vocabulary taking — "you are the CPU", "batch your judgment"), blog
-subscribers, Discord joins, stars/downloads as trailing proxies. Installs
+subscribers, joins and participation on whatever community home
+`marketing/discord` selects (GitHub Discussions or Discord — still undecided;
+see phase 0), stars/downloads as trailing proxies. Installs
 remain the long-arc goal but are *not* the bar for the essay posts — by
 construction they convert lightly. The proof post, if it ever runs, is the
 installs play.

@@ -130,18 +130,21 @@ Comms must stay credible. State plainly where Coga is outclassed:
   comms; spreading the metric spreads the practice, because computing it
   requires a legible, self-recording substrate.
 
-## Open strategic question for the launch
+## The strategic fork (decided)
 
-The fork is **not yet decided** — flag it, don't assume:
+**Fork A is pinned** for the launch series — owner decision of 2026-08-19,
+recorded in `marketing/plan`'s status block. Write to fork A; do not reopen
+the question inside a marketing/comms ticket. Changing the fork is an owner
+decision.
 
-- **Fork A** — internal OSS infrastructure / honest field report (taste
-  as craft). Lower-key launch: recruiting, alignment, the small tribe.
-- **Fork B** — Coga-as-category (taste as brand): the Linear playbook
-  (opinionated craft, a name, evangelism), narrow-tribe ceiling.
+- **Fork A (pinned)** — internal OSS infrastructure / honest field report
+  (taste as craft). Lower-key launch: recruiting, alignment, the small tribe.
+- **Fork B (kept optionable)** — Coga-as-category (taste as brand): the
+  Linear playbook (opinionated craft, a name, evangelism), narrow-tribe
+  ceiling.
 
-Default is **A with B kept optionable.** Pin the fork with the human
-before committing to a launch tone — a fork-B launch is a brand bet, a
-fork-A launch is a field report. They read very differently.
+The fork sets the launch tone: a fork-B launch is a brand bet, a fork-A
+launch is a field report. They read very differently.
 
 ## What this context does NOT cover
 
