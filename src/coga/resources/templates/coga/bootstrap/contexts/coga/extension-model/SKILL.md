@@ -107,6 +107,11 @@ durable task instance:
   agent. With the exact sibling `ticket.py`, launch subprocesses that file
   directly, with no task lifecycle or blackboard writes and no agent. The
   deterministic v1 entry point receives no operands.
+- Recurring `delegate: bootstrap/<name>` deliberately names only the
+  agent-backed form. Its purpose is to remove an agent wrapper around another
+  agent launch. A script-backed target is rejected before period creation;
+  deterministic recurring behavior belongs in the recurring template's own
+  `ticket.py`, which is copied into the period task.
 - Add an alias such as `resolve-conflicts = "launch bootstrap/resolve-conflicts"`
   when the command deserves a top-level spelling. Trailing argv continues
   through the alias.

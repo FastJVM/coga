@@ -64,8 +64,9 @@ the example under "Extend recurring with a task-specific workflow").
   itself). Invoke it directly from whatever operator-owned scheduler exists
   outside Coga. A current-period task
   left `in_progress` by a sweep whose supervisor died mid-run (laptop sleep,
-  SSH drop) is **relaunched and resumed from its current step**, not skipped:
-  `coga launch` re-composes it from `step:`. If an interactive launch returns
+  SSH drop) is **relaunched from its frozen period ticket**, not skipped:
+  ordinary agent work re-composes from `step:`, while a frozen `delegate:`
+  re-launches that bootstrap target. If an interactive launch returns
   unfinished, the sweep pauses it before continuing, so a frozen `in_progress`
   period task can still mean "dead run's orphan" rather than "human parked it".
   `done` from the *current* period (finished work) and `paused` (a human
@@ -77,11 +78,14 @@ the example under "Extend recurring with a task-specific workflow").
   task would preserve stale run instructions and residue. A live
   stale leftover under `tasks/recurring/<name>/` is resumed before any new
   period work for that template; there is only one instantiated path per
-  template. Every template is launched the same way — the sweep has no
-  dispatch of its own — and `coga launch` classifies each period task from its
-  own directory. A task carrying `ticket.py` runs that file as a subprocess
-  from the host repo with the period ticket's scoped secrets and freshly
-  derived `COGA_TASK_*` metadata; no prompt is composed and no agent starts.
+  template. Dispatch is always frozen with that materialized task: a copied
+  `ticket.py` selects deterministic work, a copied `delegate:` selects a
+  one-hop bootstrap agent launch, and neither means the ordinary period-task
+  agent session. Direct `coga launch recurring/<name>` obeys the same snapshot;
+  it never re-reads mutable template dispatch. A task carrying `ticket.py` runs
+  that file as a subprocess from the host repo with the period ticket's scoped
+  secrets and freshly derived `COGA_TASK_*` metadata; no prompt is composed and
+  no agent starts.
   The launcher marks `active → in_progress` before starting and then leaves
   the workflow alone: the script closes its own step (`coga bump`), exactly as
   an agent does. A non-zero exit halts the launch, leaves the task unfinished,
@@ -140,11 +144,16 @@ the example under "Extend recurring with a task-specific workflow").
   the period task `done` only when the bootstrap target emits its done
   sentinel. A natural/crashed exit fails with the period left retryable; a
   multi-task sweep pauses a watchdog timeout and continues, while a named
-  launch fails and leaves it `in_progress` for retry. Because the delegated run
-  is still an agent launch, a delegating template stays in the agent-backed
-  admission class: a headless sweep refuses it *before the period task is
-  created*, exactly like any other agent template. `coga validate` resolves the
-  target statically and reports a missing one as `unknown-delegate-target`.
+  launch fails and leaves it `in_progress` for retry. Creation copies the
+  target into canonical period-task frontmatter; sweep retries, named retries,
+  and direct `coga launch recurring/<name>` route only from that frozen field,
+  so changing or removing a template cannot reroute live work. Because the
+  delegated run is still an agent launch, a delegating template stays in the
+  agent-backed admission class: a headless sweep refuses it *before the period
+  task is created*, exactly like any other agent template. The target itself
+  must also be agent-backed: a bootstrap `ticket.py` target is rejected before
+  creation, because deterministic recurring work belongs in the template's own
+  `ticket.py`. `coga validate` checks both the template and frozen task.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered
@@ -605,7 +614,10 @@ Operating it:
   exists in between. The delegated command's own success signal — e.g. its
   `coga slack` roll-up line in `coga/log.md`, which emits the bootstrap done
   sentinel — is the only path to period completion; a natural REPL exit is not
-  success.
+  success. Delegation is only for an agent-backed bootstrap command. If the
+  target has `ticket.py`, move that deterministic work to the recurring
+  template's own `ticket.py`; Coga rejects the delegate before creating a
+  period task rather than relocating admission failure into the run.
 
 - **A job that pushes to a dedicated long-lived branch must prune the remote
   ref before pushing.** `coga skill update --pr` reuses one fixed branch

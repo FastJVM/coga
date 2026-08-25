@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
+from coga import recurring_runner as recurring_cmd
 from coga.cli import app
 from coga.blackboard import append_blocker
 from coga.commands import block as block_module
@@ -1191,6 +1192,43 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     log = _read_log(active_task)
     assert "started (active → in_progress) via coga launch" in log
     assert "launched (assignee=claude, agent=claude)" in log
+
+
+def test_launch_routes_materialized_recurring_delegate_from_ticket(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A direct task launch dispatches a frozen period delegate instead of
+    composing an agent wrapper on the recurring task itself.
+    """
+    cfg = load_config(active_task)
+    created = create_task(
+        cfg=cfg,
+        title="Delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    calls: list[tuple[str, str]] = []
+
+    def fake_delegated(task_cfg, ref, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((ref.id_slug, Ticket.read(ref.ticket_path).delegate or ""))
+        return recurring_cmd.DelegatedRunResult(0, "done")
+
+    monkeypatch.chdir(active_task)
+    monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated)
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 0, result.output
+    assert calls == [
+        ("recurring/delegate-check", "bootstrap/resolve-conflicts")
+    ]
 
 
 def test_launch_refreshes_launch_checkout_on_exit(

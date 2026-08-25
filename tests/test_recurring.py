@@ -2377,16 +2377,9 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
     monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
     monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
 
-    code = recurring_cmd._run_delegated_task(
+    delegated = recurring_cmd._run_delegated_task(
         cfg,
-        DueTask(
-            template="delegate-check",
-            ref=ref,
-            last_fire=datetime(2026, 4, 22, 9, 0, 0),
-            created=True,
-            status=starting_status,
-            delegate="bootstrap/resolve-conflicts",
-        ),
+        ref,
         agent_override="claude",
         idle_timeout=900.0,
         max_session=None,
@@ -2394,7 +2387,8 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
         continue_after_timeout=continue_after_timeout,
     )
 
-    assert code == expected_code
+    assert delegated.exit_code == expected_code
+    assert delegated.kind == launch_kind
     assert transitions == expected_transitions
     assert Ticket.read(ref.ticket_path).status == expected_status
     # The delegated launch targets the bootstrap ticket — never the period
@@ -2451,14 +2445,7 @@ def test_delegated_preflight_refusal_does_not_start_period(
     with pytest.raises(SystemExit) as excinfo:
         recurring_cmd._run_delegated_task(
             cfg,
-            DueTask(
-                template="delegate-check",
-                ref=ref,
-                last_fire=datetime(2026, 4, 22, 9, 0, 0),
-                created=True,
-                status=starting_status,
-                delegate="bootstrap/resolve-conflicts",
-            ),
+            ref,
             agent_override="claude",
             idle_timeout=900.0,
             max_session=None,
@@ -2469,6 +2456,71 @@ def test_delegated_preflight_refusal_does_not_start_period(
     assert excinfo.value.code == 2
     assert transitions == expected_transitions
     assert Ticket.read(ref.ticket_path).status == starting_status
+
+
+def test_materialized_delegate_is_frozen_when_template_changes(repo: Path) -> None:
+    """A live run dispatches from its task snapshot, never mutable template
+    frontmatter. Removing delegation affects only the next materialization.
+    """
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    assert Ticket.read(outcome.ref.ticket_path).delegate == (
+        "bootstrap/resolve-conflicts"
+    )
+
+    template_path = repo / "recurring" / "delegate-check" / "ticket.md"
+    template_path.write_text(
+        template_path.read_text().replace(
+            "delegate: bootstrap/resolve-conflicts\n", ""
+        )
+    )
+
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 22, 10, 1, 0), allow_interactive=True
+    )
+    due = next(task for task in scan.tasks if task.template == "delegate-check")
+    assert due.ref == outcome.ref
+    assert due.delegate == "bootstrap/resolve-conflicts"
+
+
+def test_script_backed_delegate_is_rejected_before_period_creation(
+    repo: Path,
+) -> None:
+    """A bootstrap script is already deterministic; admitting it as an agent
+    delegate would create a period before launch returns through script mode.
+    """
+    _write(
+        repo / "bootstrap" / "scripted" / "ticket.md",
+        """
+        ---
+        title: Scripted command
+        assignee: claude
+        ---
+
+        Run deterministically.
+        """,
+    )
+    _write(repo / "bootstrap" / "scripted" / "ticket.py", "raise SystemExit(0)\n")
+    _write_delegating_template(repo, "delegate-check")
+    template_path = repo / "recurring" / "delegate-check" / "ticket.md"
+    template_path.write_text(
+        template_path.read_text().replace(
+            "bootstrap/resolve-conflicts", "bootstrap/scripted"
+        )
+    )
+
+    cfg = load_config(repo)
+    with pytest.raises(RecurringError, match="script-backed"):
+        create_named(
+            cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+        )
+
+    assert not any(
+        ref.id_slug == "recurring/delegate-check" for ref in list_tasks(cfg)
+    )
 
 
 def test_bare_recurring_launches_delegate_target_directly(
@@ -2509,6 +2561,70 @@ def test_bare_recurring_launches_delegate_target_directly(
         repo / "tasks" / "recurring" / "delegate-check" / "ticket.md"
     )
     assert ticket.status == "done"
+
+
+def test_direct_launch_routes_frozen_recurring_delegate(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ordinary `coga launch` recognizes a materialized delegate instead of
+    starting the obsolete wrapper task session, even after its template moves.
+    """
+    _write_delegating_template(repo, "delegate-check")
+    monkeypatch.chdir(repo)
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    (repo / "recurring" / "delegate-check" / "ticket.md").unlink()
+    launches: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        launches.append(task)
+        kwargs["before_spawn"]()
+        return "done"
+
+    monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
+    monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *args, **kwargs: 0)
+
+    result = CliRunner().invoke(app, ["launch", outcome.ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert launches == ["bootstrap/resolve-conflicts"]
+    assert Ticket.read(outcome.ref.ticket_path).status == "done"
+
+
+def test_sweep_records_delegated_timeout_as_timed_out(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A continue-on-timeout sweep keeps exit zero but does not erase the
+    watchdog classification in its durable run record.
+    """
+    shutil.rmtree(repo / "recurring" / "weekly-check")
+    _write_delegating_template(repo, "delegate-check")
+    monkeypatch.chdir(repo)
+    _allow_interactive_recurring(monkeypatch)
+    records = []
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        return "timeout"
+
+    monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "run_autofix",
+        lambda cfg, record, **kwargs: records.append(record) or 0,
+    )
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert records[-1].outcomes[0].result == "timed-out"
+    assert records[-1].outcomes[0].exit_code is None
+    ticket = Ticket.read(
+        repo / "tasks" / "recurring" / "delegate-check" / "ticket.md"
+    )
+    assert ticket.status == "paused"
 
 
 def test_named_recurring_delegate_timeout_fails_and_remains_retryable(

@@ -397,8 +397,49 @@ def test_validate_accepts_recurring_delegate_to_shipped_bootstrap(
     assert not [
         issue
         for issue in report.issues
-        if issue.kind in {"unknown-delegate-target", "bad-recurring-template"}
+        if issue.kind
+        in {
+            "unknown-delegate-target",
+            "script-backed-delegate-target",
+            "bad-recurring-template",
+        }
     ]
+
+
+def test_validate_rejects_script_backed_recurring_delegate(repo: Path) -> None:
+    """Delegation is the agent-to-agent shape; deterministic bootstrap work
+    belongs in the recurring template's own reserved entry point.
+    """
+    _write(
+        repo / "bootstrap" / "scripted" / "ticket.md",
+        """
+        ---
+        title: Scripted command
+        assignee: claude
+        ---
+        """,
+    )
+    _write(repo / "bootstrap" / "scripted" / "ticket.py", "raise SystemExit(0)\n")
+    _write(
+        repo / "recurring" / "delegate-check" / "ticket.md",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Delegate check
+        delegate: bootstrap/scripted
+        ---
+        """,
+    )
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "script-backed-delegate-target"
+    )
+    assert issue.task == "recurring/delegate-check"
+    assert "template's own `ticket.py`" in issue.message
 
 
 def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:

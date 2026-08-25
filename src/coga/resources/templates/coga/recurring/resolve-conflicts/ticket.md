@@ -21,13 +21,16 @@ conflicting heads onto `origin/main`, resolve semantic conflicts with agent
 judgment, verify before an explicit lease-safe force-push, print one line per
 PR, and post the final Slack roll-up.
 
-The `delegate:` field above is the whole delegation. The sweep marks this
-period task `in_progress`, launches `bootstrap/resolve-conflicts` in-process
-(honouring the sweep's `--agent` override and queue guidance), and marks the
-period task `done` only after the delegated command's final `coga slack`
-roll-up emits its bootstrap done sentinel. A natural/crashed exit fails
-without completing the period. A multi-task sweep pauses a watchdog timeout
-and continues; an explicit named launch fails and leaves the period retryable.
+The `delegate:` field above is the whole delegation. Creation freezes it into
+the period ticket, so sweeps, named retries, and direct
+`coga launch recurring/resolve-conflicts` never consult mutable template
+dispatch. The runner marks the period task `in_progress`, launches
+`bootstrap/resolve-conflicts` in-process (honouring the sweep's `--agent`
+override and queue guidance), and marks the period task `done` only after the
+delegated command's final `coga slack` roll-up emits its bootstrap done
+sentinel. A natural/crashed exit fails without completing the period. A
+multi-task sweep pauses a watchdog timeout and records it as timed out; an
+explicit named launch fails and leaves the period retryable.
 
 The replacement intentionally covers **open PRs only**. The removed
 `rebase-stale-worktrees` task also found pre-PR branches through worktrees and

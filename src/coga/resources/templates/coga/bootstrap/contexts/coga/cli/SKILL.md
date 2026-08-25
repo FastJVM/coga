@@ -865,7 +865,12 @@ intended for cron or other unattended schedulers should carry that
 deterministic half. Whether a period is deterministic is never declared: the
 `ticket.py` file's presence is the whole signal. `delegate:` declares something
 else — which bootstrap target an agent period hands its work to, which no
-file's presence can express.
+file's presence can express. Creation freezes that target into the period
+ticket; the sweep, `coga recurring launch <name>`, and direct
+`coga launch recurring/<name>` retries all route from the snapshot rather than
+current template frontmatter. A delegate must itself be agent-backed: a
+bootstrap target with `ticket.py` is rejected before period creation, and its
+deterministic work belongs in the recurring template's own `ticket.py`.
 
 **Queue guidance.** Like megalaunch, automatic recurring launches (the bare
 sweep, `--force`, and on-demand `recurring launch <name>` — everything except

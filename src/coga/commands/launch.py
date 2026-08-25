@@ -188,10 +188,12 @@ def launch(
     off to an agent; None for any other ending. A spawned *bootstrap* session
     instead returns its own termination kind (`"done"`, `"natural"`, `"crash"`,
     or `"timeout"`) so an in-process delegator can tell the done sentinel from
-    an early exit and a pre-spawn `SystemExit`. `coga recurring` uses those
-    distinctions to record timeouts honestly, preserve lifecycle signals written
-    by a script, and finish a delegated period only on its done signal; public
-    CLI timeouts exit with the supervisor's non-zero timeout code.
+    an early exit and a pre-spawn `SystemExit`. A materialized recurring task
+    with a frozen `delegate:` returns the same kind after routing that target
+    directly. `coga recurring` uses those distinctions to record timeouts
+    honestly, preserve lifecycle signals written by a script, and finish a
+    delegated period only on its done signal; public CLI timeouts exit with the
+    supervisor's non-zero timeout code.
     """
     return _launch(
         task,
@@ -271,6 +273,67 @@ def _launch(
         ref = resolve_target(cfg, task)
     except TaskNotFoundError as exc:
         _bail(str(exc))
+
+    # A materialized recurring delegation is an immutable dispatch snapshot,
+    # not prose for an agent wrapper. Route it before ordinary task setup so a
+    # direct `coga launch recurring/<name>` and every recurring runner entry
+    # point perform the same one-hop bootstrap launch. The local imports avoid
+    # a module cycle: recurring_runner itself uses this module's bootstrap
+    # launch seam.
+    if isinstance(ref, TaskRef):
+        frozen_ticket = read_ticket(ref)
+        if "delegate" in frozen_ticket.frontmatter:
+            if launch_args:
+                _bail(
+                    f"Cannot pass trailing arguments to delegated period "
+                    f"{ref.id_slug}; its frozen target owns a fixed command."
+                )
+            if prompt_report:
+                from coga.recurring import (
+                    RecurringError,
+                    frozen_task_delegate,
+                    resolve_agent_delegate,
+                )
+
+                try:
+                    delegate = frozen_task_delegate(ref, frozen_ticket)
+                    if delegate is None:
+                        raise RecurringError(
+                            f"delegating recurring task {ref.id_slug} is "
+                            "missing its frozen target"
+                        )
+                    resolve_agent_delegate(cfg, delegate)
+                except RecurringError as exc:
+                    _bail(str(exc))
+                return _launch(
+                    delegate,
+                    args=None,
+                    agent_override=agent_override,
+                    prompt_report=True,
+                    idle_timeout=idle_timeout,
+                    max_session=max_session,
+                    return_timeout=return_timeout,
+                    script_failure_important=script_failure_important,
+                    queue_guidance=queue_guidance,
+                    before_spawn=None,
+                )
+
+            from coga.recurring_runner import _run_delegated_task
+
+            delegated = _run_delegated_task(
+                cfg,
+                ref,
+                agent_override=agent_override,
+                idle_timeout=idle_timeout,
+                max_session=max_session,
+                queue_guidance=queue_guidance,
+                continue_after_timeout=False,
+            )
+            if return_timeout:
+                return delegated.kind
+            if delegated.exit_code:
+                raise SystemExit(delegated.exit_code)
+            return None
 
     resolved_target_slug = ref.id_slug
     is_bootstrap = isinstance(ref, BootstrapRef)
