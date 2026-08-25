@@ -3958,3 +3958,9 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-25 09:29 [megalaunch-only-shows-one-page] [agent:claude] advanced to step 4 (review) → assigned to zach — PR opened: https://github.com/FastJVM/coga/pull/722
 2026-08-25 09:29 [megalaunch-only-shows-one-page] [system] {"agent":"claude","agent_turns":0,"cache_creation_input_tokens":155021,"cache_read_input_tokens":437362,"cli":"claude","content_status":"ok","elapsed_seconds":55.282548,"ended_at":"2026-08-25T16:29:35.828951Z","human_turns":0,"input_tokens":22,"model":"claude-opus-5","outcome":null,"outcome_status":"completed","output_tokens":3431,"provider":"anthropic","request":null,"schema":2,"session_id":"c6bc61a1-921b-49b5-9fc7-19354bf4421c","slug":"megalaunch-only-shows-one-page","started_at":"2026-08-25T16:28:40.546403Z","step":"open-pr","title":"megalaunch-only-shows-one-page","ts":"2026-08-25T16:29:35.828951Z","usage_status":"ok"}
 2026-08-25 10:07 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-08-25 10:55 [recurring/autoclose-merged] [system] created (status=active)
+2026-08-25 10:55 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-08-25
+2026-08-25 10:55 [recurring/blocker-reminders] [system] created (status=active)
+2026-08-25 10:55 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-08-25
+2026-08-25 10:55 [recurring/digest] [system] created (status=active)
+2026-08-25 10:55 [recurring/digest] [system] created recurring/digest for 2026-08-25
