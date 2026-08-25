@@ -16,21 +16,32 @@ as OP_SERVICE_ACCOUNT_TOKEN at run time.
 ## The service account and its vault
 
 - **Service account** — the headless 1Password identity.
-  Authenticates via `OP_SERVICE_ACCOUNT_TOKEN`, read-only. Grant one service
-  account per repo / automation purpose only the vaults that purpose's headless
-  work needs, and never the root-level vault holding its own token. A leaked
-  token can read every vault granted to that account.
+  Authenticates via `OP_SERVICE_ACCOUNT_TOKEN`, read-only. Never grant it the
+  root-level vault holding its own token. A leaked token reads every vault that
+  account was granted, so the blast radius is exactly the grant.
 - **Vault** — the container the SA reads. Secrets will accrue in vaults named by their trust level.
   The tiers **classify**: they buy legible sensitivity, separate *human* access
-  grants, and independent rotation. They do not contain a leaked SA token, which
-  reaches every vault that account was granted.
+  grants, and independent rotation. Whether they also bound the *automation's*
+  blast radius depends on how many vaults one account is granted.
+
+> **Open decision — do not read a recommendation into the above.** How SA
+> grants map to trust tiers (one account per repo spanning tiers, one account
+> per vault, or a single untiered vault) is an unsettled, human-owned choice
+> tracked in `coga/tasks/service-account-scoping-single-vault-rule-conflict`.
+> It sets the blast radius of a leaked token and the per-vault option needs
+> code Coga does not have. Until that ticket's human step closes, describe
+> current behavior and leave the model to the operator; do not publish one
+> option as the contract.
 
 The `op` CLI auto-uses `OP_SERVICE_ACCOUNT_TOKEN` when it is set, so no coga
 code changes for headless auth — exporting the token in the job process is
 enough for every `op://` ref a **ticket's `secrets:`** declares to resolve.
-Config values are not `op://`-aware at all: `coga.toml` / `coga.local.toml`
-resolve only `env:VAR` indirection (as in `[notification.slack].webhook`), and
-an `op://` string there is passed through as a literal.
+Config values resolve almost nothing. Exactly two fields —
+`[notification.slack].webhook` and `[notification.slack].important_webhook` —
+run an `env:VAR` reference through the shared resolver; every other string in
+`coga.toml` / `coga.local.toml` is taken literally, so an `env:VAR` written
+anywhere else is a nonfunctional configuration, not an indirection. `op://` is
+not understood in config at all, in those two fields or any other.
 
 ## Adding a headless secret
 
