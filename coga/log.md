@@ -3946,3 +3946,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-24 22:49 [a-slack-repo-without-important-webhook-can-abort-t] [human:nicktoper] created (status=draft)
 2026-08-24 22:49 [live-and-packaged-twin-pairs-are-edited-together-b] [human:nicktoper] created (status=draft)
 2026-08-24 22:51 [recurring/dream] [agent:claude] slack: Dream 2026-W35: 96 findings (5 false positives caught), 12 PRs opened (#710-#721), 14 draft tickets, 4 period tickets deleted. validate-drift 29 issues human-needed.
+2026-08-24 22:51 [recurring/dream] [human:nicktoper] task done — Dream 2026-W35: 12 PRs (#710-#721), 14 draft tickets, 4 period tickets deleted, 5 false positives caught. 29 validate issues need owner decisions.
