@@ -1,7 +1,7 @@
 ---
 slug: autoclose-skips-annotated-pr-lines
 title: Autoclose skips annotated PR lines
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -30,7 +30,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
