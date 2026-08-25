@@ -6,7 +6,7 @@ Treat [docs/vision.md](docs/vision.md) as the product thesis and the `coga/conte
 Canonical Coga contexts:
 
 - `principles/SKILL.md` defines the non-negotiables.
-- `architecture/SKILL.md` defines primitives, planes, prompt composition, and locking.
+- `architecture/SKILL.md` defines primitives, planes, and prompt composition.
 - `codebase/SKILL.md` defines source layout and test expectations.
 - `current-direction/SKILL.md` and `project-stage/SKILL.md` capture live product posture.
 
