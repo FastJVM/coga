@@ -1,7 +1,7 @@
 ---
 slug: recurring/blocker-reminders
 title: Blocker reminders
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
