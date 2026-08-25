@@ -76,9 +76,11 @@ coga init --user <your-name>
 ```
 
 `--user` is the name tickets and agents will refer to you by — pick something
-short, like `marc`. This creates the markdown OS under `coga/` in that same
-repository: contexts, workflows, a `tasks/` directory, `coga.toml`, and a
-gitignored `coga.local.toml` holding your name.
+short, like `marc`. This creates the core markdown OS under `coga/` in that
+same repository: workflows, a `tasks/` directory, `coga.toml`, and a gitignored
+`coga.local.toml` holding your name. Local contexts start under
+`coga/contexts/`; a repo can later move them with `[layout] contexts` because
+they are human-edited prose (see [Concepts](concepts.md#contexts-and-skills)).
 
 A few things worth knowing about init:
 

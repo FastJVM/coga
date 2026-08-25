@@ -512,6 +512,20 @@ def test_bump_gate_blocks_until_required_artifact_recorded(repo: Path) -> None:
     assert Ticket.read(task_path).step == "2 (pr)"
 
 
+def test_bump_gate_accepts_an_annotated_pr_line(repo: Path) -> None:
+    # The gate reads `parse_pr_url`, so before it tolerated trailing
+    # annotations a hand-written `pr: <url> (note)` line made `coga bump`
+    # refuse to advance the very step that recorded the PR.
+    slug, task_path = _make_task(repo)
+    _set_step_requires(task_path, 0, "pr")
+    _record_pr(task_path, "https://github.com/acme/repo/pull/6 (no CI configured)")
+
+    result = CliRunner().invoke(app, ["bump", slug])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).step == "2 (pr)"
+
+
 def test_bump_final_step_requires_artifact_before_marking_done(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

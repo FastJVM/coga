@@ -45,7 +45,7 @@ Live cadence surface — posts immediately to the named destination:
 - `coga block` — blocker, owner named; flow.
 - `recurring/blocker-reminders` — unresolved blocked-task reminders, owner
   named, with the `coga unblock <slug> --answer "..."` command shape. The
-  recipe records a `## Blocker reminders` watermark on the blocked task only
+  run records a `## Blocker reminders` watermark on the blocked task only
   after attempting the live post, so the same blocker is not reminded on every
   scan; flow.
 - `coga slack` — explicit FYI (manual broadcast escape hatch); flow unless the
@@ -54,8 +54,8 @@ Live cadence surface — posts immediately to the named destination:
   Message-less bumps are silent; the FYI stays in flow.
 - `coga launch` — an approved `active` ticket starts and becomes
   `in_progress`. The session-start signal stays live (one per task) in flow.
-- a recurring recipe exits non-zero — the generated period task stays
-  unfinished and needs diagnosis; important.
+- a recurring period task's `ticket.py` exits non-zero — the generated period
+  task stays unfinished and needs diagnosis; important.
 - a completed recurring period fails to advance declared state — the next run
   may duplicate work; important, under the existing best-effort warning guard.
 - the Dream validate-drift summary — bounded maintenance result; flow.
@@ -287,7 +287,7 @@ new string:
   `env:` indirection.
 - `[notification.slack].important_webhook` — a second webhook, pointing at the
   coga-important channel. Posts that need a human to go act route here: an
-  explicit `coga slack --important`, a recurring recipe failure, a stale
+  explicit `coga slack --important`, a recurring script failure, a stale
   declared-period-state warning, and the no-digest fallback for recurring scan
   errors or watchdog timeouts. Ordinary lifecycle notifications, Dream and
   megalaunch summaries, and the daily digest stay on `webhook`. Resolved by
@@ -315,8 +315,8 @@ new string:
 - Live producers (`post`): `commands/block.py`; `commands/slack.py` (important
   only with its existing flag); `commands/bump.py` when `--message` is present;
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress session
-  start); `blocker_reminders.py::remind_blocked_tasks`; the recipe-failure path
-  in `recurring_runner.py` (important); the stale-period-state warning in
+  start); `blocker_reminders.py::remind_blocked_tasks`; the script-failure path
+  in `launch_script.py` (important); the stale-period-state warning in
   `mark.py` (important); `dream_validate_drift.py` (flow); and
   `commands/megalaunch.py` (flow). `commands/digest.py` is the flow delivery
   consumer for the outcome aggregate. Outcome producers (`notify`):
@@ -357,10 +357,10 @@ mechanism:
   ever touching the ticket's YAML frontmatter. The git high-water mark
   (`### Digest State`) lives in the ticket, not the spool, because it is
   single-writer consumer state that must not ride union semantics.
-- **Consumer.** The `recurring/digest/` ticket (a recipe-backed task, daily
-  `schedule:`) fires through the normal `coga recurring` scan. Its
-  `recipe: digest` dispatch calls
-  `commands/digest.run_digest`: read the **unconsumed** records,
+- **Consumer.** The `recurring/digest/` ticket (a script-backed task, daily
+  `schedule:`) fires through the normal `coga recurring` scan. Its period task
+  carries the template's `ticket.py`, which calls
+  `commands/digest.run_digest_recipe`: read the **unconsumed** records,
   fetch/scan git, render via `render_digest`, `post` one message, **drain**
   (advance the watermark + trim the consumed prefix), and update
   `### Digest State`. Records are de-duped by content before rendering, so the
@@ -633,16 +633,21 @@ last per-command sync and would otherwise sit dirty forever:
   directly in the working tree — no command ran, so nothing committed it.
 
 `src/coga/git.py::sync_coga_state(cfg, *, message="Sync coga state")` closes
-both. In the normal nested layout it commits **everything dirty under the
-`coga/` subtree** (`cfg.repo_root`, where `coga.toml` lives). In older/root
-layouts where `coga.toml` lives at the git toplevel, it scopes to the known
-Coga OS pathspecs (`tasks`, `contexts`, `skills`, `workflows`, `recurring`,
-`bootstrap`, `coga.toml`, `context.md`, `log.md`) instead of treating the whole
-git root as Coga state. A full `git status` under those pathspecs captures
+both. In the normal nested layout it commits everything dirty under the
+`coga/` subtree (`cfg.repo_root`, where `coga.toml` lives), plus the configured
+contexts directory when `[layout] contexts` places it outside that subtree. In
+older/root layouts where `coga.toml` lives at the git toplevel, it scopes to the
+known Coga OS pathspecs (`tasks`, configured contexts, `skills`, `workflows`,
+`recurring`, `bootstrap`, `coga.toml`, `context.md`, `log.md`) instead of
+treating the whole git root as Coga state. The configured contexts path
+substitutes for the default `contexts` entry; the vacated path is not kept as a
+permanent state boundary. A full `git status` under those pathspecs captures
 modifications, deletions, renames, **and new untracked files**. This is *not*
 the forbidden `git add -A`: the subtree/pathspec boundary is exactly the
 OS-state line the "Scope is narrow" rule draws, so product code (`src/`,
-`tests/`) is structurally never swept in. Branch handling and the
+`tests/`) is structurally never swept in. During a relocation, tracked
+deletions under the most recent former contexts root are included without
+adopting unrelated files left there. Branch handling and the
 `merge=union` split reuse the same machinery as `sync_paths` (union files —
 `log.md`, the digest spool — committed locally + union-merged onto the control
 branch, never landed via the wholesale-replace overlay from a feature branch).
@@ -656,8 +661,12 @@ never a crash.
 It is wired at one boundary, *in addition to* — never replacing — the
 per-transition syncs, which keep the readable git history and digest filtering:
 
-- **The CLI dispatch boundary** (`cli.py::main`'s `finally` around `app()`),
-  for mutating commands only. Read-only commands (`status`, `show`, `validate`,
+- **The CLI dispatch boundary** (`cli.py::main` around `app()`), for mutating
+  commands only. It reloads config after the command so a context relocation
+  made during a long-running agent session publishes the destination rather
+  than reusing the dispatch-time path. An invalid live config skips the sweep
+  loudly instead of committing a broken layout. Read-only commands (`status`,
+  `show`, `validate`,
   `usage`), read-only group subcommands (`skill status`, `recurring list`,
   `secret get`), no-args/help group invocations (`mark`, `skill`),
   `init`/`uninstall`, and `--help`/option invocations are excluded —

@@ -58,12 +58,20 @@ this recurring template.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## 2026-W34 result
+## W35 run
 
-- Delegated `coga resolve-conflicts --agent codex --queue-guidance` completed
-  successfully after retrying outside the restricted sandbox.
-- The bootstrap command found 0 open PRs: selected=0, rebased-pushed=0,
-  up-to-date=0, conflict=0, skipped-dirty=0, verify-failed=0; human attention:
-  none.
-- Required Slack roll-up was posted by `bootstrap/resolve-conflicts` at
-  2026-08-18 09:56 local time.
+- Period: 2026-W35 (per log L3876).
+- Plan per body: delegate to `coga resolve-conflicts --agent claude --queue-guidance`
+  (queue guidance is appended to this launch), then `coga mark done`.
+- Prior firings (W33/W34) both found 0 open PRs. W33 hit a one-off
+  permission-classifier denial on the delegated Bash call; using the same
+  `script -qec` TTY wrapper that worked then.
+- Result: delegated command ran under the sanctioned pty wrapper and exited 0
+  via done-sentinel. Confirmed via coga/log.md L3891 (not the pty stream, per
+  the coga/recurring context): "resolve-conflicts sweep: 3 open PRs checked —
+  3 up-to-date, 0 rebased-pushed, 0 conflict, 0 skipped-dirty, 0
+  verify-failed. No PRs need attention."
+- PRs in scope this period: #704 (layout-contexts-dir), #705
+  (recurring-ticket-py), #706 (pr-line-annotations). No branch was force-pushed.
+- No permission-classifier denial this time; the W33 issue remains
+  session-local, not a standing gap.

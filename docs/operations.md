@@ -13,7 +13,7 @@ reaches it. Events fall into three tiers:
 
 - **Live** — posted the moment they happen: a session starting (`active →
   in_progress`), a `coga block`, blocker reminders, and explicit FYIs
-  (`coga slack`, `coga bump --message`), plus recurring recipe failures and
+  (`coga slack`, `coga bump --message`), plus recurring script failures and
   warnings that declared recurring state did not advance.
 - **Outcome digest** — done and canceled tickets, `autoclose-merged`
   completions, recurring-scan errors, and recurring watchdog timeouts are
@@ -30,7 +30,7 @@ Agents and humans add one-line FYIs on top with `coga slack` (see the
 
 Cadence is separate from destination. The ordinary flow webhook carries
 operating awareness and the daily digest. The important webhook carries
-action-needed alerts: explicit `coga slack --important`, recurring recipe
+action-needed alerts: explicit `coga slack --important`, recurring script
 failures, stale declared period state, and the no-digest live fallback for scan
 errors or watchdog timeouts. A spooled record is delivery-neutral, so installing
 the digest never creates a duplicate live post.

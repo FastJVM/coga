@@ -83,6 +83,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/skills/coga/digest/flush/"
     "SKILL.md",
     "coga/resources/templates/coga/skills/_template/SKILL.md",
+    "coga/resources/templates/coga/contexts/.gitignore",
     "coga/resources/templates/coga/skills/direct/body/SKILL.md",
 )
 
@@ -91,6 +92,10 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
 # templates are curated copies that intentionally diverge from the live
 # `coga/` tree, so this is an explicit allowlist, not a tree diff.
 IDENTICAL_LIVE_PACKAGED_PAIRS = (
+    (
+        "coga/contexts/.gitignore",
+        "src/coga/resources/templates/coga/contexts/.gitignore",
+    ),
     (
         "coga/contexts/coga/architecture/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/"
@@ -120,6 +125,15 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
     ),
     (
+        "coga/contexts/coga/patterns/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/patterns/SKILL.md",
+    ),
+    (
+        "coga/contexts/coga/principles/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/principles/"
+        "SKILL.md",
+    ),
+    (
         "coga/contexts/coga/architecture/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/"
         "SKILL.md",
@@ -144,6 +158,50 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
         "coga/workflows/build/onboarding.md",
         "src/coga/resources/templates/coga/workflows/build/onboarding.md",
     ),
+    # The five recurring templates and their one-step workflows carry the
+    # `ticket.py` migration in both copies. `digest/post` is the odd one: its
+    # packaged twin is the *bundled* `bootstrap/workflows/` copy, not an init
+    # payload under `templates/coga/workflows/`.
+    (
+        "coga/workflows/digest/post.md",
+        "src/coga/resources/templates/coga/bootstrap/workflows/digest/post.md",
+    ),
+    (
+        "coga/workflows/autoclose-merged/sweep.md",
+        "src/coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
+    ),
+    (
+        "coga/workflows/blocker-reminders/run.md",
+        "src/coga/resources/templates/coga/workflows/blocker-reminders/run.md",
+    ),
+    (
+        "coga/workflows/branch-sweep/sweep.md",
+        "src/coga/resources/templates/coga/workflows/branch-sweep/sweep.md",
+    ),
+    (
+        "coga/workflows/skill-update/run.md",
+        "src/coga/resources/templates/coga/workflows/skill-update/run.md",
+    ),
+    (
+        "coga/recurring/autoclose-merged/ticket.py",
+        "src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py",
+    ),
+    (
+        "coga/recurring/blocker-reminders/ticket.py",
+        "src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.py",
+    ),
+    (
+        "coga/recurring/branch-sweep/ticket.py",
+        "src/coga/resources/templates/coga/recurring/branch-sweep/ticket.py",
+    ),
+    (
+        "coga/recurring/digest/ticket.py",
+        "src/coga/resources/templates/coga/recurring/digest/ticket.py",
+    ),
+    (
+        "coga/recurring/skill-update/ticket.py",
+        "src/coga/resources/templates/coga/recurring/skill-update/ticket.py",
+    ),
 )
 
 
@@ -153,6 +211,34 @@ def test_live_and_packaged_copies_stay_identical() -> None:
         assert (repo_root / live).read_bytes() == (repo_root / packaged).read_bytes(), (
             f"{live} and {packaged} have drifted; edit both copies together"
         )
+
+
+def test_executable_context_instructions_honor_layout_override() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    knowledge_scan = (
+        repo_root
+        / (
+            "src/coga/resources/templates/coga/bootstrap/skills/bootstrap/"
+            "dream/scan/knowledge-scan/SKILL.md"
+        )
+    ).read_text()
+    onboarding = (repo_root / "coga/workflows/build/onboarding.md").read_text()
+    onboarding_ticket = (
+        repo_root / "src/coga/resources/templates/coga/tasks/coga-build.md"
+    ).read_text()
+
+    assert "coga/contexts/**/SKILL.md" not in knowledge_scan
+    assert "[layout] contexts" in knowledge_scan
+    assert "<contexts-dir>/product/vision/SKILL.md" in onboarding
+    assert "under the configured contexts directory" in onboarding_ticket
+
+
+def test_context_template_ignores_move_with_contexts_tree() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    rules = (repo_root / "coga/contexts/.gitignore").read_text().splitlines()
+
+    assert "**/_template/" in rules
+    assert "**/_template.md" in rules
 
 
 def test_package_includes_coga_resources() -> None:

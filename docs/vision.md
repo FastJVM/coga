@@ -130,12 +130,16 @@ activated — in-flight work isn't disrupted by later workflow edits.
 
 **Blackboards** are per-task workspaces where agents write findings, plans, decisions, and blockers. The blackboard is how agents persist state between sessions — an agent that crashes mid-task is recoverable because the blackboard has its last known state. It's the pattern from 1970s AI research (Hearsay-II): independent processes coordinate through a shared mutable surface rather than direct message passing.
 
-**Execution substance** has an explicit boundary. `coga launch` always starts
-the configured agent in an attended REPL. Deterministic core work runs through
-the fixed `coga run` recipe registry; recurring templates select that path with
-`recipe:`. There is no ticket mode or autonomy flag. Unattended drain comes
-from registered recipes, blockers, megalaunch, and the liveness watchdog around
-supervised agent sessions.
+**Execution substance** has an explicit boundary, and it is *deduced, never
+declared*. A ticket that carries a `ticket.py` beside its `ticket.md` has a
+deterministic half: `coga launch` runs that file headlessly, with no prompt and
+no model. A ticket without one composes a prompt and starts the configured
+agent in an attended REPL; a ticket with both runs the script first and then
+the agent. Fixed deterministic core behavior also stays reachable by name
+through the `coga run` recipe registry. There is still no ticket mode or
+autonomy flag — that is the point. Unattended drain comes from script tickets,
+blockers, megalaunch, and the liveness watchdog around supervised agent
+sessions.
 
 **The base prompt** is a system prompt injected into every agent session. It teaches the agent how to operate within Coga — when to advance workflow steps, when to block, how to use the blackboard, how to handle frontmatter. The base prompt lives as version-controlled markdown. Agents don't learn Coga through their own memory or config; they learn it fresh every session from a file we own.
 
@@ -152,7 +156,7 @@ Not every task should be automated. The three-question framework:
 **Can we evaluate the result without raising the bar?** If we would review a contractor's output for this task with a certain rigor, we review the agent's with the same rigor. Not more, not less. If the evaluation requires expertise we don't have — if we can't tell whether the output is right — the task either needs redesign or shouldn't be automated.
 
 If all three answer yes, the task goes into Coga with an agent-owned workflow
-or, for fixed deterministic core behavior, a registered recipe. If one
+or, when the work is deterministic, a `ticket.py` beside the ticket. If one
 answers no, we either redesign it (split into
 sub-tasks that each pass) or keep doing it ourselves. The worst outcome is
 confident automation of a task where we can't evaluate the result — that's how
@@ -204,7 +208,7 @@ These aren't aspirational practices. They're the methodology. Coga without them 
 
 Concrete substitutions, because abstractions don't convince anyone:
 
-Instead of Notion or Linear for task tracking, a folder of markdown files in the repo. Instead of Zapier for recurring automation, fixed recipes and task skills triggered by an operator-owned scheduler. Instead of an ops coordinator, deterministic tasks and megalaunch sweeps that handle reconciliation, deliverability checks, reply triage, patent drafting. Instead of Slack-as-memory, a blackboard per task that survives sessions and is readable by whoever picks up the work. Instead of an internal wiki, contexts attached to tasks so knowledge is used where it's needed rather than filed where it'll be forgotten.
+Instead of Notion or Linear for task tracking, a folder of markdown files in the repo. Instead of Zapier for recurring automation, deterministic script tickets and task skills triggered by an operator-owned scheduler. Instead of an ops coordinator, deterministic tasks and megalaunch sweeps that handle reconciliation, deliverability checks, reply triage, patent drafting. Instead of Slack-as-memory, a blackboard per task that survives sessions and is readable by whoever picks up the work. Instead of an internal wiki, contexts attached to tasks so knowledge is used where it's needed rather than filed where it'll be forgotten.
 
 Each substitution has a tradeoff. Notion has a better UI. Linear has stronger collaboration features. Zapier has integrations we'd have to build ourselves. A real ops coordinator has judgment an agent can't replicate. We accept every one of those tradeoffs because the substrate matters more than any individual feature — one coherent system beats seven disconnected ones when the coherence is what lets knowledge compound.
 

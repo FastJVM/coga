@@ -8,9 +8,10 @@ description: Where things live in the coga source tree, and how to run tests and
 The repo has two halves:
 
 - **`src/coga/`** — the Python package. The CLI implementation.
-- **`coga/`** — the user-facing OS layout (config, tasks,
-  skills, workflows, contexts, prompts). What coga *operates on*,
-  not coga itself.
+- **`coga/`** — the core user-facing OS layout (config, tasks,
+  skills, workflows, prompts, and contexts by default). `[layout] contexts`
+  may place the contexts directory elsewhere in the checkout. This is what
+  coga *operates on*, not coga itself.
 
 Always be clear which half you're editing. They have different
 review bars.
@@ -25,7 +26,10 @@ review bars.
   name-to-function registry behind `coga run`; recipes are ordinary
   importable functions in focused core modules, not discovered skill files.
   `task_env.py` builds the shared `COGA_TASK_*` contract for agents and
-  deterministic subprocesses. `launch_script.py` classifies and runs the
+  deterministic subprocesses. `recurring_autofix.py` owns the sweep's run
+  record and the post-run analysis call — the one text-only, PTY-less agent
+  spawn in the tree, registered as the `autofix-analyze` recipe rather than
+  added as a second launch seam. `launch_script.py` classifies and runs the
   reserved `ticket.py` sibling without importing edge code.
   `commands/launch.py` runs that deterministic phase before deciding whether
   to compose and spawn an agent; trailing launch args remain an ordered agent
@@ -104,14 +108,15 @@ coga/
   coga.toml             ← shared config (committed)
   coga.local.toml       ← machine-local (NEVER committed; secrets here)
   context.md             ← repo-context layer of the composed prompt
-  recurring/<name>/      ← recurring task template directories
-                           (single-file ticket.md; history in the
-                           repo-global coga/log.md)
+  recurring/<name>/      ← recurring task template directories (ticket.md,
+                           plus the exact sibling ticket.py when the job is
+                           deterministic — copied into every period task;
+                           history in the repo-global coga/log.md)
   tasks/<slug>/          ← directory-form ticket.md plus optional attachments;
                            exact sibling ticket.py is its deterministic phase
   tasks/<dir>/.../<slug>/ ← tickets in sub-dirs at any depth (ref'd by path)
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
-  contexts/<ns>/<name>/  ← project-local domain knowledge / overrides
+  contexts/<ns>/<name>/  ← default project-local domain knowledge / overrides
   workflows/<ns>/<name>.md ← step definitions (local-first over bootstrap/workflows/)
   .agent-skills/         ← generated local-plus-bundled skill view for agents
 ```
@@ -124,8 +129,10 @@ instructions. Coga's own bundled ticket scripts are exercised from `tests/`
 against `example/`; a user repo may keep its script tests beside the ticket,
 but Coga neither discovers nor runs them.
 
-Coga resolves skills and contexts from project-local roots first, then from
-the package-backed bootstrap roots inside the installed `coga` package. It
+Coga resolves skills and contexts from project-local roots first — skills from
+`coga/skills/`, contexts from the configured contexts directory
+(`coga/contexts/` by default) — then from the package-backed bootstrap roots
+inside the installed `coga` package. It
 does the same for bundled reusable workflows and stateless bootstrap launch
 tickets. `coga/bootstrap/` is not materialized into working repos. Claude Code
 and Codex are pointed at the generated `coga/.agent-skills/` view, which
@@ -335,7 +342,7 @@ wrong checkout silently produces wrong results in both directions:
   the live value drifts — the `recurring/autoclose-merged` serviced-period
   date did exactly this, independently re-diagnosed as a "pre-existing failure"
   across at least four dev tasks (a recurring verification tax). Strip
-  runtime-mutated fields (recipe cursors, timestamped log lines — see
+  runtime-mutated fields (run cursors, timestamped log lines — see
   `_strip_runtime_state`) or freeze the period before comparing; assert
   structure, not a hardcoded date.
 

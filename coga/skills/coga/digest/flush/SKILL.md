@@ -5,8 +5,10 @@ description: Post the daily Slack digest. Combines Done/Canceled records from th
 
 # Daily digest flush
 
-This skill documents the `digest` recipe used by the `recurring/digest/`
-ticket. Run it with `coga run digest`; it:
+This skill documents the digest flush behind the `recurring/digest/`
+ticket, whose `ticket.py` calls `coga.commands.digest.run_digest_recipe`
+directly — no agent, no composed prompt. Run it by hand with
+`coga run digest`; it:
 
 1. reads the unconsumed JSONL Done/Canceled/error records from the dedicated
    `recurring/digest/spool.md` file's `## Spool (pending)` section (de-duping

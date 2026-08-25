@@ -60,11 +60,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Autoclose Sweep: retire follow-ups
 
-Generated: 2026-08-21T18:53:36+00:00
+Generated: 2026-08-24T18:42:47+00:00
 Task: `recurring/autoclose-merged`
 
-3 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
+1 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
 
-- `dream-phases-2-3-cannot-complete-scan-subagents-re` "Dream phases 2-3 cannot complete: scan subagents return no findings": worktree `/home/n/Code/claude/coga-dream-scan-shards`, branch `dream-scan-shards` — `coga retire dream-phases-2-3-cannot-complete-scan-subagents-re`
-- `put-build-back` "put-build-back": worktree `/home/n/Code/codex/coga-put-build-back`, branch `restore-coga-build` — `coga retire put-build-back`
-- `validate-drift-classifier-misses-17-emitted-kinds` "Validate-drift classifier misses 16 emitted kinds": worktree `/home/n/Code/codex/coga-validate-drift-kinds`, branch `codex/validate-drift-kinds` — `coga retire validate-drift-classifier-misses-17-emitted-kinds`
+- `recurring-recipe-question` "Deduce whether a ticket is a script or an agent prompt": worktree `/tmp/coga-deduce-ticket-script`, branch `deduce-ticket-script` — `coga retire recurring-recipe-question`

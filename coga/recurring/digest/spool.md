@@ -28,7 +28,7 @@ context. The git high-water mark lives separately in the digest ticket's
 
 
 
-consumed_through: 24f3b7c532a5
-{"id":"24f3b7c532a5","ts":"2026-08-21T11:53","project":"coga","kind":"done","detail":"→ done (recipe: autoclose)","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
-{"id":"9531275abd24","ts":"2026-08-21T11:53","project":"coga","kind":"done","detail":"→ done (recipe: digest)","ticket":"recurring/digest","owner":"nicktoper"}
-{"id":"a6ec0c97bcea","ts":"2026-08-21T11:54","project":"coga","kind":"done","detail":"→ done (recipe: blocker-reminders)","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+
+consumed_through: f2582ef9174f
+{"id":"f2582ef9174f","ts":"2026-08-24T11:44","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — W35 sweep: delegated coga resolve-conflicts checked 3 open PRs (#704/#705/#706) — all up-to-date, 0 conflicts, no pushes, no attention needed.","ticket":"recurring/resolve-conflicts","owner":"nicktoper"}
+{"id":"c1bdd910a6c4","ts":"2026-08-24T11:44","project":"coga","kind":"done","detail":"→ done (recipe: digest)","ticket":"recurring/digest","owner":"nicktoper"}

@@ -99,10 +99,37 @@ body. The difference is what kind of knowledge they carry:
   skill that applies to the whole ticket regardless of step can instead go in
   the ticket's `skills:` frontmatter list.
 
-Both resolve **local-first**: a file under `coga/contexts/` or `coga/skills/`
-overrides a bundled one of the same name that ships with the package. To change
-a shipped context or skill, copy it to the matching path and edit — no plugin
-API, no fork.
+Both resolve **local-first**: a file under the repo's contexts directory or
+`coga/skills/` overrides a bundled one of the same name that ships with the
+package. To change a shipped context or skill, copy it to the matching path and
+edit — no plugin API, no fork.
+
+Contexts live at `coga/contexts/` by default, but because they are the one
+primitive humans hand-edit as prose, a repo can move them somewhere its writers
+actually work:
+
+```toml
+# coga.toml
+[layout]
+contexts = "docs/contexts"
+```
+
+The path is relative to your Git checkout root — the same value means the same
+place whether `coga.toml` sits in a nested `coga/` or at the repo root — and
+must name a child directory inside the checkout, since contexts are git-backed
+state like everything else. The directory needs at least one tracked or
+unignored file (`.gitkeep` is enough when it is intentionally empty), so a fresh
+clone can reproduce it. Set it and the whole system follows: composition,
+validation, ref resolution, and the git sync that commits both the new files
+and tracked removals from the former contexts root. A scaffolded config with
+the key set also makes `coga init` create and commit its initial local contexts
+at that checkout-root-relative destination; `coga uninstall` lists and removes
+that directory as part of the Coga footprint. A missing, empty, ignored,
+symlinked, checkout-wide, coga-root-containing, Git-administrative,
+nested-checkout, or pathspec-like value fails at config load; so does a real
+context `SKILL.md` hidden by an ignore rule. These checks prevent Coga from
+quietly dropping composed contexts or widening the state sweep. Skills have no
+such knob; they are process knowledge for agents, not prose for humans.
 
 ## Workflows and steps
 
@@ -150,15 +177,24 @@ working on a task. If two people launch the same ticket, the divergence is
 visible and recoverable in Git — which Coga prefers to the stale-lock, `--force`,
 orphan-cleanup tax of a real mutex.
 
-## Agents and recipes
+## Agents and scripts
 
-`coga launch` always composes a prompt and spawns the assignee's agent CLI in a
-live REPL. Skills attached to workflow steps are prompt contracts; workflow
-steps do not become executable plugins.
+`coga launch` decides between the two from the ticket directory alone. A
+reserved `ticket.py` sibling is the ticket's deterministic half and runs as a
+plain subprocess — no prompt, no agent, no TTY. Without one, launch composes a
+prompt and spawns the assignee's agent CLI in a live REPL. A ticket can have
+both: the script runs first and the agent continues the same step. Nothing
+declares which — no mode field, no `recipe:`, no autonomy flag; the file's
+presence is the whole signal, and any other attachment stays an ordinary
+attachment.
 
-Deterministic Coga commands live behind the fixed `coga run` recipe registry.
-Recurring templates select one with `recipe:` when they need a headless path;
-templates without a recipe launch an agent and require a TTY.
+Skills attached to workflow steps remain prompt contracts; workflow steps do
+not become executable plugins, and Coga never imports ticket code — it
+subprocesses a path. Fixed deterministic core commands stay reachable by name
+through the `coga run` recipe registry, which a `ticket.py` may import from.
+Recurring templates keep their deterministic half beside `ticket.md`; the
+creator copies it into each period task, and a template without one launches an
+agent and requires a TTY.
 
 The two agent CLIs — **Claude Code** and **Codex** — are interchangeable.
 They're configured in `coga.toml` under `[agents.*]`, and the `other-agent`

@@ -94,6 +94,7 @@ def run_script_phase(
     assist_agent: str | None = None,
     assist_pr_url: str | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
+    failure_important: bool = False,
 ) -> ScriptPhaseResult:
     """Run one target-owned deterministic phase without composing a prompt.
 
@@ -424,6 +425,7 @@ def run_script_phase(
                 task_path=ref.path,
                 owner=observed.owner or cfg.current_user,
                 watchers=observed.watchers,
+                important=failure_important,
                 # The deterministic failure and its exit code are already
                 # durable; a notification outage must not replace that result.
                 fatal=False,
@@ -472,6 +474,7 @@ def run_script_chain(
     assist_agent: str | None = None,
     assist_pr_url: str | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
+    failure_important: bool = False,
 ) -> ScriptChainResult:
     """Run ``ticket.py`` once per consecutive step until agent work remains."""
 
@@ -493,6 +496,7 @@ def run_script_chain(
             assist_agent=phase_assist_agent,
             assist_pr_url=assist_pr_url,
             feature_publication_guard=feature_publication_guard,
+            failure_important=failure_important,
         )
         cfg = phase.cfg or cfg
         ref = phase.ref or ref

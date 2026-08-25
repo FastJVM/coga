@@ -285,6 +285,57 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
     assert task_log.count("task done") == 1
 
 
+def test_script_block_returns_internal_script_stop_kind(
+    script_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recurring can distinguish a script-owned block from an agent block."""
+    ref = _create_script_task(
+        script_repo,
+        """
+        import os
+        import subprocess
+        import sys
+
+        raise SystemExit(subprocess.run([
+            sys.executable,
+            "-m",
+            "coga.cli",
+            "block",
+            "--task",
+            os.environ["COGA_TASK_SLUG"],
+            "--reason",
+            "A deterministic prerequisite is unavailable.",
+        ]).returncode)
+        """,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_interactive_stdio_has_tty",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "spawn_agent_session",
+        _fail("agent spawned after script block"),
+    )
+
+    kind = launch_module.launch(
+        ref.id_slug,
+        args=[],
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=True,
+        queue_guidance=True,
+        script_failure_important=True,
+    )
+
+    assert kind == "script"
+    assert Ticket.read(ref.ticket_path).status == "blocked"
+
+
 def test_nonzero_script_exit_halts_and_notifies_once(
     script_repo: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -317,6 +368,7 @@ def test_nonzero_script_exit_halts_and_notifies_once(
     assert len(notifications) == 1
     args, kwargs = notifications[0]
     assert "💥 script failed" in str(args[1])
+    assert kwargs["important"] is False
     assert kwargs["fatal"] is False
 
 

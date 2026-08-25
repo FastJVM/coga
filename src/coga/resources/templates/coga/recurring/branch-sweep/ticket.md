@@ -2,10 +2,9 @@
 schedule: "0 7 * * 1"
 schedule_comment: "Every Monday at 7am - prune stale git branches before the day's other automation starts"
 title: "Branch sweep"
-recipe: branch-sweep
-# The recurring runner executes this registered recipe directly with no agent.
-# The one-step workflow keeps the period task's lifecycle and skill contract
-# legible.
+# The reserved `ticket.py` sibling is this task's deterministic half: `coga
+# launch` runs it directly, with no agent and no composed prompt. The one-step
+# workflow keeps the period task's lifecycle and skill contract legible.
 workflow: branch-sweep/sweep
 ---
 
@@ -21,7 +20,8 @@ a session dies mid-flight. Retire covers the common path daily (in effect,
 every time a ticket finishes); this sweep runs weekly to catch what leaks
 past it.
 
-Once a week this recurring task's recipe runs the branch sweep, which:
+Once a week this recurring task's `ticket.py` runs the branch sweep,
+which:
 
 1. prunes registrations for worktrees whose directories are gone, then
    enumerates the branches held by the remaining live worktrees,
@@ -42,7 +42,7 @@ The sweep is defined in `coga.branchsweep.sweep_branches`. Its first run
 also prunes the merged part of the branch backlog that accumulated before
 retire-time deletion shipped — abandoned no-PR branches are skipped and
 reported by design, so expect a residual manual pass rather than a fully
-clean slate. A failure to prune or list worktree state fails the recipe before
+clean slate. A failure to prune or list worktree state fails the sweep before
 any branch deletion.
 
 The sweep runs on this schedule via `coga recurring`, on demand via
@@ -52,7 +52,7 @@ The sweep runs on this schedule via `coga recurring`, on demand via
 <!-- coga:blackboard -->
 
 This blackboard persists across every run of this recurring task. The
-`branch-sweep` recipe keeps no durable state here — every run's
+`branch-sweep` sweep keeps no durable state here — every run's
 output is the branches it deletes or reports as skipped. `coga recurring`
 keeps the serviced-period record in the repo-global `coga/log.md`
 (weekly period key `YYYY-Www`) once the first run has fired.

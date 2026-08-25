@@ -53,8 +53,8 @@ more useful number—human-minutes per shipped task—after it has been measured
 | Before | Coga |
 |---|---|
 | Notion or Linear as the work ledger | Markdown tickets in your git history |
-| Zapier for recurring glue | Scheduled, inspectable recipes and skills |
-| An ops coordinator moving work between people | Registered recipes and `megalaunch` |
+| Zapier for recurring glue | Scheduled, inspectable script tickets and skills |
+| An ops coordinator moving work between people | Deterministic script tickets and `megalaunch` |
 | A wiki agents may or may not find | Contexts composed into the task prompt |
 | Slack as fragile company memory | Per-task blackboards plus an append-only log |
 
@@ -64,7 +64,8 @@ the work one legible control plane.
 ## The correction loop
 
 The important demo is not an agent succeeding. It is an agent being wrong in a
-way you can fix permanently:
+way you can fix permanently. This example uses the default contexts directory;
+substitute the repo's `[layout] contexts` directory when configured:
 
 ```sh
 $ $EDITOR coga/contexts/payments/refunds/SKILL.md  # correct the missing rule

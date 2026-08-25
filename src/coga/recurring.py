@@ -17,6 +17,7 @@ from croniter import CroniterError, croniter
 from coga.create import create_task
 from coga.config import Config
 from coga.delete_task import DeleteTaskError, run_delete_task
+from coga.launch_script import SCRIPT_ENTRY_POINT
 from coga.logfile import (
     append_log,
     iter_log_messages,
@@ -76,17 +77,6 @@ class Template:
                 raise RecurringError(
                     "`state_keys` must be a list of non-empty strings"
                 )
-        if "recipe" in fm:
-            recipe = fm["recipe"]
-            if not isinstance(recipe, str) or not recipe.strip():
-                raise RecurringError("`recipe` must be a non-empty string")
-            from coga.runner import RECIPES
-
-            if recipe not in RECIPES:
-                known = ", ".join(sorted(RECIPES))
-                raise RecurringError(
-                    f"unknown recipe {recipe!r}; known recipes: {known}"
-                )
         return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
 
     @property
@@ -94,9 +84,17 @@ class Template:
         return self.frontmatter["schedule"]
 
     @property
-    def recipe(self) -> str | None:
-        value = self.frontmatter.get("recipe")
-        return value if isinstance(value, str) else None
+    def script_entry_point(self) -> Path | None:
+        """The template's reserved `ticket.py`, copied into every period task.
+
+        The same fixed-name classifier `coga launch` applies to a task
+        directory, asked one step earlier: a template that carries the entry
+        point produces period tasks that run deterministically, with no agent
+        and no TTY. There is no declaration field — the file's presence is the
+        whole signal.
+        """
+        candidate = self.path / SCRIPT_ENTRY_POINT
+        return candidate if candidate.is_file() else None
 
     @property
     def ticket_path(self) -> Path:
@@ -162,7 +160,6 @@ class DueTask:
     last_fire: datetime
     created: bool
     status: str
-    recipe: str | None = None
     period_key: str = ""
     replaced_done: bool = False
 
@@ -357,7 +354,6 @@ def scan_due(
                     template=template.name,
                     ref=None,
                     last_fire=last_fire,
-                    recipe=template.recipe,
                     period_key=period_key,
                     created=False,
                     status="done",
@@ -390,7 +386,6 @@ def scan_due(
                 template=template.name,
                 ref=outcome.ref,
                 last_fire=last_fire,
-                recipe=template.recipe,
                 period_key=period_key,
                 created=outcome.created,
                 status=ticket.status,
@@ -478,12 +473,12 @@ def create_template(
             # A completed task is terminal. If Dream did not reap it, delete
             # that prior-period artifact through the canonical deletion path,
             # then create a genuinely fresh task from the current template.
-            if not allow_agent and not template.recipe:
+            if not allow_agent and template.script_entry_point is None:
                 raise RecurringError(
                     "an agent run requires a TTY (stdin and stdout must both be "
                     "terminals). Run `coga recurring --interactive` from a real "
-                    "shell, or give the template a registered recipe for "
-                    "unattended runs."
+                    f"shell, or give the template a `{SCRIPT_ENTRY_POINT}` "
+                    "deterministic half for unattended runs."
                 )
             try:
                 run_delete_task(existing)
@@ -517,11 +512,11 @@ def create_template(
             prior_serviced_period=prior_serviced_period,
         )
 
-    if not allow_agent and not template.recipe:
+    if not allow_agent and template.script_entry_point is None:
         raise RecurringError(
             "an agent run requires a TTY (stdin and stdout must both be "
             "terminals). Run `coga recurring --interactive` from a real shell, "
-            "or give the template a registered `recipe:`."
+            f"or give the template a `{SCRIPT_ENTRY_POINT}` deterministic half."
         )
     outcome = _create_at_slug(
         cfg,
@@ -974,6 +969,21 @@ def _create_at_slug(
     if out_ref is None:
         raise RecurringError(f"created task disappeared: {ref['slug']}")
 
+    # A template's deterministic half travels with the period task it creates.
+    # Only the reserved name: every other sibling (the digest's `spool.md`, a
+    # note, a fixture) belongs to the template and stays there.
+    entry = template.script_entry_point
+    if entry is not None:
+        # `force_directory=True` above guarantees the companion directory; say
+        # so loudly rather than dropping the deterministic half silently, which
+        # would turn a script template into an agent launch.
+        if out_ref.task_dir is None:
+            raise RecurringError(
+                f"created task {out_ref.id_slug} has no directory to hold "
+                f"`{SCRIPT_ENTRY_POINT}`"
+            )
+        shutil.copyfile(entry, out_ref.task_dir / SCRIPT_ENTRY_POINT)
+
     # If the template declares the blackboard keys it owns, snapshot their
     # current values into the period task. `coga mark done` later diffs this
     # baseline against the live parent blackboard to catch a run that finished
@@ -1104,7 +1114,7 @@ def _period_key(cron: str, fire_time: datetime) -> str:
 # "Has this period already run?" is answered from the repo-global append-only
 # log, not from a mark in the template blackboard. The blackboard is shared
 # free text, so any co-writer that rewrites a region of it can destroy a mark
-# living there — the digest recipe did exactly that, and every `coga recurring`
+# living there — the digest run did exactly that, and every `coga recurring`
 # then re-fired an already-serviced period and reposted the digest. An appended
 # line cannot be clobbered that way, it outlives the period task (Dream reaps
 # those), and it is union-merged across checkouts.

@@ -20,7 +20,8 @@ Create `coga/` from the package templates. `PATH` is the target directory
   tickets and agents refer to you by.
 
 ### `coga uninstall`
-Remove this repo's Coga footprint (and optionally the global package).
+Remove this repo's Coga footprint, including a configured contexts directory
+outside `coga/` (and optionally the global package).
 
 - `-y`, `--yes` — skip the confirmation prompt (for scripts).
 - `--purge` — also uninstall the global `coga` package from the machine (affects
@@ -74,8 +75,9 @@ untouched. Trailing `ARGS` arrive as ordered values in an appended
 
 Run one deterministic Coga recipe from the fixed core registry. The known
 names are `autoclose`, `digest`, `blocker-reminders`, `branch-sweep`,
-`validate-drift`, `cleanup-orphan-markers`, `recurring-scan`, `skill-update`,
-`open-pr`, and `delete-task`; unknown names exit 2 and list that set.
+`validate-drift`, `cleanup-orphan-markers`, `recurring-scan`,
+`autofix-analyze`, `skill-update`, `open-pr`, and `delete-task`; unknown names
+exit 2 and list that set.
 
 Trailing arguments are forwarded as an ordinary `list[str]`, preserving token
 boundaries and option spelling. Recipe output passes through and the recipe's
@@ -130,12 +132,14 @@ separately from successfully `completed` work.
 ### `coga recurring [COMMAND]`
 Scan recurring task templates under `coga/recurring/` and launch any that are
 due. With no subcommand it invokes the registered `recurring-scan` recipe.
-Templates may select a fixed deterministic implementation with `recipe:`;
-those period tasks run without an agent or TTY, receive their ticket's scoped
-secrets and `COGA_TASK_*` metadata, and follow the normal
-`active → in_progress → done` success lifecycle. A non-zero recipe exit leaves
-the task unfinished and reports the failure. Templates without a recipe launch
-an agent and require a TTY.
+A template carrying the reserved `ticket.py` sibling has a deterministic half;
+the creator copies that file into each period task, and `coga launch` runs it
+without an agent or TTY, with the ticket's scoped secrets and `COGA_TASK_*`
+metadata. The script completes its own step (`coga bump`) — the launcher never
+advances the workflow on its behalf — and a non-zero exit leaves the task
+unfinished and reports the failure. Templates without `ticket.py` launch an
+agent and require a TTY. Nothing declares which: there is no `recipe:` or mode
+field, only the file.
 
 If the committed `coga.toml` sets a top-level `owner = "<name>"`, every
 recurring *launch* — the bare sweep, `--force`, `coga run recurring-scan`, and
@@ -165,6 +169,34 @@ would let an uncommitted machine-local setting override a committed policy.
   sweep exits non-zero after finishing. Delete the canceled task before
   starting a fresh run.
 - `--agent <type>` — agent to use for agent-backed recurring tasks in this sweep.
+  Also selects the CLI used for the autofix analysis below.
+
+Every sweep ends with the **autofix loop**. The scan records what each period
+task did — how the launch ended, whether a liveness backstop fired, the
+resulting ticket status, and the period task's blackboard — then makes one
+text-only agent call to read that record. A real problem becomes an `active`
+ticket under `coga/tasks/autofix/` on the `code/with-self-review` workflow with
+the record committed beside it as `run-log.md`, so the next `coga megalaunch`
+can pick up the fix; an already-ticketed problem is reported as a duplicate
+instead. The sweep's own console output and exit code are unchanged — an
+analyst that is missing, times out, or exits non-zero is loud on stderr and
+nothing more.
+
+- `COGA_AUTOFIX=0` disables the loop.
+- `COGA_AUTOFIX_TIMEOUT` (seconds, default 300) bounds the call; `<= 0` disarms
+  the timeout.
+- Every run record is also written to `.coga/recurring-runs/<stamp>.md`
+  (gitignored), whether or not it is ticketed.
+- `coga run autofix-analyze [RUN_LOG] [--dry-run] [--agent TYPE]` re-runs the
+  analysis over a recorded run by hand; with no path it reads the most recent
+  one.
+- The one-shot argv is built in for `claude` and `codex`. Any other CLI needs
+  `[agents.<name>].analyze` in `coga.toml` (e.g. `analyze = "-p {prompt}"`);
+  without it the loop skips loudly rather than opening a REPL nobody can drive.
+- `coga recurring launch NAME` closes the same loop, so the `coga dream`,
+  `coga autoclose`, and `coga skill-update` aliases analyze their run too. A
+  launch a gate refuses (closed or paused template) is not a run and is not
+  analyzed.
 
 Subcommands:
 
@@ -173,8 +205,9 @@ Subcommands:
   dream`, `coga skill-update`, and `coga autoclose` aliases wrap.
   - `--interactive` — launch as a human-stepped run, leaving REPL liveness
     backstops unarmed; ticket files aren't modified.
-  - `--agent <type>` — agent to use for an agent-backed launch (recipe tasks
-    keep their declared path; the ticket assignee isn't rewritten).
+  - `--agent <type>` — agent to use for an agent-backed launch (a period task
+    carrying `ticket.py` keeps its deterministic path; the ticket assignee
+    isn't rewritten).
 - **`coga recurring promote TASK --schedule "<cron>"`** — move an existing task
   into `coga/recurring/<name>/` as a recurring template: task-only frontmatter
   is dropped, the blackboard is reset for cross-run state, and the validated

@@ -4138,7 +4138,13 @@ def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
 
     calls: list[object] = []
     monkeypatch.setattr(cli.git, "sync_coga_state", lambda cfg, **k: calls.append(cfg))
-    cfg = object()
+    cfg = _cfg(Path("/repo/coga"))
+    live_cfg = object()
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda repo_root, require_user=False: live_cfg,
+    )
 
     monkeypatch.setattr(cli.sys, "argv", ["coga", "status"])
     cli._sweep_coga_state(cfg)
@@ -4162,17 +4168,17 @@ def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
 
     monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "demo"])
     cli._sweep_coga_state(cfg)
-    assert calls == [cfg]  # mutating command swept
+    assert calls == [live_cfg]  # mutating command swept with current config
 
     calls.clear()
     monkeypatch.setattr(cli.sys, "argv", ["coga", "skill", "update"])
     cli._sweep_coga_state(cfg)
-    assert calls == [cfg]  # mutating nested command swept
+    assert calls == [live_cfg]  # mutating nested command swept
 
     calls.clear()
     monkeypatch.setattr(cli.sys, "argv", ["coga", "recurring", "--force"])
     cli._sweep_coga_state(cfg)
-    assert calls == [cfg]  # bare recurring scan with options mutates
+    assert calls == [live_cfg]  # bare recurring scan with options mutates
 
     calls.clear()
     monkeypatch.setattr(
@@ -4184,7 +4190,7 @@ def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
     calls.clear()
     monkeypatch.setattr(cli.sys, "argv", ["coga", "mark", "done", "demo"])
     cli._sweep_coga_state(cfg)
-    assert calls == [cfg]  # mutating command-group subcommand swept
+    assert calls == [live_cfg]  # mutating command-group subcommand swept
 
     calls.clear()
     cli._sweep_coga_state(None)
@@ -4193,6 +4199,26 @@ def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
     monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "--help"])
     cli._sweep_coga_state(cfg)
     assert calls == []  # help is not a state change
+
+
+def test_sweep_skips_when_live_config_is_invalid(monkeypatch, capsys):
+    from coga import cli
+
+    calls: list[object] = []
+
+    def invalid_config(*args, **kwargs):
+        raise ConfigError("broken layout")
+
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "demo"])
+    monkeypatch.setattr(cli, "load_config", invalid_config)
+    monkeypatch.setattr(cli.git, "sync_coga_state", lambda cfg: calls.append(cfg))
+
+    cli._sweep_coga_state(_cfg(Path("/repo/coga")))
+
+    assert calls == []
+    assert "current config is invalid (state sweep skipped): broken layout" in (
+        capsys.readouterr().err
+    )
 
 
 # --- direct/body stranding guard (`stranded_product_paths`, terminal finish) ----
@@ -4232,6 +4258,32 @@ def test_stranded_product_paths_flags_committed_code_off_control(git_repo):
     _commit_product_file(git_repo, "src/coga/stray.py")
 
     assert git.stranded_product_paths(cfg, git_repo.coga_os) == ["src/coga/stray.py"]
+
+
+def test_stranded_product_paths_excludes_both_ends_of_context_relocation(git_repo):
+    old_context = git_repo.root / "docs" / "old-contexts" / "team" / "style"
+    old_context.mkdir(parents=True)
+    (old_context / "SKILL.md").write_text("# Style\n")
+    with (git_repo.coga_os / "coga.toml").open("a") as f:
+        f.write('[layout]\ncontexts = "docs/old-contexts"\n')
+    git_repo.git("add", "coga/coga.toml", "docs/old-contexts")
+    git_repo.git("commit", "-m", "seed old contexts root")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/relocate-contexts")
+    git_repo.git("mv", "docs/old-contexts", "docs/new-contexts")
+    config_path = git_repo.coga_os / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace("docs/old-contexts", "docs/new-contexts")
+    )
+    product = git_repo.root / "src" / "product.py"
+    product.parent.mkdir(exist_ok=True)
+    product.write_text("print('product')\n")
+    git_repo.git("add", "coga/coga.toml", "docs", "src/product.py")
+    git_repo.git("commit", "-m", "relocate contexts and change product")
+
+    cfg = load_config(git_repo.coga_os)
+    assert git.stranded_product_paths(cfg, git_repo.coga_os) == ["src/product.py"]
 
 
 def test_stranded_product_paths_flags_detached_head_checkout(git_repo):
@@ -5439,3 +5491,182 @@ def test_cli_main_skips_end_of_command_sweep_on_retryable_state_exit(monkeypatch
     with pytest.raises(SystemExit):
         cli.main()
     assert calls == [cfg]
+
+
+# --- relocated contexts: the state sweep must follow `[layout] contexts` -------
+
+
+def test_cli_sweep_reloads_contexts_root_changed_during_command(
+    git_repo, real_git, monkeypatch
+):
+    """The dispatch-time config must not strand a mid-command relocation."""
+    from coga import cli
+
+    original = git_repo.coga_os / "contexts" / "team" / "style"
+    original.mkdir(parents=True)
+    (original / "SKILL.md").write_text("# House style\n")
+    git_repo.git("add", "coga/contexts")
+    git_repo.git("commit", "-m", "seed default contexts")
+    git_repo.git("push", "origin", "main")
+    dispatch_cfg = load_config(git_repo.coga_os)
+
+    relocated = git_repo.root / "docs" / "contexts"
+    relocated.parent.mkdir(parents=True)
+    original.parent.parent.rename(relocated)
+    with (git_repo.coga_os / "coga.toml").open("a") as f:
+        f.write('[layout]\ncontexts = "docs/contexts"\n')
+
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "demo"])
+    cli._sweep_coga_state(dispatch_cfg)
+
+    assert git_repo.origin_tracks("docs/contexts/team/style/SKILL.md")
+    assert not git_repo.origin_tracks("coga/contexts/team/style/SKILL.md")
+    assert git_repo.git("status", "--porcelain") == ""
+
+
+def test_sync_coga_state_sweeps_relocated_contexts_dir(git_repo):
+    """A contexts directory moved out of `coga/` is still Coga state.
+
+    The nested-layout pathspec collapses to the single `coga` directory, so a
+    relocated `docs/contexts/` falls outside it unless the pathspecs are
+    derived from config. Without that, agent edits to contexts stop being
+    committed and synced — silently.
+    """
+    relocated = git_repo.root / "docs" / "contexts" / "team" / "style"
+    relocated.mkdir(parents=True)
+    (relocated / "SKILL.md").write_text("# House style\n")
+    with (git_repo.coga_os / "coga.toml").open("a") as f:
+        f.write('[layout]\ncontexts = "docs/contexts"\n')
+    cfg = load_config(git_repo.coga_os)
+
+    # Product code outside both trees stays out of the sweep, as always.
+    outside = git_repo.root / "outside.txt"
+    outside.write_text("original\n")
+    git_repo.git("add", "outside.txt")
+    git_repo.git("commit", "-m", "seed outside")
+    git_repo.git("push", "origin", "main")
+    outside.write_text("locally modified\n")
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    assert git_repo.origin_tracks("docs/contexts/team/style/SKILL.md")
+    assert "docs/" not in git_repo.git("status", "--porcelain")
+    assert "outside.txt" in git_repo.git("status", "--porcelain")
+
+
+def test_sync_coga_state_root_layout_follows_relocated_contexts(tmp_path, real_git):
+    """A root-layout move deletes old state without sweeping new files there.
+
+    The configured destination replaces the broad `contexts` spec, while the
+    pre-change config contributes only tracked deletions. That commits the
+    actual move but leaves unrelated content created at the vacated path alone.
+    """
+    root = tmp_path / "repo"
+    origin = tmp_path / "origin.git"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=root, check=True)
+    subprocess.run(["git", "init", "--bare", "-q", str(origin)], check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=root, check=True)
+
+    (root / "coga.toml").write_text("version = 1\n")
+    (root / "tasks").mkdir()
+    original = root / "contexts" / "team" / "style"
+    original.mkdir(parents=True)
+    (original / "SKILL.md").write_text("# House style\n")
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=root, check=True)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=root, check=True)
+    subprocess.run(["git", "push", "-q", "origin", "main"], cwd=root, check=True)
+
+    (root / "docs").mkdir()
+    subprocess.run(
+        ["git", "mv", "contexts", "docs/contexts"], cwd=root, check=True
+    )
+    with (root / "coga.toml").open("a") as f:
+        f.write('[layout]\ncontexts = "docs/contexts"\n')
+    # The vacated default location now holds unrelated user content.
+    stale = root / "contexts"
+    stale.mkdir()
+    (stale / "notes.md").write_text("not coga state\n")
+
+    git.sync_coga_state(
+        _cfg(root, contexts_dir=root / "docs" / "contexts"),
+        message="Sync coga state",
+    )
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=root, check=True, capture_output=True, text=True,
+    ).stdout
+    assert "docs/contexts" not in status
+    # Untracked directories collapse to a single `contexts/` entry in porcelain.
+    assert "?? contexts/" in status
+    tracked = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "main"],
+        cwd=origin, check=True, capture_output=True, text=True,
+    ).stdout.splitlines()
+    assert "docs/contexts/team/style/SKILL.md" in tracked
+    assert "contexts/team/style/SKILL.md" not in tracked
+    assert "contexts/notes.md" not in tracked
+
+
+def test_sync_coga_state_removes_previous_relocated_contexts_root(git_repo):
+    """Changing one external contexts root to another commits both sides."""
+    original = git_repo.root / "docs" / "old-contexts" / "team" / "style"
+    original.mkdir(parents=True)
+    (original / "SKILL.md").write_text("# House style\n")
+    with (git_repo.coga_os / "coga.toml").open("a") as f:
+        f.write('[layout]\ncontexts = "docs/old-contexts"\n')
+    git_repo.git("add", "coga/coga.toml", "docs/old-contexts")
+    git_repo.git("commit", "-m", "seed relocated contexts")
+    later = git_repo.root / "docs" / "old-contexts" / "team" / "later"
+    later.mkdir(parents=True)
+    (later / "SKILL.md").write_text("# Added after the config changed\n")
+    git_repo.git("add", "docs/old-contexts")
+    git_repo.git("commit", "-m", "add another context")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.git("mv", "docs/old-contexts", "docs/new-contexts")
+    config_path = git_repo.coga_os / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace("docs/old-contexts", "docs/new-contexts")
+    )
+
+    cfg = load_config(git_repo.coga_os)
+    git.sync_coga_state(cfg, message="Move contexts again")
+
+    assert git_repo.origin_tracks("docs/new-contexts/team/style/SKILL.md")
+    assert git_repo.origin_tracks("docs/new-contexts/team/later/SKILL.md")
+    assert not git_repo.origin_tracks("docs/old-contexts/team/style/SKILL.md")
+    assert not git_repo.origin_tracks("docs/old-contexts/team/later/SKILL.md")
+    assert git_repo.git("status", "--porcelain") == ""
+
+
+def test_sync_coga_state_removes_old_root_after_new_config_already_landed(git_repo):
+    """A two-commit relocation still sweeps the old tree's later deletion."""
+    original = git_repo.root / "docs" / "old-contexts" / "team" / "style"
+    original.mkdir(parents=True)
+    (original / "SKILL.md").write_text("# House style\n")
+    with (git_repo.coga_os / "coga.toml").open("a") as f:
+        f.write('[layout]\ncontexts = "docs/old-contexts"\n')
+    git_repo.git("add", "coga/coga.toml", "docs/old-contexts")
+    git_repo.git("commit", "-m", "seed relocated contexts")
+
+    new_root = git_repo.root / "docs" / "new-contexts"
+    shutil.copytree(git_repo.root / "docs" / "old-contexts", new_root)
+    config_path = git_repo.coga_os / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace("docs/old-contexts", "docs/new-contexts")
+    )
+    git_repo.git("add", "coga/coga.toml", "docs/new-contexts")
+    git_repo.git("commit", "-m", "point config at copied contexts")
+    git_repo.git("push", "origin", "main")
+
+    shutil.rmtree(git_repo.root / "docs" / "old-contexts")
+    git.sync_coga_state(load_config(git_repo.coga_os), message="Remove old contexts")
+
+    assert git_repo.origin_tracks("docs/new-contexts/team/style/SKILL.md")
+    assert not git_repo.origin_tracks("docs/old-contexts/team/style/SKILL.md")
+    assert git_repo.git("status", "--porcelain") == ""

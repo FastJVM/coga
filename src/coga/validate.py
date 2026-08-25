@@ -17,7 +17,8 @@ Per-task primitives:
 
 Checks (whole-repo):
 - Task dirs have a single ticket.md (with exactly one blackboard fence).
-- A reserved ticket.py entry point compiles as Python.
+- A reserved ticket.py entry point compiles as Python — on a task, and on a
+  recurring template, which copies its own into every period task.
 - ticket.md parses as YAML frontmatter + body.
 - Frontmatter has the canonical key set with the right shapes.
 - contexts / skills / workflow step skills resolve to real files.
@@ -506,14 +507,19 @@ def _check_script_entry_point(ref: TaskRef) -> list[Issue]:
 
     if ref.task_dir is None:
         return []
-    entry = ref.task_dir / SCRIPT_ENTRY_POINT
+    return _check_entry_point_dir(ref.task_dir, ref.id_slug)
+
+
+def _check_entry_point_dir(task_dir: Path, label: str) -> list[Issue]:
+    """Shared compile check for a directory's reserved ``ticket.py``."""
+    entry = task_dir / SCRIPT_ENTRY_POINT
     if not entry.exists():
         return []
     if not entry.is_file():
         return [
             Issue(
                 kind="unrunnable-script-entry-point",
-                task=ref.id_slug,
+                task=label,
                 message=f"{entry} is not a regular file",
                 severity="error",
             )
@@ -524,7 +530,7 @@ def _check_script_entry_point(ref: TaskRef) -> list[Issue]:
         return [
             Issue(
                 kind="unrunnable-script-entry-point",
-                task=ref.id_slug,
+                task=label,
                 message=f"{entry} does not compile: {exc}",
                 severity="error",
             )
@@ -895,7 +901,7 @@ def _check_task_numbering(refs: list[TaskRef]) -> list[Issue]:
 
 
 def _check_recurring_templates(cfg: Config) -> list[Issue]:
-    """Check schedules, recipe declarations, and workflow-step skills."""
+    """Check schedules, template frontmatter, and workflow-step skills."""
     # Imported here, not at module scope: `coga.recurring` imports this module
     # for `TaskValidationError`, so a top-level import would be circular.
     from coga.recurring import RecurringError, Template, _validate_schedule
@@ -953,8 +959,14 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
                     severity="error",
                 ))
 
-        # The remaining execution declarations (`recipe:`, `state_keys:`,
-        # frontmatter shape) are enforced by `Template.load`. A template whose
+        # A template's `ticket.py` is copied into every period task it
+        # creates, so a broken one is a broken *run* — and the file's presence
+        # is the whole mode declaration. Catch it here, before a period task
+        # exists, exactly as the deleted `recipe:` registry check did.
+        out.extend(_check_entry_point_dir(path, f"recurring/{path.name}"))
+
+        # The remaining declarations (`state_keys:`, frontmatter shape) are
+        # enforced by `Template.load`. A template whose
         # schedule already failed above raises there for that same reason, so
         # only report the load failure when the schedule was fine — otherwise
         # one bad cron yields two issues for the same defect. The workflow-step

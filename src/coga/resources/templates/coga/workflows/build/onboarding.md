@@ -36,9 +36,13 @@ shape-defining one back into the chat.
 Never fabricate. If something you'd need is missing, stub it and ask — don't
 invent a fact to fill the gap.
 
+Before writing the vision, resolve **`<contexts-dir>`** from `coga.toml`: use
+the checkout-root-relative `[layout] contexts` directory when the key is set,
+or `coga/contexts/` when it is unset. Do not assume the default path.
+
 On sign-off:
 
-- Write the agreed vision to **`coga/contexts/product/vision/SKILL.md`** in
+- Write the agreed vision to **`<contexts-dir>/product/vision/SKILL.md`** in
   this repo: valid `SKILL.md` frontmatter, the few sentences above as the body.
   Frame it as a living starter doc the owner edits as the project evolves, not a
   finished spec.

@@ -43,7 +43,9 @@ no in-memory state.
   remains an ordinary file. File-form tasks have no siblings and are therefore
   agent-only.
 - **Contexts** are domain knowledge — what's true about the world.
-  Project-local contexts live in `coga/contexts/`; bundled Coga batteries live
+  Project-local contexts live in the repo's configured contexts directory —
+  `coga/contexts/` unless `[layout] contexts` moves it (see "The contexts
+  directory is relocatable" below); bundled Coga batteries live
   in the installed package's `bootstrap/contexts/` resources. Attached to
   tickets via `contexts:` frontmatter list. Local contexts override bundled
   contexts with the same ref.
@@ -103,10 +105,13 @@ no in-memory state.
   visible template error in scans and status, never an "already ran" result. It lives
   there because the log is append-only and union-merged — a co-writer
   rewriting a region of a template's blackboard cannot destroy an appended
-  line, and the record outlives the period task Dream reaps. A template may select a known deterministic implementation with
-  `recipe:`; the scanner executes that recipe in an isolated `coga run`
-  subprocess with the period task's scoped secrets and `COGA_TASK_*`
-  metadata. Other templates launch the ordinary agent workflow.
+  line, and the record outlives the period task Dream reaps. A template with a
+  reserved `ticket.py` sibling has a deterministic half; the creator copies
+  that file into each period task, and the scanner hands every template to one
+  `coga launch` call, which runs it as an isolated subprocess with the period
+  task's scoped secrets and `COGA_TASK_*` metadata. Templates without it launch
+  the ordinary agent workflow. Nothing declares the choice — there is no
+  `recipe:` or mode field.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard
   machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
@@ -157,7 +162,7 @@ no in-memory state.
   install into `coga/skills/` through the public skill installer instead of
   being copied from templates; install failures for optional skills warn
   without breaking offline init. Copy a skill or context to the matching
-  `coga/skills/` or `coga/contexts/` ref to override it.
+  `coga/skills/` or configured-contexts-directory ref to override it.
 - **Dream** is Coga's generic ticket cleanup pass. It is a recurring task
   template (`coga/recurring/dream/`) plus a `dream` alias — not a
   built-in command. `coga recurring` creates and launches it when its
@@ -236,12 +241,68 @@ Extensions live in the same frontmatter the prompt composer already
 reads, so no extra layer is needed — the field is in every composed
 prompt by virtue of being on the ticket.
 
+## The contexts directory is relocatable
+
+Contexts are the one Coga primitive humans hand-edit as prose, and burying
+them inside the machine-owned `coga/` tree puts them out of reach of the tools
+people actually write docs in. So the directory is tunable:
+
+```toml
+[layout]
+contexts = "docs/contexts"
+```
+
+Unset — the default — contexts stay at `coga/contexts/`, byte-identical to
+before the key existed. Set, the directory moves and *everything* follows it:
+ref resolution, prompt composition, `coga validate`, `coga create` /
+`coga ticket`, the git state sweep, authoring sync, and the `coga init` /
+`coga uninstall` lifecycle. `cfg.contexts_root` is the single accessor; the
+product-stranding guard also excludes both the current root and a former root
+recorded at its control-branch base. Nothing else joins the live path itself.
+
+**The value is anchored at the git checkout root, not at the coga root.** This
+is the part a reader gets wrong. `Config.repo_root` is `<checkout>/coga/` in
+the nested layout but *is* the checkout root in the root layout, so the same
+relative path would name two different places. The checkout root sits above
+the coga root in both, which makes `docs/contexts` mean
+`<checkout>/docs/contexts` either way. A coga root nested deeper in a monorepo
+(`tools/ops/coga/`) therefore spells the full `tools/ops/docs/contexts`.
+`coga init` applies the same anchor when a scaffolded `coga.toml` sets the key:
+it materializes and commits the initial local contexts at that destination.
+
+Every failure mode is loud at config load, because the quiet one is
+catastrophic: `resolve_context_path` falls back to the packaged
+`bootstrap/contexts/` batteries on a miss, so a mistyped *directory* would let
+`coga/architecture` keep resolving to the bundled copy while every repo-local
+context silently vanished from composed prompts. So load rejects an absolute
+path, a `..` escape out of the checkout, the checkout root or another ancestor
+of the coga root, symlinked path components, Git pathspec metacharacters that
+could broaden the state sweep, Git's administrative directory or a nested
+checkout, a directory that does not exist or is not a directory, and a repo
+with no checkout to anchor against. A configured root must also contain at
+least one tracked or unignored
+file, must not itself be ignored, and must not contain an ignored real context
+`SKILL.md`, so Git can reproduce everything Coga composes in a fresh clone;
+use a trackable `.gitkeep` when the root is intentionally empty. The ignored
+`_template` scaffold is exempt. The per-ref local-first fallback is unchanged
+— that is how bundled batteries work.
+
+The CLI reloads config at the end-of-command publication boundary, because a
+long-running agent session can change the setting after dispatch. When the
+setting changes, the state sweep finds the most recent distinct contexts root
+in committed config history and commits tracked deletions from that former root
+along with the destination. It does not keep sweeping the vacated root:
+unrelated new files created there remain ordinary repo content.
+
+`[layout]` is shared `coga.toml` policy and is rejected in `coga.local.toml`:
+where a repo keeps its prose is a fact about the repo, not about one machine.
+
 ## Config loading fails loud on unknown keys
 
 `load_config` validates `coga.toml` **and** `coga.local.toml` against a fixed
 schema. Any unrecognized key, at **any level of a fixed-schema table** —
 top-level sections, `[notification]`, `[notification.slack]`, `[git]`, `[launch]`,
-`[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
+`[layout]`, `[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
 the offending key and listing the valid ones, in either file. This generalizes
 the enforcement `[ticket.fields.*]` already had: a misspelled `[notification.slak]`
 no longer silently resolves to "no webhook" and takes Slack dark. Adding a new
@@ -596,13 +657,26 @@ separate human gate and does not inherit this relaxation.
 Blocked tickets can resume inline only from an interactive TTY. Their first
 job is to resolve or re-block the open asks.
 
+Every sweep ends with the **autofix loop**: the scan builds a structured
+record of what each period task did (how the launch ended, resulting status,
+and the period task's blackboard), one text-only agent call
+reads that record, and a real problem becomes an `active` ticket under
+`coga/tasks/autofix/` with the record committed beside it. That call is the
+single place Coga spawns an agent without a PTY — one shot, text in, text out,
+no REPL and no lifecycle, so it cannot answer a permission prompt; Coga
+performs every mutation itself from the parsed reply. It lives behind the
+registered `autofix-analyze` recipe for that reason, and it never changes the
+sweep's exit code. `COGA_AUTOFIX=0` disables it. See `coga/recurring`.
+
 Deterministic core jobs use `coga run <recipe> [args...]`. The fixed
 `runner.RECIPES` table is explicit: there is no file discovery, config import,
 or executable-skill plugin surface. Recipes receive ordinary argv, preserve
 argument boundaries and option spelling, propagate their integer return code
 and stdout/stderr, and re-derive `COGA_TASK_*` for instantiated recurring
-tasks. A recurring template selects this path with `recipe:`; without one, its
-period task is an agent launch and therefore needs a TTY.
+tasks — including a ticket's own `ticket.py`, which may import a registered
+recipe function directly. A recurring template's deterministic path is that
+`ticket.py` sibling; without one, its period task is an agent launch and
+therefore needs a TTY.
 
 There is no `autonomy:` field. The old `auto`, `skip_permissions`, and
 `skip_permissions_argv` agent keys are removed; config load rejects them with
@@ -918,17 +992,17 @@ template body builds the scan index and append-only manifest, delegates each
 phase across bounded shard subagents, reconciles only active leaf assignments,
 and merges their on-disk findings into `## Findings`; a final message is not the
 delivery mechanism. Known limitation: the contract audit's own corpus globs
-(`coga/contexts/**`, `coga/skills/**`) do not cover package-backed
+(the configured contexts directory, `coga/skills/**`) do not cover package-backed
 `bootstrap/skills/**`, so the bundled Dream skills — the scan skills included
 — sit outside the surface that audit reads.
 
-Every launched agent, ticket script, and recurring recipe subprocess receives
+Every launched agent and ticket script subprocess receives
 task metadata as environment variables:
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
 `COGA_TASK_BLACKBOARD`, `COGA_TASK_LOG`, `COGA_TASK_STEP`,
 `COGA_COGA_OS_ROOT`, and `COGA_REPO_ROOT`. `COGA_TASK_STEP` is the frozen
 `<n> (<name>)` value and is absent when the target has no workflow step. The
-shared launch boundaries and recurring recipe runner
+shared launch boundaries
 **clear the whole namespace and re-derive it** from the launched task, so
 nested work cannot inherit the outer task's paths — and a variable the target
 does not export cannot survive by inheritance either. `COGA_COGA_OS_ROOT` is

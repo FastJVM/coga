@@ -15,6 +15,7 @@ from coga.dream_cleanup_orphan_markers import (
 )
 from coga.dream_validate_drift import run_validate_drift_recipe
 from coga.open_pr import run_open_pr_recipe
+from coga.recurring_autofix import run_autofix_analyze_recipe
 from coga.recurring_runner import run_recurring_scan_recipe
 from coga.skill_update import run_skill_update_recipe
 
@@ -31,6 +32,7 @@ RECIPES: dict[str, RecipeFn] = {
     "validate-drift": run_validate_drift_recipe,
     "cleanup-orphan-markers": run_cleanup_orphan_markers_recipe,
     "recurring-scan": run_recurring_scan_recipe,
+    "autofix-analyze": run_autofix_analyze_recipe,
     "skill-update": run_skill_update_recipe,
     "open-pr": run_open_pr_recipe,
     "delete-task": run_delete_task_recipe,

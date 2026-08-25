@@ -33,9 +33,11 @@ the `coga/cli` *context*. Read this for the worked classification; read
 3. **Bootstrap command tickets / recurring launches** — package-backed or
    repo-local tickets at `bootstrap/<name>/ticket.md` are stateless command
    definitions; templates at `coga/recurring/<name>/` are launched via
-   `recurring launch <name>`. Command tickets launch agents and receive
-   trailing arguments in an explicit `## Launch arguments` JSON array.
-   Deterministic Coga commands use the fixed `coga run` recipe registry.
+   `recurring launch <name>`. A ticket without a `ticket.py` sibling launches
+   an agent and receives trailing arguments in an explicit `## Launch
+   arguments` JSON array; one with it runs that file headlessly first.
+   Deterministic core behavior also stays reachable by name through the fixed
+   `coga run` recipe registry.
 
 ## The rule
 
@@ -54,7 +56,7 @@ skill; the command remains only because the pre/post hook is irreducible.
 
 The structural consequence: aliases may capture any fixed argv rewrite whose
 first token is a real built-in. Current defaults cover bootstrap launches,
-recurring launches, registered recipes, the `build` onboarding task, and the
+recurring launches, registered `coga run` recipes, the `build` onboarding task, and the
 `megalaunch --pick` spelling.
 Parameterized command tickets remain fixed alias targets because the caller's
 remaining argv passes through unchanged.
@@ -72,7 +74,7 @@ remaining argv passes through unchanged.
 | `status` | built-in | No | Reads tree + renders tables. Logic, not a passthrough to another command. |
 | `show` | built-in | No | Reads + Rich-renders ticket/blackboard/log. |
 | `bump` | built-in | No | Advances `step:`, appends `log.md`, post-write validate. |
-| `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (`recipe: autoclose` → `coga.autoclose.sweep_merged`). (See gotcha.) |
+| `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (its `ticket.py` → `coga.autoclose.sweep_merged`). (See gotcha.) |
 | `delete` | built-in | No | Resolves slug → `coga.delete_task` removal + control-branch sync. Thin, but resolves, removes, and lands the removal. |
 | `retire` | built-in | No | Scaffolds a one-shot `retire-<slug>` task straight to `active` + launches it. |
 | `block` / `unblock` | built-in | No | Records/resolves concrete blocker asks, owns blocked-state transitions, syncs state, and notifies. |
@@ -82,7 +84,7 @@ remaining argv passes through unchanged.
 | `run` | thin built-in + fixed `coga.runner.RECIPES` table | No | Forwards ordinary trailing argv to one of ten explicit importable core recipes; no env translation, entry-point discovery, or skill plugins. |
 | `skill` (group) | built-in | No | `gh skill` wrapper: install/update/remove/status, provenance, digests. |
 | `mark` (group) | built-in | No | Status transitions + Slack + workflow gating + post-write validate. |
-| `recurring` (group) | thin built-in scan head + registered `recurring-scan` recipe / `coga.recurring_runner` | No | The public head converts flags to ordinary argv; the runner does schedule scan, get-or-create, recipe-or-launch dispatch, lifecycle bookkeeping, and dedup high-water mark. |
+| `recurring` (group) | thin built-in scan head + registered `recurring-scan` recipe / `coga.recurring_runner` | No | The public head converts flags to ordinary argv; the runner does schedule scan, get-or-create, lifecycle bookkeeping, and the dedup high-water mark, then hands every template to one `coga launch` call that classifies it. |
 | `secret` (group) | built-in | No | Secret resolution/inspection. |
 
 **No CLI verb is an alias-able pure passthrough.** Each is its own
@@ -105,14 +107,18 @@ Browser automation is the one intentionally unaliased launch target.
 
 ### Recurring launches (`recurring launch <name>`)
 
-| Template | Mode | Mechanism today | Alias-able? | Why |
-|----------|------|-----------------|-------------|-----|
-| `dream` | interactive | `dream` default alias → `recurring launch dream` | Yes — already aliased | Pure passthrough. |
-| `skill-update` | recipe | `skill-update` default alias → `recurring launch skill-update` | Yes — already aliased | Pure passthrough. |
-| `autoclose-merged` | recipe | `autoclose` default alias → `recurring launch autoclose-merged` | Yes — already aliased | Pure passthrough under the shorter public name. |
-| `digest` | recipe | name occupied by `coga digest` built-in | **No — disqualified by name collision** | `recurring launch digest` *is* a pure passthrough, but the natural alias name `digest` is already a built-in (a different operation). See below. |
-| `blocker-reminders` | recipe | explicit `recurring launch blocker-reminders` | Not currently | No default alias; scheduled execution uses `recipe: blocker-reminders`. |
-| `branch-sweep` | recipe | explicit `recurring launch branch-sweep` | Not currently | No default alias; scheduled execution uses `recipe: branch-sweep`. |
+Execution is deduced, not declared: "script" below means the template carries
+the reserved `ticket.py` sibling, which the creator copies into each period
+task. There is no mode field.
+
+| Template | Execution | Mechanism today | Alias-able? | Why |
+|----------|-----------|-----------------|-------------|-----|
+| `dream` | agent (interactive) | `dream` default alias → `recurring launch dream` | Yes — already aliased | Pure passthrough. |
+| `skill-update` | script | `skill-update` default alias → `recurring launch skill-update` | Yes — already aliased | Pure passthrough. |
+| `autoclose-merged` | script | `autoclose` default alias → `recurring launch autoclose-merged` | Yes — already aliased | Pure passthrough under the shorter public name. |
+| `digest` | script | name occupied by `coga digest` built-in | **No — disqualified by name collision** | `recurring launch digest` *is* a pure passthrough, but the natural alias name `digest` is already a built-in (a different operation). See below. |
+| `blocker-reminders` | script | explicit `recurring launch blocker-reminders` | Not currently | No default alias; scheduled execution runs the template's `ticket.py`. |
+| `branch-sweep` | script | explicit `recurring launch branch-sweep` | Not currently | No default alias; scheduled execution runs the template's `ticket.py`. |
 
 (`_`-prefixed directories under `coga/recurring/` are skipped by
 `coga recurring` — parked, not launchable, templates.)
@@ -138,9 +144,10 @@ that built-in is a *different operation*:
 - **`coga digest`** (built-in, `src/coga/commands/digest.py`) is the
   **consumer** half of the daily-digest pipeline: read the spool → fetch
   `origin/main` → render Done + Also-merged → post via webhook → empty the
-  spool → record the git high-water mark. It is what the digest recurring
-  task runs as a **registered recipe** (`recipe: digest` in the template →
-  `coga run digest`), not a workflow step.
+  spool → record the git high-water mark. Its recipe function is what the
+  digest recurring task's **`ticket.py`** calls
+  (`recurring/digest/ticket.py` → `commands/digest.run_digest_recipe`), not a
+  workflow step.
 - **`recurring launch digest`** would *scaffold and launch the recurring
   digest task* — a launch wrapper, not the post logic.
 
@@ -178,8 +185,8 @@ pure-passthrough set for aliasing is exactly the two named above.
 The flat "alias-able? yes/no" framing above is too coarse — it hides that
 "needs logic" does **not** imply "needs a hand-written built-in." Logic can live
 outside a hand-written built-in (`autoclose-merged/sweep` and `digest/post`
-already prove command-grade logic runs fine as registered `coga run` recipes
-dispatched from a recurring template's `recipe:` field). The refined
+already prove command-grade logic runs fine behind a recurring template's own
+`ticket.py`, which imports core and is subprocessed by path). The refined
 conclusion: the surface collapses to **three homes for logic, plus sugar**.
 
 1. **Kernel** — small tested Python that can't be anything else.
@@ -205,7 +212,7 @@ command: does `launch` call it *while running* (kernel), or does a human/cron ca
 it *to start* a launch (movable)? Nothing else is kernel.
 
 **Most current built-ins are not kernel — they're fused or already external.**
-`automerge`/`digest`/`delete` already run as a registered sweep recipe / post
+`automerge`/`digest`/`delete` already run as a script-backed sweep / post
 step / the shared `coga.delete_task` removal. `coga ticket` is the worked collapsed case: its authoring
 conversation is the `bootstrap/ticket` launch target already, its post-exit
 validate + git-sync lives in `coga.authoring`, and the `arg → draft` head in

@@ -29,7 +29,7 @@ throw at it is not a safety net.
 
 Unattended machine failures qualify under the same action-needed test when the
 only ticket is a generated recurring period task that no human treats as their
-queue. Coga therefore routes recipe failures and unadvanced recurring state
+queue. Coga therefore routes script failures and unadvanced recurring state
 here immediately. Recurring scan errors and watchdog timeouts keep their
 existing digest cadence; they select this destination only on the no-digest
 live fallback. Importance chooses where a delivered alert goes, not when it is

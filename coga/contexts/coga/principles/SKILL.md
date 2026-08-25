@@ -41,9 +41,9 @@ the actual files the system runs on, not a sandboxed extension point.
 hosted service, a plugin fence); a config surface that exposes only part of the
 logic.
 
-**Receipt:** edit any markdown under `coga/` → the next `coga launch` uses
-it. The ~2-minute correction loop: see a mistake → edit the context → commit →
-next run is fixed.
+**Receipt:** edit any markdown under `coga/`, or a context under the configured
+contexts directory → the next `coga launch` uses it. The ~2-minute correction
+loop: see a mistake → edit the context → commit → next run is fixed.
 
 ## 2. Agents do, humans think — offload everything mechanizable
 
@@ -61,8 +61,13 @@ could do; a capability exposed *only* through a non-text surface. A UI may
 *view* (read-only) but never be the only way to *do* something — the absence of
 a webUI is this principle holding, not a missing feature.
 
-**Receipt:** the CLI + files are the whole surface, no webUI; work routes to the right substance per launch — an agent for judgment, a registered `coga run` recipe for deterministic Python — deduced from the step and ticket rather than declared in a `mode:` field; per-step `assignee` (`agent`/`other-agent`/`human`)
-chains a task across operators in one `coga launch`.
+**Receipt:** the CLI + files are the whole surface, no webUI; work routes to
+the right substance per launch — a reserved `ticket.py` half for deterministic
+Python, then an agent for any judgment it leaves open — deduced from the ticket
+rather than declared in a `mode:` field. Stable package commands also remain
+available through the fixed `coga run` registry; per-step `assignee`
+(`agent`/`other-agent`/`human`) chains a task across operators in one
+`coga launch`.
 
 ## 3. Obvious — boring, standard, immediately understandable
 
@@ -106,7 +111,7 @@ behavior on `main` without a human merge gate; silent knowledge updates.
 
 **Receipt:** **Dream** (`coga/recurring/dream/`) reads tickets + blackboards,
 classifies drift, and opens **proposal PRs** — "propose, human disposes."
-the blackboard region (in `ticket.md`) is working memory; `contexts/` is long-term memory, merged by
+the blackboard region (in `ticket.md`) is working memory; the contexts directory is long-term memory, merged by
 hand. The correction loop is the human instance of this; Dream is the agent
 instance. (Sessions are stateless — the prompt is a pure function of the files on
 disk now, never a carried-over session — which is what makes an edit between runs

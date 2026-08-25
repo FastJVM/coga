@@ -1087,3 +1087,288 @@ def test_megalaunch_table_gets_migration_error(repo: Path) -> None:
 
     with pytest.raises(ConfigError, match="budget guard was removed"):
         load_config(repo)
+
+
+# --- [layout] contexts ---------------------------------------------------------
+
+
+@pytest.fixture
+def layout_repo(repo: Path) -> Path:
+    """The `repo` fixture inside a real git checkout.
+
+    `[layout]` paths anchor at the checkout root (`find_checkout_root`), so
+    these tests need a `.git` to anchor against. The layout here is the *root*
+    one — coga.toml sits at the checkout root — which is the case where
+    `repo_root` and the checkout root coincide and the anchor is easiest to
+    get wrong.
+    """
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True, capture_output=True, text=True,
+    )
+    return repo
+
+
+def _set_layout_contexts(repo: Path, value: str) -> None:
+    with (repo / "coga.toml").open("a") as f:
+        f.write(f'[layout]\ncontexts = "{value}"\n')
+
+
+def test_layout_contexts_unset_keeps_default_location(repo: Path) -> None:
+    """Byte-identical default: no key, no override, no checkout probe."""
+    cfg = load_config(repo)
+    assert cfg.contexts_dir is None
+    assert cfg.contexts_root == repo / "contexts"
+
+
+def test_layout_contexts_resolves_against_checkout_root(layout_repo: Path) -> None:
+    (layout_repo / "docs" / "contexts").mkdir(parents=True)
+    (layout_repo / "docs" / "contexts" / ".gitkeep").write_text("")
+    _set_layout_contexts(layout_repo, "docs/contexts")
+
+    cfg = load_config(layout_repo)
+    assert cfg.contexts_root == (layout_repo / "docs" / "contexts").resolve()
+
+
+def test_layout_contexts_resolves_from_nested_coga_root(tmp_path: Path) -> None:
+    """In the nested layout the anchor is still the checkout, not `coga/`.
+
+    This is the whole point of anchoring at the checkout root: the same
+    `docs/contexts` value must name `<checkout>/docs/contexts` here, not
+    `<checkout>/coga/docs/contexts`.
+    """
+    subprocess.run(
+        ["git", "init", "-b", "main", str(tmp_path)],
+        check=True, capture_output=True, text=True,
+    )
+    coga_os = tmp_path / "coga"
+    coga_os.mkdir()
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        mode = "local"
+
+        [layout]
+        contexts = "docs/contexts"
+        """,
+    )
+    _write(coga_os / "coga.local.toml", "user = \"marc\"\n")
+    (tmp_path / "docs" / "contexts").mkdir(parents=True)
+    (tmp_path / "docs" / "contexts" / ".gitkeep").write_text("")
+
+    cfg = load_config(coga_os)
+    assert cfg.contexts_root == (tmp_path / "docs" / "contexts").resolve()
+
+
+def test_layout_contexts_cannot_contain_nested_coga_root(tmp_path: Path) -> None:
+    subprocess.run(
+        ["git", "init", "-b", "main", str(tmp_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    coga_os = tmp_path / "project" / "coga"
+    coga_os.mkdir(parents=True)
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+
+        [layout]
+        contexts = "project"
+        """,
+    )
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+
+    with pytest.raises(ConfigError, match="contains the coga root"):
+        load_config(coga_os)
+
+
+def test_layout_contexts_missing_directory_fails_loud(layout_repo: Path) -> None:
+    """A typo'd directory must not silently fall back to the packaged batteries."""
+    _set_layout_contexts(layout_repo, "docs/contexs")
+    with pytest.raises(ConfigError, match="does not exist"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_file_rejected(layout_repo: Path) -> None:
+    (layout_repo / "docs").mkdir()
+    (layout_repo / "docs" / "contexts").write_text("not a dir\n")
+    _set_layout_contexts(layout_repo, "docs/contexts")
+    with pytest.raises(ConfigError, match="not a directory"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_checkout_root_rejected(layout_repo: Path) -> None:
+    _set_layout_contexts(layout_repo, ".")
+    with pytest.raises(ConfigError, match="git checkout root"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_symlink_to_checkout_root_rejected(
+    layout_repo: Path,
+) -> None:
+    (layout_repo / "all").symlink_to(layout_repo, target_is_directory=True)
+    _set_layout_contexts(layout_repo, "all")
+    with pytest.raises(ConfigError, match="git checkout root"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_internal_symlink_rejected(layout_repo: Path) -> None:
+    contexts = layout_repo / "docs" / "contexts"
+    contexts.mkdir(parents=True)
+    (contexts / ".gitkeep").write_text("")
+    (layout_repo / "knowledge").symlink_to(contexts, target_is_directory=True)
+    _set_layout_contexts(layout_repo, "knowledge")
+
+    with pytest.raises(ConfigError, match="traverses the symlink"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_git_pathspec_metacharacters_rejected(
+    layout_repo: Path,
+) -> None:
+    _set_layout_contexts(layout_repo, "docs/*")
+    with pytest.raises(ConfigError, match="Git pathspec metacharacters"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_git_administrative_directory_rejected(
+    layout_repo: Path,
+) -> None:
+    _set_layout_contexts(layout_repo, ".git/contexts")
+    with pytest.raises(ConfigError, match="administrative directory"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_nested_git_checkout_rejected(layout_repo: Path) -> None:
+    nested = layout_repo / "vendor"
+    subprocess.run(
+        ["git", "init", "-q", "-b", "main", str(nested)], check=True
+    )
+    (nested / "contexts").mkdir()
+    (nested / "contexts" / ".gitkeep").write_text("")
+    _set_layout_contexts(layout_repo, "vendor/contexts")
+    with pytest.raises(ConfigError, match="nested git checkout"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_empty_directory_rejected(layout_repo: Path) -> None:
+    (layout_repo / "docs" / "contexts").mkdir(parents=True)
+    _set_layout_contexts(layout_repo, "docs/contexts")
+    with pytest.raises(ConfigError, match="Git cannot reproduce it"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_fully_ignored_directory_rejected(layout_repo: Path) -> None:
+    contexts = layout_repo / "docs" / "contexts"
+    contexts.mkdir(parents=True)
+    (contexts / ".gitkeep").write_text("")
+    (layout_repo / ".gitignore").write_text("docs/contexts/\n")
+    _set_layout_contexts(layout_repo, "docs/contexts")
+    with pytest.raises(ConfigError, match="directory is ignored by Git"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_ignored_root_rejected_even_with_tracked_context(
+    layout_repo: Path,
+) -> None:
+    context = layout_repo / "docs" / "contexts" / "team" / "style" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("# Style\n")
+    subprocess.run(
+        ["git", "-C", str(layout_repo), "add", str(context.relative_to(layout_repo))],
+        check=True,
+    )
+    (layout_repo / ".gitignore").write_text("docs/contexts/\n")
+    _set_layout_contexts(layout_repo, "docs/contexts")
+
+    with pytest.raises(ConfigError, match="directory is ignored by Git"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_ignored_context_rejected_even_with_trackable_marker(
+    layout_repo: Path,
+) -> None:
+    contexts = layout_repo / "docs" / "contexts"
+    context = contexts / "team" / "style" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("# Style\n")
+    (contexts / ".gitkeep").write_text("")
+    (layout_repo / ".gitignore").write_text("docs/contexts/**/SKILL.md\n")
+    _set_layout_contexts(layout_repo, "docs/contexts")
+
+    with pytest.raises(ConfigError, match="context file is neither tracked nor unignored"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_deleted_last_tracked_file_rejected(
+    layout_repo: Path,
+) -> None:
+    contexts = layout_repo / "docs" / "contexts"
+    contexts.mkdir(parents=True)
+    marker = contexts / ".gitkeep"
+    marker.write_text("")
+    subprocess.run(
+        ["git", "-C", str(layout_repo), "add", "docs/contexts/.gitkeep"],
+        check=True,
+    )
+    marker.unlink()
+    _set_layout_contexts(layout_repo, "docs/contexts")
+    with pytest.raises(ConfigError, match="Git cannot reproduce it"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_absolute_path_rejected(layout_repo: Path) -> None:
+    _set_layout_contexts(layout_repo, "/etc/contexts")
+    with pytest.raises(ConfigError, match="must be a relative path"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_escaping_checkout_rejected(
+    layout_repo: Path, tmp_path: Path
+) -> None:
+    """`..` out of the checkout is rejected — that state could never be synced."""
+    outside = tmp_path.parent / "outside-contexts"
+    outside.mkdir(exist_ok=True)
+    _set_layout_contexts(layout_repo, f"../{outside.name}")
+    with pytest.raises(ConfigError, match="outside the git checkout"):
+        load_config(layout_repo)
+
+
+def test_layout_contexts_outside_git_checkout_rejected(repo: Path) -> None:
+    """With no checkout there is no anchor, so the key fails loud rather than
+    guessing one of the two layouts."""
+    (repo / "docs" / "contexts").mkdir(parents=True)
+    _set_layout_contexts(repo, "docs/contexts")
+    with pytest.raises(ConfigError, match="not inside a git checkout"):
+        load_config(repo)
+
+
+def test_layout_contexts_empty_value_rejected(layout_repo: Path) -> None:
+    _set_layout_contexts(layout_repo, "")
+    with pytest.raises(ConfigError, match="non-empty string"):
+        load_config(layout_repo)
+
+
+def test_layout_unknown_key_rejected(layout_repo: Path) -> None:
+    """`[layout]` is a fixed-schema table: a stray key fails load, so a repo
+    never silently keeps its skills where it thought it had moved them."""
+    with (layout_repo / "coga.toml").open("a") as f:
+        f.write('[layout]\nskills = "docs/skills"\n')
+    with pytest.raises(ConfigError, match=r"\[layout\] in coga.toml has unknown"):
+        load_config(layout_repo)
+
+
+def test_layout_in_local_toml_rejected(layout_repo: Path) -> None:
+    """Where contexts live is shared repo policy, not a machine-local one."""
+    with (layout_repo / "coga.local.toml").open("a") as f:
+        f.write('[layout]\ncontexts = "docs/contexts"\n')
+    with pytest.raises(ConfigError, match=r"coga.local.toml has unknown"):
+        load_config(layout_repo)

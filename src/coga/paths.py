@@ -117,11 +117,7 @@ def missing_skill_message(cfg: Config, ref: str, *, source: str) -> str:
 
 
 def context_path(cfg: Config, ref: str) -> Path:
-    return cfg.repo_root / "contexts" / ref / "SKILL.md"
-
-
-def context_dir(cfg: Config, ref: str) -> Path:
-    return cfg.repo_root / "contexts" / ref
+    return cfg.contexts_root / ref / "SKILL.md"
 
 
 def bootstrap_context_path(cfg: Config, ref: str) -> Path:
@@ -200,7 +196,6 @@ __all__ = [
     "skill_resolution_paths",
     "missing_skill_message",
     "context_path",
-    "context_dir",
     "bootstrap_context_path",
     "bootstrap_context_dir",
     "resolve_context_path",
