@@ -24,7 +24,11 @@ final step, the bump marks the ticket `done`.
 
 ## On `assignee:`
 
-Each step's `assignee:` is a *role token* (`owner` | `human` | `agent`),
-not a literal nickname. On bump, coga reads the ticket's matching role
-field (`owner:`, `human:`, `agent:`) and rewrites `assignee:` to that
-nickname. Steps that omit `assignee:` leave the assignee unchanged.
+Each step's `assignee:` is a *role token* — `owner` | `human` | `agent` |
+`other-agent` — not a literal nickname. On bump, coga reads the ticket's
+matching role field (`owner:`, `human:`, `agent:`) and rewrites `assignee:`
+to that nickname. `other-agent` has no ticket field of its own: it resolves
+to the *peer* agent, the configured `[agents.*]` type that is not the
+ticket's `agent:`, which is how the shipped `code/*` workflows hand a
+review step to the agent that did not write the change. Steps that omit
+`assignee:` leave the assignee unchanged.

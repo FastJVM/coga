@@ -14,8 +14,17 @@ Contexts are domain knowledge. No process, no scripts. Tickets attach to
 contexts via the `contexts:` field; `coga launch` inlines this file
 into the prompt at launch time.
 
-Keep contexts under a page. If you find yourself adding a fourth
-top-level section, the context is conflating two domains — split it.
+Keep a context as short as its domain allows, and no shorter. A
+narrowly scoped context really is two or three sections and about a
+page. A context that covers a large domain legitimately grows past
+that — several of this repo's own contexts run to ten or more top-level
+sections and tens of KB, because the domain is that big and splitting it
+would just scatter one subject across directories.
+
+Length is therefore not the test; coherence is. Split when a context
+starts answering questions from two different domains, not when it
+crosses a section count. If a context is long *and* incoherent, the
+length is a symptom — fix the scope, not the word count.
 
 ## Section 1
 

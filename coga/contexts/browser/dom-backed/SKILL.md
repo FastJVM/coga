@@ -8,10 +8,21 @@ description: DOM-backed browser automation standard for real SaaS workflows. Att
 Use DOM-backed automation as the only browser-control method for tickets
 that attach this context.
 
-Multiple Playwright runners (CLI, MCP) are available. Pick one runner
-per task. After the active test track, we choose one as the primary;
-the other stays available for separate exploratory tasks but is never
-used as an in-run fallback. Do not switch runners mid-task.
+Two Playwright runners are available: the terminal-driven CLI and the
+Playwright MCP server.
+
+**Default to the CLI runner.** It is the one this repo actually equips —
+the `browser/playwright` skill ships a wrapper script and a command
+reference, and `browser/dochub` is built on top of it. Use MCP when the
+ticket names it, or when the CLI genuinely cannot reach the surface the
+task needs.
+
+This is a default, not a verdict: no runner has been declared the
+permanent primary, and the choice is still open. Treat the CLI as where
+you start unless you have a task-specific reason to start elsewhere.
+
+Whichever you pick, pick it once: one runner per task, no switching
+mid-task, and the other runner is never an in-run fallback.
 
 ## Allowed control surfaces
 
@@ -105,4 +116,4 @@ Each real-site task should leave behind reusable observations:
 - failure modes and how they should surface
 - whether the selected runner was easier or harder than MCP/CLI alternatives for setup, debugging, portability, and future robustness
 
-Promote durable findings into this context or a site-specific skill only after the task has been exercised against the real workflow. Keep runner comparisons (CLI vs MCP) in task blackboards until there is enough evidence to pick a primary; once a primary is chosen, record the decision here and stop re-comparing in every task.
+Promote durable findings into this context or a site-specific skill only after the task has been exercised against the real workflow. Runner comparisons (CLI vs MCP) belong in the task blackboard as an observation, not in every ticket's plan as an open question — the default above already tells you where to start. If a comparison ever turns out to be decisive, change the default in this context in the same PR rather than leaving the decision pending.
