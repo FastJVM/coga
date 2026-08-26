@@ -59,7 +59,12 @@ from coga.recurring_autofix import (
     run_autofix,
     scan_lines_for_record,
 )
-from coga.period_state import SNAPSHOT_FILE, parse_keys
+from coga.period_state import (
+    SNAPSHOT_FILE,
+    parent_ticket_path,
+    parse_keys,
+    read_snapshot,
+)
 from coga.mark import (
     BlackboardNeedsSynthesis,
     RequiredExtensionMissing,
@@ -1123,12 +1128,23 @@ def _period_lease_guard(
 
 
 def _period_mutation_snapshot(
-    cfg: Config, ref: TaskRef, *, include_digest_spool: bool = False
+    cfg: Config, ref: TaskRef, *, include_completion_state: bool = False
 ) -> git.FileMutationRollback:
+    """Capture delegated lifecycle files at one exact rollback/publication boundary.
+
+    Completion also owns the parent recurring ticket named by the period's
+    state snapshot: a cursor advanced by the child and the period's ``done``
+    transition must reach control in the same transaction.
+    """
     audit_path = log_path(cfg)
     paths = [ref.ticket_path, audit_path]
     union_paths = [audit_path]
-    if include_digest_spool:
+    if include_completion_state:
+        state_snapshot = read_snapshot(ref.path)
+        if state_snapshot is not None:
+            parent_ticket = parent_ticket_path(cfg, state_snapshot)
+            if parent_ticket.parent.is_dir():
+                paths.append(parent_ticket)
         spool_path = digest_spool_path(cfg)
         if spool_path is not None:
             paths.append(spool_path)
@@ -1570,7 +1586,7 @@ def _run_delegated_task(
         boundary="completion",
         expected_status="in_progress",
     )
-    rollback = _period_mutation_snapshot(cfg, ref, include_digest_spool=True)
+    rollback = _period_mutation_snapshot(cfg, ref, include_completion_state=True)
     publication_succeeded = False
 
     def record_completion_publication() -> None:

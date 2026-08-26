@@ -873,8 +873,10 @@ publishing completion or a watchdog pause. Concurrent completion,
 replacement, edits, or a new generation therefore refuse the stale lifecycle
 write; a Git transport or publication failure refuses too, because an
 unverified lease cannot admit work or authorize a successful timeout
-continuation. Strict publication unwinds an unaccepted local lifecycle commit;
-after an ambiguous push it probes the exact control candidate, retaining local
+continuation. Completion carries the parent recurring ticket named by the
+period state snapshot in the same strict transaction, so `done` cannot publish
+without the run's cross-period cursor update. Strict publication unwinds an
+unaccepted local lifecycle commit; after an ambiguous push it probes the exact control candidate, retaining local
 evidence and refusing if acceptance cannot be proved. Templates
 intended for cron or other unattended schedulers should carry that deterministic
 half. Whether a period is deterministic is never declared: the

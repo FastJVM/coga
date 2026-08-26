@@ -22,6 +22,7 @@ from coga.config import Config, load_config
 from coga.create import create_task
 from coga.logfile import append_log, task_log_lines
 from coga.paths import log_path, tasks_dir
+from coga.period_state import write_snapshot
 from coga.recurring import (
     DueScan,
     DueTask,
@@ -2778,6 +2779,66 @@ def test_delegated_completion_fails_closed_when_control_publication_loses_transp
     assert sync_calls == 3
     assert Ticket.read(outcome.ref.ticket_path).status == "in_progress"
     assert announcements == []
+
+
+def test_delegated_completion_publishes_parent_cross_run_state(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The strict done transaction includes the recurring template cursor."""
+    coga_os = git_repo.coga_os
+    _write_delegating_template(coga_os, "delegate-check")
+    parent_ticket = coga_os / "recurring" / "delegate-check" / "ticket.md"
+    parent = Ticket.read(parent_ticket)
+    parent.frontmatter["state_keys"] = ["cursor"]
+    parent.write(parent_ticket)
+    _seed_template_blackboard(coga_os, "delegate-check", "cursor: old\n")
+    cfg = load_config(coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
+    write_snapshot(ref.path, "delegate-check", parent_ticket, ["cursor"])
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegated period with parent state")
+    git_repo.git("push", "origin", "main")
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        _seed_template_blackboard(coga_os, "delegate-check", "cursor: new\n")
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    parent_rel = parent_ticket.relative_to(git_repo.root).as_posix()
+    remote_parent = git_repo.git("show", f"main:{parent_rel}", cwd=git_repo.origin)
+    assert delegated == recurring_cmd.DelegatedRunResult(0, "done")
+    assert Ticket.read(ref.ticket_path).status == "done"
+    assert "cursor: new" in remote_parent
 
 
 def test_delegated_completion_retains_state_when_publication_is_uncertain(
