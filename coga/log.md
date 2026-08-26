@@ -4014,3 +4014,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-26 10:52 [recurring-should-start-by-checing-out-main] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-08-26 11:17 [run-recurring-agent-templates-off-the-control-bran] [human:nicktoper] created (status=draft)
 2026-08-26 11:40 [reuse-the-existing-control-worktree-for-recurring] [human:nicktoper] activated (draft → active) — auto on launch
+2026-08-26 11:42 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
