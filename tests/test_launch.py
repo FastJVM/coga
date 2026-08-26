@@ -1455,7 +1455,9 @@ def test_internal_recurring_launch_refuses_replacement_before_agent_spawn(
     expected_period_lease = PeriodLease(b"admitted ticket", "generation-1")
 
     def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
-        kwargs["before_final_spawn"]()
+        kwargs["before_final_spawn"](
+            Ticket(frontmatter={"status": "in_progress"}, body="")
+        )
         pytest.fail("a replacement generation must not reach the agent spawn")
 
     monkeypatch.setattr(
@@ -1478,6 +1480,59 @@ def test_internal_recurring_launch_refuses_replacement_before_agent_spawn(
         "local_period_lease",
         lambda *args, **kwargs: PeriodLease(
             b"replacement ticket", "generation-2"
+        ),
+    )
+    monkeypatch.setattr(launch_module, "_launch", fake_launch)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch_recurring_period(
+            "recurring/delegate-check",
+            expected_period_lease=expected_period_lease,
+            control_remote_expected=True,
+            agent_override=None,
+            prompt_report=False,
+            idle_timeout=900.0,
+            max_session=None,
+            return_timeout=True,
+            script_failure_important=True,
+            queue_guidance=True,
+        )
+
+    assert excinfo.value.code == 2
+
+
+def test_internal_recurring_launch_refuses_same_generation_close_before_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A same-generation lifecycle edit invalidates the composed agent work."""
+    expected_period_lease = PeriodLease(b"admitted ticket", "generation-1")
+    composed_ticket = Ticket(frontmatter={"status": "in_progress"}, body="work")
+    paused_ticket = Ticket(frontmatter={"status": "paused"}, body="work")
+
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs["before_final_spawn"](composed_ticket)
+        pytest.fail("a parked period must not reach the agent spawn")
+
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_recurring_period_before_launch",
+        lambda task, expected_period_lease, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_exact_recurring_period_for_launch",
+        lambda *args, **kwargs: (SimpleNamespace(), SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "local_period_lease",
+        lambda *args, **kwargs: PeriodLease(
+            paused_ticket.render().encode(), "generation-1"
         ),
     )
     monkeypatch.setattr(launch_module, "_launch", fake_launch)
@@ -3391,7 +3446,7 @@ def test_launch_recomposes_after_before_spawn_publication(
         return_timeout=True,
         queue_guidance=True,
         before_spawn=publish_period_start,
-        revalidate_before_spawn=lambda: events.append("revalidate"),
+        revalidate_before_spawn=lambda _ticket: events.append("revalidate"),
     )
 
     assert kind == "done"

@@ -1501,7 +1501,9 @@ def _run_delegated_task(
             expected_status="in_progress",
         )
 
-    def revalidate_period_before_spawn() -> None:
+    def revalidate_period_before_spawn(
+        _target_ticket: Ticket | None = None,
+    ) -> None:
         """Refuse if publication/recomposition moved the period's lease."""
         if expected_period_lease is None:
             raise RecurringError(
@@ -3080,12 +3082,6 @@ def _stop_if_unfinished_after_launch(
     if not (ref.ticket_path).exists():
         return
 
-    ticket = read_ticket(ref)
-    if ticket.status in TERMINAL_STATUSES or ticket.status == "paused":
-        return
-    if script_stopped and ticket.status == "blocked":
-        return
-
     if expected_period_lease is not None:
         current_period_lease = _local_period_lease(cfg, ref)
         if current_period_lease.generation != expected_period_lease.generation:
@@ -3093,10 +3089,27 @@ def _stop_if_unfinished_after_launch(
                 f"cannot pause recurring period {ref.id_slug}: its stable-path "
                 "generation changed after the child exited"
             )
+        try:
+            if current_period_lease.ticket_bytes is None:
+                raise TicketError("period ticket disappeared")
+            ticket = Ticket.parse(current_period_lease.ticket_bytes.decode())
+        except (UnicodeError, TicketError) as exc:
+            raise RecurringError(
+                f"cannot pause recurring period {ref.id_slug}: invalid leased "
+                f"ticket state — {exc}"
+            ) from exc
         # Ticket edits belong to this same child generation. Lease the exact
-        # post-session bytes for the mutation itself so any race after this
-        # check still loses the CAS.
+        # post-session bytes and derive the pause from those same bytes, so any
+        # race after this check still loses the CAS and no earlier read can
+        # overwrite a concurrent same-generation edit.
         expected_period_lease = current_period_lease
+    else:
+        ticket = read_ticket(ref)
+
+    if ticket.status in TERMINAL_STATUSES or ticket.status == "paused":
+        return
+    if script_stopped and ticket.status == "blocked":
+        return
 
     if timed_out:
         suffix = "liveness watchdog: REPL timed out before signalling done"

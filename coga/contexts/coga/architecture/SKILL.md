@@ -124,13 +124,13 @@ no in-memory state.
   freezes that local-only class at outer admission and uses exact local control
   state; a remote that disappears afterward still refuses. A deterministic
   child retains that refreshed admission generation; immediately before every
-  ordinary agent spawn, launch requires
-  the same bounded token and captures the exact current ticket again. On either
-  child's unfinished exit, that token distinguishes a replacement from the
-  same child's ticket and audit writes; only the latter acquires a fresh exact
-  lease for the
-  guarded pause. A replacement refuses teardown instead of parking the stable
-  path's new owner.
+  ordinary agent spawn, launch requires the same bounded token and the complete
+  current ticket to match the launchable state just composed. On either child's
+  unfinished exit, that token distinguishes a replacement from the same child's
+  ticket and audit writes; only the latter acquires a fresh exact lease, and the
+  guarded pause is derived from those newly leased bytes so concurrent
+  same-generation edits survive. A replacement refuses teardown instead of
+  parking the stable path's new owner.
   It does not re-enter the whole public launch path. A
   direct `coga launch recurring/<name>` has no such outer admission, so it gates
   and requires verified catch-up before resolving even a locally missing period

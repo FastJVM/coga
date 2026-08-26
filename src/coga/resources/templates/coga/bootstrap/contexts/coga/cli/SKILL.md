@@ -899,10 +899,11 @@ checkout with no configured remote freezes that local-only class at outer
 admission and uses exact local control state; a remote that disappears afterward
 still refuses. A deterministic child retains that refreshed lease; immediately
 before every ordinary agent spawn, launch requires the same bounded token and
-captures the exact ticket again. If
-either exits unfinished, that token
-admits same-generation ticket/audit writes to a fresh
-exact pause lease while a replacement at the stable path remains untouched.
+the complete ticket to match the launchable state just composed. If either exits
+unfinished, that token admits same-generation ticket/audit writes to a fresh
+exact pause lease, and the pause is derived from those newly leased bytes so a
+concurrent same-generation edit survives, while a replacement at the stable
+path remains untouched.
 Delegated children use
 the same admitted generation as the start of their exact control lease. The
 direct spelling has no outer admission: it requires verified control catch-up

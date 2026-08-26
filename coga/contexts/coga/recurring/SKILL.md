@@ -224,13 +224,16 @@ at admission but disappears before a later child, the child refuses instead of
 silently changing classes. Every
 ordinary period launch also returns its exact ticket-plus-generation lease: the
 refreshed admission lease for a deterministic `ticket.py` child, recaptured
-immediately before the final spawn for an agent child only after the bounded
-token still matches. If either child exits
+immediately before every agent spawn only after the bounded token, launchable
+status, and full ticket snapshot still match the work just composed. A parked,
+closed, advanced, or otherwise edited same-generation ticket therefore cannot
+run a stale prompt. If either child exits
 unfinished, the sweep compares that bounded token, which stays stable across
 the child's ticket edits and launch/usage audit appends but changes when the
 path is materialized again. Only the same
-generation gets a fresh exact lease and guarded pause; a replacement refuses
-teardown instead of parking the task now occupying the stable path. The
+generation gets a fresh exact lease, and the pause is rendered from those newly
+leased bytes so a concurrent same-generation edit is preserved; a replacement
+refuses teardown instead of parking the task now occupying the stable path. The
 direct `coga launch recurring/<name>` spelling requires a verified catch-up
 **before resolving the local ref or reading dispatch** whenever a remote is
 configured; a remote-backed control checkout whose fetch or integration fails

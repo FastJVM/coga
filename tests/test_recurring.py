@@ -6983,6 +6983,41 @@ def test_unfinished_ordinary_pause_accepts_same_generation_child_edits(
     assert "Child working note." in paused.body
 
 
+def test_unfinished_ordinary_pause_uses_the_newly_leased_ticket(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A same-generation edit between lookup and lease survives the pause."""
+    cfg, ref = _in_progress_period(repo)
+    launched_lease = recurring_module.local_period_lease(cfg, ref)
+    real_local_period_lease = recurring_module.local_period_lease
+
+    def lease_after_concurrent_edit(
+        lease_cfg: Config, lease_ref: TaskRef
+    ) -> PeriodLease:
+        current = Ticket.read(lease_ref.ticket_path)
+        if "Concurrent child note." not in current.body:
+            current.body += "\nConcurrent child note.\n"
+            current.write(lease_ref.ticket_path)
+        return real_local_period_lease(lease_cfg, lease_ref)
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_local_period_lease",
+        lease_after_concurrent_edit,
+    )
+
+    recurring_cmd._stop_if_unfinished_after_launch(
+        cfg,
+        ref,
+        expected_period_lease=launched_lease,
+    )
+
+    paused = Ticket.read(ref.ticket_path)
+    assert paused.status == "paused"
+    assert "Concurrent child note." in paused.body
+
+
 def _in_progress_period(repo: Path) -> tuple[Config, TaskRef]:
     cfg = load_config(repo)
     ref = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0].ref

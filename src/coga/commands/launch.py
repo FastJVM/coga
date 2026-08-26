@@ -281,8 +281,8 @@ def launch_recurring_period(
     # boundary immediately before every actual spawn.
     launched_period_lease = expected_period_lease
 
-    def capture_launched_period_lease() -> None:
-        """Freeze the exact generation immediately before each agent spawn."""
+    def capture_launched_period_lease(expected_ticket: Ticket) -> None:
+        """Freeze the exact composed period immediately before agent spawn."""
         nonlocal launched_period_lease
         current_cfg, current_ref = _exact_recurring_period_for_launch(
             task, boundary="agent spawn"
@@ -292,6 +292,24 @@ def launch_recurring_period(
             _bail(
                 f"{task} belongs to a different period generation at agent "
                 "spawn; not launching."
+            )
+        try:
+            if current_period_lease.ticket_bytes is None:
+                raise TicketError("period ticket disappeared")
+            current_ticket = Ticket.parse(
+                current_period_lease.ticket_bytes.decode()
+            )
+        except (UnicodeError, TicketError) as exc:
+            _bail(f"Cannot launch {task}: invalid period state at agent spawn: {exc}")
+        if current_ticket.status != "in_progress":
+            _bail(
+                f"Cannot launch {task}: period became {current_ticket.status!r} "
+                "before agent spawn. No work was started."
+            )
+        if current_ticket != expected_ticket:
+            _bail(
+                f"Cannot launch {task}: period state changed after prompt "
+                "composition. No work was started."
             )
         launched_period_lease = current_period_lease
 
@@ -429,7 +447,7 @@ def launch_with_before_spawn(
     script_failure_important: bool = False,
     queue_guidance: bool,
     before_spawn: Callable[[], None],
-    revalidate_before_spawn: Callable[[], None] | None = None,
+    revalidate_before_spawn: Callable[[Ticket], None] | None = None,
 ) -> str | None:
     """Publish caller state after preflight, then re-derive and spawn once.
 
@@ -492,7 +510,7 @@ def _launch(
     script_failure_important: bool,
     queue_guidance: bool,
     before_recompose: Callable[[], None] | None,
-    before_final_spawn: Callable[[], None] | None,
+    before_final_spawn: Callable[[Ticket], None] | None,
     require_agent_target: bool,
     record_launch: bool,
     recurring_authorized: bool,
@@ -1657,11 +1675,19 @@ def _launch(
             # session. An ordinary recurring period can chain agent-owned
             # workflow steps, so refresh its teardown witness before every
             # spawned child and retain the last generation actually launched.
-            session_before_spawn = (
-                before_final_spawn
-                if is_first_step or recurring_authorized
-                else None
-            )
+            session_before_spawn: Callable[[], None] | None = None
+            if before_final_spawn is not None and (
+                is_first_step or recurring_authorized
+            ):
+
+                def invoke_final_spawn_guard(
+                    callback: Callable[[Ticket], None] = before_final_spawn,
+                    expected_ticket: Ticket = spawn_ticket,
+                ) -> None:
+                    callback(expected_ticket)
+
+                session_before_spawn = invoke_final_spawn_guard
+
             if publish_assist_branch is not None:
                 if not isinstance(ref, TaskRef) or assist_pr_guard is None:
                     _bail(
