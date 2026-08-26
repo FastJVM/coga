@@ -43,14 +43,13 @@ from coga.recurring import (
     local_period_lease as _local_period_lease,
     parse_serviced_period_entries,
     parse_serviced_period_entries_reverse,
-    period_generation_fingerprint as _period_generation_fingerprint,
+    period_generation_from_ticket_bytes as _period_generation_from_ticket_bytes,
     period_key_at_least,
     read_serviced_ledger,
     recurring_dir,
     resolve_agent_delegate,
     create_named,
     scan_due,
-    task_audit_fingerprint as _task_audit_fingerprint,
 )
 from coga.recurring_autofix import (
     RunRecord,
@@ -1126,12 +1125,10 @@ def _revision_period_lease(
     if root is None:
         return _local_period_lease(cfg, ref)
     ticket_rel = _relative_to_root(root, ref.ticket_path)
-    log_rel = _relative_to_root(root, log_path(cfg))
+    ticket_bytes = git._tree_bytes(root, revision, ticket_rel)
     return _PeriodLease(
-        ticket_bytes=git._tree_bytes(root, revision, ticket_rel),
-        audit_lines=_task_audit_fingerprint(
-            git._tree_bytes(root, revision, log_rel), ref.id_slug
-        ),
+        ticket_bytes=ticket_bytes,
+        generation=_period_generation_from_ticket_bytes(ticket_bytes),
     )
 
 
@@ -1147,8 +1144,8 @@ def _period_lease_guard(
             changed: list[str] = []
             if actual.ticket_bytes != expected.ticket_bytes:
                 changed.append("ticket bytes")
-            if actual.audit_lines != expected.audit_lines:
-                changed.append("task audit generation")
+            if actual.generation != expected.generation:
+                changed.append("period generation")
             raise git.StateRegressionError(
                 f"{ref.id_slug}: delegated period lease changed on control "
                 f"({', '.join(changed) or 'unknown state'}); refusing stale "
@@ -1227,7 +1224,7 @@ def _run_delegated_task(
     refusal, not successful continuation. A named launch instead returns the
     timeout code and leaves the task retryable as `in_progress`. Start, final
     spawn, completion, and timeout each lease both the exact ticket and its
-    task-tagged audit generation. The control guard observes that lease as a
+    creator-owned period generation. The control guard observes that lease as a
     compare-and-set, so a stable-path replacement can neither start obsolete
     work nor receive the prior child's result.
 
@@ -1241,7 +1238,7 @@ def _run_delegated_task(
         and initial_period_lease != admitted_period_lease
     ):
         typer.secho(
-            f"{ref.id_slug} belongs to a different ticket/audit generation; "
+            f"{ref.id_slug} belongs to a different ticket/period generation; "
             "not launching.",
             fg=typer.colors.YELLOW,
         )
@@ -1345,7 +1342,7 @@ def _run_delegated_task(
         if current_lease != initial_period_lease:
             raise RecurringError(
                 f"cannot start delegated period {ref.id_slug}: its ticket or "
-                "task audit generation changed during preflight"
+                "period generation changed during preflight"
             )
         if current_lease.ticket_bytes is None:
             raise RecurringError(
@@ -1467,24 +1464,18 @@ def _run_delegated_task(
             boundary="start publication",
             expected_status="in_progress",
         )
-        launch_audit = append_log(
+        append_log(
             start_cfg,
             ref.id_slug,
             "system",
             f"launched delegated target {delegate}",
         )
         git.sync_log(start_cfg, message=f"Log: {ref.id_slug}")
-        expected_audit = tuple(
-            sorted([*started_lease.audit_lines, launch_audit.rstrip(b"\n")])
-        )
         expected_period_lease = _local_period_lease(start_cfg, ref)
-        if expected_period_lease != _PeriodLease(
-            ticket_bytes=started_lease.ticket_bytes,
-            audit_lines=expected_audit,
-        ):
+        if expected_period_lease != started_lease:
             raise RecurringError(
                 f"cannot launch delegated period {ref.id_slug}: its ticket or "
-                "task audit generation changed while publishing the launch audit"
+                "period generation changed while publishing the launch audit"
             )
         ticket_for_lease(
             expected_period_lease,
@@ -1503,7 +1494,7 @@ def _run_delegated_task(
         if current_lease != expected_period_lease:
             raise RecurringError(
                 f"cannot launch delegated period {ref.id_slug}: its ticket or "
-                "task audit generation changed after start publication; "
+                "period generation changed after start publication; "
                 "retry from fresh state"
             )
         ticket_for_lease(
@@ -3075,16 +3066,14 @@ def _stop_if_unfinished_after_launch(
 
     if expected_period_lease is not None:
         current_period_lease = _local_period_lease(cfg, ref)
-        if _period_generation_fingerprint(
-            current_period_lease
-        ) != _period_generation_fingerprint(expected_period_lease):
+        if current_period_lease.generation != expected_period_lease.generation:
             raise RecurringError(
                 f"cannot pause recurring period {ref.id_slug}: its stable-path "
                 "generation changed after the child exited"
             )
-        # Ticket edits plus launch/usage/lifecycle audit appends belong to this
-        # same child generation. Lease their exact post-session bytes for the
-        # mutation itself so any race after this check still loses the CAS.
+        # Ticket edits belong to this same child generation. Lease the exact
+        # post-session bytes for the mutation itself so any race after this
+        # check still loses the CAS.
         expected_period_lease = current_period_lease
 
     if timed_out:

@@ -1393,7 +1393,7 @@ def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
     )
     monkeypatch.setattr(launch_module, "_launch", fake_launch)
 
-    expected_period_lease = PeriodLease(b"admitted ticket", (b"creation",))
+    expected_period_lease = PeriodLease(b"admitted ticket", "generation-1")
     result = launch_module.launch_recurring_period(
         "recurring/delegate-check",
         expected_period_lease=expected_period_lease,
@@ -1467,7 +1467,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
 def test_internal_recurring_launch_skips_a_replaced_period_generation(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Byte-identical replacement state cannot inherit an admitted dispatch."""
+    """An otherwise-identical replacement cannot inherit admitted dispatch."""
     cfg = load_config(git_repo.coga_os)
     created = create_task(
         cfg=cfg,
@@ -1480,19 +1480,18 @@ def test_internal_recurring_launch_skips_a_replaced_period_generation(
         status="active",
         slug_override="recurring/replaced-check",
         force_directory=True,
+        period_generation="generation-1",
     )
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed replaceable recurring period")
     git_repo.git("push", "origin", "main")
     ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
     expected_period_lease = local_period_lease(cfg, ref)
-    audit_path = git_repo.coga_os / "log.md"
-    competing_audit = audit_path.read_text() + (
-        "2026-08-26 12:00 [recurring/replaced-check] [system] "
-        "created replacement (status=active)\n"
-    )
+    competing_ticket = Ticket.read(ref.ticket_path)
+    competing_ticket.frontmatter["period_generation"] = "generation-2"
     git_repo.push_competing_commit(
-        audit_path.relative_to(git_repo.root).as_posix(), competing_audit
+        ref.ticket_path.relative_to(git_repo.root).as_posix(),
+        competing_ticket.render(),
     )
     monkeypatch.setattr(
         launch_module,
@@ -1515,8 +1514,8 @@ def test_internal_recurring_launch_skips_a_replaced_period_generation(
     current_period_lease = local_period_lease(cfg, ref)
     assert result.kind == "skipped"
     assert result.period_lease is None
-    assert current_period_lease.ticket_bytes == expected_period_lease.ticket_bytes
-    assert current_period_lease.audit_lines != expected_period_lease.audit_lines
+    assert current_period_lease.generation == "generation-2"
+    assert current_period_lease.generation != expected_period_lease.generation
 
 
 def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(

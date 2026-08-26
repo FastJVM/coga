@@ -141,14 +141,15 @@ the example under "Extend recurring with a task-specific workflow").
   the runner preflights push access for the materialized period (the stateless
   bootstrap target would otherwise self-skip that gate), fully preflights and
   composes the bootstrap launch, then publishes `in_progress` as an exact
-  compare-and-set before announcing the start. The lease covers both the
-  materialized ticket bytes and that task ref's audit-line multiset: a later
-  period can reuse the stable path with byte-identical ticket state, but it is
-  still a different generation. Launch then reloads config and target state and
+  compare-and-set before announcing the start. The materialized task carries a
+  creator-owned `period_generation:` token that changes on every supported
+  rematerialization; the lease covers that bounded witness plus the exact
+  ticket bytes without rereading the unbounded global audit log. Launch then
+  reloads config and target state and
   redoes every preflight and composition step because start publication may
   integrate a newer control tip. Immediately before spawn, the runner requires
-  that same ticket-plus-audit lease, `in_progress` status, and frozen delegate
-  on control. Any concurrent terminal transition, replacement, dispatch
+  that same ticket-plus-generation lease, `in_progress` status, and frozen
+  delegate on control. Any concurrent terminal transition, replacement, dispatch
   change, ticket edit, or new generation refuses the spawn. The launch remains
   in-process — in the operator's own terminal, under the sweep's `--agent`
   override, queue guidance, and idle/max-session liveness bounds — and the
@@ -184,6 +185,9 @@ the example under "Extend recurring with a task-specific workflow").
   be agent-backed: a bootstrap `ticket.py` target is rejected before creation,
   because deterministic recurring work belongs in the template's own
   `ticket.py`. `coga validate` checks both the template and frozen task.
+- `period_generation` is runner-owned materialized-task state, not a template
+  input. The creator stamps it once per new stable-path generation; templates
+  that declare it are rejected rather than copying a stale lease identity.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered
@@ -205,19 +209,19 @@ gate.
 
 The outer sweep gate checks only the local branch. Its initial fetch or rebase
 remains a warning for bare and named interactive single-repo scans, but a remote-backed
-period is admitted with its exact ticket bytes and task-tagged audit generation
+period is admitted with its exact ticket bytes and creator-owned period generation
 before the first child starts, then refreshed again immediately before its own
 launch. That narrow per-child check resolves only the exact task ref, fails
 closed if control cannot be verified, and skips a task removed, replaced, or
 changed to `done`, `canceled`, or `paused` while an earlier child was running;
 an offline operator therefore cannot start new remote-backed period work from
 a stale scan snapshot, and a removed ref cannot alias a prefix sibling. Every
-ordinary period launch also returns its exact ticket-plus-audit lease: the
+ordinary period launch also returns its exact ticket-plus-generation lease: the
 refreshed admission lease for a deterministic `ticket.py` child, recaptured
 immediately before the final spawn for an agent child. If either child exits
-unfinished, the sweep compares the lease's append-only canonical creation
-witness, which stays stable across the child's ticket edits and launch/usage
-audit appends but changes when the path is materialized again. Only the same
+unfinished, the sweep compares that bounded token, which stays stable across
+the child's ticket edits and launch/usage audit appends but changes when the
+path is materialized again. Only the same
 generation gets a fresh exact lease and guarded pause; a replacement refuses
 teardown instead of parking the task now occupying the stable path. The
 direct `coga launch recurring/<name>` spelling requires a verified catch-up
@@ -230,7 +234,7 @@ replacement wins. A bare sweep and
 outer boundary; the typed in-process seam rechecks branch/owner plus only the
 latest period state before each ordinary child rather than re-entering the
 whole public launch path. Delegated children use their stricter exact
-ticket-plus-audit control lease instead, and any transport failure while
+ticket-plus-generation control lease instead, and any transport failure while
 confirming or publishing that lease refuses the child. The
 unattended `coga recurring --all <path>` child keeps its stricter existing
 precondition: it must also fetch and integrate the latest remote control tip
@@ -688,7 +692,7 @@ Operating it:
   `coga slack` roll-up line in `coga/log.md`, which emits the bootstrap done
   sentinel — is the only path to period completion; a natural REPL exit is not
   success. Start, spawn, completion, and timeout are guarded by the exact
-  materialized ticket plus its task-audit generation, so an old child cannot
+  materialized ticket plus its creator-owned period generation, so an old child cannot
   mutate a later period at the same stable path. Delegation is only for an
   agent-backed bootstrap command. If the
   target has `ticket.py`, move that deterministic work to the recurring

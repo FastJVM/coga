@@ -141,6 +141,28 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket.secrets is None
 
 
+def test_create_can_stamp_a_recurring_period_generation(repo: Path) -> None:
+    """The recurring creator can assign one bounded stable-path identity."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Generated period",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/generated-period",
+        force_directory=True,
+        period_generation="generation-1",
+    )
+
+    ticket = Ticket.read(Path(created["path"]) / "ticket.md")
+
+    assert ticket.frontmatter["period_generation"] == "generation-1"
+
+
 def test_create_canceled_ticket_has_no_workflow_step(repo: Path) -> None:
     cfg = load_config(repo)
 

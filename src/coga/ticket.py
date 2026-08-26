@@ -45,6 +45,7 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
     "contexts",
     "skills",
     "delegate",
+    "period_generation",
     "secrets",
 })
 

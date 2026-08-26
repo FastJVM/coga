@@ -890,14 +890,14 @@ ticket; the sweep, `coga recurring launch <name>`, and direct
 current template frontmatter, and the sweep rereads it after reconciliation
 instead of trusting cached scan dispatch. Sweeps and named launches perform
 full admission at their outer boundary, freeze every period's exact ticket and
-task-audit generation, then use an internal period-launch seam. That seam
+creator-owned `period_generation` token, then use an internal period-launch seam. That seam
 narrowly refreshes control, resolves only the exact ref, and rechecks
 branch/owner plus that generation immediately before each ordinary child, so
 work removed, parked, finished, or replaced during an earlier session is
 skipped and a failed refresh refuses the next launch. A deterministic child
 retains that refreshed lease; an agent child captures it again immediately
-before every ordinary spawn. If either exits unfinished, the canonical
-creation-line witness admits same-generation ticket/audit writes to a fresh
+before every ordinary spawn. If either exits unfinished, that bounded token
+admits same-generation ticket/audit writes to a fresh
 exact pause lease while a replacement at the stable path remains untouched.
 Delegated children use
 the same admitted generation as the start of their exact control lease. The

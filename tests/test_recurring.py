@@ -2045,6 +2045,24 @@ def test_template_ignores_the_deleted_recipe_key(
     assert not hasattr(template, "recipe")
 
 
+def test_template_rejects_materialized_period_generation(repo: Path) -> None:
+    """A template cannot pin every future run to one generated lease token."""
+    _write_recurring(
+        repo,
+        "bad-generation",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Bad generation
+        period_generation: copied-token
+        ---
+        """,
+    )
+
+    with pytest.raises(RecurringError, match="reserved for materialized period"):
+        Template.load(repo / "recurring" / "bad-generation")
+
+
 def test_script_template_bypasses_agent_tty_gate(repo: Path) -> None:
     """A `ticket.py` template runs headlessly; the agent template is gated."""
     _write_recurring(
@@ -2074,6 +2092,34 @@ def test_script_template_bypasses_agent_tty_gate(repo: Path) -> None:
     assert task.status == "active"
     assert (task.ref.task_dir / "ticket.py").is_file()
     assert any(name == "weekly-check" for name, _ in scan.errors)
+
+
+def test_local_period_lease_does_not_read_unbounded_global_log(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Generation safety stays bounded to the materialized ticket."""
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "weekly-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    ticket = Ticket.read(outcome.ref.ticket_path)
+    generation = ticket.frontmatter.get("period_generation")
+    assert isinstance(generation, str) and generation
+
+    audit_path = log_path(cfg).resolve()
+    original_read_bytes = Path.read_bytes
+
+    def refuse_audit_read(path: Path) -> bytes:
+        if path.resolve() == audit_path:
+            pytest.fail("period lease reread the unbounded global audit log")
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", refuse_audit_read)
+
+    lease = recurring_module.local_period_lease(cfg, outcome.ref)
+
+    assert lease.generation == generation
+    assert lease.ticket_bytes == outcome.ref.ticket_path.read_bytes()
 
 
 @pytest.mark.parametrize(
@@ -2587,10 +2633,10 @@ def test_delegated_start_refuses_a_new_generation_before_publication(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A same-bytes replacement is still a different period generation.
+    """An otherwise-identical replacement is a different period generation.
 
-    The serviced/lifecycle audit changed before the start callback, so the
-    runner must refuse without marking or announcing the stale period.
+    The creator-owned token changes before the start callback, so the runner
+    must refuse without marking or announcing the stale period.
     """
     _write_delegating_template(repo, "delegate-check")
     cfg = load_config(repo)
@@ -2599,6 +2645,9 @@ def test_delegated_start_refuses_a_new_generation_before_publication(
     )
 
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        replacement = Ticket.read(outcome.ref.ticket_path)
+        replacement.frontmatter["period_generation"] = "replacement-generation"
+        replacement.write(outcome.ref.ticket_path)
         append_log(
             cfg,
             outcome.ref.id_slug,
@@ -2635,7 +2684,7 @@ def test_delegated_start_control_cas_rejects_a_remote_generation_race(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A remote audit-only replacement loses before start notification/spawn."""
+    """A remote replacement loses before start notification or spawn."""
     cfg = load_config(git_repo.coga_os)
     created = create_task(
         cfg=cfg,
@@ -2649,6 +2698,7 @@ def test_delegated_start_control_cas_rejects_a_remote_generation_race(
         slug_override="recurring/delegate-check",
         force_directory=True,
         delegate="bootstrap/resolve-conflicts",
+        period_generation="generation-1",
     )
     append_log(
         cfg,
@@ -2661,12 +2711,11 @@ def test_delegated_start_control_cas_rejects_a_remote_generation_race(
     git_repo.git("push", "origin", "main")
     ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
 
-    audit = log_path(cfg)
+    replacement = Ticket.read(ref.ticket_path)
+    replacement.frontmatter["period_generation"] = "generation-2"
     git_repo.push_competing_commit(
-        "coga/log.md",
-        audit.read_text()
-        + "2026-04-29 10:00 [recurring/delegate-check] [system] "
-        "created recurring/delegate-check for 2026-W18\n",
+        ref.ticket_path.relative_to(git_repo.root).as_posix(),
+        replacement.render(),
     )
     notifications: list[str] = []
 
@@ -2822,6 +2871,7 @@ def test_delegated_completion_publishes_parent_cross_run_state(
         slug_override="recurring/delegate-check",
         force_directory=True,
         delegate="bootstrap/resolve-conflicts",
+        period_generation="generation-1",
     )
     ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
     write_snapshot(ref.path, "delegate-check", parent_ticket, ["cursor"])
@@ -2996,11 +3046,11 @@ def test_delegated_completion_control_cas_rejects_a_remote_generation_race(
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
         kwargs["before_spawn"]()
         kwargs["revalidate_before_spawn"]()
+        replacement = Ticket.read(ref.ticket_path)
+        replacement.frontmatter["period_generation"] = "generation-2"
         git_repo.push_competing_commit(
-            "coga/log.md",
-            log_path(cfg).read_text()
-            + "2026-04-29 10:00 [recurring/delegate-check] [system] "
-            "created recurring/delegate-check for 2026-W18\n",
+            ref.ticket_path.relative_to(git_repo.root).as_posix(),
+            replacement.render(),
         )
         return "done"
 
@@ -3031,6 +3081,7 @@ def test_delegated_completion_control_cas_rejects_a_remote_generation_race(
         cwd=git_repo.origin,
     )
     assert "status: in_progress" in control_ticket
+    assert "period_generation: generation-2" in control_ticket
 
 
 @pytest.mark.parametrize(
@@ -3048,9 +3099,9 @@ def test_delegated_result_cannot_mutate_a_later_period_generation(
 ) -> None:
     """The stable task path is re-leased after the child exits.
 
-    A later generation can have byte-identical ``in_progress`` ticket state;
-    its new task audit is therefore part of the lease that keeps the old
-    child's done/timeout result from completing or pausing it.
+    A later generation can have otherwise-identical ``in_progress`` ticket
+    state; its creator-owned token is therefore part of the lease that keeps
+    the old child's done/timeout result from completing or pausing it.
     """
     _write_delegating_template(repo, "delegate-check")
     cfg = load_config(repo)
@@ -3067,6 +3118,9 @@ def test_delegated_result_cannot_mutate_a_later_period_generation(
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
         kwargs["before_spawn"]()
         kwargs["revalidate_before_spawn"]()
+        replacement = Ticket.read(outcome.ref.ticket_path)
+        replacement.frontmatter["period_generation"] = "replacement-generation"
+        replacement.write(outcome.ref.ticket_path)
         append_log(
             cfg,
             outcome.ref.id_slug,
@@ -5418,7 +5472,8 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
 
     monkeypatch.setattr(recurring_cmd, "_prepare_forced_launch", prepare)
     active_lease = PeriodLease(
-        Ticket(frontmatter={"status": "active"}, body="").render().encode(), ()
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(),
+        "generation-1",
     )
     monkeypatch.setattr(
         recurring_cmd, "_local_period_lease", lambda *args: active_lease
@@ -5486,7 +5541,8 @@ def test_forced_recurring_scan_prepares_then_launches_task(
         lambda task_cfg, due_task: prepared.append(due_task),
     )
     active_lease = PeriodLease(
-        Ticket(frontmatter={"status": "active"}, body="").render().encode(), ()
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(),
+        "generation-1",
     )
     monkeypatch.setattr(
         recurring_cmd, "_local_period_lease", lambda *args: active_lease
@@ -5565,7 +5621,8 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
     monkeypatch.setattr(recurring_cmd, "_print_table", lambda *args, **kwargs: None)
     active_lease = PeriodLease(
-        Ticket(frontmatter={"status": "active"}, body="").render().encode(), ()
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(),
+        "generation-1",
     )
     monkeypatch.setattr(
         recurring_cmd, "_local_period_lease", lambda *args: active_lease
@@ -6751,6 +6808,7 @@ def test_bare_recurring_refuses_to_pause_replacement_after_ordinary_agent_exit(
 
         replacement = Ticket.read(ref.ticket_path)
         replacement.frontmatter["status"] = "active"
+        replacement.frontmatter["period_generation"] = "replacement-generation"
         replacement.body += "\nReplacement generation.\n"
         replacement.write(ref.ticket_path)
         append_log(
@@ -6812,6 +6870,7 @@ def test_bare_recurring_refuses_to_pause_replacement_after_ticket_script_exit(
 
         replacement = Ticket.read(ref.ticket_path)
         replacement.frontmatter["status"] = "active"
+        replacement.frontmatter["period_generation"] = "replacement-generation"
         replacement.body += "\nReplacement generation.\n"
         replacement.write(ref.ticket_path)
         append_log(cfg, ref.id_slug, "system", "created (status=active)")

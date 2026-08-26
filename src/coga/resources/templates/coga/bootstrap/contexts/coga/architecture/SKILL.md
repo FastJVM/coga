@@ -114,17 +114,17 @@ no in-memory state.
   Nothing declares deterministic execution — there is no `recipe:` or mode
   field.
   A sweep or named recurring run performs full recurring admission at its
-  outer boundary, freezes each period's exact ticket-plus-task-audit
-  generation, then launches through an internal typed seam. Immediately
+  outer boundary, freezes each period's exact ticket plus its creator-owned
+  `period_generation` token, then launches through an internal typed seam. Immediately
   before each ordinary child, that seam refreshes control state, resolves only
   the exact ref (never a prefix sibling), and rechecks branch/owner plus the
   frozen generation. A task removed, paused, finished, or replaced while an
   earlier child ran is skipped; an unverified refresh refuses rather than
   starting stale work. A deterministic child retains that refreshed admission
   generation; immediately before every ordinary agent spawn, launch captures
-  the exact generation again. On either child's unfinished exit, the canonical
-  creation-line witness distinguishes a replacement from the same child's
-  ticket and audit writes; only the latter acquires a fresh exact lease for the
+  the exact generation again. On either child's unfinished exit, that bounded
+  token distinguishes a replacement from the same child's ticket and audit
+  writes; only the latter acquires a fresh exact lease for the
   guarded pause. A replacement refuses teardown instead of parking the stable
   path's new owner.
   It does not re-enter the whole public launch path. A
@@ -132,7 +132,7 @@ no in-memory state.
   requires verified catch-up before resolving even a locally missing period
   ref. For a frozen
   delegation, the runner separately preflights the period task's push access
-  and leases its exact ticket bytes plus task-tagged audit generation at start,
+  and leases its exact ticket bytes plus creator-owned generation at start,
   final spawn, and post-child completion/timeout. The lifecycle publications
   are compare-and-sets against control and every attempted Git verification
   or publication failure propagates: an old or unverified child cannot start,

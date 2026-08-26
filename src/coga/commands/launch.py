@@ -370,7 +370,7 @@ def _refresh_recurring_period_before_launch(
     current_period_lease = local_period_lease(cfg, ref)
     if current_period_lease != expected_period_lease:
         typer.secho(
-            f"{ref.id_slug} belongs to a different ticket/audit generation "
+            f"{ref.id_slug} belongs to a different ticket/period generation "
             "on control; not launching.",
             fg=typer.colors.YELLOW,
         )
