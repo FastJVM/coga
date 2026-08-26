@@ -152,6 +152,7 @@ def mark_done(
     after_sync: Callable[[], None] | None = None,
     state_guard: Callable[[str], None] | None = None,
     strict_state_guard: bool = False,
+    strict_state_sync: bool = False,
 ) -> None:
     """Flip a ticket to `done`: write frontmatter, log, notify.
 
@@ -174,9 +175,10 @@ def mark_done(
     ``mutation_snapshot`` to publish the terminal ticket, audit, and any
     digest-spool append as one strict feature/control transition. A recurring
     delegator instead supplies an exact ``state_guard`` with
-    ``strict_state_guard=True``: guard refusal then propagates, and completion
-    is published before it is announced, so a stale child result has no
-    visible lifecycle side effect.
+    ``strict_state_guard=True`` and ``strict_state_sync=True``: guard and Git
+    transport failures then propagate, and completion is published before it
+    is announced, so a stale or unverified child result has no visible
+    lifecycle side effect.
     """
     if not force:
         _assert_no_stranded_product_code(cfg, ref, ticket)
@@ -243,6 +245,7 @@ def mark_done(
             after_sync=after_sync,
             state_guard=state_guard,
             raise_state_regression=strict_state_guard,
+            raise_git_error=strict_state_sync,
             spool_path=(
                 spool_path
                 if notification_spooled and feature_publication is not None
@@ -250,10 +253,10 @@ def mark_done(
             ),
         )
 
-    if feature_publication is not None or strict_state_guard:
+    if feature_publication is not None or strict_state_guard or strict_state_sync:
         sync_state()
         if (
-            strict_state_guard
+            (strict_state_guard or strict_state_sync)
             and feature_publication is None
             and after_sync is not None
         ):
@@ -428,6 +431,7 @@ def _sync_done_state(
     after_sync: Callable[[], None] | None = None,
     state_guard: Callable[[str], None] | None = None,
     raise_state_regression: bool = False,
+    raise_git_error: bool = False,
     spool_path: Path | None = None,
 ) -> None:
     message = f"Ticket: {ref.id_slug} — done"
@@ -447,6 +451,7 @@ def _sync_done_state(
                     if raise_state_regression
                     else {}
                 ),
+                **({"raise_git_error": True} if raise_git_error else {}),
                 **publish_kwargs,
             )
             return
@@ -465,6 +470,7 @@ def _sync_done_state(
                 if raise_state_regression
                 else {}
             ),
+            **({"raise_git_error": True} if raise_git_error else {}),
             **publish_kwargs,
         )
         return
@@ -503,6 +509,7 @@ def _sync_done_state(
             if raise_state_regression
             else {}
         ),
+        **({"raise_git_error": True} if raise_git_error else {}),
     )
 
 
@@ -759,13 +766,15 @@ def mark_in_progress(
     after_sync: Callable[[], None] | None = None,
     state_guard: Callable[[str], None] | None = None,
     strict_state_guard: bool = False,
+    strict_state_sync: bool = False,
 ) -> None:
     """Flip a ticket to `in_progress`: write, sync, then optionally post.
 
     ``after_sync`` observes the exact boundary after durable publication and
     before output or notification work that may still interrupt the caller.
-    ``strict_state_guard`` makes a supplied exact guard transactional: its
-    refusal propagates, and publication precedes start output/notification.
+    ``strict_state_guard`` makes a supplied exact guard transactional;
+    ``strict_state_sync`` also propagates Git transport failures. Either
+    strict form publishes before start output/notification.
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
@@ -795,6 +804,7 @@ def mark_in_progress(
                     if strict_state_guard
                     else {}
                 ),
+                **({"raise_git_error": True} if strict_state_sync else {}),
             )
             return
         git.sync_task_state(
@@ -819,15 +829,16 @@ def mark_in_progress(
                 if strict_state_guard
                 else {}
             ),
+            **({"raise_git_error": True} if strict_state_sync else {}),
         )
 
     # A strict assist publication must succeed before announcing a started
     # session. Preserve the existing notification-before-sync ordering for
     # ordinary launches and other callers.
-    if feature_publication is not None or strict_state_guard:
+    if feature_publication is not None or strict_state_guard or strict_state_sync:
         sync_state()
         if (
-            strict_state_guard
+            (strict_state_guard or strict_state_sync)
             and feature_publication is None
             and after_sync is not None
         ):
@@ -847,7 +858,11 @@ def mark_in_progress(
             # unleased audit line that would dirty the checkout before spawn.
             record_failure=feature_publication is None,
         )
-    if feature_publication is None and not strict_state_guard:
+    if (
+        feature_publication is None
+        and not strict_state_guard
+        and not strict_state_sync
+    ):
         sync_state()
         if after_sync is not None:
             after_sync()
@@ -943,6 +958,7 @@ def mark_paused(
     after_sync: Callable[[], None] | None = None,
     state_guard: Callable[[str], None] | None = None,
     strict_state_guard: bool = False,
+    strict_state_sync: bool = False,
 ) -> None:
     """Flip a ticket to `paused`: write frontmatter and log.
 
@@ -987,12 +1003,13 @@ def mark_paused(
                 if strict_state_guard
                 else {}
             ),
+            **({"raise_git_error": True} if strict_state_sync else {}),
         )
 
-    if feature_publication is not None or strict_state_guard:
+    if feature_publication is not None or strict_state_guard or strict_state_sync:
         sync_state()
         if (
-            strict_state_guard
+            (strict_state_guard or strict_state_sync)
             and feature_publication is None
             and after_sync is not None
         ):
@@ -1013,7 +1030,11 @@ def mark_paused(
             fatal=False,
             record_failure=feature_publication is None,
         )
-    if feature_publication is None and not strict_state_guard:
+    if (
+        feature_publication is None
+        and not strict_state_guard
+        and not strict_state_sync
+    ):
         sync_state()
 
 

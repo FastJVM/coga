@@ -193,16 +193,23 @@ control branch and tells the operator to switch branches. There is deliberately
 no override: `--force` bypasses schedule and status filters, not the branch
 gate.
 
-This gate checks only the local branch. A fetch or rebase failure on the
-checked-out control branch remains a warning for the interactive single-repo
-entry points, so an offline operator can still service a period. The direct
+The outer gate checks only the local branch. Its initial fetch or rebase remains
+a warning for the interactive single-repo entry points, but a remote-backed
+period is refreshed again immediately before its own launch. That narrow
+per-child check fails closed if control cannot be verified and skips a task
+that became `done`, `canceled`, or `paused` while an earlier child was running;
+an offline operator therefore cannot start new remote-backed period work from
+a stale scan snapshot. The direct
 `coga launch recurring/<name>` spelling performs that same best-effort catch-up
 **before resolving the local ref or reading dispatch**, then reloads
 configuration and resolves the refreshed period so a remotely materialized
 task, integrated completion, or replacement wins. A bare sweep and
-`coga recurring launch <name>` perform these owner/branch/catch-up gates once
-at their outer boundary; their in-process period launches do not repeat the
-network-bearing public admission path for every task. The
+`coga recurring launch <name>` perform their full public admission once at the
+outer boundary; the typed in-process seam rechecks branch/owner plus only the
+latest period state before each ordinary child rather than re-entering the
+whole public launch path. Delegated children use their stricter exact
+ticket-plus-audit control lease instead, and any transport failure while
+confirming or publishing that lease refuses the child. The
 unattended `coga recurring --all <path>` child keeps its stricter existing
 precondition: it must also fetch and integrate the latest remote control tip
 before scanning. Repos with `[git].enabled = false` and workspaces outside a

@@ -607,6 +607,7 @@ def sync_task_state(
     extra_paths: Iterable[Path] = (),
     land_union_files_to_control: bool = False,
     raise_state_regression: bool = False,
+    raise_git_error: bool = False,
 ) -> None:
     """Commit the task directory's files and push to the control branch.
 
@@ -640,6 +641,11 @@ def sync_task_state(
     for callers that gate later work on the guard's compare-and-set: a refusal
     is re-raised after the sync layer unwinds any unpushed commit. Ordinary
     human commands retain the non-fatal, locally-visible transition policy.
+    ``raise_git_error`` additionally makes every attempted Git publication
+    failure observable to a caller that must not perform a dependent side
+    effect without confirmed control state. It also refuses a requested
+    strict publication when Git, the checkout, the control branch, or the
+    configured remote is unavailable.
     `expected_current_branch` pins an explicitly requested
     feature publication to the branch the caller already verified; switching
     checkouts between verification and sync fails before any commit or push.
@@ -696,6 +702,7 @@ def sync_task_state(
             if raise_state_regression
             else {}
         ),
+        **({"raise_git_error": True} if raise_git_error else {}),
     )
 
 
@@ -1077,6 +1084,7 @@ def sync_paths(
     after_strict_publication: Callable[[], None] | None = None,
     generated_paths: Mapping[Path, bytes | None] | None = None,
     raise_state_regression: bool = False,
+    raise_git_error: bool = False,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -1114,15 +1122,19 @@ def sync_paths(
     newer copy that another checkout already landed. Set
     ``raise_state_regression`` only when a dependent side effect must not run
     after that refusal; ordinary CLI transitions keep the refusal non-fatal.
+    ``raise_git_error`` is the stronger publication gate: it also propagates
+    transport and repository-shape failures, including a configured remote
+    that disappears, so the dependent side effect runs only after control was
+    actually verified.
     """
     selected = _dedupe_paths(paths)
     if not selected:
         return
 
     if not cfg.git_enabled:
-        if strict_feature_publication:
+        if strict_feature_publication or raise_git_error:
             raise FeaturePublicationError(
-                "strict feature publication requires git sync"
+                "strict state publication requires git sync"
             )
         sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
         return
@@ -1130,9 +1142,9 @@ def sync_paths(
     try:
         root = _toplevel(anchor_path)
         if root is None:
-            if strict_feature_publication:
+            if strict_feature_publication or raise_git_error:
                 raise FeaturePublicationError(
-                    "strict feature publication requires a git checkout"
+                    "strict state publication requires a git checkout"
                 )
             sys.stderr.write(
                 f"[git] not a git repo (sync skipped): {message}\n"
@@ -1151,7 +1163,7 @@ def sync_paths(
                 ) from exc
             raise
         if not control_branch_present:
-            if strict_feature_publication:
+            if strict_feature_publication or raise_git_error:
                 raise FeaturePublicationError(
                     _control_branch_mismatch_message(cfg, root)
                 )
@@ -1159,6 +1171,12 @@ def sync_paths(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
             return
+
+        if raise_git_error and not _remote_configured(root, cfg.git_remote):
+            raise GitError(
+                f"remote {cfg.git_remote!r} disappeared before strict state "
+                "publication"
+            )
 
         rels = [_relative_to_root(root, path) for path in selected]
         generated_rels = (
@@ -1235,6 +1253,8 @@ def sync_paths(
             raise FeaturePublicationError(
                 f"strict feature publication failed: {exc}"
             ) from exc
+        if raise_git_error:
+            raise
         # Non-fatal: surface loudly (stderr + log.md) but do NOT abort the
         # command. The task's markdown on disk is the source of truth; git is
         # only the sync layer. A push that can't reach the control branch

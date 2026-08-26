@@ -231,12 +231,14 @@ def launch_recurring_period(
     """Launch one period after the recurring runner admitted the sweep.
 
     This is an in-process capability, not a Typer option. ``coga recurring``
-    has already enforced the committed owner/control-branch gates and caught
-    the checkout up once for the whole sequential run; routing its period
-    tasks through the public command would repeat those network-bearing gates
-    for every child and could abort a healthy sweep on a later transient miss.
-    All task-local launch checks remain shared in ``_launch``.
+    performs the full admission pass at its outer boundary. A prior child can
+    run long enough for another checkout to pause, finish, or replace a later
+    period, though, so this seam refreshes and rechecks that one period before
+    entering shared launch logic. A lost refresh fails closed; a period that
+    became closed or parked returns ``"skipped"`` without starting work.
     """
+    if not _refresh_recurring_period_before_launch(task):
+        return "skipped"
     return _launch(
         task,
         args=None,
@@ -253,6 +255,55 @@ def launch_recurring_period(
         record_launch=True,
         recurring_authorized=True,
     )
+
+
+def _refresh_recurring_period_before_launch(task: str) -> bool:
+    """Refresh and re-admit one internal period immediately before launch."""
+    try:
+        cfg = load_config()
+    except ConfigError as exc:
+        _bail(str(exc))
+
+    from coga.recurring_runner import _refuse_non_control_branch, _refuse_non_owner
+
+    if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
+        raise SystemExit(2)
+    refreshed = git.refresh_coga_state_from_control(
+        cfg,
+        message=f"Refresh recurring period {task} before launch",
+    )
+    if refreshed is False:
+        _bail(
+            f"Cannot launch {task}: the latest control state could not be "
+            "verified after the preceding recurring child. No work was started."
+        )
+    try:
+        cfg = load_config(cfg.repo_root)
+        ref = resolve_target(cfg, task)
+    except (ConfigError, TaskNotFoundError) as exc:
+        _bail(str(exc))
+    if (
+        not isinstance(ref, TaskRef)
+        or ref.directory != "recurring"
+        or ref.id_slug != task
+    ):
+        _bail(
+            f"Internal recurring launch expected exact period ref {task!r}, "
+            f"but resolved {ref.id_slug!r}."
+        )
+    if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
+        raise SystemExit(2)
+    try:
+        ticket = read_ticket(ref)
+    except TicketError as exc:
+        _bail(str(exc))
+    if ticket.status not in {"active", "in_progress"}:
+        typer.secho(
+            f"{ref.id_slug} became {ticket.status} on control; not launching.",
+            fg=typer.colors.YELLOW,
+        )
+        return False
+    return True
 
 
 def launch_with_before_spawn(
@@ -2337,7 +2388,7 @@ def _reblock_unresolved_resume(
 
 def _preflight_push_auth(
     cfg: Config, ref: TaskRef | BootstrapRef, *, is_bootstrap: bool
-) -> None:
+) -> bool:
     """Refuse to launch when git push access to the configured remote is broken.
 
     Coga runs the whole session through git/gh, so a dead remote means a run
@@ -2350,13 +2401,15 @@ def _preflight_push_auth(
     checkout where the configured remote does not resolve (not a git repo / no
     remote) — which is also why the non-git launch test fixtures are
     unaffected. Only a *configured, reachable-but-unauthenticated* remote bails.
+    Returns whether the period has a configured remote whose later lifecycle
+    publications must therefore keep failing closed if transport disappears.
     """
     if is_bootstrap or not cfg.git_enabled:
-        return
+        return False
     if not check_git_remote(cfg.git_remote).ok:
         # No git repo / remote unconfigured → the sync layer soft-no-ops, so
         # there is no push to gate.
-        return
+        return False
     auth = check_git_auth(cfg.git_remote)
     if not auth.ok:
         _bail(
@@ -2367,6 +2420,7 @@ def _preflight_push_auth(
             "Fix auth and retry, or set `[git].enabled = false` to run without "
             "git sync."
         )
+    return True
 
 
 def _refresh_launch_checkout(

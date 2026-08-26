@@ -925,6 +925,11 @@ def _launch_due_tasks(
                 )
                 return code
             kind = None
+        if kind == "skipped":
+            record.note(
+                f"{task.ref.id_slug} changed on control before launch; skipped"
+            )
+            continue
         _stop_if_unfinished_after_launch(
             cfg,
             task.ref,
@@ -1205,7 +1210,9 @@ def _run_delegated_task(
     # publication target before any bootstrap work can begin.
     from coga.commands.launch import _preflight_push_auth
 
-    _preflight_push_auth(cfg, ref, is_bootstrap=False)
+    require_period_publication = bool(
+        _preflight_push_auth(cfg, ref, is_bootstrap=False)
+    )
 
     def ticket_for_lease(
         lease: _PeriodLease, *, boundary: str, expected_status: str
@@ -1243,8 +1250,13 @@ def _run_delegated_task(
                 message=f"Lease: {ref.id_slug} — {boundary}",
                 guard=_period_lease_guard(lease_cfg, ref, lease),
                 raise_state_regression=True,
+                **(
+                    {"raise_git_error": True}
+                    if require_period_publication
+                    else {}
+                ),
             )
-        except git.StateRegressionError as exc:
+        except git.GitError as exc:
             raise RecurringError(
                 f"cannot lease delegated period {ref.id_slug} at {boundary}: {exc}"
             ) from exc
@@ -1345,8 +1357,9 @@ def _run_delegated_task(
                         start_cfg, ref, initial_period_lease
                     ),
                     strict_state_guard=True,
+                    strict_state_sync=require_period_publication,
                 )
-            except git.StateRegressionError as exc:
+            except git.GitError as exc:
                 if not publication_succeeded:
                     _restore_refused_period_mutation(
                         rollback, action="delegated start"
@@ -1507,6 +1520,7 @@ def _run_delegated_task(
                     ref,
                     timed_out=True,
                     expected_period_lease=expected_period_lease,
+                    require_period_publication=require_period_publication,
                 )
             except RecurringError as exc:
                 typer.secho(str(exc), fg=typer.colors.RED, err=True)
@@ -1551,8 +1565,9 @@ def _run_delegated_task(
             after_sync=record_completion_publication,
             state_guard=_period_lease_guard(cfg, ref, expected_period_lease),
             strict_state_guard=True,
+            strict_state_sync=require_period_publication,
         )
-    except git.StateRegressionError as exc:
+    except git.GitError as exc:
         if not publication_succeeded:
             _restore_refused_period_mutation(rollback, action="delegated completion")
         typer.secho(
@@ -1817,7 +1832,7 @@ def _launch_created(
     from coga.commands.launch import launch_recurring_period as launch_cmd
 
     try:
-        launch_cmd(
+        kind = launch_cmd(
             ref.id_slug,
             agent_override=agent_override,
             prompt_report=False,
@@ -1845,6 +1860,8 @@ def _launch_created(
                 )
             )
         return code
+    if kind == "skipped":
+        return 0
     if record is not None:
         record.add(_task_outcome(cfg, template or ref.slug, ref))
     return 0
@@ -2913,6 +2930,7 @@ def _stop_if_unfinished_after_launch(
     timed_out: bool = False,
     script_stopped: bool = False,
     expected_period_lease: _PeriodLease | None = None,
+    require_period_publication: bool = False,
 ) -> None:
     """Pause a recurring task when its agent launch returns unfinished.
 
@@ -2988,8 +3006,9 @@ def _stop_if_unfinished_after_launch(
                     else None
                 ),
                 strict_state_guard=expected_period_lease is not None,
+                strict_state_sync=require_period_publication,
             )
-        except git.StateRegressionError as exc:
+        except git.GitError as exc:
             if rollback is not None and not publication_succeeded:
                 _restore_refused_period_mutation(
                     rollback, action="delegated timeout"

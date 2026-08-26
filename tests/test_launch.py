@@ -1334,6 +1334,11 @@ def test_internal_recurring_launch_seam_marks_dispatch_as_already_authorized(
         seen.append((task, kwargs["recurring_authorized"]))
         return "natural"
 
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_recurring_period_before_launch",
+        lambda task: True,
+    )
     monkeypatch.setattr(launch_module, "_launch", fake_launch)
 
     result = launch_module.launch_recurring_period(
@@ -1349,6 +1354,55 @@ def test_internal_recurring_launch_seam_marks_dispatch_as_already_authorized(
 
     assert result == "natural"
     assert seen == [("recurring/delegate-check", True)]
+
+
+def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A later sweep child cannot start from the outer scan's stale snapshot."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Ordinary recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/ordinary-check",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed ordinary recurring period")
+    git_repo.git("push", "origin", "main")
+
+    ticket_path = Path(created["path"]) / "ticket.md"
+    remote_ticket = Ticket.read(ticket_path)
+    remote_ticket.frontmatter["status"] = "paused"
+    git_repo.push_competing_commit(
+        ticket_path.relative_to(git_repo.root).as_posix(),
+        remote_ticket.render(),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_launch",
+        lambda *args, **kwargs: pytest.fail("a remotely parked period must skip"),
+    )
+
+    result = launch_module.launch_recurring_period(
+        created["slug"],
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        queue_guidance=True,
+    )
+
+    assert result == "skipped"
+    assert Ticket.read(ticket_path).status == "paused"
 
 
 @pytest.mark.parametrize("refused_gate", ["control-branch", "owner"])

@@ -2391,6 +2391,30 @@ def test_sync_paths_can_raise_a_guard_refusal_for_a_transactional_caller(
     assert "status: done" in git_repo.git("show", f"main:{rel}", cwd=git_repo.origin)
 
 
+def test_sync_paths_can_raise_a_transport_failure_for_a_transactional_caller(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Dependent work cannot proceed after an unverified control publish."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+
+    def fail_sync(*args: object, **kwargs: object) -> None:
+        raise git.GitError("simulated transport loss")
+
+    monkeypatch.setattr(git, "_dispatch_branch_sync", fail_sync)
+
+    with pytest.raises(git.GitError, match="simulated transport loss"):
+        git.sync_paths(
+            cfg,
+            ticket.parent,
+            [ticket.parent],
+            message="Lease: demo — before spawn",
+            raise_git_error=True,
+        )
+
+    assert "sync failed" not in capsys.readouterr().err
+
+
 def test_strict_feature_publication_checks_fresh_control_state_before_push(
     git_repo,
 ):

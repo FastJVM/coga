@@ -871,7 +871,8 @@ byte-identical. The runner reloads and recomposes before the real spawn, checks
 the same lease on control at the final boundary, and consumes it again before
 publishing completion or a watchdog pause. Concurrent completion,
 replacement, edits, or a new generation therefore refuse the stale lifecycle
-write. Templates
+write; a Git transport or publication failure refuses too, because an
+unverified lease cannot admit work. Templates
 intended for cron or other unattended schedulers should carry that deterministic
 half. Whether a period is deterministic is never declared: the
 `ticket.py` file's presence is the whole signal. `delegate:` declares something
@@ -881,8 +882,11 @@ ticket; the sweep, `coga recurring launch <name>`, and direct
 `coga launch recurring/<name>` retries all route from the snapshot rather than
 current template frontmatter, and the sweep rereads it after reconciliation
 instead of trusting cached scan dispatch. Sweeps and named launches perform
-their branch/owner/catch-up admission once, then use an internal period-launch
-seam rather than repeating those public network gates per task. The direct
+full admission at their outer boundary, then use an internal period-launch
+seam. That seam narrowly refreshes control and rechecks branch/owner
+immediately before each ordinary child, so work parked, finished, or replaced
+during an earlier session is skipped and a failed refresh refuses the next
+launch. Delegated children use their exact control lease instead. The direct
 spelling has no outer admission: it performs best-effort control catch-up
 before resolving even a locally missing period ref and remains subject to the
 same control-branch and recurring-owner gates. Direct launch also activates a

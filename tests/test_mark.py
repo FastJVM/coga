@@ -580,6 +580,7 @@ def test_strict_mark_in_progress_publishes_guarded_state_before_announcing(
     def capture_sync(*args: object, **kwargs: object) -> None:
         assert kwargs["guard"] is exact_guard
         assert kwargs["raise_state_regression"] is True
+        assert kwargs["raise_git_error"] is True
         events.append("sync")
         exact_guard("control-tip")
 
@@ -597,6 +598,7 @@ def test_strict_mark_in_progress_publishes_guarded_state_before_announcing(
         slack_text="started",
         state_guard=exact_guard,
         strict_state_guard=True,
+        strict_state_sync=True,
     )
 
     assert events == ["sync", "guard", "post"]
