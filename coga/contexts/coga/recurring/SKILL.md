@@ -199,17 +199,18 @@ control branch and tells the operator to switch branches. There is deliberately
 no override: `--force` bypasses schedule and status filters, not the branch
 gate.
 
-The outer gate checks only the local branch. Its initial fetch or rebase remains
-a warning for the interactive single-repo entry points, but a remote-backed
+The outer sweep gate checks only the local branch. Its initial fetch or rebase
+remains a warning for bare and named interactive single-repo scans, but a remote-backed
 period is refreshed again immediately before its own launch. That narrow
 per-child check fails closed if control cannot be verified and skips a task
 that became `done`, `canceled`, or `paused` while an earlier child was running;
 an offline operator therefore cannot start new remote-backed period work from
-a stale scan snapshot. The direct
-`coga launch recurring/<name>` spelling performs that same best-effort catch-up
-**before resolving the local ref or reading dispatch**, then reloads
-configuration and resolves the refreshed period so a remotely materialized
-task, integrated completion, or replacement wins. A bare sweep and
+a stale scan snapshot. The direct `coga launch recurring/<name>` spelling
+requires a verified catch-up **before resolving the local ref or reading
+dispatch**; a Git-backed control checkout whose fetch or integration fails is
+refused before any work starts. It then reloads configuration and resolves the
+refreshed period so a remotely materialized task, integrated completion, or
+replacement wins. A bare sweep and
 `coga recurring launch <name>` perform their full public admission once at the
 outer boundary; the typed in-process seam rechecks branch/owner plus only the
 latest period state before each ordinary child rather than re-entering the

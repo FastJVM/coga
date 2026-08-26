@@ -120,7 +120,8 @@ no in-memory state.
   ran is skipped; an unverified refresh refuses rather than starting stale
   work. It does not re-enter the whole public launch path. A direct
   `coga launch recurring/<name>` has no such outer admission, so it gates and
-  catches up before resolving even a locally missing period ref. For a frozen
+  requires verified catch-up before resolving even a locally missing period
+  ref. For a frozen
   delegation, the runner separately preflights the period task's push access
   and leases its exact ticket bytes plus task-tagged audit generation at start,
   final spawn, and post-child completion/timeout. The lifecycle publications
@@ -720,8 +721,8 @@ concurrent completion, replacement, or edit refuses the child. Creation
 freezes the target into the materialized period ticket, and all retries —
 including direct `coga launch recurring/<name>` — route from that snapshot
 reread after reconciliation rather than mutable template frontmatter or stale
-scan cache. A direct launch first performs the recurring control catch-up and
-re-resolves the exact period ref. Delegation is agent-only: a
+scan cache. A direct launch first requires a verified recurring control
+catch-up and re-resolves the exact period ref. Delegation is agent-only: a
 bootstrap target carrying `ticket.py` is rejected before period creation;
 deterministic recurring work belongs in the recurring template's own
 `ticket.py`. A template therefore never instructs its agent to shell out to a

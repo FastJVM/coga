@@ -890,9 +890,9 @@ seam. That seam narrowly refreshes control and rechecks branch/owner
 immediately before each ordinary child, so work parked, finished, or replaced
 during an earlier session is skipped and a failed refresh refuses the next
 launch. Delegated children use their exact control lease instead. The direct
-spelling has no outer admission: it performs best-effort control catch-up
-before resolving even a locally missing period ref and remains subject to the
-same control-branch and recurring-owner gates. Direct launch also activates a
+spelling has no outer admission: it requires verified control catch-up before
+resolving even a locally missing period ref and remains subject to the same
+control-branch and recurring-owner gates. Direct launch also activates a
 paused/draft delegated period inline; recurring scans leave paused periods
 parked. A period that also carries
 `ticket.py` is refused as an ambiguous dispatch shape. A delegate must itself

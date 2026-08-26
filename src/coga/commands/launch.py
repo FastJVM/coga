@@ -280,9 +280,16 @@ def _refresh_recurring_period_before_launch(task: str) -> bool:
         )
     try:
         cfg = load_config(cfg.repo_root)
-        ref = resolve_target(cfg, task)
-    except (ConfigError, TaskNotFoundError) as exc:
+    except ConfigError as exc:
         _bail(str(exc))
+    try:
+        ref = resolve_target(cfg, task)
+    except TaskNotFoundError:
+        typer.secho(
+            f"{task} no longer exists on control; not launching.",
+            fg=typer.colors.YELLOW,
+        )
+        return False
     if (
         not isinstance(ref, TaskRef)
         or ref.directory != "recurring"

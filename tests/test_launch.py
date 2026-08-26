@@ -1446,6 +1446,58 @@ def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
     assert Ticket.read(ticket_path).status == "paused"
 
 
+def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A later period reaped during an earlier child does not stop the sweep."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Reaped recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/reaped-check",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed reaped recurring period")
+    git_repo.git("push", "origin", "main")
+
+    # Use the competing checkout to model Dream deleting this later period
+    # while the sweep is occupied by an earlier child.
+    git_repo.push_competing_commit("reaper-note.md", "reaping period\n")
+    competitor = git_repo.origin.parent / "competing-clone"
+    ticket_rel = (
+        Path(created["path"]) / "ticket.md"
+    ).relative_to(git_repo.root).as_posix()
+    git_repo.git("rm", "--", ticket_rel, cwd=competitor)
+    git_repo.git("commit", "-m", "reap completed recurring period", cwd=competitor)
+    git_repo.git("push", "origin", "main", cwd=competitor)
+    monkeypatch.setattr(
+        launch_module,
+        "_launch",
+        lambda *args, **kwargs: pytest.fail("a reaped period must skip"),
+    )
+
+    result = launch_module.launch_recurring_period(
+        created["slug"],
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        queue_guidance=True,
+    )
+
+    assert result == "skipped"
+    assert not (git_repo.root / ticket_rel).exists()
+
+
 def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
