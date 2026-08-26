@@ -118,6 +118,10 @@ class _AssistPublicationRefused(ComposeError):
         self.post_session = post_session
 
 
+class _RecomposeAfterLaunchPublication(RuntimeError):
+    """A caller-owned start publication completed; rebuild before spawning."""
+
+
 def launch(
     task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` ticket."),
     args: list[str] | None = typer.Argument(
@@ -157,7 +161,8 @@ def launch(
         False,
         "--return-timeout",
         hidden=True,
-        help="Internal: return the script/timeout stop kind to the caller.",
+        help="Internal: return the script/timeout stop kind, or a spawned "
+        "bootstrap session's termination kind, to the caller.",
     ),
     queue_guidance: bool = typer.Option(
         False,
@@ -181,13 +186,112 @@ def launch(
 ) -> str | None:
     """Compose context, start work on a task.
 
-    Returns an internal termination kind when `return_timeout` is true:
-    `"timeout"` when a liveness limit tore down an agent REPL, or `"script"`
-    when a deterministic phase stopped without handing off to an agent. Returns
-    None for any other ending. `coga recurring` uses those distinctions to
-    record timeouts honestly and preserve lifecycle signals written by a script;
-    public CLI timeouts exit with the supervisor's non-zero timeout code.
+    Returns an internal termination kind when `return_timeout` is true. For an
+    ordinary task launch that is `"timeout"` when a liveness limit tore down an
+    agent REPL, or `"script"` when a deterministic phase stopped without handing
+    off to an agent; None for any other ending. A spawned *bootstrap* session
+    instead returns its own termination kind (`"done"`, `"natural"`, `"crash"`,
+    or `"timeout"`) so an in-process delegator can tell the done sentinel from
+    an early exit and a pre-spawn `SystemExit`. A materialized recurring task
+    with a frozen `delegate:` returns the same kind after routing that target
+    directly. `coga recurring` uses those distinctions to record timeouts
+    honestly, preserve lifecycle signals written by a script, and finish a
+    delegated period only on its done signal; public CLI timeouts exit with the
+    supervisor's non-zero timeout code.
     """
+    return _launch(
+        task,
+        args=args,
+        agent_override=agent_override,
+        prompt_report=prompt_report,
+        idle_timeout=idle_timeout,
+        max_session=max_session,
+        return_timeout=return_timeout,
+        script_failure_important=script_failure_important,
+        queue_guidance=queue_guidance,
+        before_recompose=None,
+        before_final_spawn=None,
+        require_agent_target=False,
+        record_launch=True,
+    )
+
+
+def launch_with_before_spawn(
+    task: str,
+    *,
+    agent_override: str | None,
+    idle_timeout: float | None,
+    max_session: float | None,
+    return_timeout: bool,
+    script_failure_important: bool = False,
+    queue_guidance: bool,
+    before_spawn: Callable[[], None],
+    revalidate_before_spawn: Callable[[], None] | None = None,
+) -> str | None:
+    """Publish caller state after preflight, then re-derive and spawn once.
+
+    Recurring delegation uses this typed in-process seam to publish its period
+    task's `in_progress` state only after target resolution, TTY/CLI checks,
+    prompt composition, secret preflights, and argv construction have all
+    succeeded. Publication can move the control checkout, so that first pass
+    makes its launch audit durable, runs the callback, and deliberately stops
+    before spawn; a second shared launch pass reloads config and target state,
+    repeats every preflight, re-composes without duplicating that audit, and
+    then starts the bootstrap agent. A separate final callback can lease
+    caller-owned state again immediately before the PTY spawn. The CLI surface
+    remains callback-free.
+    """
+    try:
+        return _launch(
+            task,
+            args=None,
+            agent_override=agent_override,
+            prompt_report=False,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+            return_timeout=return_timeout,
+            script_failure_important=script_failure_important,
+            queue_guidance=queue_guidance,
+            before_recompose=before_spawn,
+            before_final_spawn=None,
+            require_agent_target=True,
+            record_launch=True,
+        )
+    except _RecomposeAfterLaunchPublication:
+        return _launch(
+            task,
+            args=None,
+            agent_override=agent_override,
+            prompt_report=False,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+            return_timeout=return_timeout,
+            script_failure_important=script_failure_important,
+            queue_guidance=queue_guidance,
+            before_recompose=None,
+            before_final_spawn=revalidate_before_spawn,
+            require_agent_target=True,
+            record_launch=False,
+        )
+
+
+def _launch(
+    task: str,
+    *,
+    args: list[str] | None,
+    agent_override: str | None,
+    prompt_report: bool,
+    idle_timeout: float | None,
+    max_session: float | None,
+    return_timeout: bool,
+    script_failure_important: bool,
+    queue_guidance: bool,
+    before_recompose: Callable[[], None] | None,
+    before_final_spawn: Callable[[], None] | None,
+    require_agent_target: bool,
+    record_launch: bool,
+) -> str | None:
+    """Implementation shared by the Typer command and in-process launch seam."""
     # In-process callers (recurring, retire) invoke this Typer command function
     # directly without passing every parameter, so an omitted `args` arrives as
     # Typer's ArgumentInfo sentinel rather than None. Normalize once up front.
@@ -206,6 +310,115 @@ def launch(
         ref = resolve_target(cfg, task)
     except TaskNotFoundError as exc:
         _bail(str(exc))
+
+    if (
+        isinstance(ref, TaskRef)
+        and ref.directory == "recurring"
+        and not prompt_report
+    ):
+        from coga.recurring_runner import (
+            _refuse_non_control_branch,
+            _refuse_non_owner,
+            _sync_control_checkout_ahead,
+        )
+
+        # A missing optional dispatch field must not turn a recurring period
+        # into an authorization bypass. Gate from the ref itself before reading
+        # any period state, whether the task is delegated, scripted, or ordinary
+        # agent work.
+        if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
+            raise SystemExit(2)
+
+        # A direct period launch has no outer sweep to perform the usual
+        # control-plane catch-up. Refresh before reading frozen dispatch so a
+        # remote completion, replacement, or delegate edit cannot be ignored
+        # by a stale checkout. Catch-up is deliberately best-effort, matching
+        # the ordinary recurring scan; publication still fails closed later
+        # if this checkout cannot safely synchronize its lifecycle writes.
+        recurring_slug = ref.id_slug
+        _sync_control_checkout_ahead(cfg)
+        try:
+            cfg = load_config(cfg.repo_root)
+            refreshed_ref = resolve_target(cfg, recurring_slug)
+        except (ConfigError, TaskNotFoundError) as exc:
+            _bail(str(exc))
+        if (
+            not isinstance(refreshed_ref, TaskRef)
+            or refreshed_ref.directory != "recurring"
+            or refreshed_ref.id_slug != recurring_slug
+        ):
+            _bail(
+                f"Selected recurring task {recurring_slug!r} disappeared "
+                "during control catch-up; refusing to launch a different "
+                f"prefix match {refreshed_ref.id_slug!r}."
+            )
+        ref = refreshed_ref
+        if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
+            raise SystemExit(2)
+
+    # A materialized recurring delegation is an immutable dispatch snapshot,
+    # not prose for an agent wrapper. Route it before ordinary task setup so a
+    # direct `coga launch recurring/<name>` and every recurring runner entry
+    # point perform the same one-hop bootstrap launch. The local imports avoid
+    # a module cycle: recurring_runner itself uses this module's bootstrap
+    # launch seam.
+    if isinstance(ref, TaskRef):
+        frozen_ticket = read_ticket(ref)
+        if "delegate" in frozen_ticket.frontmatter:
+            if launch_args:
+                _bail(
+                    f"Cannot pass trailing arguments to delegated period "
+                    f"{ref.id_slug}; its frozen target owns a fixed command."
+                )
+            if prompt_report:
+                from coga.recurring import (
+                    RecurringError,
+                    frozen_task_delegate,
+                    resolve_agent_delegate,
+                )
+
+                try:
+                    delegate = frozen_task_delegate(ref, frozen_ticket)
+                    if delegate is None:
+                        raise RecurringError(
+                            f"delegating recurring task {ref.id_slug} is "
+                            "missing its frozen target"
+                        )
+                    resolve_agent_delegate(cfg, delegate)
+                except RecurringError as exc:
+                    _bail(str(exc))
+                return _launch(
+                    delegate,
+                    args=None,
+                    agent_override=agent_override,
+                    prompt_report=True,
+                    idle_timeout=idle_timeout,
+                    max_session=max_session,
+                    return_timeout=return_timeout,
+                    script_failure_important=script_failure_important,
+                    queue_guidance=queue_guidance,
+                    before_recompose=None,
+                    before_final_spawn=None,
+                    require_agent_target=False,
+                    record_launch=True,
+                )
+
+            from coga.recurring_runner import _run_delegated_task
+
+            delegated = _run_delegated_task(
+                cfg,
+                ref,
+                agent_override=agent_override,
+                idle_timeout=idle_timeout,
+                max_session=max_session,
+                queue_guidance=queue_guidance,
+                continue_after_timeout=False,
+            )
+            if return_timeout:
+                return delegated.kind
+            if delegated.exit_code:
+                raise SystemExit(delegated.exit_code)
+            return None
 
     resolved_target_slug = ref.id_slug
     is_bootstrap = isinstance(ref, BootstrapRef)
@@ -373,6 +586,11 @@ def launch(
     # non-executing; for an agent-only report, refresh the agent skill view here
     # and keep every deterministic launch free of that agent-only preflight.
     entry = script_entry_point(ref)
+    if require_agent_target and entry is not None:
+        _bail(
+            f"Cannot launch {ref.id_slug} through the agent-only in-process "
+            "delegation seam: the target carries ticket.py."
+        )
     if entry is not None and prompt_report:
         _bail(
             f"Cannot report an agent prompt for {ref.id_slug}: ticket.py runs "
@@ -1041,6 +1259,7 @@ def launch(
         consecutive_agent_override = False
         while True:
             ticket = _read(ref)
+            is_first_step = first_step
 
             if entry is not None and ticket.step not in script_steps_run:
                 try:
@@ -1151,10 +1370,15 @@ def launch(
             # rotates to an agent (e.g. codex) whose CLI isn't on PATH. Stop
             # cleanly and hand back to the human rather than blocking.
             if shutil.which(agent.cli) is None:
-                typer.secho(
+                message = (
                     f"{ref.id_slug}: next step needs agent {step_assignee!r} "
-                    f"but {agent_cli_missing_message(agent.cli)} Stopping; "
-                    f"then run `coga launch {ref.id_slug}` to continue.",
+                    f"but {agent_cli_missing_message(agent.cli)}"
+                )
+                if is_bootstrap and return_timeout:
+                    _bail(f"{message} No agent was started.")
+                typer.secho(
+                    f"{message} Stopping; then run `coga launch "
+                    f"{ref.id_slug}` to continue.",
                     fg=typer.colors.YELLOW,
                     err=True,
                 )
@@ -1166,7 +1390,12 @@ def launch(
 
             _echo_launch_iteration(ref, ticket)
             spawn_ticket = ticket
-            before_spawn: Callable[[], None] | None = None
+            session_before_recompose = (
+                before_recompose if is_first_step else None
+            )
+            session_before_spawn = (
+                before_final_spawn if is_first_step else None
+            )
             if publish_assist_branch is not None:
                 if not isinstance(ref, TaskRef) or assist_pr_guard is None:
                     _bail(
@@ -1192,7 +1421,19 @@ def launch(
                         publication_guard=assist_pr_guard,
                     )
 
-                before_spawn = publish_lifecycle
+                if session_before_spawn is None:
+                    session_before_spawn = publish_lifecycle
+                else:
+                    existing_before_spawn = session_before_spawn
+
+                    def publish_then_callback(
+                        publish: Callable[[], None] = publish_lifecycle,
+                        callback: Callable[[], None] = existing_before_spawn,
+                    ) -> None:
+                        publish()
+                        callback()
+
+                    session_before_spawn = publish_then_callback
             step_env = build_supervised_step_env(
                 env,
                 task_path=ref.path,
@@ -1237,7 +1478,9 @@ def launch(
                         else None
                     ),
                     feature_publication_guard=assist_pr_guard,
-                    before_spawn=before_spawn,
+                    before_recompose=session_before_recompose,
+                    before_spawn=session_before_spawn,
+                    record_launch=record_launch,
                 )
             except _AssistPublicationRefused as exc:
                 suppress_assist_refresh = True
@@ -1310,7 +1553,12 @@ def launch(
                     fg=typer.colors.YELLOW,
                     err=True,
                 )
+                if return_timeout and is_bootstrap:
+                    return session.termination_kind
                 sys.exit(session.exit_code)
+
+            if return_timeout and is_bootstrap:
+                return session.termination_kind
 
             # An agent may delete its own task directory as a final action —
             # e.g. a Dream run retiring itself once its findings are durable.
@@ -2401,7 +2649,9 @@ def spawn_agent_session(
     publish_aligned_branch: str | None = None,
     assist_agent: str | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
+    before_recompose: Callable[[], None] | None = None,
     before_spawn: Callable[[], None] | None = None,
+    record_launch: bool = True,
     secrets_are_scoped: bool = True,
     stateless_identity: tuple[str, str] | None = None,
     include_blocker_preamble: bool = True,
@@ -2443,9 +2693,13 @@ def spawn_agent_session(
     when the caller passes an ambient environment instead of
     `build_launch_env`; that distinction keeps redaction from mistaking an
     unrelated same-named variable for a configured secret value.
-    ``before_spawn`` runs after prompt, argv, and pre-session audit publication
-    have all succeeded. The human-assist path uses that final boundary to
-    publish lifecycle state immediately before entering the PTY supervisor.
+    ``before_recompose`` runs after prompt, argv, and pre-session audit
+    publication. Once it returns, this preflight pass exits through a private
+    signal so the caller can reload and re-compose from state those publications
+    may have moved. The recomposed pass sets ``record_launch=False`` because the
+    first pass already made that audit durable. ``before_spawn`` is the final
+    boundary immediately before the PTY supervisor: human assists publish
+    lifecycle there, while recurring delegation revalidates its period lease.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the
@@ -2540,8 +2794,9 @@ def spawn_agent_session(
             f"{_format_agent_command_for_console(cmd, prompt)}"
         )
 
-        append_log(cfg, ref.id_slug, actor, log_message)
-        if commit_log:
+        if record_launch:
+            append_log(cfg, ref.id_slug, actor, log_message)
+        if record_launch and commit_log:
             # Commit the launch line before spawning. A bootstrap target has no
             # later task-state sync to carry it; a human-step assist may share
             # the PR checkout whose clean-tree gate the agent is about to run.
@@ -2565,6 +2820,10 @@ def spawn_agent_session(
                     "The launch audit append remains dirty and the catch-all "
                     "state sweep has been suppressed."
                 )
+
+        if before_recompose is not None:
+            before_recompose()
+            raise _RecomposeAfterLaunchPublication()
 
         if name and sys.stdout.isatty():
             sys.stdout.write(f"\033]2;{name}\007")

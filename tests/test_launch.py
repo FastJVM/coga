@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
+from coga import recurring_runner as recurring_cmd
 from coga.cli import app
 from coga.blackboard import append_blocker
 from coga.commands import block as block_module
@@ -1191,6 +1192,176 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     log = _read_log(active_task)
     assert "started (active → in_progress) via coga launch" in log
     assert "launched (assignee=claude, agent=claude)" in log
+
+
+def test_launch_routes_materialized_recurring_delegate_from_ticket(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A direct task launch dispatches a frozen period delegate instead of
+    composing an agent wrapper on the recurring task itself.
+    """
+    cfg = load_config(active_task)
+    created = create_task(
+        cfg=cfg,
+        title="Delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    calls: list[tuple[str, str]] = []
+
+    def fake_delegated(task_cfg, ref, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((ref.id_slug, Ticket.read(ref.ticket_path).delegate or ""))
+        return recurring_cmd.DelegatedRunResult(0, "done")
+
+    monkeypatch.chdir(active_task)
+    monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated)
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 0, result.output
+    assert calls == [
+        ("recurring/delegate-check", "bootstrap/resolve-conflicts")
+    ]
+
+
+def test_direct_recurring_launch_refreshes_control_before_frozen_dispatch(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale direct launch catches up before it can spawn obsolete work."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegated period")
+    git_repo.git("push", "origin", "main")
+
+    ticket_path = Path(created["path"]) / "ticket.md"
+    assert Ticket.read(ticket_path).status == "active"
+    remote_ticket = Ticket.read(ticket_path)
+    remote_ticket.frontmatter["status"] = "done"
+    remote_ticket.frontmatter.pop("step", None)
+    relpath = ticket_path.relative_to(git_repo.root).as_posix()
+    git_repo.push_competing_commit(relpath, remote_ticket.render())
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn",
+        lambda *args, **kwargs: pytest.fail("stale bootstrap work must not spawn"),
+    )
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 2
+    assert Ticket.read(ticket_path).status == "done"
+    assert "expected 'active' or 'in_progress'" in result.output
+
+
+@pytest.mark.parametrize("refused_gate", ["control-branch", "owner"])
+@pytest.mark.parametrize(
+    "delegate_present", [True, False], ids=("delegated", "delegate-field-missing")
+)
+def test_direct_recurring_task_enforces_recurring_launch_gates_before_dispatch(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    refused_gate: str,
+    delegate_present: bool,
+) -> None:
+    """Recurring authorization follows the ref, not optional dispatch state."""
+    cfg = load_config(active_task)
+    created = create_task(
+        cfg=cfg,
+        title="Gated delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    ticket_path = Path(created["path"]) / "ticket.md"
+    if not delegate_present:
+        ticket = Ticket.read(ticket_path)
+        ticket.frontmatter.pop("delegate")
+        ticket.write(ticket_path)
+    launches: list[str] = []
+
+    monkeypatch.chdir(active_task)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_refuse_non_control_branch",
+        lambda task_cfg: refused_gate == "control-branch",
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_refuse_non_owner",
+        lambda task_cfg: refused_gate == "owner",
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_delegated_task",
+        lambda task_cfg, ref, **kwargs: launches.append(ref.id_slug),
+    )
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 2
+    assert launches == []
+    assert Ticket.read(ticket_path).status == "active"
+
+
+def test_direct_recurring_delegate_rejects_period_ticket_script(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A frozen period with both dispatch signals refuses instead of picking one."""
+    cfg = load_config(active_task)
+    created = create_task(
+        cfg=cfg,
+        title="Conflicting delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    task_dir = Path(created["path"])
+    ticket_path = task_dir / "ticket.md"
+    (task_dir / "ticket.py").write_text("raise SystemExit(0)\n")
+
+    monkeypatch.chdir(active_task)
+    monkeypatch.setattr(
+        recurring_cmd, "_refuse_non_control_branch", lambda task_cfg: False
+    )
+    monkeypatch.setattr(recurring_cmd, "_refuse_non_owner", lambda task_cfg: False)
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 2
+    assert "mutually exclusive" in result.output
+    assert Ticket.read(ticket_path).status == "active"
 
 
 def test_launch_refreshes_launch_checkout_on_exit(
@@ -2585,6 +2756,166 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     monkeypatch.chdir(company)
     return company
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        ReplOutcome(exit_code=0, kind="done"),
+        ReplOutcome(exit_code=0, kind="natural"),
+        ReplOutcome(exit_code=7, kind="natural"),
+        ReplOutcome(exit_code=143, kind="crash"),
+        ReplOutcome(exit_code=_TIMEOUT_EXIT_CODE, kind="timeout"),
+    ],
+    ids=("done", "natural-zero", "natural-nonzero", "crash", "timeout"),
+)
+def test_launch_returns_spawned_bootstrap_termination_kind(
+    bootstrap_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome: ReplOutcome,
+) -> None:
+    """An in-process delegator can distinguish the bootstrap done sentinel
+    from every spawned failure; only pre-spawn refusals still raise SystemExit.
+    """
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: outcome,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    kind = launch_module.launch(
+        "bootstrap/ticket",
+        args=[],
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        queue_guidance=True,
+    )
+
+    assert kind == outcome.kind
+
+
+def test_launch_before_spawn_callback_runs_at_bootstrap_spawn_boundary(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The in-process hook runs after preflight but before the agent starts."""
+    events: list[str] = []
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    def fake_supervisor(*args, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
+        assert events == ["before-spawn"]
+        events.append("spawn")
+        return ReplOutcome(exit_code=0, kind="done")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    kind = launch_module.launch_with_before_spawn(
+        "bootstrap/ticket",
+        agent_override=None,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        queue_guidance=True,
+        before_spawn=lambda: events.append("before-spawn"),
+    )
+
+    assert kind == "done"
+    assert events == ["before-spawn", "spawn"]
+
+
+def test_launch_recomposes_after_before_spawn_publication(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A moving caller publication cannot leave stale prompt/config at spawn."""
+    events: list[str] = []
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    def publish_period_start() -> None:
+        events.append("publish")
+        ticket_path = bootstrap_repo / "bootstrap" / "ticket" / "ticket.md"
+        ticket = Ticket.read(ticket_path)
+        ticket.body += "\n\nPost-publication bootstrap instructions.\n"
+        ticket.write(ticket_path)
+        config_path = bootstrap_repo / "coga.toml"
+        config_path.write_text(
+            config_path.read_text().replace('cli = "claude"', 'cli = "fresh-cli"')
+        )
+
+    def fake_supervisor(cmd, env, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
+        assert events == ["publish", "revalidate"]
+        assert cmd[0] == "fresh-cli"
+        assert "Post-publication bootstrap instructions." in _prompt_arg(cmd)
+        events.append("spawn")
+        return ReplOutcome(exit_code=0, kind="done")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    kind = launch_module.launch_with_before_spawn(
+        "bootstrap/ticket",
+        agent_override=None,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        queue_guidance=True,
+        before_spawn=publish_period_start,
+        revalidate_before_spawn=lambda: events.append("revalidate"),
+    )
+
+    assert kind == "done"
+    assert events == ["publish", "revalidate", "spawn"]
+    assert _read_log(bootstrap_repo).count(
+        "launched (assignee=claude, agent=claude)"
+    ) == 1
+
+
+def test_launch_before_spawn_callback_skipped_on_preflight_refusal(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A CLI preflight refusal cannot publish caller-owned start state."""
+    events: list[str] = []
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch_with_before_spawn(
+            "bootstrap/ticket",
+            agent_override=None,
+            idle_timeout=900.0,
+            max_session=None,
+            return_timeout=True,
+            queue_guidance=True,
+            before_spawn=lambda: events.append("before-spawn"),
+        )
+
+    assert excinfo.value.code == 2
+    assert events == []
 
 
 def test_local_bootstrap_ticket_resolves_without_packaged_twin(

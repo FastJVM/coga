@@ -107,11 +107,12 @@ no in-memory state.
   rewriting a region of a template's blackboard cannot destroy an appended
   line, and the record outlives the period task Dream reaps. A template with a
   reserved `ticket.py` sibling has a deterministic half; the creator copies
-  that file into each period task, and the scanner hands every template to one
-  `coga launch` call, which runs it as an isolated subprocess with the period
-  task's scoped secrets and `COGA_TASK_*` metadata. Templates without it launch
-  the ordinary agent workflow. Nothing declares the choice — there is no
-  `recipe:` or mode field.
+  that file into each period task, and launch runs it as an isolated subprocess
+  with the period task's scoped secrets and `COGA_TASK_*` metadata. Templates
+  without it are agent work: ordinarily an agent workflow on the period task,
+  or a frozen one-hop bootstrap launch when the template declares `delegate:`.
+  Nothing declares deterministic execution — there is no `recipe:` or mode
+  field.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard
   machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
@@ -186,10 +187,17 @@ Every ticket carries the same canonical key set. These names are
 reserved — no extension or alias may collide with them:
 
 `slug`, `title`, `status`, `owner`, `human`, `agent`,
-`assignee`, `watchers`, `workflow`, `step`, `contexts`, `skills`, `secrets`.
+`assignee`, `watchers`, `workflow`, `step`, `contexts`, `skills`, `delegate`,
+`secrets`.
 
 `slug` is the task's path-qualified reference, recorded on the ticket for
 legibility (the path under `tasks/` stays the addressing source of truth).
+
+`delegate` is an optional, system-authored dispatch snapshot reserved for a
+materialized task directly under `tasks/recurring/`. Creation copies its
+template's `bootstrap/<name>` value into the period ticket; sweeps, named
+retries, and direct `coga launch recurring/<name>` calls read only that frozen
+value. Ordinary tasks may not declare it.
 
 `secrets` is nullable and declared **inline** — there is no central
 `[secrets]` catalog. Absent / `null` / `[]` inject nothing; otherwise it is a
@@ -675,8 +683,30 @@ argument boundaries and option spelling, propagate their integer return code
 and stdout/stderr, and re-derive `COGA_TASK_*` for instantiated recurring
 tasks — including a ticket's own `ticket.py`, which may import a registered
 recipe function directly. A recurring template's deterministic path is that
-`ticket.py` sibling; without one, its period task is an agent launch and
-therefore needs a TTY.
+`ticket.py` sibling; without one, its period task is agent work and therefore
+needs a TTY at admission. That agent work takes one of two shapes: by default
+an agent session launched on the period task itself, or — with
+`delegate: bootstrap/<name>` — a stateless bootstrap launch the sweep performs
+in-process while keeping the period task's lifecycle bookkeeping. Only that
+bootstrap session's scoped done sentinel completes the period; a natural exit
+does not. The runner first completes a no-mutation launch preflight, publishes
+the period start, then reloads and repeats target/config/secret/prompt/argv
+derivation before the real spawn; the lifecycle sync is allowed to move the
+control checkout without leaving stale instructions in the child. A final
+pre-spawn lease requires the materialized period to remain `in_progress`, keep
+the same frozen target, and match its post-publication ticket snapshot; any
+concurrent completion, replacement, or edit refuses the child. Creation
+freezes the target into the materialized period ticket, and all retries —
+including direct `coga launch recurring/<name>` — route from that snapshot
+reread after reconciliation rather than mutable template frontmatter or stale
+scan cache. A direct launch first performs the recurring control catch-up and
+re-resolves the exact period ref. Delegation is agent-only: a
+bootstrap target carrying `ticket.py` is rejected before period creation;
+deterministic recurring work belongs in the recurring template's own
+`ticket.py`. A template therefore never instructs its agent to shell out to a
+nested `coga launch`. `delegate:` and a template `ticket.py` sibling are
+mutually exclusive; a materialized delegated period that later acquires its own
+`ticket.py` is likewise invalid and refused rather than selecting one signal.
 
 There is no `autonomy:` field. The old `auto`, `skip_permissions`, and
 `skip_permissions_argv` agent keys are removed; config load rejects them with

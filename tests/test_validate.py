@@ -351,6 +351,166 @@ def test_validate_reports_broken_recurring_template_entry_point(
     assert "does not compile" in issue.message
 
 
+def test_validate_rejects_unknown_recurring_delegate_target(repo: Path) -> None:
+    """A `delegate:` target is resolved statically, so a template pointing at
+    a missing bootstrap ticket fails validation instead of the sweep."""
+    _write(
+        repo / "recurring" / "delegate-check" / "ticket.md",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Delegate check
+        delegate: bootstrap/does-not-exist
+        ---
+        """,
+    )
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "unknown-delegate-target"
+    )
+    assert issue.task == "recurring/delegate-check"
+    assert "bootstrap/does-not-exist" in issue.message
+
+
+def test_validate_accepts_recurring_delegate_to_shipped_bootstrap(
+    repo: Path,
+) -> None:
+    """A delegate target resolves like any bootstrap launch target — the
+    packaged `bootstrap/resolve-conflicts` ticket satisfies the check."""
+    _write(
+        repo / "recurring" / "delegate-check" / "ticket.md",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Delegate check
+        delegate: bootstrap/resolve-conflicts
+        ---
+        """,
+    )
+
+    report = run(load_config(repo))
+
+    assert not [
+        issue
+        for issue in report.issues
+        if issue.kind
+        in {
+            "unknown-delegate-target",
+            "script-backed-delegate-target",
+            "bad-recurring-template",
+        }
+    ]
+
+
+def test_validate_rejects_script_backed_recurring_delegate(repo: Path) -> None:
+    """Delegation is the agent-to-agent shape; deterministic bootstrap work
+    belongs in the recurring template's own reserved entry point.
+    """
+    _write(
+        repo / "bootstrap" / "scripted" / "ticket.md",
+        """
+        ---
+        title: Scripted command
+        assignee: claude
+        ---
+        """,
+    )
+    _write(repo / "bootstrap" / "scripted" / "ticket.py", "raise SystemExit(0)\n")
+    _write(
+        repo / "recurring" / "delegate-check" / "ticket.md",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Delegate check
+        delegate: bootstrap/scripted
+        ---
+        """,
+    )
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "script-backed-delegate-target"
+    )
+    assert issue.task == "recurring/delegate-check"
+    assert "template's own `ticket.py`" in issue.message
+
+
+def test_validate_rejects_frozen_delegate_combined_with_period_script(
+    repo: Path,
+) -> None:
+    """Validation refuses a materialized period with two dispatch signals."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Conflicting delegated period",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    task_dir = Path(created["path"])
+    _write(task_dir / "ticket.py", "raise SystemExit(0)\n")
+
+    report = run(cfg)
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "conflicting-delegate-script"
+    )
+    assert issue.task == "recurring/delegate-check"
+    assert "mutually exclusive" in issue.message
+
+
+@pytest.mark.parametrize(
+    "delegate",
+    ["bootstrap/.", "bootstrap/..", r"bootstrap/nested\name"],
+)
+def test_validate_rejects_unsafe_frozen_delegate_component(
+    repo: Path, delegate: str
+) -> None:
+    """Frozen dispatch accepts one real path component on every platform."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Unsafe delegated period",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    ticket_path = Path(created["path"]) / "ticket.md"
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["delegate"] = delegate
+    ticket.write(ticket_path)
+
+    report = run(cfg)
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "bad-shape" and issue.task == "recurring/delegate-check"
+    )
+    assert "one path component" in issue.message
+
+
 def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:
     cfg = load_config(repo)
     created = create_task(

@@ -60,7 +60,7 @@ from coga.config import (
     parse_inline_secrets,
 )
 from coga.logfile import last_activity
-from coga.launch_script import SCRIPT_ENTRY_POINT
+from coga.launch_script import SCRIPT_ENTRY_POINT, script_entry_point
 from coga.lifecycle import TERMINAL_STATUSES, VALID_STATUSES
 from coga.taskfile import BLACKBOARD_FENCE, fence_count
 from coga.period_state import read_snapshot, stale_keys
@@ -79,6 +79,7 @@ from coga.tasks import (
     TaskNotFoundError,
     TaskRef,
     list_tasks,
+    resolve_bootstrap,
     resolve_task,
 )
 from coga.ticket import Ticket, TicketError
@@ -100,7 +101,7 @@ REQUIRED_TASK_KEYS: tuple[str, ...] = (
 )
 # Optional keys that may appear in addition to the required set.
 OPTIONAL_TASK_KEYS: frozenset[str] = frozenset(
-    {"step", "watchers", "secrets"}
+    {"step", "watchers", "secrets", "delegate"}
 )
 _NON_EMPTY_STRING_KEYS: tuple[str, ...] = (
     "title",
@@ -420,6 +421,7 @@ def _check_one_task(
         ))
 
     out.extend(_check_frontmatter_schema(cfg, task_label, ticket))
+    out.extend(_check_task_delegate(cfg, ref, ticket))
     out.extend(_check_secrets(cfg, task_label, ticket))
 
     # Valid assignees: known agent types OR one of this ticket's role-field
@@ -508,6 +510,61 @@ def _check_script_entry_point(ref: TaskRef) -> list[Issue]:
     if ref.task_dir is None:
         return []
     return _check_entry_point_dir(ref.task_dir, ref.id_slug)
+
+
+def _check_task_delegate(
+    cfg: Config, ref: TaskRef, ticket: Ticket
+) -> list[Issue]:
+    """Validate the frozen dispatch snapshot on a recurring period task."""
+    if "delegate" not in ticket.frontmatter:
+        return []
+    value = ticket.frontmatter["delegate"]
+    if not _is_delegate_name(value):
+        # The schema check owns the shape diagnostic.
+        return []
+    if ref.directory != "recurring":
+        return [Issue(
+            kind="invalid-delegate-owner",
+            task=ref.id_slug,
+            message=(
+                "`delegate` is reserved for materialized tasks directly under "
+                "tasks/recurring/"
+            ),
+            severity="error",
+        )]
+    if script_entry_point(ref) is not None:
+        return [Issue(
+            kind="conflicting-delegate-script",
+            task=ref.id_slug,
+            message=(
+                f"materialized recurring task declares `delegate` and carries "
+                f"`{SCRIPT_ENTRY_POINT}`; the two dispatch shapes are mutually "
+                "exclusive"
+            ),
+            severity="error",
+        )]
+    name = value.strip()
+    try:
+        target = resolve_bootstrap(cfg, name)
+    except TaskNotFoundError as exc:
+        return [Issue(
+            kind="unknown-delegate-target",
+            task=ref.id_slug,
+            message=f"frozen recurring delegate {name!r} does not resolve: {exc}",
+            severity="error",
+        )]
+    if script_entry_point(target) is not None:
+        return [Issue(
+            kind="script-backed-delegate-target",
+            task=ref.id_slug,
+            message=(
+                f"frozen recurring delegate {name!r} is script-backed; "
+                "deterministic recurring work belongs in the recurring "
+                f"template's own `{SCRIPT_ENTRY_POINT}`"
+            ),
+            severity="error",
+        )]
+    return []
 
 
 def _check_entry_point_dir(task_dir: Path, label: str) -> list[Issue]:
@@ -643,6 +700,17 @@ def _check_frontmatter_schema(
             kind="bad-shape",
             task=task_label,
             message=f"skills must be a list of strings, got {fm['skills']!r}",
+            severity="error",
+        ))
+
+    if "delegate" in fm and not _is_delegate_name(fm["delegate"]):
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=(
+                "delegate must be a non-empty `bootstrap/<name>` string with "
+                f"one path component, got {fm['delegate']!r}"
+            ),
             severity="error",
         ))
 
@@ -971,8 +1039,9 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         # only report the load failure when the schedule was fine — otherwise
         # one bad cron yields two issues for the same defect. The workflow-step
         # skill checks below still run either way.
+        template = None
         try:
-            Template.load(path)
+            template = Template.load(path)
         except RecurringError as exc:
             if not schedule_bad:
                 out.append(Issue(
@@ -982,6 +1051,36 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
                     severity="error",
                 ))
                 continue
+
+        # A `delegate:` target is a launch-time lookup; resolve it statically
+        # so a template pointing at a missing bootstrap ticket fails
+        # validation instead of failing the sweep that fires it.
+        if template is not None and template.delegate is not None:
+            try:
+                target = resolve_bootstrap(cfg, template.delegate)
+            except TaskNotFoundError as exc:
+                out.append(Issue(
+                    kind="unknown-delegate-target",
+                    task=f"recurring/{path.name}",
+                    message=(
+                        f"recurring template {path.name!r} delegates to "
+                        f"{template.delegate!r}: {exc}"
+                    ),
+                    severity="error",
+                ))
+            else:
+                if script_entry_point(target) is not None:
+                    out.append(Issue(
+                        kind="script-backed-delegate-target",
+                        task=f"recurring/{path.name}",
+                        message=(
+                            f"recurring template {path.name!r} delegates to "
+                            f"script-backed {template.delegate!r}; put "
+                            "deterministic recurring work in the template's "
+                            f"own `{SCRIPT_ENTRY_POINT}`"
+                        ),
+                        severity="error",
+                    ))
 
         workflow_name = ticket.frontmatter.get("workflow") or "direct/body"
         if not isinstance(workflow_name, str):
@@ -1136,6 +1235,17 @@ def _check_workflow_shape(
             severity="error",
         ))
     return out
+
+
+def _is_delegate_name(value: Any) -> bool:
+    """Whether a value has the canonical one-level bootstrap target shape."""
+    if not isinstance(value, str):
+        return False
+    name = value.strip()
+    suffix = name[len("bootstrap/"):] if name.startswith("bootstrap/") else ""
+    return bool(suffix.strip()) and suffix not in {".", ".."} and not any(
+        separator in suffix for separator in ("/", "\\")
+    )
 
 
 def _is_string_list(value: Any) -> bool:

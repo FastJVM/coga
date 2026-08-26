@@ -44,6 +44,7 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
     "step",
     "contexts",
     "skills",
+    "delegate",
     "secrets",
 })
 
@@ -177,6 +178,14 @@ class Ticket:
         instructions on top of the current workflow step."""
         value = self.frontmatter.get("skills") or []
         return list(value)
+
+    @property
+    def delegate(self) -> str | None:
+        """Frozen recurring bootstrap target, absent on ordinary tasks."""
+        value = self.frontmatter.get("delegate")
+        if not isinstance(value, str) or not value.strip():
+            return None
+        return value.strip()
 
     @property
     def secrets(self) -> Any:

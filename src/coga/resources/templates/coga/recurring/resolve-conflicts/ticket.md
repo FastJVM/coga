@@ -2,9 +2,12 @@
 schedule: "0 8 * * 1"
 schedule_comment: "Every Monday at 8am — after branch-sweep, resolve conflicts on open PRs"
 title: "Resolve PR conflicts"
-# This template stays agent-backed so recurring's TTY admission, selected-agent
-# override, idle timeout, and max-session watchdog govern the whole delegated
-# command. The command ticket remains the one durable operational runbook.
+delegate: bootstrap/resolve-conflicts
+# `delegate:` keeps this template agent-backed for admission — a headless
+# sweep refuses it before the period task exists — while `coga recurring`
+# launches the bootstrap target directly in the operator's terminal, under the
+# sweep's idle/max-session liveness bounds. No agent session runs on the
+# period task itself, so nothing here shells out to a nested `coga launch`.
 ---
 
 ## Description
@@ -18,21 +21,21 @@ conflicting heads onto `origin/main`, resolve semantic conflicts with agent
 judgment, verify before an explicit lease-safe force-push, print one line per
 PR, and post the final Slack roll-up.
 
-Delegate through the ordinary command alias; do not reproduce or improvise a
-second runbook here:
-
-1. Run `coga resolve-conflicts --agent <current-agent-type>`, replacing the
-   placeholder with the configured Coga agent type running this wrapper
-   (normally `claude` or `codex`). This preserves an explicit recurring
-   `--agent` override for the command that performs the conflict work.
-2. If this launch includes automatic queue guidance, also pass
-   `--queue-guidance`; omit it for an interactive recurring launch. Wait for
-   the delegated command to return. Recurring's outer agent supervisor remains
-   responsible for TTY admission and the idle/max-session liveness bounds over
-   the whole process tree.
-3. After a successful delegated run, finish this period task with
-   `coga mark done recurring/resolve-conflicts`. Surface a delegated failure;
-   do not mark the period task done as if the sweep succeeded.
+The `delegate:` field above is the whole delegation. Creation freezes it into
+the period ticket, so sweeps, named retries, and direct
+`coga launch recurring/resolve-conflicts` never consult mutable template
+dispatch. The runner marks the period task `in_progress`, launches
+`bootstrap/resolve-conflicts` in-process (honouring the sweep's `--agent`
+override and queue guidance), and marks the period task `done` only after the
+delegated command's final `coga slack` roll-up emits its bootstrap done
+sentinel. Launch preflights before the start transition, then reloads and
+recomposes after that publication, and at the final spawn boundary requires
+the exact period snapshot to remain `in_progress` with the same frozen target.
+Sweeps reread that dispatch after reconciliation; a direct launch first catches
+up control and re-resolves the exact period ref. A natural/crashed exit fails
+without completing the period. A
+multi-task sweep pauses a watchdog timeout and records it as timed out; an
+explicit named launch fails and leaves the period retryable.
 
 The replacement intentionally covers **open PRs only**. The removed
 `rebase-stale-worktrees` task also found pre-PR branches through worktrees and

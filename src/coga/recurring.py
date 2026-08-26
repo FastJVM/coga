@@ -17,7 +17,10 @@ from croniter import CroniterError, croniter
 from coga.create import create_task
 from coga.config import Config
 from coga.delete_task import DeleteTaskError, run_delete_task
-from coga.launch_script import SCRIPT_ENTRY_POINT
+from coga.launch_script import (
+    SCRIPT_ENTRY_POINT,
+    script_entry_point as resolve_script_entry_point,
+)
 from coga.logfile import (
     append_log,
     iter_log_messages,
@@ -29,7 +32,14 @@ from coga.taskfile import (
     join_task_body,
     split_body,
 )
-from coga.tasks import TaskRef, list_tasks, read_ticket
+from coga.tasks import (
+    BootstrapRef,
+    TaskNotFoundError,
+    TaskRef,
+    list_tasks,
+    read_ticket,
+    resolve_bootstrap,
+)
 from coga.ticket import Ticket
 from coga.validate import TaskValidationError
 from coga.workflow import Workflow, WorkflowError
@@ -38,6 +48,67 @@ from coga.workflow import Workflow, WorkflowError
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 class RecurringError(Exception):
     pass
+
+
+def _normalize_delegate(value: Any) -> str:
+    """Return one canonical bootstrap delegate or fail on its declaration."""
+    if not isinstance(value, str) or not value.strip():
+        raise RecurringError("`delegate` must be a non-empty string")
+    name = value.strip()
+    suffix = name[len("bootstrap/"):] if name.startswith("bootstrap/") else ""
+    if (
+        not suffix.strip()
+        or suffix in {".", ".."}
+        or "/" in suffix
+        or "\\" in suffix
+    ):
+        raise RecurringError(
+            "`delegate` must name a stateless bootstrap command ticket as "
+            "`bootstrap/<name>`"
+        )
+    return name
+
+
+def resolve_agent_delegate(cfg: Config, delegate: str) -> BootstrapRef:
+    """Resolve a recurring delegate and reject deterministic command tickets.
+
+    Delegation exists to remove an agent wrapper around a second agent launch.
+    A bootstrap ``ticket.py`` is already deterministic, so recurring work that
+    needs it belongs in the recurring template's own ``ticket.py`` and remains
+    in the headless admission class.
+    """
+    name = _normalize_delegate(delegate)
+    try:
+        target = resolve_bootstrap(cfg, name)
+    except TaskNotFoundError as exc:
+        raise RecurringError(
+            f"recurring delegate {name!r} does not resolve: {exc}"
+        ) from exc
+    if resolve_script_entry_point(target) is not None:
+        raise RecurringError(
+            f"recurring delegate {name!r} is script-backed; put deterministic "
+            f"recurring work in the template's own `{SCRIPT_ENTRY_POINT}` "
+            "instead of delegating to a bootstrap script"
+        )
+    return target
+
+
+def frozen_task_delegate(ref: TaskRef, ticket: Ticket) -> str | None:
+    """Read the immutable delegate snapshot from a materialized period task."""
+    if "delegate" not in ticket.frontmatter:
+        return None
+    if ref.directory != "recurring":
+        raise RecurringError(
+            f"task {ref.id_slug} declares `delegate`, but that field is "
+            "reserved for materialized recurring period tasks"
+        )
+    if resolve_script_entry_point(ref) is not None:
+        raise RecurringError(
+            f"delegating recurring task {ref.id_slug} also carries a reserved "
+            f"`{SCRIPT_ENTRY_POINT}`; `delegate` and `{SCRIPT_ENTRY_POINT}` "
+            "are mutually exclusive"
+        )
+    return _normalize_delegate(ticket.frontmatter["delegate"])
 
 
 @dataclass
@@ -77,6 +148,15 @@ class Template:
                 raise RecurringError(
                     "`state_keys` must be a list of non-empty strings"
                 )
+        if "delegate" in fm:
+            _normalize_delegate(fm["delegate"])
+            if (path / SCRIPT_ENTRY_POINT).is_file():
+                raise RecurringError(
+                    "`delegate` and a reserved `ticket.py` are mutually "
+                    "exclusive — a template either runs its own deterministic "
+                    "phase or delegates its whole period to one bootstrap "
+                    "launch"
+                )
         return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
 
     @property
@@ -95,6 +175,19 @@ class Template:
         """
         candidate = self.path / SCRIPT_ENTRY_POINT
         return candidate if candidate.is_file() else None
+
+    @property
+    def delegate(self) -> str | None:
+        """The `bootstrap/<name>` target this template's period delegates to.
+
+        A delegating template stays agent-backed for admission (the delegated
+        run is an agent launch, so a headless sweep refuses it before the
+        period task exists), but the sweep launches this target in-process —
+        in the operator's own terminal — instead of launching an agent session
+        on the period task itself. See `_run_delegated_task`.
+        """
+        value = self.frontmatter.get("delegate")
+        return value.strip() if isinstance(value, str) else None
 
     @property
     def ticket_path(self) -> Path:
@@ -160,6 +253,7 @@ class DueTask:
     last_fire: datetime
     created: bool
     status: str
+    delegate: str | None = None
     period_key: str = ""
     replaced_done: bool = False
 
@@ -354,6 +448,7 @@ def scan_due(
                     template=template.name,
                     ref=None,
                     last_fire=last_fire,
+                    delegate=None,
                     period_key=period_key,
                     created=False,
                     status="done",
@@ -373,6 +468,7 @@ def scan_due(
                 serviced=serviced,
             )
             ticket = read_ticket(outcome.ref)
+            delegate = frozen_task_delegate(outcome.ref, ticket)
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps an
             # interactive `coga recurring` honest; the command also posts a
@@ -386,6 +482,7 @@ def scan_due(
                 template=template.name,
                 ref=outcome.ref,
                 last_fire=last_fire,
+                delegate=delegate,
                 period_key=period_key,
                 created=outcome.created,
                 status=ticket.status,
@@ -450,11 +547,21 @@ def create_template(
     # therefore defers the next period until it reaches a terminal/paused state; that
     # is deliberate — finish the in-flight run before piling another on.
     #
-    # The TTY check is evaluated *after* the resume short-circuits: resuming an
-    # existing task must not be blocked by it (only a fresh create launches a
-    # would-be agent run that the check guards against).
+    # A live period is returned rather than duplicated. Delegation adds one
+    # narrower admission rule: classify it from the materialized task's frozen
+    # field and skip it before a no-TTY sweep reaches its bootstrap launch.
+    # Preserve the established force/resume behavior for ordinary agent periods;
+    # this ticket changes only the double-hop delegation shape.
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
+        live_delegate = frozen_task_delegate(live, read_ticket(live))
+        if not allow_agent and live_delegate is not None:
+            raise RecurringError(
+                "an agent run requires a TTY (stdin and stdout must both be "
+                "terminals). Run `coga recurring --interactive` from a real "
+                f"shell, or give the template a `{SCRIPT_ENTRY_POINT}` "
+                "deterministic half for unattended runs."
+            )
         return CreateOutcome(
             ref=live,
             created=False,
@@ -473,6 +580,8 @@ def create_template(
             # A completed task is terminal. If Dream did not reap it, delete
             # that prior-period artifact through the canonical deletion path,
             # then create a genuinely fresh task from the current template.
+            if template.delegate is not None:
+                resolve_agent_delegate(cfg, template.delegate)
             if not allow_agent and template.script_entry_point is None:
                 raise RecurringError(
                     "an agent run requires a TTY (stdin and stdout must both be "
@@ -512,6 +621,8 @@ def create_template(
             prior_serviced_period=prior_serviced_period,
         )
 
+    if template.delegate is not None:
+        resolve_agent_delegate(cfg, template.delegate)
     if not allow_agent and template.script_entry_point is None:
         raise RecurringError(
             "an agent run requires a TTY (stdin and stdout must both be "
@@ -950,6 +1061,10 @@ def _create_at_slug(
             status="active",
             slug_override=target_slug,
             secrets=template.frontmatter.get("secrets"),
+            # Freeze dispatch with the materialized period. Retries and direct
+            # launches must never consult a template that may have changed or
+            # disappeared since this run was created.
+            delegate=template.delegate,
             # Carry the template body verbatim so sections beyond `## Description`
             # reach the period task instead of being dropped at create time.
             body=template.body,

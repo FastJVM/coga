@@ -44,6 +44,7 @@ def create_task(
     human: str | None = None,
     agent: str | None = None,
     skills: list[str] | None = None,
+    delegate: str | None = None,
     slug_override: str | None = None,
     directory: str | None = None,
     description: str | None = None,
@@ -186,9 +187,11 @@ def create_task(
         "assignee": assignee,
         "contexts": list(contexts),
         "skills": list(skills),
-        "workflow": wf.freeze() if wf else None,
-        "secrets": secrets,
     }
+    if delegate is not None:
+        fm["delegate"] = delegate
+    fm["workflow"] = wf.freeze() if wf else None
+    fm["secrets"] = secrets
     if wf and status not in TERMINAL_STATUSES:
         first_step = wf.steps[0].name
         fm["step"] = f"1 ({first_step})"

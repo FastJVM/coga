@@ -304,9 +304,15 @@ def test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep() -> 
     assert "\nscript:" not in (
         recurring_root / "resolve-conflicts" / "ticket.md"
     ).read_text()
-    assert "coga resolve-conflicts --agent <current-agent-type>" in wrapper.body
-    assert "coga mark done recurring/resolve-conflicts" in wrapper.body
-    assert "outer agent supervisor" in wrapper.body
+    # The template declares its delegation instead of instructing a wrapper
+    # agent to shell out to a nested `coga launch` (the double hop that could
+    # not run without a fake pty). The sweep owns the period task's lifecycle,
+    # so the body must not tell an agent to mark it done by hand.
+    assert wrapper.frontmatter["delegate"] == "bootstrap/resolve-conflicts"
+    assert "recipe" not in wrapper.frontmatter
+    assert "coga resolve-conflicts --agent" not in wrapper.body
+    assert "coga mark done" not in wrapper.body
+    assert "script -qec" not in wrapper.body
     assert "open PRs only" in wrapper.body
     assert not (recurring_root / "rebase-stale-worktrees").exists()
 

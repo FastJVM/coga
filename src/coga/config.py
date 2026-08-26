@@ -603,6 +603,7 @@ _RESERVED_TICKET_FIELD_NAMES: frozenset[str] = frozenset({
     "step",
     "contexts",
     "skills",
+    "delegate",
     "secrets",
 })
 

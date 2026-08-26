@@ -187,7 +187,11 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
     if kind in {
         "bad-recurring-template",
         "broken-recurring-template-skill",
+        "conflicting-delegate-script",
+        "invalid-delegate-owner",
         "invalid-recurring-schedule",
+        "script-backed-delegate-target",
+        "unknown-delegate-target",
     }:
         return ClassifiedIssue(
             issue=issue,
