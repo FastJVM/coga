@@ -1231,6 +1231,88 @@ def test_launch_routes_materialized_recurring_delegate_from_ticket(
     ]
 
 
+@pytest.mark.parametrize("refused_gate", ["control-branch", "owner"])
+def test_direct_recurring_delegate_enforces_recurring_launch_gates(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    refused_gate: str,
+) -> None:
+    """Direct dispatch cannot bypass either recurring authorization gate."""
+    cfg = load_config(active_task)
+    created = create_task(
+        cfg=cfg,
+        title="Gated delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    launches: list[str] = []
+
+    monkeypatch.chdir(active_task)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_refuse_non_control_branch",
+        lambda task_cfg: refused_gate == "control-branch",
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_refuse_non_owner",
+        lambda task_cfg: refused_gate == "owner",
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_run_delegated_task",
+        lambda task_cfg, ref, **kwargs: launches.append(ref.id_slug),
+    )
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 2
+    assert launches == []
+    assert Ticket.read(Path(created["path"]) / "ticket.md").status == "active"
+
+
+def test_direct_recurring_delegate_rejects_period_ticket_script(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A frozen period with both dispatch signals refuses instead of picking one."""
+    cfg = load_config(active_task)
+    created = create_task(
+        cfg=cfg,
+        title="Conflicting delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    task_dir = Path(created["path"])
+    ticket_path = task_dir / "ticket.md"
+    (task_dir / "ticket.py").write_text("raise SystemExit(0)\n")
+
+    monkeypatch.chdir(active_task)
+    monkeypatch.setattr(
+        recurring_cmd, "_refuse_non_control_branch", lambda task_cfg: False
+    )
+    monkeypatch.setattr(recurring_cmd, "_refuse_non_owner", lambda task_cfg: False)
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 2
+    assert "mutually exclusive" in result.output
+    assert Ticket.read(ticket_path).status == "active"
+
+
 def test_launch_refreshes_launch_checkout_on_exit(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

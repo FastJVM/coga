@@ -147,12 +147,14 @@ the example under "Extend recurring with a task-specific workflow").
   launch fails and leaves it `in_progress` for retry. Creation copies the
   target into canonical period-task frontmatter; sweep retries, named retries,
   and direct `coga launch recurring/<name>` route only from that frozen field,
-  so changing or removing a template cannot reroute live work. Because the
-  delegated run is still an agent launch, a delegating template stays in the
-  agent-backed admission class: a headless sweep refuses it *before the period
-  task is created*, exactly like any other agent template. The target itself
-  must also be agent-backed: a bootstrap `ticket.py` target is rejected before
-  creation, because deterministic recurring work belongs in the template's own
+  so changing or removing a template cannot reroute live work. A materialized
+  period that later acquires its own `ticket.py` is invalid and refused rather
+  than choosing between the two dispatch signals. Because the delegated run is
+  still an agent launch, a delegating template stays in the agent-backed
+  admission class: a headless sweep refuses it *before the period task is
+  created*, exactly like any other agent template. The target itself must also
+  be agent-backed: a bootstrap `ticket.py` target is rejected before creation,
+  because deterministic recurring work belongs in the template's own
   `ticket.py`. `coga validate` checks both the template and frozen task.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
@@ -166,11 +168,12 @@ the example under "Extend recurring with a task-specific workflow").
 
 Every launching entry point requires the configured control branch to be
 checked out before it reads or writes period state: the bare sweep, `--force`,
-`coga run recurring-scan`, and `coga recurring launch <name>` (including
-aliases such as `coga dream`). A refusal names both the current branch and the
-configured control branch and tells the operator to switch branches. There is
-deliberately no override: `--force` bypasses schedule and status filters, not
-the branch gate.
+`coga run recurring-scan`, `coga recurring launch <name>` (including aliases
+such as `coga dream`), and direct `coga launch recurring/<name>` for a frozen
+delegating period. A refusal names both the current branch and the configured
+control branch and tells the operator to switch branches. There is deliberately
+no override: `--force` bypasses schedule and status filters, not the branch
+gate.
 
 This gate checks only the local branch. A fetch or rebase failure on the
 checked-out control branch remains a warning for the interactive single-repo
@@ -192,11 +195,11 @@ state to land; a later cleanup may remove it once that migration case expires.
 
 A repo may name a recurring owner with a top-level `owner = "<name>"` in the
 **committed** `coga.toml`. With it set, every launching entry point — the bare
-sweep, `--force`, `coga run recurring-scan`, and `coga recurring launch <name>`
-— refuses to run for any operator whose machine-local `user` (in
-`coga.local.toml`) differs, naming the owner so they know who to ask. Leave
-`owner` unset and recurring is ungated, exactly as before, so a repo opts in by
-naming someone.
+sweep, `--force`, `coga run recurring-scan`, `coga recurring launch <name>`,
+and direct launch of a frozen delegating period — refuses to run for any
+operator whose machine-local `user` (in `coga.local.toml`) differs, naming the
+owner so they know who to ask. Leave `owner` unset and recurring is ungated,
+exactly as before, so a repo opts in by naming someone.
 
 Authorization does not trust the config object loaded when the command started
 or an uncommitted working-tree edit. It fetches the configured control branch

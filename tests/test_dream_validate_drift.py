@@ -200,6 +200,7 @@ def test_classifies_recurring_state_stuck_as_human_needed() -> None:
         "bad-recurring-template",
         "broken-recurring-template-skill",
         "broken-workflow",
+        "conflicting-delegate-script",
         "duplicate-slug",
         "duplicate-task-number",
         "invalid-recurring-schedule",

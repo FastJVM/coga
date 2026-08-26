@@ -1098,6 +1098,22 @@ def _run_delegated_task(
     except (RecurringError, TaskValidationError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "refused")
+
+    # The bootstrap launch may have changed coga.toml itself, and its teardown
+    # may have refreshed a concurrent control-plane edit into this checkout.
+    # Re-read configuration before any post-child lifecycle write so validation,
+    # git publication, and notifications use the state that now owns the task.
+    try:
+        cfg = load_config(cfg.repo_root)
+    except ConfigError as exc:
+        typer.secho(
+            f"cannot finalize delegated period {ref.id_slug}: configuration "
+            f"is invalid after the bootstrap session: {exc}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return DelegatedRunResult(2, kind or "refused")
+
     if kind == "timeout":
         if continue_after_timeout:
             # The delegated session wedged and a liveness backstop tore it

@@ -55,10 +55,12 @@ def _normalize_delegate(value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
         raise RecurringError("`delegate` must be a non-empty string")
     name = value.strip()
+    suffix = name[len("bootstrap/"):] if name.startswith("bootstrap/") else ""
     if (
-        not name.startswith("bootstrap/")
-        or not name[len("bootstrap/"):].strip()
-        or "/" in name[len("bootstrap/"):]
+        not suffix.strip()
+        or suffix in {".", ".."}
+        or "/" in suffix
+        or "\\" in suffix
     ):
         raise RecurringError(
             "`delegate` must name a stateless bootstrap command ticket as "
@@ -99,6 +101,12 @@ def frozen_task_delegate(ref: TaskRef, ticket: Ticket) -> str | None:
         raise RecurringError(
             f"task {ref.id_slug} declares `delegate`, but that field is "
             "reserved for materialized recurring period tasks"
+        )
+    if resolve_script_entry_point(ref) is not None:
+        raise RecurringError(
+            f"delegating recurring task {ref.id_slug} also carries a reserved "
+            f"`{SCRIPT_ENTRY_POINT}`; `delegate` and `{SCRIPT_ENTRY_POINT}` "
+            "are mutually exclusive"
         )
     return _normalize_delegate(ticket.frontmatter["delegate"])
 

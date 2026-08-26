@@ -696,7 +696,8 @@ bootstrap target carrying `ticket.py` is rejected before period creation;
 deterministic recurring work belongs in the recurring template's own
 `ticket.py`. A template therefore never instructs its agent to shell out to a
 nested `coga launch`. `delegate:` and a template `ticket.py` sibling are
-mutually exclusive.
+mutually exclusive; a materialized delegated period that later acquires its own
+`ticket.py` is likewise invalid and refused rather than selecting one signal.
 
 There is no `autonomy:` field. The old `auto`, `skip_permissions`, and
 `skip_permissions_argv` agent keys are removed; config load rejects them with

@@ -111,7 +111,8 @@ durable task instance:
   agent-backed form. Its purpose is to remove an agent wrapper around another
   agent launch. A script-backed target is rejected before period creation;
   deterministic recurring behavior belongs in the recurring template's own
-  `ticket.py`, which is copied into the period task.
+  `ticket.py`, which is copied into the period task. A materialized period may
+  not carry both that copied script and a frozen `delegate:` field.
 - Add an alias such as `resolve-conflicts = "launch bootstrap/resolve-conflicts"`
   when the command deserves a top-level spelling. Trailing argv continues
   through the alias.

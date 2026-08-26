@@ -532,6 +532,17 @@ def _check_task_delegate(
             ),
             severity="error",
         )]
+    if script_entry_point(ref) is not None:
+        return [Issue(
+            kind="conflicting-delegate-script",
+            task=ref.id_slug,
+            message=(
+                f"materialized recurring task declares `delegate` and carries "
+                f"`{SCRIPT_ENTRY_POINT}`; the two dispatch shapes are mutually "
+                "exclusive"
+            ),
+            severity="error",
+        )]
     name = value.strip()
     try:
         target = resolve_bootstrap(cfg, name)
@@ -1232,7 +1243,9 @@ def _is_delegate_name(value: Any) -> bool:
         return False
     name = value.strip()
     suffix = name[len("bootstrap/"):] if name.startswith("bootstrap/") else ""
-    return bool(suffix) and "/" not in suffix
+    return bool(suffix.strip()) and suffix not in {".", ".."} and not any(
+        separator in suffix for separator in ("/", "\\")
+    )
 
 
 def _is_string_list(value: Any) -> bool:

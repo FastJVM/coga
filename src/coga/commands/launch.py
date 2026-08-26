@@ -318,7 +318,18 @@ def _launch(
                     before_spawn=None,
                 )
 
-            from coga.recurring_runner import _run_delegated_task
+            from coga.recurring_runner import (
+                _refuse_non_control_branch,
+                _refuse_non_owner,
+                _run_delegated_task,
+            )
+
+            # Direct launch is another recurring execution entry point, not an
+            # escape hatch around the scheduler's shared-state authorization.
+            # Apply both gates before the helper can mutate the period task or
+            # spawn its bootstrap agent.
+            if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
+                raise SystemExit(2)
 
             delegated = _run_delegated_task(
                 cfg,

@@ -2207,6 +2207,9 @@ def _write_delegating_template(company: Path, name: str) -> None:
         ("resolve-conflicts", "must name a stateless bootstrap command"),
         ("bootstrap/", "must name a stateless bootstrap command"),
         ("bootstrap/nested/name", "must name a stateless bootstrap command"),
+        ("bootstrap/.", "must name a stateless bootstrap command"),
+        ("bootstrap/..", "must name a stateless bootstrap command"),
+        (r"'bootstrap/nested\name'", "must name a stateless bootstrap command"),
     ],
 )
 def test_template_rejects_invalid_delegate_declarations(
@@ -2396,6 +2399,61 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
     assert launches == [
         ("bootstrap/resolve-conflicts", "claude", 900.0, None, True, True)
     ]
+
+
+def test_delegated_completion_reloads_post_session_config(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Completion validates, publishes, and notifies with live post-child config."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    completion_configs: list[Config] = []
+
+    def fake_mark_in_progress(
+        task_cfg, task_ref, current: Ticket, **kwargs  # type: ignore[no-untyped-def]
+    ) -> None:
+        current.frontmatter["status"] = "in_progress"
+        current.write(task_ref.ticket_path)
+
+    def fake_mark_done(
+        task_cfg: Config, task_ref, current: Ticket, **kwargs  # type: ignore[no-untyped-def]
+    ) -> None:
+        completion_configs.append(task_cfg)
+        current.frontmatter["status"] = "done"
+        current.frontmatter.pop("step", None)
+        current.write(task_ref.ticket_path)
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        config_path = repo / "coga.toml"
+        config_path.write_text(
+            config_path.read_text().replace(
+                'default_status = "draft"', 'default_status = "active"'
+            )
+        )
+        return "done"
+
+    monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
+    monkeypatch.setattr(recurring_cmd, "mark_done", fake_mark_done)
+    monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(0, "done")
+    assert len(completion_configs) == 1
+    assert completion_configs[0] is not cfg
+    assert completion_configs[0].default_status == "active"
 
 
 @pytest.mark.parametrize(
