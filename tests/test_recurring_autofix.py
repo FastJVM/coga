@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -95,6 +96,328 @@ def test_unknown_cli_without_a_template_refuses_rather_than_guessing() -> None:
     with pytest.raises(autofix.AutofixUnavailable) as exc:
         build_analyze_command(agent, "hi")
     assert "analyze" in str(exc.value)
+
+
+def test_a_working_claude_api_key_is_used_without_an_auth_probe(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "working-key")
+    calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((cmd, kwargs["env"]))
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            "VERDICT: problem\n"
+            "TITLE: Fix the exhausted downstream key\n"
+            "---\n"
+            "The run reported: Credit balance is too low.\n",
+            "",
+        )
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    assert autofix.analyze_record(cfg_repo, "failing run").verdict == "problem"
+    assert len(calls) == 1
+    assert calls[0][1]["ANTHROPIC_API_KEY"] == "working-key"
+
+
+def test_claude_billing_failure_retries_with_a_verified_subscription(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, capfd
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    monkeypatch.delenv("ANTHROPIC_CUSTOM_HEADERS", raising=False)
+    calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        env = kwargs["env"]
+        calls.append((cmd, env))
+        if cmd[1:] == ["auth", "status"]:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                '{"loggedIn":true,"authMethod":"claude.ai",'
+                '"apiProvider":"firstParty","subscriptionType":"max",'
+                '"forcedLoginMethod":"claudeai"}',
+                "",
+            )
+        analysis_attempt = sum(
+            previous[0][1:] != ["auth", "status"] for previous in calls
+        )
+        if analysis_attempt == 1:
+            return subprocess.CompletedProcess(
+                cmd, 1, "Credit balance is too low", ""
+            )
+        return subprocess.CompletedProcess(cmd, 0, "VERDICT: ok\n", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    assert autofix.analyze_record(cfg_repo, "healthy run").verdict == "ok"
+    assert [cmd[1:] == ["auth", "status"] for cmd, _env in calls] == [
+        False,
+        True,
+        False,
+    ]
+    assert calls[0][1]["ANTHROPIC_API_KEY"] == "out-of-credit-key"
+    assert "ANTHROPIC_API_KEY" not in calls[1][1]
+    assert "ANTHROPIC_API_KEY" not in calls[2][1]
+    assert "retrying with the signed-in claude.ai subscription" in (
+        capfd.readouterr().err
+    )
+
+
+@pytest.mark.parametrize(
+    "status_payload",
+    (
+        '{"loggedIn":false,"authMethod":"none"}',
+        '{"loggedIn":true,"authMethod":"claude.ai",'
+        '"subscriptionType":null}',
+        '{"loggedIn":true,"authMethod":"claude.ai",'
+        '"subscriptionType":"max","forcedLoginMethod":"console"}',
+        '{"loggedIn":true,"authMethod":"claude.ai",'
+        '"subscriptionType":"max","apiKeySource":"apiKeyHelper"}',
+    ),
+    ids=("signed-out", "no-entitlement", "forced-console", "other-api-key"),
+)
+def test_claude_api_key_failure_stays_loud_without_a_usable_subscription(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, status_payload: str
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    monkeypatch.delenv("ANTHROPIC_CUSTOM_HEADERS", raising=False)
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        if cmd[1:] == ["auth", "status"]:
+            return subprocess.CompletedProcess(cmd, 0, status_payload, "")
+        return subprocess.CompletedProcess(cmd, 1, "Credit balance is too low", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable, match="Credit balance"):
+        autofix.analyze_record(cfg_repo, "healthy run")
+    assert [cmd[1:] == ["auth", "status"] for cmd in calls] == [False, True]
+
+
+def test_a_custom_claude_analyze_argv_never_switches_authentication(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    cfg_repo.agents["claude"] = replace(
+        cfg_repo.agents["claude"],
+        analyze="--settings analyst-settings.json -p {prompt}",
+    )
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 1, "Credit balance is too low", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable, match="Credit balance"):
+        autofix.analyze_record(cfg_repo, "healthy run")
+    assert len(calls) == 1
+    assert "--settings" in calls[0]
+
+
+@pytest.mark.parametrize(
+    "routing_env", ("ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS")
+)
+def test_custom_claude_auth_routing_never_switches_authentication(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, routing_env: str
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    monkeypatch.setenv(routing_env, "configured")
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 1, "Credit balance is too low", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable, match="Credit balance"):
+        autofix.analyze_record(cfg_repo, "healthy run")
+    assert len(calls) == 1
+
+
+def test_an_unrelated_claude_failure_never_switches_authentication(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "configured-key")
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 1, "network unavailable", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable, match="network unavailable"):
+        autofix.analyze_record(cfg_repo, "healthy run")
+    assert len(calls) == 1
+
+
+# --- one timeout budget across the fallback -----------------------------------
+#
+# `COGA_AUTOFIX_TIMEOUT` is documented as the bound on the analysis call, so the
+# retry path must not be able to double it (or add the auth probe on top). These
+# drive a fake clock so the assertions are on the timeouts actually handed to
+# each subprocess rather than on wall time.
+
+
+class _FakeClock:
+    """A `time` stand-in whose monotonic reading only moves when told to."""
+
+    def __init__(self) -> None:
+        self.now = 1_000.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+def _auth_fallback_calls(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    spend: dict[str, float],
+    retry_returncode: int = 0,
+    retry_stdout: str = "VERDICT: ok\n",
+) -> tuple[_FakeClock, list[tuple[list[str], float | None]]]:
+    """Fake a failing API-key call, an entitled auth probe, and the retry.
+
+    `spend` says how many seconds each leg burns off the clock, keyed
+    `first` / `probe` / `retry`. Returns the clock plus every `(cmd, timeout)`
+    the module asked `subprocess.run` for.
+    """
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "out-of-credit-key")
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    monkeypatch.delenv("ANTHROPIC_CUSTOM_HEADERS", raising=False)
+    clock = _FakeClock()
+    seen: list[tuple[list[str], float | None]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        timeout = kwargs.get("timeout")
+        seen.append((cmd, timeout))
+        if cmd[1:] == ["auth", "status"]:
+            clock.now += spend.get("probe", 0.0)
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                '{"loggedIn":true,"authMethod":"claude.ai",'
+                '"apiProvider":"firstParty","subscriptionType":"max",'
+                '"forcedLoginMethod":"claudeai"}',
+                "",
+            )
+        analyses = sum(1 for prev, _t in seen if prev[1:] != ["auth", "status"])
+        if analyses == 1:
+            clock.now += spend.get("first", 0.0)
+            return subprocess.CompletedProcess(
+                cmd, 1, "Credit balance is too low", ""
+            )
+        clock.now += spend.get("retry", 0.0)
+        if retry_returncode:
+            raise subprocess.TimeoutExpired(cmd, timeout or 0.0)
+        return subprocess.CompletedProcess(cmd, retry_returncode, retry_stdout, "")
+
+    monkeypatch.setattr(autofix, "time", clock)
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+    return clock, seen
+
+
+def test_the_subscription_retry_spends_the_remaining_budget_not_a_fresh_one(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, capfd
+) -> None:
+    """The documented bound is on the analysis, not on each subprocess in it."""
+    monkeypatch.setenv("COGA_AUTOFIX_TIMEOUT", "100")
+    _clock, seen = _auth_fallback_calls(
+        monkeypatch, spend={"first": 95.0, "probe": 2.0}
+    )
+
+    assert autofix.analyze_record(cfg_repo, "failing run").verdict == "ok"
+    first, probe, retry = seen
+    assert first[1] == pytest.approx(100.0)
+    # Only 5s of the budget is left, so the deadline beats the 10s probe cap...
+    assert probe[1] == pytest.approx(5.0)
+    # ...and the retry gets what the probe left, not a second full budget.
+    assert retry[1] == pytest.approx(3.0)
+    assert retry[1] < 100.0
+
+
+def test_the_auth_probe_keeps_its_own_cap_inside_a_large_budget(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, capfd
+) -> None:
+    """A hung status call must not eat the budget the retry still needs."""
+    monkeypatch.setenv("COGA_AUTOFIX_TIMEOUT", "300")
+    _clock, seen = _auth_fallback_calls(
+        monkeypatch, spend={"first": 10.0, "probe": 1.0}
+    )
+
+    assert autofix.analyze_record(cfg_repo, "failing run").verdict == "ok"
+    _first, probe, retry = seen
+    assert probe[1] == pytest.approx(10.0)
+    assert retry[1] == pytest.approx(289.0)
+    capfd.readouterr()
+
+
+def test_a_spent_budget_declines_the_fallback_and_keeps_the_first_failure(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No budget left is not a reason to start two more subprocesses."""
+    monkeypatch.setenv("COGA_AUTOFIX_TIMEOUT", "30")
+    _clock, seen = _auth_fallback_calls(
+        monkeypatch, spend={"first": 30.0}
+    )
+
+    with pytest.raises(
+        autofix.AutofixUnavailable, match="Credit balance is too low"
+    ):
+        autofix.analyze_record(cfg_repo, "failing run")
+    assert [cmd[1:] == ["auth", "status"] for cmd, _t in seen] == [False]
+
+
+def test_a_timed_out_retry_reports_the_configured_bound(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, capfd
+) -> None:
+    """The operator set 100s; a retry that inherited 8s did not fail 'within 8s'."""
+    monkeypatch.setenv("COGA_AUTOFIX_TIMEOUT", "100")
+    _clock, _seen = _auth_fallback_calls(
+        monkeypatch,
+        spend={"first": 90.0, "probe": 2.0},
+        retry_returncode=1,
+    )
+
+    with pytest.raises(autofix.AutofixUnavailable) as exc:
+        autofix.analyze_record(cfg_repo, "failing run")
+    assert "did not answer within 100s" in str(exc.value)
+    capfd.readouterr()
+
+
+def test_a_disarmed_budget_leaves_the_whole_fallback_unbounded(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, capfd
+) -> None:
+    """`COGA_AUTOFIX_TIMEOUT=0` disarms the analysis; the probe keeps its cap."""
+    monkeypatch.setenv("COGA_AUTOFIX_TIMEOUT", "0")
+    _clock, seen = _auth_fallback_calls(
+        monkeypatch, spend={"first": 5_000.0, "probe": 5.0}
+    )
+
+    assert autofix.analyze_record(cfg_repo, "failing run").verdict == "ok"
+    first, probe, retry = seen
+    assert first[1] is None
+    assert probe[1] == pytest.approx(10.0)
+    assert retry[1] is None
+    capfd.readouterr()
 
 
 # --- the run record ------------------------------------------------------------

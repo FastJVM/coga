@@ -184,7 +184,9 @@ nothing more.
 
 - `COGA_AUTOFIX=0` disables the loop.
 - `COGA_AUTOFIX_TIMEOUT` (seconds, default 300) bounds the call; `<= 0` disarms
-  the timeout.
+  the timeout. It is one budget for the whole analysis — the first attempt, the
+  `claude auth status` probe, and the subscription retry below all draw on the
+  same deadline, so the fallback cannot double what the sweep waits for.
 - Every run record is also written to `.coga/recurring-runs/<stamp>.md`
   (gitignored), whether or not it is ticketed.
 - `coga run autofix-analyze [RUN_LOG] [--dry-run] [--agent TYPE]` re-runs the
@@ -193,6 +195,17 @@ nothing more.
 - The one-shot argv is built in for `claude` and `codex`. Any other CLI needs
   `[agents.<name>].analyze` in `coga.toml` (e.g. `analyze = "-p {prompt}"`);
   without it the loop skips loudly rather than opening a REPL nobody can drive.
+- An ambient `ANTHROPIC_API_KEY` keeps Claude Code's normal precedence. If its
+  call fails specifically on authentication or billing and the CLI's
+  `claude auth status` confirms a recognized first-party paid subscription
+  (Pro, Max, Team, or Enterprise) permitted by local login policy without that
+  variable, autofix announces one retry through the subscription. That
+  fallback applies only to Claude's built-in analysis argv with no
+  `ANTHROPIC_BASE_URL` or
+  `ANTHROPIC_CUSTOM_HEADERS`; custom analysis argv and auth routing stay on the
+  original loud failure because Coga cannot prove their effective credential.
+  Working keys, API-key-only setups, unrelated failures, and other agent CLIs
+  do not switch auth.
 - `coga recurring launch NAME` closes the same loop, so the `coga dream`,
   `coga autoclose`, and `coga skill-update` aliases analyze their run too. A
   launch a gate refuses (closed or paused template) is not a run and is not

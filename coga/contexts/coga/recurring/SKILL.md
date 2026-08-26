@@ -550,7 +550,10 @@ blackboard either — that existing rule now has a second reason.
 Operating it:
 
 - `COGA_AUTOFIX=0` disables the loop; `COGA_AUTOFIX_TIMEOUT` (seconds) bounds
-  the call, which defaults to 300s and disarms at `<= 0`.
+  the call, which defaults to 300s and disarms at `<= 0`. The bound is on the
+  analysis, not on each subprocess inside it: the first attempt, the
+  `claude auth status` probe, and the subscription retry share one deadline, so
+  the auth fallback below cannot stretch the wait a sweep signed up for.
 - Every run record is also written machine-locally to
   `.coga/recurring-runs/<stamp>.md` (gitignored — one operator's sweep
   transcript is not team state), whether or not it gets ticketed.
@@ -560,6 +563,17 @@ Operating it:
   CLI needs `[agents.<name>].analyze` in `coga.toml` (e.g.
   `analyze = "-p {prompt}"`); without it the loop skips loudly rather than
   guessing an argv and opening a REPL nobody can drive.
+- Claude Code normally honors an ambient `ANTHROPIC_API_KEY`. If that key's
+  call fails specifically for authentication or billing, the analyst checks
+  for an existing signed-in claude.ai account with the variable removed and,
+  when `claude auth status` confirms a first-party Pro, Max, Team, or Enterprise
+  subscription permitted by local login policy, announces and makes one
+  subscription-authenticated retry. The retry is limited to Claude's built-in
+  analysis argv and standard auth routing: a custom `[agents.<name>].analyze`,
+  `ANTHROPIC_BASE_URL`, or `ANTHROPIC_CUSTOM_HEADERS` keeps the original failure
+  because a bare status probe cannot prove which credentials that call would
+  use. A working key remains the first and only call; an API-key-only setup,
+  unrelated failure, or other agent CLI never switches authentication.
 
 ## Gotchas
 
