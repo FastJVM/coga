@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -451,3 +451,187 @@ subprocess checkouts and all seven pass with the feature worktree's absolute
 source path. The packaging wheel check separately lacks `hatchling` in this
 interpreter; neither result reflects changed product behavior. Full verification
 still follows the required rebase.
+
+## Final peer-review findings addressed (2026-08-25)
+
+A second `codex review --base origin/main` after the frozen-dispatch fixes
+found four remaining must-fix boundaries, all addressed without changing the
+chosen mechanism:
+
+- direct `coga launch recurring/<name>` now applies the same control-branch
+  and committed recurring-owner gates before it can mutate the period or spawn
+  the bootstrap agent;
+- the runner reloads `coga.toml` after the delegated child/refresh boundary,
+  before timeout parking or completion validation, publication, and
+  notification;
+- a materialized period carrying both frozen `delegate:` and `ticket.py` is
+  rejected at runtime and by `coga validate`, rather than silently choosing a
+  dispatch signal;
+- delegate validation rejects `.` / `..` and either platform path separator,
+  keeping the target to one real bootstrap child component.
+
+Durable recurring, architecture, extension-model, and packaged CLI guidance
+now states the direct-launch gates and frozen-task mutual exclusion. Regression
+coverage exercises both gates, post-session config reload, runtime/static
+dispatch conflict refusal, and unsafe component rejection. Focused delegation
+tests pass (38 passed), and the full changed-module set passes (551 passed).
+
+## Final verification review (2026-08-25)
+
+A third `codex review --base origin/main` reproduced three remaining launch
+boundary defects that must be fixed before handoff:
+
+- direct launch authorizes only after seeing optional `delegate:` state, so an
+  accidentally stripped frozen field can fall through to an ungated ordinary
+  recurring-task launch;
+- the period-start callback publishes `in_progress` and syncs the log after
+  bootstrap composition, and that sync can move the control checkout, leaving
+  the already-composed prompt/config/secrets stale at spawn;
+- a no-TTY sweep resumes an existing delegated `active`/`in_progress` period
+  before applying agent admission, reaches the bootstrap TTY refusal, and
+  aborts before later headless `ticket.py` jobs run.
+
+Fix direction: gate every direct `TaskRef(directory="recurring")` before
+reading optional dispatch state; make the launch boundary re-derive all
+spawn inputs after the start publication; and apply headless admission to
+frozen resumed delegates while leaving the existing period task untouched.
+
+## Final verification fixes applied (2026-08-26)
+
+All three findings from the final verification review are addressed in
+`9b1ebeb1` (`peer-review: recompose delegated launches after publication`):
+
+- direct launch applies control-branch and committed-owner authorization from
+  any `TaskRef(directory="recurring")` before reading its ticket, so deleting
+  optional `delegate:` state cannot fall through to an ungated ordinary launch;
+- the delegated bootstrap launch is now two-pass. The first pass completes all
+  target/TTY/CLI/push/secret/composition/argv preflights, makes its single
+  launch audit durable, and publishes the period start. The second pass reloads
+  config and target state and repeats every preflight/composition step without
+  duplicating the audit, leaving no moving sync between final composition and
+  spawn;
+- a no-TTY scan applies admission to an existing period whose own frozen task
+  carries `delegate:`. It leaves `active` / `in_progress` state untouched and
+  continues returning later `ticket.py` work. The check is deliberately narrow
+  so existing forced-resume behavior for ordinary agent periods is unchanged.
+
+Regression tests remove `delegate:` before a direct launch gate, mutate both
+bootstrap instructions and agent CLI during the start publication and verify
+the spawned command sees the refreshed values with one launch audit, and cover
+both active and orphaned headless delegate resumes. Verification so far:
+`tests/test_launch.py tests/test_recurring.py` (430 passed) and
+`tests/test_validate.py tests/test_dream_validate_drift.py
+tests/test_packaging.py` (133 passed).
+
+An existing PR, #723, was opened earlier against the old three-commit remote
+history while this ticket still remained in `peer-review`. Its one inline
+timeout-record finding is already fixed locally. The required fresh rebase,
+full test, PR-body update, and workflow bump still follow; `open-pr` should
+reconcile that PR rather than create a duplicate.
+
+## Peer-review final verification (2026-08-26)
+
+- Unconditionally fetched `origin/main` and rebased all six feature commits
+  cleanly onto `38128432`; no conflict decisions were needed. Reviewed head is
+  `b0f34e27` (`peer-review: recompose delegated launches after publication`).
+- Post-rebase `python -m pytest`: **2037 passed** in 153.92s, with no failures,
+  skips, or deselections.
+- `coga validate --json`: 133 checks clean and no delegate-related issue. The
+  aggregate exit remains 1 for the dogfood checkout's 23 unrelated existing
+  findings (`missing-user`, unfrozen workflows, stale/large task warnings,
+  unknown assignees, and four unsynthesized v2 draft blackboards).
+- Architecture, extension-model, and resolve-conflicts live/packaged twins are
+  byte-identical. `git diff --check origin/main...HEAD` is clean; the worktree
+  is clean and six commits ahead of `origin/main`.
+- PR #723 already exists against the stale remote feature history. Its body
+  predates the frozen-dispatch and three rounds of failure-path hardening, so
+  this final `## PR` text is also applied directly before handoff; the next
+  mechanical `open-pr` step can force-with-lease the rebased branch and reuse
+  the same PR.
+
+## PR
+
+### Summary
+
+- Add declarative `delegate: bootstrap/<name>` for agent-backed recurring
+  templates and launch the bootstrap command in-process, eliminating wrapper
+  sessions and fake PTYs while preserving no-TTY refusal before fresh period
+  creation.
+- Freeze delegation into each materialized period ticket so sweeps, named
+  retries, and direct task launches use immutable dispatch. Direct recurring
+  launches retain the control-branch/owner gates, catch up control, and
+  re-resolve the exact period before dispatch; sweeps reread the durable field
+  after reconciliation. Resumed delegated periods remain TTY-gated without
+  starving later deterministic jobs.
+- Make delegated start and spawn a two-pass boundary: preflight and publish the
+  single launch audit/period start, then reload config, target, secrets, prompt,
+  and argv before the real spawn, where the exact post-publication period
+  snapshot is leased again. Only the bootstrap done sentinel completes the
+  period; natural exits, crashes, races, named timeouts, and sweep timeouts
+  retain their distinct refusal, retry, and run-record semantics.
+- Reject script-backed, ambiguous, unknown, or unsafe delegate targets at
+  creation, validation, and runtime, and reconcile the live/packaged recurring,
+  architecture, CLI, extension-model, and resolve-conflicts guidance.
+
+### Design choice
+
+Option 1 was chosen because `recurring_runner` already owns recipe-style period
+lifecycle bookkeeping and can launch the stateless bootstrap target from the
+operator's real terminal. A deterministic recipe was rejected because it would
+move this template out of pre-create TTY admission; folding the bootstrap
+runbook into the period session was rejected because it conflicts with the
+runbook's stateless lifecycle and would duplicate the unchanged on-demand
+`coga resolve-conflicts` alias path.
+
+### Test plan
+
+`PYTHONPATH=/tmp/coga-test-deps:/home/n/Code/claude/coga-delegate-recurring/src python -m pytest` — 2044 passed; `coga validate --json` — no delegation issues (unrelated pre-existing repository findings remain).
+
+## Control-race review (2026-08-25)
+
+The required `codex review --base origin/main` completed after the preceding
+launch-boundary fixes and reproduced three further P1 races:
+
+- direct `coga launch recurring/<name>` can read a stale local period after its
+  branch/owner gates; a later non-fatal lifecycle sync refusal does not prevent
+  the obsolete bootstrap session from spawning;
+- `_broadcast_scan` and forced reconciliation can replace the period ticket,
+  but `_launch_due_tasks` still branches on the pre-reconciliation
+  `DueTask.delegate` cache;
+- the period-start publication can integrate a changed/terminal period ticket,
+  while the recomposed bootstrap launch still uses the delegate captured before
+  publication and can start obsolete work.
+
+Fix direction: perform recurring's best-effort control catch-up before direct
+dispatch and re-resolve config/ref; reload the frozen dispatch from the durable
+ticket after every scan/force reconciliation; and revalidate the period status
+and exact frozen target at the post-publication recompose boundary before the
+bootstrap may spawn. Focused race regressions will pin all three boundaries.
+
+## Control-race fixes applied (2026-08-26)
+
+All three final P1 races are fixed in `2859ed51` after an unconditional fresh
+rebase onto `origin/main` at `fa3c84fd`:
+
+- actual direct recurring launches apply branch and committed-owner gates,
+  perform the same best-effort control catch-up as the other interactive entry
+  points, reload config, and re-resolve the exact period ref before reading
+  frozen dispatch;
+- `_launch_due_tasks` rereads `status` and `delegate` from the durable period
+  ticket after broadcast/force reconciliation rather than branching on the
+  stale `DueTask` cache;
+- the delegated start callback captures the exact in-progress period bytes
+  after publication, and the recomposed launch revalidates status, frozen
+  target, and that complete snapshot at the final pre-PTY boundary. A
+  concurrent completion, replacement, dispatch change, or other ticket edit
+  refuses before any bootstrap agent starts.
+
+Regression coverage includes a rival control checkout completing a stale
+direct-launch period, both cached/durable dispatch inversions, and terminal,
+retargeted, stripped, and same-dispatch ticket mutations after publication.
+Post-rebase `python -m pytest`: **2044 passed** in 157.57s. Packaging is included
+and clean using isolated `/tmp` Hatchling dependencies. `coga validate --json`
+reports 134 clean checks and no delegate issue; its 23 findings are unrelated
+dogfood state already present in the checkout. All three live/packaged twins
+are byte-identical, `git diff --check origin/main...HEAD` is clean, and the
+recorded worktree is clean with eight commits ahead of `origin/main`.
