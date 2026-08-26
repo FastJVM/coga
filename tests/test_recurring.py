@@ -2416,6 +2416,7 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
             )
         )
         kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
         return launch_kind
 
     monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
@@ -2473,6 +2474,7 @@ def test_delegated_completion_reloads_post_session_config(
 
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
         kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
         config_path = repo / "coga.toml"
         config_path.write_text(
             config_path.read_text().replace(
@@ -2499,6 +2501,70 @@ def test_delegated_completion_reloads_post_session_config(
     assert len(completion_configs) == 1
     assert completion_configs[0] is not cfg
     assert completion_configs[0].default_status == "active"
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["terminal", "different-target", "missing-target", "ticket-bytes"],
+)
+def test_delegated_spawn_revalidates_exact_period_lease_after_publication(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    """No bootstrap agent starts after control movement invalidates the
+    period snapshot that was published between launch preflight passes.
+    """
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    spawned = False
+
+    def fake_mark_in_progress(
+        task_cfg, task_ref, current: Ticket, **kwargs  # type: ignore[no-untyped-def]
+    ) -> None:
+        current.frontmatter["status"] = "in_progress"
+        current.write(task_ref.ticket_path)
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        nonlocal spawned
+        kwargs["before_spawn"]()
+        current = Ticket.read(outcome.ref.ticket_path)
+        if mutation == "terminal":
+            current.frontmatter["status"] = "done"
+        elif mutation == "different-target":
+            current.frontmatter["delegate"] = "bootstrap/ticket"
+        elif mutation == "missing-target":
+            current.frontmatter.pop("delegate")
+        else:
+            current.body += "\nConcurrent control-plane edit.\n"
+        current.write(outcome.ref.ticket_path)
+        kwargs["revalidate_before_spawn"]()
+        spawned = True
+        return "done"
+
+    monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "mark_done",
+        lambda *args, **kwargs: pytest.fail("a refused spawn cannot complete"),
+    )
+    monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
+    monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert spawned is False
 
 
 @pytest.mark.parametrize(
@@ -2589,6 +2655,66 @@ def test_materialized_delegate_is_frozen_when_template_changes(repo: Path) -> No
     assert due.delegate == "bootstrap/resolve-conflicts"
 
 
+@pytest.mark.parametrize(
+    ("cached_delegate", "durable_delegate", "expected_dispatch"),
+    [
+        ("bootstrap/resolve-conflicts", None, "ordinary"),
+        (None, "bootstrap/resolve-conflicts", "delegated"),
+    ],
+)
+def test_launch_due_tasks_reloads_frozen_dispatch_after_reconciliation(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    cached_delegate: str | None,
+    durable_delegate: str | None,
+    expected_dispatch: str,
+) -> None:
+    """The post-reconciliation period ticket, not scan cache, owns routing."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=True
+    )
+    task = next(item for item in scan.due if item.template == "delegate-check")
+    task.delegate = cached_delegate
+    current = Ticket.read(task.ref.ticket_path)
+    if durable_delegate is None:
+        current.frontmatter.pop("delegate")
+    else:
+        current.frontmatter["delegate"] = durable_delegate
+    current.write(task.ref.ticket_path)
+    dispatches: list[str] = []
+
+    def fake_ordinary_launch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        dispatches.append("ordinary")
+
+    def fake_delegated_launch(*args, **kwargs):  # type: ignore[no-untyped-def]
+        dispatches.append("delegated")
+        return recurring_cmd.DelegatedRunResult(0, "done")
+
+    monkeypatch.setattr("coga.commands.launch.launch", fake_ordinary_launch)
+    monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated_launch)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_stop_if_unfinished_after_launch",
+        lambda *args, **kwargs: None,
+    )
+    record = recurring_cmd.RunRecord(started=datetime(2026, 4, 22, 10, 0, 0))
+
+    result = recurring_cmd._launch_due_tasks(
+        cfg,
+        [task],
+        record,
+        force=False,
+        interactive=True,
+        agent_override=None,
+    )
+
+    assert result == 0
+    assert dispatches == [expected_dispatch]
+    assert task.delegate == durable_delegate
+
+
 def test_script_backed_delegate_is_rejected_before_period_creation(
     repo: Path,
 ) -> None:
@@ -2643,6 +2769,7 @@ def test_bare_recurring_launches_delegate_target_directly(
             (task, kwargs.get("agent_override"), kwargs.get("queue_guidance"))
         )
         kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
         return "done"
 
     monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
@@ -2684,6 +2811,7 @@ def test_direct_launch_routes_frozen_recurring_delegate(
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
         launches.append(task)
         kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
         return "done"
 
     monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
@@ -2710,6 +2838,7 @@ def test_sweep_records_delegated_timeout_as_timed_out(
 
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
         kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
         return "timeout"
 
     monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
@@ -2746,6 +2875,7 @@ def test_named_recurring_delegate_timeout_fails_and_remains_retryable(
         assert task == "bootstrap/resolve-conflicts"
         assert kwargs.get("return_timeout") is True
         kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
         return next(outcomes)
 
     monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
@@ -4560,7 +4690,14 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
             )
 
     monkeypatch.setattr(recurring_cmd, "_prepare_forced_launch", prepare)
-    monkeypatch.setattr(recurring_cmd, "read_ticket", lambda ref: SimpleNamespace())
+    monkeypatch.setattr(
+        recurring_cmd,
+        "read_ticket",
+        lambda ref: SimpleNamespace(status="active"),
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "frozen_task_delegate", lambda ref, ticket: None
+    )
     monkeypatch.setattr(
         "coga.commands.launch.launch",
         lambda slug, **kwargs: launched.append(slug),
@@ -4611,6 +4748,14 @@ def test_forced_recurring_scan_prepares_then_launches_task(
         recurring_cmd,
         "_prepare_forced_launch",
         lambda task_cfg, due_task: prepared.append(due_task),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "read_ticket",
+        lambda ref: SimpleNamespace(status="active"),
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "frozen_task_delegate", lambda ref, ticket: None
     )
     monkeypatch.setattr(
         "coga.commands.launch.launch",
@@ -4674,6 +4819,14 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
     monkeypatch.setattr(recurring_cmd, "_print_table", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "read_ticket",
+        lambda ref: SimpleNamespace(status="active"),
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "frozen_task_delegate", lambda ref, ticket: None
+    )
     monkeypatch.setattr("coga.commands.launch.launch", failing_launch)
     monkeypatch.setattr(
         recurring_cmd,

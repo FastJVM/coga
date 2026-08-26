@@ -864,7 +864,10 @@ attended run; that task stays untouched while later deterministic jobs proceed.
 Its bootstrap done sentinel is the only clean completion signal; a natural
 REPL exit leaves the period unfinished. The runner preflights once without
 mutation, publishes the period start, then reloads and recomposes before the
-real spawn so a moving control sync cannot leave stale instructions. Templates
+real spawn so a moving control sync cannot leave stale instructions. At the
+final boundary it also requires the exact post-publication period snapshot to
+remain `in_progress` with the same delegate; concurrent completion,
+replacement, or edits refuse the spawn. Templates
 intended for cron or other unattended schedulers should carry that deterministic
 half. Whether a period is deterministic is never declared: the
 `ticket.py` file's presence is the whole signal. `delegate:` declares something
@@ -872,8 +875,10 @@ else — which bootstrap target an agent period hands its work to, which no
 file's presence can express. Creation freezes that target into the period
 ticket; the sweep, `coga recurring launch <name>`, and direct
 `coga launch recurring/<name>` retries all route from the snapshot rather than
-current template frontmatter. The direct spelling remains subject to the same
-control-branch and recurring-owner gates, and a period that also carries
+current template frontmatter, and the sweep rereads it after reconciliation
+instead of trusting cached scan dispatch. The direct spelling performs a
+best-effort control catch-up, re-resolves the exact period ref, and remains
+subject to the same control-branch and recurring-owner gates. A period that also carries
 `ticket.py` is refused as an ambiguous dispatch shape. A delegate must itself
 be agent-backed: a bootstrap target with `ticket.py` is rejected before period
 creation, and its deterministic work belongs in the recurring template's own

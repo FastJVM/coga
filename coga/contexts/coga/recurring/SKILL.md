@@ -141,8 +141,12 @@ the example under "Extend recurring with a task-specific workflow").
   the sweep fully preflights and composes the bootstrap launch, marks the period
   task `in_progress`, then reloads config and target state and redoes every
   preflight and composition step before spawning. That second pass is required
-  because the period-start publication may integrate a newer control tip. The
-  launch remains in-process — in the operator's own terminal, under the sweep's
+  because the period-start publication may integrate a newer control tip.
+  Immediately before spawn, the runner leases the exact materialized ticket
+  again: it must still be `in_progress`, name the same frozen delegate, and
+  match the snapshot captured after publication. Any concurrent terminal
+  transition, replacement, dispatch change, or ticket edit refuses the spawn.
+  The launch remains in-process — in the operator's own terminal, under the sweep's
   `--agent` override, queue guidance, and idle/max-session liveness bounds — and
   the period task reaches `done` only when the bootstrap target emits its done
   sentinel. A natural/crashed exit fails with the period left retryable; a
@@ -150,7 +154,9 @@ the example under "Extend recurring with a task-specific workflow").
   launch fails and leaves it `in_progress` for retry. Creation copies the
   target into canonical period-task frontmatter; sweep retries, named retries,
   and direct `coga launch recurring/<name>` route only from that frozen field,
-  so changing or removing a template cannot reroute live work. A materialized
+  re-read from the durable period after launch reconciliation, so changing a
+  template or refreshing/replacing a task cannot reroute live work from stale
+  scan state. A materialized
   period that later acquires its own `ticket.py` is invalid and refused rather
   than choosing between the two dispatch signals. Because the delegated run is
   still an agent launch, a delegating template stays in the agent-backed
@@ -181,6 +187,9 @@ gate.
 This gate checks only the local branch. A fetch or rebase failure on the
 checked-out control branch remains a warning for the interactive single-repo
 entry points, so an offline operator can still service a period. The
+direct `coga launch recurring/<name>` spelling performs that same best-effort
+catch-up before reading dispatch, then reloads configuration and re-resolves
+the exact period ref so an integrated completion or replacement wins. The
 unattended `coga recurring --all <path>` child keeps its stricter existing
 precondition: it must also fetch and integrate the latest remote control tip
 before scanning. Repos with `[git].enabled = false` and workspaces outside a

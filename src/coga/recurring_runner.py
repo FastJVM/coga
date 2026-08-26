@@ -819,6 +819,30 @@ def _launch_due_tasks(
                     )
                 )
                 continue
+        # Reconciliation can refresh or replace the materialized period after
+        # `scan_due` cached its dispatch field. Route only from the durable
+        # ticket that now owns this launch; otherwise a restored delegate could
+        # run as an ordinary wrapper, or a removed delegate could still spawn
+        # obsolete bootstrap work.
+        try:
+            current_ticket = read_ticket(task.ref)
+            task.status = current_ticket.status
+            task.delegate = frozen_task_delegate(task.ref, current_ticket)
+        except (RecurringError, TicketError) as exc:
+            detail = (
+                f"cannot classify recurring period {task.ref.id_slug} after "
+                f"reconciliation: {exc}"
+            )
+            typer.secho(detail, fg=typer.colors.RED, err=True)
+            record.add(
+                TaskOutcome(
+                    template=task.template,
+                    slug=task.ref.id_slug,
+                    result="refused",
+                    detail=detail,
+                )
+            )
+            return 2
         # One dispatch for every template: `coga launch` classifies the period
         # task from its own directory, so a `ticket.py` template runs
         # deterministically and an agent template composes a prompt, without
@@ -1023,9 +1047,10 @@ def _run_delegated_task(
     launch instead returns the timeout code and leaves the task retryable as
     `in_progress`. The period start transition sits after a complete no-write
     launch preflight. Launch then reloads and repeats config/target/TTY/CLI/
-    composition/secret derivation before the real spawn, so initial refusals
-    leave an `active` task untouched and a moving start publication cannot
-    strand stale instructions in the child.
+    composition/secret derivation before the real spawn, then leases the exact
+    in-progress period snapshot once more at the final spawn boundary. Initial
+    refusals leave an `active` task untouched, while a moving start publication
+    or concurrent period replacement cannot strand stale work in the child.
     """
     ticket = read_ticket(ref)
     try:
@@ -1044,12 +1069,38 @@ def _run_delegated_task(
         # catches drift repo-wide; this runtime gate keeps a later bootstrap
         # edit from turning an agent delegation into repeated script work.
         resolve_agent_delegate(cfg, delegate)
-    except RecurringError as exc:
+    except (RecurringError, TicketError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "refused")
 
+    expected_period_snapshot: bytes | None = None
+
+    def lease_period_snapshot() -> bytes:
+        """Read and validate one atomic-enough period dispatch snapshot."""
+        try:
+            snapshot = ref.ticket_path.read_bytes()
+            current = Ticket.parse(snapshot.decode())
+            current_delegate = frozen_task_delegate(ref, current)
+        except (OSError, UnicodeError, TicketError, RecurringError) as exc:
+            raise RecurringError(
+                f"cannot lease delegated period {ref.id_slug} before spawn: "
+                f"{exc}"
+            ) from exc
+        if current.status != "in_progress":
+            raise RecurringError(
+                f"cannot launch delegated target {delegate}: period task "
+                f"{ref.id_slug} changed to {current.status!r} before spawn"
+            )
+        if current_delegate != delegate:
+            raise RecurringError(
+                f"cannot launch delegated period {ref.id_slug}: frozen target "
+                f"changed from {delegate!r} to {current_delegate!r} before spawn"
+            )
+        return snapshot
+
     def start_period() -> None:
         """Publish lifecycle after preflight; launch will then re-compose."""
+        nonlocal expected_period_snapshot
         # The bootstrap launch audit is made durable immediately before this
         # callback and may integrate a newer control tip. Use that tip's config
         # for the period transition; the following launch pass will independently
@@ -1089,6 +1140,21 @@ def _run_delegated_task(
             f"launched delegated target {delegate}",
         )
         git.sync_log(start_cfg, message=f"Log: {ref.id_slug}")
+        expected_period_snapshot = lease_period_snapshot()
+
+    def revalidate_period_before_spawn() -> None:
+        """Refuse if publication/recomposition moved the period's lease."""
+        if expected_period_snapshot is None:
+            raise RecurringError(
+                f"cannot launch delegated period {ref.id_slug}: its start "
+                "publication did not establish a spawn lease"
+            )
+        current_snapshot = lease_period_snapshot()
+        if current_snapshot != expected_period_snapshot:
+            raise RecurringError(
+                f"cannot launch delegated period {ref.id_slug}: its ticket "
+                "changed after start publication; retry from fresh state"
+            )
 
     from coga.commands.launch import launch_with_before_spawn as launch_cmd
 
@@ -1101,8 +1167,9 @@ def _run_delegated_task(
             return_timeout=True,
             queue_guidance=queue_guidance,
             before_spawn=start_period,
+            revalidate_before_spawn=revalidate_period_before_spawn,
         )
-    except (RecurringError, TaskValidationError) as exc:
+    except (ConfigError, RecurringError, TaskValidationError, TicketError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "refused")
 

@@ -1231,6 +1231,48 @@ def test_launch_routes_materialized_recurring_delegate_from_ticket(
     ]
 
 
+def test_direct_recurring_launch_refreshes_control_before_frozen_dispatch(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale direct launch catches up before it can spawn obsolete work."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegated period")
+    git_repo.git("push", "origin", "main")
+
+    ticket_path = Path(created["path"]) / "ticket.md"
+    assert Ticket.read(ticket_path).status == "active"
+    remote_ticket = Ticket.read(ticket_path)
+    remote_ticket.frontmatter["status"] = "done"
+    remote_ticket.frontmatter.pop("step", None)
+    relpath = ticket_path.relative_to(git_repo.root).as_posix()
+    git_repo.push_competing_commit(relpath, remote_ticket.render())
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn",
+        lambda *args, **kwargs: pytest.fail("stale bootstrap work must not spawn"),
+    )
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 2
+    assert Ticket.read(ticket_path).status == "done"
+    assert "expected 'active' or 'in_progress'" in result.output
+
+
 @pytest.mark.parametrize("refused_gate", ["control-branch", "owner"])
 @pytest.mark.parametrize(
     "delegate_present", [True, False], ids=("delegated", "delegate-field-missing")
@@ -2821,7 +2863,7 @@ def test_launch_recomposes_after_before_spawn_publication(
         )
 
     def fake_supervisor(cmd, env, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
-        assert events == ["publish"]
+        assert events == ["publish", "revalidate"]
         assert cmd[0] == "fresh-cli"
         assert "Post-publication bootstrap instructions." in _prompt_arg(cmd)
         events.append("spawn")
@@ -2843,10 +2885,11 @@ def test_launch_recomposes_after_before_spawn_publication(
         return_timeout=True,
         queue_guidance=True,
         before_spawn=publish_period_start,
+        revalidate_before_spawn=lambda: events.append("revalidate"),
     )
 
     assert kind == "done"
-    assert events == ["publish", "spawn"]
+    assert events == ["publish", "revalidate", "spawn"]
     assert _read_log(bootstrap_repo).count(
         "launched (assignee=claude, agent=claude)"
     ) == 1

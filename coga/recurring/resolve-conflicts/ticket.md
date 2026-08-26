@@ -29,8 +29,11 @@ dispatch. The runner marks the period task `in_progress`, launches
 override and queue guidance), and marks the period task `done` only after the
 delegated command's final `coga slack` roll-up emits its bootstrap done
 sentinel. Launch preflights before the start transition, then reloads and
-recomposes after that publication before spawning. A natural/crashed exit
-fails without completing the period. A
+recomposes after that publication, and at the final spawn boundary requires
+the exact period snapshot to remain `in_progress` with the same frozen target.
+Sweeps reread that dispatch after reconciliation; a direct launch first catches
+up control and re-resolves the exact period ref. A natural/crashed exit fails
+without completing the period. A
 multi-task sweep pauses a watchdog timeout and records it as timed out; an
 explicit named launch fails and leaves the period retryable.
 

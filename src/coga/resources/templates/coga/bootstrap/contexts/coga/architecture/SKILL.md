@@ -692,10 +692,15 @@ bootstrap session's scoped done sentinel completes the period; a natural exit
 does not. The runner first completes a no-mutation launch preflight, publishes
 the period start, then reloads and repeats target/config/secret/prompt/argv
 derivation before the real spawn; the lifecycle sync is allowed to move the
-control checkout without leaving stale instructions in the child. Creation
+control checkout without leaving stale instructions in the child. A final
+pre-spawn lease requires the materialized period to remain `in_progress`, keep
+the same frozen target, and match its post-publication ticket snapshot; any
+concurrent completion, replacement, or edit refuses the child. Creation
 freezes the target into the materialized period ticket, and all retries —
 including direct `coga launch recurring/<name>` — route from that snapshot
-rather than mutable template frontmatter. Delegation is agent-only: a
+reread after reconciliation rather than mutable template frontmatter or stale
+scan cache. A direct launch first performs the recurring control catch-up and
+re-resolves the exact period ref. Delegation is agent-only: a
 bootstrap target carrying `ticket.py` is rejected before period creation;
 deterministic recurring work belongs in the recurring template's own
 `ticket.py`. A template therefore never instructs its agent to shell out to a

@@ -237,7 +237,9 @@ def launch_with_before_spawn(
     makes its launch audit durable, runs the callback, and deliberately stops
     before spawn; a second shared launch pass reloads config and target state,
     repeats every preflight, re-composes without duplicating that audit, and
-    then starts the bootstrap agent. The CLI surface remains callback-free.
+    then starts the bootstrap agent. A separate final callback can lease
+    caller-owned state again immediately before the PTY spawn. The CLI surface
+    remains callback-free.
     """
     try:
         return _launch(
@@ -309,7 +311,11 @@ def _launch(
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
-    if isinstance(ref, TaskRef) and ref.directory == "recurring":
+    if (
+        isinstance(ref, TaskRef)
+        and ref.directory == "recurring"
+        and not prompt_report
+    ):
         from coga.recurring_runner import (
             _refuse_non_control_branch,
             _refuse_non_owner,
@@ -319,12 +325,16 @@ def _launch(
         # A missing optional dispatch field must not turn a recurring period
         # into an authorization bypass. Gate from the ref itself before reading
         # any period state, whether the task is delegated, scripted, or ordinary
-        # agent work. Then perform recurring's ordinary best-effort control
-        # catch-up and resolve the exact ref again: the fetch/rebase may replace
-        # or remove the period ticket, so dispatch must never use the pre-sync
-        # object or config.
-        if _refuse_non_control_branch(cfg):
+        # agent work.
+        if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
             raise SystemExit(2)
+
+        # A direct period launch has no outer sweep to perform the usual
+        # control-plane catch-up. Refresh before reading frozen dispatch so a
+        # remote completion, replacement, or delegate edit cannot be ignored
+        # by a stale checkout. Catch-up is deliberately best-effort, matching
+        # the ordinary recurring scan; publication still fails closed later
+        # if this checkout cannot safely synchronize its lifecycle writes.
         recurring_slug = ref.id_slug
         _sync_control_checkout_ahead(cfg)
         try:
@@ -334,11 +344,13 @@ def _launch(
             _bail(str(exc))
         if (
             not isinstance(refreshed_ref, TaskRef)
+            or refreshed_ref.directory != "recurring"
             or refreshed_ref.id_slug != recurring_slug
         ):
             _bail(
-                f"Selected recurring task {recurring_slug!r} disappeared during "
-                "control catch-up; refusing a different prefix match."
+                f"Selected recurring task {recurring_slug!r} disappeared "
+                "during control catch-up; refusing to launch a different "
+                f"prefix match {refreshed_ref.id_slug!r}."
             )
         ref = refreshed_ref
         if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
@@ -2685,8 +2697,9 @@ def spawn_agent_session(
     publication. Once it returns, this preflight pass exits through a private
     signal so the caller can reload and re-compose from state those publications
     may have moved. The recomposed pass sets ``record_launch=False`` because the
-    first pass already made that audit durable. ``before_spawn`` remains the
-    human-assist lifecycle boundary immediately before the PTY supervisor.
+    first pass already made that audit durable. ``before_spawn`` is the final
+    boundary immediately before the PTY supervisor: human assists publish
+    lifecycle there, while recurring delegation revalidates its period lease.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the
