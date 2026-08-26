@@ -862,12 +862,16 @@ in-process, with the sweep keeping the period task's lifecycle bookkeeping —
 so it is skipped headless too, including a materialized orphan from an earlier
 attended run; that task stays untouched while later deterministic jobs proceed.
 Its bootstrap done sentinel is the only clean completion signal; a natural
-REPL exit leaves the period unfinished. The runner preflights once without
-mutation, publishes the period start, then reloads and recomposes before the
-real spawn so a moving control sync cannot leave stale instructions. At the
-final boundary it also requires the exact post-publication period snapshot to
-remain `in_progress` with the same delegate; concurrent completion,
-replacement, or edits refuse the spawn. Templates
+REPL exit leaves the period unfinished. The runner first preflights push access
+for the materialized period (which the stateless bootstrap target would
+self-skip), then publishes the period start as an exact compare-and-set before
+announcing it. The lease covers both ticket bytes and that task ref's audit
+generation, so a stable-path replacement is distinct even when its ticket is
+byte-identical. The runner reloads and recomposes before the real spawn, checks
+the same lease on control at the final boundary, and consumes it again before
+publishing completion or a watchdog pause. Concurrent completion,
+replacement, edits, or a new generation therefore refuse the stale lifecycle
+write. Templates
 intended for cron or other unattended schedulers should carry that deterministic
 half. Whether a period is deterministic is never declared: the
 `ticket.py` file's presence is the whole signal. `delegate:` declares something
@@ -876,9 +880,14 @@ file's presence can express. Creation freezes that target into the period
 ticket; the sweep, `coga recurring launch <name>`, and direct
 `coga launch recurring/<name>` retries all route from the snapshot rather than
 current template frontmatter, and the sweep rereads it after reconciliation
-instead of trusting cached scan dispatch. The direct spelling performs a
-best-effort control catch-up, re-resolves the exact period ref, and remains
-subject to the same control-branch and recurring-owner gates. A period that also carries
+instead of trusting cached scan dispatch. Sweeps and named launches perform
+their branch/owner/catch-up admission once, then use an internal period-launch
+seam rather than repeating those public network gates per task. The direct
+spelling has no outer admission: it performs best-effort control catch-up
+before resolving even a locally missing period ref and remains subject to the
+same control-branch and recurring-owner gates. Direct launch also activates a
+paused/draft delegated period inline; recurring scans leave paused periods
+parked. A period that also carries
 `ticket.py` is refused as an ambiguous dispatch shape. A delegate must itself
 be agent-backed: a bootstrap target with `ticket.py` is rejected before period
 creation, and its deterministic work belongs in the recurring template's own

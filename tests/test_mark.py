@@ -564,6 +564,44 @@ def test_mark_in_progress_uses_matching_sync_subject(
     assert messages == [f"Ticket: {slug} — in_progress"]
 
 
+def test_strict_mark_in_progress_publishes_guarded_state_before_announcing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Delegation cannot announce a start whose exact state CAS was refused."""
+    slug, _ = _make_task(repo, status="active")
+    cfg = load_config(repo)
+    ref = resolve_task(cfg, slug)
+    events: list[str] = []
+
+    def exact_guard(base: str) -> None:
+        assert base == "control-tip"
+        events.append("guard")
+
+    def capture_sync(*args: object, **kwargs: object) -> None:
+        assert kwargs["guard"] is exact_guard
+        assert kwargs["raise_state_regression"] is True
+        events.append("sync")
+        exact_guard("control-tip")
+
+    monkeypatch.setattr("coga.mark.git.sync_task_state", capture_sync)
+    monkeypatch.setattr(
+        "coga.mark.post", lambda *args, **kwargs: events.append("post")
+    )
+
+    mark_in_progress(
+        cfg,
+        ref,
+        read_ticket(ref),
+        actor="system",
+        log_message="started through exact lease",
+        slack_text="started",
+        state_guard=exact_guard,
+        strict_state_guard=True,
+    )
+
+    assert events == ["sync", "guard", "post"]
+
+
 # --- --message ----------------------------------------------------------------
 
 

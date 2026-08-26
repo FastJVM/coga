@@ -764,7 +764,9 @@ def test_on_demand_launch_closes_the_same_loop(
         ticket.write(ref.ticket_path)
         return None
 
-    monkeypatch.setattr("coga.commands.launch.launch", finishing_launch)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", finishing_launch
+    )
 
     record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
     code = recurring_runner._launch_created(
@@ -783,7 +785,7 @@ def test_a_refused_on_demand_launch_is_not_a_run(
     from coga import recurring_runner
 
     monkeypatch.setattr(
-        "coga.commands.launch.launch",
+        "coga.commands.launch.launch_recurring_period",
         lambda slug, **kwargs: pytest.fail("launched a parked template"),
     )
 

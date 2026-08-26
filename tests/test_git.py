@@ -2356,6 +2356,41 @@ def test_sync_paths_guard_refuses_stale_overwrite_of_terminal_control_copy(
     assert "status: in_progress" in ticket.read_text()
 
 
+def test_sync_paths_can_raise_a_guard_refusal_for_a_transactional_caller(
+    git_repo,
+) -> None:
+    """A caller that gates child work can observe a failed state CAS."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    rel = "coga/tasks/demo/ticket.md"
+    git_repo.push_competing_commit(
+        rel,
+        _step_ticket_text(
+            step="1 (implement)", status="done", blackboard="finished\n"
+        ),
+    )
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="stale\n"
+        )
+    )
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    with pytest.raises(git.StateRegressionError):
+        git.sync_paths(
+            cfg,
+            ticket.parent,
+            [ticket.parent],
+            message="Ticket: demo — in_progress",
+            guard=lambda base: git.guard_ticket_state(cfg, ticket, base),
+            raise_state_regression=True,
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    assert "status: in_progress" in ticket.read_text()
+    assert "status: done" in git_repo.git("show", f"main:{rel}", cwd=git_repo.origin)
+
+
 def test_strict_feature_publication_checks_fresh_control_state_before_push(
     git_repo,
 ):

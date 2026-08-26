@@ -30,7 +30,9 @@ def _patch_recurring_command_launch(
     child_launch,
 ) -> None:
     del repo
-    monkeypatch.setattr("coga.commands.launch.launch", child_launch)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", child_launch
+    )
 
 
 @pytest.fixture

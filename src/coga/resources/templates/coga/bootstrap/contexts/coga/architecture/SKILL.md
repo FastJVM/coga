@@ -113,6 +113,19 @@ no in-memory state.
   or a frozen one-hop bootstrap launch when the template declares `delegate:`.
   Nothing declares deterministic execution — there is no `recipe:` or mode
   field.
+  A sweep or named recurring run performs control-branch, committed-owner, and
+  control-catch-up admission once at its outer boundary, then launches its
+  period tasks through an internal typed seam; it does not re-enter the public
+  recurring admission path (and repeat network gates) for every task. A direct
+  `coga launch recurring/<name>` has no such outer admission, so it gates and
+  catches up before resolving even a locally missing period ref. For a frozen
+  delegation, the runner separately preflights the period task's push access
+  and leases its exact ticket bytes plus task-tagged audit generation at start,
+  final spawn, and post-child completion/timeout. The lifecycle publications
+  are compare-and-sets against control: an old child cannot mark a later
+  generation at the stable path done or paused. Direct launch may activate a
+  paused/draft delegated period inline; scheduled and named recurring scans
+  keep paused periods parked.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard
   machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga

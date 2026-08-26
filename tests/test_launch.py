@@ -1273,6 +1273,84 @@ def test_direct_recurring_launch_refreshes_control_before_frozen_dispatch(
     assert "expected 'active' or 'in_progress'" in result.output
 
 
+def test_direct_recurring_launch_catches_up_before_resolving_a_missing_local_ref(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A remotely materialized period is discoverable after control catch-up."""
+    relpath = "coga/tasks/recurring/delegate-check/ticket.md"
+    git_repo.push_competing_commit(
+        relpath,
+        dedent(
+            """
+            ---
+            slug: recurring/delegate-check
+            title: Delegated period
+            status: active
+            owner: marc
+            human: marc
+            agent: claude
+            assignee: claude
+            watchers: []
+            contexts: []
+            workflow:
+              name: direct/body
+              description: one step
+              steps:
+                - name: do
+                  assignee: agent
+            step: 1 (do)
+            delegate: bootstrap/resolve-conflicts
+            ---
+
+            ## Description
+
+            Run delegated work.
+            """
+        ).lstrip(),
+    )
+    assert not (git_repo.root / relpath).exists()
+    launched: list[str] = []
+
+    def fake_delegated(task_cfg, ref, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref.id_slug)
+        return recurring_cmd.DelegatedRunResult(0, "done")
+
+    monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated)
+
+    result = CliRunner().invoke(app, ["launch", "recurring/delegate-check"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == ["recurring/delegate-check"]
+    assert (git_repo.root / relpath).is_file()
+
+
+def test_internal_recurring_launch_seam_marks_dispatch_as_already_authorized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The runner-only seam cannot expose a CLI flag that bypasses admission."""
+    seen: list[tuple[str, bool]] = []
+
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        seen.append((task, kwargs["recurring_authorized"]))
+        return "natural"
+
+    monkeypatch.setattr(launch_module, "_launch", fake_launch)
+
+    result = launch_module.launch_recurring_period(
+        "recurring/delegate-check",
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        queue_guidance=True,
+    )
+
+    assert result == "natural"
+    assert seen == [("recurring/delegate-check", True)]
+
+
 @pytest.mark.parametrize("refused_gate", ["control-branch", "owner"])
 @pytest.mark.parametrize(
     "delegate_present", [True, False], ids=("delegated", "delegate-field-missing")

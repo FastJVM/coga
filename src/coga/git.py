@@ -606,6 +606,7 @@ def sync_task_state(
     generated_paths: Mapping[Path, bytes | None] | None = None,
     extra_paths: Iterable[Path] = (),
     land_union_files_to_control: bool = False,
+    raise_state_regression: bool = False,
 ) -> None:
     """Commit the task directory's files and push to the control branch.
 
@@ -635,7 +636,11 @@ def sync_task_state(
 
     `guard` is forwarded to `sync_paths`; status-transition callers pass
     `guard_ticket_state` so a stale checkout cannot overlay its ticket onto a
-    newer control tip. `expected_current_branch` pins an explicitly requested
+    newer control tip. ``raise_state_regression`` is the transactional form
+    for callers that gate later work on the guard's compare-and-set: a refusal
+    is re-raised after the sync layer unwinds any unpushed commit. Ordinary
+    human commands retain the non-fatal, locally-visible transition policy.
+    `expected_current_branch` pins an explicitly requested
     feature publication to the branch the caller already verified; switching
     checkouts between verification and sync fails before any commit or push.
     `expected_current_branch_oid` proves no unrelated local commit appeared
@@ -686,6 +691,11 @@ def sync_task_state(
         feature_publication_guard=feature_publication_guard,
         after_strict_publication=after_strict_publication,
         generated_paths=generated_paths,
+        **(
+            {"raise_state_regression": True}
+            if raise_state_regression
+            else {}
+        ),
     )
 
 
@@ -1066,6 +1076,7 @@ def sync_paths(
     feature_publication_guard: _FeaturePublicationGuard | None = None,
     after_strict_publication: Callable[[], None] | None = None,
     generated_paths: Mapping[Path, bytes | None] | None = None,
+    raise_state_regression: bool = False,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -1100,7 +1111,9 @@ def sync_paths(
     retry — and raises `StateRegressionError` to abort the landing. Status
     transitions pass `guard_ticket_state`: the overlay replaces the ticket
     wholesale on the control tip, so without it a stale checkout can bury a
-    newer copy that another checkout already landed.
+    newer copy that another checkout already landed. Set
+    ``raise_state_regression`` only when a dependent side effect must not run
+    after that refusal; ordinary CLI transitions keep the refusal non-fatal.
     """
     selected = _dedupe_paths(paths)
     if not selected:
@@ -1209,6 +1222,8 @@ def sync_paths(
             raise FeaturePublicationError(
                 f"strict feature publication refused stale state: {exc}"
             ) from exc
+        if raise_state_regression:
+            raise
         # A refusal is not a failure to reach git — it is git refusing to bury
         # newer state, so it gets its own line and no `sync failed` log entry
         # (the guard already recorded the reason against the task). The local

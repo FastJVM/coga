@@ -213,6 +213,45 @@ def launch(
         before_final_spawn=None,
         require_agent_target=False,
         record_launch=True,
+        recurring_authorized=False,
+    )
+
+
+def launch_recurring_period(
+    task: str,
+    *,
+    agent_override: str | None,
+    prompt_report: bool,
+    idle_timeout: float | None,
+    max_session: float | None,
+    return_timeout: bool,
+    script_failure_important: bool,
+    queue_guidance: bool,
+) -> str | None:
+    """Launch one period after the recurring runner admitted the sweep.
+
+    This is an in-process capability, not a Typer option. ``coga recurring``
+    has already enforced the committed owner/control-branch gates and caught
+    the checkout up once for the whole sequential run; routing its period
+    tasks through the public command would repeat those network-bearing gates
+    for every child and could abort a healthy sweep on a later transient miss.
+    All task-local launch checks remain shared in ``_launch``.
+    """
+    return _launch(
+        task,
+        args=None,
+        agent_override=agent_override,
+        prompt_report=prompt_report,
+        idle_timeout=idle_timeout,
+        max_session=max_session,
+        return_timeout=return_timeout,
+        script_failure_important=script_failure_important,
+        queue_guidance=queue_guidance,
+        before_recompose=None,
+        before_final_spawn=None,
+        require_agent_target=False,
+        record_launch=True,
+        recurring_authorized=True,
     )
 
 
@@ -256,6 +295,7 @@ def launch_with_before_spawn(
             before_final_spawn=None,
             require_agent_target=True,
             record_launch=True,
+            recurring_authorized=False,
         )
     except _RecomposeAfterLaunchPublication:
         return _launch(
@@ -272,6 +312,7 @@ def launch_with_before_spawn(
             before_final_spawn=revalidate_before_spawn,
             require_agent_target=True,
             record_launch=False,
+            recurring_authorized=False,
         )
 
 
@@ -290,6 +331,7 @@ def _launch(
     before_final_spawn: Callable[[], None] | None,
     require_agent_target: bool,
     record_launch: bool,
+    recurring_authorized: bool,
 ) -> str | None:
     """Implementation shared by the Typer command and in-process launch seam."""
     # In-process callers (recurring, retire) invoke this Typer command function
@@ -306,6 +348,39 @@ def _launch(
     except ConfigError as exc:
         _bail(str(exc))
 
+    direct_recurring_prefix = (
+        not recurring_authorized
+        and not prompt_report
+        and task.startswith("recurring/")
+    )
+
+    def authorize_direct_recurring(current_cfg: Config) -> Config:
+        """Gate and refresh one public period launch before state lookup."""
+        from coga.recurring_runner import (
+            _refuse_non_control_branch,
+            _refuse_non_owner,
+            _sync_control_checkout_ahead,
+        )
+
+        if _refuse_non_control_branch(current_cfg) or _refuse_non_owner(current_cfg):
+            raise SystemExit(2)
+        _sync_control_checkout_ahead(current_cfg)
+        try:
+            refreshed_cfg = load_config(current_cfg.repo_root)
+        except ConfigError as exc:
+            _bail(str(exc))
+        if _refuse_non_control_branch(refreshed_cfg) or _refuse_non_owner(
+            refreshed_cfg
+        ):
+            raise SystemExit(2)
+        return refreshed_cfg
+
+    # An explicit recurring ref may exist only on the remote control tip. Gate
+    # and catch up from its namespace before resolving it locally; resolving
+    # first made a safely materialized remote period look nonexistent.
+    if direct_recurring_prefix:
+        cfg = authorize_direct_recurring(cfg)
+
     try:
         ref = resolve_target(cfg, task)
     except TaskNotFoundError as exc:
@@ -315,32 +390,18 @@ def _launch(
         isinstance(ref, TaskRef)
         and ref.directory == "recurring"
         and not prompt_report
+        and not recurring_authorized
+        and not direct_recurring_prefix
     ):
-        from coga.recurring_runner import (
-            _refuse_non_control_branch,
-            _refuse_non_owner,
-            _sync_control_checkout_ahead,
-        )
-
-        # A missing optional dispatch field must not turn a recurring period
-        # into an authorization bypass. Gate from the ref itself before reading
-        # any period state, whether the task is delegated, scripted, or ordinary
-        # agent work.
-        if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
-            raise SystemExit(2)
-
-        # A direct period launch has no outer sweep to perform the usual
-        # control-plane catch-up. Refresh before reading frozen dispatch so a
-        # remote completion, replacement, or delegate edit cannot be ignored
-        # by a stale checkout. Catch-up is deliberately best-effort, matching
-        # the ordinary recurring scan; publication still fails closed later
-        # if this checkout cannot safely synchronize its lifecycle writes.
+        # A bare/prefix task spelling can resolve into the recurring namespace
+        # only after lookup. Preserve that compatibility, then re-resolve its
+        # canonical slug from the refreshed checkout exactly as the explicit
+        # fast path above does.
         recurring_slug = ref.id_slug
-        _sync_control_checkout_ahead(cfg)
+        cfg = authorize_direct_recurring(cfg)
         try:
-            cfg = load_config(cfg.repo_root)
             refreshed_ref = resolve_target(cfg, recurring_slug)
-        except (ConfigError, TaskNotFoundError) as exc:
+        except TaskNotFoundError as exc:
             _bail(str(exc))
         if (
             not isinstance(refreshed_ref, TaskRef)
@@ -353,8 +414,6 @@ def _launch(
                 f"prefix match {refreshed_ref.id_slug!r}."
             )
         ref = refreshed_ref
-        if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
-            raise SystemExit(2)
 
     # A materialized recurring delegation is an immutable dispatch snapshot,
     # not prose for an agent wrapper. Route it before ordinary task setup so a
@@ -401,6 +460,7 @@ def _launch(
                     before_final_spawn=None,
                     require_agent_target=False,
                     record_launch=True,
+                    recurring_authorized=False,
                 )
 
             from coga.recurring_runner import _run_delegated_task
@@ -413,6 +473,7 @@ def _launch(
                 max_session=max_session,
                 queue_guidance=queue_guidance,
                 continue_after_timeout=False,
+                activate_if_needed=True,
             )
             if return_timeout:
                 return delegated.kind
