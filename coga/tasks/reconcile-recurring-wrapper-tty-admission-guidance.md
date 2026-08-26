@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -636,3 +636,23 @@ reports 134 clean checks and no delegate issue; its 23 findings are unrelated
 dogfood state already present in the checkout. All three live/packaged twins
 are byte-identical, `git diff --check origin/main...HEAD` is clean, and the
 recorded worktree is clean with eight commits ahead of `origin/main`.
+
+## open-pr step (2026-08-26)
+
+- Ran `coga open-pr` from the primary control checkout (`/home/n/Code/codex/coga`,
+  on `main`). The recorded feature branch lives in an independent fallback clone
+  (`/home/n/Code/claude/coga-delegate-recurring`, worktree of
+  `/home/n/Code/claude/coga`), which is the layout the control-checkout gate is
+  built for.
+- The command reported `origin/main advanced only through non-overlapping Coga
+  task/log state; branch is safe to publish` — the two commits `origin/main`
+  gained since the rebase base (`434e3cbd`, `e3d7b7fb`) are this ticket's own
+  generated ticket/log state, so no rebase or re-test was required.
+- It reused the already-open PR #723 rather than creating a duplicate, and
+  recorded `pr: https://github.com/FastJVM/coga/pull/723` under `## Dev`.
+  Published branch tip is `2859ed51`.
+- PR #723's body still carried the pre-control-race revision (it predated the
+  `## PR` rewrite and had no `Closes ticket:` line, since the PR was hand-opened
+  during peer review). Replaced it with this ticket's current `## PR` section
+  plus the `Closes ticket:` line, so the PR describes the eight commits actually
+  on the branch.
