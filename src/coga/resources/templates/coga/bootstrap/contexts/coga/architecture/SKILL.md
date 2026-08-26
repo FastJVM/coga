@@ -689,9 +689,13 @@ an agent session launched on the period task itself, or — with
 `delegate: bootstrap/<name>` — a stateless bootstrap launch the sweep performs
 in-process while keeping the period task's lifecycle bookkeeping. Only that
 bootstrap session's scoped done sentinel completes the period; a natural exit
-does not. Creation freezes the target into the materialized period ticket, and
-all retries — including direct `coga launch recurring/<name>` — route from that
-snapshot rather than mutable template frontmatter. Delegation is agent-only: a
+does not. The runner first completes a no-mutation launch preflight, publishes
+the period start, then reloads and repeats target/config/secret/prompt/argv
+derivation before the real spawn; the lifecycle sync is allowed to move the
+control checkout without leaving stale instructions in the child. Creation
+freezes the target into the materialized period ticket, and all retries —
+including direct `coga launch recurring/<name>` — route from that snapshot
+rather than mutable template frontmatter. Delegation is agent-only: a
 bootstrap target carrying `ticket.py` is rejected before period creation;
 deterministic recurring work belongs in the recurring template's own
 `ticket.py`. A template therefore never instructs its agent to shell out to a

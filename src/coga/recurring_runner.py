@@ -1021,9 +1021,11 @@ def _run_delegated_task(
     natural or crashed REPL exit leaves it `in_progress` and fails loud. A
     liveness timeout pauses and continues only for a multi-task sweep. A named
     launch instead returns the timeout code and leaves the task retryable as
-    `in_progress`. The period start transition sits on launch's final
-    pre-spawn callback, so a resolution/TTY/CLI/composition/secret refusal
-    leaves an `active` task untouched and an existing orphan resumable.
+    `in_progress`. The period start transition sits after a complete no-write
+    launch preflight. Launch then reloads and repeats config/target/TTY/CLI/
+    composition/secret derivation before the real spawn, so initial refusals
+    leave an `active` task untouched and a moving start publication cannot
+    strand stale instructions in the child.
     """
     ticket = read_ticket(ref)
     try:
@@ -1047,7 +1049,12 @@ def _run_delegated_task(
         return DelegatedRunResult(2, "refused")
 
     def start_period() -> None:
-        """Publish period lifecycle only after delegate preflights succeed."""
+        """Publish lifecycle after preflight; launch will then re-compose."""
+        # The bootstrap launch audit is made durable immediately before this
+        # callback and may integrate a newer control tip. Use that tip's config
+        # for the period transition; the following launch pass will independently
+        # reload it again before composing the child.
+        start_cfg = load_config(cfg.repo_root)
         current = read_ticket(ref)
         if current.status == "active":
             cur = current.current_step()
@@ -1055,7 +1062,7 @@ def _run_delegated_task(
                 f" (step {current.step_index()}: {cur['name']})" if cur else ""
             )
             mark_in_progress(
-                cfg,
+                start_cfg,
                 ref,
                 current,
                 actor="system",
@@ -1076,12 +1083,12 @@ def _run_delegated_task(
             )
 
         append_log(
-            cfg,
+            start_cfg,
             ref.id_slug,
             "system",
             f"launched delegated target {delegate}",
         )
-        git.sync_log(cfg, message=f"Log: {ref.id_slug}")
+        git.sync_log(start_cfg, message=f"Log: {ref.id_slug}")
 
     from coga.commands.launch import launch_with_before_spawn as launch_cmd
 

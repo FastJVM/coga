@@ -1232,12 +1232,16 @@ def test_launch_routes_materialized_recurring_delegate_from_ticket(
 
 
 @pytest.mark.parametrize("refused_gate", ["control-branch", "owner"])
-def test_direct_recurring_delegate_enforces_recurring_launch_gates(
+@pytest.mark.parametrize(
+    "delegate_present", [True, False], ids=("delegated", "delegate-field-missing")
+)
+def test_direct_recurring_task_enforces_recurring_launch_gates_before_dispatch(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
     refused_gate: str,
+    delegate_present: bool,
 ) -> None:
-    """Direct dispatch cannot bypass either recurring authorization gate."""
+    """Recurring authorization follows the ref, not optional dispatch state."""
     cfg = load_config(active_task)
     created = create_task(
         cfg=cfg,
@@ -1252,6 +1256,11 @@ def test_direct_recurring_delegate_enforces_recurring_launch_gates(
         force_directory=True,
         delegate="bootstrap/resolve-conflicts",
     )
+    ticket_path = Path(created["path"]) / "ticket.md"
+    if not delegate_present:
+        ticket = Ticket.read(ticket_path)
+        ticket.frontmatter.pop("delegate")
+        ticket.write(ticket_path)
     launches: list[str] = []
 
     monkeypatch.chdir(active_task)
@@ -1275,7 +1284,7 @@ def test_direct_recurring_delegate_enforces_recurring_launch_gates(
 
     assert result.exit_code == 2
     assert launches == []
-    assert Ticket.read(Path(created["path"]) / "ticket.md").status == "active"
+    assert Ticket.read(ticket_path).status == "active"
 
 
 def test_direct_recurring_delegate_rejects_period_ticket_script(
@@ -2788,6 +2797,59 @@ def test_launch_before_spawn_callback_runs_at_bootstrap_spawn_boundary(
 
     assert kind == "done"
     assert events == ["before-spawn", "spawn"]
+
+
+def test_launch_recomposes_after_before_spawn_publication(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A moving caller publication cannot leave stale prompt/config at spawn."""
+    events: list[str] = []
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    def publish_period_start() -> None:
+        events.append("publish")
+        ticket_path = bootstrap_repo / "bootstrap" / "ticket" / "ticket.md"
+        ticket = Ticket.read(ticket_path)
+        ticket.body += "\n\nPost-publication bootstrap instructions.\n"
+        ticket.write(ticket_path)
+        config_path = bootstrap_repo / "coga.toml"
+        config_path.write_text(
+            config_path.read_text().replace('cli = "claude"', 'cli = "fresh-cli"')
+        )
+
+    def fake_supervisor(cmd, env, **kwargs) -> ReplOutcome:  # type: ignore[no-untyped-def]
+        assert events == ["publish"]
+        assert cmd[0] == "fresh-cli"
+        assert "Post-publication bootstrap instructions." in _prompt_arg(cmd)
+        events.append("spawn")
+        return ReplOutcome(exit_code=0, kind="done")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    kind = launch_module.launch_with_before_spawn(
+        "bootstrap/ticket",
+        agent_override=None,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        queue_guidance=True,
+        before_spawn=publish_period_start,
+    )
+
+    assert kind == "done"
+    assert events == ["publish", "spawn"]
+    assert _read_log(bootstrap_repo).count(
+        "launched (assignee=claude, agent=claude)"
+    ) == 1
 
 
 def test_launch_before_spawn_callback_skipped_on_preflight_refusal(

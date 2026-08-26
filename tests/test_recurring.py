@@ -2283,6 +2283,51 @@ def test_headless_scan_refuses_delegating_template_at_admission(
     assert "skipping delegate-check" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("starting_status", ["active", "in_progress"])
+def test_headless_scan_skips_resumed_delegated_period_before_launch(
+    repo: Path, capsys, starting_status: str
+) -> None:
+    """A materialized delegate remains TTY-gated on later orphan resumes.
+
+    Admission leaves the live period untouched and still returns later
+    deterministic work, so a bootstrap TTY refusal cannot abort the sweep.
+    """
+    _write_delegating_template(repo, "delegate-check")
+    _write_recurring(
+        repo,
+        "z-script-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Later deterministic check
+        ---
+
+        ## Description
+
+        Run after the skipped delegated orphan.
+        """,
+    )
+    _write_recurring_script(repo, "z-script-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    period = Ticket.read(outcome.ref.ticket_path)
+    period.frontmatter["status"] = starting_status
+    period.write(outcome.ref.ticket_path)
+
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 22, 10, 1, 0), allow_interactive=False
+    )
+
+    errors = dict(scan.errors)
+    assert "an agent run requires a TTY" in errors["delegate-check"]
+    assert all(task.template != "delegate-check" for task in scan.tasks)
+    assert [task.template for task in scan.due] == ["z-script-check"]
+    assert Ticket.read(outcome.ref.ticket_path).status == starting_status
+    assert "skipping delegate-check" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize(
     (
         "starting_status",

@@ -547,11 +547,21 @@ def create_template(
     # therefore defers the next period until it reaches a terminal/paused state; that
     # is deliberate — finish the in-flight run before piling another on.
     #
-    # The TTY check is evaluated *after* the resume short-circuits: resuming an
-    # existing task must not be blocked by it (only a fresh create launches a
-    # would-be agent run that the check guards against).
+    # A live period is returned rather than duplicated. Delegation adds one
+    # narrower admission rule: classify it from the materialized task's frozen
+    # field and skip it before a no-TTY sweep reaches its bootstrap launch.
+    # Preserve the established force/resume behavior for ordinary agent periods;
+    # this ticket changes only the double-hop delegation shape.
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
+        live_delegate = frozen_task_delegate(live, read_ticket(live))
+        if not allow_agent and live_delegate is not None:
+            raise RecurringError(
+                "an agent run requires a TTY (stdin and stdout must both be "
+                "terminals). Run `coga recurring --interactive` from a real "
+                f"shell, or give the template a `{SCRIPT_ENTRY_POINT}` "
+                "deterministic half for unattended runs."
+            )
         return CreateOutcome(
             ref=live,
             created=False,

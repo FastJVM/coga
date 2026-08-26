@@ -138,10 +138,13 @@ the example under "Extend recurring with a task-specific workflow").
   stateless bootstrap target an agent period hands its work to, which no
   file's presence can express. The template's period is then serviced by
   launching that target rather than by an agent session on the period task:
-  the sweep marks the period task `in_progress`, performs the delegated launch
-  in-process — in the operator's own terminal, under the sweep's `--agent`
-  override, queue guidance, and idle/max-session liveness bounds — then marks
-  the period task `done` only when the bootstrap target emits its done
+  the sweep fully preflights and composes the bootstrap launch, marks the period
+  task `in_progress`, then reloads config and target state and redoes every
+  preflight and composition step before spawning. That second pass is required
+  because the period-start publication may integrate a newer control tip. The
+  launch remains in-process — in the operator's own terminal, under the sweep's
+  `--agent` override, queue guidance, and idle/max-session liveness bounds — and
+  the period task reaches `done` only when the bootstrap target emits its done
   sentinel. A natural/crashed exit fails with the period left retryable; a
   multi-task sweep pauses a watchdog timeout and continues, while a named
   launch fails and leaves it `in_progress` for retry. Creation copies the
@@ -379,9 +382,11 @@ This extension seam has five important constraints:
   template needs stdin and stdout TTYs and runs under the REPL supervisor; a
   TTY-less sweep skips it with a warning. A delegating template
   (`delegate: bootstrap/<name>`) is agent-backed for this purpose — its
-  delegated run is an agent launch — and is skipped headless the same way. A
-  template carrying `ticket.py` runs directly without a TTY and is the
-  appropriate shape for an unattended scheduler.
+  delegated run is an agent launch — and is skipped headless the same way,
+  including when an `active` / `in_progress` period already exists from an
+  earlier attended sweep. Admission leaves that period untouched and continues
+  to later deterministic jobs. A template carrying `ticket.py` runs directly
+  without a TTY and is the appropriate shape for an unattended scheduler.
 
 The creator performs a deliberate template-to-ticket transform, not an
 arbitrary frontmatter clone. Use the recurring fields documented above. In

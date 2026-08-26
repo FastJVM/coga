@@ -859,10 +859,14 @@ skipped when `coga recurring` has no stdin/stdout TTY, because the agent REPL
 cannot be driven. A delegating template (`delegate: bootstrap/<name>`) is in
 the same class — its period is serviced by an agent launch the sweep performs
 in-process, with the sweep keeping the period task's lifecycle bookkeeping —
-so it is skipped headless too. Its bootstrap done sentinel is the only clean
-completion signal; a natural REPL exit leaves the period unfinished. Templates
-intended for cron or other unattended schedulers should carry that
-deterministic half. Whether a period is deterministic is never declared: the
+so it is skipped headless too, including a materialized orphan from an earlier
+attended run; that task stays untouched while later deterministic jobs proceed.
+Its bootstrap done sentinel is the only clean completion signal; a natural
+REPL exit leaves the period unfinished. The runner preflights once without
+mutation, publishes the period start, then reloads and recomposes before the
+real spawn so a moving control sync cannot leave stale instructions. Templates
+intended for cron or other unattended schedulers should carry that deterministic
+half. Whether a period is deterministic is never declared: the
 `ticket.py` file's presence is the whole signal. `delegate:` declares something
 else — which bootstrap target an agent period hands its work to, which no
 file's presence can express. Creation freezes that target into the period
