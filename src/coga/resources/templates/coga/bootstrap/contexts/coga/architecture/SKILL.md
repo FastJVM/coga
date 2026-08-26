@@ -119,9 +119,12 @@ no in-memory state.
   before each ordinary child, that seam refreshes control state, resolves only
   the exact ref (never a prefix sibling), and rechecks branch/owner plus the
   frozen generation. A task removed, paused, finished, or replaced while an
-  earlier child ran is skipped; an unverified refresh refuses rather than
-  starting stale work. A deterministic child retains that refreshed admission
-  generation; immediately before every ordinary agent spawn, launch requires
+  earlier child ran is skipped; an unverified remote-backed refresh refuses
+  rather than starting stale work. A Git checkout with no configured remote
+  freezes that local-only class at outer admission and uses exact local control
+  state; a remote that disappears afterward still refuses. A deterministic
+  child retains that refreshed admission generation; immediately before every
+  ordinary agent spawn, launch requires
   the same bounded token and captures the exact current ticket again. On either
   child's unfinished exit, that token distinguishes a replacement from the
   same child's ticket and audit writes; only the latter acquires a fresh exact
@@ -129,9 +132,10 @@ no in-memory state.
   guarded pause. A replacement refuses teardown instead of parking the stable
   path's new owner.
   It does not re-enter the whole public launch path. A
-  direct `coga launch recurring/<name>` has no such outer admission, so it gates and
-  requires verified catch-up before resolving even a locally missing period
-  ref. For a frozen
+  direct `coga launch recurring/<name>` has no such outer admission, so it gates
+  and requires verified catch-up before resolving even a locally missing period
+  ref when a remote is configured; without one, local `HEAD` is the sole control
+  state. For a frozen
   delegation, the runner separately preflights the period task's push access
   and leases its exact ticket bytes plus creator-owned generation at start,
   final spawn, and post-child completion/timeout. The lifecycle publications

@@ -770,7 +770,11 @@ def test_on_demand_launch_closes_the_same_loop(
 
     record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
     code = recurring_runner._launch_created(
-        cfg_repo, ref, record=record, template="nightly-check"
+        cfg_repo,
+        ref,
+        record=record,
+        template="nightly-check",
+        control_remote_expected=False,
     )
 
     assert code == 0
@@ -791,7 +795,12 @@ def test_a_refused_on_demand_launch_is_not_a_run(
 
     ref = _ref_with_status(cfg_repo, "paused")
     record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
-    assert recurring_runner._launch_created(cfg_repo, ref, record=record) == 0
+    assert recurring_runner._launch_created(
+        cfg_repo,
+        ref,
+        record=record,
+        control_remote_expected=False,
+    ) == 0
     assert record.outcomes == []
 
 

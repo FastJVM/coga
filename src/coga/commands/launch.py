@@ -231,6 +231,7 @@ def launch_recurring_period(
     task: str,
     *,
     expected_period_lease: PeriodLease,
+    control_remote_expected: bool,
     agent_override: str | None,
     prompt_report: bool,
     idle_timeout: float | None,
@@ -246,15 +247,22 @@ def launch_recurring_period(
     run long enough for another checkout to pause, finish, or replace a later
     period, though, so this seam refreshes and rechecks that one period before
     entering shared launch logic. The caller supplies the exact ticket/audit
-    generation admitted before any prior child ran. A lost refresh fails
-    closed; a period that became closed, parked, or replaced returns
+    generation admitted before any prior child ran. ``control_remote_expected``
+    freezes whether that outer admission saw a configured remote: an admitted
+    remote-less checkout uses local control state, while a remote that later
+    disappears remains a failed verification. A lost refresh fails closed; a
+    period that became closed, parked, or replaced returns
     ``"skipped"`` without starting work. The result also carries the exact
     refreshed generation admitted before a deterministic child, or the exact
     generation recaptured immediately before the last agent spawn. The sweep
     can therefore compare-and-set any unfinished-child pause without touching
     a replacement that arrived while either kind of child was running.
     """
-    if not _refresh_recurring_period_before_launch(task, expected_period_lease):
+    if not _refresh_recurring_period_before_launch(
+        task,
+        expected_period_lease,
+        control_remote_expected=control_remote_expected,
+    ):
         return RecurringPeriodLaunchResult("skipped", None, False)
 
     publication_cfg, publication_ref = _exact_recurring_period_for_launch(
@@ -331,7 +339,10 @@ def _exact_recurring_period_for_launch(
 
 
 def _refresh_recurring_period_before_launch(
-    task: str, expected_period_lease: PeriodLease
+    task: str,
+    expected_period_lease: PeriodLease,
+    *,
+    control_remote_expected: bool,
 ) -> bool:
     """Refresh and re-admit the exact period generation selected by a sweep."""
     try:
@@ -339,15 +350,26 @@ def _refresh_recurring_period_before_launch(
     except ConfigError as exc:
         _bail(str(exc))
 
-    from coga.recurring_runner import _refuse_non_control_branch, _refuse_non_owner
+    from coga.recurring_runner import (
+        _control_remote_present_at_admission,
+        _refuse_non_control_branch,
+        _refuse_non_owner,
+    )
 
     if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
         raise SystemExit(2)
-    refreshed = git.refresh_coga_state_from_control(
-        cfg,
-        message=f"Refresh recurring period {task} before launch",
-        require_control_verification=True,
-    )
+    remote_present_now = _control_remote_present_at_admission(cfg)
+    if not control_remote_expected and not remote_present_now:
+        # This sweep was admitted in the supported local-only Git class. The
+        # branch/owner gates above and exact ticket lease below remain active;
+        # there is simply no distinct control destination to refresh from.
+        refreshed = True
+    else:
+        refreshed = git.refresh_coga_state_from_control(
+            cfg,
+            message=f"Refresh recurring period {task} before launch",
+            require_control_verification=True,
+        )
     if refreshed is False:
         _bail(
             f"Cannot launch {task}: the latest control state could not be "
@@ -499,6 +521,7 @@ def _launch(
     def authorize_direct_recurring(current_cfg: Config) -> Config:
         """Gate and refresh one public period launch before state lookup."""
         from coga.recurring_runner import (
+            _control_remote_present_at_admission,
             _refuse_non_control_branch,
             _refuse_non_owner,
             _sync_control_checkout_ahead,
@@ -506,19 +529,34 @@ def _launch(
 
         if _refuse_non_control_branch(current_cfg) or _refuse_non_owner(current_cfg):
             raise SystemExit(2)
+        try:
+            remote_present_at_admission = _control_remote_present_at_admission(
+                current_cfg
+            )
+        except git.GitError as exc:
+            _bail(
+                f"Cannot launch {task}: control-state verification failed: "
+                f"{exc}. No work was started.",
+                exit_code=git.STALE_CONTROL_EXIT_CODE,
+            )
         fresh, freshness_error = _sync_control_checkout_ahead(
             current_cfg, announce_failure=False
         )
         if not fresh and current_cfg.git_enabled:
             try:
                 control_checkout = git._toplevel(current_cfg.repo_root)
+                remote_present_now = _control_remote_present_at_admission(
+                    current_cfg
+                )
             except git.GitError as exc:
                 _bail(
                     f"Cannot launch {task}: control-state verification failed: "
                     f"{exc}. No work was started.",
                     exit_code=git.STALE_CONTROL_EXIT_CODE,
                 )
-            if control_checkout is not None:
+            if control_checkout is not None and (
+                remote_present_at_admission or remote_present_now
+            ):
                 _bail(
                     f"Cannot launch {task}: could not confirm this checkout "
                     f"includes the latest {current_cfg.git_remote}/"

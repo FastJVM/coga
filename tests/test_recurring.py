@@ -3436,6 +3436,7 @@ def test_launch_due_tasks_reloads_frozen_dispatch_after_reconciliation(
         force=False,
         interactive=True,
         agent_override=None,
+        control_remote_expected=False,
     )
 
     assert result == 0
@@ -3500,6 +3501,7 @@ def test_launch_due_tasks_skips_a_later_period_reaped_by_an_earlier_child(
         force=False,
         interactive=True,
         agent_override=None,
+        control_remote_expected=False,
     )
 
     assert result == 0
@@ -6444,6 +6446,7 @@ def test_recurring_launch_invokes_launch(
     def fake_launch(
         task: str,
         expected_period_lease: PeriodLease,
+        control_remote_expected: bool,
         agent_override: str | None,
         prompt_report: bool,
         idle_timeout: float | None = None,
@@ -6459,6 +6462,7 @@ def test_recurring_launch_invokes_launch(
         assert queue_guidance is True
         assert script_failure_important is True
         assert expected_period_lease.ticket_bytes is not None
+        assert control_remote_expected is False
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         assert ticket.status == "active"
         calls.append(task)
@@ -7447,9 +7451,11 @@ def test_authorized_sweep_uses_the_internal_period_launch_seam(
     """An already-gated sweep never re-enters public recurring admission."""
     cfg = load_config(repo)
     launched: list[str] = []
+    kwargs_seen: list[bool] = []
 
     def fake_period_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         launched.append(slug)
+        kwargs_seen.append(kwargs["control_remote_expected"])
         ticket_path = repo / "tasks" / slug / "ticket.md"
         finished = Ticket.read(ticket_path)
         finished.frontmatter["status"] = "done"
@@ -7468,6 +7474,7 @@ def test_authorized_sweep_uses_the_internal_period_launch_seam(
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
     assert launched == ["recurring/weekly-check"]
+    assert kwargs_seen == [False]
 
 
 def test_interactive_sweep_launches_omit_queue_guidance(
@@ -7516,6 +7523,7 @@ def test_named_recurring_launch_carries_queue_guidance(
     assert len(seen) == 1
     assert seen[0]["queue_guidance"] is True
     assert seen[0]["script_failure_important"] is True
+    assert seen[0]["control_remote_expected"] is False
 
 
 # --- coga recurring promote: task → template authoring ------------------------

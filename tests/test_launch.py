@@ -1366,6 +1366,41 @@ def test_direct_recurring_launch_refuses_an_unverified_control_catch_up(
     assert "No work was started" in result.output
 
 
+def test_direct_recurring_launch_uses_local_control_without_a_remote(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An actually remote-less Git checkout admits its local period state."""
+    created = create_task(
+        cfg=load_config(git_repo.coga_os),
+        title="Delegated local period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/local-delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed local recurring period")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("remote", "remove", "origin")
+    launched: list[str] = []
+
+    def fake_delegated(task_cfg, ref, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref.id_slug)
+        return recurring_cmd.DelegatedRunResult(0, "done")
+
+    monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated)
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 0, result.output
+    assert launched == ["recurring/local-delegate-check"]
+
+
 def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1379,7 +1414,7 @@ def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
     monkeypatch.setattr(
         launch_module,
         "_refresh_recurring_period_before_launch",
-        lambda task, expected_period_lease: True,
+        lambda task, expected_period_lease, **kwargs: True,
     )
     monkeypatch.setattr(
         launch_module,
@@ -1397,6 +1432,7 @@ def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
     result = launch_module.launch_recurring_period(
         "recurring/delegate-check",
         expected_period_lease=expected_period_lease,
+        control_remote_expected=True,
         agent_override=None,
         prompt_report=False,
         idle_timeout=900.0,
@@ -1425,7 +1461,7 @@ def test_internal_recurring_launch_refuses_replacement_before_agent_spawn(
     monkeypatch.setattr(
         launch_module,
         "_refresh_recurring_period_before_launch",
-        lambda task, expected_period_lease: True,
+        lambda task, expected_period_lease, **kwargs: True,
     )
     monkeypatch.setattr(
         launch_module,
@@ -1450,6 +1486,7 @@ def test_internal_recurring_launch_refuses_replacement_before_agent_spawn(
         launch_module.launch_recurring_period(
             "recurring/delegate-check",
             expected_period_lease=expected_period_lease,
+            control_remote_expected=True,
             agent_override=None,
             prompt_report=False,
             idle_timeout=900.0,
@@ -1500,6 +1537,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
     result = launch_module.launch_recurring_period(
         created["slug"],
         expected_period_lease=expected_period_lease,
+        control_remote_expected=True,
         agent_override=None,
         prompt_report=False,
         idle_timeout=900.0,
@@ -1552,6 +1590,7 @@ def test_internal_recurring_launch_skips_a_replaced_period_generation(
     result = launch_module.launch_recurring_period(
         created["slug"],
         expected_period_lease=expected_period_lease,
+        control_remote_expected=True,
         agent_override=None,
         prompt_report=False,
         idle_timeout=900.0,
@@ -1622,6 +1661,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
     result = launch_module.launch_recurring_period(
         created["slug"],
         expected_period_lease=expected_period_lease,
+        control_remote_expected=True,
         agent_override=None,
         prompt_report=False,
         idle_timeout=900.0,
@@ -1674,6 +1714,7 @@ def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
         launch_module.launch_recurring_period(
             created["slug"],
             expected_period_lease=expected_period_lease,
+            control_remote_expected=True,
             agent_override=None,
             prompt_report=False,
             idle_timeout=900.0,
@@ -1686,6 +1727,56 @@ def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
     assert excinfo.value.code == 2
     ticket_path = Path(created["path"]) / "ticket.md"
     assert Ticket.read(ticket_path).status == "active"
+
+
+def test_internal_recurring_launch_uses_admitted_remote_less_control(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A sweep admitted without a remote uses its exact local period lease."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Local ordinary recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/local-ordinary-check",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed local ordinary recurring period")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("remote", "remove", "origin")
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    expected_period_lease = local_period_lease(cfg, ref)
+    launched: list[str] = []
+
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(task)
+        return "script"
+
+    monkeypatch.setattr(launch_module, "_launch", fake_launch)
+
+    result = launch_module.launch_recurring_period(
+        created["slug"],
+        expected_period_lease=expected_period_lease,
+        control_remote_expected=False,
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        queue_guidance=True,
+    )
+
+    assert result.kind == "script"
+    assert result.period_lease == expected_period_lease
+    assert result.require_period_publication is False
+    assert launched == [created["slug"]]
 
 
 @pytest.mark.parametrize("refused_gate", ["control-branch", "owner"])

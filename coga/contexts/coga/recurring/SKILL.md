@@ -214,10 +214,14 @@ remains a warning for bare and named interactive single-repo scans, but a remote
 period is admitted with its exact ticket bytes and creator-owned period generation
 before the first child starts, then refreshed again immediately before its own
 launch. That narrow per-child check resolves only the exact task ref, fails
-closed if control cannot be verified, and skips a task removed, replaced, or
-changed to `done`, `canceled`, or `paused` while an earlier child was running;
-an offline operator therefore cannot start new remote-backed period work from
-a stale scan snapshot, and a removed ref cannot alias a prefix sibling. Every
+closed if remote-backed control cannot be verified, and skips a task removed,
+replaced, or changed to `done`, `canceled`, or `paused` while an earlier child
+was running; an offline operator therefore cannot start new remote-backed
+period work from a stale scan snapshot, and a removed ref cannot alias a prefix
+sibling. A Git checkout with no configured remote freezes that local-only class
+at outer admission and uses its exact local control state; if a remote existed
+at admission but disappears before a later child, the child refuses instead of
+silently changing classes. Every
 ordinary period launch also returns its exact ticket-plus-generation lease: the
 refreshed admission lease for a deterministic `ticket.py` child, recaptured
 immediately before the final spawn for an agent child only after the bounded
@@ -228,11 +232,12 @@ path is materialized again. Only the same
 generation gets a fresh exact lease and guarded pause; a replacement refuses
 teardown instead of parking the task now occupying the stable path. The
 direct `coga launch recurring/<name>` spelling requires a verified catch-up
-**before resolving the local ref or reading
-dispatch**; a Git-backed control checkout whose fetch or integration fails is
-refused before any work starts. It then reloads configuration and resolves the
-refreshed period so a remotely materialized task, integrated completion, or
-replacement wins. A bare sweep and
+**before resolving the local ref or reading dispatch** whenever a remote is
+configured; a remote-backed control checkout whose fetch or integration fails
+is refused before any work starts, while a Git checkout with no remote uses
+local `HEAD` as its only control state. It then reloads configuration and
+resolves the refreshed period so a remotely materialized task, integrated
+completion, or replacement wins. A bare sweep and
 `coga recurring launch <name>` perform their full public admission once at the
 outer boundary; the typed in-process seam rechecks branch/owner plus only the
 latest period state before each ordinary child rather than re-entering the

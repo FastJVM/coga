@@ -188,6 +188,20 @@ def _refuse_non_control_branch(cfg: Config) -> bool:
     return True
 
 
+def _control_remote_present_at_admission(cfg: Config) -> bool:
+    """Whether this launch admission has a shared remote control plane.
+
+    A Git checkout with no configured remote deliberately treats local HEAD as
+    authoritative.  Freeze the distinction before a recurring child owns the
+    terminal so a remote that disappears during that child cannot silently
+    turn a remote-backed sweep into the local-only class.
+    """
+    if not cfg.git_enabled:
+        return False
+    root = git._toplevel(cfg.repo_root)
+    return root is not None and git._remote_configured(root, cfg.git_remote)
+
+
 def _launch_owner_refusal(cfg: Config) -> str | None:
     """Resolve recurring authorization from the latest reachable control tip.
 
@@ -714,6 +728,7 @@ def run_recurring_scan(
     if not require_fresh_control and _refuse_non_control_branch(cfg):
         return 2
 
+    control_remote_expected = _control_remote_present_at_admission(cfg)
     fresh, freshness_error = _sync_control_checkout_ahead(
         cfg, announce_failure=not require_fresh_control
     )
@@ -786,6 +801,7 @@ def run_recurring_scan(
             force=force,
             interactive=interactive,
             agent_override=agent_override,
+            control_remote_expected=control_remote_expected,
         )
     finally:
         run_autofix(cfg, record, agent_override=agent_override)
@@ -799,6 +815,7 @@ def _launch_due_tasks(
     force: bool,
     interactive: bool,
     agent_override: str | None,
+    control_remote_expected: bool,
 ) -> int:
     """Run each due period task in order, recording what each one did.
 
@@ -958,6 +975,7 @@ def _launch_due_tasks(
             raw_launch_result = launch_cmd(
                 task.ref.id_slug,
                 expected_period_lease=admitted_period_lease,
+                control_remote_expected=control_remote_expected,
                 agent_override=agent_override,
                 prompt_report=False,
                 idle_timeout=idle_timeout,
@@ -1695,6 +1713,7 @@ def run_recurring_named(
     """
     if _refuse_non_control_branch(cfg):
         return 2
+    control_remote_expected = _control_remote_present_at_admission(cfg)
     fresh, _reason = _sync_control_checkout_ahead(cfg)
     if _refuse_non_owner(cfg):
         return 2
@@ -1771,6 +1790,7 @@ def run_recurring_named(
             agent_override=agent_override,
             record=record,
             template=name,
+            control_remote_expected=control_remote_expected,
         )
     finally:
         # Only when something actually ran: `_launch_created` records the run
@@ -1843,6 +1863,7 @@ def _launch_created(
     agent_override: str | None = None,
     record: RunRecord | None = None,
     template: str = "",
+    control_remote_expected: bool,
 ) -> int:
     """Launch (or resume) a created recurring task.
 
@@ -1933,6 +1954,7 @@ def _launch_created(
         raw_launch_result = launch_cmd(
             ref.id_slug,
             expected_period_lease=admitted_period_lease,
+            control_remote_expected=control_remote_expected,
             agent_override=agent_override,
             prompt_report=False,
             idle_timeout=idle_timeout,

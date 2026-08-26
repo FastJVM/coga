@@ -894,16 +894,20 @@ creator-owned `period_generation` token, then use an internal period-launch seam
 narrowly refreshes control, resolves only the exact ref, and rechecks
 branch/owner plus that generation immediately before each ordinary child, so
 work removed, parked, finished, or replaced during an earlier session is
-skipped and a failed refresh refuses the next launch. A deterministic child
-retains that refreshed lease; immediately before every ordinary agent spawn,
-launch requires the same bounded token and captures the exact ticket again. If
+skipped and a failed remote-backed refresh refuses the next launch. A Git
+checkout with no configured remote freezes that local-only class at outer
+admission and uses exact local control state; a remote that disappears afterward
+still refuses. A deterministic child retains that refreshed lease; immediately
+before every ordinary agent spawn, launch requires the same bounded token and
+captures the exact ticket again. If
 either exits unfinished, that token
 admits same-generation ticket/audit writes to a fresh
 exact pause lease while a replacement at the stable path remains untouched.
 Delegated children use
 the same admitted generation as the start of their exact control lease. The
-direct spelling has no outer admission: it requires verified control catch-up before
-resolving even a locally missing period ref and remains subject to the same
+direct spelling has no outer admission: it requires verified control catch-up
+before resolving even a locally missing period ref when a remote is configured,
+uses local `HEAD` when none is configured, and remains subject to the same
 control-branch and recurring-owner gates. Direct launch also activates a
 paused/draft delegated period inline; recurring scans leave paused periods
 parked. A period that also carries
