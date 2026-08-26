@@ -550,7 +550,10 @@ blackboard either — that existing rule now has a second reason.
 Operating it:
 
 - `COGA_AUTOFIX=0` disables the loop; `COGA_AUTOFIX_TIMEOUT` (seconds) bounds
-  the call, which defaults to 300s and disarms at `<= 0`.
+  the call, which defaults to 300s and disarms at `<= 0`. The bound is on the
+  analysis, not on each subprocess inside it: the first attempt, the
+  `claude auth status` probe, and the subscription retry share one deadline, so
+  the auth fallback below cannot stretch the wait a sweep signed up for.
 - Every run record is also written machine-locally to
   `.coga/recurring-runs/<stamp>.md` (gitignored — one operator's sweep
   transcript is not team state), whether or not it gets ticketed.

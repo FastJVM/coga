@@ -184,7 +184,9 @@ nothing more.
 
 - `COGA_AUTOFIX=0` disables the loop.
 - `COGA_AUTOFIX_TIMEOUT` (seconds, default 300) bounds the call; `<= 0` disarms
-  the timeout.
+  the timeout. It is one budget for the whole analysis — the first attempt, the
+  `claude auth status` probe, and the subscription retry below all draw on the
+  same deadline, so the fallback cannot double what the sweep waits for.
 - Every run record is also written to `.coga/recurring-runs/<stamp>.md`
   (gitignored), whether or not it is ticketed.
 - `coga run autofix-analyze [RUN_LOG] [--dry-run] [--agent TYPE]` re-runs the

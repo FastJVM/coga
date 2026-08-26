@@ -45,6 +45,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -85,6 +86,14 @@ DEFAULT_ANALYZE_TEMPLATES = {
 # The analyst is a single call on a bounded record — generous, but it must not
 # become the new way a cron sweep hangs forever. `COGA_AUTOFIX_TIMEOUT`
 # (seconds) overrides; `COGA_AUTOFIX=0` disables the loop entirely.
+#
+# The bound is on the *analysis*, not on each subprocess inside it: the first
+# attempt, the `claude auth status` probe, and the subscription retry all draw
+# on one deadline. Giving the retry a fresh full timeout would let a configured
+# 300s turn into 610s of wall clock and make the documented liveness bound a
+# lie (principle 6). The auth probe additionally caps itself at
+# `_CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS` so a hung status call cannot eat the
+# whole budget the retry still needs.
 _ANALYZE_TIMEOUT_SECONDS = 300.0
 _CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS = 10.0
 
@@ -327,6 +336,24 @@ def _analyze_timeout() -> float | None:
     return seconds if seconds > 0 else None
 
 
+def _analyze_deadline(budget: float | None) -> float | None:
+    """The monotonic instant the whole analysis must be finished by."""
+    return None if budget is None else time.monotonic() + budget
+
+
+def _remaining(deadline: float | None, cap: float | None = None) -> float | None:
+    """Seconds left on the shared analysis budget, further capped by `cap`.
+
+    Returns `None` only when nothing bounds the call at all. A non-positive
+    result means the budget is spent — callers must not start another
+    subprocess with it.
+    """
+    if deadline is None:
+        return cap
+    left = deadline - time.monotonic()
+    return left if cap is None else min(left, cap)
+
+
 def _analyze_agent(cfg: Config, agent_override: str | None) -> AgentType:
     if agent_override:
         return cfg.agent_type(agent_override)
@@ -366,6 +393,7 @@ def _claude_subscription_fallback_env(
     env: dict[str, str],
     *,
     cwd: Path,
+    deadline: float | None = None,
 ) -> dict[str, str] | None:
     """A verified Claude subscription env after an API-key auth failure.
 
@@ -379,6 +407,10 @@ def _claude_subscription_fallback_env(
     command, and that command must report an entitled first-party subscription
     allowed by local login policy. API-key-only installations keep the original
     failure.
+
+    The probe spends the caller's remaining analysis budget rather than its own
+    extra time: an exhausted budget declines the fallback, exactly as an
+    unreachable or unentitled status call already does.
     """
     if (
         failed.returncode == 0
@@ -392,6 +424,10 @@ def _claude_subscription_fallback_env(
     if not any(marker in detail for marker in _CLAUDE_AUTH_FAILURE_MARKERS):
         return None
 
+    probe_timeout = _remaining(deadline, _CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS)
+    if probe_timeout is not None and probe_timeout <= 0:
+        return None
+
     fallback_env = dict(env)
     fallback_env.pop(_CLAUDE_API_KEY_ENV, None)
     try:
@@ -402,7 +438,7 @@ def _claude_subscription_fallback_env(
             text=True,
             errors="replace",
             env=fallback_env,
-            timeout=_CLAUDE_AUTH_STATUS_TIMEOUT_SECONDS,
+            timeout=probe_timeout,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
@@ -575,8 +611,16 @@ def analyze_record(
     cwd = cfg.repo_root.parent if cfg.repo_root.name == "coga" else cfg.repo_root
     env = os.environ.copy()
     used_subscription_fallback = False
+    # One budget for the whole analysis — first attempt, auth probe, and retry
+    # all draw down the same deadline, so `COGA_AUTOFIX_TIMEOUT` still bounds
+    # what the sweep waits for when the fallback fires.
+    budget = _analyze_timeout()
+    deadline = _analyze_deadline(budget)
     try:
         while True:
+            attempt_timeout = _remaining(deadline)
+            if attempt_timeout is not None and attempt_timeout <= 0:
+                raise subprocess.TimeoutExpired(cmd, budget or 0.0)
             result = subprocess.run(
                 cmd,
                 cwd=cwd,
@@ -584,13 +628,13 @@ def analyze_record(
                 text=True,
                 errors="replace",
                 env=env,
-                timeout=_analyze_timeout(),
+                timeout=attempt_timeout,
                 check=False,
             )
             if used_subscription_fallback:
                 break
             fallback_env = _claude_subscription_fallback_env(
-                agent, result, env, cwd=cwd
+                agent, result, env, cwd=cwd, deadline=deadline
             )
             if fallback_env is None:
                 break
@@ -605,8 +649,12 @@ def analyze_record(
     except FileNotFoundError as exc:
         raise AutofixUnavailable(f"could not run {agent.cli!r}: {exc}") from exc
     except subprocess.TimeoutExpired as exc:
+        # Report the configured bound, not whatever slice of it this attempt
+        # got: the operator set `COGA_AUTOFIX_TIMEOUT`, and a retry that
+        # inherited 40s of a 300s budget did not "fail within 40s".
+        bound = budget if budget is not None else exc.timeout
         raise AutofixUnavailable(
-            f"{agent.cli} did not answer within {exc.timeout:.0f}s"
+            f"{agent.cli} did not answer within {bound:.0f}s"
         ) from exc
 
     if result.returncode != 0:
