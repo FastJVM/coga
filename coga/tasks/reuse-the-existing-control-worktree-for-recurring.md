@@ -5,7 +5,7 @@ status: in_progress
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -166,4 +166,168 @@ explained.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Orientation (implement, session 1)
+
+Symbols confirmed in `src/coga/recurring_runner.py`:
+
+- `run_recurring_scan` — `if not require_fresh_control and _refuse_non_control_branch(cfg): return 2`
+- `run_recurring_named` — `if _refuse_non_control_branch(cfg): return 2`
+- `_refuse_non_control_branch` is *also* called from `src/coga/commands/launch.py`
+  (two sites, for `coga launch recurring/<name>`). That spelling is out of scope,
+  so the function itself must keep its current behavior for that caller.
+- `_run_repo_recurring` is the existing precedent for re-dispatch: it already runs
+  `[sys.executable, "-m", "coga.cli", "run", "recurring-scan", ...]` with `cwd=` set
+  elsewhere and inherited stdio. The `--all` parent does this per repo today.
+- `git._worktree_holding_branch(root, branch)` exists but folds listing failure into
+  the `_WORKTREES_UNKNOWN` sentinel *and writes a "not fast-forwarded" stderr note*
+  that would be wrong in this context.
+
+### Chosen shape: relay, not re-point
+
+The run **starts from** the control worktree — a child `coga` process with `cwd`
+there — rather than re-pointing `cfg.repo_root` in-process. Consequences, stated
+because they change what a `dream` run sees:
+
+- The child reads templates, period tasks, and `coga/log.md` from the *control
+  worktree's* tree, i.e. the control tip, not the operator's dirty feature tree.
+  That is the intended semantics.
+- Every existing sync / ledger / push path applies unmodified, because the child
+  is an ordinary on-control run. No second worktree helper is built.
+- Recursion is impossible in one hop, and is additionally guarded by an env
+  sentinel the child carries.
+
+### Decisions the ticket demanded be explicit
+
+- **Agent-backed templates are admitted.** The relay is `subprocess.run` with
+  inherited stdio, so the TTY survives and `_interactive_stdio_has_tty()` is true
+  in the child exactly as in an on-control run. The control worktree is durable
+  and operator-owned, so there is no temp-worktree data-loss or cleanup problem.
+  A **dirty** control worktree is not gated: today's on-control sweep runs in a
+  dirty primary checkout without complaint, and this mode is the same run in a
+  different directory. Adding a cleanliness gate here would be a new restriction,
+  not a preserved one.
+- **`delegate:` templates work unchanged.** The child *is* the sweep, its stdio is
+  the operator's own terminal (inherited through the relay), so the delegated
+  launch keeps its TTY admission, and its `coga/log.md` slack-sentinel completion
+  path writes the control worktree's log — which is the control branch's log, i.e.
+  the correct one.
+
+### Blocker found: the relayed child cannot load machine-local config
+
+`coga.local.toml` is gitignored (`coga/.gitignore:6`). A linked worktree created by
+plain `git worktree add` therefore does **not** have one — verified against this
+repo's own three linked worktrees, none of which carries `coga/coga.local.toml`.
+
+`load_config(require_user=True)` *hard-errors* with "No `user` set in
+coga.local.toml" in that case, so a naive relay is dead on arrival in exactly the
+layout this ticket exists to serve. Options weighed under `## Open question`.
+
+## Dev
+
+branch: recurring-control-worktree
+worktree: /home/n/Code/codex/coga-recurring-control-worktree
+
+## Open question — resolved
+
+Human chose the **env handoff**: the relay exports `COGA_LOCAL_CONFIG` pointing at
+the operator checkout's own `coga.local.toml`, and `load_config` honors it when
+set. Nothing is written anywhere, the operator's checkout stays byte-identical,
+and it is semantically right — `user`, agent paths, and webhooks describe the
+machine and the operator, not the checkout. Rejected: refusing without the file
+(leaves the headline scenario needing a manual symlink) and copying it in (writes
+a gitignored file into a durable operator-owned checkout, which the ticket rules
+out).
+
+## What landed
+
+Commit `0491ed51` on `recurring-control-worktree`.
+
+**`src/coga/recurring_runner.py`** — `_relay_off_control_single_repo_run` is the
+new branch precondition for both single-repo entry points. It returns `None`
+(proceed here), the relayed child's exit code, or `2` for the refusal that
+still stands. Supporting pieces:
+
+- `_existing_control_worktree` — the lookup. Returns None for "already on
+  control", exempt/unreadable workspace, relayed child, no such worktree, the
+  current root itself, or a worktree with no `coga.toml`. **Every git
+  inspection failure collapses to None on purpose** so `_refuse_non_control_branch`
+  re-probes and owns the error text — a broken probe can never be misread as
+  "no worktree holds control".
+- `_relay_to_control_worktree` — `subprocess.run([sys.executable, "-m",
+  "coga.cli", *argv], cwd=..., env=...)` with inherited stdio, the same spelling
+  `_run_repo_recurring` already uses for `--all`. `cwd` mirrors where the Coga
+  OS dir sits relative to the checkout, so a monorepo subdir layout lands in the
+  matching subdir.
+- `_recurring_scan_relay_argv` — `run recurring-scan` + flags.
+  `--require-fresh-control` deliberately absent; a relay only happens off the
+  `--all` path.
+- `_CONTROL_RELAY_ENV = "COGA_RECURRING_CONTROL_RELAY"` caps the hop at one.
+- `_refuse_non_control_branch` gains `no_control_worktree=False`, which only
+  appends the absence + `git worktree add` remedy. `commands/launch.py`'s two
+  call sites leave it off, so `coga launch recurring/<name>` never promises a
+  relay it does not implement. Its docstring's "best-effort" line — the one the
+  ticket flagged as the source of the sibling's wrong claim — now says
+  explicitly that only *freshness* is best-effort, never the branch.
+
+**`src/coga/config.py`** — `LOCAL_CONFIG_ENV` / `local_config_path(root)`.
+`coga.local.toml` is read from `COGA_LOCAL_CONFIG` when set, else the
+checkout's own copy. `commands/init.py` still *writes* to the checkout path;
+only reading is redirectable.
+
+**`src/coga/git.py`** — `worktree_holding_branch` is the public lookup that
+raises `GitError` on a failed listing; `_worktree_holding_branch` becomes a thin
+wrapper keeping the `_WORKTREES_UNKNOWN` sentinel and stderr note for the
+ref-update caller. No second worktree helper was built, per the ticket.
+
+**`coga/contexts/coga/recurring/SKILL.md`** — `## Recurring runs start on the
+control branch` rewritten: the requirement is now "runs happen *on* control",
+with the relay, its five consequences (control-tip reads, agent admission and
+the un-gated dirty worktree, delegation, the `coga.local.toml` handoff, one
+hop), and the narrowed refusal. Two later paragraphs adjusted for the same
+shift. No packaged duplicate exists — confirmed, it is one file.
+
+### Verification
+
+- `python -m pytest` — **19 failed, 2053 passed**. The same 19 fail on
+  unmodified `main` (**19 failed, 2040 passed**); failure sets diffed identical
+  per module (`test_launch.py` 7/7 on both). All 19 are pre-existing
+  environment failures — `test_packaging` wants a built wheel, the
+  `test_launch_script` / `test_smoke` / `test_recurring_shims` ones subprocess
+  the separately-installed `coga`. **+13 net passing** = the new tests.
+- Real end-to-end, not just mocks: from this feature worktree (which genuinely
+  has no `coga.local.toml`), `load_config` with `COGA_LOCAL_CONFIG` set
+  resolved `user = 'nicktoper'`, `_existing_control_worktree` found
+  `/home/n/Code/codex/coga`, and `_relay_to_control_worktree` with a read-only
+  `["recurring", "list"]` argv spawned a working child that printed the real
+  template table and exited 0.
+- `coga validate --json` — unchanged output (pre-existing draft-blackboard
+  findings only). Validation behavior was not touched.
+
+### New tests
+
+`tests/test_recurring.py`: relay for bare/`--force` scan and for the named
+launch (argv, `cwd == control/coga`, both env vars); child exit code forwarded;
+operator checkout byte-identical (branch, `HEAD`, `status --porcelain
+--untracked-files=all --ignored`, empty stash list) across a relay from a dirty
+tree; sentinel blocks a second hop; refusal names the absence; a control
+worktree with no `coga.toml` is skipped; the `coga launch` spelling keeps the
+plain message. `tests/test_config.py`: env override honored and, unset, the
+checkout copy still wins. `tests/test_git.py`: `worktree_holding_branch` finds /
+returns None / raises.
+
+Test-harness note worth keeping: `recurring_cmd.subprocess` **is** the shared
+`subprocess` module, so patching its `run` wholesale also swallows
+`git._toplevel` and the worktree listing this path depends on. `_intercept_relay`
+intercepts only `-m coga.cli` spawns and delegates everything else to the real
+`subprocess.run`. Also, `git worktree add <p> main` must come *after* the
+primary checkout leaves `main` — git refuses to check one branch out twice,
+which is exactly why a create-a-worktree design cannot serve this layout.
+
+### For the peer reviewer
+
+- `COGA_LOCAL_CONFIG` is a new core-config seam. It was the human's call
+  (alternatives weighed under `## Open question — resolved`). The sibling
+  `service-recurring-from-a-temp-control-worktree-ins` faces the same gitignored-
+  file problem in a *created* worktree and can reuse it instead of seeding.
+- Out of scope and untouched, as the ticket directs: the `--all` path, worktree
+  *creation*, the diverged-control case, and `coga launch recurring/<name>`.
