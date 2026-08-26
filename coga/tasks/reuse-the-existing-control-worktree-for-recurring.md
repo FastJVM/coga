@@ -5,7 +5,7 @@ status: active
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts: []
 skills: []
 workflow:
