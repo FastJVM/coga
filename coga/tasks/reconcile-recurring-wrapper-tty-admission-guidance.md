@@ -317,6 +317,7 @@ Changes:
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/723
 branch: delegate-recurring
 worktree: /home/n/Code/claude/coga-delegate-recurring
 
