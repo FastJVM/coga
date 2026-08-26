@@ -26,9 +26,11 @@ from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.commands.launch import _interactive_stdio_has_tty
 from coga.compose import LaunchContext
 from coga.config import (
+    LOCAL_CONFIG_ENV,
     Config,
     ConfigError,
     load_config,
+    local_config_path,
     parse_owner,
 )
 from coga.lifecycle import TERMINAL_STATUSES
@@ -152,13 +154,24 @@ def _refuse_non_owner(cfg: Config) -> bool:
     return True
 
 
-def _refuse_non_control_branch(cfg: Config) -> bool:
+def _refuse_non_control_branch(
+    cfg: Config, *, no_control_worktree: bool = False
+) -> bool:
     """Require recurring mutations to start on the configured control branch.
 
     Git-disabled and non-git workspaces have no Coga-managed control checkout,
-    so they retain their existing local behavior. This is deliberately only a
-    branch gate: reachability and freshness remain best-effort for interactive
-    runs and mandatory for ``coga recurring --all``.
+    so they retain their existing local behavior. This gate is about the
+    *branch* and nothing else — it refuses outright when the branch is wrong,
+    and it is only *freshness* (fetch/rebase reachability of the remote tip)
+    that stays best-effort for interactive runs and becomes mandatory for
+    ``coga recurring --all``.
+
+    `no_control_worktree` is set by the single-repo entry points, which look
+    for an existing control worktree before refusing (see
+    `_relay_off_control_single_repo_run`). It only names the absence as the
+    reason and adds the `git worktree add` remedy; the gate itself is unchanged,
+    and callers that have no relay — `coga launch recurring/<name>` — leave it
+    off so the message does not promise behavior they do not implement.
     """
     if not cfg.git_enabled:
         return False
@@ -188,11 +201,22 @@ def _refuse_non_control_branch(cfg: Config) -> bool:
         return False
 
     where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
+    absence = (
+        (
+            f"No linked worktree has {cfg.git_control_branch!r} checked out "
+            "either, so there is no control checkout to run from — create one "
+            f"with `git worktree add ../{location.name}-{cfg.git_control_branch} "
+            f"{cfg.git_control_branch}` and recurring will run there by itself. "
+        )
+        if no_control_worktree
+        else ""
+    )
     typer.secho(
         f"Recurring launch refused: the current checkout is on {where}, not "
-        f"the configured control branch {cfg.git_control_branch!r}. Check out "
-        f"the control branch with `git switch {cfg.git_control_branch}` and "
-        "retry. `--force` does not override "
+        f"the configured control branch {cfg.git_control_branch!r}. "
+        f"{absence}"
+        f"Check out the control branch with `git switch "
+        f"{cfg.git_control_branch}` and retry. `--force` does not override "
         "this gate.",
         fg=typer.colors.RED,
         err=True,
@@ -212,6 +236,114 @@ def _control_remote_present_at_admission(cfg: Config) -> bool:
         return False
     root = git.toplevel(cfg.repo_root)
     return root is not None and git.remote_configured(root, cfg.git_remote)
+
+
+# Set on the relayed child so an off-control run can hop into the control
+# worktree exactly once. One hop is already all the design needs — the child
+# starts on the control branch and takes the ordinary path — but a branch that
+# moves between the parent's probe and the child's would otherwise let two
+# processes bounce between checkouts.
+_CONTROL_RELAY_ENV = "COGA_RECURRING_CONTROL_RELAY"
+
+
+def _existing_control_worktree(cfg: Config) -> Path | None:
+    """Another worktree of this repo that already holds the control branch.
+
+    None means "run here, or let `_refuse_non_control_branch` speak": this
+    checkout is already on control, the workspace is exempt or unreadable, we
+    are the relayed child, or no worktree holds the branch. Every inspection
+    failure collapses to None on purpose — the branch gate re-probes and owns
+    the error message, so a failure surfaces there rather than silently
+    becoming a relay.
+    """
+    if os.environ.get(_CONTROL_RELAY_ENV):
+        return None
+    if not cfg.git_enabled:
+        return None
+    try:
+        root = git._toplevel(cfg.repo_root)
+        if root is None:
+            return None
+        if _current_branch(root) == cfg.git_control_branch:
+            return None
+        worktree = git.worktree_holding_branch(root, cfg.git_control_branch)
+    except git.GitError:
+        return None
+    # Relaying into ourselves would be a loop; the env sentinel already caps
+    # it at one hop, but a listing that raced a branch move should not get
+    # that far in the first place.
+    if worktree is None or worktree.resolve() == root.resolve():
+        return None
+    if not (worktree / "coga.toml").is_file() and not (
+        worktree / "coga" / "coga.toml"
+    ).is_file():
+        return None
+    return worktree
+
+
+def _relay_to_control_worktree(
+    cfg: Config, worktree: Path, argv: list[str]
+) -> int:
+    """Re-run this recurring command as a child rooted in `worktree`.
+
+    The run only *starts from* the control checkout; nothing is re-pointed
+    in-process. The child is an ordinary on-control run, so every existing
+    scan, sync, ledger, and push path applies unmodified — and it reads
+    templates and period tasks from the control tip rather than from the
+    operator's feature tree, which is the intended semantics.
+
+    stdio is inherited, so the operator's terminal reaches the child unchanged:
+    agent-backed templates keep their TTY admission, and a `delegate:` template
+    still performs its delegated launch in that same terminal. `coga.local.toml`
+    is gitignored and so absent from a plain `git worktree add` checkout;
+    `LOCAL_CONFIG_ENV` hands the child this operator's copy instead of writing
+    anything into a checkout Coga does not own.
+    """
+    typer.secho(
+        f"Not on the control branch {cfg.git_control_branch!r}; running from "
+        f"the worktree that already holds it: {worktree}",
+        fg=typer.colors.BRIGHT_BLACK,
+    )
+    env = os.environ.copy()
+    env[_CONTROL_RELAY_ENV] = "1"
+    local = local_config_path(cfg.repo_root)
+    if local.is_file():
+        env[LOCAL_CONFIG_ENV] = str(local.resolve())
+
+    # Mirror where the Coga OS dir sits relative to the checkout, so a repo
+    # that keeps it in a monorepo subdir lands in the same subdir over there.
+    cwd = worktree
+    root = git._toplevel(cfg.repo_root)
+    if root is not None:
+        try:
+            cwd = worktree / cfg.repo_root.resolve().relative_to(root.resolve())
+        except ValueError:
+            cwd = worktree
+    if not cwd.is_dir():
+        cwd = worktree
+
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", *argv],
+        cwd=cwd,
+        env=env,
+        check=False,
+    )
+    return result.returncode
+
+
+def _relay_off_control_single_repo_run(cfg: Config, argv: list[str]) -> int | None:
+    """Branch precondition for the single-repo entry points.
+
+    Returns None to proceed in this checkout, or the exit code the caller must
+    return — either the relayed child's, or `2` for the refusal that stands
+    when no worktree holds the control branch.
+    """
+    worktree = _existing_control_worktree(cfg)
+    if worktree is not None:
+        return _relay_to_control_worktree(cfg, worktree, argv)
+    if _refuse_non_control_branch(cfg, no_control_worktree=True):
+        return 2
+    return None
 
 
 def _launch_owner_refusal(cfg: Config) -> str | None:
@@ -718,6 +850,26 @@ def _normalize_remote_identity(root: Path, url: str) -> str | None:
             path = root / path
         return f"file:{path.resolve()}"
     return f"url:{value.rstrip('/')}"
+
+
+def _recurring_scan_relay_argv(
+    *, force: bool, interactive: bool, agent_override: str | None
+) -> list[str]:
+    """The `coga run recurring-scan` argv that reproduces this sweep elsewhere.
+
+    A fixed recipe name with a repository-independent argv contract, so the
+    relayed child is spelled the same way `coga recurring --all` already spells
+    its per-repo dispatch. `--require-fresh-control` is deliberately absent: a
+    relay only ever happens on the non-`--all` path.
+    """
+    argv = ["run", "recurring-scan"]
+    if force:
+        argv.append("--force")
+    if interactive:
+        argv.append("--interactive")
+    if agent_override:
+        argv.extend(("--agent", agent_override))
+    return argv
 
 
 def _run_repo_recurring(
@@ -1525,8 +1677,12 @@ def run_recurring_scan(
     tasks. It never rewrites the ticket, and a period task carrying `ticket.py`
     keeps its deterministic execution path.
 
-    A git-backed interactive run requires the configured control branch to be
-    checked out, but does not require its remote tip to be reachable. A child
+    A git-backed interactive run happens on the configured control branch, but
+    does not require its remote tip to be reachable. Off that branch it does
+    not refuse outright: if another worktree of this repo already has the
+    control branch checked out, the sweep re-runs itself from there and returns
+    that child's exit code. Only when no worktree holds the branch does the
+    refusal stand. A child
     dispatched by `coga recurring --all` sets
     `require_fresh_control`: failure to fetch and integrate the configured
     control tip returns non-zero before `scan_due` can mutate period state.
@@ -1554,9 +1710,17 @@ def run_recurring_scan(
     """
     # `--all` retains its existing stricter combined branch/freshness gate and
     # distinct stale-control exit code. Interactive entry points need only the
-    # local branch precondition, so an offline control checkout may proceed.
-    if not require_fresh_control and _refuse_non_control_branch(cfg):
-        return 2
+    # local branch precondition, so an offline control checkout may proceed —
+    # and when this checkout is elsewhere, they relay into the worktree that
+    # already holds the control branch instead of refusing.
+    if not require_fresh_control:
+        relayed = _relay_off_control_single_repo_run(
+            cfg, _recurring_scan_relay_argv(
+                force=force, interactive=interactive, agent_override=agent_override
+            )
+        )
+        if relayed is not None:
+            return relayed
 
     control_remote_expected = _control_remote_present_at_admission(cfg)
     catchup = _sync_control_checkout_ahead(
@@ -3048,12 +3212,24 @@ def run_recurring_named(
     instantiated task directory.
 
     `agent_override` has the same ephemeral, agent-only semantics as the full
-    recurring sweep. A git-backed run requires the configured control branch
-    to be checked out, and the same committed-`owner` gate applies — this is a
-    launch, so either refusal happens before the template is created.
+    recurring sweep. A git-backed run happens on the configured control branch;
+    off it, the launch relays into an existing control worktree exactly as the
+    bare sweep does, and refuses only when no worktree holds the branch. The
+    same committed-`owner` gate applies — this is a launch, so either refusal
+    happens before the template is created.
     """
-    if _refuse_non_control_branch(cfg):
-        return 2
+    relayed = _relay_off_control_single_repo_run(
+        cfg,
+        [
+            "recurring",
+            "launch",
+            name,
+            *(["--interactive"] if interactive else []),
+            *(["--agent", agent_override] if agent_override else []),
+        ],
+    )
+    if relayed is not None:
+        return relayed
     control_remote_expected = _control_remote_present_at_admission(cfg)
     catchup = _sync_control_checkout_ahead(cfg)
     fresh = catchup.fresh

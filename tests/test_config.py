@@ -8,10 +8,12 @@ from textwrap import dedent
 import pytest
 
 from coga.config import (
+    LOCAL_CONFIG_ENV,
     ConfigError,
     SecretError,
     find_repo_root,
     load_config,
+    local_config_path,
     parse_inline_secrets,
     select_launch_secrets,
 )
@@ -72,6 +74,35 @@ def test_missing_local_toml_fails_loud(repo: Path) -> None:
     (repo / "coga.local.toml").unlink()
     with pytest.raises(ConfigError, match="No `user` set in coga.local.toml"):
         load_config(repo)
+
+
+def test_local_config_env_override_supplies_machine_settings(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`COGA_LOCAL_CONFIG` lets a checkout without the gitignored file load.
+
+    A linked worktree made by `git worktree add` has no `coga.local.toml`, so
+    `coga recurring`'s relay hands the child the operator's own copy instead of
+    writing one into a checkout it does not own.
+    """
+    (repo / "coga.local.toml").unlink()
+    elsewhere = tmp_path / "operator" / "coga.local.toml"
+    elsewhere.parent.mkdir()
+    elsewhere.write_text('user = "nick"\n')
+    monkeypatch.setenv(LOCAL_CONFIG_ENV, str(elsewhere))
+
+    assert local_config_path(repo) == elsewhere
+    assert load_config(repo).current_user == "nick"
+
+
+def test_local_config_env_override_absent_keeps_the_checkout_copy(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unset, the loader reads the checkout's own file exactly as before."""
+    monkeypatch.delenv(LOCAL_CONFIG_ENV, raising=False)
+
+    assert local_config_path(repo) == repo / "coga.local.toml"
+    assert load_config(repo).current_user == "marc"
 
 
 def test_secrets_table_in_local_toml_rejected(repo: Path) -> None:

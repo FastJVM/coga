@@ -1110,3 +1110,21 @@ def test_ordinary_run_still_sweeps_off_control(git_repo, monkeypatch):
     cli._sweep_coga_state(cfg)
 
     assert len(calls) == 1
+
+
+def test_worktree_holding_branch_finds_a_linked_checkout(git_repo, tmp_path):
+    """The public lookup names the worktree holding a branch, or None."""
+    assert git.worktree_holding_branch(git_repo.root, "main") == git_repo.root
+
+    git_repo.git("checkout", "-b", "feature/lookup")
+    linked = tmp_path / "linked"
+    git_repo.git("worktree", "add", str(linked), "main")
+
+    assert git.worktree_holding_branch(git_repo.root, "main") == linked
+    assert git.worktree_holding_branch(git_repo.root, "nope") is None
+
+
+def test_worktree_holding_branch_raises_when_the_listing_fails(tmp_path):
+    """Unlike the ref-update variant, it does not fold failure into a sentinel."""
+    with pytest.raises(git.GitError):
+        git.worktree_holding_branch(tmp_path, "main")

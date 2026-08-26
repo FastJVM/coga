@@ -270,10 +270,32 @@ def find_checkout_root(repo_root: Path) -> Path | None:
 # --- loader --------------------------------------------------------------------
 
 
+LOCAL_CONFIG_ENV = "COGA_LOCAL_CONFIG"
+
+
+def local_config_path(root: Path) -> Path:
+    """Where this process reads `coga.local.toml` from.
+
+    Normally the checkout's own copy. `COGA_LOCAL_CONFIG` overrides it with an
+    absolute path so a Coga process running in a *different* checkout of the
+    same repo can still resolve the operator's machine-local settings. The file
+    is gitignored, so a linked worktree made by plain `git worktree add` has
+    none — and everything it holds (`user`, agent paths, notification webhooks)
+    describes the machine and the operator rather than the checkout, so
+    carrying it across is the correct reading, not a workaround. Set by
+    `coga recurring`'s relay into an existing control worktree; nothing is
+    copied or written.
+    """
+    override = os.environ.get(LOCAL_CONFIG_ENV)
+    if override:
+        return Path(override)
+    return root / "coga.local.toml"
+
+
 def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> Config:
     root = repo_root or find_repo_root()
     shared = _read_toml(root / "coga.toml")
-    local_path = root / "coga.local.toml"
+    local_path = local_config_path(root)
     local = _read_toml(local_path) if local_path.is_file() else {}
 
     version = shared.get("version")
