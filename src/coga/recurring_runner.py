@@ -1164,12 +1164,14 @@ def _run_delegated_task(
 
     Only the bootstrap target's done sentinel marks the period task done; a
     natural or crashed REPL exit leaves it `in_progress` and fails loud. A
-    liveness timeout pauses and continues only for a multi-task sweep. A named
-    launch instead returns the timeout code and leaves the task retryable as
-    `in_progress`. Start, final spawn, completion, and timeout each lease both
-    the exact ticket and its task-tagged audit generation. The control guard
-    observes that lease as a compare-and-set, so a stable-path replacement can
-    neither start obsolete work nor receive the prior child's result.
+    liveness timeout pauses and continues only for a multi-task sweep and only
+    after that pause is verified on control. A failed or stale pause is a loud
+    refusal, not successful continuation. A named launch instead returns the
+    timeout code and leaves the task retryable as `in_progress`. Start, final
+    spawn, completion, and timeout each lease both the exact ticket and its
+    task-tagged audit generation. The control guard observes that lease as a
+    compare-and-set, so a stable-path replacement can neither start obsolete
+    work nor receive the prior child's result.
 
     ``activate_if_needed`` belongs only to direct ``coga launch``: the typed
     command is the documented readiness signal for a paused/draft task. Sweeps
@@ -1506,10 +1508,7 @@ def _run_delegated_task(
             err=True,
         )
         if kind == "timeout":
-            return DelegatedRunResult(
-                0 if continue_after_timeout else _TIMEOUT_EXIT_CODE,
-                "timeout",
-            )
+            return DelegatedRunResult(2, "refused")
         return DelegatedRunResult(2, "refused")
 
     if kind == "timeout":
@@ -1524,6 +1523,7 @@ def _run_delegated_task(
                 )
             except RecurringError as exc:
                 typer.secho(str(exc), fg=typer.colors.RED, err=True)
+                return DelegatedRunResult(2, "refused")
             return DelegatedRunResult(0, "timeout")
         typer.secho(
             f"{ref.id_slug}: delegated target {delegate} timed out; "

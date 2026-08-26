@@ -271,6 +271,7 @@ def _refresh_recurring_period_before_launch(task: str) -> bool:
     refreshed = git.refresh_coga_state_from_control(
         cfg,
         message=f"Refresh recurring period {task} before launch",
+        require_control_verification=True,
     )
     if refreshed is False:
         _bail(

@@ -126,8 +126,9 @@ no in-memory state.
   final spawn, and post-child completion/timeout. The lifecycle publications
   are compare-and-sets against control and every attempted Git verification
   or publication failure propagates: an old or unverified child cannot start,
-  nor mark a later generation at the stable path done or paused. Direct launch
-  may activate a
+  nor mark a later generation at the stable path done or paused. A sweep
+  continues after a delegated timeout only when its guarded pause publishes;
+  a stale or failed pause refuses the run. Direct launch may activate a
   paused/draft delegated period inline; scheduled and named recurring scans
   keep paused periods parked.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard

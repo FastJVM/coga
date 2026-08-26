@@ -157,7 +157,8 @@ the example under "Extend recurring with a task-specific workflow").
   same generation lease as another exact compare-and-set; an older child's
   result can never mutate a replacement at the stable path. A natural/crashed
   exit fails with the period left retryable; a multi-task sweep pauses a
-  watchdog timeout and continues, while a named launch fails and leaves it
+  watchdog timeout and continues only after that pause is verified on control.
+  A stale or failed pause refuses the run; a named launch fails and leaves it
   `in_progress` for retry. Creation copies the
   target into canonical period-task frontmatter; sweep retries, named retries,
   and direct `coga launch recurring/<name>` route only from that frozen field,

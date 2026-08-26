@@ -1233,7 +1233,7 @@ def sync_paths(
         sys.stderr.write(
             f"[git] feature publication refused: {exc}. Message was: {message}\n"
         )
-        if strict_feature_publication:
+        if strict_feature_publication or raise_git_error:
             raise
     except StateRegressionError as exc:
         if strict_feature_publication:
@@ -1364,6 +1364,7 @@ def refresh_coga_state_from_control(
     publish_if_remote_aligned: bool = False,
     expected_feature_branch: str | None = None,
     feature_publication_guard: _FeaturePublicationGuard | None = None,
+    require_control_verification: bool = False,
 ) -> bool:
     """Pull the control branch's task state back into this checkout.
 
@@ -1416,6 +1417,10 @@ def refresh_coga_state_from_control(
     the same non-raising model as `sync_paths` (stderr + `coga/log.md`).
     Ordinary launch callers treat a miss as advisory; a pinned assist uses the
     False result to suppress the catch-all sweep and request an explicit retry.
+    ``require_control_verification`` is the recurring per-child form: an
+    intentionally Git-disabled or genuinely non-Git workspace still succeeds
+    locally, but a Git checkout whose control branch or configured remote
+    disappeared is unverified and returns False instead of a permissive no-op.
     """
     strict_assist = expected_feature_branch is not None
     if not cfg.git_enabled:
@@ -1430,10 +1435,10 @@ def refresh_coga_state_from_control(
             sys.stderr.write(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
-            return not strict_assist
+            return not (strict_assist or require_control_verification)
         if not _remote_configured(root, cfg.git_remote):
             sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
-            return not strict_assist
+            return not (strict_assist or require_control_verification)
         branch = _current_branch(root)
         if (
             expected_feature_branch is not None
@@ -1456,7 +1461,7 @@ def refresh_coga_state_from_control(
             sys.stderr.write(
                 f"[git] detached HEAD — coga state not refreshed. ({message})\n"
             )
-            return not strict_assist
+            return not (strict_assist or require_control_verification)
         publication = _FeaturePublicationState(
             aligned=False,
             may_commit=True,

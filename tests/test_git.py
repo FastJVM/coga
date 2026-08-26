@@ -2415,6 +2415,27 @@ def test_sync_paths_can_raise_a_transport_failure_for_a_transactional_caller(
     assert "sync failed" not in capsys.readouterr().err
 
 
+def test_sync_paths_strict_state_publish_rejects_a_missing_control_branch(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Strict setup failures cannot fall through the feature-only handler."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    monkeypatch.setattr(git, "_control_branch_present", lambda *args: False)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control branch .* does not exist",
+    ):
+        git.sync_paths(
+            cfg,
+            ticket.parent,
+            [ticket.parent],
+            message="Lease: demo — before spawn",
+            raise_git_error=True,
+        )
+
+
 def test_strict_feature_publication_checks_fresh_control_state_before_push(
     git_repo,
 ):

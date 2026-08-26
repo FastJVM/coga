@@ -1405,6 +1405,54 @@ def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
     assert Ticket.read(ticket_path).status == "paused"
 
 
+def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A vanished configured remote is not a verified per-child refresh."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Ordinary recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/ordinary-check",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed ordinary recurring period")
+    git_repo.git("push", "origin", "main")
+    monkeypatch.setattr(
+        launch_module.git,
+        "_remote_configured",
+        lambda *args: False,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_launch",
+        lambda *args, **kwargs: pytest.fail("unverified work must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch_recurring_period(
+            created["slug"],
+            agent_override=None,
+            prompt_report=False,
+            idle_timeout=900.0,
+            max_session=None,
+            return_timeout=True,
+            script_failure_important=True,
+            queue_guidance=True,
+        )
+
+    assert excinfo.value.code == 2
+    ticket_path = Path(created["path"]) / "ticket.md"
+    assert Ticket.read(ticket_path).status == "active"
+
+
 @pytest.mark.parametrize("refused_gate", ["control-branch", "owner"])
 @pytest.mark.parametrize(
     "delegate_present", [True, False], ids=("delegated", "delegate-field-missing")

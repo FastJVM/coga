@@ -40,8 +40,9 @@ child also refreshes immediately before launch, while delegation fails closed
 on every exact-lease verification/publication error. A direct launch catches
 up before resolving even a locally missing period ref. A
 natural/crashed exit fails without completing the period. A
-multi-task sweep pauses a watchdog timeout and records it as timed out; an
-explicit named launch fails and leaves the period retryable.
+multi-task sweep pauses a watchdog timeout and records it as timed out only
+after that pause is verified on control; a stale or failed pause refuses the
+run. An explicit named launch fails and leaves the period retryable.
 
 The replacement intentionally covers **open PRs only**. The removed
 `rebase-stale-worktrees` task also found pre-PR branches through worktrees and
