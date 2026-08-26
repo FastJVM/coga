@@ -441,20 +441,25 @@ def _sync_done_state(
         publish_kwargs = (
             {"publish_current_branch": True} if publish_current_branch else {}
         )
+        strict_state_kwargs = (
+            {
+                "after_strict_publication": after_sync,
+                "generated_paths": (
+                    mutation_snapshot.generated
+                    if mutation_snapshot is not None
+                    else None
+                ),
+            }
+            if raise_git_error
+            else {}
+        )
         if snapshot is None:
             git.sync_task_state(
                 cfg,
                 ref.path,
                 message=message,
                 guard=guard,
-                after_strict_publication=(
-                    after_sync if raise_git_error else None
-                ),
-                generated_paths=(
-                    mutation_snapshot.generated
-                    if mutation_snapshot is not None
-                    else None
-                ),
+                **strict_state_kwargs,
                 **(
                     {"raise_state_regression": True}
                     if raise_state_regression
@@ -474,14 +479,7 @@ def _sync_done_state(
             paths,
             message=message,
             guard=guard,
-            after_strict_publication=(
-                after_sync if raise_git_error else None
-            ),
-            generated_paths=(
-                mutation_snapshot.generated
-                if mutation_snapshot is not None
-                else None
-            ),
+            **strict_state_kwargs,
             **(
                 {"raise_state_regression": True}
                 if raise_state_regression
@@ -813,19 +811,24 @@ def mark_in_progress(
 
     def sync_state() -> None:
         if feature_publication is None:
+            strict_state_kwargs = (
+                {
+                    "after_strict_publication": after_sync,
+                    "generated_paths": (
+                        mutation_snapshot.generated
+                        if mutation_snapshot is not None
+                        else None
+                    ),
+                }
+                if strict_state_sync
+                else {}
+            )
             git.sync_task_state(
                 cfg,
                 ref.path,
                 message=f"Ticket: {ref.id_slug} — in_progress",
                 guard=state_guard or _state_guard(cfg, ref),
-                after_strict_publication=(
-                    after_sync if strict_state_sync else None
-                ),
-                generated_paths=(
-                    mutation_snapshot.generated
-                    if mutation_snapshot is not None
-                    else None
-                ),
+                **strict_state_kwargs,
                 **(
                     {"raise_state_regression": True}
                     if strict_state_guard
