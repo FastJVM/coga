@@ -656,3 +656,38 @@ recorded worktree is clean with eight commits ahead of `origin/main`.
   during peer review). Replaced it with this ticket's current `## PR` section
   plus the `Closes ticket:` line, so the PR describes the eight commits actually
   on the branch.
+
+## Post-merge peer-review findings (2026-08-26)
+
+While a required independent `codex review --base origin/main` was still
+running, PR #723 was opened, advanced through the mechanical workflow step,
+and merged as `5243dfd5`. The task is now at the owner-controlled `review`
+gate, so the original peer-review step cannot be bumped or silently replayed.
+
+The completed review found six actionable regressions in the merged code:
+
+- **P1:** the period start is not an observable compare-and-set. A start-audit
+  sync can integrate a replacement or changed delegate, which can then be
+  marked `in_progress` and announced under the stale target before the later
+  snapshot check refuses it; a swallowed state-sync regression can likewise
+  admit stale local bytes.
+- **P1:** completion and timeout do not re-lease the period generation after
+  the child exits. A later period materialized at the stable path can therefore
+  be marked `done` or `paused` by the previous period's delegate result.
+- **P2:** delegating through a stateless bootstrap target skips the period
+  TaskRef's push-auth preflight, so work can start after authentication is
+  already known to be unable to publish the period state (or the shipped
+  conflict-resolution pushes).
+- **P2:** direct `coga launch recurring/<name>` routes delegated periods before
+  ordinary inline activation, so a paused delegated period cannot use the
+  documented launch-as-readiness transition.
+- **P2:** the direct-launch catch-up runs only after initial task resolution,
+  so a remotely materialized recurring ref that is absent locally is reported
+  missing before control can be refreshed and re-resolved.
+- **P2:** public recurring-task launch gates also run inside already-authorized
+  sweep/named-launch paths, repeating owner/control network fetches per task and
+  turning a later transient fetch miss into a mid-sweep abort.
+
+Required owner decision: authorize a follow-up fix PR from current `main`, or
+rewind/reopen this ticket's implementation flow. Do not close the review gate
+with these two stale-period P1s unresolved.
