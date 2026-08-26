@@ -691,3 +691,10 @@ The completed review found six actionable regressions in the merged code:
 Required owner decision: authorize a follow-up fix PR from current `main`, or
 rewind/reopen this ticket's implementation flow. Do not close the review gate
 with these two stale-period P1s unresolved.
+
+## Owner decision (2026-08-26)
+
+The owner authorized a separate follow-up fix PR from current `main` for all
+six post-merge peer-review findings. Keep the existing owner-controlled review
+gate open; this authorization covers the corrective branch and PR, not a
+workflow bump or task closure.
