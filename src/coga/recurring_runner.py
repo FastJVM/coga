@@ -1361,6 +1361,12 @@ def _run_delegated_task(
                     strict_state_guard=True,
                     strict_state_sync=require_period_publication,
                 )
+            except git.UncertainFeaturePublicationError as exc:
+                raise RecurringError(
+                    f"cannot start delegated period {ref.id_slug}: publication "
+                    f"outcome is uncertain; generated local state was retained "
+                    f"for reconciliation — {exc}"
+                ) from exc
             except git.GitError as exc:
                 if not publication_succeeded:
                     _restore_refused_period_mutation(
@@ -1567,6 +1573,15 @@ def _run_delegated_task(
             strict_state_guard=True,
             strict_state_sync=require_period_publication,
         )
+    except git.UncertainFeaturePublicationError as exc:
+        typer.secho(
+            f"cannot complete delegated period {ref.id_slug}: publication "
+            f"outcome is uncertain; generated local state was retained for "
+            f"reconciliation — {exc}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return DelegatedRunResult(2, "refused")
     except git.GitError as exc:
         if not publication_succeeded:
             _restore_refused_period_mutation(rollback, action="delegated completion")
@@ -3008,6 +3023,12 @@ def _stop_if_unfinished_after_launch(
                 strict_state_guard=expected_period_lease is not None,
                 strict_state_sync=require_period_publication,
             )
+        except git.UncertainFeaturePublicationError as exc:
+            raise RecurringError(
+                f"cannot pause delegated period {ref.id_slug}: publication "
+                f"outcome is uncertain; generated local state was retained "
+                f"for reconciliation — {exc}"
+            ) from exc
         except git.GitError as exc:
             if rollback is not None and not publication_succeeded:
                 _restore_refused_period_mutation(

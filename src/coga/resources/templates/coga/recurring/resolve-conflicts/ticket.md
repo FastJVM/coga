@@ -42,7 +42,10 @@ up before resolving even a locally missing period ref. A
 natural/crashed exit fails without completing the period. A
 multi-task sweep pauses a watchdog timeout and records it as timed out only
 after that pause is verified on control; a stale or failed pause refuses the
-run. An explicit named launch fails and leaves the period retryable.
+run. Strict publication unwinds an unaccepted local lifecycle commit and probes
+an exact remote candidate after a lost push reply; an unknown outcome retains
+local reconciliation evidence rather than rolling back into split state. An
+explicit named launch fails and leaves the period retryable.
 
 The replacement intentionally covers **open PRs only**. The removed
 `rebase-stale-worktrees` task also found pre-PR branches through worktrees and

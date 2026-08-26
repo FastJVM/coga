@@ -128,9 +128,12 @@ no in-memory state.
   or publication failure propagates: an old or unverified child cannot start,
   nor mark a later generation at the stable path done or paused. A sweep
   continues after a delegated timeout only when its guarded pause publishes;
-  a stale or failed pause refuses the run. Direct launch may activate a
-  paused/draft delegated period inline; scheduled and named recurring scans
-  keep paused periods parked.
+  a stale or failed pause refuses the run. An unaccepted generated local commit
+  is unwound before caller-owned file rollback. An ambiguous control push is
+  probed by exact candidate OID; unknown acceptance retains local evidence and
+  refuses for reconciliation instead of rolling back into split state. Direct
+  launch may activate a paused/draft delegated period inline; scheduled and
+  named recurring scans keep paused periods parked.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard
   machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga

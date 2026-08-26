@@ -159,7 +159,12 @@ the example under "Extend recurring with a task-specific workflow").
   exit fails with the period left retryable; a multi-task sweep pauses a
   watchdog timeout and continues only after that pause is verified on control.
   A stale or failed pause refuses the run; a named launch fails and leaves it
-  `in_progress` for retry. Creation copies the
+  `in_progress` for retry. Strict lifecycle publication unwinds an unaccepted
+  local feature/control commit before restoring runner-owned files. If a push
+  reply is lost, it probes the exact control candidate: confirmed acceptance
+  succeeds, while an unprovable outcome refuses and retains generated local
+  state for explicit reconciliation rather than manufacturing a split.
+  Creation copies the
   target into canonical period-task frontmatter; sweep retries, named retries,
   and direct `coga launch recurring/<name>` route only from that frozen field,
   re-read from the durable period after launch reconciliation, so changing a

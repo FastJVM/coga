@@ -2779,6 +2779,59 @@ def test_delegated_completion_fails_closed_when_control_publication_loses_transp
     assert announcements == []
 
 
+def test_delegated_completion_retains_state_when_publication_is_uncertain(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An ambiguous accepted push is reconciliation evidence, not rollback input."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    sync_calls = 0
+    announcements: list[str] = []
+
+    def lose_completion_probe(*args: object, **kwargs: object) -> None:
+        nonlocal sync_calls
+        sync_calls += 1
+        assert kwargs["raise_git_error"] is True
+        if sync_calls == 3:
+            raise coga_git.UncertainFeaturePublicationError(
+                "simulated unknown control outcome"
+            )
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(coga_git, "sync_task_state", lose_completion_probe)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(
+        "coga.mark.notify",
+        lambda cfg, message, **kwargs: announcements.append(message),
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert sync_calls == 3
+    assert Ticket.read(outcome.ref.ticket_path).status == "done"
+    assert announcements == []
+
+
 def test_delegated_timeout_fails_when_control_pause_publication_loses_transport(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

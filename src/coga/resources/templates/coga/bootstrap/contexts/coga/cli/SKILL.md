@@ -873,7 +873,9 @@ publishing completion or a watchdog pause. Concurrent completion,
 replacement, edits, or a new generation therefore refuse the stale lifecycle
 write; a Git transport or publication failure refuses too, because an
 unverified lease cannot admit work or authorize a successful timeout
-continuation. Templates
+continuation. Strict publication unwinds an unaccepted local lifecycle commit;
+after an ambiguous push it probes the exact control candidate, retaining local
+evidence and refusing if acceptance cannot be proved. Templates
 intended for cron or other unattended schedulers should carry that deterministic
 half. Whether a period is deterministic is never declared: the
 `ticket.py` file's presence is the whole signal. `delegate:` declares something

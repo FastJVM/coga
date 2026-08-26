@@ -256,7 +256,8 @@ def mark_done(
     if feature_publication is not None or strict_state_guard or strict_state_sync:
         sync_state()
         if (
-            (strict_state_guard or strict_state_sync)
+            strict_state_guard
+            and not strict_state_sync
             and feature_publication is None
             and after_sync is not None
         ):
@@ -446,6 +447,14 @@ def _sync_done_state(
                 ref.path,
                 message=message,
                 guard=guard,
+                after_strict_publication=(
+                    after_sync if raise_git_error else None
+                ),
+                generated_paths=(
+                    mutation_snapshot.generated
+                    if mutation_snapshot is not None
+                    else None
+                ),
                 **(
                     {"raise_state_regression": True}
                     if raise_state_regression
@@ -465,6 +474,14 @@ def _sync_done_state(
             paths,
             message=message,
             guard=guard,
+            after_strict_publication=(
+                after_sync if raise_git_error else None
+            ),
+            generated_paths=(
+                mutation_snapshot.generated
+                if mutation_snapshot is not None
+                else None
+            ),
             **(
                 {"raise_state_regression": True}
                 if raise_state_regression
@@ -773,8 +790,10 @@ def mark_in_progress(
     ``after_sync`` observes the exact boundary after durable publication and
     before output or notification work that may still interrupt the caller.
     ``strict_state_guard`` makes a supplied exact guard transactional;
-    ``strict_state_sync`` also propagates Git transport failures. Either
-    strict form publishes before start output/notification.
+    ``strict_state_sync`` also makes Git publication transactional: an
+    unaccepted local commit is unwound and an ambiguous push is reconciled by
+    exact remote candidate before rollback. Either strict form publishes
+    before start output/notification.
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
@@ -799,6 +818,14 @@ def mark_in_progress(
                 ref.path,
                 message=f"Ticket: {ref.id_slug} — in_progress",
                 guard=state_guard or _state_guard(cfg, ref),
+                after_strict_publication=(
+                    after_sync if strict_state_sync else None
+                ),
+                generated_paths=(
+                    mutation_snapshot.generated
+                    if mutation_snapshot is not None
+                    else None
+                ),
                 **(
                     {"raise_state_regression": True}
                     if strict_state_guard
@@ -838,7 +865,8 @@ def mark_in_progress(
     if feature_publication is not None or strict_state_guard or strict_state_sync:
         sync_state()
         if (
-            (strict_state_guard or strict_state_sync)
+            strict_state_guard
+            and not strict_state_sync
             and feature_publication is None
             and after_sync is not None
         ):
@@ -1009,7 +1037,8 @@ def mark_paused(
     if feature_publication is not None or strict_state_guard or strict_state_sync:
         sync_state()
         if (
-            (strict_state_guard or strict_state_sync)
+            strict_state_guard
+            and not strict_state_sync
             and feature_publication is None
             and after_sync is not None
         ):
