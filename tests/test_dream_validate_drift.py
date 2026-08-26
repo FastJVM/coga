@@ -205,6 +205,7 @@ def test_classifies_recurring_state_stuck_as_human_needed() -> None:
         "duplicate-task-number",
         "invalid-recurring-schedule",
         "invalid-delegate-owner",
+        "invalid-period-generation-owner",
         "missing-step-instructions",
         "script-backed-delegate-target",
         "unrunnable-script-entry-point",
