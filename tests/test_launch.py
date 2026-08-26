@@ -1366,15 +1366,15 @@ def test_direct_recurring_launch_refuses_an_unverified_control_catch_up(
     assert "No work was started" in result.output
 
 
-def test_internal_recurring_launch_seam_marks_dispatch_as_already_authorized(
+def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The runner-only seam cannot expose a CLI flag that bypasses admission."""
+    """A ticket.py child keeps its refreshed lease without an agent callback."""
     seen: list[tuple[str, bool]] = []
 
     def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
         seen.append((task, kwargs["recurring_authorized"]))
-        return "natural"
+        return "script"
 
     monkeypatch.setattr(
         launch_module,
@@ -1393,9 +1393,10 @@ def test_internal_recurring_launch_seam_marks_dispatch_as_already_authorized(
     )
     monkeypatch.setattr(launch_module, "_launch", fake_launch)
 
+    expected_period_lease = PeriodLease(b"admitted ticket", (b"creation",))
     result = launch_module.launch_recurring_period(
         "recurring/delegate-check",
-        expected_period_lease=PeriodLease(None, ()),
+        expected_period_lease=expected_period_lease,
         agent_override=None,
         prompt_report=False,
         idle_timeout=900.0,
@@ -1405,8 +1406,8 @@ def test_internal_recurring_launch_seam_marks_dispatch_as_already_authorized(
         queue_guidance=True,
     )
 
-    assert result.kind == "natural"
-    assert result.period_lease is None
+    assert result.kind == "script"
+    assert result.period_lease == expected_period_lease
     assert result.require_period_publication is True
     assert seen == [("recurring/delegate-check", True)]
 

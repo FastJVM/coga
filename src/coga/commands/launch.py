@@ -220,7 +220,7 @@ def launch(
 
 
 class RecurringPeriodLaunchResult(NamedTuple):
-    """One ordinary launch with its spawn generation and publication class."""
+    """One ordinary launch with its child generation and publication class."""
 
     kind: str | None
     period_lease: PeriodLease | None
@@ -249,9 +249,10 @@ def launch_recurring_period(
     generation admitted before any prior child ran. A lost refresh fails
     closed; a period that became closed, parked, or replaced returns
     ``"skipped"`` without starting work. The result also carries the exact
-    generation captured immediately before the last agent spawn, allowing the
-    sweep to compare-and-set any unfinished-session pause without touching a
-    replacement that arrived while the child owned the terminal.
+    refreshed generation admitted before a deterministic child, or the exact
+    generation recaptured immediately before the last agent spawn. The sweep
+    can therefore compare-and-set any unfinished-child pause without touching
+    a replacement that arrived while either kind of child was running.
     """
     if not _refresh_recurring_period_before_launch(task, expected_period_lease):
         return RecurringPeriodLaunchResult("skipped", None, False)
@@ -265,7 +266,11 @@ def launch_recurring_period(
         is_bootstrap=False,
     )
 
-    launched_period_lease: PeriodLease | None = None
+    # The refresh above proved this exact generation immediately before shared
+    # launch setup. A pure ticket.py child has no agent-spawn callback, so keep
+    # that admitted lease as its teardown witness. Agent-backed launches replace
+    # it at the tighter boundary immediately before every actual spawn.
+    launched_period_lease = expected_period_lease
 
     def capture_launched_period_lease() -> None:
         """Freeze the exact generation immediately before each agent spawn."""

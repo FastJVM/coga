@@ -894,11 +894,12 @@ task-audit generation, then use an internal period-launch seam. That seam
 narrowly refreshes control, resolves only the exact ref, and rechecks
 branch/owner plus that generation immediately before each ordinary child, so
 work removed, parked, finished, or replaced during an earlier session is
-skipped and a failed refresh refuses the next launch. It captures the exact
-generation again immediately before every ordinary agent spawn; if the agent
-exits unfinished, the canonical creation-line witness admits same-generation
-ticket/audit writes to a fresh exact pause lease while a replacement at the
-stable path remains untouched. Delegated children use
+skipped and a failed refresh refuses the next launch. A deterministic child
+retains that refreshed lease; an agent child captures it again immediately
+before every ordinary spawn. If either exits unfinished, the canonical
+creation-line witness admits same-generation ticket/audit writes to a fresh
+exact pause lease while a replacement at the stable path remains untouched.
+Delegated children use
 the same admitted generation as the start of their exact control lease. The
 direct spelling has no outer admission: it requires verified control catch-up before
 resolving even a locally missing period ref and remains subject to the same

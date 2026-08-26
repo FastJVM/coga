@@ -975,7 +975,7 @@ def _launch_due_tasks(
             if not isinstance(raw_launch_result, RecurringPeriodLaunchResult):
                 raise RecurringError(
                     f"internal recurring launch for {task.ref.id_slug} did not "
-                    "return its typed agent-generation lease"
+                    "return its typed child-generation lease"
                 )
             launch_result = raw_launch_result
         except SystemExit as exc:
@@ -998,10 +998,10 @@ def _launch_due_tasks(
                 f"{task.ref.id_slug} changed on control before launch; skipped"
             )
             continue
-        if launch_result.period_lease is None and kind != "script":
+        if launch_result.period_lease is None:
             detail = (
                 f"cannot finalize recurring period {task.ref.id_slug}: the "
-                "launch established no agent-generation lease"
+                "launch established no child-generation lease"
             )
             typer.secho(detail, fg=typer.colors.RED, err=True)
             record.add(

@@ -6777,6 +6777,67 @@ def test_bare_recurring_refuses_to_pause_replacement_after_ordinary_agent_exit(
     assert not any("→ paused" in line for line in task_log_lines(cfg, ref.id_slug))
 
 
+def test_bare_recurring_refuses_to_pause_replacement_after_ticket_script_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A deterministic child retains its admitted generation through teardown."""
+    _write_recurring(
+        repo,
+        "script-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Script check
+        owner: marc
+        ---
+
+        ## Description
+
+        Run deterministic work.
+        """,
+    )
+    _write_recurring_script(repo, "script-check")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: False
+    )
+
+    def replace_during_script(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        del kwargs
+        cfg = load_config(repo)
+        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
+        launched = Ticket.read(ref.ticket_path)
+        launched.frontmatter["status"] = "in_progress"
+        launched.write(ref.ticket_path)
+
+        replacement = Ticket.read(ref.ticket_path)
+        replacement.frontmatter["status"] = "active"
+        replacement.body += "\nReplacement generation.\n"
+        replacement.write(ref.ticket_path)
+        append_log(cfg, ref.id_slug, "system", "created (status=active)")
+        return "script"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._launch",
+        replace_during_script,
+    )
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, RecurringError)
+    assert "stable-path generation changed after the child exited" in str(
+        result.exception
+    )
+    cfg = load_config(repo)
+    ref = next(
+        ref for ref in list_tasks(cfg) if ref.id_slug == "recurring/script-check"
+    )
+    assert Ticket.read(ref.ticket_path).status == "active"
+    assert "Replacement generation." in ref.ticket_path.read_text()
+    assert not any("→ paused" in line for line in task_log_lines(cfg, ref.id_slug))
+
+
 def test_unfinished_ordinary_pause_accepts_same_generation_child_edits(
     repo: Path,
 ) -> None:

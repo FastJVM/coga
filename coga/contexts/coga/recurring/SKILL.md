@@ -211,9 +211,10 @@ launch. That narrow per-child check resolves only the exact task ref, fails
 closed if control cannot be verified, and skips a task removed, replaced, or
 changed to `done`, `canceled`, or `paused` while an earlier child was running;
 an offline operator therefore cannot start new remote-backed period work from
-a stale scan snapshot, and a removed ref cannot alias a prefix sibling. For an
-ordinary agent period, launch also returns the exact ticket-plus-audit lease
-captured immediately before its final agent spawn. If that session exits
+a stale scan snapshot, and a removed ref cannot alias a prefix sibling. Every
+ordinary period launch also returns its exact ticket-plus-audit lease: the
+refreshed admission lease for a deterministic `ticket.py` child, recaptured
+immediately before the final spawn for an agent child. If either child exits
 unfinished, the sweep compares the lease's append-only canonical creation
 witness, which stays stable across the child's ticket edits and launch/usage
 audit appends but changes when the path is materialized again. Only the same

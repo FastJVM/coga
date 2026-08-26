@@ -120,8 +120,9 @@ no in-memory state.
   the exact ref (never a prefix sibling), and rechecks branch/owner plus the
   frozen generation. A task removed, paused, finished, or replaced while an
   earlier child ran is skipped; an unverified refresh refuses rather than
-  starting stale work. Immediately before every ordinary agent spawn, launch
-  captures the exact generation again. On an unfinished exit, the canonical
+  starting stale work. A deterministic child retains that refreshed admission
+  generation; immediately before every ordinary agent spawn, launch captures
+  the exact generation again. On either child's unfinished exit, the canonical
   creation-line witness distinguishes a replacement from the same child's
   ticket and audit writes; only the latter acquires a fresh exact lease for the
   guarded pause. A replacement refuses teardown instead of parking the stable
