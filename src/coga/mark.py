@@ -457,13 +457,20 @@ def _sync_done_state(
             else {}
         )
         if snapshot is None:
+            spool_sync_kwargs = (
+                {
+                    "extra_paths": [spool_path],
+                    "land_union_files_to_control": True,
+                }
+                if spool_path is not None
+                else {}
+            )
             git.sync_task_state(
                 cfg,
                 ref.path,
                 message=message,
                 guard=guard,
-                extra_paths=([spool_path] if spool_path is not None else []),
-                land_union_files_to_control=spool_path is not None,
+                **spool_sync_kwargs,
                 **strict_state_kwargs,
                 **(
                     {"raise_state_regression": True}
@@ -480,13 +487,18 @@ def _sync_done_state(
             paths.append(parent_ticket)
         if spool_path is not None:
             paths.append(spool_path)
+        spool_sync_kwargs = (
+            {"land_union_files_to_control": True}
+            if spool_path is not None
+            else {}
+        )
         git.sync_paths(
             cfg,
             ref.path,
             paths,
             message=message,
             guard=guard,
-            land_union_files_to_control=spool_path is not None,
+            **spool_sync_kwargs,
             **strict_state_kwargs,
             **(
                 {"raise_state_regression": True}
