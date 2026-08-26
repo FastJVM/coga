@@ -210,6 +210,7 @@ def launch(
         script_failure_important=script_failure_important,
         queue_guidance=queue_guidance,
         before_recompose=None,
+        before_final_spawn=None,
         require_agent_target=False,
         record_launch=True,
     )
@@ -225,6 +226,7 @@ def launch_with_before_spawn(
     script_failure_important: bool = False,
     queue_guidance: bool,
     before_spawn: Callable[[], None],
+    revalidate_before_spawn: Callable[[], None] | None = None,
 ) -> str | None:
     """Publish caller state after preflight, then re-derive and spawn once.
 
@@ -249,6 +251,7 @@ def launch_with_before_spawn(
             script_failure_important=script_failure_important,
             queue_guidance=queue_guidance,
             before_recompose=before_spawn,
+            before_final_spawn=None,
             require_agent_target=True,
             record_launch=True,
         )
@@ -264,6 +267,7 @@ def launch_with_before_spawn(
             script_failure_important=script_failure_important,
             queue_guidance=queue_guidance,
             before_recompose=None,
+            before_final_spawn=revalidate_before_spawn,
             require_agent_target=True,
             record_launch=False,
         )
@@ -281,6 +285,7 @@ def _launch(
     script_failure_important: bool,
     queue_guidance: bool,
     before_recompose: Callable[[], None] | None,
+    before_final_spawn: Callable[[], None] | None,
     require_agent_target: bool,
     record_launch: bool,
 ) -> str | None:
@@ -308,12 +313,34 @@ def _launch(
         from coga.recurring_runner import (
             _refuse_non_control_branch,
             _refuse_non_owner,
+            _sync_control_checkout_ahead,
         )
 
         # A missing optional dispatch field must not turn a recurring period
         # into an authorization bypass. Gate from the ref itself before reading
         # any period state, whether the task is delegated, scripted, or ordinary
-        # agent work.
+        # agent work. Then perform recurring's ordinary best-effort control
+        # catch-up and resolve the exact ref again: the fetch/rebase may replace
+        # or remove the period ticket, so dispatch must never use the pre-sync
+        # object or config.
+        if _refuse_non_control_branch(cfg):
+            raise SystemExit(2)
+        recurring_slug = ref.id_slug
+        _sync_control_checkout_ahead(cfg)
+        try:
+            cfg = load_config(cfg.repo_root)
+            refreshed_ref = resolve_target(cfg, recurring_slug)
+        except (ConfigError, TaskNotFoundError) as exc:
+            _bail(str(exc))
+        if (
+            not isinstance(refreshed_ref, TaskRef)
+            or refreshed_ref.id_slug != recurring_slug
+        ):
+            _bail(
+                f"Selected recurring task {recurring_slug!r} disappeared during "
+                "control catch-up; refusing a different prefix match."
+            )
+        ref = refreshed_ref
         if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
             raise SystemExit(2)
 
@@ -359,6 +386,7 @@ def _launch(
                     script_failure_important=script_failure_important,
                     queue_guidance=queue_guidance,
                     before_recompose=None,
+                    before_final_spawn=None,
                     require_agent_target=False,
                     record_launch=True,
                 )
@@ -1353,7 +1381,9 @@ def _launch(
             session_before_recompose = (
                 before_recompose if is_first_step else None
             )
-            session_before_spawn = None
+            session_before_spawn = (
+                before_final_spawn if is_first_step else None
+            )
             if publish_assist_branch is not None:
                 if not isinstance(ref, TaskRef) or assist_pr_guard is None:
                     _bail(
