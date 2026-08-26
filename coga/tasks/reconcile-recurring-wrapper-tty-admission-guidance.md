@@ -698,3 +698,445 @@ The owner authorized a separate follow-up fix PR from current `main` for all
 six post-merge peer-review findings. Keep the existing owner-controlled review
 gate open; this authorization covers the corrective branch and PR, not a
 workflow bump or task closure.
+
+## Follow-up fix implementation (2026-08-26)
+
+Branch `delegate-recurring-postmerge-fixes`, worktree
+`/tmp/coga-delegate-postmerge-fixes`, based on current `main` at `f3965ce3`.
+
+The two P1 races are fixed with one explicit period lease: exact materialized
+ticket bytes plus the sorted multiset of all audit lines tagged with that
+stable period ref. The audit half distinguishes a later period/forced run even
+when its ticket is byte-identical. Start publication uses that lease as an
+observable control-branch compare-and-set and publishes before announcing;
+final spawn rechecks it on control; completion and watchdog pause consume it
+again after the child exits. A strict state-guard mode in `coga.git`/shared mark
+finalizers re-raises guard refusal so the runner can roll back only its generated
+ticket/log bytes and suppress the stale notification or child spawn.
+
+The four P2 fixes are paired with that lifecycle:
+
+- delegated work explicitly preflights push auth for the materialized period
+  TaskRef before entering the stateless bootstrap launch;
+- direct `coga launch recurring/<name>` may activate a paused/draft delegated
+  period as one guarded compound transition;
+- an explicit direct recurring ref gates/catches up before local resolution,
+  so a remotely materialized missing-local period becomes discoverable;
+- outer sweep/named-launch admission now calls a typed internal period-launch
+  seam, avoiding repeated public owner/control/catch-up gates per task while
+  keeping every task-local launch preflight.
+
+Focused regression coverage includes local and real-control same-ticket/new-
+audit generation races at start and completion, timeout non-mutation, push-auth
+ordering, paused direct launch, missing-local catch-up, the internal seam, and
+strict guard/notification ordering. The recurring/launch/mark/git module suite
+is green (684 passed before the final real-control completion test was added);
+packaging + validation tests are green (99 passed). Full verification remains
+before publication.
+
+## Follow-up independent review (2026-08-26)
+
+`codex review --base origin/main` found two additional P1 admission failures:
+
+- the typed internal seam trusted the sweep's outer catch-up for every
+  ordinary period, so another checkout could pause, finish, or replace a later
+  task while an earlier child ran; the later stale local task could still
+  start because ordinary lifecycle guard failures are intentionally non-fatal;
+- delegated exact-lease checks propagated `StateRegressionError` but the Git
+  layer still swallowed transport/publication `GitError`, allowing a child to
+  spawn or a completion to be announced without verified control state.
+
+Both are fixed on the follow-up branch. The ordinary seam now refreshes and
+re-admits each exact period immediately before launch, skips a newly parked or
+closed control task, and refuses when that per-child refresh cannot be
+verified. Delegated start, orphan resume, final spawn, completion, and timeout
+now request strict Git publication after the period push-auth preflight; all
+attempted control transport/publication failures propagate through the shared
+mark/git layers, restore the runner-owned local mutation, and suppress spawn or
+notification. Focused regression tests cover a remotely paused later ordinary
+period plus transport loss at delegated fresh-start, orphan-resume, and
+completion boundaries.
+
+## Follow-up second independent review (2026-08-26)
+
+A second `codex review --base origin/main` found three remaining fail-open
+edges:
+
+- strict period publication propagated transport failures but still swallowed
+  setup-time `FeaturePublicationError` such as a vanished control branch;
+- the ordinary per-child refresh treated missing control/remote configuration
+  as a successful no-op, so a Git checkout could start without any control
+  verification;
+- a delegated timeout returned sweep success when its guarded pause either
+  lost the generation lease or failed to publish.
+
+The follow-up branch now propagates setup failures whenever strict Git
+publication is requested, gives recurring refresh an explicit
+`require_control_verification` mode (while preserving intentional Git-disabled
+and genuine non-Git operation), and reports a nonzero refusal unless the
+watchdog pause is verified on control. Regression tests cover missing control,
+missing remote, timeout transport loss, and a later-generation timeout race.
+
+## Follow-up third independent review (2026-08-26)
+
+The final pre-publication `codex review --base origin/main` found two more P2
+transaction gaps in strict lifecycle publication:
+
+- a failed feature-checkout control landing could leave its generated
+  `in_progress`/`done`/`paused` commit in local PR history even though the
+  runner restored the working files;
+- a transport error reported after control had actually accepted the push
+  could make the runner restore local files to the prior state, splitting the
+  checkout from durable control state.
+
+Strict recurring publication now captures exact generated bytes and uses a
+local ref lease on both control and feature checkouts. An unaccepted candidate
+CAS-unwinds its generated commit before the runner restores files. Every
+control push exposes its exact candidate OID; an ambiguous failure probes all
+configured push destinations. Confirmed acceptance completes normally, a
+confirmed miss unwinds and fails, and an unprovable outcome raises an explicit
+uncertain-publication refusal while retaining generated local evidence for
+reconciliation. Detached checkouts use the same exact-byte control candidate
+without creating an orphan commit. Focused real-Git tests cover feature-branch
+unwind, lost acknowledgements from feature and control checkouts, an unavailable
+probe, and runner-side no-rollback/no-notification behavior. The expanded
+Git/mark/launch/recurring suite passes: **698 tests**.
+
+## Follow-up fourth independent review (2026-08-26)
+
+The final review rerun found two remaining fail-closed gaps before publication:
+
+- direct `coga launch recurring/<name>` ignored a failed control catch-up and
+  could therefore resolve and execute stale ordinary work;
+- a delegated child returning `done` treated malformed replacement ticket
+  bytes like an absent/reaped period and falsely reported success.
+
+Both are must-fix. The direct public path will refuse an unverified catch-up,
+and replacement classification will distinguish an absent ticket from present
+but unparsable bytes. Focused regressions, the full suite, and another clean
+independent review are required before the follow-up PR opens.
+
+Both findings are fixed in commit `15f75e67`. Direct public period launch now
+distinguishes intentional Git-disabled/non-Git operation from an actual control
+checkout whose catch-up was not verified; the latter exits with the stale-
+control retry code before task resolution. Delegated completion now accepts
+only a truly absent/reaped ticket or a parseable terminal replacement as an
+already-completed result; present malformed bytes are retained and refused.
+Focused launch/recurring verification passes (**456 tests**) and the final
+full suite after an unconditional fetch/rebase passes: **2086 tests**.
+
+## Follow-up fifth independent review (2026-08-26)
+
+The next review found one P2 sweep-liveness edge: after a successful per-child
+refresh, a period reaped by another checkout was treated as a fatal missing
+target instead of the same skipped outcome as a remotely terminal/paused
+period. The internal seam now reports the exact missing period as no longer on
+control and returns `skipped`, allowing later due tasks to continue. A real-Git
+regression deletes the period from a competing checkout and proves no launch
+occurs. The review also exposed stale durable wording that still called direct
+launch catch-up “best-effort”; recurring, architecture (live + packaged), CLI
+(packaged-only), and resolve-conflicts template (live + packaged) guidance now
+all state that a Git-backed direct launch requires verified catch-up before
+resolution. Focused verification passes (**4 tests**); full verification and a
+fresh independent review remain before publication.
+
+## Follow-up sixth independent review (2026-08-26)
+
+The next review found two dispatch-generation gaps in the ordinary recurring
+path: the per-child refresh could launch a new active/in-progress generation
+that replaced the one admitted for the sweep, and an exact period deleted from
+control could prefix-resolve to a sole sibling before the mismatch failed the
+whole sweep. Inspection also found the same pre-classification liveness edge
+when an earlier child's teardown had already refreshed a later deletion into
+the local checkout.
+
+The follow-up branch now shares one `PeriodLease` primitive (exact ticket bytes
+plus task-tagged audit generation) between recurring orchestration and launch.
+The sweep freezes all generations before its first child, carries the admitted
+lease through ordinary and delegated dispatch, and skips any later deletion or
+replacement. The ordinary typed seam refreshes control, resolves only an exact
+task ref (never a prefix sibling), and compares the refreshed lease before
+entering launch. Named recurring launch carries the same lease from its own
+admission. Regression coverage includes an audit-only byte-identical
+replacement, exact deletion with a surviving prefix sibling, and a later task
+reaped locally during an earlier child. The affected launch/recurring modules
+pass **459 tests**; full-suite verification and another independent review
+remain before publication.
+
+Full verification after the sixth-review fixes: `python3.12 -m pytest` with
+the worktree source/dependency paths passed **2089 tests** in 123.15 seconds.
+`coga validate --json` reports 136 clean checks and only the existing dogfood
+repository findings (no recurring/delegate issue). Live/packaged architecture
+and resolve-conflicts twins remain byte-identical.
+
+## Follow-up seventh independent review (2026-08-26)
+
+The post-rebase review found one P2 strict-completion omission: the delegated
+period snapshot covered the period ticket, audit log, and digest spool, but not
+the parent `coga/recurring/<name>/ticket.md` named by `.state-snapshot.json`.
+Because strict publication builds from captured bytes, `done` could reach
+control while a child-updated cross-run cursor remained only in the launch
+checkout.
+
+Completion snapshots now include that parent recurring ticket. The cursor and
+period `done` state therefore publish in one exact transaction, while start and
+timeout snapshots retain their narrower file scope. A real-Git regression
+advances a parent cursor during the delegated child and verifies the new parent
+bytes at remote `main` after completion. Recurring/mark/git verification passes
+**506 tests**. The review tool's separate 19 failures were environment-only
+(`coga` and Hatchling unavailable without this worktree's explicit source/build
+paths), while both configured full-suite runs passed **2089 tests**.
+
+## Follow-up eighth independent review (2026-08-26)
+
+The next `codex review --base origin/main` found two must-fix teardown and
+publication races:
+
+- an ordinary agent-backed period carried its admission lease into spawn but
+  not into the unfinished-session pause, so a replacement generation could be
+  paused at the stable path after the old child exited;
+- a strict control landing cleaned up immediately when a retry raised
+  `StateRegressionError`, even if an earlier candidate push could have reached
+  only some of a multi-push remote's effective destinations.
+
+The follow-up now returns a typed ordinary-launch result containing the last
+pre-spawn period lease and the launch-time publication class. Teardown compares
+the append-only canonical task-creation witness, which remains stable across
+the same child's ticket plus launch/usage audit writes but gains a counted line
+for every replacement; a matching generation gets a fresh exact lease for its
+strict pause, while a replacement is left untouched and the sweep refuses.
+Strict landing now treats every armed candidate as a possibly attempted push:
+even a later state regression probes every effective destination, and
+destination disagreement retains local evidence as an uncertain publication
+instead of running cleanup. Focused regressions cover both races plus
+same-generation child edits. The expanded launch/recurring/Git/mark suite
+passed **707 tests** before the generation-witness refinement, and the full
+recurring/create/autofix slice passes **355 tests** afterward. Full-suite and
+another independent review remain pending before publication.
+
+## Follow-up ninth independent review (2026-08-26)
+
+The next `codex review --base origin/main` found one P1 generation gap in the
+deterministic recurring path. A pure `ticket.py` period never reaches an agent
+spawn callback, so the typed launch result carried no period lease and its
+post-script unfinished pause fell back to the unguarded historical path. An
+old deterministic child could therefore pause a replacement period at the
+same stable path. The fix will retain the refreshed admitted lease for a
+script-only launch and consume it in the same guarded teardown used after an
+agent child. A focused replacement regression, affected/full verification,
+and another independent review remain pending before publication.
+
+Fixed on the follow-up branch: `launch_recurring_period` now initializes its
+typed result with the exact generation proven by the per-child refresh, then
+tightens that lease again before every agent spawn. A pure `ticket.py` child
+therefore retains the admitted generation even though it has no spawn callback,
+and the runner refuses every non-skipped result that lacks a child-generation
+lease. Recurring, architecture (live + packaged), and packaged CLI guidance
+now state the deterministic/agent distinction. The end-to-end regression
+replaces a deterministic period while its simulated script owns the launch and
+proves teardown refuses without pausing or editing the replacement. The
+expanded launch/recurring/Git/mark/create/autofix suite passes **801 tests**.
+
+## Follow-up tenth independent review (2026-08-26)
+
+The next independent review found a P2 scalability defect in the generation
+lease itself: every `local_period_lease` call reads and filters the complete
+repo-global `coga/log.md`, so a sweep and its repeated lifecycle boundaries are
+O(periods × unbounded audit history). That violates the recurring contract that
+routine scans must not repeatedly pay for the whole log. The replacement-safe
+generation proof needs either one batched audit pass or a bounded durable
+witness; implementation and regression coverage are pending before
+publication.
+
+The scalability finding is addressed on the follow-up branch with a bounded,
+creator-owned `period_generation` token in every newly materialized recurring
+period ticket. The token changes on each supported rematerialization and stays
+fixed across the child's lifecycle edits, so exact ticket bytes plus that token
+retain the replacement guard without reading or filtering the repo-global log.
+Legacy period tickets without a token remain launchable; any replacement
+created by the updated runner receives one. Recurring templates are forbidden
+from declaring the runner-owned field, and task creation, canonical rendering,
+validation, live/packaged architecture guidance, recurring guidance, and the
+packaged CLI context all recognize the new state explicitly.
+
+Regression coverage proves `local_period_lease` never reads `coga/log.md`,
+exercises token creation/rendering/validation, and updates local and real-control
+start, completion, ordinary-agent teardown, and deterministic-script teardown
+races to use distinct stable-path generations. The expanded affected suite
+passes: **916 tests** across launch, recurring, Git, mark, create, recurring
+autofix, ticket, and validation modules. An independent review still follows
+before final rebase and publication.
+
+## Follow-up eleventh independent review (2026-08-26)
+
+The next review found two remaining lifecycle gaps:
+
+- an ordinary agent spawn recaptured the ticket at its final boundary but
+  adopted a replacement `period_generation` instead of rejecting it, allowing
+  stale composed work to start and later park the replacement;
+- delegated strict completion published `done` before calling the digest
+  notifier, so an installed digest spool event remained local rather than
+  joining the terminal-state transaction.
+
+Both are fixed on the follow-up branch. The final ordinary-agent callback now
+requires the admitted bounded token before refreshing the exact ticket bytes;
+a replacement exits before spawn. Strict delegated completion appends a
+configured digest event before publication and includes the union-safe spool in
+the same exact control commit as the terminal period (and any parent cursor),
+while a live notification still waits until publication succeeds. Focused tests
+cover the pre-spawn replacement and assert the remote ticket and digest event
+share one commit. The expanded affected suite passes: **918 tests**.
+
+## Follow-up twelfth independent review (2026-08-26)
+
+The next review found one ordinary-completion compatibility regression in the
+strict digest-publication change: `_sync_done_state` passed the new
+`extra_paths=[]` and `land_union_files_to_control=False` keyword arguments even
+when no digest spool participated. Besides changing an established internal
+call contract, that broke focused command and period-state test doubles for
+ordinary (non-delegated) completion.
+
+The helper now supplies those keyword arguments only when a digest spool is
+actually part of the strict terminal-state transaction, preserving the old
+ordinary call shape. The two reported regressions and the delegated atomic
+digest-publication regression pass together: **3 tests**. Another independent
+review follows before the mandatory final rebase and full verification.
+
+## Follow-up thirteenth independent review (2026-08-26)
+
+The next review found two P1 regressions in Coga's supported remote-less Git
+mode: the new public direct-launch freshness gate rejected every Git checkout
+without a configured remote, and the strict per-child refresh did the same for
+ordinary scheduled and named periods. Treating every missing remote as local
+would have reopened the converse race already covered by this branch — a remote
+that disappears after sweep admission must still fail closed.
+
+The fix freezes whether a configured control remote exists at the public
+sweep/named admission boundary and carries that fact through the internal
+ordinary-period launch seam. A checkout proven remote-less at admission uses
+its exact local period lease and local `HEAD`; a configured remote that is
+offline or disappears still requires verification and refuses. Direct
+`coga launch recurring/<name>` makes the same distinction at its own admission
+boundary before resolving the period. Live recurring guidance and the
+live/packaged architecture plus packaged CLI contexts now state the distinction.
+
+Focused regressions cover direct and internal remote-less launches, the
+existing disappeared-remote refusal, and sweep/named propagation of the frozen
+admission class. The full launch, recurring, and recurring-autofix slice passes:
+**515 tests**. Another independent review follows before final rebase and full
+verification.
+
+## Follow-up fourteenth independent review (2026-08-26)
+
+The next review found two remaining same-generation races in ordinary recurring
+work. The final agent callback checked only `period_generation`, so a period
+parked, completed, advanced, or edited after prompt composition could still
+spawn stale work. Unfinished teardown recaptured newer same-generation ticket
+bytes for its guard but continued rendering the older `Ticket` object read
+before that capture, allowing it to overwrite an intervening blackboard,
+workflow, or metadata edit.
+
+The final ordinary-agent boundary now receives the exact ticket used to compose
+that spawn, reparses the current leased bytes, requires `in_progress`, and
+requires the complete semantic ticket snapshot to match before spawning. The
+teardown path now parses its mutation input from the newly captured lease before
+checking terminal state or rendering `paused`, so guarded publication and the
+state it derives share one byte source. Live recurring guidance and the
+live/packaged architecture plus packaged CLI contexts describe both guarantees.
+
+Focused regressions cover a same-generation close between composition and
+spawn and a same-generation edit between teardown lookup and lease capture.
+The full launch, recurring, and recurring-autofix slice passes: **517 tests**.
+Another independent review follows before final rebase and full verification.
+
+## Follow-up fifteenth independent review (2026-08-26)
+
+The next independent review found two must-fix state-integrity gaps:
+
+- delegated completion includes the parent recurring ticket in its strict
+  publication, but its CAS guard currently leases only the period ticket. A
+  concurrent control-side parent/cursor edit could therefore be overwritten by
+  the child's stale local parent bytes;
+- `period_generation` is globally schema-valid even though the context defines
+  it as runner-owned state reserved for materialized recurring tasks, so an
+  ordinary hand-authored task can currently carry a misleading lease identity.
+
+The follow-up branch will bind the exact parent input into completion's control
+guard and add an ownership validation analogous to `delegate:`. Focused race
+and schema regressions are required before another independent review.
+
+Both findings are fixed on the follow-up branch. Final delegated spawn
+admission now captures the parent ticket selected by the period's state
+snapshot, proves those exact bytes on control, and carries that parent lease
+into the strict completion CAS. A real competing-control regression proves a
+newer parent cursor is preserved, the child's local cursor evidence remains for
+reconciliation, no completion notification is emitted, and the period returns
+to `in_progress`. Validation now rejects a non-empty `period_generation` on
+anything except a directory-form task directly under `tasks/recurring/`, while
+the schema continues to own malformed-value diagnostics. Recurring,
+architecture (live + packaged), and packaged CLI guidance describe both
+contracts; the CLI text also now names the bounded creator-owned token rather
+than the superseded audit-derived witness. The complete recurring + validation
+modules pass: **363 tests**. Another independent review follows.
+
+That review found one downstream integration miss: Dream's deterministic
+validator-drift classifier did not recognize the new
+`invalid-period-generation-owner` issue, so it fell through to human-needed
+unknown-kind remediation. The kind now joins the file-backed recurring/schema
+PR-proposal bucket and its explicit classifier matrix. The combined Dream
+validator-drift, validation, and recurring modules pass: **398 tests**.
+
+## Follow-up sixteenth independent review (2026-08-26)
+
+`codex review --base origin/main` found no actionable correctness defects in
+the completed follow-up branch. Its focused Git, recurring, lifecycle, and
+validation suite passed: **609 tests**. The reviewer's unconfigured full-suite
+attempt had 19 subprocess-only failures because the isolated environment could
+not import the checkout's `coga` package and lacked Hatchling; the branch's
+configured full-suite run remains the final verification gate below.
+
+## Follow-up final verification (2026-08-26)
+
+- Unconditionally fetched `origin/main` and rebased; the branch was already
+  current at `e14cfc16`, so no conflict or material-drift decision was needed.
+- Configured full suite: **2108 passed** in 127.54s.
+- `coga validate --json`: 136 checks clean and no recurring, delegation, or
+  period-generation issue. Its exit remains 1 only for the dogfood checkout's
+  24 unrelated existing warnings/errors.
+- Architecture and resolve-conflicts live/packaged twins are byte-identical;
+  `git diff --check origin/main...HEAD` is clean; the feature worktree is clean
+  with 18 commits ahead of `origin/main`.
+
+## Follow-up PR body
+
+### Summary
+
+- Give every materialized recurring period a bounded, creator-owned dispatch
+  generation and verify that generation, status, and exact ticket state at the
+  final spawn, completion, and teardown boundaries. Validation reserves the
+  field for directory-form tasks directly under `tasks/recurring/`.
+- Make delegated lifecycle, digest, and parent cursor publication one guarded
+  control-plane transaction. Concurrent replacement, same-generation edits,
+  stale control, transport ambiguity, and disappeared remotes now fail closed
+  without announcing success or overwriting newer state; checkouts admitted as
+  intentionally remote-less keep their local behavior.
+- Prevent later entries in a sequential sweep and direct recurring launches
+  from dispatching or parking a generation reaped or replaced by earlier work,
+  while preserving ordinary non-delegated sync call contracts. Update the live
+  and packaged behavioral guidance and Dream's validator-drift classification.
+
+This is a lifecycle-hardening follow-up to #723; it does not change the
+conflict-resolution operation or restore the removed nested PTY wrapper.
+
+### Test plan
+
+`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp/coga-peer-review-build-deps:/tmp/coga-delegate-postmerge-fixes/src PYTEST_ADDOPTS='-p no:cacheprovider' python3.12 -m pytest` — 2108 passed; `coga validate --json` — no recurring/delegation/generation findings (unrelated existing dogfood findings remain).
+
+## Follow-up PR (2026-08-26)
+
+Opened **#725 — Harden delegated recurring lifecycle leases**:
+https://github.com/FastJVM/coga/pull/725
+
+Branch `delegate-recurring-postmerge-fixes` was pushed at reviewed head
+`3dd50c8f`. The task remains at its owner-controlled review gate; this follow-up
+does not bump or close it.
