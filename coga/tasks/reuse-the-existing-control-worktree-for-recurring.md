@@ -1,7 +1,7 @@
 ---
 slug: reuse-the-existing-control-worktree-for-recurring
 title: Run single-repo recurring from the control worktree that already exists
-status: active
+status: in_progress
 owner: nick
 human: nick
 agent: claude
