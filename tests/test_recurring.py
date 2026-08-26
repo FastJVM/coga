@@ -2908,6 +2908,66 @@ def test_delegated_completion_publishes_parent_cross_run_state(
     assert "cursor: new" in remote_parent
 
 
+def test_delegated_completion_publishes_digest_event_with_done_state(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The strict completion transaction includes its configured digest event."""
+    coga_os = git_repo.coga_os
+    _write_delegating_template(coga_os, "delegate-check")
+    digest_spool = coga_os / "recurring" / "digest" / "spool.md"
+    _write(
+        digest_spool,
+        "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
+    )
+    cfg = load_config(coga_os)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegated period with digest spool")
+    git_repo.git("push", "origin", "main")
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    ticket_rel = outcome.ref.ticket_path.relative_to(git_repo.root).as_posix()
+    spool_rel = digest_spool.relative_to(git_repo.root).as_posix()
+    remote_ticket = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    remote_spool = git_repo.git("show", f"main:{spool_rel}", cwd=git_repo.origin)
+    ticket_commit = git_repo.git(
+        "log", "-1", "--format=%H", "main", "--", ticket_rel,
+        cwd=git_repo.origin,
+    ).strip()
+    spool_commit = git_repo.git(
+        "log", "-1", "--format=%H", "main", "--", spool_rel,
+        cwd=git_repo.origin,
+    ).strip()
+
+    assert delegated == recurring_cmd.DelegatedRunResult(0, "done")
+    assert "status: done" in remote_ticket
+    assert '"kind":"done"' in remote_spool
+    assert '"ticket":"recurring/delegate-check"' in remote_spool
+    assert ticket_commit == spool_commit
+
+
 def test_delegated_completion_retains_state_when_publication_is_uncertain(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

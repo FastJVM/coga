@@ -224,7 +224,9 @@ def mark_done(
     # A digest event is local union-safe state, so strict publication includes
     # it in the same exact generated commit. A live notification waits until
     # the feature/control transition is durable.
-    if feature_publication is not None and spool_path is not None:
+    if spool_path is not None and (
+        feature_publication is not None or strict_state_sync
+    ):
         if mutation_snapshot is None:
             raise git.FeaturePublicationError(
                 "strict done publication is missing its mutation snapshot"
@@ -248,7 +250,8 @@ def mark_done(
             raise_git_error=strict_state_sync,
             spool_path=(
                 spool_path
-                if notification_spooled and feature_publication is not None
+                if notification_spooled
+                and (feature_publication is not None or strict_state_sync)
                 else None
             ),
         )
@@ -459,6 +462,8 @@ def _sync_done_state(
                 ref.path,
                 message=message,
                 guard=guard,
+                extra_paths=([spool_path] if spool_path is not None else []),
+                land_union_files_to_control=spool_path is not None,
                 **strict_state_kwargs,
                 **(
                     {"raise_state_regression": True}
@@ -473,12 +478,15 @@ def _sync_done_state(
         parent_ticket = parent_ticket_path(cfg, snapshot)
         if parent_ticket.parent.is_dir():
             paths.append(parent_ticket)
+        if spool_path is not None:
+            paths.append(spool_path)
         git.sync_paths(
             cfg,
             ref.path,
             paths,
             message=message,
             guard=guard,
+            land_union_files_to_control=spool_path is not None,
             **strict_state_kwargs,
             **(
                 {"raise_state_regression": True}

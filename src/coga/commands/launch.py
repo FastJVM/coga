@@ -268,8 +268,9 @@ def launch_recurring_period(
 
     # The refresh above proved this exact generation immediately before shared
     # launch setup. A pure ticket.py child has no agent-spawn callback, so keep
-    # that admitted lease as its teardown witness. Agent-backed launches replace
-    # it at the tighter boundary immediately before every actual spawn.
+    # that admitted lease as its teardown witness. Agent-backed launches verify
+    # the same generation and replace only its exact ticket bytes at the tighter
+    # boundary immediately before every actual spawn.
     launched_period_lease = expected_period_lease
 
     def capture_launched_period_lease() -> None:
@@ -278,7 +279,13 @@ def launch_recurring_period(
         current_cfg, current_ref = _exact_recurring_period_for_launch(
             task, boundary="agent spawn"
         )
-        launched_period_lease = local_period_lease(current_cfg, current_ref)
+        current_period_lease = local_period_lease(current_cfg, current_ref)
+        if current_period_lease.generation != expected_period_lease.generation:
+            _bail(
+                f"{task} belongs to a different period generation at agent "
+                "spawn; not launching."
+            )
+        launched_period_lease = current_period_lease
 
     kind = _launch(
         task,

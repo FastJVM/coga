@@ -1412,6 +1412,56 @@ def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
     assert seen == [("recurring/delegate-check", True)]
 
 
+def test_internal_recurring_launch_refuses_replacement_before_agent_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The final agent boundary cannot adopt a replacement generation."""
+    expected_period_lease = PeriodLease(b"admitted ticket", "generation-1")
+
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs["before_final_spawn"]()
+        pytest.fail("a replacement generation must not reach the agent spawn")
+
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_recurring_period_before_launch",
+        lambda task, expected_period_lease: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_exact_recurring_period_for_launch",
+        lambda *args, **kwargs: (SimpleNamespace(), SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "local_period_lease",
+        lambda *args, **kwargs: PeriodLease(
+            b"replacement ticket", "generation-2"
+        ),
+    )
+    monkeypatch.setattr(launch_module, "_launch", fake_launch)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch_recurring_period(
+            "recurring/delegate-check",
+            expected_period_lease=expected_period_lease,
+            agent_override=None,
+            prompt_report=False,
+            idle_timeout=900.0,
+            max_session=None,
+            return_timeout=True,
+            script_failure_important=True,
+            queue_guidance=True,
+        )
+
+    assert excinfo.value.code == 2
+
+
 def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

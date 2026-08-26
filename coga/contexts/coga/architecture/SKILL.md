@@ -121,10 +121,11 @@ no in-memory state.
   frozen generation. A task removed, paused, finished, or replaced while an
   earlier child ran is skipped; an unverified refresh refuses rather than
   starting stale work. A deterministic child retains that refreshed admission
-  generation; immediately before every ordinary agent spawn, launch captures
-  the exact generation again. On either child's unfinished exit, that bounded
-  token distinguishes a replacement from the same child's ticket and audit
-  writes; only the latter acquires a fresh exact lease for the
+  generation; immediately before every ordinary agent spawn, launch requires
+  the same bounded token and captures the exact current ticket again. On either
+  child's unfinished exit, that token distinguishes a replacement from the
+  same child's ticket and audit writes; only the latter acquires a fresh exact
+  lease for the
   guarded pause. A replacement refuses teardown instead of parking the stable
   path's new owner.
   It does not re-enter the whole public launch path. A
@@ -141,7 +142,9 @@ no in-memory state.
   a stale or failed pause refuses the run. Delegated completion publishes the
   parent recurring ticket named by the period state snapshot in the same
   strict transaction, so `done` cannot land without the child's cross-run
-  cursor update. An unaccepted generated local commit is unwound before
+  cursor update. When a digest spool is installed, its completion event joins
+  that transaction; a live notification waits for durable publication. An
+  unaccepted generated local commit is unwound before
   caller-owned file rollback. An ambiguous control push is probed by exact
   candidate OID across every effective push destination; disagreement or
   otherwise unknown acceptance retains local evidence and refuses for

@@ -163,9 +163,11 @@ the example under "Extend recurring with a task-specific workflow").
   `in_progress` for retry. Completion includes the parent recurring ticket
   named by the period's state snapshot in the same strict publication, so a
   cross-run cursor update cannot remain local while the period reaches `done`
-  on control. Strict lifecycle publication unwinds an unaccepted local
-  feature/control commit before restoring runner-owned files. If a push reply
-  is lost, it probes the exact control candidate across every effective push
+  on control. If the digest spool is installed, the completion event is
+  appended first and joins that transaction; a live notification waits until
+  publication succeeds. Strict lifecycle publication unwinds an unaccepted
+  local feature/control commit before restoring runner-owned files. If a push
+  reply is lost, it probes the exact control candidate across every effective push
   destination: confirmed acceptance succeeds, while disagreement or any other
   unprovable outcome refuses and retains generated local state for explicit
   reconciliation rather than manufacturing a split.
@@ -218,7 +220,8 @@ an offline operator therefore cannot start new remote-backed period work from
 a stale scan snapshot, and a removed ref cannot alias a prefix sibling. Every
 ordinary period launch also returns its exact ticket-plus-generation lease: the
 refreshed admission lease for a deterministic `ticket.py` child, recaptured
-immediately before the final spawn for an agent child. If either child exits
+immediately before the final spawn for an agent child only after the bounded
+token still matches. If either child exits
 unfinished, the sweep compares that bounded token, which stays stable across
 the child's ticket edits and launch/usage audit appends but changes when the
 path is materialized again. Only the same
