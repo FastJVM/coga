@@ -84,6 +84,25 @@ def task_audit_fingerprint(data: bytes | None, task_ref: str) -> tuple[bytes, ..
     return tuple(sorted(matching))
 
 
+_CREATION_AUDIT_SUFFIX_RE = re.compile(rb"\] created \(status=[^)]+\)$")
+
+
+def period_generation_fingerprint(lease: PeriodLease) -> tuple[bytes, ...]:
+    """Return the append-only creation witness for one stable task path.
+
+    A running child legitimately edits its ticket and appends launch, usage,
+    and lifecycle audit lines, so the exact pre-spawn lease cannot remain
+    byte-identical through teardown. Canonical task materialization always
+    appends ``created (status=...)`` under the task ref. A replacement adds
+    another such line; sorting and retaining duplicate counts keeps this
+    witness stable across ordinary child writes and sensitive to every new
+    generation, including two creations recorded in the same minute.
+    """
+    return tuple(
+        line for line in lease.audit_lines if _CREATION_AUDIT_SUFFIX_RE.search(line)
+    )
+
+
 def local_period_lease(cfg: Config, ref: TaskRef) -> PeriodLease:
     """Capture the local ticket and audit generation at a dispatch boundary."""
     ticket_bytes = ref.ticket_path.read_bytes() if ref.ticket_path.is_file() else None
@@ -1586,5 +1605,9 @@ __all__ = [
     "ServicedPeriodLedger",
     "format_serviced_log",
     "SERVICED_LOG_VERBS",
+    "PeriodLease",
+    "local_period_lease",
+    "period_generation_fingerprint",
+    "task_audit_fingerprint",
     "RecurringError",
 ]

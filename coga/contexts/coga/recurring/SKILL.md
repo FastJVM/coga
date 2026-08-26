@@ -163,10 +163,11 @@ the example under "Extend recurring with a task-specific workflow").
   named by the period's state snapshot in the same strict publication, so a
   cross-run cursor update cannot remain local while the period reaches `done`
   on control. Strict lifecycle publication unwinds an unaccepted local
-  feature/control commit before restoring runner-owned files. If a push
-  reply is lost, it probes the exact control candidate: confirmed acceptance
-  succeeds, while an unprovable outcome refuses and retains generated local
-  state for explicit reconciliation rather than manufacturing a split.
+  feature/control commit before restoring runner-owned files. If a push reply
+  is lost, it probes the exact control candidate across every effective push
+  destination: confirmed acceptance succeeds, while disagreement or any other
+  unprovable outcome refuses and retains generated local state for explicit
+  reconciliation rather than manufacturing a split.
   Creation copies the
   target into canonical period-task frontmatter; sweep retries, named retries,
   and direct `coga launch recurring/<name>` route only from that frozen field,
@@ -210,7 +211,14 @@ launch. That narrow per-child check resolves only the exact task ref, fails
 closed if control cannot be verified, and skips a task removed, replaced, or
 changed to `done`, `canceled`, or `paused` while an earlier child was running;
 an offline operator therefore cannot start new remote-backed period work from
-a stale scan snapshot, and a removed ref cannot alias a prefix sibling. The
+a stale scan snapshot, and a removed ref cannot alias a prefix sibling. For an
+ordinary agent period, launch also returns the exact ticket-plus-audit lease
+captured immediately before its final agent spawn. If that session exits
+unfinished, the sweep compares the lease's append-only canonical creation
+witness, which stays stable across the child's ticket edits and launch/usage
+audit appends but changes when the path is materialized again. Only the same
+generation gets a fresh exact lease and guarded pause; a replacement refuses
+teardown instead of parking the task now occupying the stable path. The
 direct `coga launch recurring/<name>` spelling requires a verified catch-up
 **before resolving the local ref or reading
 dispatch**; a Git-backed control checkout whose fetch or integration fails is

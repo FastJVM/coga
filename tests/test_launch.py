@@ -1381,6 +1381,16 @@ def test_internal_recurring_launch_seam_marks_dispatch_as_already_authorized(
         "_refresh_recurring_period_before_launch",
         lambda task, expected_period_lease: True,
     )
+    monkeypatch.setattr(
+        launch_module,
+        "_exact_recurring_period_for_launch",
+        lambda *args, **kwargs: (SimpleNamespace(), SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
     monkeypatch.setattr(launch_module, "_launch", fake_launch)
 
     result = launch_module.launch_recurring_period(
@@ -1395,7 +1405,9 @@ def test_internal_recurring_launch_seam_marks_dispatch_as_already_authorized(
         queue_guidance=True,
     )
 
-    assert result == "natural"
+    assert result.kind == "natural"
+    assert result.period_lease is None
+    assert result.require_period_publication is True
     assert seen == [("recurring/delegate-check", True)]
 
 
@@ -1446,7 +1458,8 @@ def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
         queue_guidance=True,
     )
 
-    assert result == "skipped"
+    assert result.kind == "skipped"
+    assert result.period_lease is None
     assert Ticket.read(ticket_path).status == "paused"
 
 
@@ -1499,7 +1512,8 @@ def test_internal_recurring_launch_skips_a_replaced_period_generation(
     )
 
     current_period_lease = local_period_lease(cfg, ref)
-    assert result == "skipped"
+    assert result.kind == "skipped"
+    assert result.period_lease is None
     assert current_period_lease.ticket_bytes == expected_period_lease.ticket_bytes
     assert current_period_lease.audit_lines != expected_period_lease.audit_lines
 
@@ -1567,7 +1581,8 @@ def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
         queue_guidance=True,
     )
 
-    assert result == "skipped"
+    assert result.kind == "skipped"
+    assert result.period_lease is None
     assert not (git_repo.root / ticket_rel).exists()
     assert (Path(sibling["path"]) / "ticket.md").is_file()
 

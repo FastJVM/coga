@@ -9,10 +9,12 @@ from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
 from coga.cli import app
+from coga.commands.launch import RecurringPeriodLaunchResult
 from coga.create import create_task
 from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import log_path
+from coga.recurring import local_period_lease
 from coga.taskfile import fence_count, read_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
@@ -29,9 +31,20 @@ def _patch_recurring_command_launch(
     repo: Path,
     child_launch,
 ) -> None:
-    del repo
+    def typed_child_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        result = child_launch(task, **kwargs)
+        if isinstance(result, RecurringPeriodLaunchResult):
+            return result
+        cfg = load_config(repo)
+        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
+        return RecurringPeriodLaunchResult(
+            result,
+            local_period_lease(cfg, ref),
+            False,
+        )
+
     monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period", child_launch
+        "coga.commands.launch.launch_recurring_period", typed_child_launch
     )
 
 

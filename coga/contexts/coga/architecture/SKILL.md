@@ -120,7 +120,13 @@ no in-memory state.
   the exact ref (never a prefix sibling), and rechecks branch/owner plus the
   frozen generation. A task removed, paused, finished, or replaced while an
   earlier child ran is skipped; an unverified refresh refuses rather than
-  starting stale work. It does not re-enter the whole public launch path. A
+  starting stale work. Immediately before every ordinary agent spawn, launch
+  captures the exact generation again. On an unfinished exit, the canonical
+  creation-line witness distinguishes a replacement from the same child's
+  ticket and audit writes; only the latter acquires a fresh exact lease for the
+  guarded pause. A replacement refuses teardown instead of parking the stable
+  path's new owner.
+  It does not re-enter the whole public launch path. A
   direct `coga launch recurring/<name>` has no such outer admission, so it gates and
   requires verified catch-up before resolving even a locally missing period
   ref. For a frozen
@@ -135,9 +141,10 @@ no in-memory state.
   parent recurring ticket named by the period state snapshot in the same
   strict transaction, so `done` cannot land without the child's cross-run
   cursor update. An unaccepted generated local commit is unwound before
-  caller-owned file rollback. An ambiguous control push is
-  probed by exact candidate OID; unknown acceptance retains local evidence and
-  refuses for reconciliation instead of rolling back into split state. Direct
+  caller-owned file rollback. An ambiguous control push is probed by exact
+  candidate OID across every effective push destination; disagreement or
+  otherwise unknown acceptance retains local evidence and refuses for
+  reconciliation instead of rolling back into split state. Direct
   launch may activate a paused/draft delegated period inline; scheduled and
   named recurring scans keep paused periods parked.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard

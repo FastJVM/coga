@@ -43,6 +43,7 @@ from coga.recurring import (
     local_period_lease as _local_period_lease,
     parse_serviced_period_entries,
     parse_serviced_period_entries_reverse,
+    period_generation_fingerprint as _period_generation_fingerprint,
     period_key_at_least,
     read_serviced_ledger,
     recurring_dir,
@@ -811,7 +812,10 @@ def _launch_due_tasks(
     # agent can't block the tasks behind it.
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
-    from coga.commands.launch import launch_recurring_period as launch_cmd
+    from coga.commands.launch import (
+        RecurringPeriodLaunchResult,
+        launch_recurring_period as launch_cmd,
+    )
 
     # Freeze every stable-path generation before the first child runs. Child
     # teardown can refresh the shared control checkout, so capturing lazily in
@@ -952,7 +956,7 @@ def _launch_due_tasks(
         # returns "timeout" when a backstop fired so we record the wedge
         # honestly below instead of pausing it as a human would.
         try:
-            kind = launch_cmd(
+            raw_launch_result = launch_cmd(
                 task.ref.id_slug,
                 expected_period_lease=admitted_period_lease,
                 agent_override=agent_override,
@@ -968,6 +972,12 @@ def _launch_due_tasks(
                 # keeps plain launches.
                 queue_guidance=not interactive,
             )
+            if not isinstance(raw_launch_result, RecurringPeriodLaunchResult):
+                raise RecurringError(
+                    f"internal recurring launch for {task.ref.id_slug} did not "
+                    "return its typed agent-generation lease"
+                )
+            launch_result = raw_launch_result
         except SystemExit as exc:
             # A failed `ticket.py` exits the launch. Return that code instead
             # of unwinding the process, so the sweep stops where the old recipe
@@ -981,17 +991,39 @@ def _launch_due_tasks(
                     )
                 )
                 return code
-            kind = None
+            launch_result = RecurringPeriodLaunchResult(None, None, False)
+        kind = launch_result.kind
         if kind == "skipped":
             record.note(
                 f"{task.ref.id_slug} changed on control before launch; skipped"
             )
             continue
+        if launch_result.period_lease is None and kind != "script":
+            detail = (
+                f"cannot finalize recurring period {task.ref.id_slug}: the "
+                "launch established no agent-generation lease"
+            )
+            typer.secho(detail, fg=typer.colors.RED, err=True)
+            record.add(
+                _task_outcome(
+                    cfg,
+                    task.template,
+                    task.ref,
+                    result="refused",
+                    exit_code=2,
+                )
+            )
+            return 2
         _stop_if_unfinished_after_launch(
             cfg,
             task.ref,
             timed_out=(kind == "timeout"),
             script_stopped=(kind == "script"),
+            expected_period_lease=launch_result.period_lease,
+            require_period_publication=(
+                launch_result.require_period_publication
+                and launch_result.period_lease is not None
+            ),
         )
         record.add(_task_outcome(cfg, task.template, task.ref, kind=kind))
     return 2 if forced_refusals else 0
@@ -1907,7 +1939,7 @@ def _launch_created(
     from coga.commands.launch import launch_recurring_period as launch_cmd
 
     try:
-        kind = launch_cmd(
+        raw_launch_result = launch_cmd(
             ref.id_slug,
             expected_period_lease=admitted_period_lease,
             agent_override=agent_override,
@@ -1921,6 +1953,10 @@ def _launch_created(
             # human-stepped runs keep plain launches.
             queue_guidance=not interactive,
         )
+        # Keep test/in-process shims written against the historical scalar
+        # seam harmless; the real launch function always returns the typed
+        # result with its pre-spawn generation lease.
+        launch_result = getattr(raw_launch_result, "kind", raw_launch_result)
     except SystemExit as exc:
         # A failed `ticket.py` is this command's result, not a process abort:
         # returning the code keeps the caller's exit-boundary git sync.
@@ -1936,6 +1972,7 @@ def _launch_created(
                 )
             )
         return code
+    kind = launch_result
     if kind == "skipped":
         return 0
     if record is not None:
@@ -3030,20 +3067,25 @@ def _stop_if_unfinished_after_launch(
     if not (ref.ticket_path).exists():
         return
 
-    if (
-        expected_period_lease is not None
-        and _local_period_lease(cfg, ref) != expected_period_lease
-    ):
-        raise RecurringError(
-            f"cannot pause delegated period {ref.id_slug}: its ticket or task "
-            "audit generation changed after the child exited"
-        )
-
     ticket = read_ticket(ref)
     if ticket.status in TERMINAL_STATUSES or ticket.status == "paused":
         return
     if script_stopped and ticket.status == "blocked":
         return
+
+    if expected_period_lease is not None:
+        current_period_lease = _local_period_lease(cfg, ref)
+        if _period_generation_fingerprint(
+            current_period_lease
+        ) != _period_generation_fingerprint(expected_period_lease):
+            raise RecurringError(
+                f"cannot pause recurring period {ref.id_slug}: its stable-path "
+                "generation changed after the child exited"
+            )
+        # Ticket edits plus launch/usage/lifecycle audit appends belong to this
+        # same child generation. Lease their exact post-session bytes for the
+        # mutation itself so any race after this check still loses the CAS.
+        expected_period_lease = current_period_lease
 
     if timed_out:
         suffix = "liveness watchdog: REPL timed out before signalling done"
@@ -3086,7 +3128,7 @@ def _stop_if_unfinished_after_launch(
             )
         except git.UncertainFeaturePublicationError as exc:
             raise RecurringError(
-                f"cannot pause delegated period {ref.id_slug}: publication "
+                f"cannot pause recurring period {ref.id_slug}: publication "
                 f"outcome is uncertain; generated local state was retained "
                 f"for reconciliation — {exc}"
             ) from exc
@@ -3096,7 +3138,7 @@ def _stop_if_unfinished_after_launch(
                     rollback, action="delegated timeout"
                 )
             raise RecurringError(
-                f"cannot pause delegated period {ref.id_slug}: {exc}"
+                f"cannot pause recurring period {ref.id_slug}: {exc}"
             ) from exc
         except TaskValidationError as exc:
             if rollback is not None and not publication_succeeded:
@@ -3113,6 +3155,17 @@ def _stop_if_unfinished_after_launch(
         return
 
     suffix = "Agent recurring launch exited unfinished"
+    rollback = (
+        _period_mutation_snapshot(cfg, ref)
+        if expected_period_lease is not None
+        else None
+    )
+    publication_succeeded = False
+
+    def record_publication() -> None:
+        nonlocal publication_succeeded
+        publication_succeeded = True
+
     try:
         mark_paused(
             cfg,
@@ -3121,8 +3174,39 @@ def _stop_if_unfinished_after_launch(
             actor=f"human:{cfg.current_user}",
             log_message=f"paused ({ticket.status} → paused) — {suffix}",
             echo=None,
+            mutation_snapshot=rollback,
+            after_sync=(
+                record_publication
+                if expected_period_lease is not None
+                else None
+            ),
+            state_guard=(
+                _period_lease_guard(cfg, ref, expected_period_lease)
+                if expected_period_lease is not None
+                else None
+            ),
+            strict_state_guard=expected_period_lease is not None,
+            strict_state_sync=require_period_publication,
         )
+    except git.UncertainFeaturePublicationError as exc:
+        raise RecurringError(
+            f"cannot pause recurring period {ref.id_slug}: publication "
+            f"outcome is uncertain; generated local state was retained for "
+            f"reconciliation — {exc}"
+        ) from exc
+    except git.GitError as exc:
+        if rollback is not None and not publication_succeeded:
+            _restore_refused_period_mutation(
+                rollback, action="unfinished recurring launch"
+            )
+        raise RecurringError(
+            f"cannot pause recurring period {ref.id_slug}: {exc}"
+        ) from exc
     except TaskValidationError as exc:
+        if rollback is not None and not publication_succeeded:
+            _restore_refused_period_mutation(
+                rollback, action="unfinished recurring launch"
+            )
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
     typer.secho(

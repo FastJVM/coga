@@ -18,6 +18,7 @@ from coga import spool
 from coga import recurring as recurring_module
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
+from coga.commands.launch import RecurringPeriodLaunchResult
 from coga.config import Config, load_config
 from coga.create import create_task
 from coga.logfile import append_log, task_log_lines
@@ -360,9 +361,20 @@ def _patch_recurring_command_launch(
     child_launch,
 ) -> None:
     """Delegate agent-backed child launches while the scan runs in-process."""
-    del repo
+    def typed_child_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        result = child_launch(task, **kwargs)
+        if isinstance(result, RecurringPeriodLaunchResult):
+            return result
+        cfg = load_config(repo)
+        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
+        return RecurringPeriodLaunchResult(
+            result,
+            recurring_module.local_period_lease(cfg, ref),
+            False,
+        )
+
     monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period", child_launch
+        "coga.commands.launch.launch_recurring_period", typed_child_launch
     )
 
 
@@ -1167,6 +1179,11 @@ def test_recurring_all_services_one_checkout_per_remote(
         coga_root = active_checkout[-1]
         launches.append((coga_root, task))
         _finish_period_task(coga_root, task)
+        cfg = load_config(coga_root)
+        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
+        return RecurringPeriodLaunchResult(
+            None, recurring_module.local_period_lease(cfg, ref), False
+        )
 
     def run_in_process(
         found: Path,
@@ -1747,7 +1764,7 @@ def test_recurring_scan_launches_replacement_task(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch_recurring_period", fake_launch)
+    _patch_recurring_command_launch(monkeypatch, repo, fake_launch)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
 
@@ -1785,7 +1802,7 @@ def test_recurring_scan_launches_even_when_create_sync_crashes(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch_recurring_period", fake_launch)
+    _patch_recurring_command_launch(monkeypatch, repo, fake_launch)
     monkeypatch.setattr(recurring_cmd, "_sync_recurring_create_paths", boom)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
@@ -3289,9 +3306,7 @@ def test_launch_due_tasks_reloads_frozen_dispatch_after_reconciliation(
         dispatches.append("delegated")
         return recurring_cmd.DelegatedRunResult(0, "done")
 
-    monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period", fake_ordinary_launch
-    )
+    _patch_recurring_command_launch(monkeypatch, repo, fake_ordinary_launch)
     monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated_launch)
     monkeypatch.setattr(
         recurring_cmd,
@@ -3356,9 +3371,7 @@ def test_launch_due_tasks_skips_a_later_period_reaped_by_an_earlier_child(
         if task == refs[0].id_slug:
             refs[1].ticket_path.unlink()
 
-    monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period", fake_ordinary_launch
-    )
+    _patch_recurring_command_launch(monkeypatch, repo, fake_ordinary_launch)
     monkeypatch.setattr(
         recurring_cmd,
         "_stop_if_unfinished_after_launch",
@@ -4307,7 +4320,7 @@ def test_recurring_scan_replaces_stale_done_task_on_control(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch_recurring_period", fake_launch)
+    _patch_recurring_command_launch(monkeypatch, coga_os, fake_launch)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
     assert launched == ["recurring/weekly-check"]
@@ -5420,7 +5433,10 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
     )
     monkeypatch.setattr(
         "coga.commands.launch.launch_recurring_period",
-        lambda slug, **kwargs: launched.append(slug),
+        lambda slug, **kwargs: (
+            launched.append(slug),
+            RecurringPeriodLaunchResult(None, active_lease, False),
+        )[1],
     )
     monkeypatch.setattr(
         recurring_cmd,
@@ -5485,7 +5501,10 @@ def test_forced_recurring_scan_prepares_then_launches_task(
     )
     monkeypatch.setattr(
         "coga.commands.launch.launch_recurring_period",
-        lambda slug, **kwargs: launched.append(slug),
+        lambda slug, **kwargs: (
+            launched.append(slug),
+            RecurringPeriodLaunchResult(None, active_lease, False),
+        )[1],
     )
     monkeypatch.setattr(
         recurring_cmd,
@@ -6564,9 +6583,8 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
 
         return R()
 
-    monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period",
-        lambda slug, **kwargs: launched.append(slug),
+    _patch_recurring_command_launch(
+        monkeypatch, repo, lambda slug, **kwargs: launched.append(slug)
     )
     monkeypatch.setattr(
         "coga.recurring_runner._stop_if_unfinished_after_launch",
@@ -6713,6 +6731,72 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
     assert second.exit_code == 0, second.output
     assert calls == []
     assert "No recurring tasks due." in second.output
+
+
+def test_bare_recurring_refuses_to_pause_replacement_after_ordinary_agent_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An old ordinary child cannot park a replacement at the stable path."""
+    monkeypatch.chdir(repo)
+    _allow_interactive_recurring(monkeypatch)
+
+    def replace_during_child(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        del kwargs
+        cfg = load_config(repo)
+        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
+        launched = Ticket.read(ref.ticket_path)
+        launched.frontmatter["status"] = "in_progress"
+        launched.write(ref.ticket_path)
+        launched_lease = recurring_module.local_period_lease(cfg, ref)
+
+        replacement = Ticket.read(ref.ticket_path)
+        replacement.frontmatter["status"] = "active"
+        replacement.body += "\nReplacement generation.\n"
+        replacement.write(ref.ticket_path)
+        append_log(
+            cfg,
+            ref.id_slug,
+            "system",
+            "created (status=active)",
+        )
+        return RecurringPeriodLaunchResult(None, launched_lease, False)
+
+    _patch_recurring_command_launch(monkeypatch, repo, replace_during_child)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, RecurringError)
+    assert "stable-path generation changed after the child exited" in str(
+        result.exception
+    )
+    cfg = load_config(repo)
+    ref = list_tasks(cfg)[0]
+    assert Ticket.read(ref.ticket_path).status == "active"
+    assert "Replacement generation." in ref.ticket_path.read_text()
+    assert not any("→ paused" in line for line in task_log_lines(cfg, ref.id_slug))
+
+
+def test_unfinished_ordinary_pause_accepts_same_generation_child_edits(
+    repo: Path,
+) -> None:
+    """Usage/audit and blackboard writes do not masquerade as replacement."""
+    cfg, ref = _in_progress_period(repo)
+    launched_lease = recurring_module.local_period_lease(cfg, ref)
+    current = Ticket.read(ref.ticket_path)
+    current.body += "\nChild working note.\n"
+    current.write(ref.ticket_path)
+    append_log(cfg, ref.id_slug, "system", '{"usage_status":"unknown"}')
+
+    recurring_cmd._stop_if_unfinished_after_launch(
+        cfg,
+        ref,
+        expected_period_lease=launched_lease,
+    )
+
+    paused = Ticket.read(ref.ticket_path)
+    assert paused.status == "paused"
+    assert "Child working note." in paused.body
 
 
 def _in_progress_period(repo: Path) -> tuple[Config, TaskRef]:
@@ -7168,7 +7252,7 @@ def test_automatic_sweep_launches_carry_queue_guidance(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch_recurring_period", fake_launch)
+    _patch_recurring_command_launch(monkeypatch, repo, fake_launch)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
 
@@ -7194,9 +7278,7 @@ def test_authorized_sweep_uses_the_internal_period_launch_seam(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
-    monkeypatch.setattr(
-        "coga.commands.launch.launch_recurring_period", fake_period_launch
-    )
+    _patch_recurring_command_launch(monkeypatch, repo, fake_period_launch)
     monkeypatch.setattr(
         "coga.commands.launch.launch",
         lambda *args, **kwargs: pytest.fail(
@@ -7225,7 +7307,7 @@ def test_interactive_sweep_launches_omit_queue_guidance(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch_recurring_period", fake_launch)
+    _patch_recurring_command_launch(monkeypatch, repo, fake_launch)
 
     assert recurring_cmd.run_recurring_scan(cfg, interactive=True) == 0
 

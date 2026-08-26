@@ -3510,6 +3510,56 @@ def test_strict_feature_publication_compensates_failed_control_landing(
     assert git_repo.git("status", "--porcelain").strip() == ""
 
 
+def test_strict_state_landing_probes_attempted_candidate_before_regression_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry regression can follow one accepted destination of a multi-push."""
+    cfg = _cfg(tmp_path)
+    probed: list[str] = []
+    cleaned: list[bool] = []
+
+    def partial_push_then_regress(*args, **kwargs):  # type: ignore[no-untyped-def]
+        del args
+        kwargs["before_push"]("generated-candidate")
+        raise git.StateRegressionError("control moved after a partial push")
+
+    def refuse_ambiguous_destinations(
+        root: Path, remote: str, branch: str, generated_oid: str
+    ) -> bool:
+        del root, remote, branch
+        probed.append(generated_oid)
+        raise git.GitError("effective push destinations disagree")
+
+    monkeypatch.setattr(
+        git, "_land_paths_on_control_branch", partial_push_then_regress
+    )
+    monkeypatch.setattr(
+        git,
+        "_configured_remote_contains_generated_commit",
+        refuse_ambiguous_destinations,
+    )
+
+    with pytest.raises(
+        git.UncertainFeaturePublicationError,
+        match="retained generated state for explicit reconciliation",
+    ):
+        git._land_strict_state_on_control(
+            cfg,
+            tmp_path,
+            ["coga/tasks/demo/ticket.md"],
+            union_rels=[],
+            message="Ticket: demo — paused",
+            guard=None,
+            update_local_control_ref=False,
+            initial_base="control-before",
+            cleanup=lambda: cleaned.append(True),
+            after_strict_publication=None,
+        )
+
+    assert probed == ["generated-candidate"]
+    assert cleaned == []
+
+
 def test_strict_feature_publication_compensates_interrupt_after_feature_push(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,

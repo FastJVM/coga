@@ -876,8 +876,10 @@ unverified lease cannot admit work or authorize a successful timeout
 continuation. Completion carries the parent recurring ticket named by the
 period state snapshot in the same strict transaction, so `done` cannot publish
 without the run's cross-period cursor update. Strict publication unwinds an
-unaccepted local lifecycle commit; after an ambiguous push it probes the exact control candidate, retaining local
-evidence and refusing if acceptance cannot be proved. Templates
+unaccepted local lifecycle commit; after an ambiguous push it probes the exact
+control candidate across every effective push destination, retaining local
+evidence and refusing if the destinations disagree or acceptance otherwise
+cannot be proved. Templates
 intended for cron or other unattended schedulers should carry that deterministic
 half. Whether a period is deterministic is never declared: the
 `ticket.py` file's presence is the whole signal. `delegate:` declares something
@@ -892,7 +894,11 @@ task-audit generation, then use an internal period-launch seam. That seam
 narrowly refreshes control, resolves only the exact ref, and rechecks
 branch/owner plus that generation immediately before each ordinary child, so
 work removed, parked, finished, or replaced during an earlier session is
-skipped and a failed refresh refuses the next launch. Delegated children use
+skipped and a failed refresh refuses the next launch. It captures the exact
+generation again immediately before every ordinary agent spawn; if the agent
+exits unfinished, the canonical creation-line witness admits same-generation
+ticket/audit writes to a fresh exact pause lease while a replacement at the
+stable path remains untouched. Delegated children use
 the same admitted generation as the start of their exact control lease. The
 direct spelling has no outer admission: it requires verified control catch-up before
 resolving even a locally missing period ref and remains subject to the same

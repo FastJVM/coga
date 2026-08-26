@@ -2647,7 +2647,13 @@ def _land_strict_state_on_control(
     cleanup: Callable[[], None] | None,
     after_strict_publication: Callable[[], None] | None,
 ) -> None:
-    """Land exact state and reconcile an acknowledgement-loss window."""
+    """Land exact state and reconcile every attempted candidate publication.
+
+    ``candidate_oid`` is armed immediately before a push. Once armed, even a
+    later guard regression must probe every effective destination before local
+    cleanup: Git may have updated one push URL and failed another, leaving the
+    next retry to observe the accepted candidate as concurrent control state.
+    """
     candidate_oid: str | None = None
 
     def capture_candidate(oid: str) -> None:
@@ -2672,7 +2678,7 @@ def _land_strict_state_on_control(
     except BaseException as exc:
         if isinstance(exc, UncertainFeaturePublicationError):
             raise
-        if isinstance(exc, StateRegressionError) or candidate_oid is None:
+        if candidate_oid is None:
             if cleanup is not None:
                 try:
                     cleanup()

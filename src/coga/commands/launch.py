@@ -219,6 +219,14 @@ def launch(
     )
 
 
+class RecurringPeriodLaunchResult(NamedTuple):
+    """One ordinary launch with its spawn generation and publication class."""
+
+    kind: str | None
+    period_lease: PeriodLease | None
+    require_period_publication: bool
+
+
 def launch_recurring_period(
     task: str,
     *,
@@ -230,7 +238,7 @@ def launch_recurring_period(
     return_timeout: bool,
     script_failure_important: bool,
     queue_guidance: bool,
-) -> str | None:
+) -> RecurringPeriodLaunchResult:
     """Launch one period after the recurring runner admitted the sweep.
 
     This is an in-process capability, not a Typer option. ``coga recurring``
@@ -240,11 +248,34 @@ def launch_recurring_period(
     entering shared launch logic. The caller supplies the exact ticket/audit
     generation admitted before any prior child ran. A lost refresh fails
     closed; a period that became closed, parked, or replaced returns
-    ``"skipped"`` without starting work.
+    ``"skipped"`` without starting work. The result also carries the exact
+    generation captured immediately before the last agent spawn, allowing the
+    sweep to compare-and-set any unfinished-session pause without touching a
+    replacement that arrived while the child owned the terminal.
     """
     if not _refresh_recurring_period_before_launch(task, expected_period_lease):
-        return "skipped"
-    return _launch(
+        return RecurringPeriodLaunchResult("skipped", None, False)
+
+    publication_cfg, publication_ref = _exact_recurring_period_for_launch(
+        task, boundary="publication preflight"
+    )
+    require_period_publication = _preflight_push_auth(
+        publication_cfg,
+        publication_ref,
+        is_bootstrap=False,
+    )
+
+    launched_period_lease: PeriodLease | None = None
+
+    def capture_launched_period_lease() -> None:
+        """Freeze the exact generation immediately before each agent spawn."""
+        nonlocal launched_period_lease
+        current_cfg, current_ref = _exact_recurring_period_for_launch(
+            task, boundary="agent spawn"
+        )
+        launched_period_lease = local_period_lease(current_cfg, current_ref)
+
+    kind = _launch(
         task,
         args=None,
         agent_override=agent_override,
@@ -255,11 +286,36 @@ def launch_recurring_period(
         script_failure_important=script_failure_important,
         queue_guidance=queue_guidance,
         before_recompose=None,
-        before_final_spawn=None,
+        before_final_spawn=capture_launched_period_lease,
         require_agent_target=False,
         record_launch=True,
         recurring_authorized=True,
     )
+    return RecurringPeriodLaunchResult(
+        kind,
+        launched_period_lease,
+        require_period_publication,
+    )
+
+
+def _exact_recurring_period_for_launch(
+    task: str, *, boundary: str
+) -> tuple[Config, TaskRef]:
+    """Resolve one canonical period ref without permitting prefix fallback."""
+    try:
+        cfg = load_config()
+    except ConfigError as exc:
+        _bail(str(exc))
+    ref = next(
+        (candidate for candidate in list_tasks(cfg) if candidate.id_slug == task),
+        None,
+    )
+    if ref is None or ref.directory != "recurring":
+        _bail(
+            f"Cannot launch {task}: its exact recurring period disappeared "
+            f"before {boundary}. No work was started."
+        )
+    return cfg, ref
 
 
 def _refresh_recurring_period_before_launch(
@@ -1547,8 +1603,14 @@ def _launch(
             session_before_recompose = (
                 before_recompose if is_first_step else None
             )
+            # Delegation uses this only for its stateless single bootstrap
+            # session. An ordinary recurring period can chain agent-owned
+            # workflow steps, so refresh its teardown witness before every
+            # spawned child and retain the last generation actually launched.
             session_before_spawn = (
-                before_final_spawn if is_first_step else None
+                before_final_spawn
+                if is_first_step or recurring_authorized
+                else None
             )
             if publish_assist_branch is not None:
                 if not isinstance(ref, TaskRef) or assist_pr_guard is None:
