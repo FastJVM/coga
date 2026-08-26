@@ -416,7 +416,26 @@ def _launch(
 
         if _refuse_non_control_branch(current_cfg) or _refuse_non_owner(current_cfg):
             raise SystemExit(2)
-        _sync_control_checkout_ahead(current_cfg)
+        fresh, freshness_error = _sync_control_checkout_ahead(
+            current_cfg, announce_failure=False
+        )
+        if not fresh and current_cfg.git_enabled:
+            try:
+                control_checkout = git._toplevel(current_cfg.repo_root)
+            except git.GitError as exc:
+                _bail(
+                    f"Cannot launch {task}: control-state verification failed: "
+                    f"{exc}. No work was started.",
+                    exit_code=git.STALE_CONTROL_EXIT_CODE,
+                )
+            if control_checkout is not None:
+                _bail(
+                    f"Cannot launch {task}: could not confirm this checkout "
+                    f"includes the latest {current_cfg.git_remote}/"
+                    f"{current_cfg.git_control_branch}: {freshness_error}. "
+                    "No work was started.",
+                    exit_code=git.STALE_CONTROL_EXIT_CODE,
+                )
         try:
             refreshed_cfg = load_config(current_cfg.repo_root)
         except ConfigError as exc:

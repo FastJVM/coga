@@ -1503,7 +1503,11 @@ def _run_delegated_task(
             except (UnicodeError, TicketError):
                 current_ticket = None
         if kind == "done" and (
-            current_ticket is None or current_ticket.status in TERMINAL_STATUSES
+            current_lease.ticket_bytes is None
+            or (
+                current_ticket is not None
+                and current_ticket.status in TERMINAL_STATUSES
+            )
         ):
             return DelegatedRunResult(0, "done")
         typer.secho(

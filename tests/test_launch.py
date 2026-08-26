@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
+from coga import git as coga_git
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
 from coga.blackboard import append_blocker
@@ -1322,6 +1323,46 @@ def test_direct_recurring_launch_catches_up_before_resolving_a_missing_local_ref
     assert result.exit_code == 0, result.output
     assert launched == ["recurring/delegate-check"]
     assert (git_repo.root / relpath).is_file()
+
+
+def test_direct_recurring_launch_refuses_an_unverified_control_catch_up(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed direct catch-up cannot fall through to stale task resolution."""
+    created = create_task(
+        cfg=load_config(git_repo.coga_os),
+        title="Ordinary period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/ordinary-check",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed ordinary period")
+    git_repo.git("push", "origin", "main")
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: (False, "simulated rebase conflict"),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "resolve_target",
+        lambda *args, **kwargs: pytest.fail("stale task resolution was reached"),
+    )
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == coga_git.STALE_CONTROL_EXIT_CODE
+    assert "could not confirm this checkout includes the latest origin/main" in (
+        result.output
+    )
+    assert "simulated rebase conflict" in result.output
+    assert "No work was started" in result.output
 
 
 def test_internal_recurring_launch_seam_marks_dispatch_as_already_authorized(

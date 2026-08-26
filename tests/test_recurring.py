@@ -3027,6 +3027,47 @@ def test_delegated_result_cannot_mutate_a_later_period_generation(
     assert Ticket.read(outcome.ref.ticket_path).status == "in_progress"
 
 
+def test_delegated_done_refuses_a_malformed_replacement_ticket(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Present but unparsable replacement bytes are not a reaped period."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    malformed = b"\xffnot a ticket\n"
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        outcome.ref.ticket_path.write_bytes(malformed)
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "mark_done",
+        lambda *args, **kwargs: pytest.fail(
+            "malformed replacement state must not be completed"
+        ),
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert outcome.ref.ticket_path.read_bytes() == malformed
+
+
 def test_delegated_period_push_auth_is_preflighted_before_bootstrap_work(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
