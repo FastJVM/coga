@@ -160,10 +160,13 @@ the example under "Extend recurring with a task-specific workflow").
   exit fails with the period left retryable; a multi-task sweep pauses a
   watchdog timeout and continues only after that pause is verified on control.
   A stale or failed pause refuses the run; a named launch fails and leaves it
-  `in_progress` for retry. Completion includes the parent recurring ticket
-  named by the period's state snapshot in the same strict publication, so a
-  cross-run cursor update cannot remain local while the period reaches `done`
-  on control. If the digest spool is installed, the completion event is
+  `in_progress` for retry. At final spawn admission the runner also freezes the
+  exact parent recurring ticket named by the period's state snapshot and
+  verifies that input on control. Completion consumes the same parent lease in
+  its strict publication, so a concurrent parent/cursor edit refuses instead
+  of being overwritten, and the child's cross-run cursor update cannot remain
+  local while the period reaches `done` on control. If the digest spool is
+  installed, the completion event is
   appended first and joins that transaction; a live notification waits until
   publication succeeds. Strict lifecycle publication unwinds an unaccepted
   local feature/control commit before restoring runner-owned files. If a push
@@ -189,7 +192,8 @@ the example under "Extend recurring with a task-specific workflow").
   `ticket.py`. `coga validate` checks both the template and frozen task.
 - `period_generation` is runner-owned materialized-task state, not a template
   input. The creator stamps it once per new stable-path generation; templates
-  that declare it are rejected rather than copying a stale lease identity.
+  or ordinary tasks that declare it are rejected rather than accepting a stale
+  or forged lease identity.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered

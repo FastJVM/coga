@@ -865,16 +865,18 @@ Its bootstrap done sentinel is the only clean completion signal; a natural
 REPL exit leaves the period unfinished. The runner first preflights push access
 for the materialized period (which the stateless bootstrap target would
 self-skip), then publishes the period start as an exact compare-and-set before
-announcing it. The lease covers both ticket bytes and that task ref's audit
-generation, so a stable-path replacement is distinct even when its ticket is
-byte-identical. The runner reloads and recomposes before the real spawn, checks
-the same lease on control at the final boundary, and consumes it again before
-publishing completion or a watchdog pause. Concurrent completion,
-replacement, edits, or a new generation therefore refuse the stale lifecycle
-write; a Git transport or publication failure refuses too, because an
-unverified lease cannot admit work or authorize a successful timeout
-continuation. Completion carries the parent recurring ticket named by the
-period state snapshot in the same strict transaction, so `done` cannot publish
+announcing it. The lease covers both ticket bytes and the task's creator-owned
+`period_generation` token, so a stable-path replacement is distinct even when
+its other ticket state is byte-identical. The runner reloads and recomposes
+before the real spawn, checks the same lease on control at the final boundary,
+and consumes it again before publishing completion or a watchdog pause.
+Concurrent completion, replacement, edits, or a new generation therefore
+refuse the stale lifecycle write; a Git transport or publication failure
+refuses too, because an unverified lease cannot admit work or authorize a
+successful timeout continuation. Final spawn admission also leases the exact
+parent recurring ticket named by the period state snapshot. Completion
+consumes that same parent input in the strict transaction, so a concurrent
+parent edit refuses instead of being overwritten and `done` cannot publish
 without the run's cross-period cursor update. Strict publication unwinds an
 unaccepted local lifecycle commit; after an ambiguous push it probes the exact
 control candidate across every effective push destination, retaining local

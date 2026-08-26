@@ -542,6 +542,35 @@ def test_validate_rejects_an_empty_period_generation(repo: Path) -> None:
     assert "period_generation" in issue.message
 
 
+def test_validate_rejects_period_generation_on_an_ordinary_task(repo: Path) -> None:
+    """Only the recurring runner may stamp its materialized generation token."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Ordinary task",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
+    )
+    ticket_path = Path(created["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["period_generation"] = "forged-generation"
+    ticket.write(ticket_path)
+
+    report = run(cfg)
+
+    issue = next(
+        issue
+        for issue in report.issues
+        if issue.kind == "invalid-period-generation-owner"
+        and issue.task == created["slug"]
+    )
+    assert "runner-owned" in issue.message
+
+
 def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:
     cfg = load_config(repo)
     created = create_task(

@@ -423,6 +423,7 @@ def _check_one_task(
 
     out.extend(_check_frontmatter_schema(cfg, task_label, ticket))
     out.extend(_check_task_delegate(cfg, ref, ticket))
+    out.extend(_check_period_generation_owner(ref, ticket))
     out.extend(_check_secrets(cfg, task_label, ticket))
 
     # Valid assignees: known agent types OR one of this ticket's role-field
@@ -566,6 +567,30 @@ def _check_task_delegate(
             severity="error",
         )]
     return []
+
+
+def _check_period_generation_owner(
+    ref: TaskRef, ticket: Ticket
+) -> list[Issue]:
+    """Keep the runner-owned generation witness on materialized periods."""
+    if "period_generation" not in ticket.frontmatter:
+        return []
+    value = ticket.frontmatter["period_generation"]
+    if not isinstance(value, str) or not value.strip():
+        # The schema check owns the shape diagnostic.
+        return []
+    if ref.directory == "recurring" and not ref.file_form:
+        return []
+    return [Issue(
+        kind="invalid-period-generation-owner",
+        task=ref.id_slug,
+        message=(
+            "`period_generation` is runner-owned state reserved for "
+            "materialized directory-form tasks directly under "
+            "tasks/recurring/"
+        ),
+        severity="error",
+    )]
 
 
 def _check_entry_point_dir(task_dir: Path, label: str) -> list[Issue]:

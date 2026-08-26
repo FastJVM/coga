@@ -2908,6 +2908,86 @@ def test_delegated_completion_publishes_parent_cross_run_state(
     assert "cursor: new" in remote_parent
 
 
+def test_delegated_completion_refuses_a_concurrent_parent_state_edit(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale child cursor cannot overwrite newer recurring parent state."""
+    coga_os = git_repo.coga_os
+    _write_delegating_template(coga_os, "delegate-check")
+    parent_ticket = coga_os / "recurring" / "delegate-check" / "ticket.md"
+    parent = Ticket.read(parent_ticket)
+    parent.frontmatter["state_keys"] = ["cursor"]
+    parent.write(parent_ticket)
+    _seed_template_blackboard(coga_os, "delegate-check", "cursor: old\n")
+    cfg = load_config(coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+        period_generation="generation-1",
+    )
+    ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
+    write_snapshot(ref.path, "delegate-check", parent_ticket, ["cursor"])
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegated period with parent state")
+    git_repo.git("push", "origin", "main")
+    completion_notifications: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        _seed_template_blackboard(coga_os, "delegate-check", "cursor: child\n")
+        competing_parent = _template_ticket_with_blackboard(
+            coga_os,
+            "delegate-check",
+            "cursor: concurrent\n",
+        )
+        git_repo.push_competing_commit(
+            parent_ticket.relative_to(git_repo.root).as_posix(),
+            competing_parent,
+        )
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(
+        "coga.mark.notify",
+        lambda cfg, message, **kwargs: completion_notifications.append(message),
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    parent_rel = parent_ticket.relative_to(git_repo.root).as_posix()
+    remote_parent = git_repo.git("show", f"main:{parent_rel}", cwd=git_repo.origin)
+    period_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
+    remote_period = git_repo.git("show", f"main:{period_rel}", cwd=git_repo.origin)
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert Ticket.read(ref.ticket_path).status == "in_progress"
+    assert "cursor: child" in parent_ticket.read_text()
+    assert "cursor: concurrent" in remote_parent
+    assert "status: in_progress" in remote_period
+    assert completion_notifications == []
+
+
 def test_delegated_completion_publishes_digest_event_with_done_state(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

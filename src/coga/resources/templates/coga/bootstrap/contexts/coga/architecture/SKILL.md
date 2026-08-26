@@ -143,10 +143,12 @@ no in-memory state.
   or publication failure propagates: an old or unverified child cannot start,
   nor mark a later generation at the stable path done or paused. A sweep
   continues after a delegated timeout only when its guarded pause publishes;
-  a stale or failed pause refuses the run. Delegated completion publishes the
-  parent recurring ticket named by the period state snapshot in the same
-  strict transaction, so `done` cannot land without the child's cross-run
-  cursor update. When a digest spool is installed, its completion event joins
+  a stale or failed pause refuses the run. Final spawn admission also leases
+  the exact parent recurring ticket named by the period state snapshot against
+  control. Delegated completion consumes that same parent input in its strict
+  transaction, so a concurrent parent edit refuses instead of being
+  overwritten and `done` cannot land without the child's cross-run cursor
+  update. When a digest spool is installed, its completion event joins
   that transaction; a live notification waits for durable publication. An
   unaccepted generated local commit is unwound before
   caller-owned file rollback. An ambiguous control push is probed by exact

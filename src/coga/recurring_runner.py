@@ -1136,6 +1136,14 @@ class DelegatedRunResult:
     kind: str | None
 
 
+@dataclass(frozen=True)
+class _ParentStateLease:
+    """Exact recurring-parent ticket state observed before a child starts."""
+
+    path: Path
+    ticket_bytes: bytes | None
+
+
 def _revision_period_lease(
     cfg: Config, ref: TaskRef, revision: str
 ) -> _PeriodLease:
@@ -1150,10 +1158,46 @@ def _revision_period_lease(
     )
 
 
+def _local_parent_state_lease(
+    cfg: Config, ref: TaskRef
+) -> _ParentStateLease | None:
+    """Capture the parent ticket named by this period's state snapshot."""
+    snapshot = read_snapshot(ref.path)
+    if snapshot is None:
+        return None
+    path = parent_ticket_path(cfg, snapshot)
+    return _ParentStateLease(
+        path=path,
+        ticket_bytes=path.read_bytes() if path.is_file() else None,
+    )
+
+
+def _revision_parent_state_lease(
+    cfg: Config, expected: _ParentStateLease, revision: str
+) -> _ParentStateLease:
+    root = git._toplevel(cfg.repo_root)
+    if root is None:
+        return _ParentStateLease(
+            path=expected.path,
+            ticket_bytes=(
+                expected.path.read_bytes() if expected.path.is_file() else None
+            ),
+        )
+    parent_rel = _relative_to_root(root, expected.path)
+    return _ParentStateLease(
+        path=expected.path,
+        ticket_bytes=git._tree_bytes(root, revision, parent_rel),
+    )
+
+
 def _period_lease_guard(
-    cfg: Config, ref: TaskRef, expected: _PeriodLease
+    cfg: Config,
+    ref: TaskRef,
+    expected: _PeriodLease,
+    *,
+    expected_parent: _ParentStateLease | None = None,
 ) -> Callable[[str], None]:
-    """Bind an exact ticket-plus-generation CAS to every control attempt."""
+    """Bind exact period and optional parent-state CASes to every attempt."""
     lifecycle_guard = git.ticket_state_guard(cfg, ref.ticket_path)
 
     def guard(base: str) -> None:
@@ -1169,6 +1213,16 @@ def _period_lease_guard(
                 f"({', '.join(changed) or 'unknown state'}); refusing stale "
                 "lifecycle publication"
             )
+        if expected_parent is not None:
+            actual_parent = _revision_parent_state_lease(
+                cfg, expected_parent, base
+            )
+            if actual_parent != expected_parent:
+                raise git.StateRegressionError(
+                    f"{ref.id_slug}: recurring parent state changed on "
+                    "control after delegated child admission; refusing stale "
+                    "completion publication"
+                )
         lifecycle_guard(base)
 
     return guard
@@ -1291,6 +1345,7 @@ def _run_delegated_task(
         return DelegatedRunResult(2, "refused")
 
     expected_period_lease: _PeriodLease | None = None
+    expected_parent_state_lease: _ParentStateLease | None = None
 
     # Bootstrap tickets are deliberately stateless and self-skip push auth.
     # Delegation still owns a materialized period task, so preflight that real
@@ -1328,14 +1383,23 @@ def _run_delegated_task(
         return current
 
     def confirm_control_lease(
-        lease_cfg: Config, lease: _PeriodLease, *, boundary: str
+        lease_cfg: Config,
+        lease: _PeriodLease,
+        *,
+        boundary: str,
+        parent_lease: _ParentStateLease | None = None,
     ) -> None:
         try:
             git.sync_task_state(
                 lease_cfg,
                 ref.path,
                 message=f"Lease: {ref.id_slug} — {boundary}",
-                guard=_period_lease_guard(lease_cfg, ref, lease),
+                guard=_period_lease_guard(
+                    lease_cfg,
+                    ref,
+                    lease,
+                    expected_parent=parent_lease,
+                ),
                 raise_state_regression=True,
                 **(
                     {"raise_git_error": True}
@@ -1505,6 +1569,7 @@ def _run_delegated_task(
         _target_ticket: Ticket | None = None,
     ) -> None:
         """Refuse if publication/recomposition moved the period's lease."""
+        nonlocal expected_parent_state_lease
         if expected_period_lease is None:
             raise RecurringError(
                 f"cannot launch delegated period {ref.id_slug}: its start "
@@ -1522,7 +1587,14 @@ def _run_delegated_task(
             boundary="final spawn",
             expected_status="in_progress",
         )
-        confirm_control_lease(cfg, expected_period_lease, boundary="final spawn")
+        parent_lease = _local_parent_state_lease(cfg, ref)
+        confirm_control_lease(
+            cfg,
+            expected_period_lease,
+            boundary="final spawn",
+            parent_lease=parent_lease,
+        )
+        expected_parent_state_lease = parent_lease
 
     from coga.commands.launch import launch_with_before_spawn as launch_cmd
 
@@ -1654,7 +1726,12 @@ def _run_delegated_task(
             echo=f"{ref.id_slug}: done",
             mutation_snapshot=rollback,
             after_sync=record_completion_publication,
-            state_guard=_period_lease_guard(cfg, ref, expected_period_lease),
+            state_guard=_period_lease_guard(
+                cfg,
+                ref,
+                expected_period_lease,
+                expected_parent=expected_parent_state_lease,
+            ),
             strict_state_guard=True,
             strict_state_sync=require_period_publication,
         )
