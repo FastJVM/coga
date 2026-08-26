@@ -114,12 +114,14 @@ no in-memory state.
   Nothing declares deterministic execution — there is no `recipe:` or mode
   field.
   A sweep or named recurring run performs full recurring admission at its
-  outer boundary, then launches through an internal typed seam. Immediately
-  before each ordinary child, that seam refreshes control state and rechecks
-  branch/owner so a task paused, finished, or replaced while an earlier child
-  ran is skipped; an unverified refresh refuses rather than starting stale
-  work. It does not re-enter the whole public launch path. A direct
-  `coga launch recurring/<name>` has no such outer admission, so it gates and
+  outer boundary, freezes each period's exact ticket-plus-task-audit
+  generation, then launches through an internal typed seam. Immediately
+  before each ordinary child, that seam refreshes control state, resolves only
+  the exact ref (never a prefix sibling), and rechecks branch/owner plus the
+  frozen generation. A task removed, paused, finished, or replaced while an
+  earlier child ran is skipped; an unverified refresh refuses rather than
+  starting stale work. It does not re-enter the whole public launch path. A
+  direct `coga launch recurring/<name>` has no such outer admission, so it gates and
   requires verified catch-up before resolving even a locally missing period
   ref. For a frozen
   delegation, the runner separately preflights the period task's push access

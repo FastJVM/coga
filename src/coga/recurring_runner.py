@@ -35,10 +35,12 @@ from coga.taskfile import read_blackboard
 from coga.recurring import (
     DueTask,
     DueScan,
+    PeriodLease as _PeriodLease,
     RecurringError,
     Template,
     frozen_task_delegate,
     format_serviced_log,
+    local_period_lease as _local_period_lease,
     parse_serviced_period_entries,
     parse_serviced_period_entries_reverse,
     period_key_at_least,
@@ -47,6 +49,7 @@ from coga.recurring import (
     resolve_agent_delegate,
     create_named,
     scan_due,
+    task_audit_fingerprint as _task_audit_fingerprint,
 )
 from coga.recurring_autofix import (
     RunRecord,
@@ -805,12 +808,37 @@ def _launch_due_tasks(
     max_session = None if interactive else _recurring_max_session(cfg)
     from coga.commands.launch import launch_recurring_period as launch_cmd
 
+    # Freeze every stable-path generation before the first child runs. Child
+    # teardown can refresh the shared control checkout, so capturing lazily in
+    # the loop would silently admit a replacement generation that appeared
+    # while an earlier child owned the terminal.
+    admitted_period_leases = {
+        task.ref.id_slug: _local_period_lease(cfg, task.ref)
+        for task in due
+        if task.ref is not None
+    }
+
     forced_refusals = 0
     for i, task in enumerate(due, 1):
+        if task.ref is None:
+            detail = (
+                f"{task.template} has no materialized period to launch; skipped"
+            )
+            typer.secho(detail, fg=typer.colors.YELLOW)
+            record.note(detail)
+            continue
         typer.secho(
             f"[{i}/{len(due)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
         )
+        admitted_period_lease = admitted_period_leases[task.ref.id_slug]
         if force:
+            if _local_period_lease(cfg, task.ref) != admitted_period_lease:
+                detail = (
+                    f"{task.ref.id_slug} changed after sweep admission; skipped"
+                )
+                typer.secho(detail, fg=typer.colors.YELLOW)
+                record.note(detail)
+                continue
             try:
                 _prepare_forced_launch(cfg, task)
             except RecurringError as exc:
@@ -825,16 +853,33 @@ def _launch_due_tasks(
                     )
                 )
                 continue
+            # Forced preparation may deliberately activate or rematerialize the
+            # admitted generation. The resulting lease, not its pre-mutation
+            # snapshot, is what the child is allowed to launch.
+            admitted_period_lease = _local_period_lease(cfg, task.ref)
+        current_period_lease = _local_period_lease(cfg, task.ref)
+        if current_period_lease != admitted_period_lease:
+            detail = f"{task.ref.id_slug} changed after sweep admission; skipped"
+            typer.secho(detail, fg=typer.colors.YELLOW)
+            record.note(detail)
+            continue
+        if current_period_lease.ticket_bytes is None:
+            detail = f"{task.ref.id_slug} no longer exists on control; skipped"
+            typer.secho(detail, fg=typer.colors.YELLOW)
+            record.note(detail)
+            continue
         # Reconciliation can refresh or replace the materialized period after
         # `scan_due` cached its dispatch field. Route only from the durable
         # ticket that now owns this launch; otherwise a restored delegate could
         # run as an ordinary wrapper, or a removed delegate could still spawn
         # obsolete bootstrap work.
         try:
-            current_ticket = read_ticket(task.ref)
+            current_ticket = Ticket.parse(
+                current_period_lease.ticket_bytes.decode()
+            )
             task.status = current_ticket.status
             task.delegate = frozen_task_delegate(task.ref, current_ticket)
-        except (RecurringError, TicketError) as exc:
+        except (RecurringError, UnicodeError, TicketError) as exc:
             detail = (
                 f"cannot classify recurring period {task.ref.id_slug} after "
                 f"reconciliation: {exc}"
@@ -868,7 +913,13 @@ def _launch_due_tasks(
                 max_session=max_session,
                 queue_guidance=not interactive,
                 continue_after_timeout=True,
+                admitted_period_lease=admitted_period_lease,
             )
+            if delegated.kind == "skipped":
+                record.note(
+                    f"{task.ref.id_slug} changed after sweep admission; skipped"
+                )
+                continue
             # Main's sweep records every run it performed; `run_autofix` fires
             # only when `record.outcomes` is non-empty, so a delegated run that
             # returned without recording would be invisible to the analyst.
@@ -898,6 +949,7 @@ def _launch_due_tasks(
         try:
             kind = launch_cmd(
                 task.ref.id_slug,
+                expected_period_lease=admitted_period_lease,
                 agent_override=agent_override,
                 prompt_report=False,
                 idle_timeout=idle_timeout,
@@ -1030,49 +1082,6 @@ class DelegatedRunResult:
     kind: str | None
 
 
-@dataclass(frozen=True)
-class _PeriodLease:
-    """Exact stable-path generation owned by one delegated child.
-
-    Ticket bytes alone are insufficient: a later recurring generation may be
-    materialized at the same path with byte-identical frozen dispatch and
-    lifecycle state. Every canonical create/reuse/reactivation writes a
-    task-tagged audit line, so the sorted multiset of those lines is the
-    durable generation discriminator. Sorting makes the lease insensitive to
-    merge=union's legal line reordering while retaining duplicate counts.
-    """
-
-    ticket_bytes: bytes | None
-    audit_lines: tuple[bytes, ...]
-
-
-_LOG_REF_RE = re.compile(
-    rb"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[([^\]]*)\] \[[^\]]*\] .*$"
-)
-
-
-def _task_audit_fingerprint(data: bytes | None, task_ref: str) -> tuple[bytes, ...]:
-    if not data:
-        return ()
-    expected = task_ref.encode("utf-8")
-    matching: list[bytes] = []
-    for line in data.splitlines():
-        match = _LOG_REF_RE.match(line)
-        if match is not None and match.group(1) == expected:
-            matching.append(line)
-    return tuple(sorted(matching))
-
-
-def _local_period_lease(cfg: Config, ref: TaskRef) -> _PeriodLease:
-    ticket_bytes = ref.ticket_path.read_bytes() if ref.ticket_path.is_file() else None
-    audit_path = log_path(cfg)
-    audit_bytes = audit_path.read_bytes() if audit_path.is_file() else None
-    return _PeriodLease(
-        ticket_bytes=ticket_bytes,
-        audit_lines=_task_audit_fingerprint(audit_bytes, ref.id_slug),
-    )
-
-
 def _revision_period_lease(
     cfg: Config, ref: TaskRef, revision: str
 ) -> _PeriodLease:
@@ -1149,6 +1158,7 @@ def _run_delegated_task(
     queue_guidance: bool = True,
     continue_after_timeout: bool,
     activate_if_needed: bool = False,
+    admitted_period_lease: _PeriodLease | None = None,
 ) -> DelegatedRunResult:
     """Run one delegating period task by launching its bootstrap target.
 
@@ -1177,8 +1187,21 @@ def _run_delegated_task(
     command is the documented readiness signal for a paused/draft task. Sweeps
     and named recurring runs retain their stricter active/orphan admission.
     """
-    ticket = read_ticket(ref)
+    initial_period_lease = _local_period_lease(cfg, ref)
+    if (
+        admitted_period_lease is not None
+        and initial_period_lease != admitted_period_lease
+    ):
+        typer.secho(
+            f"{ref.id_slug} belongs to a different ticket/audit generation; "
+            "not launching.",
+            fg=typer.colors.YELLOW,
+        )
+        return DelegatedRunResult(0, "skipped")
     try:
+        if initial_period_lease.ticket_bytes is None:
+            raise TicketError("period ticket disappeared")
+        ticket = Ticket.parse(initial_period_lease.ticket_bytes.decode())
         delegate = frozen_task_delegate(ref, ticket)
         if delegate is None:
             raise RecurringError(
@@ -1200,11 +1223,10 @@ def _run_delegated_task(
         # catches drift repo-wide; this runtime gate keeps a later bootstrap
         # edit from turning an agent delegation into repeated script work.
         resolve_agent_delegate(cfg, delegate)
-    except (RecurringError, TicketError) as exc:
+    except (RecurringError, UnicodeError, TicketError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "refused")
 
-    initial_period_lease = _local_period_lease(cfg, ref)
     expected_period_lease: _PeriodLease | None = None
 
     # Bootstrap tickets are deliberately stateless and self-skip push auth.
@@ -1806,7 +1828,18 @@ def _launch_created(
         )
         return 0
 
-    ticket = read_ticket(ref)
+    admitted_period_lease = _local_period_lease(cfg, ref)
+    if admitted_period_lease.ticket_bytes is None:
+        typer.secho(
+            f"{ref.id_slug} was already handled on the control branch; not launching.",
+            fg=typer.colors.BRIGHT_BLACK,
+        )
+        return 0
+    try:
+        ticket = Ticket.parse(admitted_period_lease.ticket_bytes.decode())
+    except (UnicodeError, TicketError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
     if ticket.status not in {"active", "in_progress"}:
         typer.secho(
             f"{ref.id_slug} is {ticket.status}; not launching.",
@@ -1830,7 +1863,14 @@ def _launch_created(
             max_session=max_session,
             queue_guidance=not interactive,
             continue_after_timeout=False,
+            admitted_period_lease=admitted_period_lease,
         )
+        if delegated.kind == "skipped":
+            if record is not None:
+                record.note(
+                    f"{ref.id_slug} changed after recurring admission; skipped"
+                )
+            return 0
         if record is not None:
             record.add(
                 _task_outcome(
@@ -1853,6 +1893,7 @@ def _launch_created(
     try:
         kind = launch_cmd(
             ref.id_slug,
+            expected_period_lease=admitted_period_lease,
             agent_override=agent_override,
             prompt_report=False,
             idle_timeout=idle_timeout,

@@ -26,7 +26,7 @@ from coga.logfile import (
     iter_log_messages,
     iter_log_messages_reverse,
 )
-from coga.paths import recurring_dir, resolve_workflow_path
+from coga.paths import log_path, recurring_dir, resolve_workflow_path
 from coga.period_state import write_snapshot
 from coga.taskfile import (
     join_task_body,
@@ -48,6 +48,51 @@ from coga.workflow import Workflow, WorkflowError
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 class RecurringError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class PeriodLease:
+    """Exact stable-path generation admitted for one recurring child.
+
+    Ticket bytes alone are insufficient: a later recurring generation may be
+    materialized at the same path with byte-identical frozen dispatch and
+    lifecycle state. Every canonical create/reuse/reactivation writes a
+    task-tagged audit line, so the sorted multiset of those lines is the
+    durable generation discriminator. Sorting makes the lease insensitive to
+    merge=union's legal line reordering while retaining duplicate counts.
+    """
+
+    ticket_bytes: bytes | None
+    audit_lines: tuple[bytes, ...]
+
+
+_LOG_REF_RE = re.compile(
+    rb"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[([^\]]*)\] \[[^\]]*\] .*$"
+)
+
+
+def task_audit_fingerprint(data: bytes | None, task_ref: str) -> tuple[bytes, ...]:
+    """Return the order-insensitive audit generation for one task ref."""
+    if not data:
+        return ()
+    expected = task_ref.encode("utf-8")
+    matching: list[bytes] = []
+    for line in data.splitlines():
+        match = _LOG_REF_RE.match(line)
+        if match is not None and match.group(1) == expected:
+            matching.append(line)
+    return tuple(sorted(matching))
+
+
+def local_period_lease(cfg: Config, ref: TaskRef) -> PeriodLease:
+    """Capture the local ticket and audit generation at a dispatch boundary."""
+    ticket_bytes = ref.ticket_path.read_bytes() if ref.ticket_path.is_file() else None
+    audit_path = log_path(cfg)
+    audit_bytes = audit_path.read_bytes() if audit_path.is_file() else None
+    return PeriodLease(
+        ticket_bytes=ticket_bytes,
+        audit_lines=task_audit_fingerprint(audit_bytes, ref.id_slug),
+    )
 
 
 def _normalize_delegate(value: Any) -> str:

@@ -40,6 +40,7 @@ from coga.repl_supervisor import (
     AgentCliNotFound,
     ReplOutcome,
 )
+from coga.recurring import PeriodLease, local_period_lease
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
 from coga.tasks import BootstrapRef, TaskRef, list_tasks
 from coga.ticket import Ticket
@@ -1378,12 +1379,13 @@ def test_internal_recurring_launch_seam_marks_dispatch_as_already_authorized(
     monkeypatch.setattr(
         launch_module,
         "_refresh_recurring_period_before_launch",
-        lambda task: True,
+        lambda task, expected_period_lease: True,
     )
     monkeypatch.setattr(launch_module, "_launch", fake_launch)
 
     result = launch_module.launch_recurring_period(
         "recurring/delegate-check",
+        expected_period_lease=PeriodLease(None, ()),
         agent_override=None,
         prompt_report=False,
         idle_timeout=900.0,
@@ -1417,8 +1419,9 @@ def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed ordinary recurring period")
     git_repo.git("push", "origin", "main")
-
     ticket_path = Path(created["path"]) / "ticket.md"
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    expected_period_lease = local_period_lease(cfg, ref)
     remote_ticket = Ticket.read(ticket_path)
     remote_ticket.frontmatter["status"] = "paused"
     git_repo.push_competing_commit(
@@ -1433,6 +1436,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
 
     result = launch_module.launch_recurring_period(
         created["slug"],
+        expected_period_lease=expected_period_lease,
         agent_override=None,
         prompt_report=False,
         idle_timeout=900.0,
@@ -1444,6 +1448,60 @@ def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
 
     assert result == "skipped"
     assert Ticket.read(ticket_path).status == "paused"
+
+
+def test_internal_recurring_launch_skips_a_replaced_period_generation(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Byte-identical replacement state cannot inherit an admitted dispatch."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Replaceable recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/replaced-check",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed replaceable recurring period")
+    git_repo.git("push", "origin", "main")
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    expected_period_lease = local_period_lease(cfg, ref)
+    audit_path = git_repo.coga_os / "log.md"
+    competing_audit = audit_path.read_text() + (
+        "2026-08-26 12:00 [recurring/replaced-check] [system] "
+        "created replacement (status=active)\n"
+    )
+    git_repo.push_competing_commit(
+        audit_path.relative_to(git_repo.root).as_posix(), competing_audit
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_launch",
+        lambda *args, **kwargs: pytest.fail("a replacement generation must skip"),
+    )
+
+    result = launch_module.launch_recurring_period(
+        created["slug"],
+        expected_period_lease=expected_period_lease,
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        queue_guidance=True,
+    )
+
+    current_period_lease = local_period_lease(cfg, ref)
+    assert result == "skipped"
+    assert current_period_lease.ticket_bytes == expected_period_lease.ticket_bytes
+    assert current_period_lease.audit_lines != expected_period_lease.audit_lines
 
 
 def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
@@ -1463,9 +1521,23 @@ def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
         slug_override="recurring/reaped-check",
         force_directory=True,
     )
+    sibling = create_task(
+        cfg=cfg,
+        title="Prefix sibling",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/reaped-check-extra",
+        force_directory=True,
+    )
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed reaped recurring period")
     git_repo.git("push", "origin", "main")
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    expected_period_lease = local_period_lease(cfg, ref)
 
     # Use the competing checkout to model Dream deleting this later period
     # while the sweep is occupied by an earlier child.
@@ -1485,6 +1557,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
 
     result = launch_module.launch_recurring_period(
         created["slug"],
+        expected_period_lease=expected_period_lease,
         agent_override=None,
         prompt_report=False,
         idle_timeout=900.0,
@@ -1496,6 +1569,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
 
     assert result == "skipped"
     assert not (git_repo.root / ticket_rel).exists()
+    assert (Path(sibling["path"]) / "ticket.md").is_file()
 
 
 def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
@@ -1518,6 +1592,8 @@ def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
     git_repo.git("add", "-A")
     git_repo.git("commit", "-m", "seed ordinary recurring period")
     git_repo.git("push", "origin", "main")
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    expected_period_lease = local_period_lease(cfg, ref)
     monkeypatch.setattr(
         launch_module.git,
         "_remote_configured",
@@ -1532,6 +1608,7 @@ def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
     with pytest.raises(SystemExit) as excinfo:
         launch_module.launch_recurring_period(
             created["slug"],
+            expected_period_lease=expected_period_lease,
             agent_override=None,
             prompt_report=False,
             idle_timeout=900.0,

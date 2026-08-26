@@ -84,6 +84,7 @@ from coga.repl_supervisor import (
     build_supervised_step_env,
     run_with_done_marker,
 )
+from coga.recurring import PeriodLease, local_period_lease
 from coga.task_env import apply_task_env
 from coga.step_gate import gate_publishes_current_branch
 from coga.taskfile import TaskFileError, split_body
@@ -92,6 +93,7 @@ from coga.tasks import (
     TaskNotFoundError,
     TaskRef,
     TargetRef,
+    list_tasks,
     read_ticket,
     resolve_target,
 )
@@ -220,6 +222,7 @@ def launch(
 def launch_recurring_period(
     task: str,
     *,
+    expected_period_lease: PeriodLease,
     agent_override: str | None,
     prompt_report: bool,
     idle_timeout: float | None,
@@ -234,10 +237,12 @@ def launch_recurring_period(
     performs the full admission pass at its outer boundary. A prior child can
     run long enough for another checkout to pause, finish, or replace a later
     period, though, so this seam refreshes and rechecks that one period before
-    entering shared launch logic. A lost refresh fails closed; a period that
-    became closed or parked returns ``"skipped"`` without starting work.
+    entering shared launch logic. The caller supplies the exact ticket/audit
+    generation admitted before any prior child ran. A lost refresh fails
+    closed; a period that became closed, parked, or replaced returns
+    ``"skipped"`` without starting work.
     """
-    if not _refresh_recurring_period_before_launch(task):
+    if not _refresh_recurring_period_before_launch(task, expected_period_lease):
         return "skipped"
     return _launch(
         task,
@@ -257,8 +262,10 @@ def launch_recurring_period(
     )
 
 
-def _refresh_recurring_period_before_launch(task: str) -> bool:
-    """Refresh and re-admit one internal period immediately before launch."""
+def _refresh_recurring_period_before_launch(
+    task: str, expected_period_lease: PeriodLease
+) -> bool:
+    """Refresh and re-admit the exact period generation selected by a sweep."""
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -282,28 +289,36 @@ def _refresh_recurring_period_before_launch(task: str) -> bool:
         cfg = load_config(cfg.repo_root)
     except ConfigError as exc:
         _bail(str(exc))
-    try:
-        ref = resolve_target(cfg, task)
-    except TaskNotFoundError:
+    ref = next(
+        (candidate for candidate in list_tasks(cfg) if candidate.id_slug == task),
+        None,
+    )
+    if ref is None:
         typer.secho(
             f"{task} no longer exists on control; not launching.",
             fg=typer.colors.YELLOW,
         )
         return False
-    if (
-        not isinstance(ref, TaskRef)
-        or ref.directory != "recurring"
-        or ref.id_slug != task
-    ):
+    if ref.directory != "recurring":
         _bail(
             f"Internal recurring launch expected exact period ref {task!r}, "
-            f"but resolved {ref.id_slug!r}."
+            f"but found it in {ref.directory!r}."
         )
     if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
         raise SystemExit(2)
+    current_period_lease = local_period_lease(cfg, ref)
+    if current_period_lease != expected_period_lease:
+        typer.secho(
+            f"{ref.id_slug} belongs to a different ticket/audit generation "
+            "on control; not launching.",
+            fg=typer.colors.YELLOW,
+        )
+        return False
     try:
-        ticket = read_ticket(ref)
-    except TicketError as exc:
+        if current_period_lease.ticket_bytes is None:
+            raise TicketError("period ticket disappeared")
+        ticket = Ticket.parse(current_period_lease.ticket_bytes.decode())
+    except (UnicodeError, TicketError) as exc:
         _bail(str(exc))
     if ticket.status not in {"active", "in_progress"}:
         typer.secho(

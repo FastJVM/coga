@@ -201,12 +201,15 @@ gate.
 
 The outer sweep gate checks only the local branch. Its initial fetch or rebase
 remains a warning for bare and named interactive single-repo scans, but a remote-backed
-period is refreshed again immediately before its own launch. That narrow
-per-child check fails closed if control cannot be verified and skips a task
-that became `done`, `canceled`, or `paused` while an earlier child was running;
+period is admitted with its exact ticket bytes and task-tagged audit generation
+before the first child starts, then refreshed again immediately before its own
+launch. That narrow per-child check resolves only the exact task ref, fails
+closed if control cannot be verified, and skips a task removed, replaced, or
+changed to `done`, `canceled`, or `paused` while an earlier child was running;
 an offline operator therefore cannot start new remote-backed period work from
-a stale scan snapshot. The direct `coga launch recurring/<name>` spelling
-requires a verified catch-up **before resolving the local ref or reading
+a stale scan snapshot, and a removed ref cannot alias a prefix sibling. The
+direct `coga launch recurring/<name>` spelling requires a verified catch-up
+**before resolving the local ref or reading
 dispatch**; a Git-backed control checkout whose fetch or integration fails is
 refused before any work starts. It then reloads configuration and resolves the
 refreshed period so a remotely materialized task, integrated completion, or

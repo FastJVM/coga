@@ -885,12 +885,14 @@ ticket; the sweep, `coga recurring launch <name>`, and direct
 `coga launch recurring/<name>` retries all route from the snapshot rather than
 current template frontmatter, and the sweep rereads it after reconciliation
 instead of trusting cached scan dispatch. Sweeps and named launches perform
-full admission at their outer boundary, then use an internal period-launch
-seam. That seam narrowly refreshes control and rechecks branch/owner
-immediately before each ordinary child, so work parked, finished, or replaced
-during an earlier session is skipped and a failed refresh refuses the next
-launch. Delegated children use their exact control lease instead. The direct
-spelling has no outer admission: it requires verified control catch-up before
+full admission at their outer boundary, freeze every period's exact ticket and
+task-audit generation, then use an internal period-launch seam. That seam
+narrowly refreshes control, resolves only the exact ref, and rechecks
+branch/owner plus that generation immediately before each ordinary child, so
+work removed, parked, finished, or replaced during an earlier session is
+skipped and a failed refresh refuses the next launch. Delegated children use
+the same admitted generation as the start of their exact control lease. The
+direct spelling has no outer admission: it requires verified control catch-up before
 resolving even a locally missing period ref and remains subject to the same
 control-branch and recurring-owner gates. Direct launch also activates a
 paused/draft delegated period inline; recurring scans leave paused periods

@@ -34,11 +34,12 @@ access for the materialized period task; the stateless bootstrap target would
 otherwise skip that gate. Start publication, final spawn, and post-child
 completion/timeout all lease the exact period ticket plus its task-audit
 generation against control, so a later period at the same stable path cannot
-receive an older child's result. Sweeps reread dispatch after reconciliation
-and perform full recurring admission at their outer boundary; each ordinary
-child also refreshes immediately before launch, while delegation fails closed
-on every exact-lease verification/publication error. A direct launch requires
-verified catch-up before resolving even a locally missing period ref. A
+receive an older child's result. Sweeps reread dispatch after reconciliation,
+freeze every admitted period generation before the first child, and perform
+full recurring admission at their outer boundary; each ordinary child also
+refreshes and checks that exact generation immediately before launch, while
+delegation fails closed on every exact-lease verification/publication error. A
+direct launch requires verified catch-up before resolving even a locally missing period ref. A
 natural/crashed exit fails without completing the period. A
 multi-task sweep pauses a watchdog timeout and records it as timed out only
 after that pause is verified on control; a stale or failed pause refuses the

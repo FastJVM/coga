@@ -25,6 +25,7 @@ from coga.paths import log_path, tasks_dir
 from coga.recurring import (
     DueScan,
     DueTask,
+    PeriodLease,
     RecurringError,
     Template,
     create_named,
@@ -3252,6 +3253,74 @@ def test_launch_due_tasks_reloads_frozen_dispatch_after_reconciliation(
     assert task.delegate == durable_delegate
 
 
+def test_launch_due_tasks_skips_a_later_period_reaped_by_an_earlier_child(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A child teardown may remove a later admitted path without aborting."""
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)
+    refs: list[TaskRef] = []
+    due: list[DueTask] = []
+    for name in ("first-check", "later-check"):
+        created = create_task(
+            cfg=cfg,
+            title=name,
+            workflow_name="direct/body",
+            contexts=[],
+            owner="marc",
+            assignee="claude",
+            watchers=[],
+            status="active",
+            slug_override=f"recurring/{name}",
+            force_directory=True,
+        )
+        ref = next(
+            item for item in list_tasks(cfg) if item.id_slug == created["slug"]
+        )
+        refs.append(ref)
+        due.append(
+            DueTask(
+                template=name,
+                ref=ref,
+                last_fire=now,
+                created=False,
+                status="active",
+            )
+        )
+
+    launches: list[str] = []
+
+    def fake_ordinary_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launches.append(task)
+        if task == refs[0].id_slug:
+            refs[1].ticket_path.unlink()
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", fake_ordinary_launch
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_stop_if_unfinished_after_launch",
+        lambda *args, **kwargs: None,
+    )
+    record = recurring_cmd.RunRecord(started=now)
+
+    result = recurring_cmd._launch_due_tasks(
+        cfg,
+        due,
+        record,
+        force=False,
+        interactive=True,
+        agent_override=None,
+    )
+
+    assert result == 0
+    assert launches == [refs[0].id_slug]
+    assert any(
+        "later-check changed after sweep admission" in note for note in record.notes
+    )
+
+
 def test_script_backed_delegate_is_rejected_before_period_creation(
     repo: Path,
 ) -> None:
@@ -5274,6 +5343,12 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
             )
 
     monkeypatch.setattr(recurring_cmd, "_prepare_forced_launch", prepare)
+    active_lease = PeriodLease(
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(), ()
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "_local_period_lease", lambda *args: active_lease
+    )
     monkeypatch.setattr(
         recurring_cmd,
         "read_ticket",
@@ -5332,6 +5407,12 @@ def test_forced_recurring_scan_prepares_then_launches_task(
         recurring_cmd,
         "_prepare_forced_launch",
         lambda task_cfg, due_task: prepared.append(due_task),
+    )
+    active_lease = PeriodLease(
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(), ()
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "_local_period_lease", lambda *args: active_lease
     )
     monkeypatch.setattr(
         recurring_cmd,
@@ -5403,6 +5484,12 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
     monkeypatch.setattr(recurring_cmd, "_print_table", lambda *args, **kwargs: None)
+    active_lease = PeriodLease(
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(), ()
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "_local_period_lease", lambda *args: active_lease
+    )
     monkeypatch.setattr(
         recurring_cmd,
         "read_ticket",
@@ -6159,6 +6246,7 @@ def test_recurring_launch_invokes_launch(
 
     def fake_launch(
         task: str,
+        expected_period_lease: PeriodLease,
         agent_override: str | None,
         prompt_report: bool,
         idle_timeout: float | None = None,
@@ -6173,6 +6261,7 @@ def test_recurring_launch_invokes_launch(
         # On-demand named launches are automatic queue launches too.
         assert queue_guidance is True
         assert script_failure_important is True
+        assert expected_period_lease.ticket_bytes is not None
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         assert ticket.status == "active"
         calls.append(task)
