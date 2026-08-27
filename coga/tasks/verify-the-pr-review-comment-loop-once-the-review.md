@@ -1,7 +1,7 @@
 ---
 slug: verify-the-pr-review-comment-loop-once-the-review
 title: Verify the PR review-comment loop once the review queue drains
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -174,12 +174,35 @@ on relaunch. The 2026-08-17 snapshot in `## Context` is still the baseline; the
 retired-since set for phase 2 must be recomputed at that time, and it will
 include whichever of these four land in the meantime.
 
+## Run 2026-08-26 — original blocker resolved, phase 0 gate still FAILED
+
+Cleared the 2026-08-20 blocker after verifying that PRs 700–703 all merged on
+2026-08-21 and all four named tickets are now `done` and off review.
+
+Then reran the phase 0 gate verbatim. Three newer tickets are live on a review
+step:
+
+| ticket | step | status | PR | PR state |
+| --- | --- | --- | --- | --- |
+| `fix-the-autofix-analyst` | 4 (review) | in_progress | 724 | MERGED |
+| `reconcile-recurring-wrapper-tty-admission-guidance` | 4 (review) | in_progress | 723 | MERGED |
+| `rewrite-coga-base-prompt-and-agent-mode-block` | 4 (review) | in_progress | 726 | OPEN |
+
+The first two show merged work still awaiting the autoclose/bump transition;
+the third is an outstanding human review. The steady-state gate therefore
+remains unsatisfied. Per phase 0, phases 1–4 were not started. On relaunch,
+rerun the gate and recompute the retired-since-2026-08-17 set only after it
+returns no live review tickets.
+
 ---
 
 ## Blockers
 
 - [x] [2026-08-20 11:24] [agent:claude] id=20260820T112458 Phase 0 precondition gate failed: four tickets are still in_progress on a code/with-review review step, with all four PRs still OPEN (unmerged) — coga/tasks/put-build-back.md (step 4, PR 701), coga/tasks/recurring-recipe-question.md (step 5, PR 700), coga/tasks/validate-drift-classifier-misses-17-emitted-kinds.md (step 4, PR 702), coga/tasks/dream-phases-2-3-cannot-complete-scan-subagents-re.md (step 4, PR 703). The ticket body forbids running phases 1-4 against a live backlog. Need the owner to review and merge PRs 700-703 (or move those tickets off review), then relaunch this ticket.
   resolved: [2026-08-26 21:57] [human:nicktoper] Resolved: PRs 700-703 merged on 2026-08-21 and the four named tickets (put-build-back, recurring-recipe-question, validate-drift-classifier-misses-17-emitted-kinds, and dream-phases-2-3-cannot-complete-scan-subagents-re) are all now status done and off the review queue.
+
+- [ ] [2026-08-26 21:58] [agent:claude] id=20260826T215802 Phase 0 precondition gate still fails: coga/tasks/fix-the-autofix-analyst.md is in_progress on review with merged PR 724; coga/tasks/reconcile-recurring-wrapper-tty-admission-guidance.md is in_progress on review with merged PR 723; and coga/tasks/rewrite-coga-base-prompt-and-agent-mode-block.md is in_progress on review with open PR 726. The first two need autoclose/bump and the third needs review/merge plus autoclose/bump before this steady-state verification can proceed.
+
 
 ---
 
