@@ -1,7 +1,7 @@
 ---
 slug: parse-agents-rejects-cogalocaltoml
 title: parse-agents-rejects-cogalocaltoml
-status: draft
+status: canceled
 owner: nicktoper
 human: nicktoper
 agent: claude
