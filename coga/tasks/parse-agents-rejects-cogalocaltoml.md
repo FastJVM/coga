@@ -173,3 +173,11 @@ gain "agent types".
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Merge note
+
+Folded into `coga/tasks/bumppy-requires-exactly-two-agents.md` and canceled.
+Both tickets came from the same local-llm report, and the `peer` key added
+there has to survive the local/shared `[agents.*]` merge specified here, so
+the owner merged them rather than sequence them. The full content above is
+absorbed into that ticket's `## Context`; work it there, not here.
