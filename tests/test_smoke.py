@@ -103,7 +103,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Stripe webhooks retry" in prompt         # ticket context
     assert "Tests live next to the code" in prompt   # step skill
     assert "Current step: implement" in prompt
-    assert "Agent mode" in prompt
+    assert "Working with the human" in prompt
     assert "Blackboard" in prompt
 
     # 3. Advance steps. Each gated step refuses until its required artifact is

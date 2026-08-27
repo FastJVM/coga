@@ -128,7 +128,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     # Base prompt
     assert "You are an agent working on a ticket inside Coga" in prompt
     # Agent prompt
-    assert "Agent mode" in prompt
+    assert "Working with the human" in prompt
     # Repo context
     assert "Email tool is YC-backed" in prompt
     # Ticket context
@@ -459,7 +459,7 @@ def test_compose_llm_mode_uses_llm_block(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
-    assert "Agent mode" in prompt
+    assert "Working with the human" in prompt
 
 
 def test_compose_open_blockers_add_resolution_preamble(repo: Path) -> None:

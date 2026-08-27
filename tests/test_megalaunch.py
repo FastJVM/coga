@@ -864,8 +864,8 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
     assert "Megalaunch queue execution" in suffix
     assert "Do not ask for plan" in suffix
     # The appended queue directive overrides the attended ask-and-wait
-    # default composed into Agent mode...
-    assert "overrides the attended ask-and-wait default in Agent mode" in suffix
+    # default composed into "Working with the human"...
+    assert 'overrides the attended ask-and-wait default in "Working with the' in suffix
     assert "Do not ask-and-wait for missing input here" in suffix
     # ...and unavailable input must end in a terminal `coga block`.
     assert (

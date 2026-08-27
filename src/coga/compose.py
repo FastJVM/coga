@@ -154,15 +154,6 @@ def compose_prompt_report(
         ref="prompt.md",
     ))
 
-    # 2. agent-mode prompt. Every launch composes an agent prompt, so the layer
-    # is unconditional.
-    layers.append(PromptLayer(
-        "mode_prompt",
-        "Agent mode",
-        _resource("prompt-agent.md"),
-        ref="prompt-agent.md",
-    ))
-
     # 2b. Blocker-resolution preamble. An interactive session whose blackboard
     # still carries open asks must resolve-or-re-block before the step's real
     # work — this is how `coga launch` resumes a blocked ticket as a chat
