@@ -138,25 +138,50 @@ the example under "Extend recurring with a task-specific workflow").
   stateless bootstrap target an agent period hands its work to, which no
   file's presence can express. The template's period is then serviced by
   launching that target rather than by an agent session on the period task:
-  the sweep fully preflights and composes the bootstrap launch, marks the period
-  task `in_progress`, then reloads config and target state and redoes every
-  preflight and composition step before spawning. That second pass is required
-  because the period-start publication may integrate a newer control tip.
-  Immediately before spawn, the runner leases the exact materialized ticket
-  again: it must still be `in_progress`, name the same frozen delegate, and
-  match the snapshot captured after publication. Any concurrent terminal
-  transition, replacement, dispatch change, or ticket edit refuses the spawn.
-  The launch remains in-process — in the operator's own terminal, under the sweep's
-  `--agent` override, queue guidance, and idle/max-session liveness bounds — and
-  the period task reaches `done` only when the bootstrap target emits its done
-  sentinel. A natural/crashed exit fails with the period left retryable; a
-  multi-task sweep pauses a watchdog timeout and continues, while a named
-  launch fails and leaves it `in_progress` for retry. Creation copies the
+  the runner preflights push access for the materialized period (the stateless
+  bootstrap target would otherwise self-skip that gate), fully preflights and
+  composes the bootstrap launch, then publishes `in_progress` as an exact
+  compare-and-set before announcing the start. The materialized task carries a
+  creator-owned `period_generation:` token that changes on every supported
+  rematerialization; the lease covers that bounded witness plus the exact
+  ticket bytes without rereading the unbounded global audit log. Launch then
+  reloads config and target state and
+  redoes every preflight and composition step because start publication may
+  integrate a newer control tip. Immediately before spawn, the runner requires
+  that same ticket-plus-generation lease, `in_progress` status, and frozen
+  delegate on control. Any concurrent terminal transition, replacement, dispatch
+  change, ticket edit, or new generation refuses the spawn. The launch remains
+  in-process — in the operator's own terminal, under the sweep's `--agent`
+  override, queue guidance, and idle/max-session liveness bounds — and the
+  period task reaches `done` only when the bootstrap target emits its done
+  sentinel. After the child exits, completion and watchdog pause consume the
+  same generation lease as another exact compare-and-set; an older child's
+  result can never mutate a replacement at the stable path. A natural/crashed
+  exit fails with the period left retryable; a multi-task sweep pauses a
+  watchdog timeout and continues only after that pause is verified on control.
+  A stale or failed pause refuses the run; a named launch fails and leaves it
+  `in_progress` for retry. At final spawn admission the runner also freezes the
+  exact parent recurring ticket named by the period's state snapshot and
+  verifies that input on control. Completion consumes the same parent lease in
+  its strict publication, so a concurrent parent/cursor edit refuses instead
+  of being overwritten, and the child's cross-run cursor update cannot remain
+  local while the period reaches `done` on control. If the digest spool is
+  installed, the completion event is
+  appended first and joins that transaction; a live notification waits until
+  publication succeeds. Strict lifecycle publication unwinds an unaccepted
+  local feature/control commit before restoring runner-owned files. If a push
+  reply is lost, it probes the exact control candidate across every effective push
+  destination: confirmed acceptance succeeds, while disagreement or any other
+  unprovable outcome refuses and retains generated local state for explicit
+  reconciliation rather than manufacturing a split.
+  Creation copies the
   target into canonical period-task frontmatter; sweep retries, named retries,
   and direct `coga launch recurring/<name>` route only from that frozen field,
   re-read from the durable period after launch reconciliation, so changing a
   template or refreshing/replacing a task cannot reroute live work from stale
-  scan state. A materialized
+  scan state. The direct spelling is also the normal readiness signal: a
+  paused/draft delegated period activates inline before its guarded start;
+  scheduled and named recurring scans continue to leave paused work parked. A materialized
   period that later acquires its own `ticket.py` is invalid and refused rather
   than choosing between the two dispatch signals. Because the delegated run is
   still an agent launch, a delegating template stays in the agent-backed
@@ -165,6 +190,10 @@ the example under "Extend recurring with a task-specific workflow").
   be agent-backed: a bootstrap `ticket.py` target is rejected before creation,
   because deterministic recurring work belongs in the template's own
   `ticket.py`. `coga validate` checks both the template and frozen task.
+- `period_generation` is runner-owned materialized-task state, not a template
+  input. The creator stamps it once per new stable-path generation; templates
+  or ordinary tasks that declare it are rejected rather than accepting a stale
+  or forged lease identity.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered
@@ -184,12 +213,44 @@ control branch and tells the operator to switch branches. There is deliberately
 no override: `--force` bypasses schedule and status filters, not the branch
 gate.
 
-This gate checks only the local branch. A fetch or rebase failure on the
-checked-out control branch remains a warning for the interactive single-repo
-entry points, so an offline operator can still service a period. The
-direct `coga launch recurring/<name>` spelling performs that same best-effort
-catch-up before reading dispatch, then reloads configuration and re-resolves
-the exact period ref so an integrated completion or replacement wins. The
+The outer sweep gate checks only the local branch. Its initial fetch or rebase
+remains a warning for bare and named interactive single-repo scans, but a remote-backed
+period is admitted with its exact ticket bytes and creator-owned period generation
+before the first child starts, then refreshed again immediately before its own
+launch. That narrow per-child check resolves only the exact task ref, fails
+closed if remote-backed control cannot be verified, and skips a task removed,
+replaced, or changed to `done`, `canceled`, or `paused` while an earlier child
+was running; an offline operator therefore cannot start new remote-backed
+period work from a stale scan snapshot, and a removed ref cannot alias a prefix
+sibling. A Git checkout with no configured remote freezes that local-only class
+at outer admission and uses its exact local control state; if a remote existed
+at admission but disappears before a later child, the child refuses instead of
+silently changing classes. Every
+ordinary period launch also returns its exact ticket-plus-generation lease: the
+refreshed admission lease for a deterministic `ticket.py` child, recaptured
+immediately before every agent spawn only after the bounded token, launchable
+status, and full ticket snapshot still match the work just composed. A parked,
+closed, advanced, or otherwise edited same-generation ticket therefore cannot
+run a stale prompt. If either child exits
+unfinished, the sweep compares that bounded token, which stays stable across
+the child's ticket edits and launch/usage audit appends but changes when the
+path is materialized again. Only the same
+generation gets a fresh exact lease, and the pause is rendered from those newly
+leased bytes so a concurrent same-generation edit is preserved; a replacement
+refuses teardown instead of parking the task now occupying the stable path. The
+direct `coga launch recurring/<name>` spelling requires a verified catch-up
+**before resolving the local ref or reading dispatch** whenever a remote is
+configured; a remote-backed control checkout whose fetch or integration fails
+is refused before any work starts, while a Git checkout with no remote uses
+local `HEAD` as its only control state. It then reloads configuration and
+resolves the refreshed period so a remotely materialized task, integrated
+completion, or replacement wins. A bare sweep and
+`coga recurring launch <name>` perform their full public admission once at the
+outer boundary; the typed in-process seam rechecks branch/owner plus only the
+latest period state before each ordinary child rather than re-entering the
+whole public launch path. Delegated children use their stricter exact
+ticket-plus-generation control lease instead, and any transport failure while
+confirming or publishing that lease refuses the child. The
 unattended `coga recurring --all <path>` child keeps its stricter existing
 precondition: it must also fetch and integrate the latest remote control tip
 before scanning. Repos with `[git].enabled = false` and workspaces outside a
@@ -645,7 +706,10 @@ Operating it:
   exists in between. The delegated command's own success signal — e.g. its
   `coga slack` roll-up line in `coga/log.md`, which emits the bootstrap done
   sentinel — is the only path to period completion; a natural REPL exit is not
-  success. Delegation is only for an agent-backed bootstrap command. If the
+  success. Start, spawn, completion, and timeout are guarded by the exact
+  materialized ticket plus its creator-owned period generation, so an old child cannot
+  mutate a later period at the same stable path. Delegation is only for an
+  agent-backed bootstrap command. If the
   target has `ticket.py`, move that deterministic work to the recurring
   template's own `ticket.py`; Coga rejects the delegate before creating a
   period task rather than relocating admission failure into the run.

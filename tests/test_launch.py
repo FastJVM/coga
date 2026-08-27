@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
+from coga import git as coga_git
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
 from coga.blackboard import append_blocker
@@ -39,6 +40,7 @@ from coga.repl_supervisor import (
     AgentCliNotFound,
     ReplOutcome,
 )
+from coga.recurring import PeriodLease, local_period_lease
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
 from coga.tasks import BootstrapRef, TaskRef, list_tasks
 from coga.ticket import Ticket
@@ -1271,6 +1273,565 @@ def test_direct_recurring_launch_refreshes_control_before_frozen_dispatch(
     assert result.exit_code == 2
     assert Ticket.read(ticket_path).status == "done"
     assert "expected 'active' or 'in_progress'" in result.output
+
+
+def test_direct_recurring_launch_catches_up_before_resolving_a_missing_local_ref(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A remotely materialized period is discoverable after control catch-up."""
+    relpath = "coga/tasks/recurring/delegate-check/ticket.md"
+    git_repo.push_competing_commit(
+        relpath,
+        dedent(
+            """
+            ---
+            slug: recurring/delegate-check
+            title: Delegated period
+            status: active
+            owner: marc
+            human: marc
+            agent: claude
+            assignee: claude
+            watchers: []
+            contexts: []
+            workflow:
+              name: direct/body
+              description: one step
+              steps:
+                - name: do
+                  assignee: agent
+            step: 1 (do)
+            delegate: bootstrap/resolve-conflicts
+            ---
+
+            ## Description
+
+            Run delegated work.
+            """
+        ).lstrip(),
+    )
+    assert not (git_repo.root / relpath).exists()
+    launched: list[str] = []
+
+    def fake_delegated(task_cfg, ref, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref.id_slug)
+        return recurring_cmd.DelegatedRunResult(0, "done")
+
+    monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated)
+
+    result = CliRunner().invoke(app, ["launch", "recurring/delegate-check"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == ["recurring/delegate-check"]
+    assert (git_repo.root / relpath).is_file()
+
+
+def test_direct_recurring_launch_refuses_an_unverified_control_catch_up(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed direct catch-up cannot fall through to stale task resolution."""
+    created = create_task(
+        cfg=load_config(git_repo.coga_os),
+        title="Ordinary period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/ordinary-check",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed ordinary period")
+    git_repo.git("push", "origin", "main")
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: (False, "simulated rebase conflict"),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "resolve_target",
+        lambda *args, **kwargs: pytest.fail("stale task resolution was reached"),
+    )
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == coga_git.STALE_CONTROL_EXIT_CODE
+    assert "could not confirm this checkout includes the latest origin/main" in (
+        result.output
+    )
+    assert "simulated rebase conflict" in result.output
+    assert "No work was started" in result.output
+
+
+def test_direct_recurring_launch_uses_local_control_without_a_remote(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An actually remote-less Git checkout admits its local period state."""
+    created = create_task(
+        cfg=load_config(git_repo.coga_os),
+        title="Delegated local period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/local-delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed local recurring period")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("remote", "remove", "origin")
+    launched: list[str] = []
+
+    def fake_delegated(task_cfg, ref, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref.id_slug)
+        return recurring_cmd.DelegatedRunResult(0, "done")
+
+    monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated)
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 0, result.output
+    assert launched == ["recurring/local-delegate-check"]
+
+
+def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ticket.py child keeps its refreshed lease without an agent callback."""
+    seen: list[tuple[str, bool]] = []
+
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        seen.append((task, kwargs["recurring_authorized"]))
+        return "script"
+
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_recurring_period_before_launch",
+        lambda task, expected_period_lease, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_exact_recurring_period_for_launch",
+        lambda *args, **kwargs: (SimpleNamespace(), SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(launch_module, "_launch", fake_launch)
+
+    expected_period_lease = PeriodLease(b"admitted ticket", "generation-1")
+    result = launch_module.launch_recurring_period(
+        "recurring/delegate-check",
+        expected_period_lease=expected_period_lease,
+        control_remote_expected=True,
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        queue_guidance=True,
+    )
+
+    assert result.kind == "script"
+    assert result.period_lease == expected_period_lease
+    assert result.require_period_publication is True
+    assert seen == [("recurring/delegate-check", True)]
+
+
+def test_internal_recurring_launch_refuses_replacement_before_agent_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The final agent boundary cannot adopt a replacement generation."""
+    expected_period_lease = PeriodLease(b"admitted ticket", "generation-1")
+
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs["before_final_spawn"](
+            Ticket(frontmatter={"status": "in_progress"}, body="")
+        )
+        pytest.fail("a replacement generation must not reach the agent spawn")
+
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_recurring_period_before_launch",
+        lambda task, expected_period_lease, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_exact_recurring_period_for_launch",
+        lambda *args, **kwargs: (SimpleNamespace(), SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "local_period_lease",
+        lambda *args, **kwargs: PeriodLease(
+            b"replacement ticket", "generation-2"
+        ),
+    )
+    monkeypatch.setattr(launch_module, "_launch", fake_launch)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch_recurring_period(
+            "recurring/delegate-check",
+            expected_period_lease=expected_period_lease,
+            control_remote_expected=True,
+            agent_override=None,
+            prompt_report=False,
+            idle_timeout=900.0,
+            max_session=None,
+            return_timeout=True,
+            script_failure_important=True,
+            queue_guidance=True,
+        )
+
+    assert excinfo.value.code == 2
+
+
+def test_internal_recurring_launch_refuses_same_generation_close_before_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A same-generation lifecycle edit invalidates the composed agent work."""
+    expected_period_lease = PeriodLease(b"admitted ticket", "generation-1")
+    composed_ticket = Ticket(frontmatter={"status": "in_progress"}, body="work")
+    paused_ticket = Ticket(frontmatter={"status": "paused"}, body="work")
+
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs["before_final_spawn"](composed_ticket)
+        pytest.fail("a parked period must not reach the agent spawn")
+
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_recurring_period_before_launch",
+        lambda task, expected_period_lease, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_exact_recurring_period_for_launch",
+        lambda *args, **kwargs: (SimpleNamespace(), SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "local_period_lease",
+        lambda *args, **kwargs: PeriodLease(
+            paused_ticket.render().encode(), "generation-1"
+        ),
+    )
+    monkeypatch.setattr(launch_module, "_launch", fake_launch)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch_recurring_period(
+            "recurring/delegate-check",
+            expected_period_lease=expected_period_lease,
+            control_remote_expected=True,
+            agent_override=None,
+            prompt_report=False,
+            idle_timeout=900.0,
+            max_session=None,
+            return_timeout=True,
+            script_failure_important=True,
+            queue_guidance=True,
+        )
+
+    assert excinfo.value.code == 2
+
+
+def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A later sweep child cannot start from the outer scan's stale snapshot."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Ordinary recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/ordinary-check",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed ordinary recurring period")
+    git_repo.git("push", "origin", "main")
+    ticket_path = Path(created["path"]) / "ticket.md"
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    expected_period_lease = local_period_lease(cfg, ref)
+    remote_ticket = Ticket.read(ticket_path)
+    remote_ticket.frontmatter["status"] = "paused"
+    git_repo.push_competing_commit(
+        ticket_path.relative_to(git_repo.root).as_posix(),
+        remote_ticket.render(),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_launch",
+        lambda *args, **kwargs: pytest.fail("a remotely parked period must skip"),
+    )
+
+    result = launch_module.launch_recurring_period(
+        created["slug"],
+        expected_period_lease=expected_period_lease,
+        control_remote_expected=True,
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        queue_guidance=True,
+    )
+
+    assert result.kind == "skipped"
+    assert result.period_lease is None
+    assert Ticket.read(ticket_path).status == "paused"
+
+
+def test_internal_recurring_launch_skips_a_replaced_period_generation(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An otherwise-identical replacement cannot inherit admitted dispatch."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Replaceable recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/replaced-check",
+        force_directory=True,
+        period_generation="generation-1",
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed replaceable recurring period")
+    git_repo.git("push", "origin", "main")
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    expected_period_lease = local_period_lease(cfg, ref)
+    competing_ticket = Ticket.read(ref.ticket_path)
+    competing_ticket.frontmatter["period_generation"] = "generation-2"
+    git_repo.push_competing_commit(
+        ref.ticket_path.relative_to(git_repo.root).as_posix(),
+        competing_ticket.render(),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_launch",
+        lambda *args, **kwargs: pytest.fail("a replacement generation must skip"),
+    )
+
+    result = launch_module.launch_recurring_period(
+        created["slug"],
+        expected_period_lease=expected_period_lease,
+        control_remote_expected=True,
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        queue_guidance=True,
+    )
+
+    current_period_lease = local_period_lease(cfg, ref)
+    assert result.kind == "skipped"
+    assert result.period_lease is None
+    assert current_period_lease.generation == "generation-2"
+    assert current_period_lease.generation != expected_period_lease.generation
+
+
+def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A later period reaped during an earlier child does not stop the sweep."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Reaped recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/reaped-check",
+        force_directory=True,
+    )
+    sibling = create_task(
+        cfg=cfg,
+        title="Prefix sibling",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/reaped-check-extra",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed reaped recurring period")
+    git_repo.git("push", "origin", "main")
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    expected_period_lease = local_period_lease(cfg, ref)
+
+    # Use the competing checkout to model Dream deleting this later period
+    # while the sweep is occupied by an earlier child.
+    git_repo.push_competing_commit("reaper-note.md", "reaping period\n")
+    competitor = git_repo.origin.parent / "competing-clone"
+    ticket_rel = (
+        Path(created["path"]) / "ticket.md"
+    ).relative_to(git_repo.root).as_posix()
+    git_repo.git("rm", "--", ticket_rel, cwd=competitor)
+    git_repo.git("commit", "-m", "reap completed recurring period", cwd=competitor)
+    git_repo.git("push", "origin", "main", cwd=competitor)
+    monkeypatch.setattr(
+        launch_module,
+        "_launch",
+        lambda *args, **kwargs: pytest.fail("a reaped period must skip"),
+    )
+
+    result = launch_module.launch_recurring_period(
+        created["slug"],
+        expected_period_lease=expected_period_lease,
+        control_remote_expected=True,
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        queue_guidance=True,
+    )
+
+    assert result.kind == "skipped"
+    assert result.period_lease is None
+    assert not (git_repo.root / ticket_rel).exists()
+    assert (Path(sibling["path"]) / "ticket.md").is_file()
+
+
+def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A vanished configured remote is not a verified per-child refresh."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Ordinary recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/ordinary-check",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed ordinary recurring period")
+    git_repo.git("push", "origin", "main")
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    expected_period_lease = local_period_lease(cfg, ref)
+    monkeypatch.setattr(
+        launch_module.git,
+        "_remote_configured",
+        lambda *args: False,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_launch",
+        lambda *args, **kwargs: pytest.fail("unverified work must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch_recurring_period(
+            created["slug"],
+            expected_period_lease=expected_period_lease,
+            control_remote_expected=True,
+            agent_override=None,
+            prompt_report=False,
+            idle_timeout=900.0,
+            max_session=None,
+            return_timeout=True,
+            script_failure_important=True,
+            queue_guidance=True,
+        )
+
+    assert excinfo.value.code == 2
+    ticket_path = Path(created["path"]) / "ticket.md"
+    assert Ticket.read(ticket_path).status == "active"
+
+
+def test_internal_recurring_launch_uses_admitted_remote_less_control(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A sweep admitted without a remote uses its exact local period lease."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Local ordinary recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/local-ordinary-check",
+        force_directory=True,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed local ordinary recurring period")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("remote", "remove", "origin")
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    expected_period_lease = local_period_lease(cfg, ref)
+    launched: list[str] = []
+
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(task)
+        return "script"
+
+    monkeypatch.setattr(launch_module, "_launch", fake_launch)
+
+    result = launch_module.launch_recurring_period(
+        created["slug"],
+        expected_period_lease=expected_period_lease,
+        control_remote_expected=False,
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        queue_guidance=True,
+    )
+
+    assert result.kind == "script"
+    assert result.period_lease == expected_period_lease
+    assert result.require_period_publication is False
+    assert launched == [created["slug"]]
 
 
 @pytest.mark.parametrize("refused_gate", ["control-branch", "owner"])
@@ -2885,7 +3446,7 @@ def test_launch_recomposes_after_before_spawn_publication(
         return_timeout=True,
         queue_guidance=True,
         before_spawn=publish_period_start,
-        revalidate_before_spawn=lambda: events.append("revalidate"),
+        revalidate_before_spawn=lambda _ticket: events.append("revalidate"),
     )
 
     assert kind == "done"

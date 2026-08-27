@@ -18,12 +18,16 @@ from coga import spool
 from coga import recurring as recurring_module
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
+from coga.commands.launch import RecurringPeriodLaunchResult
 from coga.config import Config, load_config
+from coga.create import create_task
 from coga.logfile import append_log, task_log_lines
 from coga.paths import log_path, tasks_dir
+from coga.period_state import write_snapshot
 from coga.recurring import (
     DueScan,
     DueTask,
+    PeriodLease,
     RecurringError,
     Template,
     create_named,
@@ -357,8 +361,21 @@ def _patch_recurring_command_launch(
     child_launch,
 ) -> None:
     """Delegate agent-backed child launches while the scan runs in-process."""
-    del repo
-    monkeypatch.setattr("coga.commands.launch.launch", child_launch)
+    def typed_child_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        result = child_launch(task, **kwargs)
+        if isinstance(result, RecurringPeriodLaunchResult):
+            return result
+        cfg = load_config(repo)
+        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
+        return RecurringPeriodLaunchResult(
+            result,
+            recurring_module.local_period_lease(cfg, ref),
+            False,
+        )
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", typed_child_launch
+    )
 
 
 def _finish_period_task(coga_os: Path, slug: str) -> None:
@@ -1162,6 +1179,11 @@ def test_recurring_all_services_one_checkout_per_remote(
         coga_root = active_checkout[-1]
         launches.append((coga_root, task))
         _finish_period_task(coga_root, task)
+        cfg = load_config(coga_root)
+        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
+        return RecurringPeriodLaunchResult(
+            None, recurring_module.local_period_lease(cfg, ref), False
+        )
 
     def run_in_process(
         found: Path,
@@ -1185,7 +1207,7 @@ def test_recurring_all_services_one_checkout_per_remote(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch_recurring_period", fake_launch)
     monkeypatch.setattr(recurring_cmd, "_run_repo_recurring", run_in_process)
 
     assert recurring_cmd.run_recurring_all_repos(scan_root) == 0
@@ -1742,7 +1764,7 @@ def test_recurring_scan_launches_replacement_task(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    _patch_recurring_command_launch(monkeypatch, repo, fake_launch)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
 
@@ -1780,7 +1802,7 @@ def test_recurring_scan_launches_even_when_create_sync_crashes(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    _patch_recurring_command_launch(monkeypatch, repo, fake_launch)
     monkeypatch.setattr(recurring_cmd, "_sync_recurring_create_paths", boom)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
@@ -2023,6 +2045,24 @@ def test_template_ignores_the_deleted_recipe_key(
     assert not hasattr(template, "recipe")
 
 
+def test_template_rejects_materialized_period_generation(repo: Path) -> None:
+    """A template cannot pin every future run to one generated lease token."""
+    _write_recurring(
+        repo,
+        "bad-generation",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Bad generation
+        period_generation: copied-token
+        ---
+        """,
+    )
+
+    with pytest.raises(RecurringError, match="reserved for materialized period"):
+        Template.load(repo / "recurring" / "bad-generation")
+
+
 def test_script_template_bypasses_agent_tty_gate(repo: Path) -> None:
     """A `ticket.py` template runs headlessly; the agent template is gated."""
     _write_recurring(
@@ -2052,6 +2092,57 @@ def test_script_template_bypasses_agent_tty_gate(repo: Path) -> None:
     assert task.status == "active"
     assert (task.ref.task_dir / "ticket.py").is_file()
     assert any(name == "weekly-check" for name, _ in scan.errors)
+
+
+def test_local_period_lease_does_not_read_unbounded_global_log(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Generation safety stays bounded to the materialized ticket."""
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "weekly-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    ticket = Ticket.read(outcome.ref.ticket_path)
+    generation = ticket.frontmatter.get("period_generation")
+    assert isinstance(generation, str) and generation
+
+    audit_path = log_path(cfg).resolve()
+    original_read_bytes = Path.read_bytes
+
+    def refuse_audit_read(path: Path) -> bytes:
+        if path.resolve() == audit_path:
+            pytest.fail("period lease reread the unbounded global audit log")
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", refuse_audit_read)
+
+    lease = recurring_module.local_period_lease(cfg, outcome.ref)
+
+    assert lease.generation == generation
+    assert lease.ticket_bytes == outcome.ref.ticket_path.read_bytes()
+
+
+def test_local_period_lease_treats_ticket_deleted_during_capture_as_missing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reap racing the ticket read becomes the existing skipped lease."""
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "weekly-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    ticket_path = outcome.ref.ticket_path
+    original_read_bytes = Path.read_bytes
+
+    def disappear_during_read(path: Path) -> bytes:
+        if path == ticket_path:
+            raise FileNotFoundError(ticket_path)
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", disappear_during_read)
+
+    lease = recurring_module.local_period_lease(cfg, outcome.ref)
+
+    assert lease == PeriodLease(ticket_bytes=None, generation=None)
 
 
 @pytest.mark.parametrize(
@@ -2422,8 +2513,6 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
     monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
     monkeypatch.setattr(recurring_cmd, "mark_done", fake_mark_done)
     monkeypatch.setattr(recurring_cmd, "mark_paused", fake_mark_paused)
-    monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
-    monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
     monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
 
     delegated = recurring_cmd._run_delegated_task(
@@ -2445,6 +2534,68 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
     assert launches == [
         ("bootstrap/resolve-conflicts", "claude", 900.0, None, True, True)
     ]
+
+
+@pytest.mark.parametrize(
+    ("boundary", "termination", "capture_to_race", "expected_status"),
+    [
+        ("start", "done", 1, "active"),
+        ("completion", "done", 2, "in_progress"),
+        ("timeout", "timeout", 2, "in_progress"),
+    ],
+)
+def test_delegated_lifecycle_snapshot_rejects_edit_after_lease(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    boundary: str,
+    termination: str,
+    capture_to_race: int,
+    expected_status: str,
+) -> None:
+    """Start, done, and pause cannot render an older leased ticket over a peer."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    real_snapshot = recurring_cmd._period_mutation_snapshot
+    captures = 0
+    note = f"Concurrent edit before {boundary} mutation."
+
+    def race_snapshot(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal captures
+        captures += 1
+        assert kwargs["expected_ticket_bytes"] is not None
+        if captures == capture_to_race:
+            concurrent = Ticket.read(outcome.ref.ticket_path)
+            concurrent.body += f"\n{note}\n"
+            concurrent.write(outcome.ref.ticket_path)
+        return real_snapshot(*args, **kwargs)
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        return termination
+
+    monkeypatch.setattr(recurring_cmd, "_period_mutation_snapshot", race_snapshot)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr("coga.mark.notify", lambda *args, **kwargs: None)
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    final = Ticket.read(outcome.ref.ticket_path)
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert captures == capture_to_race
+    assert final.status == expected_status
+    assert note in final.body
 
 
 def test_delegated_completion_reloads_post_session_config(
@@ -2485,8 +2636,6 @@ def test_delegated_completion_reloads_post_session_config(
 
     monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
     monkeypatch.setattr(recurring_cmd, "mark_done", fake_mark_done)
-    monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
-    monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
     monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
 
     delegated = recurring_cmd._run_delegated_task(
@@ -2551,8 +2700,6 @@ def test_delegated_spawn_revalidates_exact_period_lease_after_publication(
         "mark_done",
         lambda *args, **kwargs: pytest.fail("a refused spawn cannot complete"),
     )
-    monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
-    monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
     monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
 
     delegated = recurring_cmd._run_delegated_task(
@@ -2565,6 +2712,754 @@ def test_delegated_spawn_revalidates_exact_period_lease_after_publication(
 
     assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
     assert spawned is False
+
+
+def test_delegated_start_refuses_a_new_generation_before_publication(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An otherwise-identical replacement is a different period generation.
+
+    The creator-owned token changes before the start callback, so the runner
+    must refuse without marking or announcing the stale period.
+    """
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        replacement = Ticket.read(outcome.ref.ticket_path)
+        replacement.frontmatter["period_generation"] = "replacement-generation"
+        replacement.write(outcome.ref.ticket_path)
+        append_log(
+            cfg,
+            outcome.ref.id_slug,
+            "system",
+            "created recurring/delegate-check for 2026-W18",
+        )
+        kwargs["before_spawn"]()
+        pytest.fail("a replaced generation must not reach spawn")
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "mark_in_progress",
+        lambda *args, **kwargs: pytest.fail(
+            "a replaced generation must not be marked in_progress"
+        ),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert Ticket.read(outcome.ref.ticket_path).status == "active"
+
+
+def test_delegated_start_control_cas_rejects_a_remote_generation_race(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A remote replacement loses before start notification or spawn."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+        period_generation="generation-1",
+    )
+    append_log(
+        cfg,
+        created["slug"],
+        "system",
+        "created recurring/delegate-check for 2026-W17",
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegated period")
+    git_repo.git("push", "origin", "main")
+    ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
+
+    replacement = Ticket.read(ref.ticket_path)
+    replacement.frontmatter["period_generation"] = "generation-2"
+    git_repo.push_competing_commit(
+        ref.ticket_path.relative_to(git_repo.root).as_posix(),
+        replacement.render(),
+    )
+    notifications: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        pytest.fail("a refused control CAS must not reach spawn")
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(
+        "coga.mark.post",
+        lambda cfg, message, **kwargs: notifications.append(message),
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert Ticket.read(ref.ticket_path).status == "active"
+    assert notifications == []
+
+
+@pytest.mark.parametrize("starting_status", ["active", "in_progress"])
+def test_delegated_start_fails_closed_when_control_verification_loses_transport(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    starting_status: str,
+) -> None:
+    """Neither a fresh start nor orphan resume may spawn from an unverified lease."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    ticket = Ticket.read(outcome.ref.ticket_path)
+    ticket.frontmatter["status"] = starting_status
+    ticket.write(outcome.ref.ticket_path)
+    spawned = False
+
+    def fail_sync(*args: object, **kwargs: object) -> None:
+        assert kwargs["raise_git_error"] is True
+        raise coga_git.GitError("simulated transport loss")
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        nonlocal spawned
+        kwargs["before_spawn"]()
+        spawned = True
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(coga_git, "sync_task_state", fail_sync)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert spawned is False
+    assert Ticket.read(outcome.ref.ticket_path).status == starting_status
+
+
+def test_delegated_completion_fails_closed_when_control_publication_loses_transport(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A completed child cannot announce done when its final CAS is unverified."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    sync_calls = 0
+    announcements: list[str] = []
+
+    def fail_completion_sync(*args: object, **kwargs: object) -> None:
+        nonlocal sync_calls
+        sync_calls += 1
+        assert kwargs["raise_git_error"] is True
+        if sync_calls == 3:
+            raise coga_git.GitError("simulated completion transport loss")
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(coga_git, "sync_task_state", fail_completion_sync)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(
+        "coga.mark.notify",
+        lambda cfg, message, **kwargs: announcements.append(message),
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert sync_calls == 3
+    assert Ticket.read(outcome.ref.ticket_path).status == "in_progress"
+    assert announcements == []
+
+
+def test_delegated_completion_publishes_parent_cross_run_state(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The strict done transaction includes the recurring template cursor."""
+    coga_os = git_repo.coga_os
+    _write_delegating_template(coga_os, "delegate-check")
+    parent_ticket = coga_os / "recurring" / "delegate-check" / "ticket.md"
+    parent = Ticket.read(parent_ticket)
+    parent.frontmatter["state_keys"] = ["cursor"]
+    parent.write(parent_ticket)
+    _seed_template_blackboard(coga_os, "delegate-check", "cursor: old\n")
+    cfg = load_config(coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+        period_generation="generation-1",
+    )
+    ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
+    write_snapshot(ref.path, "delegate-check", parent_ticket, ["cursor"])
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegated period with parent state")
+    git_repo.git("push", "origin", "main")
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        _seed_template_blackboard(coga_os, "delegate-check", "cursor: new\n")
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    parent_rel = parent_ticket.relative_to(git_repo.root).as_posix()
+    remote_parent = git_repo.git("show", f"main:{parent_rel}", cwd=git_repo.origin)
+    assert delegated == recurring_cmd.DelegatedRunResult(0, "done")
+    assert Ticket.read(ref.ticket_path).status == "done"
+    assert "cursor: new" in remote_parent
+
+
+def test_delegated_completion_refuses_a_concurrent_parent_state_edit(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale child cursor cannot overwrite newer recurring parent state."""
+    coga_os = git_repo.coga_os
+    _write_delegating_template(coga_os, "delegate-check")
+    parent_ticket = coga_os / "recurring" / "delegate-check" / "ticket.md"
+    parent = Ticket.read(parent_ticket)
+    parent.frontmatter["state_keys"] = ["cursor"]
+    parent.write(parent_ticket)
+    _seed_template_blackboard(coga_os, "delegate-check", "cursor: old\n")
+    cfg = load_config(coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+        period_generation="generation-1",
+    )
+    ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
+    write_snapshot(ref.path, "delegate-check", parent_ticket, ["cursor"])
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegated period with parent state")
+    git_repo.git("push", "origin", "main")
+    completion_notifications: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        _seed_template_blackboard(coga_os, "delegate-check", "cursor: child\n")
+        competing_parent = _template_ticket_with_blackboard(
+            coga_os,
+            "delegate-check",
+            "cursor: concurrent\n",
+        )
+        git_repo.push_competing_commit(
+            parent_ticket.relative_to(git_repo.root).as_posix(),
+            competing_parent,
+        )
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(
+        "coga.mark.notify",
+        lambda cfg, message, **kwargs: completion_notifications.append(message),
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    parent_rel = parent_ticket.relative_to(git_repo.root).as_posix()
+    remote_parent = git_repo.git("show", f"main:{parent_rel}", cwd=git_repo.origin)
+    period_rel = ref.ticket_path.relative_to(git_repo.root).as_posix()
+    remote_period = git_repo.git("show", f"main:{period_rel}", cwd=git_repo.origin)
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert Ticket.read(ref.ticket_path).status == "in_progress"
+    assert "cursor: child" in parent_ticket.read_text()
+    assert "cursor: concurrent" in remote_parent
+    assert "status: in_progress" in remote_period
+    assert completion_notifications == []
+
+
+def test_delegated_completion_publishes_digest_event_with_done_state(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The strict completion transaction includes its configured digest event."""
+    coga_os = git_repo.coga_os
+    _write_delegating_template(coga_os, "delegate-check")
+    digest_spool = coga_os / "recurring" / "digest" / "spool.md"
+    _write(
+        digest_spool,
+        "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
+    )
+    cfg = load_config(coga_os)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegated period with digest spool")
+    git_repo.git("push", "origin", "main")
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    ticket_rel = outcome.ref.ticket_path.relative_to(git_repo.root).as_posix()
+    spool_rel = digest_spool.relative_to(git_repo.root).as_posix()
+    remote_ticket = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    remote_spool = git_repo.git("show", f"main:{spool_rel}", cwd=git_repo.origin)
+    ticket_commit = git_repo.git(
+        "log", "-1", "--format=%H", "main", "--", ticket_rel,
+        cwd=git_repo.origin,
+    ).strip()
+    spool_commit = git_repo.git(
+        "log", "-1", "--format=%H", "main", "--", spool_rel,
+        cwd=git_repo.origin,
+    ).strip()
+
+    assert delegated == recurring_cmd.DelegatedRunResult(0, "done")
+    assert "status: done" in remote_ticket
+    assert '"kind":"done"' in remote_spool
+    assert '"ticket":"recurring/delegate-check"' in remote_spool
+    assert ticket_commit == spool_commit
+
+
+def test_delegated_completion_retains_state_when_publication_is_uncertain(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An ambiguous accepted push is reconciliation evidence, not rollback input."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    sync_calls = 0
+    announcements: list[str] = []
+
+    def lose_completion_probe(*args: object, **kwargs: object) -> None:
+        nonlocal sync_calls
+        sync_calls += 1
+        assert kwargs["raise_git_error"] is True
+        if sync_calls == 3:
+            raise coga_git.UncertainFeaturePublicationError(
+                "simulated unknown control outcome"
+            )
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(coga_git, "sync_task_state", lose_completion_probe)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(
+        "coga.mark.notify",
+        lambda cfg, message, **kwargs: announcements.append(message),
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert sync_calls == 3
+    assert Ticket.read(outcome.ref.ticket_path).status == "done"
+    assert announcements == []
+
+
+def test_delegated_timeout_fails_when_control_pause_publication_loses_transport(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A sweep cannot report success when its watchdog pause is unverified."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    sync_calls = 0
+    announcements: list[str] = []
+
+    def fail_timeout_sync(*args: object, **kwargs: object) -> None:
+        nonlocal sync_calls
+        sync_calls += 1
+        assert kwargs["raise_git_error"] is True
+        if sync_calls == 3:
+            raise coga_git.GitError("simulated timeout transport loss")
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        return "timeout"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(coga_git, "sync_task_state", fail_timeout_sync)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(
+        "coga.mark.notify",
+        lambda cfg, message, **kwargs: announcements.append(message),
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert sync_calls == 3
+    assert Ticket.read(outcome.ref.ticket_path).status == "in_progress"
+    assert announcements == []
+
+
+def test_delegated_completion_control_cas_rejects_a_remote_generation_race(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A remote later generation cannot receive the old child's done result."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Delegated period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/delegate-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    append_log(
+        cfg,
+        created["slug"],
+        "system",
+        "created recurring/delegate-check for 2026-W17",
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegated period")
+    git_repo.git("push", "origin", "main")
+    ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
+    completion_notifications: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        replacement = Ticket.read(ref.ticket_path)
+        replacement.frontmatter["period_generation"] = "generation-2"
+        git_repo.push_competing_commit(
+            ref.ticket_path.relative_to(git_repo.root).as_posix(),
+            replacement.render(),
+        )
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._preflight_push_auth", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(
+        "coga.mark.notify",
+        lambda cfg, message, **kwargs: completion_notifications.append(message),
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert Ticket.read(ref.ticket_path).status == "in_progress"
+    assert completion_notifications == []
+    control_ticket = git_repo.git(
+        "show", "main:coga/tasks/recurring/delegate-check/ticket.md",
+        cwd=git_repo.origin,
+    )
+    assert "status: in_progress" in control_ticket
+    assert "period_generation: generation-2" in control_ticket
+
+
+@pytest.mark.parametrize(
+    ("termination", "expected"),
+    [
+        ("done", recurring_cmd.DelegatedRunResult(2, "refused")),
+        ("timeout", recurring_cmd.DelegatedRunResult(2, "refused")),
+    ],
+)
+def test_delegated_result_cannot_mutate_a_later_period_generation(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    termination: str,
+    expected: recurring_cmd.DelegatedRunResult,
+) -> None:
+    """The stable task path is re-leased after the child exits.
+
+    A later generation can have otherwise-identical ``in_progress`` ticket
+    state; its creator-owned token is therefore part of the lease that keeps
+    the old child's done/timeout result from completing or pausing it.
+    """
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+
+    def fake_mark_in_progress(
+        task_cfg, task_ref, current: Ticket, **kwargs  # type: ignore[no-untyped-def]
+    ) -> None:
+        current.frontmatter["status"] = "in_progress"
+        current.write(task_ref.ticket_path)
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        replacement = Ticket.read(outcome.ref.ticket_path)
+        replacement.frontmatter["period_generation"] = "replacement-generation"
+        replacement.write(outcome.ref.ticket_path)
+        append_log(
+            cfg,
+            outcome.ref.id_slug,
+            "system",
+            "created recurring/delegate-check for 2026-W18",
+        )
+        return termination
+
+    monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "mark_done",
+        lambda *args, **kwargs: pytest.fail(
+            "an old child must not complete the later generation"
+        ),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "mark_paused",
+        lambda *args, **kwargs: pytest.fail(
+            "an old watchdog must not pause the later generation"
+        ),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == expected
+    assert Ticket.read(outcome.ref.ticket_path).status == "in_progress"
+
+
+def test_delegated_done_refuses_a_malformed_replacement_ticket(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Present but unparsable replacement bytes are not a reaped period."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    malformed = b"\xffnot a ticket\n"
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        outcome.ref.ticket_path.write_bytes(malformed)
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "mark_done",
+        lambda *args, **kwargs: pytest.fail(
+            "malformed replacement state must not be completed"
+        ),
+    )
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert outcome.ref.ticket_path.read_bytes() == malformed
+
+
+def test_delegated_period_push_auth_is_preflighted_before_bootstrap_work(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stateless bootstrap target cannot self-skip the period's auth gate."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    checked: list[tuple[str, bool]] = []
+
+    def refuse_auth(task_cfg, task_ref, *, is_bootstrap):  # type: ignore[no-untyped-def]
+        checked.append((task_ref.id_slug, is_bootstrap))
+        raise SystemExit(2)
+
+    monkeypatch.setattr("coga.commands.launch._preflight_push_auth", refuse_auth)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn",
+        lambda *args, **kwargs: pytest.fail("bootstrap work must not start"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        recurring_cmd._run_delegated_task(
+            cfg,
+            outcome.ref,
+            idle_timeout=900.0,
+            max_session=None,
+            continue_after_timeout=True,
+        )
+
+    assert excinfo.value.code == 2
+    assert checked == [(outcome.ref.id_slug, False)]
+    assert Ticket.read(outcome.ref.ticket_path).status == "active"
 
 
 @pytest.mark.parametrize(
@@ -2605,8 +3500,6 @@ def test_delegated_preflight_refusal_does_not_start_period(
         raise SystemExit(2)
 
     monkeypatch.setattr(recurring_cmd, "mark_in_progress", fake_mark_in_progress)
-    monkeypatch.setattr(recurring_cmd, "append_log", lambda *args, **kwargs: None)
-    monkeypatch.setattr(recurring_cmd.git, "sync_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         "coga.commands.launch.launch_with_before_spawn", refuse_before_spawn
     )
@@ -2692,7 +3585,7 @@ def test_launch_due_tasks_reloads_frozen_dispatch_after_reconciliation(
         dispatches.append("delegated")
         return recurring_cmd.DelegatedRunResult(0, "done")
 
-    monkeypatch.setattr("coga.commands.launch.launch", fake_ordinary_launch)
+    _patch_recurring_command_launch(monkeypatch, repo, fake_ordinary_launch)
     monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated_launch)
     monkeypatch.setattr(
         recurring_cmd,
@@ -2708,11 +3601,79 @@ def test_launch_due_tasks_reloads_frozen_dispatch_after_reconciliation(
         force=False,
         interactive=True,
         agent_override=None,
+        control_remote_expected=False,
     )
 
     assert result == 0
     assert dispatches == [expected_dispatch]
     assert task.delegate == durable_delegate
+
+
+def test_launch_due_tasks_skips_a_later_period_reaped_by_an_earlier_child(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A child teardown may remove a later admitted path without aborting."""
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)
+    refs: list[TaskRef] = []
+    due: list[DueTask] = []
+    for name in ("first-check", "later-check"):
+        created = create_task(
+            cfg=cfg,
+            title=name,
+            workflow_name="direct/body",
+            contexts=[],
+            owner="marc",
+            assignee="claude",
+            watchers=[],
+            status="active",
+            slug_override=f"recurring/{name}",
+            force_directory=True,
+        )
+        ref = next(
+            item for item in list_tasks(cfg) if item.id_slug == created["slug"]
+        )
+        refs.append(ref)
+        due.append(
+            DueTask(
+                template=name,
+                ref=ref,
+                last_fire=now,
+                created=False,
+                status="active",
+            )
+        )
+
+    launches: list[str] = []
+
+    def fake_ordinary_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launches.append(task)
+        if task == refs[0].id_slug:
+            refs[1].ticket_path.unlink()
+
+    _patch_recurring_command_launch(monkeypatch, repo, fake_ordinary_launch)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_stop_if_unfinished_after_launch",
+        lambda *args, **kwargs: None,
+    )
+    record = recurring_cmd.RunRecord(started=now)
+
+    result = recurring_cmd._launch_due_tasks(
+        cfg,
+        due,
+        record,
+        force=False,
+        interactive=True,
+        agent_override=None,
+        control_remote_expected=False,
+    )
+
+    assert result == 0
+    assert launches == [refs[0].id_slug]
+    assert any(
+        "later-check changed after sweep admission" in note for note in record.notes
+    )
 
 
 def test_script_backed_delegate_is_rejected_before_period_creation(
@@ -2821,6 +3782,36 @@ def test_direct_launch_routes_frozen_recurring_delegate(
 
     assert result.exit_code == 0, result.output
     assert launches == ["bootstrap/resolve-conflicts"]
+    assert Ticket.read(outcome.ref.ticket_path).status == "done"
+
+
+def test_direct_launch_reactivates_a_paused_delegated_period(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Typing ``coga launch`` remains the readiness signal for delegation."""
+    _write_delegating_template(repo, "delegate-check")
+    monkeypatch.chdir(repo)
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    paused = Ticket.read(outcome.ref.ticket_path)
+    paused.frontmatter["status"] = "paused"
+    paused.write(outcome.ref.ticket_path)
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        return "done"
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *args, **kwargs: 0)
+
+    result = CliRunner().invoke(app, ["launch", outcome.ref.id_slug])
+
+    assert result.exit_code == 0, result.output
     assert Ticket.read(outcome.ref.ticket_path).status == "done"
 
 
@@ -3380,7 +4371,9 @@ def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_recurring_launch_creates_dream_task(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", lambda *a, **k: None
+    )
     result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
     assert result.exit_code == 0, result.output
@@ -3444,7 +4437,9 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     git_repo.git("push", "origin", "main")
 
     _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", lambda *a, **k: None
+    )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
@@ -3606,7 +4601,7 @@ def test_recurring_scan_replaces_stale_done_task_on_control(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    _patch_recurring_command_launch(monkeypatch, coga_os, fake_launch)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
     assert launched == ["recurring/weekly-check"]
@@ -3647,7 +4642,9 @@ def test_recurring_launch_lands_create_without_ff_noise(
     git_repo.push_competing_commit("notes.md", "remote note\n")
 
     _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", lambda *a, **k: None
+    )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
@@ -3822,7 +4819,9 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
         log.read_text() + remote_line,
     )
 
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", lambda *a, **k: None
+    )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
@@ -4168,7 +5167,8 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
     launch_calls: list[tuple[object, ...]] = []
     notify_calls: list[tuple[object, ...]] = []
     monkeypatch.setattr(
-        "coga.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
+        "coga.commands.launch.launch_recurring_period",
+        lambda *a, **k: launch_calls.append(a),
     )
     monkeypatch.setattr(
         "coga.recurring_runner.notify", lambda *a, **k: notify_calls.append(a)
@@ -4255,7 +5255,9 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
         log.read_text() + remote_line,
     )
 
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", lambda *a, **k: None
+    )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
@@ -4532,7 +5534,9 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
         str(git_repo.origin.parent / "missing.git"),
     )
 
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", lambda *a, **k: None
+    )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
@@ -4554,7 +5558,9 @@ def test_recurring_launch_defaults_assignee_to_default_agent(
     repo's default agent, not the human owner — otherwise `coga launch` cannot
     resolve the assignee to an agent type. (The `direct/body` step's
     `assignee: agent` resolves to that same default agent.)"""
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", lambda *a, **k: None
+    )
     CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
     cfg = load_config(dream_repo)
@@ -4567,7 +5573,9 @@ def test_recurring_launch_defaults_assignee_to_default_agent(
 def test_recurring_launch_is_idempotent(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", lambda *a, **k: None
+    )
     runner = CliRunner()
     first = runner.invoke(app, ["recurring", "launch", "dream"])
     second = runner.invoke(app, ["recurring", "launch", "dream"])
@@ -4690,6 +5698,13 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
             )
 
     monkeypatch.setattr(recurring_cmd, "_prepare_forced_launch", prepare)
+    active_lease = PeriodLease(
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(),
+        "generation-1",
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "_local_period_lease", lambda *args: active_lease
+    )
     monkeypatch.setattr(
         recurring_cmd,
         "read_ticket",
@@ -4699,8 +5714,11 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
         recurring_cmd, "frozen_task_delegate", lambda ref, ticket: None
     )
     monkeypatch.setattr(
-        "coga.commands.launch.launch",
-        lambda slug, **kwargs: launched.append(slug),
+        "coga.commands.launch.launch_recurring_period",
+        lambda slug, **kwargs: (
+            launched.append(slug),
+            RecurringPeriodLaunchResult(None, active_lease, False),
+        )[1],
     )
     monkeypatch.setattr(
         recurring_cmd,
@@ -4749,6 +5767,13 @@ def test_forced_recurring_scan_prepares_then_launches_task(
         "_prepare_forced_launch",
         lambda task_cfg, due_task: prepared.append(due_task),
     )
+    active_lease = PeriodLease(
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(),
+        "generation-1",
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "_local_period_lease", lambda *args: active_lease
+    )
     monkeypatch.setattr(
         recurring_cmd,
         "read_ticket",
@@ -4758,8 +5783,11 @@ def test_forced_recurring_scan_prepares_then_launches_task(
         recurring_cmd, "frozen_task_delegate", lambda ref, ticket: None
     )
     monkeypatch.setattr(
-        "coga.commands.launch.launch",
-        lambda slug, **kwargs: launched.append(slug),
+        "coga.commands.launch.launch_recurring_period",
+        lambda slug, **kwargs: (
+            launched.append(slug),
+            RecurringPeriodLaunchResult(None, active_lease, False),
+        )[1],
     )
     monkeypatch.setattr(
         recurring_cmd,
@@ -4819,6 +5847,13 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
     monkeypatch.setattr(recurring_cmd, "_print_table", lambda *args, **kwargs: None)
+    active_lease = PeriodLease(
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(),
+        "generation-1",
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "_local_period_lease", lambda *args: active_lease
+    )
     monkeypatch.setattr(
         recurring_cmd,
         "read_ticket",
@@ -4827,7 +5862,9 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
     monkeypatch.setattr(
         recurring_cmd, "frozen_task_delegate", lambda ref, ticket: None
     )
-    monkeypatch.setattr("coga.commands.launch.launch", failing_launch)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", failing_launch
+    )
     monkeypatch.setattr(
         recurring_cmd,
         "_stop_if_unfinished_after_launch",
@@ -5573,6 +6610,8 @@ def test_recurring_launch_invokes_launch(
 
     def fake_launch(
         task: str,
+        expected_period_lease: PeriodLease,
+        control_remote_expected: bool,
         agent_override: str | None,
         prompt_report: bool,
         idle_timeout: float | None = None,
@@ -5587,11 +6626,13 @@ def test_recurring_launch_invokes_launch(
         # On-demand named launches are automatic queue launches too.
         assert queue_guidance is True
         assert script_failure_important is True
+        assert expected_period_lease.ticket_bytes is not None
+        assert control_remote_expected is False
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         assert ticket.status == "active"
         calls.append(task)
 
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch_recurring_period", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
@@ -5618,7 +6659,7 @@ def test_recurring_launch_passes_ephemeral_agent_override(
     )
     seen: list[str | None] = []
     monkeypatch.setattr(
-        "coga.commands.launch.launch",
+        "coga.commands.launch.launch_recurring_period",
         lambda task, **kwargs: seen.append(kwargs.get("agent_override")),
     )
 
@@ -5658,7 +6699,7 @@ def test_recurring_launch_threads_configured_timeout_limits(
             )
         )
 
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch_recurring_period", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
@@ -5677,7 +6718,8 @@ def test_recurring_launch_resumes_in_progress_orphan(
     """
     calls: list[str] = []
     monkeypatch.setattr(
-        "coga.commands.launch.launch", lambda task, **k: calls.append(task)
+        "coga.commands.launch.launch_recurring_period",
+        lambda task, **k: calls.append(task),
     )
 
     # First call creates the period task (`active`); freeze it `in_progress`
@@ -5703,7 +6745,8 @@ def test_recurring_launch_refuses_done_task(
     """A `done` period task is left alone — re-running finished work is wrong."""
     calls: list[str] = []
     monkeypatch.setattr(
-        "coga.commands.launch.launch", lambda task, **k: calls.append(task)
+        "coga.commands.launch.launch_recurring_period",
+        lambda task, **k: calls.append(task),
     )
 
     CliRunner().invoke(app, ["recurring", "launch", "dream"])
@@ -5727,7 +6770,7 @@ def test_recurring_launch_interactive_leaves_limits_unarmed(
     """`--interactive` is a human-stepped run and leaves limits unarmed."""
     seen: list[tuple[float | None, float | None]] = []
     monkeypatch.setattr(
-        "coga.commands.launch.launch",
+        "coga.commands.launch.launch_recurring_period",
         lambda task, **k: seen.append(
             (k.get("idle_timeout"), k.get("max_session"))
         ),
@@ -5826,9 +6869,8 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
 
         return R()
 
-    monkeypatch.setattr(
-        "coga.commands.launch.launch",
-        lambda slug, **kwargs: launched.append(slug),
+    _patch_recurring_command_launch(
+        monkeypatch, repo, lambda slug, **kwargs: launched.append(slug)
     )
     monkeypatch.setattr(
         "coga.recurring_runner._stop_if_unfinished_after_launch",
@@ -5975,6 +7017,170 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
     assert second.exit_code == 0, second.output
     assert calls == []
     assert "No recurring tasks due." in second.output
+
+
+def test_bare_recurring_refuses_to_pause_replacement_after_ordinary_agent_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An old ordinary child cannot park a replacement at the stable path."""
+    monkeypatch.chdir(repo)
+    _allow_interactive_recurring(monkeypatch)
+
+    def replace_during_child(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        del kwargs
+        cfg = load_config(repo)
+        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
+        launched = Ticket.read(ref.ticket_path)
+        launched.frontmatter["status"] = "in_progress"
+        launched.write(ref.ticket_path)
+        launched_lease = recurring_module.local_period_lease(cfg, ref)
+
+        replacement = Ticket.read(ref.ticket_path)
+        replacement.frontmatter["status"] = "active"
+        replacement.frontmatter["period_generation"] = "replacement-generation"
+        replacement.body += "\nReplacement generation.\n"
+        replacement.write(ref.ticket_path)
+        append_log(
+            cfg,
+            ref.id_slug,
+            "system",
+            "created (status=active)",
+        )
+        return RecurringPeriodLaunchResult(None, launched_lease, False)
+
+    _patch_recurring_command_launch(monkeypatch, repo, replace_during_child)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, RecurringError)
+    assert "stable-path generation changed after the child exited" in str(
+        result.exception
+    )
+    cfg = load_config(repo)
+    ref = list_tasks(cfg)[0]
+    assert Ticket.read(ref.ticket_path).status == "active"
+    assert "Replacement generation." in ref.ticket_path.read_text()
+    assert not any("→ paused" in line for line in task_log_lines(cfg, ref.id_slug))
+
+
+def test_bare_recurring_refuses_to_pause_replacement_after_ticket_script_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A deterministic child retains its admitted generation through teardown."""
+    _write_recurring(
+        repo,
+        "script-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: Script check
+        owner: marc
+        ---
+
+        ## Description
+
+        Run deterministic work.
+        """,
+    )
+    _write_recurring_script(repo, "script-check")
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: False
+    )
+
+    def replace_during_script(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        del kwargs
+        cfg = load_config(repo)
+        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
+        launched = Ticket.read(ref.ticket_path)
+        launched.frontmatter["status"] = "in_progress"
+        launched.write(ref.ticket_path)
+
+        replacement = Ticket.read(ref.ticket_path)
+        replacement.frontmatter["status"] = "active"
+        replacement.frontmatter["period_generation"] = "replacement-generation"
+        replacement.body += "\nReplacement generation.\n"
+        replacement.write(ref.ticket_path)
+        append_log(cfg, ref.id_slug, "system", "created (status=active)")
+        return "script"
+
+    monkeypatch.setattr(
+        "coga.commands.launch._launch",
+        replace_during_script,
+    )
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, RecurringError)
+    assert "stable-path generation changed after the child exited" in str(
+        result.exception
+    )
+    cfg = load_config(repo)
+    ref = next(
+        ref for ref in list_tasks(cfg) if ref.id_slug == "recurring/script-check"
+    )
+    assert Ticket.read(ref.ticket_path).status == "active"
+    assert "Replacement generation." in ref.ticket_path.read_text()
+    assert not any("→ paused" in line for line in task_log_lines(cfg, ref.id_slug))
+
+
+def test_unfinished_ordinary_pause_accepts_same_generation_child_edits(
+    repo: Path,
+) -> None:
+    """Usage/audit and blackboard writes do not masquerade as replacement."""
+    cfg, ref = _in_progress_period(repo)
+    launched_lease = recurring_module.local_period_lease(cfg, ref)
+    current = Ticket.read(ref.ticket_path)
+    current.body += "\nChild working note.\n"
+    current.write(ref.ticket_path)
+    append_log(cfg, ref.id_slug, "system", '{"usage_status":"unknown"}')
+
+    recurring_cmd._stop_if_unfinished_after_launch(
+        cfg,
+        ref,
+        expected_period_lease=launched_lease,
+    )
+
+    paused = Ticket.read(ref.ticket_path)
+    assert paused.status == "paused"
+    assert "Child working note." in paused.body
+
+
+def test_unfinished_ordinary_pause_uses_the_newly_leased_ticket(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A same-generation edit between lookup and lease survives the pause."""
+    cfg, ref = _in_progress_period(repo)
+    launched_lease = recurring_module.local_period_lease(cfg, ref)
+    real_local_period_lease = recurring_module.local_period_lease
+
+    def lease_after_concurrent_edit(
+        lease_cfg: Config, lease_ref: TaskRef
+    ) -> PeriodLease:
+        current = Ticket.read(lease_ref.ticket_path)
+        if "Concurrent child note." not in current.body:
+            current.body += "\nConcurrent child note.\n"
+            current.write(lease_ref.ticket_path)
+        return real_local_period_lease(lease_cfg, lease_ref)
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_local_period_lease",
+        lease_after_concurrent_edit,
+    )
+
+    recurring_cmd._stop_if_unfinished_after_launch(
+        cfg,
+        ref,
+        expected_period_lease=launched_lease,
+    )
+
+    paused = Ticket.read(ref.ticket_path)
+    assert paused.status == "paused"
+    assert "Concurrent child note." in paused.body
 
 
 def _in_progress_period(repo: Path) -> tuple[Config, TaskRef]:
@@ -6430,13 +7636,45 @@ def test_automatic_sweep_launches_carry_queue_guidance(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    _patch_recurring_command_launch(monkeypatch, repo, fake_launch)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
 
     assert len(seen) == 1
     assert seen[0]["queue_guidance"] is True
     assert seen[0]["script_failure_important"] is True
+
+
+def test_authorized_sweep_uses_the_internal_period_launch_seam(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An already-gated sweep never re-enters public recurring admission."""
+    cfg = load_config(repo)
+    launched: list[str] = []
+    kwargs_seen: list[bool] = []
+
+    def fake_period_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        kwargs_seen.append(kwargs["control_remote_expected"])
+        ticket_path = repo / "tasks" / slug / "ticket.md"
+        finished = Ticket.read(ticket_path)
+        finished.frontmatter["status"] = "done"
+        finished.frontmatter.pop("step", None)
+        finished.write(ticket_path)
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
+    _patch_recurring_command_launch(monkeypatch, repo, fake_period_launch)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch",
+        lambda *args, **kwargs: pytest.fail(
+            "an authorized sweep must not call the public launch gate"
+        ),
+    )
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+    assert launched == ["recurring/weekly-check"]
+    assert kwargs_seen == [False]
 
 
 def test_interactive_sweep_launches_omit_queue_guidance(
@@ -6456,7 +7694,7 @@ def test_interactive_sweep_launches_omit_queue_guidance(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    _patch_recurring_command_launch(monkeypatch, repo, fake_launch)
 
     assert recurring_cmd.run_recurring_scan(cfg, interactive=True) == 0
 
@@ -6478,13 +7716,14 @@ def test_named_recurring_launch_carries_queue_guidance(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch_recurring_period", fake_launch)
 
     assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 0
 
     assert len(seen) == 1
     assert seen[0]["queue_guidance"] is True
     assert seen[0]["script_failure_important"] is True
+    assert seen[0]["control_remote_expected"] is False
 
 
 # --- coga recurring promote: task → template authoring ------------------------

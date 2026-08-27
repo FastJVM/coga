@@ -862,12 +862,26 @@ in-process, with the sweep keeping the period task's lifecycle bookkeeping —
 so it is skipped headless too, including a materialized orphan from an earlier
 attended run; that task stays untouched while later deterministic jobs proceed.
 Its bootstrap done sentinel is the only clean completion signal; a natural
-REPL exit leaves the period unfinished. The runner preflights once without
-mutation, publishes the period start, then reloads and recomposes before the
-real spawn so a moving control sync cannot leave stale instructions. At the
-final boundary it also requires the exact post-publication period snapshot to
-remain `in_progress` with the same delegate; concurrent completion,
-replacement, or edits refuse the spawn. Templates
+REPL exit leaves the period unfinished. The runner first preflights push access
+for the materialized period (which the stateless bootstrap target would
+self-skip), then publishes the period start as an exact compare-and-set before
+announcing it. The lease covers both ticket bytes and the task's creator-owned
+`period_generation` token, so a stable-path replacement is distinct even when
+its other ticket state is byte-identical. The runner reloads and recomposes
+before the real spawn, checks the same lease on control at the final boundary,
+and consumes it again before publishing completion or a watchdog pause.
+Concurrent completion, replacement, edits, or a new generation therefore
+refuse the stale lifecycle write; a Git transport or publication failure
+refuses too, because an unverified lease cannot admit work or authorize a
+successful timeout continuation. Final spawn admission also leases the exact
+parent recurring ticket named by the period state snapshot. Completion
+consumes that same parent input in the strict transaction, so a concurrent
+parent edit refuses instead of being overwritten and `done` cannot publish
+without the run's cross-period cursor update. Strict publication unwinds an
+unaccepted local lifecycle commit; after an ambiguous push it probes the exact
+control candidate across every effective push destination, retaining local
+evidence and refusing if the destinations disagree or acceptance otherwise
+cannot be proved. Templates
 intended for cron or other unattended schedulers should carry that deterministic
 half. Whether a period is deterministic is never declared: the
 `ticket.py` file's presence is the whole signal. `delegate:` declares something
@@ -876,9 +890,30 @@ file's presence can express. Creation freezes that target into the period
 ticket; the sweep, `coga recurring launch <name>`, and direct
 `coga launch recurring/<name>` retries all route from the snapshot rather than
 current template frontmatter, and the sweep rereads it after reconciliation
-instead of trusting cached scan dispatch. The direct spelling performs a
-best-effort control catch-up, re-resolves the exact period ref, and remains
-subject to the same control-branch and recurring-owner gates. A period that also carries
+instead of trusting cached scan dispatch. Sweeps and named launches perform
+full admission at their outer boundary, freeze every period's exact ticket and
+creator-owned `period_generation` token, then use an internal period-launch seam. That seam
+narrowly refreshes control, resolves only the exact ref, and rechecks
+branch/owner plus that generation immediately before each ordinary child, so
+work removed, parked, finished, or replaced during an earlier session is
+skipped and a failed remote-backed refresh refuses the next launch. A Git
+checkout with no configured remote freezes that local-only class at outer
+admission and uses exact local control state; a remote that disappears afterward
+still refuses. A deterministic child retains that refreshed lease; immediately
+before every ordinary agent spawn, launch requires the same bounded token and
+the complete ticket to match the launchable state just composed. If either exits
+unfinished, that token admits same-generation ticket/audit writes to a fresh
+exact pause lease, and the pause is derived from those newly leased bytes so a
+concurrent same-generation edit survives, while a replacement at the stable
+path remains untouched.
+Delegated children use
+the same admitted generation as the start of their exact control lease. The
+direct spelling has no outer admission: it requires verified control catch-up
+before resolving even a locally missing period ref when a remote is configured,
+uses local `HEAD` when none is configured, and remains subject to the same
+control-branch and recurring-owner gates. Direct launch also activates a
+paused/draft delegated period inline; recurring scans leave paused periods
+parked. A period that also carries
 `ticket.py` is refused as an ambiguous dispatch shape. A delegate must itself
 be agent-backed: a bootstrap target with `ticket.py` is rejected before period
 creation, and its deterministic work belongs in the recurring template's own

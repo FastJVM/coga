@@ -11,7 +11,7 @@ import subprocess
 import shutil
 import sys
 import tomllib
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -35,12 +35,15 @@ from coga.taskfile import read_blackboard
 from coga.recurring import (
     DueTask,
     DueScan,
+    PeriodLease as _PeriodLease,
     RecurringError,
     Template,
     frozen_task_delegate,
     format_serviced_log,
+    local_period_lease as _local_period_lease,
     parse_serviced_period_entries,
     parse_serviced_period_entries_reverse,
+    period_generation_from_ticket_bytes as _period_generation_from_ticket_bytes,
     period_key_at_least,
     read_serviced_ledger,
     recurring_dir,
@@ -56,19 +59,30 @@ from coga.recurring_autofix import (
     run_autofix,
     scan_lines_for_record,
 )
-from coga.period_state import SNAPSHOT_FILE, parse_keys
+from coga.period_state import (
+    SNAPSHOT_FILE,
+    parent_ticket_path,
+    parse_keys,
+    read_snapshot,
+)
 from coga.mark import (
+    BlackboardNeedsSynthesis,
+    RequiredExtensionMissing,
     StrandedProductCode,
+    WorkflowMissing,
+    format_blackboard_synthesis_refusal,
     mark_active,
     mark_done,
     mark_in_progress,
     mark_paused,
+    prepare_active,
 )
-from coga.notification import notify
+from coga.notification import digest_spool_path, notify
 from coga.repl_supervisor import _TIMEOUT_EXIT_CODE
 from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
+from coga.workflow import WorkflowError
 from coga.workspace_discovery import discover_coga_repos
 
 # Default idle-timeout backstop (seconds) the sweep arms on the interactive
@@ -172,6 +186,20 @@ def _refuse_non_control_branch(cfg: Config) -> bool:
         err=True,
     )
     return True
+
+
+def _control_remote_present_at_admission(cfg: Config) -> bool:
+    """Whether this launch admission has a shared remote control plane.
+
+    A Git checkout with no configured remote deliberately treats local HEAD as
+    authoritative.  Freeze the distinction before a recurring child owns the
+    terminal so a remote that disappears during that child cannot silently
+    turn a remote-backed sweep into the local-only class.
+    """
+    if not cfg.git_enabled:
+        return False
+    root = git._toplevel(cfg.repo_root)
+    return root is not None and git._remote_configured(root, cfg.git_remote)
 
 
 def _launch_owner_refusal(cfg: Config) -> str | None:
@@ -700,6 +728,7 @@ def run_recurring_scan(
     if not require_fresh_control and _refuse_non_control_branch(cfg):
         return 2
 
+    control_remote_expected = _control_remote_present_at_admission(cfg)
     fresh, freshness_error = _sync_control_checkout_ahead(
         cfg, announce_failure=not require_fresh_control
     )
@@ -772,6 +801,7 @@ def run_recurring_scan(
             force=force,
             interactive=interactive,
             agent_override=agent_override,
+            control_remote_expected=control_remote_expected,
         )
     finally:
         run_autofix(cfg, record, agent_override=agent_override)
@@ -785,6 +815,7 @@ def _launch_due_tasks(
     force: bool,
     interactive: bool,
     agent_override: str | None,
+    control_remote_expected: bool,
 ) -> int:
     """Run each due period task in order, recording what each one did.
 
@@ -797,14 +828,42 @@ def _launch_due_tasks(
     # agent can't block the tasks behind it.
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
-    from coga.commands.launch import launch as launch_cmd
+    from coga.commands.launch import (
+        RecurringPeriodLaunchResult,
+        launch_recurring_period as launch_cmd,
+    )
+
+    # Freeze every stable-path generation before the first child runs. Child
+    # teardown can refresh the shared control checkout, so capturing lazily in
+    # the loop would silently admit a replacement generation that appeared
+    # while an earlier child owned the terminal.
+    admitted_period_leases = {
+        task.ref.id_slug: _local_period_lease(cfg, task.ref)
+        for task in due
+        if task.ref is not None
+    }
 
     forced_refusals = 0
     for i, task in enumerate(due, 1):
+        if task.ref is None:
+            detail = (
+                f"{task.template} has no materialized period to launch; skipped"
+            )
+            typer.secho(detail, fg=typer.colors.YELLOW)
+            record.note(detail)
+            continue
         typer.secho(
             f"[{i}/{len(due)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
         )
+        admitted_period_lease = admitted_period_leases[task.ref.id_slug]
         if force:
+            if _local_period_lease(cfg, task.ref) != admitted_period_lease:
+                detail = (
+                    f"{task.ref.id_slug} changed after sweep admission; skipped"
+                )
+                typer.secho(detail, fg=typer.colors.YELLOW)
+                record.note(detail)
+                continue
             try:
                 _prepare_forced_launch(cfg, task)
             except RecurringError as exc:
@@ -819,16 +878,33 @@ def _launch_due_tasks(
                     )
                 )
                 continue
+            # Forced preparation may deliberately activate or rematerialize the
+            # admitted generation. The resulting lease, not its pre-mutation
+            # snapshot, is what the child is allowed to launch.
+            admitted_period_lease = _local_period_lease(cfg, task.ref)
+        current_period_lease = _local_period_lease(cfg, task.ref)
+        if current_period_lease != admitted_period_lease:
+            detail = f"{task.ref.id_slug} changed after sweep admission; skipped"
+            typer.secho(detail, fg=typer.colors.YELLOW)
+            record.note(detail)
+            continue
+        if current_period_lease.ticket_bytes is None:
+            detail = f"{task.ref.id_slug} no longer exists on control; skipped"
+            typer.secho(detail, fg=typer.colors.YELLOW)
+            record.note(detail)
+            continue
         # Reconciliation can refresh or replace the materialized period after
         # `scan_due` cached its dispatch field. Route only from the durable
         # ticket that now owns this launch; otherwise a restored delegate could
         # run as an ordinary wrapper, or a removed delegate could still spawn
         # obsolete bootstrap work.
         try:
-            current_ticket = read_ticket(task.ref)
+            current_ticket = Ticket.parse(
+                current_period_lease.ticket_bytes.decode()
+            )
             task.status = current_ticket.status
             task.delegate = frozen_task_delegate(task.ref, current_ticket)
-        except (RecurringError, TicketError) as exc:
+        except (RecurringError, UnicodeError, TicketError) as exc:
             detail = (
                 f"cannot classify recurring period {task.ref.id_slug} after "
                 f"reconciliation: {exc}"
@@ -862,7 +938,13 @@ def _launch_due_tasks(
                 max_session=max_session,
                 queue_guidance=not interactive,
                 continue_after_timeout=True,
+                admitted_period_lease=admitted_period_lease,
             )
+            if delegated.kind == "skipped":
+                record.note(
+                    f"{task.ref.id_slug} changed after sweep admission; skipped"
+                )
+                continue
             # Main's sweep records every run it performed; `run_autofix` fires
             # only when `record.outcomes` is non-empty, so a delegated run that
             # returned without recording would be invisible to the analyst.
@@ -890,8 +972,10 @@ def _launch_due_tasks(
         # returns "timeout" when a backstop fired so we record the wedge
         # honestly below instead of pausing it as a human would.
         try:
-            kind = launch_cmd(
+            raw_launch_result = launch_cmd(
                 task.ref.id_slug,
+                expected_period_lease=admitted_period_lease,
+                control_remote_expected=control_remote_expected,
                 agent_override=agent_override,
                 prompt_report=False,
                 idle_timeout=idle_timeout,
@@ -905,6 +989,12 @@ def _launch_due_tasks(
                 # keeps plain launches.
                 queue_guidance=not interactive,
             )
+            if not isinstance(raw_launch_result, RecurringPeriodLaunchResult):
+                raise RecurringError(
+                    f"internal recurring launch for {task.ref.id_slug} did not "
+                    "return its typed child-generation lease"
+                )
+            launch_result = raw_launch_result
         except SystemExit as exc:
             # A failed `ticket.py` exits the launch. Return that code instead
             # of unwinding the process, so the sweep stops where the old recipe
@@ -918,12 +1008,39 @@ def _launch_due_tasks(
                     )
                 )
                 return code
-            kind = None
+            launch_result = RecurringPeriodLaunchResult(None, None, False)
+        kind = launch_result.kind
+        if kind == "skipped":
+            record.note(
+                f"{task.ref.id_slug} changed on control before launch; skipped"
+            )
+            continue
+        if launch_result.period_lease is None:
+            detail = (
+                f"cannot finalize recurring period {task.ref.id_slug}: the "
+                "launch established no child-generation lease"
+            )
+            typer.secho(detail, fg=typer.colors.RED, err=True)
+            record.add(
+                _task_outcome(
+                    cfg,
+                    task.template,
+                    task.ref,
+                    result="refused",
+                    exit_code=2,
+                )
+            )
+            return 2
         _stop_if_unfinished_after_launch(
             cfg,
             task.ref,
             timed_out=(kind == "timeout"),
             script_stopped=(kind == "script"),
+            expected_period_lease=launch_result.period_lease,
+            require_period_publication=(
+                launch_result.require_period_publication
+                and launch_result.period_lease is not None
+            ),
         )
         record.add(_task_outcome(cfg, task.template, task.ref, kind=kind))
     return 2 if forced_refusals else 0
@@ -1019,6 +1136,158 @@ class DelegatedRunResult:
     kind: str | None
 
 
+@dataclass(frozen=True)
+class _ParentStateLease:
+    """Exact recurring-parent ticket state observed before a child starts."""
+
+    path: Path
+    ticket_bytes: bytes | None
+
+
+def _revision_period_lease(
+    cfg: Config, ref: TaskRef, revision: str
+) -> _PeriodLease:
+    root = git._toplevel(cfg.repo_root)
+    if root is None:
+        return _local_period_lease(cfg, ref)
+    ticket_rel = _relative_to_root(root, ref.ticket_path)
+    ticket_bytes = git._tree_bytes(root, revision, ticket_rel)
+    return _PeriodLease(
+        ticket_bytes=ticket_bytes,
+        generation=_period_generation_from_ticket_bytes(ticket_bytes),
+    )
+
+
+def _local_parent_state_lease(
+    cfg: Config, ref: TaskRef
+) -> _ParentStateLease | None:
+    """Capture the parent ticket named by this period's state snapshot."""
+    snapshot = read_snapshot(ref.path)
+    if snapshot is None:
+        return None
+    path = parent_ticket_path(cfg, snapshot)
+    return _ParentStateLease(
+        path=path,
+        ticket_bytes=path.read_bytes() if path.is_file() else None,
+    )
+
+
+def _revision_parent_state_lease(
+    cfg: Config, expected: _ParentStateLease, revision: str
+) -> _ParentStateLease:
+    root = git._toplevel(cfg.repo_root)
+    if root is None:
+        return _ParentStateLease(
+            path=expected.path,
+            ticket_bytes=(
+                expected.path.read_bytes() if expected.path.is_file() else None
+            ),
+        )
+    parent_rel = _relative_to_root(root, expected.path)
+    return _ParentStateLease(
+        path=expected.path,
+        ticket_bytes=git._tree_bytes(root, revision, parent_rel),
+    )
+
+
+def _period_lease_guard(
+    cfg: Config,
+    ref: TaskRef,
+    expected: _PeriodLease,
+    *,
+    expected_parent: _ParentStateLease | None = None,
+) -> Callable[[str], None]:
+    """Bind exact period and optional parent-state CASes to every attempt."""
+    lifecycle_guard = git.ticket_state_guard(cfg, ref.ticket_path)
+
+    def guard(base: str) -> None:
+        actual = _revision_period_lease(cfg, ref, base)
+        if actual != expected:
+            changed: list[str] = []
+            if actual.ticket_bytes != expected.ticket_bytes:
+                changed.append("ticket bytes")
+            if actual.generation != expected.generation:
+                changed.append("period generation")
+            raise git.StateRegressionError(
+                f"{ref.id_slug}: delegated period lease changed on control "
+                f"({', '.join(changed) or 'unknown state'}); refusing stale "
+                "lifecycle publication"
+            )
+        if expected_parent is not None:
+            actual_parent = _revision_parent_state_lease(
+                cfg, expected_parent, base
+            )
+            if actual_parent != expected_parent:
+                raise git.StateRegressionError(
+                    f"{ref.id_slug}: recurring parent state changed on "
+                    "control after delegated child admission; refusing stale "
+                    "completion publication"
+                )
+        lifecycle_guard(base)
+
+    return guard
+
+
+def _period_mutation_snapshot(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    expected_ticket_bytes: bytes | None,
+    include_completion_state: bool = False,
+) -> git.FileMutationRollback:
+    """Capture delegated lifecycle files at one exact rollback/publication boundary.
+
+    Completion also owns the parent recurring ticket named by the period's
+    state snapshot: a cursor advanced by the child and the period's ``done``
+    transition must reach control in the same transaction.
+
+    ``expected_ticket_bytes`` binds this mutation snapshot to the period lease
+    whose parsed ``Ticket`` object will be rendered.  A newer same-generation
+    local edit must defer the transition rather than become rollback input for
+    an older object and then be overwritten by it.
+    """
+    audit_path = log_path(cfg)
+    paths = [ref.ticket_path, audit_path]
+    union_paths = [audit_path]
+    if include_completion_state:
+        state_snapshot = read_snapshot(ref.path)
+        if state_snapshot is not None:
+            parent_ticket = parent_ticket_path(cfg, state_snapshot)
+            if parent_ticket.parent.is_dir():
+                paths.append(parent_ticket)
+        spool_path = digest_spool_path(cfg)
+        if spool_path is not None:
+            paths.append(spool_path)
+            union_paths.append(spool_path)
+    try:
+        rollback = git.FileMutationRollback.capture(
+            paths, union_paths=union_paths
+        )
+    except FileNotFoundError as exc:
+        raise git.StateRegressionError(
+            f"{ref.id_slug}: period mutation input disappeared while being "
+            "captured; refusing stale lifecycle mutation"
+        ) from exc
+    if rollback.originals.get(ref.ticket_path) != expected_ticket_bytes:
+        raise git.StateRegressionError(
+            f"{ref.id_slug}: period ticket changed after its lifecycle lease "
+            "was sampled; refusing stale lifecycle mutation"
+        )
+    return rollback
+
+
+def _restore_refused_period_mutation(
+    rollback: git.FileMutationRollback, *, action: str
+) -> None:
+    refused = rollback.restore()
+    if refused:
+        names = ", ".join(str(path) for path in refused)
+        raise RecurringError(
+            f"could not restore delegated period after refused {action}; "
+            f"concurrent writes remain at {names}"
+        )
+
+
 def _run_delegated_task(
     cfg: Config,
     ref: TaskRef,
@@ -1028,6 +1297,8 @@ def _run_delegated_task(
     max_session: float | None = None,
     queue_guidance: bool = True,
     continue_after_timeout: bool,
+    activate_if_needed: bool = False,
+    admitted_period_lease: _PeriodLease | None = None,
 ) -> DelegatedRunResult:
     """Run one delegating period task by launching its bootstrap target.
 
@@ -1043,96 +1314,266 @@ def _run_delegated_task(
 
     Only the bootstrap target's done sentinel marks the period task done; a
     natural or crashed REPL exit leaves it `in_progress` and fails loud. A
-    liveness timeout pauses and continues only for a multi-task sweep. A named
-    launch instead returns the timeout code and leaves the task retryable as
-    `in_progress`. The period start transition sits after a complete no-write
-    launch preflight. Launch then reloads and repeats config/target/TTY/CLI/
-    composition/secret derivation before the real spawn, then leases the exact
-    in-progress period snapshot once more at the final spawn boundary. Initial
-    refusals leave an `active` task untouched, while a moving start publication
-    or concurrent period replacement cannot strand stale work in the child.
+    liveness timeout pauses and continues only for a multi-task sweep and only
+    after that pause is verified on control. A failed or stale pause is a loud
+    refusal, not successful continuation. A named launch instead returns the
+    timeout code and leaves the task retryable as `in_progress`. Start, final
+    spawn, completion, and timeout each lease both the exact ticket and its
+    creator-owned period generation. The control guard observes that lease as a
+    compare-and-set, so a stable-path replacement can neither start obsolete
+    work nor receive the prior child's result.
+
+    ``activate_if_needed`` belongs only to direct ``coga launch``: the typed
+    command is the documented readiness signal for a paused/draft task. Sweeps
+    and named recurring runs retain their stricter active/orphan admission.
     """
-    ticket = read_ticket(ref)
+    initial_period_lease = _local_period_lease(cfg, ref)
+    if (
+        admitted_period_lease is not None
+        and initial_period_lease != admitted_period_lease
+    ):
+        typer.secho(
+            f"{ref.id_slug} belongs to a different ticket/period generation; "
+            "not launching.",
+            fg=typer.colors.YELLOW,
+        )
+        return DelegatedRunResult(0, "skipped")
     try:
+        if initial_period_lease.ticket_bytes is None:
+            raise TicketError("period ticket disappeared")
+        ticket = Ticket.parse(initial_period_lease.ticket_bytes.decode())
         delegate = frozen_task_delegate(ref, ticket)
         if delegate is None:
             raise RecurringError(
                 f"delegating recurring task {ref.id_slug} is missing its "
                 "frozen target"
             )
-        if ticket.status not in {"active", "in_progress"}:
+        allowed_statuses = {"active", "in_progress"}
+        if activate_if_needed:
+            allowed_statuses.update({"draft", "paused"})
+        if ticket.status not in allowed_statuses:
+            expected = "'active' or 'in_progress'"
+            if activate_if_needed:
+                expected += " (or 'draft'/'paused' for direct launch)"
             raise RecurringError(
                 f"cannot launch delegated period {ref.id_slug}: task is "
-                f"{ticket.status!r}, expected 'active' or 'in_progress'"
+                f"{ticket.status!r}, expected {expected}"
             )
         # Re-check the frozen target immediately before every run. Validation
         # catches drift repo-wide; this runtime gate keeps a later bootstrap
         # edit from turning an agent delegation into repeated script work.
         resolve_agent_delegate(cfg, delegate)
-    except (RecurringError, TicketError) as exc:
+    except (RecurringError, UnicodeError, TicketError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "refused")
 
-    expected_period_snapshot: bytes | None = None
+    expected_period_lease: _PeriodLease | None = None
+    expected_parent_state_lease: _ParentStateLease | None = None
 
-    def lease_period_snapshot() -> bytes:
-        """Read and validate one atomic-enough period dispatch snapshot."""
+    # Bootstrap tickets are deliberately stateless and self-skip push auth.
+    # Delegation still owns a materialized period task, so preflight that real
+    # publication target before any bootstrap work can begin.
+    from coga.commands.launch import _preflight_push_auth
+
+    require_period_publication = bool(
+        _preflight_push_auth(cfg, ref, is_bootstrap=False)
+    )
+
+    def ticket_for_lease(
+        lease: _PeriodLease, *, boundary: str, expected_status: str
+    ) -> Ticket:
         try:
-            snapshot = ref.ticket_path.read_bytes()
-            current = Ticket.parse(snapshot.decode())
+            if lease.ticket_bytes is None:
+                raise TicketError("period ticket disappeared")
+            current = Ticket.parse(lease.ticket_bytes.decode())
             current_delegate = frozen_task_delegate(ref, current)
         except (OSError, UnicodeError, TicketError, RecurringError) as exc:
             raise RecurringError(
-                f"cannot lease delegated period {ref.id_slug} before spawn: "
+                f"cannot lease delegated period {ref.id_slug} at {boundary}: "
                 f"{exc}"
             ) from exc
-        if current.status != "in_progress":
+        if current.status != expected_status:
             raise RecurringError(
                 f"cannot launch delegated target {delegate}: period task "
-                f"{ref.id_slug} changed to {current.status!r} before spawn"
+                f"{ref.id_slug} changed to {current.status!r} at {boundary}"
             )
         if current_delegate != delegate:
             raise RecurringError(
                 f"cannot launch delegated period {ref.id_slug}: frozen target "
-                f"changed from {delegate!r} to {current_delegate!r} before spawn"
+                f"changed from {delegate!r} to {current_delegate!r} at "
+                f"{boundary}"
             )
-        return snapshot
+        return current
+
+    def confirm_control_lease(
+        lease_cfg: Config,
+        lease: _PeriodLease,
+        *,
+        boundary: str,
+        parent_lease: _ParentStateLease | None = None,
+    ) -> None:
+        try:
+            git.sync_task_state(
+                lease_cfg,
+                ref.path,
+                message=f"Lease: {ref.id_slug} — {boundary}",
+                guard=_period_lease_guard(
+                    lease_cfg,
+                    ref,
+                    lease,
+                    expected_parent=parent_lease,
+                ),
+                raise_state_regression=True,
+                **(
+                    {"raise_git_error": True}
+                    if require_period_publication
+                    else {}
+                ),
+            )
+        except git.GitError as exc:
+            raise RecurringError(
+                f"cannot lease delegated period {ref.id_slug} at {boundary}: {exc}"
+            ) from exc
 
     def start_period() -> None:
         """Publish lifecycle after preflight; launch will then re-compose."""
-        nonlocal expected_period_snapshot
+        nonlocal expected_period_lease
         # The bootstrap launch audit is made durable immediately before this
         # callback and may integrate a newer control tip. Use that tip's config
         # for the period transition; the following launch pass will independently
         # reload it again before composing the child.
         start_cfg = load_config(cfg.repo_root)
-        current = read_ticket(ref)
+        current_lease = _local_period_lease(start_cfg, ref)
+        if current_lease != initial_period_lease:
+            raise RecurringError(
+                f"cannot start delegated period {ref.id_slug}: its ticket or "
+                "period generation changed during preflight"
+            )
+        if current_lease.ticket_bytes is None:
+            raise RecurringError(
+                f"cannot start delegated period {ref.id_slug}: ticket disappeared"
+            )
+        try:
+            current = Ticket.parse(current_lease.ticket_bytes.decode())
+            current_delegate = frozen_task_delegate(ref, current)
+        except (UnicodeError, TicketError, RecurringError) as exc:
+            raise RecurringError(
+                f"cannot start delegated period {ref.id_slug}: {exc}"
+            ) from exc
+        if current_delegate != delegate:
+            raise RecurringError(
+                f"cannot start delegated period {ref.id_slug}: frozen target "
+                f"changed from {delegate!r} to {current_delegate!r}"
+            )
+
+        prior_status = current.status
+        if activate_if_needed and prior_status in {"draft", "paused"}:
+            try:
+                prepare_active(start_cfg, ref, current)
+            except WorkflowMissing as exc:
+                raise RecurringError(
+                    f"cannot activate delegated period {ref.id_slug}: it has "
+                    "no workflow to advance"
+                ) from exc
+            except WorkflowError as exc:
+                raise RecurringError(
+                    f"cannot activate delegated period {ref.id_slug}: its "
+                    f"workflow could not be frozen — {exc}"
+                ) from exc
+            except RequiredExtensionMissing as exc:
+                fields = ", ".join(repr(name) for name in exc.fields)
+                raise RecurringError(
+                    f"cannot activate delegated period {ref.id_slug}: required "
+                    f"extension field(s) empty: {fields}"
+                ) from exc
+            except BlackboardNeedsSynthesis as exc:
+                raise RecurringError(
+                    format_blackboard_synthesis_refusal(
+                        ref.id_slug, action="launch", reason=exc.reason
+                    )
+                ) from exc
+
         if current.status == "active":
             cur = current.current_step()
             step_note = (
                 f" (step {current.step_index()}: {cur['name']})" if cur else ""
             )
-            mark_in_progress(
-                start_cfg,
-                ref,
-                current,
-                actor="system",
-                log_message=(
-                    "started (active → in_progress) via recurring delegation "
-                    f"to {delegate}"
-                ),
-                slack_text=(
-                    f"▶️ delegated run started *{ref.id_slug}* "
-                    f"\"{current.title}\"{step_note}"
-                ),
-                echo=f"{ref.id_slug}: in_progress",
+            transition = (
+                "active → in_progress"
+                if prior_status == "active"
+                else f"{prior_status} → active → in_progress"
             )
+            rollback: git.FileMutationRollback | None = None
+            publication_succeeded = False
+
+            def record_publication() -> None:
+                nonlocal publication_succeeded
+                publication_succeeded = True
+
+            try:
+                rollback = _period_mutation_snapshot(
+                    start_cfg,
+                    ref,
+                    expected_ticket_bytes=current_lease.ticket_bytes,
+                )
+                mark_in_progress(
+                    start_cfg,
+                    ref,
+                    current,
+                    actor="system",
+                    log_message=(
+                        f"started ({transition}) via recurring delegation "
+                        f"to {delegate}"
+                    ),
+                    slack_text=(
+                        f"▶️ delegated run started *{ref.id_slug}* "
+                        f"\"{current.title}\"{step_note}"
+                    ),
+                    echo=f"{ref.id_slug}: in_progress",
+                    mutation_snapshot=rollback,
+                    after_sync=record_publication,
+                    state_guard=_period_lease_guard(
+                        start_cfg, ref, initial_period_lease
+                    ),
+                    strict_state_guard=True,
+                    strict_state_sync=require_period_publication,
+                )
+            except git.UncertainFeaturePublicationError as exc:
+                raise RecurringError(
+                    f"cannot start delegated period {ref.id_slug}: publication "
+                    f"outcome is uncertain; generated local state was retained "
+                    f"for reconciliation — {exc}"
+                ) from exc
+            except git.GitError as exc:
+                if rollback is not None and not publication_succeeded:
+                    _restore_refused_period_mutation(
+                        rollback, action="delegated start"
+                    )
+                raise RecurringError(
+                    f"cannot start delegated period {ref.id_slug}: {exc}"
+                ) from exc
+            except BaseException:
+                if rollback is not None and not publication_succeeded:
+                    _restore_refused_period_mutation(
+                        rollback, action="delegated start"
+                    )
+                raise
         elif current.status != "in_progress":
             raise RecurringError(
                 f"cannot launch delegated target {delegate}: period task "
                 f"{ref.id_slug} changed to {current.status!r} during preflight"
             )
+        else:
+            confirm_control_lease(
+                start_cfg, initial_period_lease, boundary="orphan resume"
+            )
 
+        started_lease = _local_period_lease(start_cfg, ref)
+        ticket_for_lease(
+            started_lease,
+            boundary="start publication",
+            expected_status="in_progress",
+        )
         append_log(
             start_cfg,
             ref.id_slug,
@@ -1140,21 +1581,48 @@ def _run_delegated_task(
             f"launched delegated target {delegate}",
         )
         git.sync_log(start_cfg, message=f"Log: {ref.id_slug}")
-        expected_period_snapshot = lease_period_snapshot()
+        expected_period_lease = _local_period_lease(start_cfg, ref)
+        if expected_period_lease != started_lease:
+            raise RecurringError(
+                f"cannot launch delegated period {ref.id_slug}: its ticket or "
+                "period generation changed while publishing the launch audit"
+            )
+        ticket_for_lease(
+            expected_period_lease,
+            boundary="launch audit publication",
+            expected_status="in_progress",
+        )
 
-    def revalidate_period_before_spawn() -> None:
+    def revalidate_period_before_spawn(
+        _target_ticket: Ticket | None = None,
+    ) -> None:
         """Refuse if publication/recomposition moved the period's lease."""
-        if expected_period_snapshot is None:
+        nonlocal expected_parent_state_lease
+        if expected_period_lease is None:
             raise RecurringError(
                 f"cannot launch delegated period {ref.id_slug}: its start "
                 "publication did not establish a spawn lease"
             )
-        current_snapshot = lease_period_snapshot()
-        if current_snapshot != expected_period_snapshot:
+        current_lease = _local_period_lease(cfg, ref)
+        if current_lease != expected_period_lease:
             raise RecurringError(
-                f"cannot launch delegated period {ref.id_slug}: its ticket "
-                "changed after start publication; retry from fresh state"
+                f"cannot launch delegated period {ref.id_slug}: its ticket or "
+                "period generation changed after start publication; "
+                "retry from fresh state"
             )
+        ticket_for_lease(
+            current_lease,
+            boundary="final spawn",
+            expected_status="in_progress",
+        )
+        parent_lease = _local_parent_state_lease(cfg, ref)
+        confirm_control_lease(
+            cfg,
+            expected_period_lease,
+            boundary="final spawn",
+            parent_lease=parent_lease,
+        )
+        expected_parent_state_lease = parent_lease
 
     from coga.commands.launch import launch_with_before_spawn as launch_cmd
 
@@ -1188,22 +1656,7 @@ def _run_delegated_task(
         )
         return DelegatedRunResult(2, kind or "refused")
 
-    if kind == "timeout":
-        if continue_after_timeout:
-            # The delegated session wedged and a liveness backstop tore it
-            # down. A multi-task sweep parks this run and continues so the
-            # wedge cannot starve later templates.
-            _stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
-            return DelegatedRunResult(0, "timeout")
-        typer.secho(
-            f"{ref.id_slug}: delegated target {delegate} timed out; "
-            "task left in_progress for an explicit retry.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        return DelegatedRunResult(_TIMEOUT_EXIT_CODE, "timeout")
-
-    if kind != "done":
+    if kind not in {"done", "timeout"}:
         typer.secho(
             f"{ref.id_slug}: delegated target {delegate} ended without "
             f"its done signal (termination={kind or 'unknown'}); task left "
@@ -1213,12 +1666,83 @@ def _run_delegated_task(
         )
         return DelegatedRunResult(2, kind or "unknown")
 
-    if not ref.ticket_path.exists():
-        return DelegatedRunResult(0, "done")
-    after_delegate = Ticket.read(ref.ticket_path)
-    if after_delegate.status in TERMINAL_STATUSES:
-        return DelegatedRunResult(0, "done")
+    if expected_period_lease is None:
+        typer.secho(
+            f"cannot finalize delegated period {ref.id_slug}: no child lease "
+            "was established",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return DelegatedRunResult(2, "refused")
+
+    current_lease = _local_period_lease(cfg, ref)
+    if current_lease != expected_period_lease:
+        current_ticket: Ticket | None = None
+        if current_lease.ticket_bytes is not None:
+            try:
+                current_ticket = Ticket.parse(current_lease.ticket_bytes.decode())
+            except (UnicodeError, TicketError):
+                current_ticket = None
+        if kind == "done" and (
+            current_lease.ticket_bytes is None
+            or (
+                current_ticket is not None
+                and current_ticket.status in TERMINAL_STATUSES
+            )
+        ):
+            return DelegatedRunResult(0, "done")
+        typer.secho(
+            f"{ref.id_slug}: delegated target {delegate} returned {kind}, but "
+            "the stable task path now belongs to a different ticket/audit "
+            "generation; its lifecycle was left unchanged.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        if kind == "timeout":
+            return DelegatedRunResult(2, "refused")
+        return DelegatedRunResult(2, "refused")
+
+    if kind == "timeout":
+        if continue_after_timeout:
+            try:
+                _stop_if_unfinished_after_launch(
+                    cfg,
+                    ref,
+                    timed_out=True,
+                    expected_period_lease=expected_period_lease,
+                    require_period_publication=require_period_publication,
+                )
+            except RecurringError as exc:
+                typer.secho(str(exc), fg=typer.colors.RED, err=True)
+                return DelegatedRunResult(2, "refused")
+            return DelegatedRunResult(0, "timeout")
+        typer.secho(
+            f"{ref.id_slug}: delegated target {delegate} timed out; "
+            "task left in_progress for an explicit retry.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return DelegatedRunResult(_TIMEOUT_EXIT_CODE, "timeout")
+
+    after_delegate = ticket_for_lease(
+        current_lease,
+        boundary="completion",
+        expected_status="in_progress",
+    )
+    rollback: git.FileMutationRollback | None = None
+    publication_succeeded = False
+
+    def record_completion_publication() -> None:
+        nonlocal publication_succeeded
+        publication_succeeded = True
+
     try:
+        rollback = _period_mutation_snapshot(
+            cfg,
+            ref,
+            expected_ticket_bytes=current_lease.ticket_bytes,
+            include_completion_state=True,
+        )
         mark_done(
             cfg,
             ref,
@@ -1234,7 +1758,35 @@ def _run_delegated_task(
             ),
             digest_detail=f"→ done (delegate: {delegate})",
             echo=f"{ref.id_slug}: done",
+            mutation_snapshot=rollback,
+            after_sync=record_completion_publication,
+            state_guard=_period_lease_guard(
+                cfg,
+                ref,
+                expected_period_lease,
+                expected_parent=expected_parent_state_lease,
+            ),
+            strict_state_guard=True,
+            strict_state_sync=require_period_publication,
         )
+    except git.UncertainFeaturePublicationError as exc:
+        typer.secho(
+            f"cannot complete delegated period {ref.id_slug}: publication "
+            f"outcome is uncertain; generated local state was retained for "
+            f"reconciliation — {exc}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return DelegatedRunResult(2, "refused")
+    except git.GitError as exc:
+        if rollback is not None and not publication_succeeded:
+            _restore_refused_period_mutation(rollback, action="delegated completion")
+        typer.secho(
+            f"cannot complete delegated period {ref.id_slug}: {exc}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return DelegatedRunResult(2, "refused")
     except StrandedProductCode as exc:
         listed = "\n".join(f"    {path}" for path in exc.paths)
         typer.secho(
@@ -1246,6 +1798,8 @@ def _run_delegated_task(
         )
         return DelegatedRunResult(2, "done")
     except TaskValidationError as exc:
+        if rollback is not None and not publication_succeeded:
+            _restore_refused_period_mutation(rollback, action="delegated completion")
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "done")
     return DelegatedRunResult(0, "done")
@@ -1272,6 +1826,7 @@ def run_recurring_named(
     """
     if _refuse_non_control_branch(cfg):
         return 2
+    control_remote_expected = _control_remote_present_at_admission(cfg)
     fresh, _reason = _sync_control_checkout_ahead(cfg)
     if _refuse_non_owner(cfg):
         return 2
@@ -1348,6 +1903,7 @@ def run_recurring_named(
             agent_override=agent_override,
             record=record,
             template=name,
+            control_remote_expected=control_remote_expected,
         )
     finally:
         # Only when something actually ran: `_launch_created` records the run
@@ -1420,6 +1976,7 @@ def _launch_created(
     agent_override: str | None = None,
     record: RunRecord | None = None,
     template: str = "",
+    control_remote_expected: bool,
 ) -> int:
     """Launch (or resume) a created recurring task.
 
@@ -1444,7 +2001,18 @@ def _launch_created(
         )
         return 0
 
-    ticket = read_ticket(ref)
+    admitted_period_lease = _local_period_lease(cfg, ref)
+    if admitted_period_lease.ticket_bytes is None:
+        typer.secho(
+            f"{ref.id_slug} was already handled on the control branch; not launching.",
+            fg=typer.colors.BRIGHT_BLACK,
+        )
+        return 0
+    try:
+        ticket = Ticket.parse(admitted_period_lease.ticket_bytes.decode())
+    except (UnicodeError, TicketError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        return 2
     if ticket.status not in {"active", "in_progress"}:
         typer.secho(
             f"{ref.id_slug} is {ticket.status}; not launching.",
@@ -1468,7 +2036,14 @@ def _launch_created(
             max_session=max_session,
             queue_guidance=not interactive,
             continue_after_timeout=False,
+            admitted_period_lease=admitted_period_lease,
         )
+        if delegated.kind == "skipped":
+            if record is not None:
+                record.note(
+                    f"{ref.id_slug} changed after recurring admission; skipped"
+                )
+            return 0
         if record is not None:
             record.add(
                 _task_outcome(
@@ -1486,11 +2061,13 @@ def _launch_created(
             )
         return delegated.exit_code
 
-    from coga.commands.launch import launch as launch_cmd
+    from coga.commands.launch import launch_recurring_period as launch_cmd
 
     try:
-        launch_cmd(
+        raw_launch_result = launch_cmd(
             ref.id_slug,
+            expected_period_lease=admitted_period_lease,
+            control_remote_expected=control_remote_expected,
             agent_override=agent_override,
             prompt_report=False,
             idle_timeout=idle_timeout,
@@ -1502,6 +2079,10 @@ def _launch_created(
             # human-stepped runs keep plain launches.
             queue_guidance=not interactive,
         )
+        # Keep test/in-process shims written against the historical scalar
+        # seam harmless; the real launch function always returns the typed
+        # result with its pre-spawn generation lease.
+        launch_result = getattr(raw_launch_result, "kind", raw_launch_result)
     except SystemExit as exc:
         # A failed `ticket.py` is this command's result, not a process abort:
         # returning the code keeps the caller's exit-boundary git sync.
@@ -1517,6 +2098,9 @@ def _launch_created(
                 )
             )
         return code
+    kind = launch_result
+    if kind == "skipped":
+        return 0
     if record is not None:
         record.add(_task_outcome(cfg, template or ref.slug, ref))
     return 0
@@ -2584,6 +3168,8 @@ def _stop_if_unfinished_after_launch(
     *,
     timed_out: bool = False,
     script_stopped: bool = False,
+    expected_period_lease: _PeriodLease | None = None,
+    require_period_publication: bool = False,
 ) -> None:
     """Pause a recurring task when its agent launch returns unfinished.
 
@@ -2607,7 +3193,30 @@ def _stop_if_unfinished_after_launch(
     if not (ref.ticket_path).exists():
         return
 
-    ticket = read_ticket(ref)
+    if expected_period_lease is not None:
+        current_period_lease = _local_period_lease(cfg, ref)
+        if current_period_lease.generation != expected_period_lease.generation:
+            raise RecurringError(
+                f"cannot pause recurring period {ref.id_slug}: its stable-path "
+                "generation changed after the child exited"
+            )
+        try:
+            if current_period_lease.ticket_bytes is None:
+                raise TicketError("period ticket disappeared")
+            ticket = Ticket.parse(current_period_lease.ticket_bytes.decode())
+        except (UnicodeError, TicketError) as exc:
+            raise RecurringError(
+                f"cannot pause recurring period {ref.id_slug}: invalid leased "
+                f"ticket state — {exc}"
+            ) from exc
+        # Ticket edits belong to this same child generation. Lease the exact
+        # post-session bytes and derive the pause from those same bytes, so any
+        # race after this check still loses the CAS and no earlier read can
+        # overwrite a concurrent same-generation edit.
+        expected_period_lease = current_period_lease
+    else:
+        ticket = read_ticket(ref)
+
     if ticket.status in TERMINAL_STATUSES or ticket.status == "paused":
         return
     if script_stopped and ticket.status == "blocked":
@@ -2615,7 +3224,20 @@ def _stop_if_unfinished_after_launch(
 
     if timed_out:
         suffix = "liveness watchdog: REPL timed out before signalling done"
+        rollback: git.FileMutationRollback | None = None
+        publication_succeeded = False
+
+        def record_publication() -> None:
+            nonlocal publication_succeeded
+            publication_succeeded = True
+
         try:
+            if expected_period_lease is not None:
+                rollback = _period_mutation_snapshot(
+                    cfg,
+                    ref,
+                    expected_ticket_bytes=expected_period_lease.ticket_bytes,
+                )
             mark_paused(
                 cfg,
                 ref,
@@ -2627,8 +3249,39 @@ def _stop_if_unfinished_after_launch(
                 ),
                 digest_detail=f"→ paused (timeout) — {suffix}",
                 echo=None,
+                mutation_snapshot=rollback,
+                after_sync=(
+                    record_publication
+                    if expected_period_lease is not None
+                    else None
+                ),
+                state_guard=(
+                    _period_lease_guard(cfg, ref, expected_period_lease)
+                    if expected_period_lease is not None
+                    else None
+                ),
+                strict_state_guard=expected_period_lease is not None,
+                strict_state_sync=require_period_publication,
             )
+        except git.UncertainFeaturePublicationError as exc:
+            raise RecurringError(
+                f"cannot pause recurring period {ref.id_slug}: publication "
+                f"outcome is uncertain; generated local state was retained "
+                f"for reconciliation — {exc}"
+            ) from exc
+        except git.GitError as exc:
+            if rollback is not None and not publication_succeeded:
+                _restore_refused_period_mutation(
+                    rollback, action="delegated timeout"
+                )
+            raise RecurringError(
+                f"cannot pause recurring period {ref.id_slug}: {exc}"
+            ) from exc
         except TaskValidationError as exc:
+            if rollback is not None and not publication_succeeded:
+                _restore_refused_period_mutation(
+                    rollback, action="delegated timeout"
+                )
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             sys.exit(2)
         typer.secho(
@@ -2639,7 +3292,20 @@ def _stop_if_unfinished_after_launch(
         return
 
     suffix = "Agent recurring launch exited unfinished"
+    rollback: git.FileMutationRollback | None = None
+    publication_succeeded = False
+
+    def record_publication() -> None:
+        nonlocal publication_succeeded
+        publication_succeeded = True
+
     try:
+        if expected_period_lease is not None:
+            rollback = _period_mutation_snapshot(
+                cfg,
+                ref,
+                expected_ticket_bytes=expected_period_lease.ticket_bytes,
+            )
         mark_paused(
             cfg,
             ref,
@@ -2647,8 +3313,39 @@ def _stop_if_unfinished_after_launch(
             actor=f"human:{cfg.current_user}",
             log_message=f"paused ({ticket.status} → paused) — {suffix}",
             echo=None,
+            mutation_snapshot=rollback,
+            after_sync=(
+                record_publication
+                if expected_period_lease is not None
+                else None
+            ),
+            state_guard=(
+                _period_lease_guard(cfg, ref, expected_period_lease)
+                if expected_period_lease is not None
+                else None
+            ),
+            strict_state_guard=expected_period_lease is not None,
+            strict_state_sync=require_period_publication,
         )
+    except git.UncertainFeaturePublicationError as exc:
+        raise RecurringError(
+            f"cannot pause recurring period {ref.id_slug}: publication "
+            f"outcome is uncertain; generated local state was retained for "
+            f"reconciliation — {exc}"
+        ) from exc
+    except git.GitError as exc:
+        if rollback is not None and not publication_succeeded:
+            _restore_refused_period_mutation(
+                rollback, action="unfinished recurring launch"
+            )
+        raise RecurringError(
+            f"cannot pause recurring period {ref.id_slug}: {exc}"
+        ) from exc
     except TaskValidationError as exc:
+        if rollback is not None and not publication_succeeded:
+            _restore_refused_period_mutation(
+                rollback, action="unfinished recurring launch"
+            )
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
     typer.secho(

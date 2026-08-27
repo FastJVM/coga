@@ -45,6 +45,7 @@ def create_task(
     agent: str | None = None,
     skills: list[str] | None = None,
     delegate: str | None = None,
+    period_generation: str | None = None,
     slug_override: str | None = None,
     directory: str | None = None,
     description: str | None = None,
@@ -190,6 +191,8 @@ def create_task(
     }
     if delegate is not None:
         fm["delegate"] = delegate
+    if period_generation is not None:
+        fm["period_generation"] = period_generation
     fm["workflow"] = wf.freeze() if wf else None
     fm["secrets"] = secrets
     if wf and status not in TERMINAL_STATUSES:

@@ -764,11 +764,17 @@ def test_on_demand_launch_closes_the_same_loop(
         ticket.write(ref.ticket_path)
         return None
 
-    monkeypatch.setattr("coga.commands.launch.launch", finishing_launch)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", finishing_launch
+    )
 
     record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
     code = recurring_runner._launch_created(
-        cfg_repo, ref, record=record, template="nightly-check"
+        cfg_repo,
+        ref,
+        record=record,
+        template="nightly-check",
+        control_remote_expected=False,
     )
 
     assert code == 0
@@ -783,13 +789,18 @@ def test_a_refused_on_demand_launch_is_not_a_run(
     from coga import recurring_runner
 
     monkeypatch.setattr(
-        "coga.commands.launch.launch",
+        "coga.commands.launch.launch_recurring_period",
         lambda slug, **kwargs: pytest.fail("launched a parked template"),
     )
 
     ref = _ref_with_status(cfg_repo, "paused")
     record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
-    assert recurring_runner._launch_created(cfg_repo, ref, record=record) == 0
+    assert recurring_runner._launch_created(
+        cfg_repo,
+        ref,
+        record=record,
+        control_remote_expected=False,
+    ) == 0
     assert record.outcomes == []
 
 

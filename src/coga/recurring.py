@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import yaml
 from croniter import CroniterError, croniter
@@ -26,7 +27,7 @@ from coga.logfile import (
     iter_log_messages,
     iter_log_messages_reverse,
 )
-from coga.paths import recurring_dir, resolve_workflow_path
+from coga.paths import log_path, recurring_dir, resolve_workflow_path
 from coga.period_state import write_snapshot
 from coga.taskfile import (
     join_task_body,
@@ -40,7 +41,7 @@ from coga.tasks import (
     read_ticket,
     resolve_bootstrap,
 )
-from coga.ticket import Ticket
+from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
 from coga.workflow import Workflow, WorkflowError
 
@@ -48,6 +49,50 @@ from coga.workflow import Workflow, WorkflowError
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 class RecurringError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class PeriodLease:
+    """Exact stable-path generation admitted for one recurring child.
+
+    A later recurring generation can otherwise be materialized at the same
+    stable path with identical dispatch and lifecycle state. New periods carry
+    a creator-owned ``period_generation`` token in their ticket, which stays
+    fixed through child edits and changes on every supported rematerialization.
+    Legacy periods have no token; they remain launchable, and any replacement
+    created by this version gains one and is therefore distinguishable.
+    """
+
+    ticket_bytes: bytes | None
+    generation: str | None
+
+
+def period_generation_from_ticket_bytes(data: bytes | None) -> str | None:
+    """Read the bounded creator-owned generation witness from ticket bytes."""
+    if data is None:
+        return None
+    try:
+        value = Ticket.parse(data.decode()).frontmatter.get("period_generation")
+    except (UnicodeError, TicketError):
+        return None
+    return value if isinstance(value, str) else None
+
+
+def local_period_lease(cfg: Config, ref: TaskRef) -> PeriodLease:
+    """Capture one bounded local ticket-generation dispatch lease."""
+    del cfg  # Kept in the seam for symmetry with revision-backed leases.
+    try:
+        ticket_bytes = ref.ticket_path.read_bytes()
+    except FileNotFoundError:
+        # A concurrent sweep/cleanup may reap the stable period path between
+        # discovery and capture.  Missing is already a first-class lease state
+        # that launch callers classify as skipped; do not turn that race into
+        # an exception that starves later due tasks.
+        ticket_bytes = None
+    return PeriodLease(
+        ticket_bytes=ticket_bytes,
+        generation=period_generation_from_ticket_bytes(ticket_bytes),
+    )
 
 
 def _normalize_delegate(value: Any) -> str:
@@ -157,6 +202,11 @@ class Template:
                     "phase or delegates its whole period to one bootstrap "
                     "launch"
                 )
+        if "period_generation" in fm:
+            raise RecurringError(
+                "`period_generation` is reserved for materialized period tasks; "
+                "remove it from the recurring template"
+            )
         return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
 
     @property
@@ -805,7 +855,14 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
 # but reported separately: it is deliberately never copied into a period task
 # (see the `coga/recurring` context), so leaving it on the template would look
 # load-bearing while doing nothing.
-_TASK_ONLY_FIELDS = ("slug", "status", "step", "human", "agent")
+_TASK_ONLY_FIELDS = (
+    "slug",
+    "status",
+    "step",
+    "human",
+    "agent",
+    "period_generation",
+)
 
 # What a template passes through to each period task, in render order. Mirrors
 # the fields `_create_at_slug` reads back off the template.
@@ -1065,6 +1122,9 @@ def _create_at_slug(
             # launches must never consult a template that may have changed or
             # disappeared since this run was created.
             delegate=template.delegate,
+            # Stable period paths need a bounded generation discriminator. The
+            # token is creator-owned task state, never copied from the template.
+            period_generation=str(uuid4()),
             # Carry the template body verbatim so sections beyond `## Description`
             # reach the period task instead of being dropped at create time.
             body=template.body,
@@ -1541,5 +1601,8 @@ __all__ = [
     "ServicedPeriodLedger",
     "format_serviced_log",
     "SERVICED_LOG_VERBS",
+    "PeriodLease",
+    "local_period_lease",
+    "period_generation_from_ticket_bytes",
     "RecurringError",
 ]

@@ -2356,6 +2356,277 @@ def test_sync_paths_guard_refuses_stale_overwrite_of_terminal_control_copy(
     assert "status: in_progress" in ticket.read_text()
 
 
+def test_sync_paths_can_raise_a_guard_refusal_for_a_transactional_caller(
+    git_repo,
+) -> None:
+    """A caller that gates child work can observe a failed state CAS."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    rel = "coga/tasks/demo/ticket.md"
+    git_repo.push_competing_commit(
+        rel,
+        _step_ticket_text(
+            step="1 (implement)", status="done", blackboard="finished\n"
+        ),
+    )
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)", status="in_progress", blackboard="stale\n"
+        )
+    )
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    with pytest.raises(git.StateRegressionError):
+        git.sync_paths(
+            cfg,
+            ticket.parent,
+            [ticket.parent],
+            message="Ticket: demo — in_progress",
+            guard=lambda base: git.guard_ticket_state(cfg, ticket, base),
+            raise_state_regression=True,
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    assert "status: in_progress" in ticket.read_text()
+    assert "status: done" in git_repo.git("show", f"main:{rel}", cwd=git_repo.origin)
+
+
+def test_sync_paths_can_raise_a_transport_failure_for_a_transactional_caller(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Dependent work cannot proceed after an unverified control publish."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+
+    def fail_sync(*args: object, **kwargs: object) -> None:
+        raise git.GitError("simulated transport loss")
+
+    monkeypatch.setattr(git, "_dispatch_branch_sync", fail_sync)
+
+    with pytest.raises(git.GitError, match="simulated transport loss"):
+        git.sync_paths(
+            cfg,
+            ticket.parent,
+            [ticket.parent],
+            message="Lease: demo — before spawn",
+            raise_git_error=True,
+        )
+
+    assert "sync failed" not in capsys.readouterr().err
+
+
+def test_sync_paths_strict_state_publish_rejects_a_missing_control_branch(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Strict setup failures cannot fall through the feature-only handler."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    monkeypatch.setattr(git, "_control_branch_present", lambda *args: False)
+
+    with pytest.raises(
+        git.FeaturePublicationError,
+        match="control branch .* does not exist",
+    ):
+        git.sync_paths(
+            cfg,
+            ticket.parent,
+            [ticket.parent],
+            message="Lease: demo — before spawn",
+            raise_git_error=True,
+        )
+
+
+def test_strict_state_failure_unwinds_a_feature_branch_lifecycle_commit(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refused control CAS cannot leave generated state in PR history."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/strict-recurring-state"
+    git_repo.checkout_branch(branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    rollback = git.FileMutationRollback.capture((ticket,))
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    rollback.arm({ticket: ticket.read_bytes()})
+    monkeypatch.setattr(
+        git,
+        "_land_paths_on_control_branch",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            git.GitError("simulated control transport loss")
+        ),
+    )
+
+    with pytest.raises(git.GitError, match="simulated control transport loss"):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=lambda base: None,
+            generated_paths=rollback.generated,
+            raise_git_error=True,
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == before
+    assert "status: in_progress" in ticket.read_text()
+    assert "status: active" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
+
+
+def test_strict_state_recovers_a_lost_feature_control_push_acknowledgement(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An exact accepted control candidate is success despite a lost reply."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/ambiguous-recurring-state"
+    git_repo.checkout_branch(branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    rollback = git.FileMutationRollback.capture((ticket,))
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    rollback.arm({ticket: ticket.read_bytes()})
+    real_land = git._land_paths_on_control_branch
+    published = False
+
+    def land_then_lose_ack(*args, **kwargs):  # type: ignore[no-untyped-def]
+        real_land(*args, **kwargs)
+        raise git.GitError("simulated lost control acknowledgement")
+
+    def record_publication() -> None:
+        nonlocal published
+        published = True
+
+    monkeypatch.setattr(git, "_land_paths_on_control_branch", land_then_lose_ack)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — in_progress",
+        guard=lambda base: None,
+        generated_paths=rollback.generated,
+        after_strict_publication=record_publication,
+        raise_git_error=True,
+    )
+
+    assert published is True
+    assert git_repo.git("rev-parse", "HEAD").strip() != before
+    assert "status: in_progress" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_strict_state_retains_feature_evidence_when_control_probe_is_unknown(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unprovable accepted push never licenses local lifecycle rollback."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    branch = "feature/unknown-recurring-state"
+    git_repo.checkout_branch(branch)
+    before = git_repo.git("rev-parse", "HEAD").strip()
+    rollback = git.FileMutationRollback.capture((ticket,))
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    rollback.arm({ticket: ticket.read_bytes()})
+    real_land = git._land_paths_on_control_branch
+
+    def land_then_lose_ack(*args, **kwargs):  # type: ignore[no-untyped-def]
+        real_land(*args, **kwargs)
+        raise git.GitError("simulated lost control acknowledgement")
+
+    monkeypatch.setattr(git, "_land_paths_on_control_branch", land_then_lose_ack)
+    monkeypatch.setattr(
+        git,
+        "_configured_remote_contains_generated_commit",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            git.GitError("simulated unavailable control probe")
+        ),
+    )
+
+    with pytest.raises(
+        git.UncertainFeaturePublicationError,
+        match="retained generated state",
+    ):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — in_progress",
+            guard=lambda base: None,
+            generated_paths=rollback.generated,
+            raise_git_error=True,
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() != before
+    assert "status: in_progress" in ticket.read_text()
+    assert "status: in_progress" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+
+
+def test_strict_state_recovers_a_lost_control_branch_push_acknowledgement(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The checked-out control path probes its exact pushed commit too."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(git_repo, status="active", blackboard="notes\n")
+    rollback = git.FileMutationRollback.capture((ticket,))
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="working\n",
+        )
+    )
+    rollback.arm({ticket: ticket.read_bytes()})
+    real_push = git._push_ref
+    published = False
+
+    def push_then_lose_ack(*args, **kwargs):  # type: ignore[no-untyped-def]
+        result = real_push(*args, **kwargs)
+        raise git.GitError("simulated lost control acknowledgement")
+
+    def record_publication() -> None:
+        nonlocal published
+        published = True
+
+    monkeypatch.setattr(git, "_push_ref", push_then_lose_ack)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — in_progress",
+        guard=lambda base: None,
+        generated_paths=rollback.generated,
+        after_strict_publication=record_publication,
+        raise_git_error=True,
+    )
+
+    assert published is True
+    assert "status: in_progress" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
 def test_strict_feature_publication_checks_fresh_control_state_before_push(
     git_repo,
 ):
@@ -3237,6 +3508,56 @@ def test_strict_feature_publication_compensates_failed_control_landing(
     ).strip()
     assert "status: active" in ticket.read_text()
     assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_strict_state_landing_probes_attempted_candidate_before_regression_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry regression can follow one accepted destination of a multi-push."""
+    cfg = _cfg(tmp_path)
+    probed: list[str] = []
+    cleaned: list[bool] = []
+
+    def partial_push_then_regress(*args, **kwargs):  # type: ignore[no-untyped-def]
+        del args
+        kwargs["before_push"]("generated-candidate")
+        raise git.StateRegressionError("control moved after a partial push")
+
+    def refuse_ambiguous_destinations(
+        root: Path, remote: str, branch: str, generated_oid: str
+    ) -> bool:
+        del root, remote, branch
+        probed.append(generated_oid)
+        raise git.GitError("effective push destinations disagree")
+
+    monkeypatch.setattr(
+        git, "_land_paths_on_control_branch", partial_push_then_regress
+    )
+    monkeypatch.setattr(
+        git,
+        "_configured_remote_contains_generated_commit",
+        refuse_ambiguous_destinations,
+    )
+
+    with pytest.raises(
+        git.UncertainFeaturePublicationError,
+        match="retained generated state for explicit reconciliation",
+    ):
+        git._land_strict_state_on_control(
+            cfg,
+            tmp_path,
+            ["coga/tasks/demo/ticket.md"],
+            union_rels=[],
+            message="Ticket: demo — paused",
+            guard=None,
+            update_local_control_ref=False,
+            initial_base="control-before",
+            cleanup=lambda: cleaned.append(True),
+            after_strict_publication=None,
+        )
+
+    assert probed == ["generated-candidate"]
+    assert cleaned == []
 
 
 def test_strict_feature_publication_compensates_interrupt_after_feature_push(

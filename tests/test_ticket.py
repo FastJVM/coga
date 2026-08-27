@@ -29,6 +29,19 @@ def _prompt_arg(cmd: list[str]) -> str:
     raise AssertionError(f"No Coga prompt in argv: {cmd!r}")
 
 
+def test_period_generation_renders_as_canonical_task_state() -> None:
+    """The runner-owned token is not mislabeled as a repo extension."""
+    ticket = Ticket(
+        frontmatter={"slug": "recurring/check", "period_generation": "generation-1"},
+        body="",
+    )
+
+    rendered = ticket.render()
+
+    assert "period_generation: generation-1" in rendered
+    assert "# --- extensions ---" not in rendered
+
+
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     coga_os = tmp_path / "coga"

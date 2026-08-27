@@ -84,6 +84,7 @@ from coga.repl_supervisor import (
     build_supervised_step_env,
     run_with_done_marker,
 )
+from coga.recurring import PeriodLease, local_period_lease
 from coga.task_env import apply_task_env
 from coga.step_gate import gate_publishes_current_branch
 from coga.taskfile import TaskFileError, split_body
@@ -92,6 +93,7 @@ from coga.tasks import (
     TaskNotFoundError,
     TaskRef,
     TargetRef,
+    list_tasks,
     read_ticket,
     resolve_target,
 )
@@ -213,7 +215,226 @@ def launch(
         before_final_spawn=None,
         require_agent_target=False,
         record_launch=True,
+        recurring_authorized=False,
     )
+
+
+class RecurringPeriodLaunchResult(NamedTuple):
+    """One ordinary launch with its child generation and publication class."""
+
+    kind: str | None
+    period_lease: PeriodLease | None
+    require_period_publication: bool
+
+
+def launch_recurring_period(
+    task: str,
+    *,
+    expected_period_lease: PeriodLease,
+    control_remote_expected: bool,
+    agent_override: str | None,
+    prompt_report: bool,
+    idle_timeout: float | None,
+    max_session: float | None,
+    return_timeout: bool,
+    script_failure_important: bool,
+    queue_guidance: bool,
+) -> RecurringPeriodLaunchResult:
+    """Launch one period after the recurring runner admitted the sweep.
+
+    This is an in-process capability, not a Typer option. ``coga recurring``
+    performs the full admission pass at its outer boundary. A prior child can
+    run long enough for another checkout to pause, finish, or replace a later
+    period, though, so this seam refreshes and rechecks that one period before
+    entering shared launch logic. The caller supplies the exact ticket/audit
+    generation admitted before any prior child ran. ``control_remote_expected``
+    freezes whether that outer admission saw a configured remote: an admitted
+    remote-less checkout uses local control state, while a remote that later
+    disappears remains a failed verification. A lost refresh fails closed; a
+    period that became closed, parked, or replaced returns
+    ``"skipped"`` without starting work. The result also carries the exact
+    refreshed generation admitted before a deterministic child, or the exact
+    generation recaptured immediately before the last agent spawn. The sweep
+    can therefore compare-and-set any unfinished-child pause without touching
+    a replacement that arrived while either kind of child was running.
+    """
+    if not _refresh_recurring_period_before_launch(
+        task,
+        expected_period_lease,
+        control_remote_expected=control_remote_expected,
+    ):
+        return RecurringPeriodLaunchResult("skipped", None, False)
+
+    publication_cfg, publication_ref = _exact_recurring_period_for_launch(
+        task, boundary="publication preflight"
+    )
+    require_period_publication = _preflight_push_auth(
+        publication_cfg,
+        publication_ref,
+        is_bootstrap=False,
+    )
+
+    # The refresh above proved this exact generation immediately before shared
+    # launch setup. A pure ticket.py child has no agent-spawn callback, so keep
+    # that admitted lease as its teardown witness. Agent-backed launches verify
+    # the same generation and replace only its exact ticket bytes at the tighter
+    # boundary immediately before every actual spawn.
+    launched_period_lease = expected_period_lease
+
+    def capture_launched_period_lease(expected_ticket: Ticket) -> None:
+        """Freeze the exact composed period immediately before agent spawn."""
+        nonlocal launched_period_lease
+        current_cfg, current_ref = _exact_recurring_period_for_launch(
+            task, boundary="agent spawn"
+        )
+        current_period_lease = local_period_lease(current_cfg, current_ref)
+        if current_period_lease.generation != expected_period_lease.generation:
+            _bail(
+                f"{task} belongs to a different period generation at agent "
+                "spawn; not launching."
+            )
+        try:
+            if current_period_lease.ticket_bytes is None:
+                raise TicketError("period ticket disappeared")
+            current_ticket = Ticket.parse(
+                current_period_lease.ticket_bytes.decode()
+            )
+        except (UnicodeError, TicketError) as exc:
+            _bail(f"Cannot launch {task}: invalid period state at agent spawn: {exc}")
+        if current_ticket.status != "in_progress":
+            _bail(
+                f"Cannot launch {task}: period became {current_ticket.status!r} "
+                "before agent spawn. No work was started."
+            )
+        if current_ticket != expected_ticket:
+            _bail(
+                f"Cannot launch {task}: period state changed after prompt "
+                "composition. No work was started."
+            )
+        launched_period_lease = current_period_lease
+
+    kind = _launch(
+        task,
+        args=None,
+        agent_override=agent_override,
+        prompt_report=prompt_report,
+        idle_timeout=idle_timeout,
+        max_session=max_session,
+        return_timeout=return_timeout,
+        script_failure_important=script_failure_important,
+        queue_guidance=queue_guidance,
+        before_recompose=None,
+        before_final_spawn=capture_launched_period_lease,
+        require_agent_target=False,
+        record_launch=True,
+        recurring_authorized=True,
+    )
+    return RecurringPeriodLaunchResult(
+        kind,
+        launched_period_lease,
+        require_period_publication,
+    )
+
+
+def _exact_recurring_period_for_launch(
+    task: str, *, boundary: str
+) -> tuple[Config, TaskRef]:
+    """Resolve one canonical period ref without permitting prefix fallback."""
+    try:
+        cfg = load_config()
+    except ConfigError as exc:
+        _bail(str(exc))
+    ref = next(
+        (candidate for candidate in list_tasks(cfg) if candidate.id_slug == task),
+        None,
+    )
+    if ref is None or ref.directory != "recurring":
+        _bail(
+            f"Cannot launch {task}: its exact recurring period disappeared "
+            f"before {boundary}. No work was started."
+        )
+    return cfg, ref
+
+
+def _refresh_recurring_period_before_launch(
+    task: str,
+    expected_period_lease: PeriodLease,
+    *,
+    control_remote_expected: bool,
+) -> bool:
+    """Refresh and re-admit the exact period generation selected by a sweep."""
+    try:
+        cfg = load_config()
+    except ConfigError as exc:
+        _bail(str(exc))
+
+    from coga.recurring_runner import (
+        _control_remote_present_at_admission,
+        _refuse_non_control_branch,
+        _refuse_non_owner,
+    )
+
+    if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
+        raise SystemExit(2)
+    remote_present_now = _control_remote_present_at_admission(cfg)
+    if not control_remote_expected and not remote_present_now:
+        # This sweep was admitted in the supported local-only Git class. The
+        # branch/owner gates above and exact ticket lease below remain active;
+        # there is simply no distinct control destination to refresh from.
+        refreshed = True
+    else:
+        refreshed = git.refresh_coga_state_from_control(
+            cfg,
+            message=f"Refresh recurring period {task} before launch",
+            require_control_verification=True,
+        )
+    if refreshed is False:
+        _bail(
+            f"Cannot launch {task}: the latest control state could not be "
+            "verified after the preceding recurring child. No work was started."
+        )
+    try:
+        cfg = load_config(cfg.repo_root)
+    except ConfigError as exc:
+        _bail(str(exc))
+    ref = next(
+        (candidate for candidate in list_tasks(cfg) if candidate.id_slug == task),
+        None,
+    )
+    if ref is None:
+        typer.secho(
+            f"{task} no longer exists on control; not launching.",
+            fg=typer.colors.YELLOW,
+        )
+        return False
+    if ref.directory != "recurring":
+        _bail(
+            f"Internal recurring launch expected exact period ref {task!r}, "
+            f"but found it in {ref.directory!r}."
+        )
+    if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
+        raise SystemExit(2)
+    current_period_lease = local_period_lease(cfg, ref)
+    if current_period_lease != expected_period_lease:
+        typer.secho(
+            f"{ref.id_slug} belongs to a different ticket/period generation "
+            "on control; not launching.",
+            fg=typer.colors.YELLOW,
+        )
+        return False
+    try:
+        if current_period_lease.ticket_bytes is None:
+            raise TicketError("period ticket disappeared")
+        ticket = Ticket.parse(current_period_lease.ticket_bytes.decode())
+    except (UnicodeError, TicketError) as exc:
+        _bail(str(exc))
+    if ticket.status not in {"active", "in_progress"}:
+        typer.secho(
+            f"{ref.id_slug} became {ticket.status} on control; not launching.",
+            fg=typer.colors.YELLOW,
+        )
+        return False
+    return True
 
 
 def launch_with_before_spawn(
@@ -226,7 +447,7 @@ def launch_with_before_spawn(
     script_failure_important: bool = False,
     queue_guidance: bool,
     before_spawn: Callable[[], None],
-    revalidate_before_spawn: Callable[[], None] | None = None,
+    revalidate_before_spawn: Callable[[Ticket], None] | None = None,
 ) -> str | None:
     """Publish caller state after preflight, then re-derive and spawn once.
 
@@ -256,6 +477,7 @@ def launch_with_before_spawn(
             before_final_spawn=None,
             require_agent_target=True,
             record_launch=True,
+            recurring_authorized=False,
         )
     except _RecomposeAfterLaunchPublication:
         return _launch(
@@ -272,6 +494,7 @@ def launch_with_before_spawn(
             before_final_spawn=revalidate_before_spawn,
             require_agent_target=True,
             record_launch=False,
+            recurring_authorized=False,
         )
 
 
@@ -287,9 +510,10 @@ def _launch(
     script_failure_important: bool,
     queue_guidance: bool,
     before_recompose: Callable[[], None] | None,
-    before_final_spawn: Callable[[], None] | None,
+    before_final_spawn: Callable[[Ticket], None] | None,
     require_agent_target: bool,
     record_launch: bool,
+    recurring_authorized: bool,
 ) -> str | None:
     """Implementation shared by the Typer command and in-process launch seam."""
     # In-process callers (recurring, retire) invoke this Typer command function
@@ -306,6 +530,74 @@ def _launch(
     except ConfigError as exc:
         _bail(str(exc))
 
+    direct_recurring_prefix = (
+        not recurring_authorized
+        and not prompt_report
+        and task.startswith("recurring/")
+    )
+
+    def authorize_direct_recurring(current_cfg: Config) -> Config:
+        """Gate and refresh one public period launch before state lookup."""
+        from coga.recurring_runner import (
+            _control_remote_present_at_admission,
+            _refuse_non_control_branch,
+            _refuse_non_owner,
+            _sync_control_checkout_ahead,
+        )
+
+        if _refuse_non_control_branch(current_cfg) or _refuse_non_owner(current_cfg):
+            raise SystemExit(2)
+        try:
+            remote_present_at_admission = _control_remote_present_at_admission(
+                current_cfg
+            )
+        except git.GitError as exc:
+            _bail(
+                f"Cannot launch {task}: control-state verification failed: "
+                f"{exc}. No work was started.",
+                exit_code=git.STALE_CONTROL_EXIT_CODE,
+            )
+        fresh, freshness_error = _sync_control_checkout_ahead(
+            current_cfg, announce_failure=False
+        )
+        if not fresh and current_cfg.git_enabled:
+            try:
+                control_checkout = git._toplevel(current_cfg.repo_root)
+                remote_present_now = _control_remote_present_at_admission(
+                    current_cfg
+                )
+            except git.GitError as exc:
+                _bail(
+                    f"Cannot launch {task}: control-state verification failed: "
+                    f"{exc}. No work was started.",
+                    exit_code=git.STALE_CONTROL_EXIT_CODE,
+                )
+            if control_checkout is not None and (
+                remote_present_at_admission or remote_present_now
+            ):
+                _bail(
+                    f"Cannot launch {task}: could not confirm this checkout "
+                    f"includes the latest {current_cfg.git_remote}/"
+                    f"{current_cfg.git_control_branch}: {freshness_error}. "
+                    "No work was started.",
+                    exit_code=git.STALE_CONTROL_EXIT_CODE,
+                )
+        try:
+            refreshed_cfg = load_config(current_cfg.repo_root)
+        except ConfigError as exc:
+            _bail(str(exc))
+        if _refuse_non_control_branch(refreshed_cfg) or _refuse_non_owner(
+            refreshed_cfg
+        ):
+            raise SystemExit(2)
+        return refreshed_cfg
+
+    # An explicit recurring ref may exist only on the remote control tip. Gate
+    # and catch up from its namespace before resolving it locally; resolving
+    # first made a safely materialized remote period look nonexistent.
+    if direct_recurring_prefix:
+        cfg = authorize_direct_recurring(cfg)
+
     try:
         ref = resolve_target(cfg, task)
     except TaskNotFoundError as exc:
@@ -315,32 +607,18 @@ def _launch(
         isinstance(ref, TaskRef)
         and ref.directory == "recurring"
         and not prompt_report
+        and not recurring_authorized
+        and not direct_recurring_prefix
     ):
-        from coga.recurring_runner import (
-            _refuse_non_control_branch,
-            _refuse_non_owner,
-            _sync_control_checkout_ahead,
-        )
-
-        # A missing optional dispatch field must not turn a recurring period
-        # into an authorization bypass. Gate from the ref itself before reading
-        # any period state, whether the task is delegated, scripted, or ordinary
-        # agent work.
-        if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
-            raise SystemExit(2)
-
-        # A direct period launch has no outer sweep to perform the usual
-        # control-plane catch-up. Refresh before reading frozen dispatch so a
-        # remote completion, replacement, or delegate edit cannot be ignored
-        # by a stale checkout. Catch-up is deliberately best-effort, matching
-        # the ordinary recurring scan; publication still fails closed later
-        # if this checkout cannot safely synchronize its lifecycle writes.
+        # A bare/prefix task spelling can resolve into the recurring namespace
+        # only after lookup. Preserve that compatibility, then re-resolve its
+        # canonical slug from the refreshed checkout exactly as the explicit
+        # fast path above does.
         recurring_slug = ref.id_slug
-        _sync_control_checkout_ahead(cfg)
+        cfg = authorize_direct_recurring(cfg)
         try:
-            cfg = load_config(cfg.repo_root)
             refreshed_ref = resolve_target(cfg, recurring_slug)
-        except (ConfigError, TaskNotFoundError) as exc:
+        except TaskNotFoundError as exc:
             _bail(str(exc))
         if (
             not isinstance(refreshed_ref, TaskRef)
@@ -353,8 +631,6 @@ def _launch(
                 f"prefix match {refreshed_ref.id_slug!r}."
             )
         ref = refreshed_ref
-        if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
-            raise SystemExit(2)
 
     # A materialized recurring delegation is an immutable dispatch snapshot,
     # not prose for an agent wrapper. Route it before ordinary task setup so a
@@ -401,6 +677,7 @@ def _launch(
                     before_final_spawn=None,
                     require_agent_target=False,
                     record_launch=True,
+                    recurring_authorized=False,
                 )
 
             from coga.recurring_runner import _run_delegated_task
@@ -413,6 +690,7 @@ def _launch(
                 max_session=max_session,
                 queue_guidance=queue_guidance,
                 continue_after_timeout=False,
+                activate_if_needed=True,
             )
             if return_timeout:
                 return delegated.kind
@@ -1393,9 +1671,23 @@ def _launch(
             session_before_recompose = (
                 before_recompose if is_first_step else None
             )
-            session_before_spawn = (
-                before_final_spawn if is_first_step else None
-            )
+            # Delegation uses this only for its stateless single bootstrap
+            # session. An ordinary recurring period can chain agent-owned
+            # workflow steps, so refresh its teardown witness before every
+            # spawned child and retain the last generation actually launched.
+            session_before_spawn: Callable[[], None] | None = None
+            if before_final_spawn is not None and (
+                is_first_step or recurring_authorized
+            ):
+
+                def invoke_final_spawn_guard(
+                    callback: Callable[[Ticket], None] = before_final_spawn,
+                    expected_ticket: Ticket = spawn_ticket,
+                ) -> None:
+                    callback(expected_ticket)
+
+                session_before_spawn = invoke_final_spawn_guard
+
             if publish_assist_branch is not None:
                 if not isinstance(ref, TaskRef) or assist_pr_guard is None:
                     _bail(
@@ -2276,7 +2568,7 @@ def _reblock_unresolved_resume(
 
 def _preflight_push_auth(
     cfg: Config, ref: TaskRef | BootstrapRef, *, is_bootstrap: bool
-) -> None:
+) -> bool:
     """Refuse to launch when git push access to the configured remote is broken.
 
     Coga runs the whole session through git/gh, so a dead remote means a run
@@ -2289,13 +2581,15 @@ def _preflight_push_auth(
     checkout where the configured remote does not resolve (not a git repo / no
     remote) — which is also why the non-git launch test fixtures are
     unaffected. Only a *configured, reachable-but-unauthenticated* remote bails.
+    Returns whether the period has a configured remote whose later lifecycle
+    publications must therefore keep failing closed if transport disappears.
     """
     if is_bootstrap or not cfg.git_enabled:
-        return
+        return False
     if not check_git_remote(cfg.git_remote).ok:
         # No git repo / remote unconfigured → the sync layer soft-no-ops, so
         # there is no push to gate.
-        return
+        return False
     auth = check_git_auth(cfg.git_remote)
     if not auth.ok:
         _bail(
@@ -2306,6 +2600,7 @@ def _preflight_push_auth(
             "Fix auth and retry, or set `[git].enabled = false` to run without "
             "git sync."
         )
+    return True
 
 
 def _refresh_launch_checkout(

@@ -113,6 +113,50 @@ no in-memory state.
   or a frozen one-hop bootstrap launch when the template declares `delegate:`.
   Nothing declares deterministic execution — there is no `recipe:` or mode
   field.
+  A sweep or named recurring run performs full recurring admission at its
+  outer boundary, freezes each period's exact ticket plus its creator-owned
+  `period_generation` token, then launches through an internal typed seam. Immediately
+  before each ordinary child, that seam refreshes control state, resolves only
+  the exact ref (never a prefix sibling), and rechecks branch/owner plus the
+  frozen generation. A task removed, paused, finished, or replaced while an
+  earlier child ran is skipped; an unverified remote-backed refresh refuses
+  rather than starting stale work. A Git checkout with no configured remote
+  freezes that local-only class at outer admission and uses exact local control
+  state; a remote that disappears afterward still refuses. A deterministic
+  child retains that refreshed admission generation; immediately before every
+  ordinary agent spawn, launch requires the same bounded token and the complete
+  current ticket to match the launchable state just composed. On either child's
+  unfinished exit, that token distinguishes a replacement from the same child's
+  ticket and audit writes; only the latter acquires a fresh exact lease, and the
+  guarded pause is derived from those newly leased bytes so concurrent
+  same-generation edits survive. A replacement refuses teardown instead of
+  parking the stable path's new owner.
+  It does not re-enter the whole public launch path. A
+  direct `coga launch recurring/<name>` has no such outer admission, so it gates
+  and requires verified catch-up before resolving even a locally missing period
+  ref when a remote is configured; without one, local `HEAD` is the sole control
+  state. For a frozen
+  delegation, the runner separately preflights the period task's push access
+  and leases its exact ticket bytes plus creator-owned generation at start,
+  final spawn, and post-child completion/timeout. The lifecycle publications
+  are compare-and-sets against control and every attempted Git verification
+  or publication failure propagates: an old or unverified child cannot start,
+  nor mark a later generation at the stable path done or paused. A sweep
+  continues after a delegated timeout only when its guarded pause publishes;
+  a stale or failed pause refuses the run. Final spawn admission also leases
+  the exact parent recurring ticket named by the period state snapshot against
+  control. Delegated completion consumes that same parent input in its strict
+  transaction, so a concurrent parent edit refuses instead of being
+  overwritten and `done` cannot land without the child's cross-run cursor
+  update. When a digest spool is installed, its completion event joins
+  that transaction; a live notification waits for durable publication. An
+  unaccepted generated local commit is unwound before
+  caller-owned file rollback. An ambiguous control push is probed by exact
+  candidate OID across every effective push destination; disagreement or
+  otherwise unknown acceptance retains local evidence and refuses for
+  reconciliation instead of rolling back into split state. Direct
+  launch may activate a paused/draft delegated period inline; scheduled and
+  named recurring scans keep paused periods parked.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard
   machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
@@ -699,8 +743,8 @@ concurrent completion, replacement, or edit refuses the child. Creation
 freezes the target into the materialized period ticket, and all retries —
 including direct `coga launch recurring/<name>` — route from that snapshot
 reread after reconciliation rather than mutable template frontmatter or stale
-scan cache. A direct launch first performs the recurring control catch-up and
-re-resolves the exact period ref. Delegation is agent-only: a
+scan cache. A direct launch first requires a verified recurring control
+catch-up and re-resolves the exact period ref. Delegation is agent-only: a
 bootstrap target carrying `ticket.py` is rejected before period creation;
 deterministic recurring work belongs in the recurring template's own
 `ticket.py`. A template therefore never instructs its agent to shell out to a

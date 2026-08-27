@@ -189,6 +189,7 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
         "broken-recurring-template-skill",
         "conflicting-delegate-script",
         "invalid-delegate-owner",
+        "invalid-period-generation-owner",
         "invalid-recurring-schedule",
         "script-backed-delegate-target",
         "unknown-delegate-target",

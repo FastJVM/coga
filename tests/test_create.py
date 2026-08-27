@@ -9,10 +9,12 @@ from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
 from coga.cli import app
+from coga.commands.launch import RecurringPeriodLaunchResult
 from coga.create import create_task
 from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import log_path
+from coga.recurring import local_period_lease
 from coga.taskfile import fence_count, read_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
@@ -29,8 +31,21 @@ def _patch_recurring_command_launch(
     repo: Path,
     child_launch,
 ) -> None:
-    del repo
-    monkeypatch.setattr("coga.commands.launch.launch", child_launch)
+    def typed_child_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        result = child_launch(task, **kwargs)
+        if isinstance(result, RecurringPeriodLaunchResult):
+            return result
+        cfg = load_config(repo)
+        ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == task)
+        return RecurringPeriodLaunchResult(
+            result,
+            local_period_lease(cfg, ref),
+            False,
+        )
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", typed_child_launch
+    )
 
 
 @pytest.fixture
@@ -124,6 +139,28 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket.workflow is None
     assert "secrets" in ticket.frontmatter
     assert ticket.secrets is None
+
+
+def test_create_can_stamp_a_recurring_period_generation(repo: Path) -> None:
+    """The recurring creator can assign one bounded stable-path identity."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Generated period",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/generated-period",
+        force_directory=True,
+        period_generation="generation-1",
+    )
+
+    ticket = Ticket.read(Path(created["path"]) / "ticket.md")
+
+    assert ticket.frontmatter["period_generation"] == "generation-1"
 
 
 def test_create_canceled_ticket_has_no_workflow_step(repo: Path) -> None:

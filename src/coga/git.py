@@ -164,7 +164,7 @@ class FeaturePublicationError(GitError):
 
 
 class UncertainFeaturePublicationError(FeaturePublicationError):
-    """A generated feature update landed but its paired outcome is unknown.
+    """A generated state update landed but its paired outcome is unknown.
 
     Callers must retain their generated local bytes: rolling them back could
     create or deepen a split with a remote ref that accepted the update before
@@ -606,6 +606,8 @@ def sync_task_state(
     generated_paths: Mapping[Path, bytes | None] | None = None,
     extra_paths: Iterable[Path] = (),
     land_union_files_to_control: bool = False,
+    raise_state_regression: bool = False,
+    raise_git_error: bool = False,
 ) -> None:
     """Commit the task directory's files and push to the control branch.
 
@@ -635,7 +637,16 @@ def sync_task_state(
 
     `guard` is forwarded to `sync_paths`; status-transition callers pass
     `guard_ticket_state` so a stale checkout cannot overlay its ticket onto a
-    newer control tip. `expected_current_branch` pins an explicitly requested
+    newer control tip. ``raise_state_regression`` is the transactional form
+    for callers that gate later work on the guard's compare-and-set: a refusal
+    is re-raised after the sync layer unwinds any unpushed commit. Ordinary
+    human commands retain the non-fatal, locally-visible transition policy.
+    ``raise_git_error`` additionally makes every attempted Git publication
+    failure observable to a caller that must not perform a dependent side
+    effect without confirmed control state. It also refuses a requested
+    strict publication when Git, the checkout, the control branch, or the
+    configured remote is unavailable.
+    `expected_current_branch` pins an explicitly requested
     feature publication to the branch the caller already verified; switching
     checkouts between verification and sync fails before any commit or push.
     `expected_current_branch_oid` proves no unrelated local commit appeared
@@ -686,6 +697,12 @@ def sync_task_state(
         feature_publication_guard=feature_publication_guard,
         after_strict_publication=after_strict_publication,
         generated_paths=generated_paths,
+        **(
+            {"raise_state_regression": True}
+            if raise_state_regression
+            else {}
+        ),
+        **({"raise_git_error": True} if raise_git_error else {}),
     )
 
 
@@ -1066,6 +1083,8 @@ def sync_paths(
     feature_publication_guard: _FeaturePublicationGuard | None = None,
     after_strict_publication: Callable[[], None] | None = None,
     generated_paths: Mapping[Path, bytes | None] | None = None,
+    raise_state_regression: bool = False,
+    raise_git_error: bool = False,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -1100,16 +1119,25 @@ def sync_paths(
     retry — and raises `StateRegressionError` to abort the landing. Status
     transitions pass `guard_ticket_state`: the overlay replaces the ticket
     wholesale on the control tip, so without it a stale checkout can bury a
-    newer copy that another checkout already landed.
+    newer copy that another checkout already landed. Set
+    ``raise_state_regression`` only when a dependent side effect must not run
+    after that refusal; ordinary CLI transitions keep the refusal non-fatal.
+    ``raise_git_error`` is the stronger transactional publication gate: it
+    also propagates transport and repository-shape failures, including a
+    configured remote that disappears, so the dependent side effect runs only
+    after control was actually verified. Its exact generated snapshot is
+    committed with a local ref lease, an unaccepted commit is unwound, and an
+    ambiguous control push is probed by exact candidate OID before caller-owned
+    files may be restored.
     """
     selected = _dedupe_paths(paths)
     if not selected:
         return
 
     if not cfg.git_enabled:
-        if strict_feature_publication:
+        if strict_feature_publication or raise_git_error:
             raise FeaturePublicationError(
-                "strict feature publication requires git sync"
+                "strict state publication requires git sync"
             )
         sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
         return
@@ -1117,9 +1145,9 @@ def sync_paths(
     try:
         root = _toplevel(anchor_path)
         if root is None:
-            if strict_feature_publication:
+            if strict_feature_publication or raise_git_error:
                 raise FeaturePublicationError(
-                    "strict feature publication requires a git checkout"
+                    "strict state publication requires a git checkout"
                 )
             sys.stderr.write(
                 f"[git] not a git repo (sync skipped): {message}\n"
@@ -1138,7 +1166,7 @@ def sync_paths(
                 ) from exc
             raise
         if not control_branch_present:
-            if strict_feature_publication:
+            if strict_feature_publication or raise_git_error:
                 raise FeaturePublicationError(
                     _control_branch_mismatch_message(cfg, root)
                 )
@@ -1146,6 +1174,12 @@ def sync_paths(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
             return
+
+        if raise_git_error and not _remote_configured(root, cfg.git_remote):
+            raise GitError(
+                f"remote {cfg.git_remote!r} disappeared before strict state "
+                "publication"
+            )
 
         rels = [_relative_to_root(root, path) for path in selected]
         generated_rels = (
@@ -1165,7 +1199,7 @@ def sync_paths(
         log_rel = _relative_worktree_file_to_root(root, log_path(cfg))
         local_rels = rels + [log_rel] if log_path(cfg).exists() else rels
         local_rels = list(dict.fromkeys(local_rels))
-        if strict_feature_publication and generated_rels is None:
+        if (strict_feature_publication or raise_git_error) and generated_rels is None:
             # Direct internal callers that do not own a FileMutationRollback
             # still get one exact pre-publication sample. Lifecycle commands
             # pass their earlier armed snapshot so peer writes between mutation
@@ -1193,6 +1227,9 @@ def sync_paths(
             expected_current_branch_oid=expected_current_branch_oid,
             expected_remote_branch_oid=expected_remote_branch_oid,
             strict_feature_publication=strict_feature_publication,
+            strict_state_publication=(
+                raise_git_error and not strict_feature_publication
+            ),
             strict_push_url=strict_push_url,
             feature_publication_guard=feature_publication_guard,
             after_strict_publication=after_strict_publication,
@@ -1202,13 +1239,15 @@ def sync_paths(
         sys.stderr.write(
             f"[git] feature publication refused: {exc}. Message was: {message}\n"
         )
-        if strict_feature_publication:
+        if strict_feature_publication or raise_git_error:
             raise
     except StateRegressionError as exc:
         if strict_feature_publication:
             raise FeaturePublicationError(
                 f"strict feature publication refused stale state: {exc}"
             ) from exc
+        if raise_state_regression:
+            raise
         # A refusal is not a failure to reach git — it is git refusing to bury
         # newer state, so it gets its own line and no `sync failed` log entry
         # (the guard already recorded the reason against the task). The local
@@ -1220,6 +1259,8 @@ def sync_paths(
             raise FeaturePublicationError(
                 f"strict feature publication failed: {exc}"
             ) from exc
+        if raise_git_error:
+            raise
         # Non-fatal: surface loudly (stderr + log.md) but do NOT abort the
         # command. The task's markdown on disk is the source of truth; git is
         # only the sync layer. A push that can't reach the control branch
@@ -1329,6 +1370,7 @@ def refresh_coga_state_from_control(
     publish_if_remote_aligned: bool = False,
     expected_feature_branch: str | None = None,
     feature_publication_guard: _FeaturePublicationGuard | None = None,
+    require_control_verification: bool = False,
 ) -> bool:
     """Pull the control branch's task state back into this checkout.
 
@@ -1381,6 +1423,10 @@ def refresh_coga_state_from_control(
     the same non-raising model as `sync_paths` (stderr + `coga/log.md`).
     Ordinary launch callers treat a miss as advisory; a pinned assist uses the
     False result to suppress the catch-all sweep and request an explicit retry.
+    ``require_control_verification`` is the recurring per-child form: an
+    intentionally Git-disabled or genuinely non-Git workspace still succeeds
+    locally, but a Git checkout whose control branch or configured remote
+    disappeared is unverified and returns False instead of a permissive no-op.
     """
     strict_assist = expected_feature_branch is not None
     if not cfg.git_enabled:
@@ -1395,10 +1441,10 @@ def refresh_coga_state_from_control(
             sys.stderr.write(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
-            return not strict_assist
+            return not (strict_assist or require_control_verification)
         if not _remote_configured(root, cfg.git_remote):
             sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
-            return not strict_assist
+            return not (strict_assist or require_control_verification)
         branch = _current_branch(root)
         if (
             expected_feature_branch is not None
@@ -1421,7 +1467,7 @@ def refresh_coga_state_from_control(
             sys.stderr.write(
                 f"[git] detached HEAD — coga state not refreshed. ({message})\n"
             )
-            return not strict_assist
+            return not (strict_assist or require_control_verification)
         publication = _FeaturePublicationState(
             aligned=False,
             may_commit=True,
@@ -2008,6 +2054,7 @@ def _dispatch_branch_sync(
     expected_current_branch_oid: str | None = None,
     expected_remote_branch_oid: str | None = None,
     strict_feature_publication: bool = False,
+    strict_state_publication: bool = False,
     strict_push_url: str | None = None,
     feature_publication_guard: _FeaturePublicationGuard | None = None,
     after_strict_publication: Callable[[], None] | None = None,
@@ -2027,6 +2074,11 @@ def _dispatch_branch_sync(
         landing.
       - Detached HEAD → skip the local commit (it would be orphaned); still land
         `overlay_rels` on the control branch.
+
+    ``strict_state_publication`` is the recurring lifecycle transaction. It
+    captures exact generated bytes, leases control before committing locally,
+    unwinds an unaccepted feature/control commit, and probes the exact candidate
+    after an ambiguous push failure before allowing caller-owned file rollback.
     """
     control_union_rels = control_union_rels or []
     try:
@@ -2055,6 +2107,17 @@ def _dispatch_branch_sync(
             raise FeaturePublicationError(
                 "strict feature publication requires a non-control branch"
             )
+        if strict_state_publication:
+            _sync_paths_on_control_branch_strict(
+                cfg,
+                root,
+                local_rels,
+                message=message,
+                guard=guard,
+                generated_paths=generated_paths,
+                after_strict_publication=after_strict_publication,
+            )
+            return
         committed = _sync_paths_on_control_branch(
             cfg, root, local_rels, message=message, guard=guard, push=remote_ok
         )
@@ -2081,6 +2144,40 @@ def _dispatch_branch_sync(
                 + control_union_rels
             )
         )
+        if strict_state_publication:
+            strict_control_tip = _control_base_for_attempt(
+                root,
+                cfg.git_remote,
+                cfg.git_control_branch,
+                1,
+            )
+            if guard is not None:
+                guard(strict_control_tip)
+            _land_strict_state_on_control(
+                cfg,
+                root,
+                overlay_rels,
+                union_rels=union_rels,
+                message=message,
+                guard=guard,
+                update_local_control_ref=update_local_control_ref,
+                initial_base=strict_control_tip,
+                source_bytes=(
+                    {
+                        rel: generated_paths[rel]
+                        for rel in generated_paths
+                        if any(
+                            rel == scope or rel.startswith(f"{scope}/")
+                            for scope in overlay_rels
+                        )
+                    }
+                    if generated_paths is not None
+                    else None
+                ),
+                cleanup=None,
+                after_strict_publication=after_strict_publication,
+            )
+            return
         _land_paths_on_control_branch(
             cfg,
             root,
@@ -2099,7 +2196,7 @@ def _dispatch_branch_sync(
                 strict_push_url
                 or _single_assist_push_url(root, cfg.git_remote)
             )
-        if strict_feature_publication:
+        if strict_feature_publication or strict_state_publication:
             try:
                 # The feature update happens before the control landing, so
                 # capture a fresh control tip before publishing anything to
@@ -2115,14 +2212,18 @@ def _dispatch_branch_sync(
                 if guard is not None:
                     guard(strict_control_tip)
             except StateRegressionError as exc:
-                raise FeaturePublicationError(
-                    f"control state refused the assist transition: {exc}"
-                ) from exc
+                if strict_feature_publication:
+                    raise FeaturePublicationError(
+                        f"control state refused the assist transition: {exc}"
+                    ) from exc
+                raise
             except GitError as exc:
-                raise FeaturePublicationError(
-                    f"could not verify control state before assist publication: "
-                    f"{exc}"
-                ) from exc
+                if strict_feature_publication:
+                    raise FeaturePublicationError(
+                        "could not verify control state before assist "
+                        f"publication: {exc}"
+                    ) from exc
+                raise
         try:
             current_oid = _run_git(root, "rev-parse", "HEAD").strip()
         except GitError as exc:
@@ -2142,9 +2243,13 @@ def _dispatch_branch_sync(
                 f"local {branch!r} moved from verified tip "
                 f"{expected_current_branch_oid} to {current_oid}"
             )
-        before = current_oid if guard or strict_feature_publication else None
+        before = (
+            current_oid
+            if guard or strict_feature_publication or strict_state_publication
+            else None
+        )
         try:
-            if strict_feature_publication:
+            if strict_feature_publication or strict_state_publication:
                 committed, generated_oid = _commit_paths_at_expected_head(
                     root,
                     local_rels,
@@ -2168,7 +2273,7 @@ def _dispatch_branch_sync(
     if not remote_ok:
         # The feature-branch commit above already reflects OS state locally; the
         # control-branch landing is the only remote step, so soft-skip it.
-        if strict_feature_publication:
+        if strict_feature_publication or strict_state_publication:
             if committed and before is not None:
                 _restore_generated_feature_commit(
                     root,
@@ -2177,9 +2282,12 @@ def _dispatch_branch_sync(
                     generated_oid=generated_oid,
                     rels=local_rels,
                 )
-            raise FeaturePublicationError(
-                f"remote {cfg.git_remote!r} is not configured"
+            error_type = (
+                FeaturePublicationError
+                if strict_feature_publication
+                else GitError
             )
+            raise error_type(f"remote {cfg.git_remote!r} is not configured")
         sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
         return
     if strict_feature_publication:
@@ -2294,6 +2402,34 @@ def _dispatch_branch_sync(
                     f"could not publish generated state to {branch!r}: {exc}"
                 ) from exc
             raise
+    if strict_state_publication:
+        assert strict_control_tip is not None
+        assert before is not None
+
+        def cleanup_generated_commit() -> None:
+            if committed:
+                _restore_generated_feature_commit(
+                    root,
+                    branch,
+                    before=before,
+                    generated_oid=generated_oid,
+                    rels=local_rels,
+                )
+
+        _land_strict_state_on_control(
+            cfg,
+            root,
+            overlay_rels,
+            union_rels=control_union_rels,
+            message=message,
+            guard=guard,
+            update_local_control_ref=update_local_control_ref,
+            initial_base=strict_control_tip,
+            source_rev=generated_oid,
+            cleanup=cleanup_generated_commit,
+            after_strict_publication=after_strict_publication,
+        )
+        return
     try:
         _land_paths_on_control_branch(
             cfg,
@@ -2376,6 +2512,215 @@ def _dispatch_branch_sync(
         if isinstance(exc, StateRegressionError) and before is not None:
             _restore_unpushed_sync_commit(root, before, local_rels)
         raise
+
+
+def _restore_strict_state_commit(
+    root: Path,
+    branch: str,
+    *,
+    before: str,
+    generated_oid: str,
+    rels: list[str],
+    failure: BaseException,
+) -> None:
+    """Unwind one unaccepted lifecycle commit or make uncertainty explicit."""
+    try:
+        _restore_generated_feature_commit(
+            root,
+            branch,
+            before=before,
+            generated_oid=generated_oid,
+            rels=rels,
+        )
+    except GitError as restore_exc:
+        raise UncertainFeaturePublicationError(
+            "could not safely unwind the generated lifecycle commit after "
+            f"{type(failure).__name__}: {restore_exc}; retained generated "
+            "state for explicit reconciliation"
+        ) from failure
+
+
+def _sync_paths_on_control_branch_strict(
+    cfg: Config,
+    root: Path,
+    rels: list[str],
+    *,
+    message: str,
+    guard: _StateGuard | None,
+    generated_paths: Mapping[str, bytes | None] | None,
+    after_strict_publication: Callable[[], None] | None,
+) -> None:
+    """Publish one exact lifecycle commit from the checked-out control branch."""
+    control_tip = _control_base_for_attempt(
+        root,
+        cfg.git_remote,
+        cfg.git_control_branch,
+        1,
+    )
+    if guard is not None:
+        guard(control_tip)
+    current_oid = _run_git(root, "rev-parse", "HEAD").strip()
+    if current_oid != control_tip:
+        raise GitError(
+            f"checked-out control branch moved from verified tip {control_tip} "
+            f"to {current_oid} before strict state publication"
+        )
+    committed, generated_oid = _commit_paths_at_expected_head(
+        root,
+        rels,
+        message,
+        branch=cfg.git_control_branch,
+        expected_oid=current_oid,
+        source_bytes=generated_paths,
+    )
+    if not committed:
+        if after_strict_publication is not None:
+            after_strict_publication()
+        return
+
+    push_started = False
+    try:
+        push_started = True
+        result = _push_ref(
+            root,
+            cfg.git_remote,
+            f"{generated_oid}:refs/heads/{cfg.git_control_branch}",
+            force_with_lease=(
+                f"refs/heads/{cfg.git_control_branch}",
+                control_tip,
+            ),
+        )
+        if result is not None:
+            raise GitError(
+                f"`git push {cfg.git_remote} {cfg.git_control_branch}` failed "
+                f"during strict state publication: {result}"
+            )
+    except BaseException as exc:
+        if isinstance(exc, UncertainFeaturePublicationError):
+            raise
+        if push_started:
+            try:
+                published = _configured_remote_contains_generated_commit(
+                    root,
+                    cfg.git_remote,
+                    cfg.git_control_branch,
+                    generated_oid,
+                )
+            except GitError as probe_exc:
+                raise UncertainFeaturePublicationError(
+                    "could not determine whether control accepted generated "
+                    f"lifecycle state after {type(exc).__name__}: {probe_exc}; "
+                    "retained generated state for explicit reconciliation"
+                ) from exc
+            if published:
+                if after_strict_publication is not None:
+                    after_strict_publication()
+                if isinstance(exc, GitError):
+                    return
+                raise
+        _restore_strict_state_commit(
+            root,
+            cfg.git_control_branch,
+            before=current_oid,
+            generated_oid=generated_oid,
+            rels=rels,
+            failure=exc,
+        )
+        raise
+
+    if after_strict_publication is not None:
+        after_strict_publication()
+
+
+def _land_strict_state_on_control(
+    cfg: Config,
+    root: Path,
+    rels: list[str],
+    *,
+    union_rels: list[str],
+    message: str,
+    guard: _StateGuard | None,
+    update_local_control_ref: bool,
+    initial_base: str,
+    source_rev: str | None = None,
+    source_bytes: Mapping[str, bytes | None] | None = None,
+    cleanup: Callable[[], None] | None,
+    after_strict_publication: Callable[[], None] | None,
+) -> None:
+    """Land exact state and reconcile every attempted candidate publication.
+
+    ``candidate_oid`` is armed immediately before a push. Once armed, even a
+    later guard regression must probe every effective destination before local
+    cleanup: Git may have updated one push URL and failed another, leaving the
+    next retry to observe the accepted candidate as concurrent control state.
+    """
+    candidate_oid: str | None = None
+
+    def capture_candidate(oid: str) -> None:
+        nonlocal candidate_oid
+        candidate_oid = oid
+
+    try:
+        _land_paths_on_control_branch(
+            cfg,
+            root,
+            rels,
+            union_rels=union_rels,
+            message=message,
+            guard=guard,
+            update_local_control_ref=update_local_control_ref,
+            initial_base=initial_base,
+            source_rev=source_rev,
+            source_bytes=source_bytes,
+            exact_base_lease=True,
+            before_push=capture_candidate,
+        )
+    except BaseException as exc:
+        if isinstance(exc, UncertainFeaturePublicationError):
+            raise
+        if candidate_oid is None:
+            if cleanup is not None:
+                try:
+                    cleanup()
+                except GitError as cleanup_exc:
+                    raise UncertainFeaturePublicationError(
+                        "could not safely unwind generated lifecycle state "
+                        f"after {type(exc).__name__}: {cleanup_exc}; retained "
+                        "generated state for explicit reconciliation"
+                    ) from exc
+            raise
+        try:
+            published = _configured_remote_contains_generated_commit(
+                root,
+                cfg.git_remote,
+                cfg.git_control_branch,
+                candidate_oid,
+            )
+        except GitError as probe_exc:
+            raise UncertainFeaturePublicationError(
+                "could not determine whether control accepted generated "
+                f"lifecycle state after {type(exc).__name__}: {probe_exc}; "
+                "retained generated state for explicit reconciliation"
+            ) from exc
+        if published:
+            if after_strict_publication is not None:
+                after_strict_publication()
+            if isinstance(exc, GitError):
+                return
+            raise
+        if cleanup is not None:
+            try:
+                cleanup()
+            except GitError as cleanup_exc:
+                raise UncertainFeaturePublicationError(
+                    "could not safely unwind generated lifecycle state after "
+                    f"{type(exc).__name__}: {cleanup_exc}; retained generated "
+                    "state for explicit reconciliation"
+                ) from exc
+        raise
+
+    if after_strict_publication is not None:
+        after_strict_publication()
 
 
 def _coga_state_pathspecs(root: Path, cfg: Config) -> list[str]:
@@ -3873,12 +4218,17 @@ def _land_paths_on_control_branch(
     update_local_control_ref: bool = True,
     initial_base: str | None = None,
     source_rev: str | None = None,
+    source_bytes: Mapping[str, bytes | None] | None = None,
     push_url: str | None = None,
     exact_base_lease: bool = False,
+    before_push: Callable[[str], None] | None = None,
 ) -> None:
     """Land selected pathspecs on the control branch from any branch.
 
-    ``source_rev`` pins the overlay to an already-created generated commit.
+    ``source_rev`` pins the overlay to an already-created generated commit;
+    ``source_bytes`` is the detached-checkout equivalent. They are mutually
+    exclusive. ``before_push`` exposes the exact candidate commit to strict
+    callers so they can reconcile a lost push acknowledgement.
     Ordinary callers overlay current working-tree bytes; strict assist
     publication uses the captured commit so a concurrent worktree edit cannot
     make control receive different state than the PR branch. When
@@ -3890,6 +4240,8 @@ def _land_paths_on_control_branch(
     branch = cfg.git_control_branch
     push_destination = push_url or remote
     union_rels = union_rels or []
+    if source_rev is not None and source_bytes is not None:
+        raise GitError("control landing cannot use both source_rev and source_bytes")
 
     for attempt in range(_MAX_SYNC_ATTEMPTS):
         base = (
@@ -3912,11 +4264,14 @@ def _land_paths_on_control_branch(
             rels,
             union_rels=union_rels,
             source_rev=source_rev,
+            source_bytes=source_bytes,
         )
         if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():
             return
 
         new = _run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
+        if before_push is not None:
+            before_push(new)
         if exact_base_lease:
             result = _push_ref(
                 root,
@@ -4848,6 +5203,34 @@ def _remote_contains_generated_commit(
             and _remote_branch_descends_from(
                 root,
                 push_url,
+                branch,
+                generated_oid,
+            )
+        )
+    )
+
+
+def _configured_remote_contains_generated_commit(
+    root: Path,
+    remote: str,
+    branch: str,
+    generated_oid: str,
+) -> bool:
+    """Verify one generated commit across every configured push destination."""
+    push_urls = _remote_push_urls(root, remote)
+    remote_oid = _remote_branch_oid(
+        root,
+        remote,
+        branch,
+        push_urls=push_urls,
+    )
+    return bool(
+        remote_oid == generated_oid
+        or (
+            remote_oid is not None
+            and _remote_branch_descends_from(
+                root,
+                push_urls[0],
                 branch,
                 generated_oid,
             )

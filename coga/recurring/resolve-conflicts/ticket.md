@@ -29,12 +29,23 @@ dispatch. The runner marks the period task `in_progress`, launches
 override and queue guidance), and marks the period task `done` only after the
 delegated command's final `coga slack` roll-up emits its bootstrap done
 sentinel. Launch preflights before the start transition, then reloads and
-recomposes after that publication, and at the final spawn boundary requires
-the exact period snapshot to remain `in_progress` with the same frozen target.
-Sweeps reread that dispatch after reconciliation; a direct launch first catches
-up control and re-resolves the exact period ref. A natural/crashed exit fails
-without completing the period. A
-multi-task sweep pauses a watchdog timeout and records it as timed out; an
+recomposes after that publication. Before bootstrap work, it also checks push
+access for the materialized period task; the stateless bootstrap target would
+otherwise skip that gate. Start publication, final spawn, and post-child
+completion/timeout all lease the exact period ticket plus its task-audit
+generation against control, so a later period at the same stable path cannot
+receive an older child's result. Sweeps reread dispatch after reconciliation,
+freeze every admitted period generation before the first child, and perform
+full recurring admission at their outer boundary; each ordinary child also
+refreshes and checks that exact generation immediately before launch, while
+delegation fails closed on every exact-lease verification/publication error. A
+direct launch requires verified catch-up before resolving even a locally missing period ref. A
+natural/crashed exit fails without completing the period. A
+multi-task sweep pauses a watchdog timeout and records it as timed out only
+after that pause is verified on control; a stale or failed pause refuses the
+run. Strict publication unwinds an unaccepted local lifecycle commit and probes
+an exact remote candidate after a lost push reply; an unknown outcome retains
+local reconciliation evidence rather than rolling back into split state. An
 explicit named launch fails and leaves the period retryable.
 
 The replacement intentionally covers **open PRs only**. The removed
