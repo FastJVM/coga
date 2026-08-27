@@ -1188,4 +1188,4 @@ both review threads with the implementation and test evidence, resolved both,
 and re-fetched GitHub state to confirm there are **zero unresolved threads**.
 The PR body now includes the review follow-up and the final **2112 passed**
 result. PR #725 remains open at the owner-controlled task review gate; no bump
-or close was performed.
+or close was performed. Posted the resolved-comments FYI through `coga slack`.

@@ -4024,3 +4024,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-26 13:14 [reuse-the-existing-control-worktree-for-recurring] [human:nicktoper] launched (assignee=codex, agent=codex)
 2026-08-26 16:52 [reconcile-recurring-wrapper-tty-admission-guidance] [agent:nicktoper] slack: Follow-up PR opened: https://github.com/FastJVM/coga/pull/725
 2026-08-26 20:43 [reconcile-recurring-wrapper-tty-admission-guidance] [agent:nicktoper] slack: PR #725 comments addressed and resolved at da6a7a7a; 2112 tests passed
+2026-08-26 20:48 [parse-agents-rejects-cogalocaltoml] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
