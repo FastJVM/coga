@@ -2122,6 +2122,29 @@ def test_local_period_lease_does_not_read_unbounded_global_log(
     assert lease.ticket_bytes == outcome.ref.ticket_path.read_bytes()
 
 
+def test_local_period_lease_treats_ticket_deleted_during_capture_as_missing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reap racing the ticket read becomes the existing skipped lease."""
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "weekly-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    ticket_path = outcome.ref.ticket_path
+    original_read_bytes = Path.read_bytes
+
+    def disappear_during_read(path: Path) -> bytes:
+        if path == ticket_path:
+            raise FileNotFoundError(ticket_path)
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", disappear_during_read)
+
+    lease = recurring_module.local_period_lease(cfg, outcome.ref)
+
+    assert lease == PeriodLease(ticket_bytes=None, generation=None)
+
+
 @pytest.mark.parametrize(
     (
         "starting_status",
@@ -2511,6 +2534,68 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
     assert launches == [
         ("bootstrap/resolve-conflicts", "claude", 900.0, None, True, True)
     ]
+
+
+@pytest.mark.parametrize(
+    ("boundary", "termination", "capture_to_race", "expected_status"),
+    [
+        ("start", "done", 1, "active"),
+        ("completion", "done", 2, "in_progress"),
+        ("timeout", "timeout", 2, "in_progress"),
+    ],
+)
+def test_delegated_lifecycle_snapshot_rejects_edit_after_lease(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    boundary: str,
+    termination: str,
+    capture_to_race: int,
+    expected_status: str,
+) -> None:
+    """Start, done, and pause cannot render an older leased ticket over a peer."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    real_snapshot = recurring_cmd._period_mutation_snapshot
+    captures = 0
+    note = f"Concurrent edit before {boundary} mutation."
+
+    def race_snapshot(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal captures
+        captures += 1
+        assert kwargs["expected_ticket_bytes"] is not None
+        if captures == capture_to_race:
+            concurrent = Ticket.read(outcome.ref.ticket_path)
+            concurrent.body += f"\n{note}\n"
+            concurrent.write(outcome.ref.ticket_path)
+        return real_snapshot(*args, **kwargs)
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        return termination
+
+    monkeypatch.setattr(recurring_cmd, "_period_mutation_snapshot", race_snapshot)
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn", fake_launch
+    )
+    monkeypatch.setattr("coga.mark.notify", lambda *args, **kwargs: None)
+
+    delegated = recurring_cmd._run_delegated_task(
+        cfg,
+        outcome.ref,
+        idle_timeout=900.0,
+        max_session=None,
+        continue_after_timeout=True,
+    )
+
+    final = Ticket.read(outcome.ref.ticket_path)
+    assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
+    assert captures == capture_to_race
+    assert final.status == expected_status
+    assert note in final.body
 
 
 def test_delegated_completion_reloads_post_session_config(

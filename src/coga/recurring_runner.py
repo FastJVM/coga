@@ -1229,13 +1229,22 @@ def _period_lease_guard(
 
 
 def _period_mutation_snapshot(
-    cfg: Config, ref: TaskRef, *, include_completion_state: bool = False
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    expected_ticket_bytes: bytes | None,
+    include_completion_state: bool = False,
 ) -> git.FileMutationRollback:
     """Capture delegated lifecycle files at one exact rollback/publication boundary.
 
     Completion also owns the parent recurring ticket named by the period's
     state snapshot: a cursor advanced by the child and the period's ``done``
     transition must reach control in the same transaction.
+
+    ``expected_ticket_bytes`` binds this mutation snapshot to the period lease
+    whose parsed ``Ticket`` object will be rendered.  A newer same-generation
+    local edit must defer the transition rather than become rollback input for
+    an older object and then be overwritten by it.
     """
     audit_path = log_path(cfg)
     paths = [ref.ticket_path, audit_path]
@@ -1250,7 +1259,21 @@ def _period_mutation_snapshot(
         if spool_path is not None:
             paths.append(spool_path)
             union_paths.append(spool_path)
-    return git.FileMutationRollback.capture(paths, union_paths=union_paths)
+    try:
+        rollback = git.FileMutationRollback.capture(
+            paths, union_paths=union_paths
+        )
+    except FileNotFoundError as exc:
+        raise git.StateRegressionError(
+            f"{ref.id_slug}: period mutation input disappeared while being "
+            "captured; refusing stale lifecycle mutation"
+        ) from exc
+    if rollback.originals.get(ref.ticket_path) != expected_ticket_bytes:
+        raise git.StateRegressionError(
+            f"{ref.id_slug}: period ticket changed after its lifecycle lease "
+            "was sampled; refusing stale lifecycle mutation"
+        )
+    return rollback
 
 
 def _restore_refused_period_mutation(
@@ -1480,7 +1503,7 @@ def _run_delegated_task(
                 if prior_status == "active"
                 else f"{prior_status} → active → in_progress"
             )
-            rollback = _period_mutation_snapshot(start_cfg, ref)
+            rollback: git.FileMutationRollback | None = None
             publication_succeeded = False
 
             def record_publication() -> None:
@@ -1488,6 +1511,11 @@ def _run_delegated_task(
                 publication_succeeded = True
 
             try:
+                rollback = _period_mutation_snapshot(
+                    start_cfg,
+                    ref,
+                    expected_ticket_bytes=current_lease.ticket_bytes,
+                )
                 mark_in_progress(
                     start_cfg,
                     ref,
@@ -1517,7 +1545,7 @@ def _run_delegated_task(
                     f"for reconciliation — {exc}"
                 ) from exc
             except git.GitError as exc:
-                if not publication_succeeded:
+                if rollback is not None and not publication_succeeded:
                     _restore_refused_period_mutation(
                         rollback, action="delegated start"
                     )
@@ -1525,7 +1553,7 @@ def _run_delegated_task(
                     f"cannot start delegated period {ref.id_slug}: {exc}"
                 ) from exc
             except BaseException:
-                if not publication_succeeded:
+                if rollback is not None and not publication_succeeded:
                     _restore_refused_period_mutation(
                         rollback, action="delegated start"
                     )
@@ -1701,7 +1729,7 @@ def _run_delegated_task(
         boundary="completion",
         expected_status="in_progress",
     )
-    rollback = _period_mutation_snapshot(cfg, ref, include_completion_state=True)
+    rollback: git.FileMutationRollback | None = None
     publication_succeeded = False
 
     def record_completion_publication() -> None:
@@ -1709,6 +1737,12 @@ def _run_delegated_task(
         publication_succeeded = True
 
     try:
+        rollback = _period_mutation_snapshot(
+            cfg,
+            ref,
+            expected_ticket_bytes=current_lease.ticket_bytes,
+            include_completion_state=True,
+        )
         mark_done(
             cfg,
             ref,
@@ -1745,7 +1779,7 @@ def _run_delegated_task(
         )
         return DelegatedRunResult(2, "refused")
     except git.GitError as exc:
-        if not publication_succeeded:
+        if rollback is not None and not publication_succeeded:
             _restore_refused_period_mutation(rollback, action="delegated completion")
         typer.secho(
             f"cannot complete delegated period {ref.id_slug}: {exc}",
@@ -1764,7 +1798,7 @@ def _run_delegated_task(
         )
         return DelegatedRunResult(2, "done")
     except TaskValidationError as exc:
-        if not publication_succeeded:
+        if rollback is not None and not publication_succeeded:
             _restore_refused_period_mutation(rollback, action="delegated completion")
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "done")
@@ -3190,11 +3224,7 @@ def _stop_if_unfinished_after_launch(
 
     if timed_out:
         suffix = "liveness watchdog: REPL timed out before signalling done"
-        rollback = (
-            _period_mutation_snapshot(cfg, ref)
-            if expected_period_lease is not None
-            else None
-        )
+        rollback: git.FileMutationRollback | None = None
         publication_succeeded = False
 
         def record_publication() -> None:
@@ -3202,6 +3232,12 @@ def _stop_if_unfinished_after_launch(
             publication_succeeded = True
 
         try:
+            if expected_period_lease is not None:
+                rollback = _period_mutation_snapshot(
+                    cfg,
+                    ref,
+                    expected_ticket_bytes=expected_period_lease.ticket_bytes,
+                )
             mark_paused(
                 cfg,
                 ref,
@@ -3256,11 +3292,7 @@ def _stop_if_unfinished_after_launch(
         return
 
     suffix = "Agent recurring launch exited unfinished"
-    rollback = (
-        _period_mutation_snapshot(cfg, ref)
-        if expected_period_lease is not None
-        else None
-    )
+    rollback: git.FileMutationRollback | None = None
     publication_succeeded = False
 
     def record_publication() -> None:
@@ -3268,6 +3300,12 @@ def _stop_if_unfinished_after_launch(
         publication_succeeded = True
 
     try:
+        if expected_period_lease is not None:
+            rollback = _period_mutation_snapshot(
+                cfg,
+                ref,
+                expected_ticket_bytes=expected_period_lease.ticket_bytes,
+            )
         mark_paused(
             cfg,
             ref,

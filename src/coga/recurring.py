@@ -81,7 +81,14 @@ def period_generation_from_ticket_bytes(data: bytes | None) -> str | None:
 def local_period_lease(cfg: Config, ref: TaskRef) -> PeriodLease:
     """Capture one bounded local ticket-generation dispatch lease."""
     del cfg  # Kept in the seam for symmetry with revision-backed leases.
-    ticket_bytes = ref.ticket_path.read_bytes() if ref.ticket_path.is_file() else None
+    try:
+        ticket_bytes = ref.ticket_path.read_bytes()
+    except FileNotFoundError:
+        # A concurrent sweep/cleanup may reap the stable period path between
+        # discovery and capture.  Missing is already a first-class lease state
+        # that launch callers classify as skipped; do not turn that race into
+        # an exception that starves later due tasks.
+        ticket_bytes = None
     return PeriodLease(
         ticket_bytes=ticket_bytes,
         generation=period_generation_from_ticket_bytes(ticket_bytes),
