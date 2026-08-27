@@ -829,8 +829,11 @@ delivery mechanism. Known limitation: the contract audit's own corpus globs
 Every launched agent and ticket script subprocess receives
 task metadata as environment variables:
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
-`COGA_TASK_BLACKBOARD`, `COGA_TASK_LOG`, `COGA_TASK_STEP`,
-`COGA_COGA_OS_ROOT`, and `COGA_REPO_ROOT`. `COGA_TASK_STEP` is the frozen
+`COGA_TASK_BLACKBOARD`, `COGA_TASK_STEP`,
+`COGA_COGA_OS_ROOT`, and `COGA_REPO_ROOT`. There is no `COGA_TASK_LOG`: the
+audit log is one repo-global `coga/log.md`, so a per-task variable naming it
+was a leftover from the three-file task layout and nothing ever read it. Derive
+the path from `COGA_COGA_OS_ROOT` if a script needs it. `COGA_TASK_STEP` is the frozen
 `<n> (<name>)` value and is absent when the target has no workflow step. The
 shared launch boundaries
 **clear the whole namespace and re-derive it** from the launched task, so
@@ -839,9 +842,15 @@ does not export cannot survive by inheritance either. `COGA_COGA_OS_ROOT` is
 the `coga/` root; `COGA_REPO_ROOT` is the host repo (its parent when `coga/` is
 nested in a repo).
 
-Two members are conditional. `COGA_TASK_STEP` is absent without a current
-workflow step. `COGA_TASK_BLACKBOARD` is absent for a stateless bootstrap
-target, which has no blackboard. Its
+Two members are conditional, and that is the whole point of the second one.
+`COGA_TASK_STEP` is absent without a current workflow step.
+`COGA_TASK_BLACKBOARD` is absent for a stateless bootstrap target, which has no
+blackboard. Because the blackboard is the final region of the single ticket
+file, `COGA_TASK_BLACKBOARD` and `COGA_TASK_TICKET` carry the same path when
+both are set — but they are not interchangeable and neither is redundant: the
+*presence* of the blackboard variable is the capability signal, and its absence
+is what makes a recipe write its report to stdout. `COGA_TASK_TICKET` is always
+set. Its
 `ticket.md` is normally a packaged resource, and a report writer handed that
 path appends into a file that ships in the wheel (a repo-local
 `coga/bootstrap/<name>/ticket.md` override is corrupted the same way). Recipes

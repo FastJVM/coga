@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 from coga.config import Config, ConfigError, find_repo_root
-from coga.paths import log_path
 from coga.tasks import BootstrapRef, TargetRef
 from coga.ticket import Ticket
 
@@ -20,7 +19,6 @@ TASK_ENV_KEYS = (
     "COGA_TASK_DIR",
     "COGA_TASK_TICKET",
     "COGA_TASK_BLACKBOARD",
-    "COGA_TASK_LOG",
     "COGA_TASK_STEP",
     "COGA_COGA_OS_ROOT",
     "COGA_REPO_ROOT",
@@ -56,12 +54,15 @@ def build_task_env(
         "COGA_TASK_SLUG": ref.id_slug,
         "COGA_TASK_DIR": str((ref.task_dir or ref.path.parent).resolve()),
         "COGA_TASK_TICKET": str(ref.ticket_path.resolve()),
-        "COGA_TASK_LOG": str(log_path(cfg).resolve()),
         "COGA_COGA_OS_ROOT": str(cfg.repo_root.resolve()),
         "COGA_REPO_ROOT": str(host_repo_root(cfg).resolve()),
     }
     if not isinstance(ref, BootstrapRef):
-        # The blackboard is the final region of the single ticket file.
+        # The blackboard is the final region of the single ticket file, so this
+        # equals COGA_TASK_TICKET. It is not redundant with it: the *presence*
+        # of this variable is the signal that there is a blackboard to append a
+        # report to, and its absence is what makes a recipe fall back to
+        # stdout. COGA_TASK_TICKET is always set; this one is not.
         env["COGA_TASK_BLACKBOARD"] = str(ref.ticket_path.resolve())
         current = ticket.current_step() if ticket is not None else None
         step_index = ticket.step_index() if ticket is not None else None
