@@ -84,6 +84,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/726
 branch: codex/rewrite-launch-prompts
 worktree: /tmp/coga-rewrite-launch-prompts
 
