@@ -579,23 +579,32 @@ executable skill-plugin API.
 When an agent phase remains, `coga launch` builds one composed prompt and
 writes it to a temp file. Layers, in order:
 
-1. Base prompt plus the agent-mode block. Both are package resources, not
-   files under `coga/`.
+1. Base prompt (`prompt.md`) — a package resource, not a file under `coga/`.
+   It carries the attended ask-and-wait default in its "Working with the
+   human" section; there is no separate mode layer, and no mode to select.
 2. Repo context (`coga/context.md` — top-level facts about this
    surface).
 3. Ticket contexts (everything in `contexts:` frontmatter list).
-4. Task-specific context (the ticket body's inline `## Context`).
-5. Ticket-level skills and the current workflow step's skill (if any).
-6. The blackboard.
-7. The task description (the ticket body's `## Description`).
+4. Ticket-level skills and the current workflow step's skill (if any).
+5. The ticket itself, last and contiguous, in the order it sits on disk:
+   `## Description`, then the inline `## Context`, then the blackboard region
+   below the fence.
+
+Layer 5 is one block on purpose. These were three separate layers scattered
+across the prompt, with skills wedged between them, back when they were three
+files (`ticket.md` / `blackboard.md` / `log.md`); the single-file task format
+collapsed the files and the split outlived its reason. They remain distinct
+entries in `--prompt-report` so the blackboard can still be sized on its own —
+that line is how a bloated blackboard gets noticed — but the agent reads the
+ticket as written.
 
 The shared spawn seam may append a narrow, package-backed invocation directive
 after those task layers, and that seam carries the escalation boundary. An
-ordinary `coga launch` is attended: the agent-mode block directs the agent to
-ask the human in the REPL and wait for the answer when input is needed, and to
-run `coga block` only when the human explicitly asks to park or block the
-ticket. That mode rule is authoritative over generic block wording in the base
-prompt, workflows, or step skills. `coga megalaunch` appends
+ordinary `coga launch` is attended: the base prompt's "Working with the human"
+section directs the agent to ask the human in the REPL and wait for the answer
+when input is needed, and to run `coga block` only when the human explicitly
+asks to park or block the ticket. That rule is authoritative over generic block
+wording elsewhere in the base prompt, in workflows, or in step skills. `coga megalaunch` appends
 `prompt-megalaunch.md`, which flips the default for queue runs: the REPL still
 uses a TTY for live streaming and human interruption, but the TTY is transport,
 not an attending human, so queue execution must not pause for plan approval or
