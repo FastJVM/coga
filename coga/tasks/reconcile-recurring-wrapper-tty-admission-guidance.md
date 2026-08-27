@@ -1139,4 +1139,53 @@ https://github.com/FastJVM/coga/pull/725
 
 Branch `delegate-recurring-postmerge-fixes` was pushed at reviewed head
 `3dd50c8f`. The task remains at its owner-controlled review gate; this follow-up
-does not bump or close it.
+does not bump or close it. Posted the PR URL through `coga slack` for the task.
+
+## Follow-up PR review comments (2026-08-26)
+
+PR #725 received two unresolved P2 threads, both selected for repair by the
+owner:
+
+- bind every lifecycle mutation snapshot to the ticket bytes from the already
+  sampled period lease, so an edit between lease and capture is refused rather
+  than accepted as rollback input for an older `Ticket` object;
+- normalize `FileNotFoundError` while reading a local period lease to the
+  existing missing-ticket lease, so a reap during capture is skipped instead
+  of aborting the sequential sweep.
+
+Plan: make expected ticket bytes a required input to the shared period-mutation
+snapshot helper (thereby covering delegated start/done and guarded pause), add
+an all-three-boundaries race regression plus a focused deletion-during-read
+regression, then run review and verification before replying and resolving the
+threads. This intentionally chooses deferral over overwriting concurrent state.
+
+Both threads are fixed on the feature branch. `local_period_lease` now reads
+directly and maps `FileNotFoundError` to `PeriodLease(None, None)`. The shared
+period-mutation capture requires the sampled ticket bytes, converts an input
+disappearance into a state-regression refusal, and rejects captured ticket
+bytes that differ before any lifecycle write. Start, done, watchdog pause, and
+ordinary unfinished pause all pass their exact current lease; failed capture
+has no armed rollback to apply, so the concurrent bytes remain untouched.
+
+Regression coverage: one deletion-during-read case and a parametrized local
+edit injected between lease and mutation capture at start, completion, and
+timeout/pause. Focused tests: **4 passed**; complete recurring module: **273
+passed**. After an unconditional fetch, all 19 commits rebased cleanly onto
+fresh `origin/main` `43707c95`; configured full suite: **2112 passed** in
+129.12s. `coga validate --json` has no recurring/delegation/generation issue;
+the repository's unrelated dogfood findings remain. Twins and `git diff
+--check` are clean.
+
+Independent `codex review --base HEAD^` found no actionable defect and
+reproduced the focused tests plus the recurring module. Its unconfigured full
+suite reached **2111 passed, 1 environment-only failure** because Hatchling is
+not installed in that reviewer environment; the configured full-suite result
+above includes and passes that packaging test. Reviewed rebased head is
+`da6a7a7a` (`Bind recurring mutations to sampled leases`).
+
+Force-with-lease published reviewed head `da6a7a7a` to PR #725. Replied to
+both review threads with the implementation and test evidence, resolved both,
+and re-fetched GitHub state to confirm there are **zero unresolved threads**.
+The PR body now includes the review follow-up and the final **2112 passed**
+result. PR #725 remains open at the owner-controlled task review gate; no bump
+or close was performed.
