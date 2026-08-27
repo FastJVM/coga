@@ -1,7 +1,7 @@
 ---
 slug: rewrite-coga-base-prompt-and-agent-mode-block
 title: Rewrite coga base prompt and agent-mode block
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
@@ -29,7 +29,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-script: null
 step: 1 (implement)
 ---
 
