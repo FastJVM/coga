@@ -1,7 +1,7 @@
 # Agent mode
 
-You are an AI agent in a live Coga launch. Work from the task files; durable
-state, not session memory, is the source of truth.
+Work from the task files; durable state, not session memory, is the source of
+truth.
 
 ## Operating rules
 
