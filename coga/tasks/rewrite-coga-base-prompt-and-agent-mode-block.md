@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: claude
 contexts:
 - coga/principles
 - coga/codebase
@@ -29,7 +29,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -81,3 +81,35 @@ Running two tickets over the same prose was churn. What travels here:
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: codex/rewrite-launch-prompts
+worktree: /tmp/coga-rewrite-launch-prompts
+
+## Implement notes
+
+- Confirmed composition paths: `src/coga/resources/prompt.md` is the base
+  layer and `src/coga/resources/prompt-agent.md` is the unconditional agent
+  mode layer. Queue guidance is appended separately by
+  `prompt-queue.md`/`prompt-megalaunch.md`.
+- Editorial direction: consolidate repeated lifecycle/escalation prose, keep
+  the every-launch contract operational, and state the minimal-core boundary
+  without pulling the longer rationale out of `coga/codebase`.
+- Rewrote both package resources and committed them as `befa28a7` (`Rewrite
+  launch prompt guidance`). The base/mode layers are 979 words, down from
+  1,580 (about 38%), while preserving the ticket/blackboard, transition,
+  blocking, FYI, YAML, attended-session, and human-response contracts.
+- Added the microkernel boundary directly to the base prompt: core is limited
+  to >=2-consumer shared infrastructure and genuine Python command
+  implementations; skills, exact sibling `ticket.py` work, and aliases stay
+  at the edge. Added composition assertions for that contract.
+- Reviewed `prompt-queue.md` and `prompt-megalaunch.md` for interaction with
+  the shorter Agent mode. They remain the later, explicit override of the
+  attended default and need no edits. Remaining repetition there is
+  intentional because each overlay must stand alone in its launch mode.
+- Verification: `PYTHONPATH=/tmp/coga-rewrite-test-deps:/tmp/coga-rewrite-launch-prompts/src
+  python3.12 -m pytest` -> 2,112 passed. (`hatchling`, a declared test
+  dependency absent from ambient Python, was installed only under `/tmp`.)
+  `git diff --check` passed. Final fetch/rebase found the branch current with
+  `origin/main` and one commit ahead.

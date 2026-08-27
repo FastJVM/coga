@@ -4032,3 +4032,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-26 21:29 [verify-the-pr-review-comment-loop-once-the-review] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-08-26 21:29 [bumppy-requires-exactly-two-agents] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-08-26 21:29 [rewrite-coga-base-prompt-and-agent-mode-block] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-08-26 21:29 [rewrite-coga-base-prompt-and-agent-mode-block] [megalaunch] launched via coga megalaunch
+2026-08-26 21:40 [rewrite-coga-base-prompt-and-agent-mode-block] [agent:codex] advanced to step 2 (peer-review) → assigned to claude
