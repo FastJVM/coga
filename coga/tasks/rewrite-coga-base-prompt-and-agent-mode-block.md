@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: claude
+assignee: codex
 contexts:
 - coga/principles
 - coga/codebase
@@ -29,7 +29,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -113,3 +113,80 @@ worktree: /tmp/coga-rewrite-launch-prompts
   dependency absent from ambient Python, was installed only under `/tmp`.)
   `git diff --check` passed. Final fetch/rebase found the branch current with
   `origin/main` and one commit ahead.
+
+## Peer-review notes
+
+Ran `/code-review` (default effort) against the branch diff vs `main`, plus an
+independent read. Six findings applied as `ad38f018`; verified each against the
+source before acting rather than taking the report at face value.
+
+**Must-fix — escalation guard (would have regressed PR #622).** The trim
+rewrote "Only an execution directive appended after the task layers ...
+overrides it" to "A later execution directive ... overrides this default."
+Confirmed in `compose.py`: agent mode is layer 2 and step skills are layer 6,
+so step skills genuinely *are* later. An attended launch composing
+`code/implement` ("ask the attending human, or `coga block` in a queue run")
+could resolve the conflict by recency and terminate the session with a block
+instead of asking. The base prompt's companion sentence ("read every other
+instruction to block ... through that mode rule") had been deleted in the same
+commit, so both halves of the two-sided guard were gone at once. Both restored.
+
+**Must-fix — microkernel summary contradicted `coga/codebase`.** The new
+section enumerated the edge as "skills, `ticket.py`, and aliases" and omitted
+the `runner.RECIPES` carve-out that keeps registered `coga run` recipes
+(`open_pr.py`, `delete_task.py`) inside core under exception 2. Because the
+base prompt composes into *every* launch while `coga/codebase` attaches
+per-ticket, the abridged version would often be the only one an agent sees.
+Restored the carve-out and the `[aliases]`-vs-`runner.RECIPES` distinction.
+
+**Also fixed:** the no-skip-ahead guard (`coga bump` really does expose `--to`
+and `--backward`, documented human-only in `commands/bump.py`); the supervisor
+teardown enumeration (`mark done` / `mark canceled` / `block` also end the
+session — mattered for the workflow-less `coga mark done` path the prompt still
+recommends); two dangling references in the bundled `bootstrap/ticket` skill to
+the deleted "YAML discipline" heading; and curly quotes, which no other file
+under `src/coga/resources/` uses.
+
+Added `test_compose.py` assertions pinning the restored guards — the existing
+test only covered the surviving first half of the attended sentence, which is
+why the regression passed CI.
+
+Net size after restorations: 1,091 words vs 1,580 on `main` (31% smaller;
+was 38% before the guards came back — a trade worth making).
+
+**Design note for nick, not blocking:** the "Keep Coga small and legible"
+section is Coga-repo-specific guidance carried on every launch in every user
+repo. It is gated by "When changing Coga itself", and the ticket explicitly
+asked for the microkernel framing, so I kept it — but if per-launch token cost
+matters more than reach, this section is the first candidate to cut back to a
+pointer to `coga/codebase`.
+
+## PR
+
+Rewrite the two package resources composed into every launch — the Coga base
+prompt (`src/coga/resources/prompt.md`) and the agent-mode block
+(`prompt-agent.md`) — for legibility, and align them with the settled
+microkernel/minimal-core direction.
+
+- Consolidates repeated lifecycle, blocking, and escalation prose; merges the
+  former "Your task file", "Finishing a step", "Blocking", "FYIs", and "YAML
+  discipline" sections into four tighter ones.
+- Adds a "Keep Coga small and legible" section stating the microkernel
+  boundary: core holds only >=2-consumer shared infrastructure and genuine
+  command implementations (including registered `runner.RECIPES` entries);
+  skills, a ticket's exact sibling `ticket.py`, and aliases stay at the edge.
+- Preserves every behavioral contract: ticket/blackboard fence, bump/step
+  transitions, supervisor teardown, human-only `--to`/`--backward`, blocking
+  precedence, FYI commands, frontmatter discipline, the attended ask-and-wait
+  default, and the always-answer-the-human rule.
+- Retargets two references in the bundled `bootstrap/ticket` skill to a
+  heading this rewrite removed.
+
+Net effect: 1,580 -> 1,091 words on every composed prompt, with the escalation
+and core-boundary contracts stated more precisely than before.
+
+No CLI or composition-order behavior changes.
+
+Test plan: `python -m pytest` (2,112 passed), including new
+`tests/test_compose.py` assertions pinning the escalation guard, the
+`runner.RECIPES` carve-out, and the human-only bump selectors.
