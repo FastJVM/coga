@@ -193,8 +193,9 @@ nothing more.
   analysis over a recorded run by hand; with no path it reads the most recent
   one.
 - The one-shot argv is built in for `claude` and `codex`. Any other CLI needs
-  `[agents.<name>].analyze` in `coga.toml` (e.g. `analyze = "-p {prompt}"`);
-  without it the loop skips loudly rather than opening a REPL nobody can drive.
+  `[agents.<name>].analyze` in its effective agent table — shared `coga.toml`
+  or machine-local `coga.local.toml` (e.g. `analyze = "-p {prompt}"`); without
+  it the loop skips loudly rather than opening a REPL nobody can drive.
 - An ambient `ANTHROPIC_API_KEY` keeps Claude Code's normal precedence. If its
   call fails specifically on authentication or billing and the CLI's
   `claude auth status` confirms a recognized first-party paid subscription

@@ -1298,6 +1298,13 @@ def test_other_agent_fails_loud_without_an_inferred_peer(repo: Path) -> None:
         resolve_other_agent(cfg, "claude")
 
 
+def test_other_agent_malformed_ticket_agent_fails_loud(repo: Path) -> None:
+    _add_codex_agent(repo)
+    cfg = load_config(repo)
+    with pytest.raises(AssigneeResolutionError, match="exactly two configured"):
+        resolve_other_agent(cfg, ["claude"])  # type: ignore[arg-type]
+
+
 def test_other_agent_uses_declared_peer_with_three_agents(repo: Path) -> None:
     toml = repo / "coga.toml"
     toml.write_text(

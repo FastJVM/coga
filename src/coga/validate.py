@@ -881,7 +881,11 @@ def _check_step_shape(
             ),
             severity="error",
         ))
-    elif assignee == "other-agent":
+    elif (
+        assignee == "other-agent"
+        and isinstance(ticket_agent, str)
+        and ticket_agent.strip()
+    ):
         # Deferred to avoid the coga.bump -> coga.validate module cycle.
         from coga.bump import AssigneeResolutionError, resolve_other_agent
 

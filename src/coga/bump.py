@@ -37,12 +37,15 @@ def resolve_other_agent(cfg: Config, agent: str | None) -> str:
             "Workflow step declares assignee='other-agent' but the ticket has "
             "no `agent:` field to take the peer of. Add `agent: <type>`."
         )
-    configured = cfg.agents.get(agent)
+    # Ticket parsing deliberately preserves malformed frontmatter so validate
+    # can report it. Keep role resolution fail-loud for those values instead
+    # of letting an unhashable list or mapping escape as a TypeError.
+    configured = cfg.agents.get(agent) if isinstance(agent, str) else None
     if configured is not None and configured.peer is not None:
         return configured.peer
     others = [name for name in cfg.agents if name != agent]
     if len(others) != 1:
-        if agent in cfg.agents and len(cfg.agents) >= 3:
+        if isinstance(agent, str) and agent in cfg.agents and len(cfg.agents) >= 3:
             raise AssigneeResolutionError(
                 "assignee='other-agent' needs an unambiguous peer for "
                 f"`agent: {agent}`. To fix it, add peer = \"<type>\" to "

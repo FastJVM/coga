@@ -666,7 +666,8 @@ Operating it:
 - `coga run autofix-analyze [<run-log.md>] [--dry-run]` re-runs the analysis
   over a recorded run by hand; with no path it takes the most recent one.
 - The argv for the one-shot call is built in for `claude` and `codex`. Another
-  CLI needs `[agents.<name>].analyze` in `coga.toml` (e.g.
+  CLI needs `[agents.<name>].analyze` in its effective agent table — shared
+  `coga.toml` or machine-local `coga.local.toml` (e.g.
   `analyze = "-p {prompt}"`); without it the loop skips loudly rather than
   guessing an argv and opening a REPL nobody can drive.
 - Claude Code normally honors an ambient `ANTHROPIC_API_KEY`. If that key's

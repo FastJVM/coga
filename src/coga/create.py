@@ -79,7 +79,8 @@ def create_task(
     if not agent:
         raise ValueError(
             "No default agent configured; declare at least one `[agents.*]` "
-            "table in coga.toml (e.g. `[agents.claude]`)."
+            "table in coga.toml or coga.local.toml "
+            "(e.g. `[agents.claude]`)."
         )
 
     contexts = _dedupe(contexts)
