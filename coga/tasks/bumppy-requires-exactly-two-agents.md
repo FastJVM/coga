@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -366,3 +366,76 @@ Run `python -m pytest` and `coga validate --json`.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/727
+branch: agent-peers
+worktree: /home/n/Code/codex/coga-agent-peers
+
+## Implement notes
+
+- The related `activation-does-not-resolve-step-1-s-assignee-role` ticket is
+  still draft on `main`; no shared step-one resolver has landed, so this change
+  uses the existing `resolve_step_assignee` path without editing `create.py`.
+- Implemented key-level local agent layering with declaration-order and
+  source-aware config errors, plus load-time `peer` validation and explicit
+  peer-first `other-agent` resolution.
+- Added error-severity validation for every reachable frozen `other-agent`
+  step, updated the Dream validator classifier, docs/context twins, workflow
+  templates, and the seeded three-agent example.
+- Verification so far: affected tests pass; seeded example reports 3 tasks and
+  zero issues from `validate --json`. Full-suite dependency `hatchling` was
+  absent from the ambient interpreter but is available in the local uv cache;
+  the packaging test passes when those declared test dependencies are exposed.
+
+## Verification
+
+- `python -m pytest -p no:cacheprovider -q`: 2124 passed (source plus cached
+  declared build dependencies on `PYTHONPATH`).
+- `coga validate --json` against `example/coga/`: 3 OK, zero issues.
+- `coga validate --json` against this source repo: no
+  `unresolvable-step-assignee` findings; it remains nonzero for four pre-existing
+  `unsynthesized-draft-blackboard` errors plus existing warnings unrelated to
+  this change.
+- `git diff --check` passes; live/package architecture, codebase, and workflow
+  template twins are byte-identical.
+
+## Commit
+
+- `dc6d4474 Layer local agents and resolve explicit peers`
+- `3a1c548e peer-review: apply review findings`
+
+## Peer review
+
+- Rebased unconditionally onto freshly fetched `origin/main` (`ab86dd24`);
+  implementation commit is now `dc6d4474`.
+- `codex review --base origin/main` found two must-fix P2 issues: the new
+  validator path could crash on unhashable malformed `agent:` frontmatter,
+  and recurring analyzer remedies still directed local-only agent users to
+  committed `coga.toml`.
+- Review scope included regression tests and correction of the stale
+  exact-two-agent source contract.
+- Applied both findings in `3a1c548e peer-review: apply review findings`:
+  malformed agent frontmatter now remains a normal `bad-shape` diagnostic,
+  and runtime/bootstrap/recurring guidance names the effective shared/local
+  agent table. The shared resolver is also defensive against unhashable YAML.
+- Review verification: 2,127 tests pass; the seeded example validates with
+  3 tasks and zero issues. Source-repo validation has no
+  `unresolvable-step-assignee` issue and remains nonzero only for four
+  pre-existing `unsynthesized-draft-blackboard` errors, plus unrelated
+  warnings.
+- Final branch is clean, two commits ahead of freshly fetched `origin/main`,
+  and the final unconditional rebase reports it is up to date.
+
+## PR
+
+Layer machine-local `[agents.*]` tables over shared config at key granularity,
+preserving shared declaration order and source-aware validation. Add optional
+per-agent `peer` routing for `other-agent`, retain zero-config two-agent
+inference, fail ambiguous routing loudly during validation, and update the
+seeded three-agent fixture plus user-facing contexts/templates. Peer review
+also hardens malformed-ticket validation and corrects machine-local analyzer
+remedies.
+
+Test plan: `python -m pytest -p no:cacheprovider -q` (2,127 passed); `coga validate --json` (seeded example clean; source repo only pre-existing errors/warnings).
