@@ -113,8 +113,6 @@ no in-memory state.
   or a frozen one-hop bootstrap launch when the template declares `delegate:`.
   Nothing declares deterministic execution — there is no `recipe:` or mode
   field.
-  The sweep's admission generations, leases, and refusal rules are in
-  `coga/launch-internals`.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard
   machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
