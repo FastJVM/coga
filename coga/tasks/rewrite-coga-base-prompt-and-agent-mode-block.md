@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: nicktoper
 contexts:
 - coga/principles
 - coga/codebase
@@ -29,7 +29,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
