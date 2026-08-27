@@ -1,7 +1,7 @@
 ---
 slug: bumppy-requires-exactly-two-agents
 title: Layer [agents.*] from coga.local.toml and resolve other-agent with 3+ agents
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
