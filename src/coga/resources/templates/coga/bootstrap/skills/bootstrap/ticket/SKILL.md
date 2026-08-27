@@ -34,7 +34,7 @@ workflow. Don't force a workflow onto an idea that isn't ready for one; just
 make the tradeoff explicit (it can't be activated yet).
 
 Match this shape exactly. Don't invent fields the template doesn't define
-(see "YAML discipline" in the base prompt).
+(see the frontmatter rules in the base prompt).
 
 ## Step 1 — Identify the launch shape and open with the matching greeting
 
@@ -249,7 +249,7 @@ the ticket's blackboard region under a **Proposals** section instead — same sh
 
 Edit the exact ticket path from the composed prompt. A new draft normally starts
 as `coga/tasks/<slug>.md`; convert it to directory form only when it needs
-attachments. YAML discipline (from the base prompt) applies:
+attachments. The base prompt's frontmatter rules apply:
 
 - For a draft, set `workflow:` to the workflow name you picked (e.g.
   `code/with-review`). This is required — a ticket with no workflow can't be

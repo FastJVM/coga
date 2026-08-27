@@ -54,9 +54,12 @@ contexts:
 ## Finishing the step
 
 - **One transition, one step.** `coga bump <id>` reads the current step and
-  advances exactly once; it cannot skip ahead. After bumping, exit cleanly.
-  One step, one session: do not read or work the newly selected step in this
-  process. How the supervisor chains steps is in `coga/architecture`; you do
+  advances exactly once. Run it with no step selector: `--to` and `--backward`
+  are human-only. After bumping, exit cleanly. One step, one session: do not
+  read or work the newly selected step in this process. Under a `coga launch`
+  supervisor, `coga bump`, `coga mark done`, `coga mark canceled`, and
+  `coga block` each end your session and let the supervisor spawn what comes
+  next. How the supervisor chains steps is in `coga/architecture`; you do
   not drive it.
 - **API/manual sessions don't chain.** After a bump outside `coga launch`, the
   human relaunches the next step. Do not call `coga launch` yourself.
@@ -71,10 +74,12 @@ Use `coga block --task <id> --reason "<specific ask>"` only when a concrete
 human answer or unavailable capability prevents progress. It records the ask,
 sets `status: blocked`, notifies the owner, and ends a launched session. Stop
 after blocking. Agent mode decides whether the human is available: attended
-sessions ask and wait; appended queue guidance requires a terminal block.
+sessions ask and wait; appended queue guidance requires a terminal block. Read
+every other instruction to block in this prompt, workflow step skills included,
+through that rule.
 
-Make the reason actionable. Prefer “Retry policy needs a maximum backoff for
-429s” to “Unclear what to do.”
+Make the reason actionable. Prefer "Retry policy needs a maximum backoff for
+429s" to "Unclear what to do."
 
 State transitions notify on their own. Add a one-line FYI only when useful:
 
@@ -90,13 +95,16 @@ contains only:
 
 1. shared infrastructure with at least two real consumers; and
 2. genuine command implementations that need Python logic and cannot be an
-   alias.
+   alias, including the fixed functions registered in `runner.RECIPES` behind
+   `coga run`.
 
 Everything else stays at the edge: process knowledge and reusable recipes in
 skills, ticket-owned deterministic work in its exact sibling `ticket.py`, and
-launch-target spellings as aliases. Backing a CLI spelling is not enough
-reason to add core code. Prefer plain markdown, Python, git, and shell
-operations over hidden state or new machinery.
+launch-target spellings as aliases. Backing a CLI spelling is not by itself a
+pass into core — a launch-target command is an argv rewrite in `[aliases]`,
+whereas a registered `coga run` name is a real package implementation with a
+stable argv, stdout, and exit contract. Prefer plain markdown, Python, git,
+and shell operations over hidden state or new machinery.
 
 ## Boundaries
 
