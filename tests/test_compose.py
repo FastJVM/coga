@@ -398,6 +398,11 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
     assert "continue that next step in this same session" not in prompt
     assert "On the final step, `coga bump` marks" in prompt
     assert "the task `done`" in prompt
+    # The every-launch contract carries the minimal-core boundary without
+    # requiring a task to attach the longer coga/codebase context.
+    assert "shared infrastructure with at least two real consumers" in prompt
+    assert "genuine command implementations" in prompt
+    assert "Everything else stays at the edge" in prompt
 
 
 def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
