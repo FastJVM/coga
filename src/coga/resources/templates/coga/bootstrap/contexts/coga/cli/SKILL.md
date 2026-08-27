@@ -241,7 +241,8 @@ auto-bumping a ticket whose final-step PR has merged is the job of
 `coga autoclose` / the `autoclose-merged` recurring sweep, never launch. The
 explicit human-step assist is the narrow exception: it verifies its recorded
 open PR head before composing because that head authorizes generated writes to
-the already-published branch. Launch also **pre-flights git push access**:
+the already-published branch. What that path must prove before every generated
+write is in `coga/launch-internals`. Launch also **pre-flights git push access**:
 before flipping status or spawning the agent, it runs a non-interactive
 `git push --dry-run` against the configured remote (the same push-auth probe
 `coga validate --check-github` uses) and refuses the launch if push auth is
@@ -862,54 +863,23 @@ in-process, with the sweep keeping the period task's lifecycle bookkeeping —
 so it is skipped headless too, including a materialized orphan from an earlier
 attended run; that task stays untouched while later deterministic jobs proceed.
 Its bootstrap done sentinel is the only clean completion signal; a natural
-REPL exit leaves the period unfinished. The runner first preflights push access
-for the materialized period (which the stateless bootstrap target would
-self-skip), then publishes the period start as an exact compare-and-set before
-announcing it. The lease covers both ticket bytes and the task's creator-owned
-`period_generation` token, so a stable-path replacement is distinct even when
-its other ticket state is byte-identical. The runner reloads and recomposes
-before the real spawn, checks the same lease on control at the final boundary,
-and consumes it again before publishing completion or a watchdog pause.
-Concurrent completion, replacement, edits, or a new generation therefore
-refuse the stale lifecycle write; a Git transport or publication failure
-refuses too, because an unverified lease cannot admit work or authorize a
-successful timeout continuation. Final spawn admission also leases the exact
-parent recurring ticket named by the period state snapshot. Completion
-consumes that same parent input in the strict transaction, so a concurrent
-parent edit refuses instead of being overwritten and `done` cannot publish
-without the run's cross-period cursor update. Strict publication unwinds an
-unaccepted local lifecycle commit; after an ambiguous push it probes the exact
-control candidate across every effective push destination, retaining local
-evidence and refusing if the destinations disagree or acceptance otherwise
-cannot be proved. Templates
-intended for cron or other unattended schedulers should carry that deterministic
-half. Whether a period is deterministic is never declared: the
-`ticket.py` file's presence is the whole signal. `delegate:` declares something
+REPL exit leaves the period unfinished. The runner's push preflight,
+compare-and-set period publication, and lease/probe rules are in
+`coga/launch-internals`. Templates intended for cron or other unattended
+schedulers should carry that deterministic half. Whether a period is
+deterministic is never declared: the `ticket.py` file's presence is the whole
+signal. `delegate:` declares something
 else — which bootstrap target an agent period hands its work to, which no
 file's presence can express. Creation freezes that target into the period
 ticket; the sweep, `coga recurring launch <name>`, and direct
 `coga launch recurring/<name>` retries all route from the snapshot rather than
 current template frontmatter, and the sweep rereads it after reconciliation
 instead of trusting cached scan dispatch. Sweeps and named launches perform
-full admission at their outer boundary, freeze every period's exact ticket and
-creator-owned `period_generation` token, then use an internal period-launch seam. That seam
-narrowly refreshes control, resolves only the exact ref, and rechecks
-branch/owner plus that generation immediately before each ordinary child, so
-work removed, parked, finished, or replaced during an earlier session is
-skipped and a failed remote-backed refresh refuses the next launch. A Git
-checkout with no configured remote freezes that local-only class at outer
-admission and uses exact local control state; a remote that disappears afterward
-still refuses. A deterministic child retains that refreshed lease; immediately
-before every ordinary agent spawn, launch requires the same bounded token and
-the complete ticket to match the launchable state just composed. If either exits
-unfinished, that token admits same-generation ticket/audit writes to a fresh
-exact pause lease, and the pause is derived from those newly leased bytes so a
-concurrent same-generation edit survives, while a replacement at the stable
-path remains untouched.
-Delegated children use
-the same admitted generation as the start of their exact control lease. The
-direct spelling has no outer admission: it requires verified control catch-up
-before resolving even a locally missing period ref when a remote is configured,
+full admission at their outer boundary and launch each period through an
+internal seam; the generation and refusal rules are in `coga/launch-internals`.
+The direct spelling has no outer admission: it requires verified control
+catch-up before resolving even a locally missing period ref when a remote is
+configured,
 uses local `HEAD` when none is configured, and remains subject to the same
 control-branch and recurring-owner gates. Direct launch also activates a
 paused/draft delegated period inline; recurring scans leave paused periods
@@ -923,10 +893,8 @@ creation, and its deterministic work belongs in the recurring template's own
 sweep, `--force`, and on-demand `recurring launch <name>` — everything except
 `--interactive`) append package-backed queue guidance (`prompt-queue.md`, via
 `coga launch --queue-guidance`) to each composed agent prompt: the TTY is
-transport, not an approval gate, so the agent announces its plan and
-continues, and a decision or capability that genuinely requires the owner must
-end in `coga block` — not a conversational "shall I proceed?" that hangs the
-queue until the liveness backstop fails the task.
+transport, not an approval gate, so unavailable input must end in `coga block`
+rather than a question that hangs the queue. See `coga/architecture`.
 
 **Idle-timeout backstop.** An agent template that *does* launch (a TTY is
 present) but whose agent stalls or crashes before signalling done — never
@@ -943,27 +911,15 @@ a non-finite value to disarm the backstop for recurring launches. When
 configured, `COGA_REPL_MAX_SESSION` / `[launch].max_session` threads the same
 way as a wall-clock cap.
 
-**Autofix loop.** Every sweep ends by analyzing itself. The scan records what
-each period task actually did — how the launch ended, whether a liveness
-backstop fired, the ticket status afterwards, its blackboard — and
-one text-only agent call reads that record and answers `ok`, `duplicate`, or
-`problem`. A problem becomes an `active` ticket under `coga/tasks/autofix/` on
-the `code/with-self-review` workflow, carrying the run record as `run-log.md`,
-so the next `coga megalaunch` can pick up the fix. The console output of the
-sweep is unchanged, and the analysis never changes the sweep's exit code — a
-missing CLI, a timeout, or a non-zero analyst is loud on stderr and nothing
-more. `COGA_AUTOFIX=0` disables the loop, `COGA_AUTOFIX_TIMEOUT` (seconds)
-bounds the call, every run record is also kept at
+**Autofix loop.** Every sweep ends by analyzing itself and files a real
+problem as an `active` ticket under `coga/tasks/autofix/`. It never changes
+the sweep's exit code. Operator knobs: `COGA_AUTOFIX=0` disables the loop,
+`COGA_AUTOFIX_TIMEOUT` (seconds) bounds the call, every run record is kept at
 `.coga/recurring-runs/<stamp>.md`, and `coga run autofix-analyze` re-runs the
-analysis over a recorded run by hand. Claude normally honors an ambient
-`ANTHROPIC_API_KEY`; only when that call fails on authentication or billing
-does autofix check for a first-party paid claude.ai subscription without the
-variable and announce one retry. The fallback is limited to Claude's built-in
-analysis argv and standard auth routing; custom analysis argv, a custom
-Anthropic base URL, or custom Anthropic headers retain the original failure.
-Working keys and unrelated failures do not switch auth. `coga recurring launch
-<name>` closes the same loop, so the `coga dream` / `coga autoclose` / `coga
-skill-update` aliases analyze their run too. See `coga/recurring`.
+analysis over a recorded run by hand. `coga recurring launch <name>` closes
+the same loop, so the `coga dream` / `coga autoclose` / `coga skill-update`
+aliases analyze their run too. The mechanism, the run record's contents, and
+the auth fallback are in `coga/recurring`.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 
