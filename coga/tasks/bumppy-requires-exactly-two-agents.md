@@ -43,7 +43,7 @@ half one introduces, so designing them apart risks a seam.
 
 ## Context
 
-### The bug is live, not hypothetical
+#### The bug is live, not hypothetical
 
 The original report said nothing uses `other-agent` today. That is true only of
 repo-local `coga/workflows/`. The bundled batteries do use it:
@@ -66,9 +66,9 @@ time against current config, not at freeze time, so the day a third
 one of this ticket removes that accidental protection — which is why both
 halves ship together.
 
-## Half one — layer `[agents.*]` from `coga.local.toml`
+### Half one — layer `[agents.*]` from `coga.local.toml`
 
-### Where the behavior lives
+#### Where the behavior lives
 
 - `_parse_agents(raw, local_raw)` in `src/coga/config.py`. It validates the
   shared tables, then loops `local_raw` only to re-raise the removed-key
@@ -78,7 +78,7 @@ halves ship together.
 - `_ALLOWED_LOCAL_SECTIONS` already contains `agents` — allowlisted purely so
   the tailored rejection fires instead of a generic unknown-key error. It stays.
 
-### Merge semantics
+#### Merge semantics
 
 Overlay at the **key** level, not the table level. A local `[agents.claude]`
 carrying only `cli` overrides `cli` and inherits `file`, `mode`, `name_flag`,
@@ -116,7 +116,7 @@ open question:
 Required keys (`cli`, `file`) are checked against the merged table, so a
 local-only agent must supply both and a partial override need not.
 
-### Precedent
+#### Precedent
 
 Same layering `[notification.slack].webhook` / `.important_webhook` already use
 — local wins, no warning (`coga/contexts/coga/sync/SKILL.md`). Decided: **no**
@@ -127,15 +127,15 @@ notice about locally-defined agents; keep this a parser change.
 where a repo keeps its prose is a fact about the repo. Agent types are a fact
 about the machine (which CLI binaries are installed), so they layer.
 
-### Accepted tradeoff
+#### Accepted tradeoff
 
 A committed ticket's `agent: <name>` can now resolve to a different binary per
 machine, and a local-only agent name only works on the machine that declares
 it. That is the point of the change; do not litigate it in review.
 
-## Half two — `peer` and `other-agent` resolution
+### Half two — `peer` and `other-agent` resolution
 
-### Call sites
+#### Call sites
 
 Four places resolve the token today; all four must keep working:
 
@@ -159,7 +159,7 @@ as `create_task` does, most naturally by extracting a shared helper out of
 vocabulary (`owner` | `human` | `agent` | `other-agent`); the token set itself
 does not change.
 
-### The config edits `peer` actually requires
+#### The config edits `peer` actually requires
 
 Not just "a new key" — `[agents.*]` has a fixed schema with a fail-loud guard,
 so two symbols in `src/coga/config.py` must change together:
@@ -171,7 +171,7 @@ so two symbols in `src/coga/config.py` must change together:
   `peer` to a `coga.toml` without adding it here breaks every `coga`
   command**, not just the bump.
 
-### Decided resolution rules
+#### Decided resolution rules
 
 - **No silent guessing.** A three-agent repo with no `peer` declared must still
   raise `AssigneeResolutionError` with an actionable message naming the fix
@@ -197,7 +197,7 @@ so two symbols in `src/coga/config.py` must change together:
 - **`peer` must survive the half-one merge** and be settable from a local agent
   table, which is the natural way a third-agent machine wires itself up.
 
-### Why a per-agent `peer` and not a per-ticket `reviewer:`
+#### Why a per-agent `peer` and not a per-ticket `reviewer:`
 
 Weighed and rejected for this cut: a per-ticket `reviewer:` field, and a
 workflow-level declaration. A global per-agent `peer` bakes one reviewer per
@@ -207,7 +207,7 @@ smallest thing that unblocks a third agent, and a per-ticket override can layer
 on later without breaking it. Record this rationale in the doc update — it
 belongs in the context, not only in the ticket.
 
-## Scope
+### Scope
 
 In scope:
 
@@ -234,7 +234,7 @@ Out of scope:
 - A per-ticket `reviewer:` field (weighed and deferred, above).
 - Any provenance affordance for locally-declared agents (decided against).
 
-### Risk note on scope item 4 — read before implementing
+#### Risk note on scope item 4 — read before implementing
 
 `assert_task_valid` runs on **every** Coga-owned task mutation:
 `bump.advance_step` calls it mid-transition. An error-severity issue for an
@@ -257,7 +257,7 @@ both through every caller. `validate.py` also has no `coga/workflows/` sweep
 today — scope this check to workflows reachable through a ticket, not a new
 repo-wide workflow scan.
 
-## Docs, contexts, and fixtures
+### Docs, contexts, and fixtures
 
 Per `CLAUDE.md`, a behavior change updates its matching context in the same PR,
 and shipped contexts exist in two places that must stay in sync.
@@ -299,7 +299,7 @@ Fixture:
 Optional: `coga/contexts/coga/codebase/SKILL.md` describes `coga.local.toml` as
 "machine-local (NEVER committed; secrets here)" and could gain "agent types".
 
-## Testing
+### Testing
 
 There is **no `tests/test_bump.py`** — do not create one. The existing coverage
 lives in `tests/test_commands.py`: helper `_add_second_agent` plus
@@ -335,7 +335,7 @@ check firing at error severity.
 
 Run `python -m pytest` and `coga validate --json`.
 
-## Related
+### Related
 
 - `coga/tasks/parse-agents-rejects-cogalocaltoml.md` — **merged into this
   ticket** by owner decision; its full content is absorbed above.
