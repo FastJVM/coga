@@ -33,7 +33,12 @@ review bars.
   reserved `ticket.py` sibling without importing edge code.
   `commands/launch.py` runs that deterministic phase before deciding whether
   to compose and spawn an agent; trailing launch args remain an ordered agent
-  prompt block. `commands/run.py` forwards ordinary trailing argv to
+  prompt block. Its strict publication invariants — recorded-checkout and
+  PR-head proofs, leases, compare-and-set publication, compensation — are
+  documented in the `coga/launch-internals` context, along with the recurring
+  admission generations and the `requires: pr` gate's sync rules. Attach that
+  context to any ticket changing those paths; `coga/architecture` deliberately
+  keeps only the model. `commands/run.py` forwards ordinary trailing argv to
   `runner.py`.
   `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/block.py` and `commands/unblock.py` own blocked-state

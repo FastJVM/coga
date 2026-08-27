@@ -446,7 +446,8 @@ control to the caller. Lifecycle and audit sync may move a control checkout, so
 launch reloads config, ticket, target, secrets, and the fixed entry-point stat
 after the last pre-script sync; a removed `ticket.py` becomes an agent-only
 handoff instead of executing a stale path. Without `ticket.py`, launch goes
-directly to the agent path.
+directly to the agent path. What a strict human assist must prove around that
+script phase is in `coga/launch-internals`.
 
 Only an actual agent phase composes the ticket prompt and spawns the
 assignee's CLI in a live REPL, so only that phase requires stdin and stdout to
