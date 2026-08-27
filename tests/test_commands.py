@@ -7,6 +7,7 @@ import pytest
 from typer.testing import CliRunner
 
 from coga.blackboard import append_blocker
+from coga.bump import AssigneeResolutionError, resolve_other_agent
 from coga.commands import delete as delete_cmd
 from coga.cli import app
 from coga.create import create_task
@@ -1289,25 +1290,62 @@ def test_other_agent_step_one_resolves_at_create_time(repo: Path) -> None:
     assert t.assignee == "codex"
 
 
-def test_other_agent_fails_loud_without_exactly_two_agents(repo: Path) -> None:
+def test_other_agent_fails_loud_without_an_inferred_peer(repo: Path) -> None:
     # The base fixture configures only `claude`, so there is no peer to pick.
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
+    with pytest.raises(AssigneeResolutionError, match="exactly two configured"):
+        resolve_other_agent(cfg, "claude")
+
+
+def test_other_agent_uses_declared_peer_with_three_agents(repo: Path) -> None:
+    toml = repo / "coga.toml"
+    toml.write_text(
+        toml.read_text().replace(
+            'file = "CLAUDE.md"',
+            'file = "CLAUDE.md"\npeer = "codex"',
+        )
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
+    )
+    cfg = load_config(repo)
+    _write_peer_review_workflow(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="peer",
-        contexts=[],
-        owner="marc", assignee="claude",
-        human="marc", agent="claude",
+        cfg=cfg, title="W", workflow_name="peer", contexts=[],
+        owner="marc", assignee="claude", human="marc", agent="claude",
         watchers=[], status="in_progress",
     )
-    runner = CliRunner()
-    result = runner.invoke(app, ["bump", ref["slug"]])
-    assert result.exit_code == 2, result.output
-    assert "other-agent" in result.output
-    # assignee must not have changed on the failed bump.
-    t = Ticket.read(ref["path"])
-    assert t.assignee == "claude"
-    assert t.step == "1 (implement)"
+    result = CliRunner().invoke(app, ["bump", ref["slug"]])
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(ref["path"]).assignee == "codex"
+
+
+def test_other_agent_three_agents_names_peer_fix(repo: Path) -> None:
+    _add_codex_agent(repo)
+    toml = repo / "coga.toml"
+    toml.write_text(
+        toml.read_text()
+        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
+    )
+    cfg = load_config(repo)
+    with pytest.raises(
+        AssigneeResolutionError,
+        match=r'add peer = "<type>" to \[agents\.claude\]',
+    ):
+        resolve_other_agent(cfg, "claude")
+
+
+def test_declared_peer_beats_two_agent_inference(repo: Path) -> None:
+    toml = repo / "coga.toml"
+    toml.write_text(
+        toml.read_text().replace(
+            'file = "CLAUDE.md"',
+            'file = "CLAUDE.md"\npeer = "codex"',
+        )
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    cfg = load_config(repo)
+    assert resolve_other_agent(cfg, "claude") == "codex"
 
 
 def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:

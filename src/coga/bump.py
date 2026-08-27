@@ -28,20 +28,28 @@ class AssigneeResolutionError(Exception):
 def resolve_other_agent(cfg: Config, agent: str | None) -> str:
     """Resolve the `other-agent` role token to the peer agent's nickname.
 
-    "Other" means the configured `[agents.*]` type that is not the ticket's
-    own `agent:` — the peer reviewer. This is only unambiguous when exactly
-    one such candidate exists (i.e. two agent types are configured and the
-    ticket's `agent:` is one of them). Anything else (no `agent:`, the
-    `agent:` isn't a configured type, only one type, or three+) is a
-    fail-loud condition rather than a silent guess.
+    A declared `[agents.<type>].peer` wins. Without one, "other" means the
+    single configured type that is not the ticket's own `agent:`, preserving
+    zero-config behavior for two-agent repos. Ambiguity fails loud.
     """
     if not agent:
         raise AssigneeResolutionError(
             "Workflow step declares assignee='other-agent' but the ticket has "
             "no `agent:` field to take the peer of. Add `agent: <type>`."
         )
+    configured = cfg.agents.get(agent)
+    if configured is not None and configured.peer is not None:
+        return configured.peer
     others = [name for name in cfg.agents if name != agent]
     if len(others) != 1:
+        if agent in cfg.agents and len(cfg.agents) >= 3:
+            raise AssigneeResolutionError(
+                "assignee='other-agent' needs an unambiguous peer for "
+                f"`agent: {agent}`. To fix it, add peer = \"<type>\" to "
+                f"[agents.{agent}]. "
+                f"Configured agents: {sorted(cfg.agents)}; peer candidates: "
+                f"{sorted(others)}."
+            )
         raise AssigneeResolutionError(
             "assignee='other-agent' needs exactly two configured `[agents.*]` "
             f"types to pick the peer, with `agent: {agent}` as one of them. "

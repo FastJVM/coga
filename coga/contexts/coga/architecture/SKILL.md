@@ -89,9 +89,14 @@ no in-memory state.
   Each step may declare an `assignee:` role token (`owner` | `human` |
   `agent` | `other-agent`); on bump, the token resolves against the ticket's
   matching role field and rewrites `assignee:`. `other-agent` resolves to the
-  peer agent (it needs two configured `[agents.*]`) and drives peer-review
-  flips (e.g. `code/with-review`) and agent-rotation relaunches. Steps without
-  one leave the assignee unchanged.
+  ticket agent's explicit `[agents.<type>].peer` when set, otherwise to the
+  single other configured type. This keeps two-agent repos configuration-free
+  while making three-agent repos declare the intended reviewer instead of
+  guessing. `peer` is one-directional: configuring Claude's peer does not
+  configure Codex's. The token drives peer-review flips (e.g.
+  `code/with-review`) and agent-rotation relaunches. Steps without one leave
+  the assignee unchanged. Validation checks every frozen `other-agent` step
+  against current config as an error, even before the ticket enters that step.
 - **Recurring templates** live in `coga/recurring/`. `coga recurring`
   invokes the fixed `recurring-scan` recipe, which scans templates, creates
   the current run at the stable
@@ -348,6 +353,17 @@ unrelated new files created there remain ordinary repo content.
 
 `[layout]` is shared `coga.toml` policy and is rejected in `coga.local.toml`:
 where a repo keeps its prose is a fact about the repo, not about one machine.
+`[agents.*]` is machine capability instead: local agent tables overlay shared
+tables at the key level, so a machine can override one CLI setting or append a
+locally installed type while inheriting the rest of the committed policy.
+
+An agent's optional `peer = "<type>"` names the reviewer selected by an
+`other-agent` workflow step. The target must be another configured type. The
+mapping is deliberately global and one-directional per agent type; it cannot
+route one agent to different reviewers by ticket or workflow. A per-ticket
+reviewer was considered and deferred: this is the smallest policy surface that
+unblocks a third agent, and a narrower override can layer on later if a real
+need appears.
 
 ## Config loading fails loud on unknown keys
 

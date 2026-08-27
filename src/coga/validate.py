@@ -770,7 +770,9 @@ def _check_frontmatter_schema(
                 ))
             else:
                 for i, step in enumerate(steps, start=1):
-                    out.extend(_check_step_shape(task_label, i, step))
+                    out.extend(
+                        _check_step_shape(cfg, task_label, ticket.agent, i, step)
+                    )
 
     return out
 
@@ -824,7 +826,13 @@ def _check_secrets(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
     return out
 
 
-def _check_step_shape(task_label: str, idx: int, step: Any) -> list[Issue]:
+def _check_step_shape(
+    cfg: Config,
+    task_label: str,
+    ticket_agent: str | None,
+    idx: int,
+    step: Any,
+) -> list[Issue]:
     out: list[Issue] = []
     if not isinstance(step, dict):
         out.append(Issue(
@@ -873,6 +881,19 @@ def _check_step_shape(task_label: str, idx: int, step: Any) -> list[Issue]:
             ),
             severity="error",
         ))
+    elif assignee == "other-agent":
+        # Deferred to avoid the coga.bump -> coga.validate module cycle.
+        from coga.bump import AssigneeResolutionError, resolve_other_agent
+
+        try:
+            resolve_other_agent(cfg, ticket_agent)
+        except AssigneeResolutionError as exc:
+            out.append(Issue(
+                kind="unresolvable-step-assignee",
+                task=task_label,
+                message=f"workflow step #{idx} assignee='other-agent': {exc}",
+                severity="error",
+            ))
     requires = step.get("requires")
     if requires is not None and (
         not isinstance(requires, str) or requires not in known_gate_tokens()

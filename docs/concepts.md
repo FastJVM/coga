@@ -137,8 +137,10 @@ A **workflow** is an ordered list of steps. `code/with-review`, for example, is
 `implement → peer-review → open-pr → review`. Each step can name the skills it
 needs and an **assignee** role — `agent`, `other-agent`, `human`, or `owner`.
 When a step advances, the role resolves against the ticket's people/agent fields:
-`other-agent` flips to the peer agent, which is how a change written by Claude
-gets reviewed by Codex (and vice versa).
+`other-agent` uses the ticket agent's configured `peer` when present, otherwise
+it infers the only other configured type. That keeps two-agent repos automatic;
+with three or more types, each agent that uses `other-agent` declares its own
+one-directional peer or validation fails loud instead of guessing.
 
 The critical property: a workflow is **frozen into the ticket** when it's
 attached — at creation if you pass `--workflow`, otherwise at activation for a
@@ -197,9 +199,13 @@ creator copies it into each period task, and a template without one launches an
 agent and requires a TTY.
 
 The two agent CLIs — **Claude Code** and **Codex** — are interchangeable.
-They're configured in `coga.toml` under `[agents.*]`, and the `other-agent`
-rotation is what drives peer review across vendors. No single model vendor owns
-your workflow.
+They're configured under `[agents.*]`: committed `coga.toml` supplies shared
+defaults and `coga.local.toml` overlays individual keys or adds machine-only
+types. An optional `peer = "codex"` on `[agents.claude]` selects Claude's
+`other-agent` reviewer; it does not select Claude as Codex's reviewer. This
+global per-agent policy is intentionally the smallest third-agent escape hatch;
+ticket-specific reviewer routing is deferred. No single model vendor owns your
+workflow.
 
 ## Composition: how a prompt is built
 

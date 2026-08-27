@@ -74,6 +74,10 @@ def repo(tmp_path: Path) -> Path:
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"
+
+        [agents.codex]
+        cli = "codex"
+        file = "AGENTS.md"
         """,
     )
     _write(company / "coga.local.toml", 'user = "marc"\n')

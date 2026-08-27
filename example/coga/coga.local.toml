@@ -9,3 +9,14 @@ user = "marc"
 
 # Per-agent permission-skip keys from older installs are removed; current
 # launch rejects them as unknown config.
+
+# Agent tables layer over coga.toml at the key level. This machine selects an
+# explicit peer for each locally relevant author and adds a third, local-only
+# agent type without changing the shared default-agent declaration order.
+[agents.claude]
+peer = "codex"
+
+[agents.local-llm]
+cli = "ollama"
+file = "AGENTS.md"
+peer = "codex"

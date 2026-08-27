@@ -216,6 +216,17 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "unresolvable-step-assignee":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "Ask the owner to configure an explicit `peer` for the ticket's "
+                "agent on this machine, or correct the ticket's agent/config. "
+                "Do not guess a reviewer or rewrite the frozen workflow."
+            ),
+        )
+
     if kind == "unrunnable-script-entry-point":
         return ClassifiedIssue(
             issue=issue,

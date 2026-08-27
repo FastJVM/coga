@@ -2313,10 +2313,10 @@ def test_direct_launch_timeout_exits_non_zero(
     assert "idle-timeout (no REPL activity for 1s)" in result.output
 
 
-def test_launch_rejects_local_agent_override(
+def test_launch_uses_local_agent_override(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Local agent overrides were only for removed auto policy; reject them."""
+    """Machine-local CLI selection layers over the shared agent table."""
     _write(
         active_task / "coga.local.toml",
         """
@@ -2328,16 +2328,21 @@ def test_launch_rejects_local_agent_override(
     )
     _allow_interactive_tty(monkeypatch)
 
-    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
-        raise AssertionError("launch should fail before spawning agent")
+    calls: list[list[str]] = []
 
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    def fake_supervisor(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return ReplOutcome(0, "natural")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
     monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
-    assert result.exit_code == 2
-    assert "no longer supports [agents.<name>] overrides" in result.output
+    assert result.exit_code == 0, result.output
+    assert calls and calls[0][0] == "claude-nightly"
 
 
 def test_launch_bails_on_missing_context(
