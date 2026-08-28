@@ -88,6 +88,59 @@ def test_clean_repo_has_no_issues(repo: Path) -> None:
     assert report.ok_count == 1
 
 
+def test_unresolvable_other_agent_step_is_an_error(repo: Path) -> None:
+    toml = repo / "coga.toml"
+    toml.write_text(
+        toml.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
+    )
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg, title="X", workflow_name="code/with-review",
+        contexts=[], owner="marc", assignee="claude",
+        human="marc", agent="claude", watchers=[], status="draft",
+    )
+    ticket = Ticket.read(created["path"])
+    assert isinstance(ticket.workflow, dict)
+    ticket.frontmatter["status"] = "active"
+    ticket.workflow["steps"][1]["assignee"] = "other-agent"
+    ticket.write(created["path"])
+
+    issue = next(
+        issue for issue in run(cfg).issues
+        if issue.kind == "unresolvable-step-assignee"
+    )
+    assert issue.severity == "error"
+    assert 'add peer = "<type>" to [agents.claude]' in issue.message
+
+
+@pytest.mark.parametrize("malformed_agent", [["claude"], {"name": "claude"}])
+def test_other_agent_check_preserves_bad_shape_for_malformed_agent(
+    repo: Path, malformed_agent: object
+) -> None:
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg, title="X", workflow_name="code/with-review",
+        contexts=[], owner="marc", assignee="claude",
+        human="marc", agent="claude", watchers=[], status="draft",
+    )
+    ticket = Ticket.read(created["path"])
+    assert isinstance(ticket.workflow, dict)
+    ticket.frontmatter["status"] = "active"
+    ticket.frontmatter["agent"] = malformed_agent
+    ticket.workflow["steps"][1]["assignee"] = "other-agent"
+    ticket.write(created["path"])
+
+    issues = run(cfg).issues
+    assert any(
+        issue.kind == "bad-shape"
+        and "'agent' must be a non-empty string" in issue.message
+        for issue in issues
+    )
+    assert all(issue.kind != "unresolvable-step-assignee" for issue in issues)
+
+
 def test_broken_skill_ref(repo: Path) -> None:
     cfg = load_config(repo)
     # Directly write a ticket with a bogus skill reference in its frozen workflow.

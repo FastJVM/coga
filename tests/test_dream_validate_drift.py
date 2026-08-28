@@ -236,6 +236,7 @@ def test_classifies_file_backed_validator_drift_as_pr_proposal(kind: str) -> Non
         "github-git-branch-state-only-drift",
         "github-git-remote",
         "missing-user",
+        "unresolvable-step-assignee",
         "unset-secret-env",
     ],
 )

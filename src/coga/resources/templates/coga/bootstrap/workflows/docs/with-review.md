@@ -36,10 +36,11 @@ reviewed by Claude. The flip is automatic: `coga bump` rewrites
 `assignee:` to the peer when it enters `peer-review`, and `open-pr`
 flips back to the author.
 
-`other-agent` needs exactly two agent types configured to be
-unambiguous. With one type, or three or more, the bump fails loud rather
-than guessing — fix `coga.toml` or the ticket's `agent:` if you hit
-that.
+With two configured agent types, `other-agent` infers the only peer with no
+extra config. With three or more, set `peer = "<type>"` on the author's
+`[agents.<type>]` table; the mapping is one-directional, so each author that
+uses this workflow needs its own peer. An absent or ambiguous peer fails loud
+rather than guessing.
 
 The `coga launch` supervisor auto-chains across these agent boundaries:
 when a bump rotates `assignee:` from one agent to another (author →

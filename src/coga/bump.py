@@ -28,20 +28,31 @@ class AssigneeResolutionError(Exception):
 def resolve_other_agent(cfg: Config, agent: str | None) -> str:
     """Resolve the `other-agent` role token to the peer agent's nickname.
 
-    "Other" means the configured `[agents.*]` type that is not the ticket's
-    own `agent:` — the peer reviewer. This is only unambiguous when exactly
-    one such candidate exists (i.e. two agent types are configured and the
-    ticket's `agent:` is one of them). Anything else (no `agent:`, the
-    `agent:` isn't a configured type, only one type, or three+) is a
-    fail-loud condition rather than a silent guess.
+    A declared `[agents.<type>].peer` wins. Without one, "other" means the
+    single configured type that is not the ticket's own `agent:`, preserving
+    zero-config behavior for two-agent repos. Ambiguity fails loud.
     """
     if not agent:
         raise AssigneeResolutionError(
             "Workflow step declares assignee='other-agent' but the ticket has "
             "no `agent:` field to take the peer of. Add `agent: <type>`."
         )
+    # Ticket parsing deliberately preserves malformed frontmatter so validate
+    # can report it. Keep role resolution fail-loud for those values instead
+    # of letting an unhashable list or mapping escape as a TypeError.
+    configured = cfg.agents.get(agent) if isinstance(agent, str) else None
+    if configured is not None and configured.peer is not None:
+        return configured.peer
     others = [name for name in cfg.agents if name != agent]
     if len(others) != 1:
+        if isinstance(agent, str) and agent in cfg.agents and len(cfg.agents) >= 3:
+            raise AssigneeResolutionError(
+                "assignee='other-agent' needs an unambiguous peer for "
+                f"`agent: {agent}`. To fix it, add peer = \"<type>\" to "
+                f"[agents.{agent}]. "
+                f"Configured agents: {sorted(cfg.agents)}; peer candidates: "
+                f"{sorted(others)}."
+            )
         raise AssigneeResolutionError(
             "assignee='other-agent' needs exactly two configured `[agents.*]` "
             f"types to pick the peer, with `agent: {agent}` as one of them. "
@@ -117,16 +128,30 @@ def advance_step(
     under one exact lease before any handoff notification is emitted.
     """
     owner = ticket.owner or cfg.current_user
-    ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
+    # Validate the prospective move before committing it, the way
+    # `mark canceled` already does. Not every error this raises is caused by
+    # the write: an `other-agent` step that cannot resolve against this
+    # machine's `[agents.*]` is a config fact, unchanged by the bump and
+    # unfixable by editing the ticket. Validating afterwards would report
+    # failure over a ticket already advanced on disk with no audit entry and
+    # no sync, and each retry would advance it again.
+    prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+    prospective.frontmatter["step"] = f"{next_step} ({new_step_name})"
     if new_assignee is not None:
-        ticket.frontmatter["assignee"] = new_assignee
+        prospective.frontmatter["assignee"] = new_assignee
+    assert_task_valid(
+        cfg,
+        ref,
+        action=f"bump to step {next_step} ({new_step_name})",
+        ticket_override=prospective,
+    )
+    ticket.frontmatter = prospective.frontmatter
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
     if mutation_snapshot is not None:
         mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
-    assert_task_valid(cfg, ref, action=f"bump to step {next_step} ({new_step_name})")
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
         mutation_snapshot.arm_append(log_path(cfg), audit_append)

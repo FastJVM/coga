@@ -380,7 +380,7 @@ def build_analyze_command(agent: AgentType, prompt: str) -> list[str]:
         raise AutofixUnavailable(
             f"agent type {agent.name!r} (cli {agent.cli!r}) has no one-shot "
             "analysis argv. Set `[agents."
-            f"{agent.name}].analyze` in coga.toml to the CLI's "
+            f"{agent.name}].analyze` in coga.toml or coga.local.toml to the CLI's "
             'non-interactive form, e.g. analyze = "-p {prompt}".'
         )
     tokens = [tok.replace("{prompt}", prompt) for tok in shlex.split(template)]

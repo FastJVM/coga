@@ -123,7 +123,8 @@ Before suggesting anything, ground yourself in what actually exists:
   `<namespace>/<name>`). If `coga.toml` sets `[layout] contexts`, list that
   directory instead of `coga/contexts/`; the reference shape is unchanged.
 - `ls coga/skills/*/` — known skills (same path/reference shape).
-- `coga.toml` `[agents.*]` — known agent types (e.g. `claude`, `codex`).
+- Effective `[agents.*]` after `coga.local.toml` layers over `coga.toml` —
+  known agent types (e.g. `claude`, `codex`).
 
 Don't propose a workflow, context, skill, or assignee that isn't in this
 list — create it (step 4) or pick from the list.

@@ -261,8 +261,9 @@ on-disk markdown is the source of truth and aborting there would stall the
 supervised chain.
 
 Agent type normally comes from the ticket's `assignee` directly — it names an
-`[agents.<type>]` block in `coga.toml`. Human assignees are not launchable by
-default. An explicit `--agent <type>` is the on-demand assist escape hatch: it
+effective `[agents.<type>]` block after `coga.local.toml` has layered individual
+keys and local-only types over `coga.toml`. Human assignees are not launchable
+by default. An explicit `--agent <type>` is the on-demand assist escape hatch: it
 selects the agent in memory for that launch only, leaves the human assignee on
 disk, and identifies the assist in the banner.
 

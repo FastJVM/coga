@@ -16,7 +16,8 @@ draft with `coga create` and then edit it.
 
 This ticket is stateless. It has no status and acquires no lock — every
 launch is independent. Don't edit the ticket itself except to swap the
-`assignee` to whichever agent type you have configured in `coga.toml`.
+`assignee` to whichever effective agent type you have configured in shared
+`coga.toml` or machine-local `coga.local.toml`.
 
 ## Context
 
@@ -26,9 +27,9 @@ package `bootstrap/skills/bootstrap/ticket/SKILL.md` resources unless a local
 bare `coga launch bootstrap/ticket` sessions to that skill — read the skill if
 you're debugging the bootstrap flow.
 
-`assignee` must match an `[agents.<type>]` block in `coga.toml`. The
-default `claude` assumes the standard install; swap if you've renamed
-your agent types.
+`assignee` must match an effective `[agents.<type>]` block after
+`coga.local.toml` layers over `coga.toml`. The default `claude` assumes the
+standard install; swap if you've renamed your agent types.
 
 Don't add `status:` or `owner:` to this frontmatter. The ticket is
 intentionally stateless — no lock, no log, no `step` transitions — so

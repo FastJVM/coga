@@ -61,6 +61,9 @@ class AgentType:
     # `claude` / `codex` CLIs; an unknown CLI with no override skips the
     # analysis loudly rather than guessing an argv.
     analyze: str = ""
+    # Optional explicit target for the `other-agent` workflow role. This is
+    # one-directional: each agent type chooses its own peer.
+    peer: str | None = None
 
 
 @dataclass(frozen=True)
@@ -446,6 +449,7 @@ _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
     "session_id_flag",
     "discussion",
     "analyze",
+    "peer",
 })
 _ALLOWED_NOTIFICATION_KEYS: frozenset[str] = frozenset({"channels", "slack"})
 _ALLOWED_SLACK_KEYS: frozenset[str] = frozenset({
@@ -524,22 +528,48 @@ _REMOVED_AGENT_KEYS: tuple[str, ...] = (
 
 
 def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentType]:
+    merged: dict[str, dict] = {}
+    key_sources: dict[str, dict[str, str]] = {}
+    for source, table in (
+        ("coga.toml", raw),
+        ("coga.local.toml", local_raw or {}),
+    ):
+        for name, data in table.items():
+            if not isinstance(data, Mapping):
+                continue
+            merged.setdefault(name, {}).update(data)
+            key_sources.setdefault(name, {}).update(
+                {key: source for key in data}
+            )
+
     out: dict[str, AgentType] = {}
-    for name, data in raw.items():
+    for name, data in merged.items():
+        removed = [key for key in _REMOVED_AGENT_KEYS if key in data]
+        if removed:
+            source = key_sources[name][removed[0]]
+            removed = [key for key in removed if key_sources[name][key] == source]
+            raise ConfigError(
+                f"[agents.{name}] in {source} has removed key(s) {removed}. "
+                "Launches are "
+                "interactive-only now: the headless `auto` argv and the "
+                "`skip_permissions` / `skip_permissions_argv` policy are gone "
+                f"with no replacement. Delete those line(s) from {source}."
+            )
+        unknown = [key for key in data if key not in _ALLOWED_AGENT_KEYS]
+        if unknown:
+            source = key_sources[name][unknown[0]]
+            _reject_unknown_keys(
+                {
+                    key: data[key]
+                    for key in unknown
+                    if key_sources[name][key] == source
+                },
+                _ALLOWED_AGENT_KEYS,
+                f"[agents.{name}] in {source}",
+            )
         for required in ("cli", "file"):
             if required not in data:
                 raise ConfigError(f"agents.{name}.{required} is required")
-        removed = [key for key in _REMOVED_AGENT_KEYS if key in data]
-        if removed:
-            raise ConfigError(
-                f"[agents.{name}] has removed key(s) {removed}. Launches are "
-                "interactive-only now: the headless `auto` argv and the "
-                "`skip_permissions` / `skip_permissions_argv` policy are gone "
-                "with no replacement. Delete those line(s) from coga.toml — "
-                "a repo initialized by coga 0.2.0 carries `auto` in its "
-                "scaffolded config."
-            )
-        _reject_unknown_keys(data, _ALLOWED_AGENT_KEYS, f"[agents.{name}]")
         discussion = data.get("discussion", "")
         if not isinstance(discussion, str):
             raise ConfigError(
@@ -558,6 +588,12 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
                 f"agents.{name}.analyze must be a string "
                 f"(got {type(analyze).__name__})"
             )
+        peer = data.get("peer")
+        if peer is not None and not isinstance(peer, str):
+            raise ConfigError(
+                f"agents.{name}.peer must be a string "
+                f"(got {type(peer).__name__})"
+            )
         out[name] = AgentType(
             name=name,
             cli=data["cli"],
@@ -567,24 +603,19 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
             session_id_flag=session_id_flag,
             discussion=discussion,
             analyze=analyze,
+            peer=peer,
         )
-    for name, data in (local_raw or {}).items():
-        if not isinstance(data, Mapping):
-            continue
-        removed = [key for key in _REMOVED_AGENT_KEYS if key in data]
-        if removed:
+    for name, agent in out.items():
+        if agent.peer == name:
             raise ConfigError(
-                f"[agents.{name}] in coga.local.toml has removed key(s) "
-                f"{removed}. Launches are interactive-only now: the headless "
-                "`auto` argv and the `skip_permissions` / "
-                "`skip_permissions_argv` policy are gone with no replacement. "
-                "Delete those line(s) from coga.local.toml."
+                f"agents.{name}.peer cannot name itself; choose another "
+                "configured agent type"
             )
-    if local_raw:
-        raise ConfigError(
-            "coga.local.toml no longer supports [agents.<name>] overrides; "
-            "put shared agent config in coga.toml."
-        )
+        if agent.peer is not None and agent.peer not in out:
+            raise ConfigError(
+                f"agents.{name}.peer names unconfigured agent type "
+                f"{agent.peer!r}; known agents: {sorted(out)}"
+            )
     return out
 
 

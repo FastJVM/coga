@@ -132,7 +132,8 @@ operator's machine.
 
 **Receipt:** git-backed markdown, local by default, no cloud. Nothing in Coga
 makes a network call you didn't initiate. `claude` ↔ `codex` interchangeable
-(`[agents.*]` in `coga.toml`, `other-agent` rotation across workflow steps).
+(`[agents.*]` shared in `coga.toml` and layered locally per machine,
+`other-agent` rotation across workflow steps).
 `coga init` vendors the CLI into your repo. SKILL.md is an open standard.
 
 > Considered and rejected (2026-06): an opt-out anonymous install ping (3

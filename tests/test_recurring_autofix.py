@@ -95,7 +95,9 @@ def test_unknown_cli_without_a_template_refuses_rather_than_guessing() -> None:
     agent = AgentType(name="weird", cli="weirdcli", file="AGENTS.md", mode="local")
     with pytest.raises(autofix.AutofixUnavailable) as exc:
         build_analyze_command(agent, "hi")
-    assert "analyze" in str(exc.value)
+    message = str(exc.value)
+    assert "analyze" in message
+    assert "coga.toml or coga.local.toml" in message
 
 
 def test_a_working_claude_api_key_is_used_without_an_auth_probe(

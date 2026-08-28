@@ -294,7 +294,7 @@ def _default_agent(cfg: Config) -> str:
     if default is None:
         raise ConfigError(
             "No agent types declared in [agents]. Pass --agent or declare "
-            "at least one `[agents.*]` table in coga.toml."
+            "at least one `[agents.*]` table in coga.toml or coga.local.toml."
         )
     return default.name
 

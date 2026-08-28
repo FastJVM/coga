@@ -111,7 +111,7 @@ supersedes the softer "extend at the edges, not the core" phrasing.
 ```
 coga/
   coga.toml             ← shared config (committed)
-  coga.local.toml       ← machine-local (NEVER committed; secrets here)
+  coga.local.toml       ← machine-local (NEVER committed; user, agent types)
   context.md             ← repo-context layer of the composed prompt
   recurring/<name>/      ← recurring task template directories (ticket.md,
                            plus the exact sibling ticket.py when the job is

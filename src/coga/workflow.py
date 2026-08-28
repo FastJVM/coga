@@ -20,9 +20,9 @@ _HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
 # Role tokens a workflow step may declare under `assignee:`. `owner` /
 # `human` / `agent` resolve against the matching ticket field; `other-agent`
-# resolves to the configured agent type that is NOT the ticket's `agent:`
-# (peer review). `other-agent` needs exactly two `[agents.*]` types to be
-# unambiguous and fails loud otherwise (see coga.bump.resolve_other_agent).
+# resolves to the ticket agent's explicit peer, or infers the only other
+# configured type when exactly one candidate remains. Ambiguity fails loud
+# rather than guessing (see coga.bump.resolve_other_agent).
 VALID_ASSIGNEE_ROLES: frozenset[str] = frozenset(
     {"owner", "human", "agent", "other-agent"}
 )
@@ -32,7 +32,7 @@ VALID_ASSIGNEE_ROLES: frozenset[str] = frozenset(
 class WorkflowStep:
     name: str
     skills: tuple[str, ...] = ()
-    assignee: str | None = None  # role token: "owner" | "human" | "agent"
+    assignee: str | None = None  # role token; see VALID_ASSIGNEE_ROLES
     # Completion gate token (see coga.step_gate). When set, `coga bump` refuses
     # to advance off this step until the named artifact is recorded on the
     # blackboard — e.g. `requires: pr` on the `open-pr` step.

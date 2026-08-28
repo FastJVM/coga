@@ -193,7 +193,11 @@ def test_agent_skip_keys_rejected_in_shared_toml(repo: Path) -> None:
     text = (repo / "coga.toml").read_text()
     (repo / "coga.toml").write_text(text + 'skip_permissions = "auto"\n')
     with pytest.raises(
-        ConfigError, match=r"\[agents.claude\] has removed key\(s\).*skip_permissions"
+        ConfigError,
+        match=(
+            r"\[agents.claude\] in coga.toml has removed key\(s\)"
+            r".*skip_permissions"
+        ),
     ):
         load_config(repo)
 
@@ -204,7 +208,11 @@ def test_agent_skip_argv_rejected_in_shared_toml(repo: Path) -> None:
         text + 'skip_permissions_argv = "--dangerously-skip-permissions"\n'
     )
     with pytest.raises(
-        ConfigError, match=r"\[agents.claude\] has removed key\(s\).*skip_permissions_argv"
+        ConfigError,
+        match=(
+            r"\[agents.claude\] in coga.toml has removed key\(s\)"
+            r".*skip_permissions_argv"
+        ),
     ):
         load_config(repo)
 
@@ -216,7 +224,10 @@ def test_agent_auto_argv_rejected_in_shared_toml(repo: Path) -> None:
     text = (repo / "coga.toml").read_text()
     (repo / "coga.toml").write_text(text + 'auto = "-p"\n')
     with pytest.raises(
-        ConfigError, match=r"\[agents.claude\] has removed key\(s\).*auto.*Delete"
+        ConfigError,
+        match=(
+            r"\[agents.claude\] in coga.toml has removed key\(s\).*auto.*Delete"
+        ),
     ):
         load_config(repo)
 
@@ -227,7 +238,8 @@ def test_agent_unknown_key_error_survives_removed_keys(repo: Path) -> None:
     text = (repo / "coga.toml").read_text()
     (repo / "coga.toml").write_text(text + 'clii = "claude"\n')
     with pytest.raises(
-        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*clii"
+        ConfigError,
+        match=r"\[agents.claude\] in coga.toml has unknown key\(s\).*clii",
     ):
         load_config(repo)
 
@@ -270,7 +282,7 @@ def test_agent_skip_argv_rejected_in_local_toml_with_migration_error(
         load_config(repo)
 
 
-def test_local_agent_overrides_are_rejected(repo: Path) -> None:
+def test_local_agent_override_layers_over_shared_table(repo: Path) -> None:
     _write(
         repo / "coga.local.toml",
         """
@@ -280,8 +292,106 @@ def test_local_agent_overrides_are_rejected(repo: Path) -> None:
         cli = "claude-nightly"
         """,
     )
-    with pytest.raises(ConfigError, match="no longer supports"):
+    agent = load_config(repo).agents["claude"]
+    assert agent.cli == "claude-nightly"
+    assert agent.file == "CLAUDE.md"
+    assert agent.mode == "local"
+
+
+def test_local_only_agent_is_appended_without_changing_default(repo: Path) -> None:
+    _write(
+        repo / "coga.local.toml",
+        """
+        user = "marc"
+
+        [agents.local-llm]
+        cli = "ollama"
+        file = "AGENTS.md"
+        """,
+    )
+    cfg = load_config(repo)
+    assert list(cfg.agents) == ["claude", "local-llm"]
+    assert cfg.default_agent() == cfg.agents["claude"]
+
+
+def test_non_table_local_agent_entry_is_ignored(repo: Path) -> None:
+    _write(
+        repo / "coga.local.toml",
+        """
+        user = "marc"
+
+        [agents]
+        local-llm = "ollama"
+        """,
+    )
+    assert list(load_config(repo).agents) == ["claude"]
+
+
+def test_local_only_agent_removed_key_gets_migration_error(repo: Path) -> None:
+    _write(
+        repo / "coga.local.toml",
+        """
+        user = "marc"
+
+        [agents.local-llm]
+        auto = "--headless"
+        """,
+    )
+    with pytest.raises(
+        ConfigError,
+        match=r"coga\.local\.toml has removed key\(s\).*auto",
+    ):
         load_config(repo)
+
+
+def test_unknown_local_agent_key_names_source_file(repo: Path) -> None:
+    _write(
+        repo / "coga.local.toml",
+        """
+        user = "marc"
+
+        [agents.claude]
+        clii = "claude-nightly"
+        """,
+    )
+    with pytest.raises(
+        ConfigError,
+        match=r"\[agents\.claude\] in coga\.local\.toml has unknown key\(s\).*clii",
+    ):
+        load_config(repo)
+
+
+def test_agent_peer_must_name_another_configured_type(repo: Path) -> None:
+    text = (repo / "coga.toml").read_text()
+    (repo / "coga.toml").write_text(text + 'peer = "codex"\n')
+    with pytest.raises(ConfigError, match="peer names unconfigured agent type 'codex'"):
+        load_config(repo)
+
+
+def test_agent_peer_cannot_name_itself(repo: Path) -> None:
+    text = (repo / "coga.toml").read_text()
+    (repo / "coga.toml").write_text(text + 'peer = "claude"\n')
+    with pytest.raises(ConfigError, match="peer cannot name itself"):
+        load_config(repo)
+
+
+def test_agent_peer_can_be_supplied_by_local_override(repo: Path) -> None:
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    _write(
+        repo / "coga.local.toml",
+        """
+        user = "marc"
+
+        [agents.claude]
+        peer = "codex"
+        """,
+    )
+    cfg = load_config(repo)
+    assert cfg.agents["claude"].peer == "codex"
+    assert cfg.agents["claude"].cli == "claude"
 
 
 def test_unknown_agent_type(repo: Path) -> None:
@@ -475,7 +585,10 @@ def test_unknown_agent_key_rejected(repo: Path) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text() + 'clii = "claude"\n'
     )
-    with pytest.raises(ConfigError, match=r"\[agents.claude\] has unknown key\(s\) \['clii'\]"):
+    with pytest.raises(
+        ConfigError,
+        match=r"\[agents.claude\] in coga.toml has unknown key\(s\) \['clii'\]",
+    ):
         load_config(repo)
 
 
