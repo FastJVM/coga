@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts:
 - coga/principles
 - coga/architecture
@@ -38,7 +38,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (review-design)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -122,29 +122,36 @@ unconditional value and nothing to select between.
   contexts distinguish ordinary attended launches, megalaunch queue launches,
   and recurring queue launches without reading any ticket field or config
   option.
-- [ ] Every agent prompt contains exactly one `session_conduct`
-  `PromptLayer`, and `--prompt-report` identifies the selected resource. The
-  base prompt and invocation suffix contain no second concrete conduct policy.
-- [ ] Ordinary `coga launch`, `coga chat`, guided `coga ticket` authoring, and
-  `coga recurring --interactive` select attended conduct: ask the present human
-  and wait, request confirmation before substantive code, and reserve blocking
-  for an explicit request to park the ticket.
+- [ ] Every ticket/bootstrap REPL prompt produced by the shared composer
+  contains exactly one `session_conduct` `PromptLayer`, and `--prompt-report`
+  identifies the selected resource. The base prompt and invocation suffix
+  contain no second concrete conduct policy. The separate PTY-less recurring
+  autofix analyst remains outside this composer and this ticket's scope.
+- [ ] Ordinary `coga launch` (including a human-typed direct period-task
+  launch), `coga chat`, guided `coga ticket` authoring, and every recurring
+  invocation using its existing `--interactive` choice select attended
+  conduct: ask the present human and wait, request confirmation before
+  substantive code, and reserve blocking for an explicit request to park the
+  ticket.
 - [ ] `coga megalaunch` selects megalaunch queue conduct. Its prompt says that
   the TTY is transport, states a plan and continues, terminally blocks for
   unavailable input, preserves the exact dependency-slug hint, and preserves
   the selected blocked-task resolution exception.
-- [ ] Automatic recurring execution—the normal sweep, `--force`, named
-  `recurring launch <name>`, ordinary period-task agent phases, and delegated
-  stateless bootstrap sessions—selects recurring queue conduct. It preserves
-  the stateless bootstrap `coga slack` completion/failure rule.
+- [ ] Non-interactive runner-owned recurring execution—the normal sweep,
+  `--force`, named `recurring launch <name>`, ordinary period-task agent
+  phases, and delegated stateless bootstrap sessions—selects recurring queue
+  conduct. It preserves the stateless bootstrap `coga slack`
+  completion/failure rule; the corresponding `--interactive` paths select
+  attended conduct instead.
 - [ ] Queue prompts do not contain the attended `ask and wait` / plan-approval
   directive, and attended prompts do not contain the queue directive to
   continue without approval and terminally block unavailable input. Tests
   assert both positive selection and absence of the opposite contract.
 - [ ] Preflight, prompt reporting, every recompose, and final spawn use the
   same launch context. A missing selected conduct resource raises
-  `ComposeError` before lifecycle mutation or agent spawn, like any other
-  required prompt layer.
+  `ComposeError` before the launch publishes `in_progress` or spawns an agent,
+  matching the existing required-layer preflight boundary without changing
+  draft/paused auto-activation or recurring materialization semantics.
 - [ ] Conduct is no longer carried in `prompt_suffix`; invocation-only inputs
   such as ordered launch arguments may remain suffixes. The obsolete queue
   suffix helpers and their resource preflights are removed.
@@ -276,6 +283,70 @@ kept out of #726 to keep that review scoped.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+branch: select-session-conduct
+worktree: /home/n/Code/codex/coga-select-session-conduct
+
+## Implementation Notes
+
+- `compose.py` owns the selector: `LaunchContext` (`attended` | `megalaunch` |
+  `recurring`) plus `SESSION_CONDUCT_RESOURCES`. `compose_prompt()` /
+  `compose_prompt_report()` take keyword-only `launch_context="attended"` and
+  append one `session_conduct` `PromptLayer` right after the base prompt. The
+  layer is `raw=True` so each resource's own `## Session conduct — <context>`
+  heading survives; `--prompt-report` shows the ref, verified live
+  (`session_conduct  prompt-attended.md  1.1 KiB`).
+- An unknown context raises `ComposeError` rather than composing no conduct,
+  so a bad selector fails at the same pre-`in_progress` preflight as a missing
+  resource.
+- `prompt-attended.md` is new, extracted from the base prompt's old
+  `## Working with the human`. `prompt.md` keeps only two neutral
+  cross-references (loop step 4 and § Blocking and FYIs); all precedence prose
+  is gone because there is no second conduct block left to rank.
+- Removed the hidden `--queue-guidance` Typer option outright — recurring
+  reaches launch through the in-process seams (`launch_recurring_period`,
+  `launch_with_before_spawn`), never argv, so nothing passed it. The public
+  `launch()` spelling now hardcodes `launch_context="attended"`, which also
+  keeps an ordinary launch from impersonating a queue.
+- `_queue_prompt_suffix()` and `_megalaunch_prompt_suffix()` deleted, with
+  their now-unused `read_packaged_resource` imports. `prompt_suffix` carries
+  only `_agent_args_prompt_suffix` (`## Launch arguments`).
+- `spawn_agent_session()` gained `launch_context` and its two compose branches
+  collapsed into one call passing both keywords.
+- `recurring_runner._recurring_launch_context(interactive)` is the single
+  mapping point (`attended` when `--interactive`, else `recurring`), consumed
+  by `_launch_due_tasks` and `_launch_created`, and threaded into
+  `_run_delegated_task` for delegated bootstrap sessions.
+
+## Verification
+
+- `python -m pytest`: **2120 passed** on the rebased branch, clean tree.
+  Needs a venv with the `[test]` extra — the ambient `python3.12` lacks
+  `hatchling`, and `test_wheel_includes_bootstrap_batteries` then fails as
+  environment noise (it fails identically on unmodified `main`).
+- That wheel test now also proves `prompt-attended.md` ships.
+- `coga validate --task select-session-conduct-instead-of-appending-a-cont
+  --json`: 1 ok, 0 issues.
+- Re-diffed the live↔packaged pairs by hand after the rebase (architecture,
+  codebase, resolve-conflicts, code/implement) — all identical.
+
+## Gotchas
+
+- **Ran `coga launch --prompt-report` from the feature worktree.** That is a
+  state-changing command, so the CLI exit-boundary sweep committed the three
+  live `coga/` doc edits as `d698cd03 "Sync coga state"` and pushed them to
+  `origin/main` — exactly the hazard `coga/codebase` documents. Resolved with
+  the owner's approval: soft-reset the branch past that commit so the doc
+  files joined the feature commit, then `git revert d698cd03` on `main`
+  (`b5cb36a0`, pushed). Verified `d698cd03` is no longer an ancestor of the
+  feature branch, so merging re-adds the docs cleanly rather than hitting the
+  revert-then-merge trap. **Use a scratch checkout, or the primary checkout,
+  to run any prompt-report/launch verification.**
+- Several tests faked `compose_prompt` as `lambda cfg, ref, ticket:`; the
+  unified call passes keywords, so they needed `**kwargs`. Widening the fakes
+  was right — the old branch existed only to avoid passing a keyword.
+
 ## Design Findings
 
 - `compose_prompt()` always selects attended conduct indirectly through
@@ -297,6 +368,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Open Questions
 
-None after tracing the current call sites. The owner review should explicitly
-approve the choice to keep two complete queue resources rather than factoring
-shared prose before implementation begins.
+None. The owner approved the three-value, caller-owned selector and keeping
+`prompt-megalaunch.md` and `prompt-queue.md` as complete selected contracts.
+The acceptance criteria now scope the composer away from the PTY-less autofix
+analyst, distinguish non-interactive recurring execution from direct and
+`--interactive` attended launches, and pin missing-resource failure to the
+existing pre-`in_progress` / pre-spawn boundary.
