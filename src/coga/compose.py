@@ -154,15 +154,6 @@ def compose_prompt_report(
         ref="prompt.md",
     ))
 
-    # 2. agent-mode prompt. Every launch composes an agent prompt, so the layer
-    # is unconditional.
-    layers.append(PromptLayer(
-        "mode_prompt",
-        "Agent mode",
-        _resource("prompt-agent.md"),
-        ref="prompt-agent.md",
-    ))
-
     # 2b. Blocker-resolution preamble. An interactive session whose blackboard
     # still carries open asks must resolve-or-re-block before the step's real
     # work — this is how `coga launch` resumes a blocked ticket as a chat
@@ -214,7 +205,29 @@ def compose_prompt_report(
             path=str(cp),
         ))
 
-    # 5. inline `## Context` from ticket body
+    # 5. ticket-level skills + current workflow step
+    for skill_ref in ticket.skills:
+        layers.extend(_skill_layers(cfg, skill_ref, slug=task_ref.id_slug))
+    layers.extend(_step_layers(cfg, ticket, slug=task_ref.id_slug))
+
+    # 6. The ticket itself, last and contiguous, in the order it sits on disk:
+    # `## Description`, then `## Context`, then the blackboard region below the
+    # fence. These were three layers scattered across the prompt back when they
+    # were three files (ticket.md / blackboard.md / log.md); #427 collapsed them
+    # into one file and the split outlived the reason for it. They stay separate
+    # PromptLayers so `--prompt-report` can still size the blackboard on its own
+    # — that line is how a bloated blackboard gets noticed — but they compose as
+    # one contiguous block, so the agent reads the ticket as written.
+    desc = _extract_section(body_above, "Description")
+    if desc:
+        layers.append(PromptLayer(
+            "task_description",
+            "Task description",
+            desc,
+            ref="ticket.md##Description",
+            path=str(task_ref.ticket_path),
+        ))
+
     inline_ctx = _extract_section(body_above, "Context")
     if inline_ctx:
         layers.append(PromptLayer(
@@ -225,29 +238,12 @@ def compose_prompt_report(
             path=str(task_ref.ticket_path),
         ))
 
-    # 6. ticket-level skills + current workflow step
-    for skill_ref in ticket.skills:
-        layers.extend(_skill_layers(cfg, skill_ref, slug=task_ref.id_slug))
-    layers.extend(_step_layers(cfg, ticket, slug=task_ref.id_slug))
-
-    # 7. blackboard (the single-file region below the fence)
     if blackboard_text and blackboard_text.strip():
         layers.append(PromptLayer(
             "blackboard",
             "Blackboard (current state)",
             blackboard_text,
             ref="ticket.md##blackboard",
-            path=str(task_ref.ticket_path),
-        ))
-
-    # Trailing task description from ticket body
-    desc = _extract_section(body_above, "Description")
-    if desc:
-        layers.append(PromptLayer(
-            "task_description",
-            "Task description",
-            desc,
-            ref="ticket.md##Description",
             path=str(task_ref.ticket_path),
         ))
 

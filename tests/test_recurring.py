@@ -2254,7 +2254,6 @@ def test_period_script_runs_with_period_context_secrets_and_lifecycle(
     assert env["COGA_TASK_DIR"] == str(ref.path.resolve())
     assert env["COGA_TASK_TICKET"] == str(ref.ticket_path.resolve())
     assert env["COGA_TASK_BLACKBOARD"] == str(ref.ticket_path.resolve())
-    assert env["COGA_TASK_LOG"] == str((repo / "log.md").resolve())
     assert env["COGA_COGA_OS_ROOT"] == str(repo.resolve())
     assert env["COGA_REPO_ROOT"] == str(repo.parent.resolve())
     failures = [

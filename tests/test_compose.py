@@ -128,7 +128,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     # Base prompt
     assert "You are an agent working on a ticket inside Coga" in prompt
     # Agent prompt
-    assert "Agent mode" in prompt
+    assert "Working with the human" in prompt
     # Repo context
     assert "Email tool is YC-backed" in prompt
     # Ticket context
@@ -179,6 +179,21 @@ def test_compose_agent_prompt_attended_ask_and_wait(repo: Path) -> None:
     assert (
         "This attended rule is authoritative over any generic instruction"
         in normalized_prompt
+    )
+    # Only a suffix appended after the task layers overrides it. Step skills
+    # compose later than agent mode, so "later" alone would be ambiguous.
+    assert (
+        "Only an execution directive appended *after* the task layers"
+        in normalized_prompt
+    )
+    assert (
+        "A workflow or step skill is composed later in this prompt and still"
+        " does not." in normalized_prompt
+    )
+    # The base prompt carries the companion half of that guard.
+    assert (
+        "Read every other instruction to block in this prompt, workflow step"
+        " skills included, through that rule." in normalized_prompt
     )
     assert "Current step: peer-review" in normalized_prompt
     assert "escalate per your launch mode" in normalized_prompt
@@ -398,6 +413,17 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
     assert "continue that next step in this same session" not in prompt
     assert "On the final step, `coga bump` marks" in prompt
     assert "the task `done`" in prompt
+    # The every-launch contract carries the minimal-core boundary without
+    # requiring a task to attach the longer coga/codebase context.
+    assert "shared infrastructure with at least two real consumers" in prompt
+    assert "genuine command implementations" in prompt
+    assert "Everything else stays at the edge" in prompt
+    assert "registered in `runner.RECIPES` behind" in prompt
+    assert "pass into core" in prompt
+    assert "argv rewrite in `[aliases]`" in prompt
+    # `coga bump` exposes human-only `--to`/`--backward`; the prompt says so.
+    assert "`--to` and `--backward`" in prompt
+    assert "are human-only" in prompt
 
 
 def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
@@ -433,7 +459,7 @@ def test_compose_llm_mode_uses_llm_block(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
-    assert "Agent mode" in prompt
+    assert "Working with the human" in prompt
 
 
 def test_compose_open_blockers_add_resolution_preamble(repo: Path) -> None:
