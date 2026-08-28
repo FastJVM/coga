@@ -152,8 +152,7 @@ the example under "Extend recurring with a task-specific workflow").
   delegate on control. Any concurrent terminal transition, replacement, dispatch
   change, ticket edit, or new generation refuses the spawn. The launch remains
   in-process — in the operator's own terminal, under the sweep's `--agent`
-  override, selected queue session conduct, and idle/max-session liveness
-  bounds — and the
+  override, queue guidance, and idle/max-session liveness bounds — and the
   period task reaches `done` only when the bootstrap target emits its done
   sentinel. After the child exits, completion and watchdog pause consume the
   same generation lease as another exact compare-and-set; an older child's

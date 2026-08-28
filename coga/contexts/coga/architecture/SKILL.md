@@ -580,19 +580,17 @@ When an agent phase remains, `coga launch` builds one composed prompt and
 writes it to a temp file. Layers, in order:
 
 1. Base prompt (`prompt.md`) — a package resource, not a file under `coga/`.
-   It is neutral on conduct: it cross-references the selected layer below
-   rather than carrying a default that something later overrides.
-2. Session conduct — exactly one package resource, selected by launch context
-   (see below). Never stacked, never appended after the task layers.
-3. Repo context (`coga/context.md` — top-level facts about this
+   It carries the attended ask-and-wait default in its "Working with the
+   human" section; there is no separate mode layer, and no mode to select.
+2. Repo context (`coga/context.md` — top-level facts about this
    surface).
-4. Ticket contexts (everything in `contexts:` frontmatter list).
-5. Ticket-level skills and the current workflow step's skill (if any).
-6. The ticket itself, last and contiguous, in the order it sits on disk:
+3. Ticket contexts (everything in `contexts:` frontmatter list).
+4. Ticket-level skills and the current workflow step's skill (if any).
+5. The ticket itself, last and contiguous, in the order it sits on disk:
    `## Description`, then the inline `## Context`, then the blackboard region
    below the fence.
 
-Layer 6 is one block on purpose. These were three separate layers scattered
+Layer 5 is one block on purpose. These were three separate layers scattered
 across the prompt, with skills wedged between them, back when they were three
 files (`ticket.md` / `blackboard.md` / `log.md`); the single-file task format
 collapsed the files and the split outlived its reason. They remain distinct
@@ -600,52 +598,26 @@ entries in `--prompt-report` so the blackboard can still be sized on its own —
 that line is how a bloated blackboard gets noticed — but the agent reads the
 ticket as written.
 
-**Session conduct is selected, not appended.** The escalation boundary is
-layer 2, and exactly one conduct resource is ever composed. The selector is
-the caller's **ephemeral launch context** — `attended`, `megalaunch`, or
-`recurring` — passed to `compose_prompt()` / `compose_prompt_report()` as
-`launch_context`. It is never ticket frontmatter, never config, and never a
-user-facing flag on an ordinary launch: how a session executes is a property
-of the invocation, not of the task. `--prompt-report` names the selected
-resource on the `session_conduct` line, and a missing one is a `ComposeError`
-at the same preflight boundary as any other dropped layer — before the launch
-publishes `in_progress` or spawns.
-
-- `attended` (`prompt-attended.md`) — ordinary `coga launch` including a
-  human-typed direct period-task launch, `coga chat`, guided `coga ticket`
-  authoring, and every recurring spelling run with `--interactive`. A human is
-  in the REPL: ask and wait, state a plan and let them confirm before
-  substantive code, and reserve `coga block` for an explicit request to park
-  the ticket.
-- `megalaunch` (`prompt-megalaunch.md`) — `coga megalaunch`. The REPL still
-  uses a TTY for live streaming and human interruption, but the TTY is
-  transport, not an attending human, so queue execution must not pause for
-  plan approval or wait on a question. The agent states a plan and continues,
-  and when unavailable input truly prevents progress it runs a terminal
-  `coga block` so the owner is notified; only `bump`, `mark done`,
-  `mark canceled`, or `block` releases the queue. It also carries the
-  dependency-drain rule (name the blocking task's exact path-qualified slug in
-  `--reason`) and the narrow exception for a blocked task the human explicitly
-  picked: its composed resolve-or-re-block preamble may discuss those
-  already-open asks with the picker, then unblock and continue or terminally
-  re-block. That does not turn the queue's TTY into general attendance; any
-  new unavailable input still takes the terminal block path.
-- `recurring` (`prompt-queue.md`) — runner-owned recurring execution: the bare
-  sweep, `--force`, `coga run recurring-scan`, a named `recurring launch
-  <name>`, an ordinary period task's agent phase, and a delegated stateless
-  bootstrap session. Same queue posture, plus the stateless-bootstrap rule: a
-  `bootstrap/<name>` ticket has no lifecycle to bump, so its final targeted
-  `coga slack` is what releases the session.
-
-The two queue resources are deliberately complete rather than a shared
-fragment plus caller-specific tails. Only one ever reaches an agent, so their
-repeated wording costs no runtime tokens, and the highest-consequence policy
-stays readable as one unit. The shared spawn seam still appends genuinely
-invocation-only input after the task layers — `## Launch arguments` — but
-never conduct.
-
-The blocker-resolution preamble is an independent, state-derived layer: it is
-task-execution context, not generic blocker context. Guided
+The shared spawn seam may append a narrow, package-backed invocation directive
+after those task layers, and that seam carries the escalation boundary. An
+ordinary `coga launch` is attended: the base prompt's "Working with the human"
+section directs the agent to ask the human in the REPL and wait for the answer
+when input is needed, and to run `coga block` only when the human explicitly
+asks to park or block the ticket. That rule is authoritative over generic block
+wording elsewhere in the base prompt, in workflows, or in step skills. `coga megalaunch` appends
+`prompt-megalaunch.md`, which flips the default for queue runs: the REPL still
+uses a TTY for live streaming and human interruption, but the TTY is transport,
+not an attending human, so queue execution must not pause for plan approval or
+wait on a question. The agent proceeds on reasonable assumptions, and when
+unavailable input truly prevents progress it runs a terminal `coga block` so
+the owner is notified; only `bump`, `mark done`, `mark canceled`, `block`, or a
+stateless bootstrap command's final targeted `coga slack` releases the queue.
+The narrow exception is a blocked task the human explicitly picked for
+resolution: its composed resolve-or-re-block preamble may discuss those
+already-open asks with the picker, then unblock and continue or terminally
+re-block. That does not turn the queue's TTY into general attendance; any new
+unavailable input still takes the terminal block path.
+That preamble is task-execution context, not generic blocker context. Guided
 `coga ticket` authoring explicitly omits it and removes `step:` only from the
 ephemeral ticket projected into prompt composition. The persisted ticket keeps
 its workflow position, but the authoring prompt receives no current
