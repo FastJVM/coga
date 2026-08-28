@@ -4460,6 +4460,58 @@ def test_cli_rewind_status_refusal_skips_fallback_state_sweep(git_repo) -> None:
     assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
 
 
+def test_cli_successful_detached_rewind_skips_racing_fallback_sweep(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A post-publication status change survives a successful rewind."""
+    from coga import cli
+
+    ticket = _seed_demo_ticket(
+        git_repo,
+        status="paused",
+        blackboard="stale local notes\n",
+        step="3 (merge)",
+    )
+    git_repo.git("checkout", "--detach")
+
+    def block_after_rewind_publication(*args: object, **kwargs: object) -> None:
+        git_repo.push_competing_commit(
+            "coga/tasks/demo/ticket.md",
+            _step_ticket_text(
+                step="2 (review)",
+                status="blocked",
+                blackboard="newer blocker notes\n",
+            ),
+        )
+        # A sibling Coga publisher also best-effort fast-forwards the shared
+        # local control ref. This makes the generic sweep compare against the
+        # new blocked state rather than the rewind commit it just published.
+        git_repo.git("fetch", "origin", "main")
+        control_oid = git_repo.git("rev-parse", "FETCH_HEAD").strip()
+        git_repo.git("update-ref", "refs/heads/main", control_oid)
+
+    monkeypatch.setattr("coga.bump.post", block_after_rewind_publication)
+    monkeypatch.setattr(
+        cli.sys,
+        "argv",
+        ["coga", "bump", "demo", "--backward", "--message", "race"],
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main()
+
+    assert excinfo.value.code == 0
+    origin_ticket = git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert "status: blocked" in origin_ticket
+    assert "step: 2 (review)" in origin_ticket
+    assert "newer blocker notes" in origin_ticket
+    local_ticket = ticket.read_text()
+    assert "status: paused" in local_ticket
+    assert "stale local notes" in local_ticket
+
+
 def test_unblock_resolve_only_refuses_to_bury_terminal_control_copy(git_repo):
     """`unblock`'s in_progress branch publishes ticket state too."""
     ticket = _seed_demo_ticket(
@@ -4592,6 +4644,16 @@ def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
     monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "demo"])
     cli._sweep_coga_state(cfg)
     assert calls == [live_cfg]  # mutating command swept with current config
+
+    calls.clear()
+    for rewind_args in (
+        ["coga", "bump", "demo", "--backward"],
+        ["coga", "bump", "demo", "--to", "1"],
+        ["coga", "bump", "--to=1", "demo"],
+    ):
+        monkeypatch.setattr(cli.sys, "argv", rewind_args)
+        cli._sweep_coga_state(cfg)
+    assert calls == []  # scoped rewind publication owns ticket state
 
     calls.clear()
     monkeypatch.setattr(cli.sys, "argv", ["coga", "skill", "update"])

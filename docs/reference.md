@@ -276,8 +276,10 @@ unassigned target is accepted only when the ticket is already `in_progress`.
 Rewind refuses a `blocked` ticket (run `coga unblock` first) and the terminal
 statuses, which have no `step:` to move. A concurrent control-status change
 also refuses publication and leaves the local rewind dirty for reconciliation
-instead of letting the fallback state sweep overwrite control. A forward bump
-still requires `in_progress`.
+instead of letting the fallback state sweep overwrite control. Rewind commands
+never run that broad fallback sweep, including after a successful scoped
+publication; this keeps a post-publication status race from bypassing the same
+guard on detached HEAD. A forward bump still requires `in_progress`.
 
 ### `coga block --task TASK --reason "<ask>"`
 Record an unresolved blocker and set the ticket to `blocked`. Both flags are
