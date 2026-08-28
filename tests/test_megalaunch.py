@@ -6,6 +6,7 @@ from textwrap import dedent
 import pytest
 
 from coga.cli import app
+from coga.compose import compose_prompt
 from coga.config import load_config
 from coga.create import create_task
 from coga.megalaunch import (
@@ -845,7 +846,11 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
 
     def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         seen["idle_timeout"] = kwargs.get("idle_timeout")
-        seen["prompt_suffix"] = kwargs.get("prompt_suffix")
+        seen["prompt_suffix"] = kwargs.get("prompt_suffix", "")
+        seen["launch_context"] = kwargs.get("launch_context")
+        seen["prompt"] = compose_prompt(
+            cfg, ref_obj, ticket, launch_context=kwargs["launch_context"]
+        )
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)
@@ -860,19 +865,22 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
     # The recurring sweep's idle backstop is armed so a wedged REPL can't
     # starve the rest of the queue.
     assert seen["idle_timeout"] is not None
-    suffix = " ".join(str(seen["prompt_suffix"]).split())
-    assert "Megalaunch queue execution" in suffix
-    assert "Do not ask for plan" in suffix
-    # The appended queue directive overrides the attended ask-and-wait
-    # default composed into "Working with the human"...
-    assert 'overrides the attended ask-and-wait default in "Working with the' in suffix
-    assert "Do not ask-and-wait for missing input here" in suffix
-    # ...and unavailable input must end in a terminal `coga block`.
+    # Conduct is the selected composition layer, not an appended suffix.
+    assert seen["launch_context"] == "megalaunch"
+    assert seen["prompt_suffix"] == ""
+    prompt = " ".join(str(seen["prompt"]).split())
+    assert "Session conduct — megalaunch queue" in prompt
+    assert "Do not ask for plan" in prompt
+    assert "Do not ask-and-wait for missing input here" in prompt
+    # Unavailable input must end in a terminal `coga block`.
     assert (
         'run `coga block --task <slug> --reason "<specific ask>"` as the'
-        " terminal action" in suffix
+        " terminal action" in prompt
     )
-    assert "include that task's exact path-qualified slug" in suffix
+    assert "include that task's exact path-qualified slug" in prompt
+    # ...and the attended contract is simply not composed, so nothing has to
+    # rank one against the other.
+    assert "A human launched this session and is present in the REPL." not in prompt
 
 
 @pytest.mark.parametrize(
@@ -2336,7 +2344,7 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
 
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
     launched: list[str] = []
-    prompt_suffixes: list[str] = []
+    prompts: list[str] = []
 
     class _Session:
         exit_code = 0
@@ -2345,7 +2353,13 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
     def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
         # The agent session exits without resolving the ask.
         launched.append(ref_obj.id_slug)
-        prompt_suffixes.append(" ".join(str(kwargs["prompt_suffix"]).split()))
+        prompts.append(
+            " ".join(
+                compose_prompt(
+                    cfg_, ref_obj, ticket_, launch_context=kwargs["launch_context"]
+                ).split()
+            )
+        )
         return _Session()
 
     monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
@@ -2353,12 +2367,11 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
     run = run_megalaunch(cfg, selection=[ref["slug"]])
 
     assert launched == [ref["slug"]]
-    assert "Existing blocker-resolution exception" in prompt_suffixes[0]
-    assert "resolve those already-open asks" in prompt_suffixes[0]
-    assert (
-        "new unavailable input still follows the queue rule"
-        in prompt_suffixes[0]
-    )
+    assert "Existing blocker-resolution exception" in prompts[0]
+    assert "resolve those already-open asks" in prompts[0]
+    assert "new unavailable input still follows the queue rule" in prompts[0]
+    # The state-derived preamble still composes independently of conduct.
+    assert "Resolve the open blocker first" in prompts[0]
     assert run.counts["blocked"] == 1
     assert "Which region?" in run.results[0].detail
     # The unresolved ask returns the ticket to the blocked queue.

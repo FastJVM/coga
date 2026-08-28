@@ -43,6 +43,7 @@ from coga.blackboard import (
 )
 from coga.compose import (
     ComposeError,
+    LaunchContext,
     PromptComposition,
     compose_prompt,
     compose_prompt_report,
@@ -74,7 +75,6 @@ from coga.mark import (
     prepare_active,
 )
 from coga.notification import preflight_post
-from coga.paths import PackagedResourceMissing, read_packaged_resource
 from coga.open_pr import same_git_checkout
 from coga.repl_supervisor import (
     ASSIST_AGENT_ENV,
@@ -166,16 +166,6 @@ def launch(
         help="Internal: return the script/timeout stop kind, or a spawned "
         "bootstrap session's termination kind, to the caller.",
     ),
-    queue_guidance: bool = typer.Option(
-        False,
-        "--queue-guidance",
-        hidden=True,
-        help="Internal: append the sequential-queue execution guidance "
-        "(prompt-queue.md) to each composed agent prompt. `coga recurring` "
-        "sets it for automatic sweeps so an agent announces its plan and "
-        "continues — ending in `coga block` for owner decisions — instead of "
-        "pausing the queue on a conversational ask.",
-    ),
     script_failure_important: bool = typer.Option(
         False,
         "--script-failure-important",
@@ -210,7 +200,10 @@ def launch(
         max_session=max_session,
         return_timeout=return_timeout,
         script_failure_important=script_failure_important,
-        queue_guidance=queue_guidance,
+        # The public CLI spelling is always attended: a human typed it and is
+        # in the REPL. Queue conduct is selected by the in-process seams
+        # below, never by a flag an ordinary launch could pass.
+        launch_context="attended",
         before_recompose=None,
         before_final_spawn=None,
         require_agent_target=False,
@@ -238,7 +231,7 @@ def launch_recurring_period(
     max_session: float | None,
     return_timeout: bool,
     script_failure_important: bool,
-    queue_guidance: bool,
+    launch_context: LaunchContext,
 ) -> RecurringPeriodLaunchResult:
     """Launch one period after the recurring runner admitted the sweep.
 
@@ -322,7 +315,7 @@ def launch_recurring_period(
         max_session=max_session,
         return_timeout=return_timeout,
         script_failure_important=script_failure_important,
-        queue_guidance=queue_guidance,
+        launch_context=launch_context,
         before_recompose=None,
         before_final_spawn=capture_launched_period_lease,
         require_agent_target=False,
@@ -445,7 +438,7 @@ def launch_with_before_spawn(
     max_session: float | None,
     return_timeout: bool,
     script_failure_important: bool = False,
-    queue_guidance: bool,
+    launch_context: LaunchContext,
     before_spawn: Callable[[], None],
     revalidate_before_spawn: Callable[[Ticket], None] | None = None,
 ) -> str | None:
@@ -472,7 +465,7 @@ def launch_with_before_spawn(
             max_session=max_session,
             return_timeout=return_timeout,
             script_failure_important=script_failure_important,
-            queue_guidance=queue_guidance,
+            launch_context=launch_context,
             before_recompose=before_spawn,
             before_final_spawn=None,
             require_agent_target=True,
@@ -489,7 +482,7 @@ def launch_with_before_spawn(
             max_session=max_session,
             return_timeout=return_timeout,
             script_failure_important=script_failure_important,
-            queue_guidance=queue_guidance,
+            launch_context=launch_context,
             before_recompose=None,
             before_final_spawn=revalidate_before_spawn,
             require_agent_target=True,
@@ -508,7 +501,7 @@ def _launch(
     max_session: float | None,
     return_timeout: bool,
     script_failure_important: bool,
-    queue_guidance: bool,
+    launch_context: LaunchContext,
     before_recompose: Callable[[], None] | None,
     before_final_spawn: Callable[[Ticket], None] | None,
     require_agent_target: bool,
@@ -672,7 +665,7 @@ def _launch(
                     max_session=max_session,
                     return_timeout=return_timeout,
                     script_failure_important=script_failure_important,
-                    queue_guidance=queue_guidance,
+                    launch_context=launch_context,
                     before_recompose=None,
                     before_final_spawn=None,
                     require_agent_target=False,
@@ -688,7 +681,7 @@ def _launch(
                 agent_override=agent_override,
                 idle_timeout=idle_timeout,
                 max_session=max_session,
-                queue_guidance=queue_guidance,
+                launch_context=launch_context,
                 continue_after_timeout=False,
                 activate_if_needed=True,
             )
@@ -890,7 +883,7 @@ def _launch(
         ticket = _read(ref)
         try:
             composition = compose_prompt_report(
-                cfg, ref, ticket
+                cfg, ref, ticket, launch_context=launch_context
             )
         except ComposeError as exc:
             _bail(str(exc))
@@ -1369,7 +1362,7 @@ def _launch(
         # The per-step loop below re-composes; this is a cheap pre-flight (file
         # reads only) so the flip and notification post are never reached on a bad ref.
         try:
-            compose_prompt(cfg, ref, ticket)
+            compose_prompt(cfg, ref, ticket, launch_context=launch_context)
         except ComposeError as exc:
             _bail(str(exc))
         except FileNotFoundError as exc:
@@ -1748,10 +1741,8 @@ def _launch(
                     name=ticket.title or "",
                     discussion=_is_discussion_bootstrap(ref),
                     kickoff=_bootstrap_kickoff(ref),
-                    prompt_suffix=(
-                        _agent_args_prompt_suffix(launch_args)
-                        + (_queue_prompt_suffix() if queue_guidance else "")
-                    ),
+                    prompt_suffix=_agent_args_prompt_suffix(launch_args),
+                    launch_context=launch_context,
                     idle_timeout=idle_timeout,
                     max_session=max_session,
                     label="Launch",
@@ -2785,23 +2776,6 @@ def _align_recorded_assist_checkout(
     return before != after, publication.remote_oid
 
 
-def _queue_prompt_suffix() -> str:
-    """Package-backed execution guidance for sequential automatic queues.
-
-    The `coga recurring` counterpart of megalaunch's `prompt-megalaunch.md`:
-    an automatic sweep's REPL has a TTY (so work streams live), but nobody is
-    necessarily watching — an agent that pauses on a conversational ask hangs
-    the queue until a liveness timeout fails the task. The guidance says to
-    announce the plan and continue, and to end in `coga block` when a decision
-    genuinely needs the owner.
-    """
-    try:
-        prompt = read_packaged_resource("prompt-queue.md")
-    except PackagedResourceMissing as exc:
-        raise ComposeError(str(exc)) from exc
-    return f"\n\n{prompt.strip()}\n"
-
-
 def _agent_args_prompt_suffix(args: list[str]) -> str:
     """Render one launch invocation's positional args as prompt input.
 
@@ -2936,6 +2910,7 @@ def spawn_agent_session(
     discussion: bool = False,
     kickoff: str | None = None,
     prompt_suffix: str = "",
+    launch_context: LaunchContext = "attended",
     idle_timeout: float | None = None,
     max_session: float | None = None,
     label: str = "Launch",
@@ -2964,7 +2939,11 @@ def spawn_agent_session(
     optional first user turn such as the `coga ticket` greet-first "Begin".
     `stateless_identity` lets an authoring surface compose against a real task
     while recording the agent interaction under its bootstrap identity and
-    title, with no workflow step.
+    title, with no workflow step. `launch_context` selects the one composed
+    session-conduct layer and defaults to `"attended"`, so a caller that is
+    not draining a queue gets the ask-a-present-human contract; `prompt_suffix`
+    is left for genuinely appended invocation input such as
+    `## Launch arguments`, never for conduct.
     `include_blocker_preamble` is disabled only for guided authoring: the
     resolve-or-re-block directive belongs to task execution, while an authoring
     session must leave a blocked ticket and its open asks intact.
@@ -3032,15 +3011,13 @@ def spawn_agent_session(
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 
     typer.echo(f"{label}: composing prompt")
-    if include_blocker_preamble:
-        prompt = compose_prompt(cfg, ref, ticket)
-    else:
-        prompt = compose_prompt(
-            cfg,
-            ref,
-            ticket,
-            include_blocker_preamble=False,
-        )
+    prompt = compose_prompt(
+        cfg,
+        ref,
+        ticket,
+        include_blocker_preamble=include_blocker_preamble,
+        launch_context=launch_context,
+    )
     if prompt_suffix:
         prompt = f"{prompt}{prompt_suffix}"
     prompt_file = write_prompt_file(prompt, ref)

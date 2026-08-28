@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from importlib.resources import files
 from pathlib import Path
 from textwrap import dedent
 
@@ -306,7 +307,7 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
@@ -348,7 +349,7 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
@@ -403,7 +404,7 @@ def test_spawn_agent_session_rederives_nested_recurring_task_env(
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
 
     def fake_run_with_done_marker(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
@@ -468,7 +469,7 @@ def test_spawn_agent_session_gives_bootstrap_target_no_blackboard(
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
 
     def fake_run_with_done_marker(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
@@ -518,7 +519,7 @@ def test_spawn_agent_session_oversized_prompt_rides_argv_as_pointer(
     huge_prompt = "# Coga task\n" + "y" * (_MAX_PROMPT_ARG_BYTES + 1)
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: huge_prompt,
+        lambda cfg, ref, ticket, **kwargs: huge_prompt,
     )
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
@@ -555,7 +556,7 @@ def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
     # for git so `sync_log` actually commits.
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker",
@@ -596,7 +597,7 @@ def test_spawn_teardown_commits_log_when_initial_commit_unset(git_repo, monkeypa
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker",
@@ -640,7 +641,7 @@ def test_spawn_commits_usage_log_at_teardown(git_repo, monkeypatch):
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker",
@@ -744,7 +745,7 @@ def test_spawn_publishes_usage_log_after_pr_gated_handoff(git_repo, monkeypatch)
     ticket = Ticket.read(ticket_path)
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
 
     def finish_with_publishing_bump(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -813,7 +814,7 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
@@ -844,7 +845,7 @@ def test_spawn_captures_stateless_discussion_session(
     captured: list[dict] = []
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker",
@@ -888,7 +889,7 @@ def test_spawn_uses_bootstrap_identity_when_authoring_real_task(
     captured: list[dict] = []
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker",
@@ -936,7 +937,7 @@ def test_spawn_captures_failed_and_timed_out_sessions(
     captured: list[dict] = []
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker",
@@ -970,7 +971,7 @@ def test_spawn_captures_interrupted_session(
     captured: list[dict] = []
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket: "# Coga task\nbody",
+        lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
 
     def interrupt(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -1437,7 +1438,7 @@ def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
         max_session=None,
         return_timeout=True,
         script_failure_important=True,
-        queue_guidance=True,
+        launch_context="recurring",
     )
 
     assert result.kind == "script"
@@ -1493,7 +1494,7 @@ def test_internal_recurring_launch_refuses_replacement_before_agent_spawn(
             max_session=None,
             return_timeout=True,
             script_failure_important=True,
-            queue_guidance=True,
+            launch_context="recurring",
         )
 
     assert excinfo.value.code == 2
@@ -1546,7 +1547,7 @@ def test_internal_recurring_launch_refuses_same_generation_close_before_spawn(
             max_session=None,
             return_timeout=True,
             script_failure_important=True,
-            queue_guidance=True,
+            launch_context="recurring",
         )
 
     assert excinfo.value.code == 2
@@ -1597,7 +1598,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
         max_session=None,
         return_timeout=True,
         script_failure_important=True,
-        queue_guidance=True,
+        launch_context="recurring",
     )
 
     assert result.kind == "skipped"
@@ -1650,7 +1651,7 @@ def test_internal_recurring_launch_skips_a_replaced_period_generation(
         max_session=None,
         return_timeout=True,
         script_failure_important=True,
-        queue_guidance=True,
+        launch_context="recurring",
     )
 
     current_period_lease = local_period_lease(cfg, ref)
@@ -1721,7 +1722,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
         max_session=None,
         return_timeout=True,
         script_failure_important=True,
-        queue_guidance=True,
+        launch_context="recurring",
     )
 
     assert result.kind == "skipped"
@@ -1774,7 +1775,7 @@ def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
             max_session=None,
             return_timeout=True,
             script_failure_important=True,
-            queue_guidance=True,
+            launch_context="recurring",
         )
 
     assert excinfo.value.code == 2
@@ -1823,7 +1824,7 @@ def test_internal_recurring_launch_uses_admitted_remote_less_control(
         max_session=None,
         return_timeout=True,
         script_failure_important=True,
-        queue_guidance=True,
+        launch_context="recurring",
     )
 
     assert result.kind == "script"
@@ -3357,7 +3358,6 @@ def test_launch_returns_spawned_bootstrap_termination_kind(
         idle_timeout=900.0,
         max_session=None,
         return_timeout=True,
-        queue_guidance=True,
     )
 
     assert kind == outcome.kind
@@ -3392,7 +3392,7 @@ def test_launch_before_spawn_callback_runs_at_bootstrap_spawn_boundary(
         idle_timeout=900.0,
         max_session=None,
         return_timeout=True,
-        queue_guidance=True,
+        launch_context="recurring",
         before_spawn=lambda: events.append("before-spawn"),
     )
 
@@ -3442,7 +3442,7 @@ def test_launch_recomposes_after_before_spawn_publication(
         idle_timeout=900.0,
         max_session=None,
         return_timeout=True,
-        queue_guidance=True,
+        launch_context="recurring",
         before_spawn=publish_period_start,
         revalidate_before_spawn=lambda _ticket: events.append("revalidate"),
     )
@@ -3469,7 +3469,7 @@ def test_launch_before_spawn_callback_skipped_on_preflight_refusal(
             idle_timeout=900.0,
             max_session=None,
             return_timeout=True,
-            queue_guidance=True,
+            launch_context="recurring",
             before_spawn=lambda: events.append("before-spawn"),
         )
 
@@ -4103,9 +4103,9 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
     real_compose_prompt = launch_module.compose_prompt
     composed_ticket_bodies: list[str] = []
 
-    def capture_compose_prompt(cfg, ref, ticket):  # type: ignore[no-untyped-def]
+    def capture_compose_prompt(cfg, ref, ticket, **kwargs):  # type: ignore[no-untyped-def]
         composed_ticket_bodies.append(ticket.body)
-        return real_compose_prompt(cfg, ref, ticket)
+        return real_compose_prompt(cfg, ref, ticket, **kwargs)
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
@@ -4164,7 +4164,6 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
         idle_timeout=None,
         max_session=None,
         return_timeout=False,
-        queue_guidance=False,
     )
 
     assert git_repo.git("status", "--porcelain").strip() == ""
@@ -4275,7 +4274,6 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
         idle_timeout=None,
         max_session=None,
         return_timeout=False,
-        queue_guidance=False,
     )
 
     assert observed == [("claude", "1 (implement)")]
@@ -4338,7 +4336,6 @@ def test_human_assist_validates_override_after_remote_config_alignment(
         idle_timeout=None,
         max_session=None,
         return_timeout=False,
-        queue_guidance=False,
     )
 
     assert observed == ["reviewer"]
@@ -4402,7 +4399,6 @@ def test_human_assist_refuses_mismatched_fresh_control_state(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     rel = str(ticket_path.relative_to(git_repo.root))
@@ -4527,7 +4523,6 @@ def test_human_assist_aligns_resumable_state_before_lifecycle_commits(
         idle_timeout=None,
         max_session=None,
         return_timeout=False,
-        queue_guidance=False,
     )
 
     assert Ticket.read(ticket_path).status == "in_progress"
@@ -4619,7 +4614,6 @@ def test_human_assist_does_not_recreate_branch_deleted_after_alignment(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert exc_info.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -5391,7 +5385,6 @@ def test_blocked_recorded_assist_terminal_script_is_reblocked(
         idle_timeout=None,
         max_session=None,
         return_timeout=False,
-        queue_guidance=False,
     )
 
     expected = ("blocked", "2 (review)", "marc")
@@ -5541,7 +5534,6 @@ def test_recorded_assist_script_handoff_keeps_strict_agent_publication(
         idle_timeout=None,
         max_session=None,
         return_timeout=False,
-        queue_guidance=False,
     )
 
     assert len(spawns) == 2
@@ -5620,7 +5612,6 @@ def test_human_assist_alignment_keeps_original_prefix_target(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -5674,7 +5665,6 @@ def test_human_assist_retains_consistent_state_after_post_publication_interrupt(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -5734,7 +5724,6 @@ def test_human_assist_validation_refusal_restores_armed_generated_state(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -5796,7 +5785,6 @@ def test_blocked_human_assist_republishes_unresolved_reblock(
         idle_timeout=None,
         max_session=None,
         return_timeout=False,
-        queue_guidance=False,
     )
 
     assert Ticket.read(ticket_path).status == "blocked"
@@ -5858,7 +5846,6 @@ def test_blocked_human_assist_interrupt_republishes_unresolved_reblock(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -5922,7 +5909,6 @@ def test_blocked_script_exception_reblock_refusal_uses_no_sweep_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -5975,7 +5961,6 @@ def test_blocked_malformed_script_reblock_is_published_before_child_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == 17
@@ -6080,7 +6065,6 @@ def test_blocked_human_assist_explicit_block_publishes_through_lease(
         idle_timeout=None,
         max_session=None,
         return_timeout=False,
-        queue_guidance=False,
     )
 
     rel = str(ticket_path.relative_to(git_repo.root))
@@ -6888,7 +6872,6 @@ def test_human_assist_from_recorded_linked_worktree_starts_clean(
         idle_timeout=None,
         max_session=None,
         return_timeout=False,
-        queue_guidance=False,
     )
 
     assert Ticket.read(linked_ticket).assignee == "marc"
@@ -6927,7 +6910,6 @@ def test_parked_human_assist_preflight_failure_preserves_state(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert Ticket.read(ticket_path).status == initial_status
@@ -6983,7 +6965,6 @@ def test_human_assist_notification_preflight_preserves_unstarted_state(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     rel = str(ticket_path.relative_to(git_repo.root))
@@ -7046,7 +7027,6 @@ def test_parked_human_assist_activation_failure_restores_state(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7281,7 +7261,6 @@ def test_human_assist_does_not_sweep_commit_created_after_alignment(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert Ticket.read(ticket_path).status == "active"
@@ -7348,7 +7327,6 @@ def test_human_assist_log_refusal_uses_no_sweep_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7412,7 +7390,6 @@ def test_human_assist_setup_refusal_uses_no_sweep_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7462,7 +7439,6 @@ def test_human_assist_alignment_refusal_uses_no_sweep_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7496,7 +7472,6 @@ def test_human_assist_without_tty_refuses_before_alignment(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == 2
@@ -7536,7 +7511,6 @@ def test_human_assist_without_tty_preserves_append_only_retry_log(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7569,7 +7543,6 @@ def test_human_assist_without_tty_does_not_protect_rewritten_log(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == 2
@@ -7616,7 +7589,6 @@ def test_human_assist_setup_interrupt_uses_no_sweep_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7654,7 +7626,6 @@ def test_human_assist_post_alignment_refresh_interrupt_uses_no_sweep_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7709,7 +7680,6 @@ def test_aligned_assist_unreadable_ticket_uses_no_sweep_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7767,7 +7737,6 @@ def test_assist_alignment_reread_failure_uses_no_sweep_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7811,7 +7780,6 @@ def test_aligned_assist_refuses_checkout_switch_before_session(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7850,7 +7818,6 @@ def test_human_assist_rejects_control_named_pr_before_writing(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7911,7 +7878,6 @@ def test_human_assist_pins_recorded_pr_url_after_alignment(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -7998,7 +7964,6 @@ def test_blocked_assist_trailing_log_refusal_reblocks_before_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -8055,7 +8020,6 @@ def test_aligned_assist_teardown_refresh_interrupt_uses_no_sweep_exit(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -8131,7 +8095,6 @@ def test_assist_trailing_log_refuses_after_recorded_pr_closes(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -8222,7 +8185,6 @@ def test_assist_refresh_refuses_after_pr_closes_post_trailing_log(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -8329,7 +8291,6 @@ def test_human_assist_branch_switch_cannot_redirect_teardown_publication(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
@@ -8414,7 +8375,6 @@ def test_human_assist_does_not_publish_from_an_unrecorded_branch(
         idle_timeout=None,
         max_session=None,
         return_timeout=False,
-        queue_guidance=False,
     )
 
     assert git_repo.git(
@@ -8708,17 +8668,66 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     assert ticket.assignee == "codex"
 
 
-def test_queue_prompt_suffix_carries_block_guidance() -> None:
-    """Queue guidance requires durable terminal transitions."""
-    from coga.commands.launch import _queue_prompt_suffix
+def test_conduct_is_a_composed_layer_not_a_prompt_suffix(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Conduct reaches the agent as the selected `session_conduct` layer.
 
-    suffix = _queue_prompt_suffix()
-    assert suffix.startswith("\n\n")
-    assert "coga block" in suffix
-    assert "coga bump" in suffix
-    assert "stateless `bootstrap/<name>` command ticket" in suffix
-    assert "coga slack --task bootstrap/<name>" in suffix
-    assert "does not release the queue" in suffix
+    `prompt_suffix` is left for genuinely appended invocation input such as
+    `## Launch arguments`; an appended conduct block is what made a queued
+    prompt carry a rule and its inverse.
+    """
+    seen: dict[str, object] = {}
+    real_spawn = launch_module.spawn_agent_session
+
+    def capture(*args, **kwargs):  # type: ignore[no-untyped-def]
+        seen["prompt_suffix"] = kwargs.get("prompt_suffix", "")
+        seen["launch_context"] = kwargs.get("launch_context")
+        return real_spawn(*args, **kwargs)
+
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *args, **kwargs: ReplOutcome(exit_code=0, kind="done"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(launch_module, "spawn_agent_session", capture)
+
+    launch_module.launch(
+        "fix-retry-logic",
+        args=[],
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=False,
+    )
+
+    # The public CLI spelling is attended, and it appends no conduct.
+    assert seen["launch_context"] == "attended"
+    assert seen["prompt_suffix"] == ""
+
+
+def test_queue_conduct_resources_require_durable_terminal_transitions() -> None:
+    """Both queue conduct layers still demand a real Coga transition."""
+    from coga.compose import SESSION_CONDUCT_RESOURCES
+
+    recurring = (
+        files("coga.resources")
+        .joinpath(SESSION_CONDUCT_RESOURCES["recurring"])
+        .read_text()
+    )
+    assert "coga block" in recurring
+    assert "coga bump" in recurring
+    assert "stateless `bootstrap/<name>` command ticket" in recurring
+    assert "coga slack --task bootstrap/<name>" in recurring
+    assert "does not release the queue" in recurring
 
 
 # --- pre-spawn file errors are not "the agent CLI is missing" -----------------

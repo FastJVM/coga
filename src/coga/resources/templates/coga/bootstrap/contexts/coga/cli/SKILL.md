@@ -651,10 +651,10 @@ launch — the agent REPL streams live to the console under the PTY watcher, and
 the done-sentinel (`coga bump` / `mark done` / `mark canceled` / `block`)
 releases it before the sweep moves on — never a headless `claude -p` run, which would buffer all
 output until the run ends. The TTY is transport, not an approval gate:
-megalaunch appends package-backed queue guidance telling the agent to announce
-its plan and continue, while a decision or capability that genuinely requires
-the owner must end in `coga block`, not a conversational "shall I proceed?" or
-"blocked" reply. A normal final response does not release the queue. The
+megalaunch composes its own session-conduct layer (`prompt-megalaunch.md`)
+telling the agent to announce its plan and continue, while a decision or
+capability that genuinely requires the owner must end in `coga block`, not a
+conversational "shall I proceed?" or "blocked" reply. A normal final response does not release the queue. The
 recurring-style idle-timeout / max-session
 backstops are armed so a wedged REPL can't starve the queue; because the REPLs
 (and the `--pick` prompt) are interactive, megalaunch requires a TTY and fails
@@ -889,12 +889,15 @@ be agent-backed: a bootstrap target with `ticket.py` is rejected before period
 creation, and its deterministic work belongs in the recurring template's own
 `ticket.py`.
 
-**Queue guidance.** Like megalaunch, automatic recurring launches (the bare
+**Queue conduct.** Like megalaunch, automatic recurring launches (the bare
 sweep, `--force`, and on-demand `recurring launch <name>` — everything except
-`--interactive`) append package-backed queue guidance (`prompt-queue.md`, via
-`coga launch --queue-guidance`) to each composed agent prompt: the TTY is
-transport, not an approval gate, so unavailable input must end in `coga block`
-rather than a question that hangs the queue. See `coga/architecture`.
+`--interactive`) select the recurring queue session-conduct layer
+(`prompt-queue.md`) into each composed agent prompt: the TTY is transport, not
+an approval gate, so unavailable input must end in `coga block` rather than a
+question that hangs the queue. `--interactive` selects attended conduct
+instead. This is composition, not an appended override, and the selector is
+the runner's own launch context — there is no CLI flag for it. See
+`coga/architecture`.
 
 **Idle-timeout backstop.** An agent template that *does* launch (a TTY is
 present) but whose agent stalls or crashes before signalling done — never

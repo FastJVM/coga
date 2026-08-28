@@ -7,6 +7,7 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from coga.blackboard import BLOCKER_TS_FORMAT, Blocker, parse_blockers_text
 from coga.config import Config
@@ -38,6 +39,34 @@ class ComposeError(RuntimeError):
 
 
 _SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+
+
+LaunchContext = Literal["attended", "megalaunch", "recurring"]
+"""How this session was invoked. The selector for session conduct.
+
+This is ephemeral launch-invocation state supplied by the caller, never a
+ticket field or a config option: how a session executes is a property of the
+invocation, not of the task (#545). `coga launch`, `coga chat`, guided
+`coga ticket` authoring, and every `--interactive` recurring spelling are
+attended; `coga megalaunch` and automatic runner-owned recurring execution are
+their respective queues.
+"""
+
+SESSION_CONDUCT_RESOURCES: dict[str, str] = {
+    "attended": "prompt-attended.md",
+    "megalaunch": "prompt-megalaunch.md",
+    "recurring": "prompt-queue.md",
+}
+"""One conduct resource per launch context — selected, never stacked.
+
+Conduct used to be an attended default in `prompt.md` plus a queue block
+appended after the task layers, so a queued prompt carried a rule and its
+inverse and correctness rode on precedence prose. Exactly one of these is
+composed instead, as a reported `session_conduct` layer. The two queue
+resources are deliberately complete rather than a shared fragment plus tails:
+only one ever reaches an agent, so the repeated wording costs no runtime
+tokens, and the highest-consequence policy stays readable as one unit.
+"""
 
 
 @dataclass(frozen=True)
@@ -108,6 +137,7 @@ def compose_prompt(
     ticket: Ticket,
     *,
     include_blocker_preamble: bool = True,
+    launch_context: LaunchContext = "attended",
 ) -> str:
     """Assemble the composed prompt in spec order (§compose)."""
     return compose_prompt_report(
@@ -115,6 +145,7 @@ def compose_prompt(
         task_ref,
         ticket,
         include_blocker_preamble=include_blocker_preamble,
+        launch_context=launch_context,
     ).prompt
 
 
@@ -124,8 +155,14 @@ def compose_prompt_report(
     ticket: Ticket,
     *,
     include_blocker_preamble: bool = True,
+    launch_context: LaunchContext = "attended",
 ) -> PromptComposition:
-    """Assemble the prompt and keep per-layer measurement metadata."""
+    """Assemble the prompt and keep per-layer measurement metadata.
+
+    `launch_context` selects the one composed session-conduct layer. It
+    defaults to `"attended"` so any caller that does not know it is draining a
+    queue gets the ask-a-present-human contract.
+    """
     layers: list[PromptLayer] = []
 
     # Split the single-file ticket body at the blackboard fence: the body above
@@ -146,12 +183,34 @@ def compose_prompt_report(
         header += f"\nStatus: {ticket.status}"
     layers.append(PromptLayer("header", "Header", header, raw=True))
 
-    # 1. Base prompt
+    # 1. Base prompt — neutral on conduct. It cross-references the selected
+    # layer below rather than carrying a default that a later layer overrides.
     layers.append(PromptLayer(
         "base_prompt",
         "Coga base prompt",
         _resource("prompt.md"),
         ref="prompt.md",
+    ))
+
+    # 2. Session conduct, selected by launch context. Exactly one, immediately
+    # after the neutral base so the agent reads how to operate before any task
+    # material. A missing resource is a ComposeError like any other dropped
+    # layer: launch refuses before it publishes `in_progress` or spawns.
+    conduct_resource = SESSION_CONDUCT_RESOURCES.get(launch_context)
+    if conduct_resource is None:
+        raise ComposeError(
+            f"Unknown launch context {launch_context!r}. Valid contexts: "
+            f"{', '.join(sorted(SESSION_CONDUCT_RESOURCES))}."
+        )
+    # `raw` so the resource's own `## Session conduct — <context>` heading is
+    # the section heading: the selected context stays visible to the agent
+    # instead of being flattened into one generic title.
+    layers.append(PromptLayer(
+        "session_conduct",
+        "Session conduct",
+        _resource(conduct_resource),
+        ref=conduct_resource,
+        raw=True,
     ))
 
     # 2b. Blocker-resolution preamble. An interactive session whose blackboard
@@ -412,6 +471,8 @@ def _missing_skill_message(cfg: Config, skill_ref: str, slug: str) -> str:
 
 __all__ = [
     "ComposeError",
+    "LaunchContext",
+    "SESSION_CONDUCT_RESOURCES",
     "PromptComposition",
     "PromptLayer",
     "compose_prompt",

@@ -326,7 +326,6 @@ def test_script_block_returns_internal_script_stop_kind(
         idle_timeout=None,
         max_session=None,
         return_timeout=True,
-        queue_guidance=True,
         script_failure_important=True,
     )
 
@@ -732,7 +731,6 @@ def test_recorded_assist_aligns_before_running_ticket_script(
             idle_timeout=None,
             max_session=None,
             return_timeout=False,
-            queue_guidance=False,
         )
 
     if script_exit:

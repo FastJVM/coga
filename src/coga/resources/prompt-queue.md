@@ -1,9 +1,10 @@
-## Sequential queue execution
+## Session conduct — recurring queue
 
 This session is one task in a sequential automated queue (a `coga recurring`
 sweep). The REPL has a TTY so work can stream live and a human can interrupt,
-but the TTY does **not** mean a human is waiting to approve a plan — the queue
-may be running unattended.
+but the TTY is transport, not evidence that a human is waiting to approve a
+plan — the queue may be running unattended. Input you do not already have is
+unavailable.
 
 - State a concise plan and its tradeoff, then continue. Do not ask for plan
   confirmation or end a turn waiting for permission; a present human can

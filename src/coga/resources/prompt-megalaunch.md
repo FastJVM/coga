@@ -1,10 +1,9 @@
-## Megalaunch queue execution
+## Session conduct — megalaunch queue
 
 This session is one step in a sequential `coga megalaunch` queue. The REPL has
 a TTY so work can stream live and a human can interrupt, but the TTY is
-transport, not evidence that a human is waiting to answer. This queue
-directive overrides the attended ask-and-wait default in "Working with the
-human".
+transport, not evidence that a human is waiting to answer. Input you do not
+already have is unavailable.
 
 - State a concise plan and its tradeoff, then continue. Do not ask for plan
   confirmation or end a turn waiting for permission; a present human can

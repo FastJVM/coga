@@ -10,6 +10,7 @@ from coga.blackboard import append_blocker, resolve_open_blockers
 from coga.create import create_task
 from coga.slugify import slugify
 from coga.compose import (
+    SESSION_CONDUCT_RESOURCES,
     ComposeError,
     compose_prompt,
     compose_prompt_report,
@@ -127,8 +128,8 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Task directory: coga/tasks/fix-retry-logic" in prompt
     # Base prompt
     assert "You are an agent working on a ticket inside Coga" in prompt
-    # Agent prompt
-    assert "Working with the human" in prompt
+    # Session conduct — the attended default when no context is given
+    assert "Session conduct — attended" in prompt
     # Repo context
     assert "Email tool is YC-backed" in prompt
     # Ticket context
@@ -140,13 +141,13 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Blackboard" in prompt
 
 
-def test_compose_agent_prompt_attended_ask_and_wait(repo: Path) -> None:
-    """A full ordinary step prompt directs the agent to ask the present human
-    and wait; blocking is reserved for an explicit human request, and no layer
-    carries a generic direction to block merely because input is needed."""
-    # Exercise the shipped inline peer-review step, not the fixture's neutral
-    # local workflow/skill, so a later-composed stock layer cannot contradict
-    # the attended mode unnoticed.
+def _conduct_step_task(repo: Path) -> tuple[object, object, object]:
+    """A full ordinary step prompt on a shipped inline peer-review step.
+
+    Exercises the stock workflow rather than the fixture's neutral local one,
+    so a later-composed shipped layer cannot contradict the selected conduct
+    unnoticed.
+    """
     (repo / "workflows" / "code" / "with-review.md").unlink()
     cfg = load_config(repo)
     create_task(
@@ -163,59 +164,147 @@ def test_compose_agent_prompt_attended_ask_and_wait(repo: Path) -> None:
     ticket = read_ticket(ref)
     ticket.frontmatter["step"] = "2 (peer-review)"
     ticket.write(ref.ticket_path)
-    ticket = read_ticket(ref)
-    prompt = compose_prompt(cfg, ref, ticket)
-    normalized_prompt = " ".join(prompt.split())
+    return cfg, ref, read_ticket(ref)
 
-    # The attended default: the human is in the REPL — ask and wait.
-    assert "This launch is attended — ask and wait." in normalized_prompt
-    assert "ask them directly and wait for their answer" in normalized_prompt
-    # Blocking is reserved for an explicit human request to park the ticket.
-    assert (
-        "block only when the human explicitly asks you to park or block the"
-        " ticket" in normalized_prompt
+
+# The clauses each launch context must carry, and the opposite contract it must
+# not. Selection replaced precedence: instead of ranking a rule against its
+# inverse, the guard is that exactly one conduct block is composed and it is
+# the right one.
+_ATTENDED_CLAUSES = (
+    "Session conduct — attended",
+    "A human launched this session and is present in the REPL.",
+    "ask the human directly and wait for their answer",
+    "`coga block` is for one case only: the human explicitly asks you to park"
+    " or block the ticket",
+    "State a one- or two-sentence plan and its tradeoff, then let the human"
+    " confirm or redirect before you write code.",
+)
+_QUEUE_CLAUSES = (
+    "the TTY is transport, not evidence that a human is waiting",
+    "State a concise plan and its tradeoff, then continue.",
+    "Do not ask for plan confirmation or end a turn waiting for permission",
+    "as the terminal action",
+)
+
+CONDUCT_CASES = {
+    "attended": (_ATTENDED_CLAUSES, _QUEUE_CLAUSES),
+    "megalaunch": (
+        _QUEUE_CLAUSES
+        + (
+            "Session conduct — megalaunch queue",
+            "one step in a sequential `coga megalaunch` queue",
+            "include that task's exact path-qualified slug in `--reason`",
+            "Existing blocker-resolution exception",
+        ),
+        _ATTENDED_CLAUSES,
+    ),
+    "recurring": (
+        _QUEUE_CLAUSES
+        + (
+            "Session conduct — recurring queue",
+            "one task in a sequential automated queue (a `coga recurring`"
+            " sweep)",
+            "A stateless `bootstrap/<name>` command ticket has no task"
+            " lifecycle to bump, mark, or block.",
+            "`coga slack --task bootstrap/<name> ...` posts its roll-up",
+        ),
+        _ATTENDED_CLAUSES,
+    ),
+}
+
+
+@pytest.mark.parametrize("launch_context", sorted(CONDUCT_CASES))
+def test_compose_selects_exactly_one_session_conduct_layer(
+    repo: Path, launch_context: str
+) -> None:
+    """Each launch context composes its own conduct resource, once."""
+    cfg, ref, ticket = _conduct_step_task(repo)
+    composition = compose_prompt_report(
+        cfg, ref, ticket, launch_context=launch_context
     )
-    # The attended rule wins over generic block wording in downstream layers.
-    assert (
-        "This attended rule is authoritative over any generic instruction"
-        in normalized_prompt
+
+    conduct = [
+        layer for layer in composition.layers if layer.layer == "session_conduct"
+    ]
+    assert len(conduct) == 1
+    assert conduct[0].ref == SESSION_CONDUCT_RESOURCES[launch_context]
+    # Conduct is read before any task material, so it sits directly after the
+    # neutral base prompt.
+    layer_names = [layer.layer for layer in composition.layers]
+    assert layer_names[:3] == ["header", "base_prompt", "session_conduct"]
+
+    normalized = " ".join(composition.prompt.split())
+    present, absent = CONDUCT_CASES[launch_context]
+    for clause in present:
+        assert clause in normalized, clause
+    for clause in absent:
+        assert clause not in normalized, clause
+    # The composed step skill is still there — conduct did not displace it.
+    assert "Current step: peer-review" in normalized
+
+
+@pytest.mark.parametrize("launch_context", sorted(CONDUCT_CASES))
+def test_compose_conduct_carries_no_precedence_prose(
+    repo: Path, launch_context: str
+) -> None:
+    """Nothing ranks one conduct block against another, because there is only
+    one. The base prompt is neutral and no resource claims to override."""
+    cfg, ref, ticket = _conduct_step_task(repo)
+    normalized = " ".join(
+        compose_prompt(cfg, ref, ticket, launch_context=launch_context).split()
     )
-    # Only a suffix appended after the task layers overrides it. Step skills
-    # compose later than agent mode, so "later" alone would be ambiguous.
+
+    assert "This launch is attended — ask and wait." not in normalized
+    assert "authoritative over any generic instruction" not in normalized
     assert (
         "Only an execution directive appended *after* the task layers"
-        in normalized_prompt
+        not in normalized
     )
-    assert (
-        "A workflow or step skill is composed later in this prompt and still"
-        " does not." in normalized_prompt
-    )
-    # The base prompt carries the companion half of that guard.
-    assert (
-        "Read every other instruction to block in this prompt, workflow step"
-        " skills included, through that rule." in normalized_prompt
-    )
-    assert "Current step: peer-review" in normalized_prompt
-    assert "escalate per your launch mode" in normalized_prompt
-    # No layer steers the agent to block merely because input is needed.
-    assert "Ask or block when uncertain" not in normalized_prompt
-    assert "call `coga block` with a specific ask" not in normalized_prompt
-    assert "that's `coga block` — never a quiet exit" not in normalized_prompt
+    assert "overrides the attended ask-and-wait default" not in normalized
+    assert "This queue directive overrides" not in normalized
+    # No stray layer steers the agent to block merely because input is needed.
+    assert "Ask or block when uncertain" not in normalized
+    assert "call `coga block` with a specific ask" not in normalized
+    assert "that's `coga block` — never a quiet exit" not in normalized
     assert (
         "Use `coga block` when progress needs a concrete decision"
-        not in normalized_prompt
+        not in normalized
     )
-    assert "blackboard and `coga block` instead" not in normalized_prompt
+    assert "blackboard and `coga block` instead" not in normalized
+    # The base prompt defers to the selected layer instead of deciding.
     assert (
-        "If your review tool isn't on PATH, `coga block`"
-        not in normalized_prompt
+        "The `Session conduct` layer in this prompt is what decides whether"
+        " input is available" in normalized
     )
-    assert (
-        "If a conflict needs a call you can't make, `coga block`"
-        not in normalized_prompt
-    )
-    # The queue directive is a megalaunch suffix, never an ordinary layer.
-    assert "Megalaunch queue execution" not in normalized_prompt
+
+
+def test_compose_rejects_an_unknown_launch_context(repo: Path) -> None:
+    """A bad selector fails loud rather than composing no conduct at all."""
+    cfg, ref, ticket = _conduct_step_task(repo)
+    with pytest.raises(ComposeError) as exc:
+        compose_prompt(cfg, ref, ticket, launch_context="unattended")
+    assert "unattended" in str(exc.value)
+
+
+def test_queue_conduct_resources_share_their_invariants() -> None:
+    """The two queue resources are deliberately complete, not a shared
+    fragment plus tails — so pin the wording they must agree on."""
+    texts = {
+        context: (
+            files("coga.resources")
+            .joinpath(SESSION_CONDUCT_RESOURCES[context])
+            .read_text()
+        )
+        for context in ("megalaunch", "recurring")
+    }
+    for context, text in texts.items():
+        normalized = " ".join(text.split())
+        for clause in _QUEUE_CLAUSES:
+            assert clause in normalized, (context, clause)
+        assert "`coga block --task <slug> --reason" in normalized
+        assert "`coga bump`" in normalized
+        assert "does not release the queue" in normalized
 
 
 @pytest.mark.parametrize(
@@ -453,13 +542,13 @@ def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
     assert layers[("ticket_context", "email/payment-flow")].approx_tokens > 0
 
 
-def test_compose_llm_mode_uses_llm_block(repo: Path) -> None:
+def test_compose_defaults_to_attended_session_conduct(repo: Path) -> None:
     cfg = load_config(repo)
     _write_workflow_less_task(repo, title="Agent task")
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
-    assert "Working with the human" in prompt
+    assert "Session conduct — attended" in prompt
 
 
 def test_compose_open_blockers_add_resolution_preamble(repo: Path) -> None:

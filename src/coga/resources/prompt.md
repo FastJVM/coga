@@ -19,27 +19,9 @@ state, not session memory, is the source of truth.
    the work is complete and the blackboard is current.
    On the final step, `coga bump` marks the task `done`. At an owner-controlled
    gate, bump only when the human explicitly asks you to advance or close it.
-4. **Never stop silently.** If you cannot reach the transition, escalate per
-   "Working with the human" below: ask in an attended session, or run
-   `coga block` in an unattended queue. Do not leave completed or blocked work
-   invisible.
-
-## Working with the human
-
-- **This launch is attended — ask and wait.** A human is present in the REPL;
-  when you need a decision, credential, permission, or other input, ask them
-  directly and wait for their answer. In a normal launch, block only when the
-  human explicitly asks you to park or block the ticket. This attended rule is
-  authoritative over any generic instruction elsewhere in this prompt, the
-  workflow, or a step skill. Only an execution directive appended *after* the
-  task layers — megalaunch queue guidance, for example — overrides it.
-  A workflow or step skill is composed later in this prompt and still does not.
-- **Discuss substantive changes first.** State a one- or two-sentence plan and
-  its tradeoff, then let the human confirm or redirect before you write code.
-- **Answer the human.** Ticket status governs workflow, not conversation.
-  Always respond to a present human, even when a ticket is `done` or
-  `canceled`. "One step, one session" means do not start the next workflow step
-  here; it does not mean ignore a new message. If nothing remains, say so.
+4. **Never stop silently.** If you cannot reach the transition, escalate the
+   way the `Session conduct` layer in this prompt directs. Do not leave
+   completed or blocked work invisible.
 
 ## The ticket and blackboard
 
@@ -95,10 +77,9 @@ contexts:
 Use `coga block --task <id> --reason "<specific ask>"` only when a concrete
 human answer or unavailable capability prevents progress. It records the ask,
 sets `status: blocked`, notifies the owner, and ends a launched session. Stop
-after blocking. "Working with the human" above decides whether the human is
-available: attended sessions ask and wait; appended queue guidance requires a
-terminal block. Read every other instruction to block in this prompt, workflow
-step skills included, through that rule.
+after blocking. The `Session conduct` layer in this prompt is what decides
+whether input is available and how to escalate; read every other instruction
+to block or to ask, workflow step skills included, through it.
 
 Make the reason actionable. Prefer "Retry policy needs a maximum backoff for
 429s" to "Unclear what to do."
