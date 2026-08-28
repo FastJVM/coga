@@ -365,6 +365,16 @@ reviewer was considered and deferred: this is the smallest policy surface that
 unblocks a third agent, and a narrower override can layer on later if a real
 need appears.
 
+Note the asymmetry `peer` has with the rest of the local overlay. The other
+keys only decide which binary this machine runs and leave no committed trace,
+whereas resolving `other-agent` rewrites the ticket's `assignee:` — committed
+content. A `peer` declared only in `coga.local.toml` therefore makes durable
+ticket state depend on which machine performed the bump. That is accepted:
+declaring the peer locally is how a machine with a third agent installed wires
+itself up without committing a type its teammates do not have. A repo that
+wants one answer for everyone puts `peer` in `coga.toml`, where it is shared
+policy like any other committed default.
+
 ## Config loading fails loud on unknown keys
 
 `load_config` validates `coga.toml` **and** `coga.local.toml` against a fixed

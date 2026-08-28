@@ -128,16 +128,30 @@ def advance_step(
     under one exact lease before any handoff notification is emitted.
     """
     owner = ticket.owner or cfg.current_user
-    ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
+    # Validate the prospective move before committing it, the way
+    # `mark canceled` already does. Not every error this raises is caused by
+    # the write: an `other-agent` step that cannot resolve against this
+    # machine's `[agents.*]` is a config fact, unchanged by the bump and
+    # unfixable by editing the ticket. Validating afterwards would report
+    # failure over a ticket already advanced on disk with no audit entry and
+    # no sync, and each retry would advance it again.
+    prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+    prospective.frontmatter["step"] = f"{next_step} ({new_step_name})"
     if new_assignee is not None:
-        ticket.frontmatter["assignee"] = new_assignee
+        prospective.frontmatter["assignee"] = new_assignee
+    assert_task_valid(
+        cfg,
+        ref,
+        action=f"bump to step {next_step} ({new_step_name})",
+        ticket_override=prospective,
+    )
+    ticket.frontmatter = prospective.frontmatter
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
     if mutation_snapshot is not None:
         mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
-    assert_task_valid(cfg, ref, action=f"bump to step {next_step} ({new_step_name})")
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
         mutation_snapshot.arm_append(log_path(cfg), audit_append)

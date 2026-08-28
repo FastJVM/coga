@@ -184,15 +184,23 @@ def mark_done(
         _assert_no_stranded_product_code(cfg, ref, ticket)
     owner = ticket.owner or cfg.current_user
     spool_path = _prepare_outcome_spool(cfg, mutation_snapshot)
-    ticket.frontmatter["status"] = "done"
-    ticket.frontmatter.pop("step", None)
+    # Validate the prospective close before committing it, the way
+    # `mark canceled` already does. An `other-agent` step that cannot resolve
+    # against this machine's `[agents.*]` is a config fact rather than
+    # something this write caused, so validating afterwards would leave a
+    # ticket marked done on disk with no audit entry and no sync — on the very
+    # tickets an operator is only trying to close.
+    prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+    prospective.frontmatter["status"] = "done"
+    prospective.frontmatter.pop("step", None)
+    assert_task_valid(cfg, ref, action="mark done", ticket_override=prospective)
+    ticket.frontmatter = prospective.frontmatter
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
     ticket.write(ref.ticket_path)
     if mutation_snapshot is not None:
         mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
-    assert_task_valid(cfg, ref, action="mark done")
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
         mutation_snapshot.arm_append(log_path(cfg), audit_append)

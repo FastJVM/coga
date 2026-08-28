@@ -1355,6 +1355,67 @@ def test_declared_peer_beats_two_agent_inference(repo: Path) -> None:
     assert resolve_other_agent(cfg, "claude") == "codex"
 
 
+def _strand_on_a_third_agent(repo: Path) -> tuple[str, Path]:
+    """A ticket parked past an `other-agent` step that no longer resolves.
+
+    Step 2 is `other-agent`; a third `[agents.*]` with no declared `peer`
+    appears after the ticket has already moved through it. Step 3 (`owner`)
+    still resolves on its own, so the only thing that can fail a bump off
+    step 2 is the all-steps validation of the frozen snapshot.
+    """
+    _add_codex_agent(repo)
+    _write_peer_review_workflow(repo)
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg, title="W", workflow_name="peer", contexts=[],
+        owner="marc", assignee="claude", human="marc", agent="claude",
+        watchers=[], status="in_progress",
+    )
+    slug, task_path = ref["slug"], ref["path"]
+    result = CliRunner().invoke(app, ["bump", slug])
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).step == "2 (peer-review)"
+
+    toml = repo / "coga.toml"
+    toml.write_text(
+        toml.read_text()
+        + '\n[agents.local-llm]\ncli = "ollama"\nfile = "AGENTS.md"\n'
+    )
+    return slug, task_path
+
+
+def test_unresolvable_peer_refuses_bump_without_advancing_the_ticket(
+    repo: Path,
+) -> None:
+    # The check is a fact about this machine's config, not about the write, so
+    # it has to refuse before the mutation. Validating afterwards left the
+    # ticket advanced on disk with no audit line and no sync, and every retry
+    # walked it forward another step.
+    slug, task_path = _strand_on_a_third_agent(repo)
+
+    result = CliRunner().invoke(app, ["bump", slug])
+    assert result.exit_code != 0
+    assert "unresolvable-step-assignee" in result.output
+
+    t = Ticket.read(task_path)
+    assert t.step == "2 (peer-review)"
+    assert t.assignee == "codex"
+    assert "3 (signoff)" not in _log_text(repo, slug)
+
+
+def test_unresolvable_peer_refuses_mark_done_without_closing_the_ticket(
+    repo: Path,
+) -> None:
+    slug, task_path = _strand_on_a_third_agent(repo)
+
+    result = CliRunner().invoke(app, ["mark", "done", slug])
+    assert result.exit_code != 0
+
+    t = Ticket.read(task_path)
+    assert t.status == "in_progress"
+    assert t.step == "2 (peer-review)"
+
+
 def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
     # Hand-authored ticket: `workflow:` is a bare string ref, no `step:`.
     legacy = repo / "tasks" / "legacy"
