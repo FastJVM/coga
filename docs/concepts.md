@@ -169,7 +169,9 @@ Every ticket tracks two independent things, and different commands own each:
   `coga bump`. A bare `coga bump` advances one step, and only while status is
   `in_progress`; a human (outside a supervised launch) can rewind with `--to`
   or `--backward` from `active`, `in_progress`, or `paused` — a rewind moves
-  the step and leaves the status alone.
+  the step and leaves the status alone. An `active`/`paused` rewind must target
+  a configured agent; human or unassigned targets require `in_progress` so the
+  status-preserving move cannot strand the handoff.
 
 Keeping them separate is what lets you pause a task without losing its place, or
 resume a blocked task at the exact step it stopped on. Tickets with no workflow

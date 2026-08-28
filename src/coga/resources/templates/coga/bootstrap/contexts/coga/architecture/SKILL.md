@@ -447,10 +447,14 @@ bundled refs may replace that list with specific cleanup instructions.
   supervised launch may rewind to an earlier step with `--to` or
   `--backward`. A rewind is reposition-only: it accepts `active`,
   `in_progress`, and `paused`, writes `step:`, may re-resolve `assignee:` for
-  the target step, and never changes status — the human resumes with `coga
-  launch`. It refuses a `blocked` ticket (run `coga unblock` first, which owns
-  blocker resolution) and the terminal statuses, which have no `step:` to
-  move. Pausing preserves the step; cancellation clears it.
+  the target step, and never changes status. An `active` or `paused` rewind
+  must target a configured agent so the human can resume it with `coga launch`;
+  it refuses a human or unassigned target because ordinary launch is a hard
+  handoff and a forward bump requires `in_progress`. An already `in_progress`
+  ticket may rewind to either kind of target. Rewind also refuses a `blocked`
+  ticket (run `coga unblock` first, which owns blocker resolution) and the
+  terminal statuses, which have no `step:` to move. Pausing preserves the
+  step; cancellation clears it.
 
 Tickets without a `workflow` field have no steps and move through
 statuses directly via `coga mark`. `coga bump` refuses them.

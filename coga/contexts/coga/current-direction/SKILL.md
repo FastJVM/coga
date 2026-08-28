@@ -285,8 +285,10 @@ ones that affect implementation:
   workflow" was confusing. `bump` derives the next step from the
   current `step:` frontmatter and normally advances by one. Humans may rewind
   `active`, `in_progress`, or `paused` workflow tasks to an earlier step with
-  `--to` or `--backward`; agents still block instead of going backward. `bump`
-  does finish tickets from their final workflow step by delegating to the same
+  `--to` or `--backward`; an `active`/`paused` rewind must target a configured
+  agent so the unchanged status remains launchable. Agents still block instead
+  of going backward. `bump` does finish tickets from their final workflow step
+  by delegating to the same
   `mark_done` finalizer as `coga mark done`. A no-workflow ticket still errors
   and points at `coga mark done` because it has no step for `bump` to finish.
 - **`coga recurring` is the canonical entry point** for the recurring
@@ -298,7 +300,8 @@ ones that affect implementation:
   `active` is approved/queued, and `in_progress` is launched work. `coga
   launch` owns the `active` → `in_progress` start transition; `coga bump`
   owns `step:` movement. Forward bumps require `in_progress`; a human rewind
-  also accepts `active` or `paused` and leaves status unchanged.
+  also accepts `active` or `paused`, leaves status unchanged, and refuses a
+  human/unassigned target from those statuses.
   The normal boot is `coga ticket "<title>"` → review the draft →
   `coga launch <slug>`, which activates the draft inline as it starts work.
 

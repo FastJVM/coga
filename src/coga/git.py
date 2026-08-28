@@ -113,10 +113,12 @@ _ANY_WORKTREE_BYTES = object()
 
 # Process exit code meaning "the command deliberately retained retryable local
 # state; do not run the catch-all end-of-command state sweep". The
-# recurring-scan freshness gate uses it when the control checkout is stale, and
-# a recorded PR assist uses it when a leased log publication is refused. In
-# both cases the ordinary sweep would destroy the refusal's safety property by
-# committing exactly the bytes the narrow publisher intentionally left dirty.
+# recurring-scan freshness gate uses it when the control checkout is stale, a
+# recorded PR assist uses it when a leased log publication is refused, and a
+# rewind uses it when control status no longer matches its retained local
+# transition. In each case the ordinary sweep would destroy the refusal's
+# safety property by committing exactly the bytes the narrow publisher
+# intentionally left dirty.
 # 75 is BSD's EX_TEMPFAIL ("temporary failure, retry later").
 RETRY_WITHOUT_SWEEP_EXIT_CODE = 75
 
@@ -640,7 +642,9 @@ def sync_task_state(
     newer control tip. ``raise_state_regression`` is the transactional form
     for callers that gate later work on the guard's compare-and-set: a refusal
     is re-raised after the sync layer unwinds any unpushed commit. Ordinary
-    human commands retain the non-fatal, locally-visible transition policy.
+    human commands retain the non-fatal, locally-visible transition policy;
+    rewind is the exception because its caller must suppress the generic state
+    sweep after retaining a refused local step move.
     ``raise_git_error`` additionally makes every attempted Git publication
     failure observable to a caller that must not perform a dependent side
     effect without confirmed control state. It also refuses a requested

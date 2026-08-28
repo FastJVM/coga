@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from textwrap import dedent
 
@@ -4353,7 +4354,8 @@ def test_bump_rewind_refuses_a_different_control_status(
 
     result = runner.invoke(app, ["bump", "demo", "--to", "1"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert "local rewind was retained" in result.output
     origin_ticket = git_repo.git(
         "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
     )
@@ -4389,7 +4391,8 @@ def test_bump_rewind_still_refuses_a_terminal_control_copy(git_repo):
 
     result = runner.invoke(app, ["bump", "demo", "--to", "1"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert "local rewind was retained" in result.output
     origin_ticket = git_repo.git(
         "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
     )
@@ -4398,6 +4401,63 @@ def test_bump_rewind_still_refuses_a_terminal_control_copy(git_repo):
         "terminal status would change from 'done'"
         in (git_repo.coga_os / "log.md").read_text()
     )
+
+
+def test_cli_rewind_status_refusal_skips_fallback_state_sweep(git_repo) -> None:
+    """The generic CLI sweep cannot republish a refused stale rewind."""
+    ticket = _seed_demo_ticket(
+        git_repo,
+        status="paused",
+        blackboard="stale local notes\n",
+        step="3 (merge)",
+    )
+    git_repo.checkout_branch("feature/rewind-no-fallback-sweep")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    # Control is now on an earlier step than the eventual local target. Its
+    # status mismatch is the only thing that makes the narrow rewind publisher
+    # refuse; the broad sweep would otherwise consider step 2 forward from 1.
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="newer control notes\n",
+        ),
+    )
+    env = os.environ.copy()
+    source_root = Path(__file__).resolve().parents[1] / "src"
+    existing_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        str(source_root)
+        if not existing_pythonpath
+        else os.pathsep.join((str(source_root), existing_pythonpath))
+    )
+    env.pop("SLACK_WEBHOOK_URL", None)
+
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "bump", "demo", "--backward"],
+        cwd=git_repo.coga_os,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.stderr
+    assert "local rewind was retained" in result.stderr
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    origin_ticket = git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert "status: in_progress" in origin_ticket
+    assert "step: 1 (implement)" in origin_ticket
+    assert "newer control notes" in origin_ticket
+    local_ticket = ticket.read_text()
+    assert "status: paused" in local_ticket
+    assert "step: 2 (review)" in local_ticket
+    assert "stale local notes" in local_ticket
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
 
 
 def test_unblock_resolve_only_refuses_to_bury_terminal_control_copy(git_repo):

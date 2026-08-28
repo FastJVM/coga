@@ -28,12 +28,12 @@ class AssigneeResolutionError(Exception):
 REWINDABLE_STATUSES: frozenset[str] = frozenset({"active", "in_progress", "paused"})
 """Statuses a human rewind (`coga bump --to/--backward`) may move the step of.
 
-A rewind is reposition-only: it writes `step:` and never touches `status:`, so
-every status here must be one `coga launch` already accepts. `active` and
-`paused` tickets used to need a launch-then-exit dance purely to reach
-`in_progress`; the step move itself was always safe. `draft` has no step yet,
-`blocked` belongs to `coga unblock`, and the terminal statuses have no `step:`
-at all (`mark_done` pops it).
+A rewind is reposition-only: it writes `step:` and never touches `status:`.
+`active` and `paused` tickets used to need a launch-then-exit dance purely to
+reach `in_progress`; the caller additionally requires their target to resolve
+to a configured agent so the unchanged status remains launchable. `draft` has
+no step yet, `blocked` belongs to `coga unblock`, and the terminal statuses
+have no `step:` at all (`mark_done` pops it).
 """
 
 
@@ -151,7 +151,9 @@ def advance_step(
     backward step move. It relaxes exactly the step-backward rule in the sync
     guard — the human is the authority on their own rewind — while requiring
     the control and working statuses to match exactly. Because rewind never
-    changes status, a mismatch proves this checkout is stale.
+    changes status, a mismatch proves this checkout is stale. That mismatch is
+    propagated before output or notification so the CLI can retain the local
+    rewind while suppressing its broader end-of-command state sweep.
 
     A recorded-assist caller supplies ``feature_publication`` and an armed
     ``mutation_snapshot`` so the step and audit reach the PR and control refs
@@ -198,6 +200,7 @@ def advance_step(
                 message=message,
                 guard=guard,
                 publish_current_branch=publish_current_branch,
+                **({"raise_state_regression": True} if rewind else {}),
             )
             return
         git.sync_task_state(
@@ -216,10 +219,12 @@ def advance_step(
             ),
         )
 
-    # A recorded-assist child owns a strict feature/control transaction. Make
-    # that durable before any user-visible handoff notification; ordinary bump
-    # calls keep their established output-before-sync ordering.
-    if feature_publication is not None:
+    # A recorded-assist child owns a strict feature/control transaction. A
+    # rewind also needs its narrower status-equality publication to complete
+    # before any user-visible output or notification; if it refuses, the CLI
+    # exits through the no-sweep retry path. Ordinary forward bumps keep their
+    # established output-before-sync ordering.
+    if feature_publication is not None or rewind:
         sync_state()
     if echo is not None:
         typer.echo(echo)
@@ -236,7 +241,7 @@ def advance_step(
             fatal=False,
             record_failure=feature_publication is None,
         )
-    if feature_publication is None:
+    if feature_publication is None and not rewind:
         sync_state()
 
 

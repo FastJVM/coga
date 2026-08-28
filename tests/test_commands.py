@@ -324,6 +324,85 @@ def test_bump_backward_from_first_step_errors(repo: Path) -> None:
     assert t.step == "1 (implement)"
 
 
+def _make_human_rewind_task(repo: Path, role: str) -> tuple[str, Path]:
+    _write(
+        repo / "workflows" / "human-rewind.md",
+        f"""
+        ---
+        name: human-rewind
+        description: Human handoff followed by agent work.
+        steps:
+          - name: review
+            assignee: {role}
+          - name: implement
+            assignee: agent
+        ---
+
+        ## review
+        Review the change.
+
+        ## implement
+        Implement it.
+        """,
+    )
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Human rewind",
+        workflow_name="human-rewind",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        human="marc",
+        agent="claude",
+        watchers=[],
+        status="in_progress",
+    )
+    slug = created["slug"]
+    task_path = created["path"]
+    runner = CliRunner()
+    advanced = runner.invoke(app, ["bump", slug])
+    assert advanced.exit_code == 0, advanced.output
+    return slug, task_path
+
+
+@pytest.mark.parametrize("status", ["active", "paused"])
+@pytest.mark.parametrize("role", ["human", "owner"])
+def test_bump_rewind_refuses_non_in_progress_human_target(
+    repo: Path, status: str, role: str
+) -> None:
+    slug, task_path = _make_human_rewind_task(repo, role)
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["status"] = status
+    ticket.write(task_path)
+
+    result = CliRunner().invoke(app, ["bump", slug, "--backward"])
+
+    assert result.exit_code == 2, result.output
+    assert "target is not agent-owned" in result.output
+    assert "Only an in_progress ticket" in result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == status
+    assert ticket.step == "2 (implement)"
+    assert ticket.assignee == "claude"
+    assert "rewound" not in _log_text(repo, slug)
+
+
+@pytest.mark.parametrize("role", ["human", "owner"])
+def test_bump_rewind_allows_in_progress_human_target(
+    repo: Path, role: str
+) -> None:
+    slug, task_path = _make_human_rewind_task(repo, role)
+
+    result = CliRunner().invoke(app, ["bump", slug, "--backward"])
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "in_progress"
+    assert ticket.step == "1 (review)"
+    assert ticket.assignee == "marc"
+
+
 def test_bump_supervised_prints_handoff_hint_when_assignee_changes(repo: Path) -> None:
     # Next step carries `assignee: owner`, so on bump the assignee rewrites
     # away from the current agent — the hint should say handoff.

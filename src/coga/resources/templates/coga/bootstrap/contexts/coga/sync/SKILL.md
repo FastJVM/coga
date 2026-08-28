@@ -659,15 +659,20 @@ one side skips the progress rule entirely; and because `done` and `canceled`
 tie at 3, it is the separate terminal-status rule — never the progress rule —
 that refuses swapping one terminal status for the other.
 
-A refusal is loud but non-fatal, and deliberately lands *after* the local
+Most refusals are loud but non-fatal, and deliberately land *after* the local
 ticket write: `StateRegressionError` is caught at the sync entry point, the
 reason is written to stderr as `sync refused` and recorded against the task in
 `coga/log.md`, and a local sync commit already made on a feature branch is
-unwound while its files stay dirty. The transition the human asked for stays on
-disk and the checkout is left visibly behind control (`coga status` flags it
-through `stale_coga_task_rels`) rather than being reverted behind their back.
-Moving the write behind a fetch instead would put the network on the hot path
-of every status transition, which the always-on sync contract does not accept.
+unwound while its files stay dirty. A rewind status mismatch is the exception
+at the command boundary: `advance_step` asks the sync layer to re-raise it,
+then `coga bump` exits with `RETRY_WITHOUT_SWEEP_EXIT_CODE` (75). The local
+rewind still stays dirty, but `coga.cli.main` skips its broad catch-all sweep;
+that sweep lacks rewind-specific status equality and could otherwise republish
+the exact stale bytes the narrow guard refused. The checkout is left visibly
+behind control (`coga status` flags it through `stale_coga_task_rels`) rather
+than being reverted or overwriting newer state. Moving the write behind a
+fetch instead would put the network on the hot path of every status transition,
+which the always-on sync contract does not accept.
 
 ### The catch-all subtree sweep — `sync_coga_state`
 
