@@ -1,7 +1,7 @@
 ---
 slug: select-session-conduct-instead-of-appending-a-cont
 title: Select session conduct instead of appending a contradiction
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
