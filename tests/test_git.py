@@ -4326,6 +4326,48 @@ def test_bump_rewind_is_allowed_to_move_the_step_backward(git_repo):
     assert "sync refused" not in (git_repo.coga_os / "log.md").read_text()
 
 
+@pytest.mark.parametrize(
+    ("working_status", "control_status"),
+    [("paused", "in_progress"), ("active", "blocked")],
+)
+def test_bump_rewind_refuses_a_different_control_status(
+    git_repo, working_status: str, control_status: str
+) -> None:
+    """A stale rewind cannot overwrite a newer control-plane transition."""
+    ticket = _seed_demo_ticket(
+        git_repo,
+        status=working_status,
+        blackboard="stale local notes\n",
+        step="2 (review)",
+    )
+    git_repo.checkout_branch("feature/rewind-stale-status")
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(
+            step="3 (merge)",
+            status=control_status,
+            blackboard="newer control notes\n",
+        ),
+    )
+
+    result = runner.invoke(app, ["bump", "demo", "--to", "1"])
+
+    assert result.exit_code == 0, result.output
+    origin_ticket = git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert f"status: {control_status}" in origin_ticket
+    assert "step: 3 (merge)" in origin_ticket
+    assert "newer control notes" in origin_ticket
+    assert f"status: {working_status}" in ticket.read_text()
+    assert "step: 1 (implement)" in ticket.read_text()
+    assert (
+        "rewind requires matching control and working statuses"
+        in (git_repo.coga_os / "log.md").read_text()
+    )
+
+
 def test_bump_rewind_still_refuses_a_terminal_control_copy(git_repo):
     """Relaxing the step rule for a rewind does not disarm the rest of it."""
     _seed_demo_ticket(

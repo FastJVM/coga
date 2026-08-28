@@ -149,9 +149,9 @@ def advance_step(
 
     `rewind=True` marks a human `coga bump --to/--backward`, the one deliberate
     backward step move. It relaxes exactly the step-backward rule in the sync
-    guard — the human is the authority on their own rewind — while leaving the
-    rest of the guard on, so a rewind still cannot bury a ticket another
-    checkout has already closed or advanced past.
+    guard — the human is the authority on their own rewind — while requiring
+    the control and working statuses to match exactly. Because rewind never
+    changes status, a mismatch proves this checkout is stale.
 
     A recorded-assist caller supplies ``feature_publication`` and an armed
     ``mutation_snapshot`` so the step and audit reach the PR and control refs

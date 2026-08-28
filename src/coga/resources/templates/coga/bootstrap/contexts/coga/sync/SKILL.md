@@ -643,20 +643,21 @@ child writes) pass no guard.
 --to/--backward` moves `step:` backward on purpose, and it shares
 `advance_step` with forward bumps, so guarding it naively would refuse exactly
 the thing the human asked for. `advance_step(rewind=True)` therefore passes
-`allow_step_rewind`, which drops *only* the step-backward rule. The status
-rules stay armed, and `advance_step` writes only `step:` (plus `assignee:`), so
-a status difference during a rewind means the checkout is stale rather than the
-human deliberate — rewinding a ticket another checkout has already closed is
-still refused.
+`allow_step_rewind`, which drops the step-backward rule and tightens the status
+rule to exact equality. `advance_step` writes only `step:` (plus `assignee:`),
+so any status difference during a rewind means the checkout is stale rather
+than the human deliberate. This refuses not only a terminal control copy but
+also `active` / `paused` rewinds whose control copy concurrently became
+`in_progress` or `blocked`.
 
-Those status rules are narrower than "status may not move backward" sounds. The
-progress comparison ranks only the statuses in `git._STATUS_PROGRESS` — `draft`
-0 < `active` 1 < `in_progress` 2 < `done`/`canceled` 3 — and fires only when
-*both* sides are on that ladder. `blocked` and `paused` are absent from it, so
-a landing that involves either on one side skips the progress rule entirely; and
-because `done` and `canceled` tie at 3, it is the separate terminal-status rule
-— never the progress rule — that refuses swapping one terminal status for the
-other.
+Outside that rewind-specific equality rule, the status rules are narrower than
+"status may not move backward" sounds. The progress comparison ranks only the
+statuses in `git._STATUS_PROGRESS` — `draft` 0 < `active` 1 < `in_progress` 2 <
+`done`/`canceled` 3 — and fires only when *both* sides are on that ladder.
+`blocked` and `paused` are absent from it, so a landing that involves either on
+one side skips the progress rule entirely; and because `done` and `canceled`
+tie at 3, it is the separate terminal-status rule — never the progress rule —
+that refuses swapping one terminal status for the other.
 
 A refusal is loud but non-fatal, and deliberately lands *after* the local
 ticket write: `StateRegressionError` is caught at the sync entry point, the

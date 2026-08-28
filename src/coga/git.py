@@ -3023,10 +3023,12 @@ def ticket_state_guard(
     calls the result once per landing attempt, so the check re-runs against the
     tip refetched after a non-fast-forward retry.
 
-    `allow_step_rewind=True` is for `coga bump --to/--backward` only — see
-    `_ticket_state_regression_reason`. ``allow_terminal_change`` is reserved for
-    automatic unresolved-resume cleanup and must be paired with the exact
-    pre-cleanup ``expected_lifecycle``.
+    `allow_step_rewind=True` is for `coga bump --to/--backward` only: it allows
+    the deliberate step regression while requiring exact status equality with
+    the control copy. See `_ticket_state_regression_reason`.
+    ``allow_terminal_change`` is reserved for automatic unresolved-resume
+    cleanup and must be paired with the exact pre-cleanup
+    ``expected_lifecycle``.
     """
 
     def guard(base: str) -> None:
@@ -3231,10 +3233,11 @@ def _ticket_state_regression_reason(
 ) -> str | None:
     """Why landing `working` over `committed` would lose state, or `None`.
 
-    `allow_step_rewind=True` drops *only* the step-backward rule, for the one
-    caller whose backward move is the point: a human `coga bump --to/--backward`
-    rewind. The status rules below still apply — a rewind never changes status,
-    so a status regression there means the checkout is stale, not deliberate.
+    `allow_step_rewind=True` drops the step-backward rule for the one caller
+    whose backward move is the point: a human `coga bump --to/--backward`
+    rewind. It also requires exact status equality: a rewind never changes
+    status, so any mismatch with the control copy means the checkout is stale,
+    not deliberate.
     """
     if (
         not allow_step_rewind
@@ -3265,6 +3268,12 @@ def _ticket_state_regression_reason(
         return (
             f"{rel}: terminal status would change from "
             f"{committed.status!r} to {working.status!r}"
+        )
+
+    if allow_step_rewind and committed.status != working.status:
+        return (
+            f"{rel}: rewind requires matching control and working statuses "
+            f"(control {committed.status!r}, working {working.status!r})"
         )
 
     committed_status = _STATUS_PROGRESS.get(committed.status or "")

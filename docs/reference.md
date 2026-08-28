@@ -268,11 +268,11 @@ be bumped; use `coga mark done` for those.
 The rewind flags are refused for an agent inside a supervised launch — a human
 runs them.
 
-A rewind repositions `step:` and nothing else, so it works from `active`,
-`in_progress`, or `paused` and leaves the status where it was — resume with
-`coga launch`. It refuses a `blocked` ticket (run `coga unblock` first) and the
-terminal statuses, which have no `step:` to move. A forward bump still requires
-`in_progress`.
+A rewind repositions `step:` and may re-resolve `assignee:` for the target
+step, so it works from `active`, `in_progress`, or `paused` while leaving the
+status where it was — resume with `coga launch`. It refuses a `blocked` ticket
+(run `coga unblock` first) and the terminal statuses, which have no `step:` to
+move. A forward bump still requires `in_progress`.
 
 ### `coga block --task TASK --reason "<ask>"`
 Record an unresolved blocker and set the ticket to `blocked`. Both flags are
