@@ -4100,3 +4100,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-08-27 23:51 [unblock-rewind] [human:nicktoper] started (active → in_progress) via coga launch
 2026-08-27 23:51 [unblock-rewind] [human:nicktoper] launched (assignee=codex, agent=codex)
 2026-08-28 00:06 [unblock-rewind] [human:nicktoper] unblocked (asks resolved, still in_progress): Owner approved the narrow src/coga/git.py scope expansion: rewind publication must require exact control/local status equality. A concurrent status transition should refuse the stale rewind so the human refreshes and retries; no broader stale-rewind policy is needed.
+2026-08-28 10:26 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
