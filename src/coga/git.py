@@ -674,8 +674,8 @@ def sync_task_state(
     ``land_union_files_to_control`` when those merge=union leaves must reach
     control in the same durable boundary.
     ``commit_detached`` advances a detached HEAD with a commit containing only
-    the selected state paths. If the control-state guard subsequently refuses,
-    that generated commit is unwound while its files stay dirty.
+    the selected state paths. If control publication subsequently refuses or
+    fails, that generated commit is unwound while its files stay dirty.
     """
     if feature_publication is not None:
         publish_current_branch = True
@@ -1129,7 +1129,8 @@ def sync_paths(
     restore its pre-transition files.
     ``commit_detached=True`` commits only these selected paths on detached HEAD
     so a later catch-all sweep cannot republish them without this call's guard.
-    A guard refusal unwinds that commit and leaves the files dirty.
+    A refused or failed control landing unwinds that commit and leaves the
+    files dirty.
 
     `guard` is called with each candidate control-branch base before the
     overlay is built — including the base refetched after a non-fast-forward
@@ -2122,6 +2123,25 @@ def _dispatch_branch_sync(
     # in that case (calm notice, no raw fatal). Every other push failure stays
     # loud via the caller's `except GitError`.
     remote_ok = _remote_configured(root, cfg.git_remote)
+    if (
+        not remote_ok
+        and branch != cfg.git_control_branch
+        and guard is not None
+        and not strict_feature_publication
+        and not strict_state_publication
+    ):
+        # A missing remote skips the cross-branch landing, not the state guard.
+        # A sibling worktree can still have advanced the shared local control
+        # branch, so compare against that base before sealing a feature or
+        # detached local commit.
+        guard(
+            _control_base_for_attempt(
+                root,
+                cfg.git_remote,
+                cfg.git_control_branch,
+                0,
+            )
+        )
     if branch == cfg.git_control_branch:
         if strict_feature_publication:
             raise FeaturePublicationError(
@@ -2219,7 +2239,7 @@ def _dispatch_branch_sync(
                 guard=guard,
                 update_local_control_ref=update_local_control_ref,
             )
-        except StateRegressionError:
+        except GitError:
             if detached_committed and detached_before is not None:
                 _restore_unpushed_sync_commit(root, detached_before, local_rels)
             raise

@@ -4371,6 +4371,52 @@ def test_bump_rewind_refuses_a_different_control_status(
     )
 
 
+@pytest.mark.parametrize("checkout_kind", ["feature", "detached"])
+def test_bump_rewind_no_remote_still_guards_local_control_status(
+    git_repo, checkout_kind: str
+) -> None:
+    """A missing remote cannot bypass rewind equality in another checkout."""
+    ticket = _seed_demo_ticket(
+        git_repo,
+        status="paused",
+        blackboard="stale local notes\n",
+        step="3 (merge)",
+    )
+    if checkout_kind == "feature":
+        git_repo.checkout_branch("feature/rewind-no-remote")
+    else:
+        git_repo.git("checkout", "--detach")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(
+            step="1 (implement)",
+            status="blocked",
+            blackboard="newer blocker notes\n",
+        ),
+    )
+    git_repo.git("fetch", "origin", "main")
+    control_oid = git_repo.git("rev-parse", "FETCH_HEAD").strip()
+    git_repo.git("update-ref", "refs/heads/main", control_oid)
+    git_repo.git("remote", "remove", "origin")
+
+    result = runner.invoke(app, ["bump", "demo", "--backward"])
+
+    assert result.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert "local rewind was retained" in result.output
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    control_ticket = git_repo.git("show", "main:coga/tasks/demo/ticket.md")
+    assert "status: blocked" in control_ticket
+    assert "step: 1 (implement)" in control_ticket
+    assert "newer blocker notes" in control_ticket
+    local_ticket = ticket.read_text()
+    assert "status: paused" in local_ticket
+    assert "step: 2 (review)" in local_ticket
+    assert "stale local notes" in local_ticket
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
+
+
 def test_bump_rewind_still_refuses_a_terminal_control_copy(git_repo):
     """Relaxing the step rule for a rewind does not disarm the rest of it."""
     _seed_demo_ticket(
@@ -4558,6 +4604,37 @@ def test_detached_rewind_status_refusal_unwinds_scoped_commit(git_repo) -> None:
     )
     assert "status: blocked" in origin_ticket
     assert "newer blocker notes" in origin_ticket
+
+
+def test_detached_rewind_failed_landing_unwinds_scoped_commit(git_repo) -> None:
+    """An unpublished detached rewind stays dirty after a transport failure."""
+    ticket = _seed_demo_ticket(
+        git_repo,
+        status="paused",
+        blackboard="local notes\n",
+        step="3 (merge)",
+    )
+    git_repo.git("checkout", "--detach")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.git(
+        "remote",
+        "set-url",
+        "origin",
+        str(git_repo.origin.parent / "gone.git"),
+    )
+
+    result = runner.invoke(app, ["bump", "demo", "--backward"])
+
+    assert result.exit_code == 0, result.output
+    assert "sync failed" in result.output
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
+    local_ticket = ticket.read_text()
+    assert "status: paused" in local_ticket
+    assert "step: 2 (review)" in local_ticket
+    control_ticket = git_repo.git("show", "main:coga/tasks/demo/ticket.md")
+    assert "status: paused" in control_ticket
+    assert "step: 3 (merge)" in control_ticket
 
 
 def test_detached_rewind_notification_failure_union_syncs_audit(
