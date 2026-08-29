@@ -77,7 +77,6 @@ from coga.mark import (
     mark_blocked,
     mark_in_progress,
 )
-from coga.paths import PackagedResourceMissing, read_packaged_resource
 from coga.repl_supervisor import build_supervised_step_env
 from coga.workflow import WorkflowError
 from coga.taskfile import read_blackboard, replace_blackboard
@@ -962,7 +961,7 @@ def _launch_until_stop(
                 name=before.title or "",
                 idle_timeout=idle_timeout,
                 max_session=max_session,
-                prompt_suffix=_megalaunch_prompt_suffix(),
+                launch_context="megalaunch",
                 label="Megalaunch",
                 warn_blackboard=True,
             )
@@ -1184,8 +1183,7 @@ def _preflight_agent_launch(
     if shutil.which(agent.cli) is None:
         return agent_cli_missing_message(agent.cli)
     try:
-        compose_prompt(cfg, ref, ticket)
-        _megalaunch_prompt_suffix()
+        compose_prompt(cfg, ref, ticket, launch_context="megalaunch")
         build_launch_env(cfg, ticket.secrets)
     except (ConfigError, ComposeError, SecretError) as exc:
         return str(exc)
@@ -1194,15 +1192,6 @@ def _preflight_agent_launch(
         if not auth.ok:
             return f"git push access unavailable: {auth.detail}"
     return None
-
-
-def _megalaunch_prompt_suffix() -> str:
-    """Return package-backed execution guidance unique to the queue runner."""
-    try:
-        prompt = read_packaged_resource("prompt-megalaunch.md")
-    except PackagedResourceMissing as exc:
-        raise ComposeError(str(exc)) from exc
-    return f"\n\n{prompt.strip()}\n"
 
 
 def _result(

@@ -22,6 +22,7 @@ import typer
 from coga import git
 from coga.aliases import DEFAULT_ALIASES, validate_aliases
 from coga.commands.launch import _interactive_stdio_has_tty
+from coga.compose import LaunchContext
 from coga.config import (
     Config,
     ConfigError,
@@ -828,6 +829,7 @@ def _launch_due_tasks(
     # agent can't block the tasks behind it.
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
+    launch_context = _recurring_launch_context(interactive)
     from coga.commands.launch import (
         RecurringPeriodLaunchResult,
         launch_recurring_period as launch_cmd,
@@ -936,7 +938,7 @@ def _launch_due_tasks(
                 agent_override=agent_override,
                 idle_timeout=idle_timeout,
                 max_session=max_session,
-                queue_guidance=not interactive,
+                launch_context=launch_context,
                 continue_after_timeout=True,
                 admitted_period_lease=admitted_period_lease,
             )
@@ -986,8 +988,8 @@ def _launch_due_tasks(
                 # owner decisions in `coga block` — a conversational ask hangs
                 # the queue until a liveness timeout fails the task.
                 # `--interactive` is a human stepping through by hand, so it
-                # keeps plain launches.
-                queue_guidance=not interactive,
+                # selects the attended contract instead.
+                launch_context=launch_context,
             )
             if not isinstance(raw_launch_result, RecurringPeriodLaunchResult):
                 raise RecurringError(
@@ -1295,7 +1297,7 @@ def _run_delegated_task(
     agent_override: str | None = None,
     idle_timeout: float | None = None,
     max_session: float | None = None,
-    queue_guidance: bool = True,
+    launch_context: LaunchContext = "recurring",
     continue_after_timeout: bool,
     activate_if_needed: bool = False,
     admitted_period_lease: _PeriodLease | None = None,
@@ -1633,7 +1635,7 @@ def _run_delegated_task(
             idle_timeout=idle_timeout,
             max_session=max_session,
             return_timeout=True,
-            queue_guidance=queue_guidance,
+            launch_context=launch_context,
             before_spawn=start_period,
             revalidate_before_spawn=revalidate_period_before_spawn,
         )
@@ -2024,6 +2026,7 @@ def _launch_created(
     typer.echo(f"{verb} {ref.id_slug}")
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
+    launch_context = _recurring_launch_context(interactive)
     if "delegate" in ticket.frontmatter:
         # An on-demand named launch delegates exactly as the sweep does: the
         # runner launches the bootstrap target in this operator's terminal
@@ -2034,7 +2037,7 @@ def _launch_created(
             agent_override=agent_override,
             idle_timeout=idle_timeout,
             max_session=max_session,
-            queue_guidance=not interactive,
+            launch_context=launch_context,
             continue_after_timeout=False,
             admitted_period_lease=admitted_period_lease,
         )
@@ -2074,10 +2077,10 @@ def _launch_created(
             max_session=max_session,
             return_timeout=False,
             script_failure_important=True,
-            # Same queue posture as the full sweep: automatic launches get the
-            # announce-and-continue / block-don't-ask guidance; `--interactive`
-            # human-stepped runs keep plain launches.
-            queue_guidance=not interactive,
+            # Same queue posture as the full sweep: automatic launches select
+            # the announce-and-continue / block-don't-ask contract;
+            # `--interactive` human-stepped runs select attended conduct.
+            launch_context=launch_context,
         )
         # Keep test/in-process shims written against the historical scalar
         # seam harmless; the real launch function always returns the typed
@@ -3377,6 +3380,21 @@ def _env_seconds(name: str) -> tuple[bool, float | None]:
     if not math.isfinite(seconds) or seconds <= 0:
         return True, None
     return True, seconds
+
+
+def _recurring_launch_context(interactive: bool) -> LaunchContext:
+    """Map this recurring invocation onto its composed session-conduct layer.
+
+    Every runner-owned spelling — the bare sweep, `--force`, `coga run
+    recurring-scan`, a named `recurring launch <name>`, an ordinary period
+    task's agent phase, and a delegated stateless bootstrap session — is a
+    queue: nobody is necessarily watching, so an agent that asks and waits
+    hangs the sweep until a liveness timeout fails the task. `--interactive`
+    is the operator stepping through by hand, which is a genuinely attended
+    session. The entry point already knows which it is, so no ticket field,
+    config option, or user-facing session-mode knob is involved.
+    """
+    return "attended" if interactive else "recurring"
 
 
 def _recurring_idle_timeout(cfg) -> float | None:

@@ -18,6 +18,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     # runtime read failure inside a composed launch.
     "coga/resources/blackboard.md",
     "coga/resources/prompt.md",
+    "coga/resources/prompt-attended.md",
     "coga/resources/prompt-blocker-resolution.md",
     "coga/resources/prompt-megalaunch.md",
     "coga/resources/prompt-queue.md",

@@ -2502,7 +2502,7 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
                 kwargs.get("idle_timeout"),
                 kwargs.get("max_session"),
                 kwargs.get("return_timeout"),
-                kwargs.get("queue_guidance"),
+                kwargs.get("launch_context"),
             )
         )
         kwargs["before_spawn"]()
@@ -2520,7 +2520,7 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
         agent_override="claude",
         idle_timeout=900.0,
         max_session=None,
-        queue_guidance=True,
+        launch_context="recurring",
         continue_after_timeout=continue_after_timeout,
     )
 
@@ -2531,7 +2531,14 @@ def test_delegated_task_launches_target_and_owns_lifecycle(
     # The delegated launch targets the bootstrap ticket — never the period
     # task — with the sweep's liveness and queue posture threaded through.
     assert launches == [
-        ("bootstrap/resolve-conflicts", "claude", 900.0, None, True, True)
+        (
+            "bootstrap/resolve-conflicts",
+            "claude",
+            900.0,
+            None,
+            True,
+            "recurring",
+        )
     ]
 
 
@@ -3510,7 +3517,7 @@ def test_delegated_preflight_refusal_does_not_start_period(
             agent_override="claude",
             idle_timeout=900.0,
             max_session=None,
-            queue_guidance=True,
+            launch_context="recurring",
             continue_after_timeout=True,
         )
 
@@ -3726,7 +3733,7 @@ def test_bare_recurring_launches_delegate_target_directly(
 
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
         launches.append(
-            (task, kwargs.get("agent_override"), kwargs.get("queue_guidance"))
+            (task, kwargs.get("agent_override"), kwargs.get("launch_context"))
         )
         kwargs["before_spawn"]()
         kwargs["revalidate_before_spawn"]()
@@ -3746,7 +3753,7 @@ def test_bare_recurring_launches_delegate_target_directly(
     result = CliRunner().invoke(app, ["recurring"])
 
     assert result.exit_code == 0, result.output
-    assert launches == [("bootstrap/resolve-conflicts", None, True)]
+    assert launches == [("bootstrap/resolve-conflicts", None, "recurring")]
     ticket = Ticket.read(
         repo / "tasks" / "recurring" / "delegate-check" / "ticket.md"
     )
@@ -6616,14 +6623,14 @@ def test_recurring_launch_invokes_launch(
         idle_timeout: float | None = None,
         max_session: float | None = None,
         return_timeout: bool = False,
-        queue_guidance: bool = False,
+        launch_context: str = "attended",
         script_failure_important: bool = False,
     ) -> None:
         assert return_timeout is False
         assert idle_timeout == 900.0
         assert max_session is None
         # On-demand named launches are automatic queue launches too.
-        assert queue_guidance is True
+        assert launch_context == "recurring"
         assert script_failure_important is True
         assert expected_period_lease.ticket_bytes is not None
         assert control_remote_expected is False
@@ -7616,12 +7623,12 @@ def test_recurring_all_names_stale_control_failure(
     assert "1 repo(s) failed: alpha" in result.output
 
 
-def test_automatic_sweep_launches_carry_queue_guidance(
+def test_automatic_sweep_launches_select_recurring_conduct(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Automatic recurring launches pass `queue_guidance=True` so the agent
-    announces-and-continues and ends owner decisions in `coga block` instead
-    of hanging the queue on a conversational ask."""
+    """Automatic recurring launches select the recurring queue conduct layer
+    so the agent announces-and-continues and ends owner decisions in
+    `coga block` instead of hanging the queue on a conversational ask."""
     cfg = load_config(repo)
     seen: list[dict] = []
 
@@ -7640,7 +7647,7 @@ def test_automatic_sweep_launches_carry_queue_guidance(
     assert recurring_cmd.run_recurring_scan(cfg) == 0
 
     assert len(seen) == 1
-    assert seen[0]["queue_guidance"] is True
+    assert seen[0]["launch_context"] == "recurring"
     assert seen[0]["script_failure_important"] is True
 
 
@@ -7676,10 +7683,11 @@ def test_authorized_sweep_uses_the_internal_period_launch_seam(
     assert kwargs_seen == [False]
 
 
-def test_interactive_sweep_launches_omit_queue_guidance(
+def test_interactive_sweep_launches_select_attended_conduct(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--interactive` is a human stepping through by hand — plain launches."""
+    """`--interactive` is a human stepping through by hand — attended
+    conduct, so the agent may ask and wait instead of blocking."""
     cfg = load_config(repo)
     seen: list[dict] = []
 
@@ -7698,15 +7706,15 @@ def test_interactive_sweep_launches_omit_queue_guidance(
     assert recurring_cmd.run_recurring_scan(cfg, interactive=True) == 0
 
     assert len(seen) == 1
-    assert seen[0]["queue_guidance"] is False
+    assert seen[0]["launch_context"] == "attended"
     assert seen[0]["script_failure_important"] is True
 
 
-def test_named_recurring_launch_carries_queue_guidance(
+def test_named_recurring_launch_selects_recurring_conduct(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """On-demand `coga recurring launch <name>` (and the `coga dream` alias)
-    is an automatic launch too — same guidance as the sweep."""
+    is an automatic launch too — same conduct as the sweep."""
     cfg = load_config(repo)
     seen: list[dict] = []
 
@@ -7720,7 +7728,7 @@ def test_named_recurring_launch_carries_queue_guidance(
     assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 0
 
     assert len(seen) == 1
-    assert seen[0]["queue_guidance"] is True
+    assert seen[0]["launch_context"] == "recurring"
     assert seen[0]["script_failure_important"] is True
     assert seen[0]["control_remote_expected"] is False
 
