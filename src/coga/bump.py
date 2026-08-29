@@ -200,7 +200,14 @@ def advance_step(
                 message=message,
                 guard=guard,
                 publish_current_branch=publish_current_branch,
-                **({"raise_state_regression": True} if rewind else {}),
+                **(
+                    {
+                        "commit_detached": True,
+                        "raise_state_regression": True,
+                    }
+                    if rewind
+                    else {}
+                ),
             )
             return
         git.sync_task_state(
@@ -229,6 +236,14 @@ def advance_step(
     if echo is not None:
         typer.echo(echo)
     if notify_slack:
+        notification_log = log_path(cfg)
+        log_before_notification = (
+            notification_log.read_bytes()
+            if rewind
+            and feature_publication is None
+            and notification_log.is_file()
+            else None
+        )
         # `fatal=False`: the step advance is already on disk above. An
         # undeliverable FYI must not abort `coga bump` before it reaches
         # `emit_done_marker`, or the supervised REPL hangs to its idle timeout.
@@ -241,6 +256,24 @@ def advance_step(
             fatal=False,
             record_failure=feature_publication is None,
         )
+        if (
+            rewind
+            and feature_publication is None
+            and notification_log.is_file()
+            and notification_log.read_bytes() != log_before_notification
+        ):
+            # Rewinds deliberately suppress the broad CLI sweep so it cannot
+            # bypass their exact-status ticket guard. A failed live post adds
+            # one audit line after the scoped rewind publication; publish only
+            # that merge=union log, never the ticket again.
+            git.sync_paths(
+                cfg,
+                notification_log,
+                [notification_log],
+                message=f"Log: {ref.id_slug} — rewind notification failure",
+                land_union_files_to_control=True,
+                commit_detached=True,
+            )
     if feature_publication is None and not rewind:
         sync_state()
 

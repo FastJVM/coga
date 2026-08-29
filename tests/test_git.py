@@ -19,6 +19,7 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+import requests
 from typer.testing import CliRunner
 
 from coga import git
@@ -4460,10 +4461,10 @@ def test_cli_rewind_status_refusal_skips_fallback_state_sweep(git_repo) -> None:
     assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
 
 
-def test_cli_successful_detached_rewind_skips_racing_fallback_sweep(
+def test_cli_successful_detached_rewind_stays_safe_on_later_sweep(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A post-publication status change survives a successful rewind."""
+    """A retained detached rewind cannot overwrite later control state."""
     from coga import cli
 
     ticket = _seed_demo_ticket(
@@ -4473,6 +4474,7 @@ def test_cli_successful_detached_rewind_skips_racing_fallback_sweep(
         step="3 (merge)",
     )
     git_repo.git("checkout", "--detach")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
 
     def block_after_rewind_publication(*args: object, **kwargs: object) -> None:
         git_repo.push_competing_commit(
@@ -4501,6 +4503,17 @@ def test_cli_successful_detached_rewind_skips_racing_fallback_sweep(
         cli.main()
 
     assert excinfo.value.code == 0
+    # The scoped detached commit makes the successfully published ticket clean,
+    # so a later mutating command's generic sweep has nothing stale to overlay.
+    assert git_repo.git("rev-parse", "HEAD").strip() != before_head
+    assert (
+        git_repo.git(
+            "status", "--porcelain", "--", "coga/tasks/demo/ticket.md"
+        )
+        == ""
+    )
+    git.sync_coga_state(load_config(git_repo.coga_os))
+
     origin_ticket = git_repo.git(
         "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
     )
@@ -4510,6 +4523,89 @@ def test_cli_successful_detached_rewind_skips_racing_fallback_sweep(
     local_ticket = ticket.read_text()
     assert "status: paused" in local_ticket
     assert "stale local notes" in local_ticket
+
+
+def test_detached_rewind_status_refusal_unwinds_scoped_commit(git_repo) -> None:
+    """A late status refusal retains dirty state without moving detached HEAD."""
+    ticket = _seed_demo_ticket(
+        git_repo,
+        status="paused",
+        blackboard="stale local notes\n",
+        step="3 (merge)",
+    )
+    git_repo.git("checkout", "--detach")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _step_ticket_text(
+            step="1 (implement)",
+            status="blocked",
+            blackboard="newer blocker notes\n",
+        ),
+    )
+
+    result = runner.invoke(app, ["bump", "demo", "--backward"])
+
+    assert result.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
+    local_ticket = ticket.read_text()
+    assert "status: paused" in local_ticket
+    assert "step: 2 (review)" in local_ticket
+    origin_ticket = git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert "status: blocked" in origin_ticket
+    assert "newer blocker notes" in origin_ticket
+
+
+def test_detached_rewind_notification_failure_union_syncs_audit(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed rewind FYI publishes its log without resweeping the ticket."""
+    ticket = _seed_demo_ticket(
+        git_repo,
+        status="paused",
+        blackboard="notes\n",
+        step="3 (merge)",
+    )
+    git_repo.git("checkout", "--detach")
+    monkeypatch.setenv(
+        "SLACK_WEBHOOK_URL", "https://hooks.slack.test/services/rewind"
+    )
+
+    def fail_post(*args: object, **kwargs: object) -> None:
+        raise requests.ConnectionError("offline")
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fail_post)
+
+    result = runner.invoke(
+        app,
+        ["bump", "demo", "--backward", "--message", "rewind FYI"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "post failed" in result.output
+    origin_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert "post failed" in origin_log
+    assert "ConnectionError" in origin_log
+    origin_ticket = git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    assert "status: paused" in origin_ticket
+    assert "step: 2 (review)" in origin_ticket
+    assert "step: 2 (review)" in ticket.read_text()
+    assert (
+        git_repo.git(
+            "status",
+            "--porcelain",
+            "--",
+            "coga/tasks/demo/ticket.md",
+            "coga/log.md",
+        )
+        == ""
+    )
 
 
 def test_unblock_resolve_only_refuses_to_bury_terminal_control_copy(git_repo):

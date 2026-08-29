@@ -31,8 +31,10 @@ overlay tree on the new tip and repushes. On the same-branch path (HEAD *is*
 the control branch) a rejected push triggers a fetch + `rebase --autostash`
 onto the new tip, then a retry — the working tree is already checked out there,
 so integrating the remote move means a rebase, with autostash keeping unrelated
-dirty changes intact. A detached HEAD takes the cross-branch landing path but
-skips the local commit (a commit on a detached HEAD would be orphaned). After a
+dirty changes intact. A detached HEAD takes the cross-branch landing path and
+normally skips the local commit (a commit on a detached HEAD would be
+orphaned). A rewind opts into a scoped detached commit so its successfully
+guarded ticket cannot remain dirty and ride a later unguarded sweep. After a
 successful landing push, the local control ref is normally fast-forwarded
 best-effort: directly via `update-ref` when no worktree holds the branch, or
 through the holding worktree with `merge --ff-only` — without this, a checkout
@@ -608,6 +610,7 @@ def sync_task_state(
     generated_paths: Mapping[Path, bytes | None] | None = None,
     extra_paths: Iterable[Path] = (),
     land_union_files_to_control: bool = False,
+    commit_detached: bool = False,
     raise_state_regression: bool = False,
     raise_git_error: bool = False,
 ) -> None:
@@ -626,7 +629,9 @@ def sync_task_state(
         the control landing; completion gates use this only once an artifact
         such as an open PR makes the branch itself shared state.
       - Detached HEAD → skip the local commit (it would be orphaned), still
-        land on the control branch.
+        land on the control branch. A caller may set ``commit_detached`` when
+        leaving the selected state dirty would let a later broad sweep publish
+        it without the caller's narrower guard.
 
     Any git operation failure is non-fatal: it is reported to stderr + the
     task's `log.md` and then swallowed, so the local state transition still
@@ -668,6 +673,9 @@ def sync_task_state(
     include explicitly owned siblings such as the digest spool; callers set
     ``land_union_files_to_control`` when those merge=union leaves must reach
     control in the same durable boundary.
+    ``commit_detached`` advances a detached HEAD with a commit containing only
+    the selected state paths. If the control-state guard subsequently refuses,
+    that generated commit is unwound while its files stay dirty.
     """
     if feature_publication is not None:
         publish_current_branch = True
@@ -688,6 +696,7 @@ def sync_task_state(
         message=message,
         guard=guard,
         land_union_files_to_control=land_union_files_to_control,
+        commit_detached=commit_detached,
         publish_current_branch=publish_current_branch,
         expected_current_branch=expected_current_branch,
         expected_current_branch_oid=expected_current_branch_oid,
@@ -1077,6 +1086,7 @@ def sync_paths(
     message: str,
     update_local_control_ref: bool = True,
     land_union_files_to_control: bool = False,
+    commit_detached: bool = False,
     guard: _StateGuard | None = None,
     publish_current_branch: bool = False,
     expected_current_branch: str | None = None,
@@ -1117,6 +1127,9 @@ def sync_paths(
     control state, compensate that feature update if the control landing then
     fails, and re-raise every publication failure so the state writer can
     restore its pre-transition files.
+    ``commit_detached=True`` commits only these selected paths on detached HEAD
+    so a later catch-all sweep cannot republish them without this call's guard.
+    A guard refusal unwinds that commit and leaves the files dirty.
 
     `guard` is called with each candidate control-branch base before the
     overlay is built — including the base refetched after a non-fast-forward
@@ -1225,6 +1238,7 @@ def sync_paths(
             control_union_rels=control_union_rels,
             message=message,
             guard=guard,
+            commit_detached=commit_detached,
             update_local_control_ref=update_local_control_ref,
             publish_current_branch=publish_current_branch,
             expected_current_branch=expected_current_branch,
@@ -2052,6 +2066,7 @@ def _dispatch_branch_sync(
     control_union_rels: list[str] | None = None,
     message: str,
     guard: _StateGuard | None = None,
+    commit_detached: bool = False,
     update_local_control_ref: bool = True,
     publish_current_branch: bool = False,
     expected_current_branch: str | None = None,
@@ -2076,8 +2091,9 @@ def _dispatch_branch_sync(
         merge=union files when their evidence cannot wait for a future PR, and
         may additionally publish that feature commit after the control
         landing.
-      - Detached HEAD → skip the local commit (it would be orphaned); still land
-        `overlay_rels` on the control branch.
+      - Detached HEAD → normally skip the local commit (it would be orphaned);
+        still land `overlay_rels` on the control branch. An explicit
+        ``commit_detached`` seals these scoped paths in the detached checkout.
 
     ``strict_state_publication`` is the recurring lifecycle transaction. It
     captures exact generated bytes, leases control before committing locally,
@@ -2133,11 +2149,22 @@ def _dispatch_branch_sync(
         return
 
     if branch == "HEAD":
-        # Detached HEAD: no local commit — it would be orphaned. The landing
-        # pushes the control branch and normally fast-forwards the primary
-        # checkout via `_try_update_local_ref`; Retro's verified linked-
-        # worktree delete can suppress that refresh. Only a fast-forward miss
-        # warrants a stderr note, printed there.
+        # Detached HEAD normally has no local commit — it would be orphaned.
+        # A rewind is different: leaving its successfully published ticket
+        # dirty lets a later generic sweep overlay those retained bytes without
+        # the rewind's exact-status guard. Seal only the caller-owned paths in
+        # a detached commit; if the guard later refuses, unwind that commit and
+        # retain the files dirty for explicit reconciliation.
+        detached_before: str | None = None
+        detached_committed = False
+        if commit_detached:
+            if strict_feature_publication or strict_state_publication:
+                raise GitError(
+                    "detached scoped commits cannot be combined with strict "
+                    "state publication"
+                )
+            detached_before = _run_git(root, "rev-parse", "HEAD").strip()
+            detached_committed = _commit_paths(root, local_rels, message)
         if not remote_ok:
             sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
             return
@@ -2182,15 +2209,20 @@ def _dispatch_branch_sync(
                 after_strict_publication=after_strict_publication,
             )
             return
-        _land_paths_on_control_branch(
-            cfg,
-            root,
-            overlay_rels,
-            union_rels=union_rels,
-            message=message,
-            guard=guard,
-            update_local_control_ref=update_local_control_ref,
-        )
+        try:
+            _land_paths_on_control_branch(
+                cfg,
+                root,
+                overlay_rels,
+                union_rels=union_rels,
+                message=message,
+                guard=guard,
+                update_local_control_ref=update_local_control_ref,
+            )
+        except StateRegressionError:
+            if detached_committed and detached_before is not None:
+                _restore_unpushed_sync_commit(root, detached_before, local_rels)
+            raise
         return
     else:
         strict_control_tip: str | None = None

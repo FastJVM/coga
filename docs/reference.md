@@ -278,8 +278,11 @@ statuses, which have no `step:` to move. A concurrent control-status change
 also refuses publication and leaves the local rewind dirty for reconciliation
 instead of letting the fallback state sweep overwrite control. Rewind commands
 never run that broad fallback sweep, including after a successful scoped
-publication; this keeps a post-publication status race from bypassing the same
-guard on detached HEAD. A forward bump still requires `in_progress`.
+publication. A successful detached rewind seals only its ticket and audit log
+in a local commit, so a later command cannot resweep retained ticket bytes over
+a newer control status; a guard refusal unwinds that commit and preserves the
+dirty local rewind. If a rewind FYI fails after publication, only its
+merge-union audit log is synced. A forward bump still requires `in_progress`.
 
 ### `coga block --task TASK --reason "<ask>"`
 Record an unresolved blocker and set the ticket to `blocked`. Both flags are
