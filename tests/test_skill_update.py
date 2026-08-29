@@ -31,6 +31,8 @@ parse_results = skill_update.parse_results
 render_blackboard_report = skill_update.render_blackboard_report
 build_update_command = skill_update.build_update_command
 has_followups = skill_update.has_followups
+render_result_line = skill_update.render_result_line
+SkillUpdateReport = skill_update.SkillUpdateReport
 GROUP_UPDATED = skill_update.GROUP_UPDATED
 GROUP_FOLLOWUP = skill_update.GROUP_FOLLOWUP
 GROUP_SKIPPED = skill_update.GROUP_SKIPPED
@@ -158,6 +160,128 @@ def test_render_handles_empty_results() -> None:
     )
     assert "Result: no installed skills to update." in report
     assert "PR: none opened" in report
+
+
+def test_render_result_line_is_the_reports_own_result_sentence() -> None:
+    # One renderer, so a caller summarizing a run states the same counts the
+    # blackboard report does instead of parsing `Result:` back out of it.
+    results = [
+        _result("a/updated", "updated", changed=True),
+        _result("b/adapted", "skipped-local-adaptation"),
+        _result("c/bundled", "skipped-bundled", source_type="bundled"),
+    ]
+    line = render_result_line(results)
+    assert line == "3 skill(s): 1 updated, 1 need follow-up, 1 skipped."
+
+    report = render_blackboard_report(
+        results,
+        generated_at="2026-06-09T00:00:00+00:00",
+        command=["coga", "skill", "update", "--all", "--pr", "--json"],
+        pr_url=None,
+        pr_requested=True,
+        task_slug="skill-update",
+    )
+    assert f"Result: {line}" in report
+
+
+def test_render_result_line_handles_empty_results() -> None:
+    assert render_result_line([]) == "no installed skills to update."
+
+
+def test_recipe_hands_back_the_results_it_already_holds(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
+    blackboard.parent.mkdir(parents=True)
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
+    monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
+
+    def fake_run_update_json(*, cwd: Path | None, pr: bool, pr_title: str):
+        return (
+            {
+                "results": [
+                    {
+                        "name": "a/updated",
+                        "source_type": "url",
+                        "status": "updated",
+                        "message": "updated to v2",
+                        "changed": True,
+                    }
+                ],
+                "pr_url": "https://github.com/o/r/pull/7",
+            },
+            ["coga", "skill", "update", "--all", "--pr", "--json"],
+        )
+
+    monkeypatch.setattr(skill_update, "run_update_json", fake_run_update_json)
+
+    report = SkillUpdateReport()
+    assert skill_update.run_skill_update_recipe(load_config(repo), [], result=report) == 0
+
+    assert [item.name for item in report.results] == ["a/updated"]
+    assert report.pr_url == "https://github.com/o/r/pull/7"
+    assert report.pr_requested is True
+    assert report.command == ["coga", "skill", "update", "--all", "--pr", "--json"]
+    assert report.report == blackboard.read_text()
+    assert render_result_line(report.results) == "1 skill(s): 1 updated, 0 need follow-up, 0 skipped."
+
+
+def test_recipe_result_is_populated_on_the_followup_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Exit 1 is the outcome most worth naming, so the collected detail has to
+    # survive it.
+    blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
+    blackboard.parent.mkdir(parents=True)
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
+    monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
+
+    def fake_run_update_json(*, cwd: Path | None, pr: bool, pr_title: str):
+        return (
+            {
+                "results": [
+                    {
+                        "name": "b/adapted",
+                        "source_type": "url",
+                        "status": "skipped-local-adaptation",
+                        "message": "local changes detected",
+                        "changed": False,
+                    }
+                ],
+                "pr_url": "",
+            },
+            ["coga", "skill", "update", "--all", "--pr", "--json"],
+        )
+
+    monkeypatch.setattr(skill_update, "run_update_json", fake_run_update_json)
+
+    report = SkillUpdateReport()
+    assert skill_update.run_skill_update_recipe(load_config(repo), [], result=report) == 1
+
+    assert [item.name for item in report.results] == ["b/adapted"]
+    assert report.pr_url is None
+    assert "### Needs follow-up" in report.report
+
+
+def test_recipe_result_records_pr_requested_when_a_run_fails(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*, cwd: Path | None, pr: bool, pr_title: str):
+        raise RuntimeError("coga skill update failed")
+
+    monkeypatch.setattr(skill_update, "run_update_json", boom)
+
+    report = SkillUpdateReport()
+    assert (
+        skill_update.run_skill_update_recipe(load_config(repo), ["--no-pr"], result=report)
+        == 2
+    )
+
+    # Nothing was collected — `command` empty is the signal the update never ran.
+    assert report.results == []
+    assert report.command == []
+    assert report.report == ""
+    assert report.pr_requested is False
 
 
 def test_skill_update_skill_declares_contract() -> None:

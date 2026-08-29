@@ -29,6 +29,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -60,6 +61,29 @@ class DigestGitError(RuntimeError):
     """Raised when the digest's control-branch scan fails."""
 
 
+@dataclass
+class DigestOutcome:
+    """What one `run_digest` pass did, for reporting and tests.
+
+    `run_digest` keeps returning its `bool`; this carries the detail behind it
+    so a caller that wants to name the run — the recurring `ticket.py` shim
+    bumping with `--message` — reads what the pass computed instead of
+    re-parsing the `### Digest State` block the same pass just wrote.
+
+    `commit_range` and `head` are `None` when this pass recorded no state at
+    all (git off, not a git repo, no digest ticket installed), which is exactly
+    the case where a previous run's recorded range must not be reported as this
+    run's. `note` explains a `posted=False` outcome.
+    """
+
+    posted: bool = False
+    outcomes: int = 0
+    merged: int = 0
+    commit_range: str | None = None
+    head: str | None = None
+    note: str | None = None
+
+
 def digest(
     quiet_empty: bool = typer.Option(
         True,
@@ -77,16 +101,24 @@ def digest(
     run_digest(cfg, quiet_empty=quiet_empty)
 
 
-def run_digest(cfg: Config, *, quiet_empty: bool = True) -> bool:
+def run_digest(
+    cfg: Config, *, quiet_empty: bool = True, result: DigestOutcome | None = None
+) -> bool:
     """Render and post the daily digest; return whether anything sent.
 
     Returns False when the digest ticket isn't installed or there is no
     outcome to post. Empty spool is not enough to skip: the command still scans
     the control branch for commits merged since the last recorded high-water
     mark.
+
+    `result`, when given, is filled in with the detail behind that `bool` —
+    see `DigestOutcome`. It is mutated in place rather than returned so this
+    function's own contract stays the `bool` its callers already read.
     """
+    outcome = result if result is not None else DigestOutcome()
     spool_path = digest_spool_path(cfg)
     if spool_path is None:
+        outcome.note = "no recurring/digest/ spool installed"
         if not quiet_empty:
             typer.secho(
                 "digest: no recurring/digest/ spool installed — nothing to flush.",
@@ -112,6 +144,11 @@ def run_digest(cfg: Config, *, quiet_empty: bool = True) -> bool:
     ]
     should_post = bool(renderable_records or merged)
     date_label = datetime.now().strftime("%Y-%m-%d")
+    outcome.outcomes = len(renderable_records)
+    outcome.merged = len(merged)
+    if state is not None:
+        outcome.commit_range = state["range"]
+        outcome.head = state["head"]
 
     if not should_post:
         # Advance the watermark past now-silent lifecycle chatter so it doesn't
@@ -125,6 +162,7 @@ def run_digest(cfg: Config, *, quiet_empty: bool = True) -> bool:
                 range_label=state["range"],
                 posted="skipped — no done tickets or new commits",
             )
+        outcome.note = "no done tickets or new commits"
         if not quiet_empty:
             typer.echo("digest: no done tickets or new commits — nothing to post.")
         return False
@@ -146,17 +184,26 @@ def run_digest(cfg: Config, *, quiet_empty: bool = True) -> bool:
             range_label=state["range"],
             posted="yes",
         )
+    outcome.posted = True
     return True
 
 
-def run_digest_recipe(cfg: Config, argv: list[str]) -> int:
-    """Run the recurring digest job through ``coga run``."""
+def run_digest_recipe(
+    cfg: Config, argv: list[str], *, result: DigestOutcome | None = None
+) -> int:
+    """Run the recurring digest job through ``coga run``.
+
+    `result` is the keyword-only out-parameter every recipe wrapper offers: it
+    is populated with what the run did, while the return value stays the exit
+    code `run_recipe` reads. `run_recipe` calls wrappers positionally, so this
+    is invisible to `coga run`.
+    """
     if argv:
         sys.stderr.write(
             f"digest: unexpected arguments: {' '.join(repr(arg) for arg in argv)}\n"
         )
         return 2
-    run_digest(cfg)
+    run_digest(cfg, result=result)
     return 0
 
 

@@ -14,7 +14,7 @@ import os
 import shlex
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -58,6 +58,27 @@ class SkillUpdate:
     status: str
     message: str
     changed: bool
+
+
+@dataclass
+class SkillUpdateReport:
+    """What one `run_skill_update_recipe` run collected, for reporting.
+
+    The wrapper already computes every field before it returns an exit code.
+    Handing them back lets a caller name the run — the recurring `ticket.py`
+    shim bumping with `--message` — from the values themselves rather than by
+    scraping `Result:` and `PR:` back out of the rendered `report`, which would
+    rot silently the next time that layout changes.
+
+    A run that raised before collecting anything leaves the defaults, so
+    `command` empty is the signal that `coga skill update` never ran.
+    """
+
+    results: list[SkillUpdate] = field(default_factory=list)
+    command: list[str] = field(default_factory=list)
+    pr_url: str | None = None
+    pr_requested: bool = True
+    report: str = ""
 
 
 def classify_status(status: str) -> str:
@@ -129,6 +150,36 @@ def parse_results(payload: dict[str, Any]) -> list[SkillUpdate]:
     return results
 
 
+def render_result_line(results: list[SkillUpdate]) -> str:
+    """The one-sentence tally the report's `Result:` line carries.
+
+    Public so a caller summarizing a run states the counts the same way the
+    blackboard report does, from the same input, instead of parsing the line
+    back out of the rendered text.
+    """
+    if not results:
+        return "no installed skills to update."
+    grouped = group_results(results)
+    return (
+        f"{len(results)} skill(s): "
+        f"{len(grouped[GROUP_UPDATED])} updated, "
+        f"{len(grouped[GROUP_FOLLOWUP])} need follow-up, "
+        f"{len(grouped[GROUP_SKIPPED])} skipped."
+    )
+
+
+def group_results(results: list[SkillUpdate]) -> dict[str, list[SkillUpdate]]:
+    """Bucket `results` by `classify_status`, with every bucket present."""
+    grouped: dict[str, list[SkillUpdate]] = {
+        GROUP_UPDATED: [],
+        GROUP_FOLLOWUP: [],
+        GROUP_SKIPPED: [],
+    }
+    for result in results:
+        grouped[classify_status(result.status)].append(result)
+    return grouped
+
+
 def render_blackboard_report(
     results: list[SkillUpdate],
     *,
@@ -149,25 +200,14 @@ def render_blackboard_report(
     lines.append("")
 
     if not results:
-        lines.append("Result: no installed skills to update.")
+        lines.append(f"Result: {render_result_line(results)}")
         lines.append("")
         lines.append("PR: none opened — nothing to update.")
         return "\n".join(lines) + "\n"
 
-    grouped: dict[str, list[SkillUpdate]] = {
-        GROUP_UPDATED: [],
-        GROUP_FOLLOWUP: [],
-        GROUP_SKIPPED: [],
-    }
-    for result in results:
-        grouped[classify_status(result.status)].append(result)
+    grouped = group_results(results)
 
-    lines.append(
-        f"Result: {len(results)} skill(s): "
-        f"{len(grouped[GROUP_UPDATED])} updated, "
-        f"{len(grouped[GROUP_FOLLOWUP])} need follow-up, "
-        f"{len(grouped[GROUP_SKIPPED])} skipped."
-    )
+    lines.append(f"Result: {render_result_line(results)}")
 
     if pr_url:
         lines.append(f"PR: {pr_url}")
@@ -213,8 +253,22 @@ def script_task_slug_from_env() -> str | None:
     return os.environ.get("COGA_TASK_SLUG")
 
 
-def run_skill_update_recipe(cfg: Config, argv: list[str]) -> int:
+def run_skill_update_recipe(
+    cfg: Config, argv: list[str], *, result: SkillUpdateReport | None = None
+) -> int:
+    """Run the recurring skill-update job.
+
+    `result` is the keyword-only out-parameter every recipe wrapper offers: the
+    results, PR link and rendered report this wrapper already holds as locals
+    are recorded on it as they are computed, so a caller summarizing the run
+    reads them directly. It is populated even on the failure paths that return
+    1 or 2, because what the run managed to collect is what makes those
+    outcomes reportable. The return value stays the exit code `run_recipe`
+    reads, and `run_recipe` calls wrappers positionally, so `coga run` is
+    unaffected.
+    """
     del cfg
+    report_out = result if result is not None else SkillUpdateReport()
     parser = argparse.ArgumentParser(description="Run the skill-update maintenance skill.")
     parser.add_argument(
         "--cwd",
@@ -236,6 +290,7 @@ def run_skill_update_recipe(cfg: Config, argv: list[str]) -> int:
     blackboard = blackboard_from_env(discover_coga_os_root(args.cwd))
     task_slug = script_task_slug_from_env()
     pr = not args.no_pr
+    report_out.pr_requested = pr
 
     try:
         payload, command = run_update_json(cwd=args.cwd, pr=pr, pr_title=args.pr_title)
@@ -250,6 +305,10 @@ def run_skill_update_recipe(cfg: Config, argv: list[str]) -> int:
             pr_requested=pr,
             task_slug=task_slug,
         )
+        report_out.results = results
+        report_out.command = command
+        report_out.pr_url = pr_url
+        report_out.report = report
         if blackboard:
             append_report(blackboard, report)
         else:

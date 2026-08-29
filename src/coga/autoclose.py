@@ -627,14 +627,26 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
     )
 
 
-def run_autoclose_recipe(cfg: Config, argv: list[str]) -> int:
-    """Run the recurring autoclose job through the fixed recipe surface."""
+def run_autoclose_recipe(
+    cfg: Config, argv: list[str], *, result: AutocloseResult | None = None
+) -> int:
+    """Run the recurring autoclose job through the fixed recipe surface.
+
+    `result` is the keyword-only out-parameter every recipe wrapper offers: the
+    accumulator this wrapper already keeps outside `sweep_merged` becomes the
+    caller's when one is supplied, so a caller that wants to name what the
+    sweep closed reads `.closed` / `.retire_pending` instead of diffing ticket
+    status globally — which cannot tell this sweep's closures from a concurrent
+    `coga mark done`. The return value stays the exit code `run_recipe` reads,
+    and `run_recipe` calls wrappers positionally, so `coga run` is unaffected.
+    """
     if argv:
         sys.stderr.write(
             f"autoclose: unexpected arguments: {' '.join(repr(arg) for arg in argv)}\n"
         )
         return 2
-    result = AutocloseResult()
+    if result is None:
+        result = AutocloseResult()
     try:
         result = sweep_merged(
             cfg,
