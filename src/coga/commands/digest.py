@@ -193,10 +193,8 @@ def run_digest_recipe(
 ) -> int:
     """Run the recurring digest job through ``coga run``.
 
-    `result` is the keyword-only out-parameter every recipe wrapper offers: it
-    is populated with what the run did, while the return value stays the exit
-    code `run_recipe` reads. `run_recipe` calls wrappers positionally, so this
-    is invisible to `coga run`.
+    `result` is the optional out-parameter described on `run_recipe`; see
+    `DigestOutcome` for what `run_digest` records on it.
     """
     if argv:
         sys.stderr.write(

@@ -44,7 +44,13 @@ class UnknownRecipeError(ValueError):
 
 
 def run_recipe(cfg: Config, name: str, argv: list[str]) -> int:
-    """Resolve ``name`` explicitly and forward ``argv`` without translation."""
+    """Resolve ``name`` explicitly and forward ``argv`` without translation.
+
+    Wrappers are called positionally, so a wrapper may add keyword-only
+    parameters without affecting ``coga run``. Several use that to offer an
+    optional ``result=`` out-parameter, filled in with what the run did while
+    the return value stays the exit code this function reads.
+    """
     try:
         recipe = RECIPES[name]
     except KeyError as exc:

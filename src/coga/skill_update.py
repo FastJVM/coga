@@ -70,8 +70,12 @@ class SkillUpdateReport:
     scraping `Result:` and `PR:` back out of the rendered `report`, which would
     rot silently the next time that layout changes.
 
-    A run that raised before collecting anything leaves the defaults, so
-    `command` empty is the signal that `coga skill update` never ran.
+    `command` is recorded before the update is invoked, so it names the command
+    that was attempted even on the failure exit — `run_update_json` raises only
+    *after* the subprocess ran (non-zero exit, or output that is not valid
+    JSON), so an empty `command` would have been a misleading "never ran"
+    signal. `results` still empty after a run is what says nothing was
+    collected.
     """
 
     results: list[SkillUpdate] = field(default_factory=list)
@@ -258,14 +262,12 @@ def run_skill_update_recipe(
 ) -> int:
     """Run the recurring skill-update job.
 
-    `result` is the keyword-only out-parameter every recipe wrapper offers: the
+    `result` is the optional out-parameter described on `run_recipe`: the
     results, PR link and rendered report this wrapper already holds as locals
     are recorded on it as they are computed, so a caller summarizing the run
-    reads them directly. It is populated even on the failure paths that return
-    1 or 2, because what the run managed to collect is what makes those
-    outcomes reportable. The return value stays the exit code `run_recipe`
-    reads, and `run_recipe` calls wrappers positionally, so `coga run` is
-    unaffected.
+    reads them directly. The attempted `command` and `pr_requested` are
+    recorded before the update runs, so the exit-2 path reports what it tried;
+    the exit-1 path additionally carries everything it collected.
     """
     del cfg
     report_out = result if result is not None else SkillUpdateReport()
@@ -291,6 +293,11 @@ def run_skill_update_recipe(
     task_slug = script_task_slug_from_env()
     pr = not args.no_pr
     report_out.pr_requested = pr
+    # Recorded up front, not from `run_update_json`'s second return value —
+    # it runs exactly this command, but raises only *after* the subprocess has
+    # already run, so waiting for it would leave `command` empty on exactly the
+    # failed runs a caller most wants to name.
+    report_out.command = build_update_command(pr=pr, pr_title=args.pr_title)
 
     try:
         payload, command = run_update_json(cwd=args.cwd, pr=pr, pr_title=args.pr_title)
@@ -306,7 +313,6 @@ def run_skill_update_recipe(
             task_slug=task_slug,
         )
         report_out.results = results
-        report_out.command = command
         report_out.pr_url = pr_url
         report_out.report = report
         if blackboard:

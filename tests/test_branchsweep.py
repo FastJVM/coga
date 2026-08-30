@@ -358,13 +358,14 @@ def test_recipe_reports_worktree_pinned_outcome(
     repo: Path, monkeypatch, capsys
 ) -> None:
     monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
-    monkeypatch.setattr(
-        bs,
-        "sweep_branches",
-        lambda _cfg, _root, *, echo, result=None: bs.BranchSweepResult(
-            worktree_pinned=["feat"]
-        ),
-    )
+
+    def _sweep(_cfg, _root, *, echo, result=None):
+        # Fills in the accumulator it was handed, as the real sweep does — the
+        # wrapper reads the caller's object, not this function's return value.
+        result.worktree_pinned.append("feat")
+        return result
+
+    monkeypatch.setattr(bs, "sweep_branches", _sweep)
 
     assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
 

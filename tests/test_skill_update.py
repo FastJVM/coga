@@ -221,7 +221,9 @@ def test_recipe_hands_back_the_results_it_already_holds(
     assert [item.name for item in report.results] == ["a/updated"]
     assert report.pr_url == "https://github.com/o/r/pull/7"
     assert report.pr_requested is True
-    assert report.command == ["coga", "skill", "update", "--all", "--pr", "--json"]
+    assert report.command == build_update_command(
+        pr=True, pr_title="Update Coga-managed skills"
+    )
     assert report.report == blackboard.read_text()
     assert render_result_line(report.results) == "1 skill(s): 1 updated, 0 need follow-up, 0 skipped."
 
@@ -263,9 +265,13 @@ def test_recipe_result_is_populated_on_the_followup_exit(
     assert "### Needs follow-up" in report.report
 
 
-def test_recipe_result_records_pr_requested_when_a_run_fails(
+def test_recipe_result_names_the_command_a_failed_run_attempted(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # `run_update_json` raises only *after* the subprocess ran — a non-zero
+    # exit, or output that is not valid JSON. So the exit-2 path is a run that
+    # happened and failed, and it has to name the command it attempted rather
+    # than look like one that never started.
     def boom(*, cwd: Path | None, pr: bool, pr_title: str):
         raise RuntimeError("coga skill update failed")
 
@@ -277,11 +283,13 @@ def test_recipe_result_records_pr_requested_when_a_run_fails(
         == 2
     )
 
-    # Nothing was collected — `command` empty is the signal the update never ran.
-    assert report.results == []
-    assert report.command == []
-    assert report.report == ""
+    assert report.command == build_update_command(
+        pr=False, pr_title="Update Coga-managed skills"
+    )
     assert report.pr_requested is False
+    # Nothing was collected: the run failed before returning a payload.
+    assert report.results == []
+    assert report.report == ""
 
 
 def test_skill_update_skill_declares_contract() -> None:

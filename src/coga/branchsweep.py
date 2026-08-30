@@ -212,13 +212,11 @@ def run_branch_sweep_recipe(
 ) -> int:
     """Run the recurring branch-sweep job.
 
-    `result` is the keyword-only out-parameter every recipe wrapper offers: the
+    `result` is the optional out-parameter described on `run_recipe`: the
     `BranchSweepResult` this wrapper already computes is handed back through it
     with `.local_deleted` / `.remote_deleted` populated, so a caller that wants
     to name the deleted branches does not have to snapshot `git ls-remote`
-    either side of the run. The return value stays the exit code `run_recipe`
-    reads, and `run_recipe` calls wrappers positionally, so `coga run` is
-    unaffected.
+    either side of the run.
     """
     if argv:
         sys.stderr.write(
@@ -229,7 +227,12 @@ def run_branch_sweep_recipe(
     if root is None:
         sys.stderr.write(f"[branch-sweep] {cfg.repo_root} is not inside a git repo\n")
         return 2
-    result = sweep_branches(cfg, root, echo=print, result=result)
+    if result is None:
+        result = BranchSweepResult()
+    # Not rebound from the return value: `sweep_branches` hands back this same
+    # object, and reading the caller's own reference keeps the out-parameter
+    # contract true even if that ever stops being so.
+    sweep_branches(cfg, root, echo=print, result=result)
     if result.remote_unavailable:
         sys.stderr.write(f"[branch-sweep] {result.remote_unavailable}\n")
         return 2

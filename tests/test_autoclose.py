@@ -764,6 +764,39 @@ def test_recipe_hands_back_the_result_it_already_builds(
     capsys.readouterr()
 
 
+def test_recipe_result_counts_the_open_tickets_it_scanned(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The denominator for `closed`, counted in the walk the sweep already
+    # makes — the caller does not enumerate every ticket a second time.
+    # `done` and not-on-final tickets are outside the open set.
+    merged, _ = _make_task(
+        repo, title="Merged", on_final=True, pr_url="https://github.com/o/r/pull/50"
+    )
+    _make_task(
+        repo, title="Open early", on_final=False, pr_url="https://github.com/o/r/pull/51"
+    )
+    _make_task(repo, title="No PR", on_final=True, pr_url=None)
+    _, finished_path = _make_task(
+        repo, title="Finished", on_final=True, pr_url="https://github.com/o/r/pull/52"
+    )
+    ticket = Ticket.read(finished_path)
+    ticket.frontmatter["status"] = "done"
+    ticket.write(finished_path)
+
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/50": "MERGED"})
+    _capture_posts(monkeypatch)
+
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(load_config(repo), [], result=result) == 0
+
+    # Three open tickets walked; the already-`done` one is not one of them.
+    assert result.scanned == 3
+    assert [item.slug for item in result.closed] == [merged]
+    assert Ticket.read(finished_path).status == "done"
+    capsys.readouterr()
+
+
 def test_recipe_result_excludes_a_closure_this_sweep_did_not_make(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
