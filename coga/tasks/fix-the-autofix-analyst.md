@@ -8,6 +8,9 @@ agent: claude
 assignee: nicktoper
 contexts:
 - coga/recurring
+- coga/codebase
+- coga/principles
+- coga/extension-model
 skills: []
 workflow:
   name: code/with-self-review
@@ -36,9 +39,96 @@ step: 4 (review)
 
 ## Description
 
+Three independent fixes to the recurring sweep's autofix analyst
+(`src/coga/recurring_autofix.py`). They were found together while diagnosing a
+real sweep failure, but each stands alone.
 
+**1. Report the failure that actually happened.**
+`analyze_record` builds its error detail as
+`detail = (result.stderr or result.stdout or "").strip()`. `stderr` short-circuits,
+so any warning on stderr hides the real cause on stdout. Observed on the
+20260825T105618 sweep: the operator was told
+
+    claude exited 1: ⚠ claude.ai connectors are disabled because
+    ANTHROPIC_API_KEY or another auth source is set ...
+
+when the actual cause, on stdout, was `Credit balance is too low`. The connector
+line is an unrelated warning. This is a principle-6 defect: it fails loud, but
+loudly wrong, which is worse than quiet for a human trying to act on it.
+Include both streams (labelled) in `AutofixUnavailable` rather than picking one.
+
+**2. Don't inherit stdin.** The `subprocess.run` in `analyze_record` passes no
+`stdin`, so the analyst inherits the parent sweep's. `codex exec` documents that
+a piped stdin is *appended to the prompt* as a `<stdin>` block, so an inherited
+pipe silently grafts unrelated bytes onto the analysis prompt. Pass
+`stdin=subprocess.DEVNULL`; it is correct for every one-shot CLI, not just codex.
+
+**3. Make the analyst's agent selectable on its own.** `_analyze_agent` falls
+back to `cfg.default_agent()` — literally the first `[agents.*]` table in
+`coga.toml`, i.e. the create-time ticket default. The two existing levers are
+both wider than the intent:
+
+- reordering `coga.toml` switches the analyst *and* every new ticket's default;
+- `coga recurring --agent codex` switches the analyst *and* every agent-backed
+  period task in the sweep.
+
+Neither can express "the meta-loop uses a different vendor than the work" — which
+is a thing you want, both because a different vendor is a genuine second opinion
+on sweeps the default agent ran, and because it decouples self-analysis from the
+same auth path that just broke. Add one narrow config key, read by
+`_analyze_agent` before the `default_agent()` fallback:
+
+```toml
+[autofix]
+agent = "codex"
+```
+
+The explicit `--agent` override still wins over it; `default_agent()` remains the
+fallback when the key is absent, so behavior is unchanged out of the box. Adding
+a config section means adding it to its table's allowlist in `config.py` or the
+next command fails loud (that is the intended fail-loud behavior — wire it up).
+
+Keep it to one key and one branch. This is not a plugin seam or a general
+per-command agent-routing mechanism; resist growing it into one.
 
 ## Context
+
+**Verified on this machine, 2026-08-25** (both from
+`/home/n/Code/claude/coga`):
+
+    $ claude -p "Reply with exactly: ok"
+    exit=1
+    stdout: Credit balance is too low
+    stderr: ⚠ claude.ai connectors are disabled because ANTHROPIC_API_KEY ...
+
+    $ codex exec "Reply with exactly: ok"
+    exit=0
+
+`ANTHROPIC_API_KEY` is exported in the operator's shell environment. Headless
+`claude -p` resolves auth to it instead of the claude.ai login — there is no
+interactive "use this API key?" gate — and that key's account has no credit.
+Every other agent Coga spawns is an interactive PTY REPL on the subscription
+login, which is why the autofix analyst is the only Coga call that fails this
+way. Note that fixing the operator's environment would make this particular
+symptom disappear without fixing any of the three defects above; do not treat a
+green sweep as evidence.
+
+Codex's `exec` banner (version, workdir, model, session id) does **not** need
+stripping: `parse_analysis` regex-scans for `^VERDICT:` anywhere in the reply
+rather than parsing by position, so the preamble is already inert. Don't add
+output-scrubbing that isn't needed.
+
+Relevant existing surface:
+
+- `DEFAULT_ANALYZE_TEMPLATES` and `[agents.<name>].analyze` already give each CLI
+  its one-shot argv — that part of the vendor-swap story works and needs nothing.
+- `recurring_runner.py` already threads `agent_override` into `run_autofix`, so
+  `coga recurring --agent <type>` reaches the analyst. Keep that precedence:
+  explicit flag > `[autofix].agent` > `default_agent()`.
+
+Tests belong in `tests/` next to the existing autofix coverage; the error-detail
+and stdin changes are both directly unit-testable with a faked `subprocess.run`.
+
 
 <!-- coga:blackboard -->
 
