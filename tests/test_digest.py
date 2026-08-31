@@ -9,7 +9,7 @@ from textwrap import dedent
 import pytest
 
 from coga import notification, spool
-from coga.commands.digest import run_digest
+from coga.commands.digest import DigestOutcome, run_digest, run_digest_recipe
 from coga.config import load_config
 
 
@@ -636,3 +636,82 @@ def test_run_digest_noop_without_digest_ticket(
     cfg = load_config()
     assert run_digest(cfg) is False
     assert captured_posts == []
+
+
+# --- the recipe wrapper's out-parameter ---------------------------------------
+
+
+def test_run_digest_recipe_rejects_arguments(repo: Path) -> None:
+    assert run_digest_recipe(load_config(), ["--all"]) == 2
+
+
+def test_run_digest_recipe_outcome_counts_what_it_posted(
+    repo: Path, captured_posts: list[dict]
+) -> None:
+    bb = _install_digest(repo)
+    cfg = load_config()
+    notification.notify(
+        cfg, "y", kind="done", detail="→ done ✅", ticket="alpha", owner="nick"
+    )
+
+    outcome = DigestOutcome()
+    assert run_digest_recipe(cfg, [], result=outcome) == 0
+
+    assert outcome.posted is True
+    assert outcome.outcomes == 1
+    assert outcome.merged == 0
+    assert outcome.note is None
+    # No git high-water scan ran here, so this pass recorded no range — and a
+    # caller must not report a previous run's.
+    assert outcome.commit_range is None
+    assert spool.read_unconsumed(bb) == []
+
+
+def test_run_digest_recipe_outcome_notes_a_missing_spool(
+    repo: Path, captured_posts: list[dict]
+) -> None:
+    outcome = DigestOutcome()
+    assert run_digest_recipe(load_config(), [], result=outcome) == 0
+
+    assert outcome.posted is False
+    assert outcome.note == "no recurring/digest/ spool installed"
+    assert outcome.outcomes == 0
+    assert captured_posts == []
+
+
+def test_run_digest_recipe_outcome_carries_the_range_it_recorded(
+    git_repo, captured_posts: list[dict]
+) -> None:
+    start = git_repo.git("rev-parse", "HEAD").strip()
+    _install_digest_with_state(git_repo.coga_os, start)
+    cfg = load_config(git_repo.coga_os)
+    _commit_and_push(
+        git_repo,
+        "coga/docs/filtered.md",
+        "sync\n",
+        "Ticket: filtered — active",
+    )
+
+    outcome = DigestOutcome()
+    assert run_digest_recipe(cfg, [], result=outcome) == 0
+
+    head = git_repo.git("rev-parse", "origin/main").strip()
+    assert outcome.posted is False
+    assert outcome.note == "no done tickets or new commits"
+    assert outcome.head == head
+    assert outcome.commit_range is not None
+    assert captured_posts == []
+
+
+def test_run_digest_recipe_works_without_an_out_parameter(
+    repo: Path, captured_posts: list[dict]
+) -> None:
+    # `run_recipe` calls every wrapper positionally; the keyword is opt-in.
+    _install_digest(repo)
+    cfg = load_config()
+    notification.notify(
+        cfg, "y", kind="done", detail="→ done ✅", ticket="alpha", owner="nick"
+    )
+
+    assert run_digest_recipe(cfg, []) == 0
+    assert len(captured_posts) == 1

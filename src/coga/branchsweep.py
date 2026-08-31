@@ -69,7 +69,11 @@ class BranchSweepResult:
 
 
 def sweep_branches(
-    cfg: Config, root: Path, *, echo: Callable[[str], None] = print
+    cfg: Config,
+    root: Path,
+    *,
+    echo: Callable[[str], None] = print,
+    result: BranchSweepResult | None = None,
 ) -> BranchSweepResult:
     """Delete local/`origin` branches whose PR has merged, skipping live ones.
 
@@ -79,8 +83,13 @@ def sweep_branches(
     branch still checked out in a live worktree. If worktree state or `gh` is
     unavailable, the rest of the sweep is skipped and reported rather than
     deleting with incomplete safety information.
+
+    `result`, when given, is used as the accumulator and returned — the same
+    idiom `sweep_merged` offers, so a caller holding the object can read what
+    the sweep did without a second enumeration of local and remote refs.
     """
-    result = BranchSweepResult()
+    if result is None:
+        result = BranchSweepResult()
     worktree_branches = _worktree_branches(root, result, echo)
     if result.worktree_unavailable is not None:
         return result
@@ -198,8 +207,17 @@ def branch_merged_without_open_pr(branch: str, current_tip: str) -> bool:
     return merged and not prs_for_head(branch, "open")
 
 
-def run_branch_sweep_recipe(cfg: Config, argv: list[str]) -> int:
-    """Run the recurring branch-sweep job."""
+def run_branch_sweep_recipe(
+    cfg: Config, argv: list[str], *, result: BranchSweepResult | None = None
+) -> int:
+    """Run the recurring branch-sweep job.
+
+    `result` is the optional out-parameter described on `run_recipe`: the
+    `BranchSweepResult` this wrapper already computes is handed back through it
+    with `.local_deleted` / `.remote_deleted` populated, so a caller that wants
+    to name the deleted branches does not have to snapshot `git ls-remote`
+    either side of the run.
+    """
     if argv:
         sys.stderr.write(
             f"branch-sweep: unexpected arguments: {' '.join(repr(arg) for arg in argv)}\n"
@@ -209,7 +227,12 @@ def run_branch_sweep_recipe(cfg: Config, argv: list[str]) -> int:
     if root is None:
         sys.stderr.write(f"[branch-sweep] {cfg.repo_root} is not inside a git repo\n")
         return 2
-    result = sweep_branches(cfg, root, echo=print)
+    if result is None:
+        result = BranchSweepResult()
+    # Not rebound from the return value: `sweep_branches` hands back this same
+    # object, and reading the caller's own reference keeps the out-parameter
+    # contract true even if that ever stops being so.
+    sweep_branches(cfg, root, echo=print, result=result)
     if result.remote_unavailable:
         sys.stderr.write(f"[branch-sweep] {result.remote_unavailable}\n")
         return 2

@@ -727,6 +727,114 @@ def test_recipe_says_nothing_when_no_closed_ticket_left_a_checkout(
     assert [p for p in posts if "🧹" in p] == []
 
 
+def test_recipe_hands_back_the_result_it_already_builds(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    held, _ = _make_task(
+        repo,
+        title="Held",
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/40",
+        branch="feature-x",
+        worktree="/w/coga-feature-x",
+    )
+    plain, _ = _make_task(
+        repo,
+        title="Plain",
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/41",
+        branch=None,
+    )
+    _stub_pr_state(
+        monkeypatch,
+        {
+            "https://github.com/o/r/pull/40": "MERGED",
+            "https://github.com/o/r/pull/41": "MERGED",
+        },
+    )
+    _capture_posts(monkeypatch)
+
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(load_config(repo), [], result=result) == 0
+
+    # The accumulator the wrapper used to keep private: exactly what it closed,
+    # and the subset that still holds a checkout.
+    assert sorted(item.slug for item in result.closed) == sorted([held, plain])
+    assert [item.slug for item in result.retire_pending] == [held]
+    capsys.readouterr()
+
+
+def test_recipe_result_counts_the_open_tickets_it_scanned(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The denominator for `closed`, counted in the walk the sweep already
+    # makes — the caller does not enumerate every ticket a second time.
+    # `done` and not-on-final tickets are outside the open set.
+    merged, _ = _make_task(
+        repo, title="Merged", on_final=True, pr_url="https://github.com/o/r/pull/50"
+    )
+    _make_task(
+        repo, title="Open early", on_final=False, pr_url="https://github.com/o/r/pull/51"
+    )
+    _make_task(repo, title="No PR", on_final=True, pr_url=None)
+    _, finished_path = _make_task(
+        repo, title="Finished", on_final=True, pr_url="https://github.com/o/r/pull/52"
+    )
+    ticket = Ticket.read(finished_path)
+    ticket.frontmatter["status"] = "done"
+    ticket.write(finished_path)
+
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/50": "MERGED"})
+    _capture_posts(monkeypatch)
+
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(load_config(repo), [], result=result) == 0
+
+    # Three open tickets walked; the already-`done` one is not one of them.
+    assert result.scanned == 3
+    assert [item.slug for item in result.closed] == [merged]
+    assert Ticket.read(finished_path).status == "done"
+    capsys.readouterr()
+
+
+def test_recipe_result_excludes_a_closure_this_sweep_did_not_make(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A global before/after status diff would name `elsewhere` too: it is open
+    # when the sweep starts and `done` when it ends. The accumulator names only
+    # what this sweep closed.
+    swept, _ = _make_task(
+        repo, title="Swept", on_final=True, pr_url="https://github.com/o/r/pull/42"
+    )
+    elsewhere, elsewhere_path = _make_task(
+        repo, title="Elsewhere", on_final=True, pr_url="https://github.com/o/r/pull/43"
+    )
+    _capture_posts(monkeypatch)
+
+    states = {
+        "https://github.com/o/r/pull/42": "MERGED",
+        "https://github.com/o/r/pull/43": "OPEN",
+    }
+
+    def fake(url: str) -> str:
+        if url.endswith("/42"):
+            # `elsewhere` was already skipped as unmerged; a `coga mark done`
+            # run by someone else lands while this sweep is still walking.
+            ticket = Ticket.read(elsewhere_path)
+            ticket.frontmatter["status"] = "done"
+            ticket.write(elsewhere_path)
+        return states[url]
+
+    monkeypatch.setattr(am, "pr_state", fake)
+
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(load_config(repo), [], result=result) == 0
+
+    assert [item.slug for item in result.closed] == [swept]
+    assert Ticket.read(elsewhere_path).status == "done"
+    capsys.readouterr()
+
+
 def test_recipe_appends_the_report_to_the_task_blackboard(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

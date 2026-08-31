@@ -92,11 +92,22 @@ class ClosedTicket:
         return ", ".join(parts)
 
 
+OPEN_STATUSES = frozenset({"active", "in_progress"})
+
+
 @dataclass
 class AutocloseResult:
     """What one `sweep_merged` run closed, for reporting and tests."""
 
     closed: list[ClosedTicket] = field(default_factory=list)
+    scanned: int = 0
+    """Open (`active`/`in_progress`) tickets this sweep examined.
+
+    The denominator `closed` is measured against. Counted during the walk the
+    sweep already makes, so a caller reporting "N open ticket(s) scanned" does
+    not have to enumerate every ticket a second time. A sweep cut short by a
+    `gh` failure leaves a partial count, matching what it actually looked at.
+    """
 
     @property
     def retire_pending(self) -> list[ClosedTicket]:
@@ -339,7 +350,7 @@ def _on_final_step(ticket: Ticket) -> bool:
 
 
 def _candidate(ticket: Ticket) -> bool:
-    return ticket.status in {"active", "in_progress"} and _on_final_step(ticket)
+    return ticket.status in OPEN_STATUSES and _on_final_step(ticket)
 
 
 def _try_bump_one(
@@ -349,17 +360,22 @@ def _try_bump_one(
     quiet: bool,
     on_closed: Callable[[ClosedTicket], None],
     before_close: Callable[[ClosedTicket], None] | None = None,
+    on_open: Callable[[], None] | None = None,
 ) -> ClosedTicket | None:
     """Check `ref`; bump to done iff its linked PR has merged.
 
     Returns the closed ticket (with its recorded checkout state) iff the ticket
     was bumped, else None. Always raises `GhError` on `gh` failure — callers
-    decide whether to swallow or surface.
+    decide whether to swallow or surface. `on_open` fires for every readable
+    open ticket, before the final-step filter, so a caller can count what was
+    considered and not only what was closed.
     """
     try:
         ticket = read_ticket(ref)
     except TicketError:
         return None
+    if ticket.status in OPEN_STATUSES and on_open is not None:
+        on_open()
     if not _candidate(ticket):
         return None
 
@@ -451,6 +467,10 @@ def _sweep_merged_into(
     to disk remain reportable if a later ticket fails. Public callers use
     ``sweep_merged`` below, which preserves the ordinary return-value API.
     """
+
+    def _note_open() -> None:
+        result.scanned += 1
+
     for ref in list_tasks(cfg):
         try:
             _try_bump_one(
@@ -459,6 +479,7 @@ def _sweep_merged_into(
                 quiet=quiet,
                 on_closed=result.closed.append,
                 before_close=before_close,
+                on_open=_note_open,
             )
         except GhError:
             if quiet:
@@ -627,16 +648,33 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
     )
 
 
-def run_autoclose_recipe(cfg: Config, argv: list[str]) -> int:
-    """Run the recurring autoclose job through the fixed recipe surface."""
+def run_autoclose_recipe(
+    cfg: Config, argv: list[str], *, result: AutocloseResult | None = None
+) -> int:
+    """Run the recurring autoclose job through the fixed recipe surface.
+
+    `result` is the optional out-parameter described on `run_recipe`: the
+    accumulator this wrapper already keeps outside `sweep_merged` becomes the
+    caller's when one is supplied, so a caller that wants to name what the
+    sweep closed reads `.closed` / `.retire_pending` instead of diffing ticket
+    status globally — which cannot tell this sweep's closures from a concurrent
+    `coga mark done`. `.scanned` is the matching denominator, counted in the
+    walk the sweep already makes.
+    """
     if argv:
         sys.stderr.write(
             f"autoclose: unexpected arguments: {' '.join(repr(arg) for arg in argv)}\n"
         )
         return 2
-    result = AutocloseResult()
+    # Defaulted here, not left to `sweep_merged`: the exception handlers below
+    # read `result`, so this frame needs the accumulator the sweep is filling
+    # in. `sweep_merged` returns that same object, so its return value is
+    # deliberately not rebound onto `result` — a caller's `result=` stays the
+    # object being reported on even if the sweep ever returns a different one.
+    if result is None:
+        result = AutocloseResult()
     try:
-        result = sweep_merged(
+        sweep_merged(
             cfg,
             quiet=False,
             result=result,

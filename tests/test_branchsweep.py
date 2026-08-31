@@ -358,19 +358,52 @@ def test_recipe_reports_worktree_pinned_outcome(
     repo: Path, monkeypatch, capsys
 ) -> None:
     monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
-    monkeypatch.setattr(
-        bs,
-        "sweep_branches",
-        lambda _cfg, _root, *, echo: bs.BranchSweepResult(
-            worktree_pinned=["feat"]
-        ),
-    )
+
+    def _sweep(_cfg, _root, *, echo, result=None):
+        # Fills in the accumulator it was handed, as the real sweep does — the
+        # wrapper reads the caller's object, not this function's return value.
+        result.worktree_pinned.append("feat")
+        return result
+
+    monkeypatch.setattr(bs, "sweep_branches", _sweep)
 
     assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
 
     captured = capsys.readouterr()
     assert "[branch-sweep] skipped-worktree-pinned: feat" in captured.out
     assert captured.err == ""
+
+
+def test_recipe_hands_back_the_deleted_branches(repo: Path, monkeypatch) -> None:
+    # The wrapper already computes this result; the out-parameter saves the
+    # caller a second `ls-remote`/`for-each-ref` snapshot either side of the run.
+    _push_branch(repo, "feat", land_in_main=True)
+    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+
+    result = bs.BranchSweepResult()
+    assert bs.run_branch_sweep_recipe(_cfg(repo), [], result=result) == 0
+
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == ["feat"]
+    assert not _branch_exists_local(repo, "feat")
+    assert not _branch_exists_remote(repo, "feat")
+
+
+def test_recipe_result_records_an_unavailable_remote(repo: Path, monkeypatch) -> None:
+    # A failed sweep exits 2; the caller still gets the reason on the object it
+    # passed in rather than having to re-read stderr.
+    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+
+    def _sweep(_cfg, _root, *, echo, result=None):
+        result.remote_unavailable = "remote unreachable"
+        return result
+
+    monkeypatch.setattr(bs, "sweep_branches", _sweep)
+
+    result = bs.BranchSweepResult()
+    assert bs.run_branch_sweep_recipe(_cfg(repo), [], result=result) == 2
+    assert result.remote_unavailable == "remote unreachable"
 
 
 def test_gh_unavailable_no_deletes(repo: Path, monkeypatch) -> None:
