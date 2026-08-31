@@ -283,10 +283,15 @@ ones that affect implementation:
 - **`coga step` renamed to `coga bump`.** The "advance" semantic
   stays; the name changed because "step" overloaded with "step in
   workflow" was confusing. `bump` derives the next step from the
-  current `step:` frontmatter and normally advances by one. Humans may
-  rewind in-progress workflow tasks to an earlier step with `--to` or
-  `--backward`; agents still block instead of going backward. `bump` does
-  finish tickets from their final workflow step by delegating to the same
+  current `step:` frontmatter and normally advances by one. Humans may rewind
+  `active`, `in_progress`, or `paused` workflow tasks to an earlier step with
+  `--to` or `--backward`; an `active`/`paused` rewind must target a configured
+  agent so the unchanged status remains launchable. Rewind is explicitly an
+  exceptional human debug/recovery operation, not routine progression. Any
+  rewind whose guarded publication is unconfirmed remains local debug state and
+  is inspected and reconciled before another mutation, branch push, or merge.
+  Agents still block instead of going backward. `bump` does finish tickets from
+  their final workflow step by delegating to the same
   `mark_done` finalizer as `coga mark done`. A no-workflow ticket still errors
   and points at `coga mark done` because it has no step for `bump` to finish.
 - **`coga recurring` is the canonical entry point** for the recurring
@@ -297,7 +302,11 @@ ones that affect implementation:
 - **Control plane and data plane are fully split.** `draft` is unapproved,
   `active` is approved/queued, and `in_progress` is launched work. `coga
   launch` owns the `active` → `in_progress` start transition; `coga bump`
-  owns `step:` movement and only runs while the task is `in_progress`.
+  owns `step:` movement. Forward bumps require `in_progress`; a human rewind
+  also accepts `active` or `paused`, leaves status unchanged, and refuses a
+  human/unassigned target from those statuses. Its exceptional debug semantics
+  are the deliberate sharp edge outside the ordinary catch-all sweep and
+  branch-publication contracts until the operator reconciles it.
   The normal boot is `coga ticket "<title>"` → review the draft →
   `coga launch <slug>`, which activates the draft inline as it starts work.
 

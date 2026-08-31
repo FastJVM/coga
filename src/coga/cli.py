@@ -185,6 +185,17 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
     command = args[0]
     if command.startswith("-") or command in _NON_SWEEPING_COMMANDS:
         return False
+    if command == "bump" and any(
+        arg in {"--backward", "--to"} or arg.startswith("--to=")
+        for arg in args[1:]
+    ):
+        # A rewind already publishes through its scoped exact-status guard.
+        # A refused rewind deliberately stays dirty, while a successful
+        # detached rewind seals its selected paths in a scoped local commit.
+        # In neither case may the generic sweep republish ticket bytes without
+        # the rewind-specific equality check. Skip it for the whole invocation,
+        # not only when the scoped publisher refuses and exits with code 75.
+        return False
     if command in _SWEEPING_COMMANDS:
         return True
     if command == "skill":

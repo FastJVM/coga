@@ -437,14 +437,30 @@ bundled refs may replace that list with specific cleanup instructions.
   invalid unassigned baseline fails closed instead of inheriting a later agent
   and misrouting the ask. TTY-less
   launches keep refusing a blocked ticket until `coga unblock` records the
-  answer. `bump` owns workflow progression and enforces `status: in_progress`;
-  at the terminal boundary it delegates the status transition to `mark_done`.
+  answer. `bump` owns workflow progression and enforces
+  `status: in_progress` for a forward bump; at the terminal boundary it
+  delegates the status transition to `mark_done`.
 - **Data plane (`step`)** — current position in the frozen workflow.
-  Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when
-  status is `in_progress`. Bare `coga bump` advances one step, or marks the
-  ticket `done` and clears `step:` when the current step is final; a human
-  outside a supervised launch may rewind to an earlier step with `--to` or
-  `--backward`. Pausing preserves the step; cancellation clears it.
+  Format `N (step-name)`. Owned entirely by `coga bump`. Bare `coga bump`
+  advances one step — only from `in_progress` — or marks the ticket `done`
+  and clears `step:` when the current step is final; a human outside a
+  supervised launch may rewind to an earlier step with `--to` or
+  `--backward`. A rewind is reposition-only: it accepts `active`,
+  `in_progress`, and `paused`, writes `step:`, may re-resolve `assignee:` for
+  the target step, and never changes status. An `active` or `paused` rewind
+  must target a configured agent so the human can resume it with `coga launch`;
+  it refuses a human or unassigned target because ordinary launch is a hard
+  handoff and a forward bump requires `in_progress`. An already `in_progress`
+  ticket may rewind to either kind of target. Rewind also refuses a `blocked`
+  ticket (run `coga unblock` first, which owns blocker resolution) and the
+  terminal statuses, which have no `step:` to move. Rewind is an exceptional
+  human debug/recovery operation, not normal lifecycle progression. Whenever
+  its guarded publication is not confirmed — status refusal, transport failure,
+  or no configured remote — Coga deliberately leaves the local debug mutation
+  available for inspection, either dirty or in local history. The operator must
+  reconcile that checkout with control before another mutating Coga command,
+  branch push, or merge; read-only inspection remains safe. Pausing preserves
+  the step; cancellation clears it.
 
 Tickets without a `workflow` field have no steps and move through
 statuses directly via `coga mark`. `coga bump` refuses them.

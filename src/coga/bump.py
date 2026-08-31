@@ -25,6 +25,36 @@ class AssigneeResolutionError(Exception):
     """Raised when a workflow step's role token can't resolve against the ticket."""
 
 
+REWINDABLE_STATUSES: frozenset[str] = frozenset({"active", "in_progress", "paused"})
+"""Statuses a human rewind (`coga bump --to/--backward`) may move the step of.
+
+A rewind is reposition-only: it writes `step:` and never touches `status:`.
+`active` and `paused` tickets used to need a launch-then-exit dance purely to
+reach `in_progress`; the caller additionally requires their target to resolve
+to a configured agent so the unchanged status remains launchable. `draft` has
+no step yet, `blocked` belongs to `coga unblock`, and the terminal statuses
+have no `step:` at all (`mark_done` pops it).
+"""
+
+
+def rewind_status_error(id_slug: str, status: str) -> str | None:
+    """Return why `status` can't be rewound, or None when it can."""
+    if status in REWINDABLE_STATUSES:
+        return None
+    if status == "blocked":
+        # `coga unblock` owns blocker resolution; rewinding a blocked ticket
+        # would reposition it while leaving the open ask unresolved.
+        return (
+            f"Task {id_slug} is blocked. "
+            f"Run `coga unblock {id_slug}` first, then rewind."
+        )
+    return (
+        f"Task {id_slug} is {status!r}. Cannot rewind. Rewindable statuses: "
+        + ", ".join(sorted(REWINDABLE_STATUSES))
+        + "."
+    )
+
+
 def resolve_other_agent(cfg: Config, agent: str | None) -> str:
     """Resolve the `other-agent` role token to the peer agent's nickname.
 
@@ -119,9 +149,11 @@ def advance_step(
 
     `rewind=True` marks a human `coga bump --to/--backward`, the one deliberate
     backward step move. It relaxes exactly the step-backward rule in the sync
-    guard — the human is the authority on their own rewind — while leaving the
-    rest of the guard on, so a rewind still cannot bury a ticket another
-    checkout has already closed or advanced past.
+    guard — the human is the authority on their own rewind — while requiring
+    the control and working statuses to match exactly. Because rewind never
+    changes status, a mismatch proves this checkout is stale. That mismatch is
+    propagated before output or notification so the CLI can retain the local
+    rewind while suppressing its broader end-of-command state sweep.
 
     A recorded-assist caller supplies ``feature_publication`` and an armed
     ``mutation_snapshot`` so the step and audit reach the PR and control refs
@@ -168,6 +200,14 @@ def advance_step(
                 message=message,
                 guard=guard,
                 publish_current_branch=publish_current_branch,
+                **(
+                    {
+                        "commit_detached": True,
+                        "raise_state_regression": True,
+                    }
+                    if rewind
+                    else {}
+                ),
             )
             return
         git.sync_task_state(
@@ -186,14 +226,24 @@ def advance_step(
             ),
         )
 
-    # A recorded-assist child owns a strict feature/control transaction. Make
-    # that durable before any user-visible handoff notification; ordinary bump
-    # calls keep their established output-before-sync ordering.
-    if feature_publication is not None:
+    # A recorded-assist child owns a strict feature/control transaction. A
+    # rewind also needs its narrower status-equality publication to complete
+    # before any user-visible output or notification; if it refuses, the CLI
+    # exits through the no-sweep retry path. Ordinary forward bumps keep their
+    # established output-before-sync ordering.
+    if feature_publication is not None or rewind:
         sync_state()
     if echo is not None:
         typer.echo(echo)
     if notify_slack:
+        notification_log = log_path(cfg)
+        log_before_notification = (
+            notification_log.read_bytes()
+            if rewind
+            and feature_publication is None
+            and notification_log.is_file()
+            else None
+        )
         # `fatal=False`: the step advance is already on disk above. An
         # undeliverable FYI must not abort `coga bump` before it reaches
         # `emit_done_marker`, or the supervised REPL hangs to its idle timeout.
@@ -206,7 +256,25 @@ def advance_step(
             fatal=False,
             record_failure=feature_publication is None,
         )
-    if feature_publication is None:
+        if (
+            rewind
+            and feature_publication is None
+            and notification_log.is_file()
+            and notification_log.read_bytes() != log_before_notification
+        ):
+            # Rewinds deliberately suppress the broad CLI sweep so it cannot
+            # bypass their exact-status ticket guard. A failed live post adds
+            # one audit line after the scoped rewind publication; publish only
+            # that merge=union log, never the ticket again.
+            git.sync_paths(
+                cfg,
+                notification_log,
+                [notification_log],
+                message=f"Log: {ref.id_slug} — rewind notification failure",
+                land_union_files_to_control=True,
+                commit_detached=True,
+            )
+    if feature_publication is None and not rewind:
         sync_state()
 
 
@@ -214,5 +282,7 @@ __all__ = [
     "advance_step",
     "resolve_step_assignee",
     "resolve_other_agent",
+    "rewind_status_error",
     "AssigneeResolutionError",
+    "REWINDABLE_STATUSES",
 ]

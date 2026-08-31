@@ -639,34 +639,63 @@ cancellation:
 Callers that are not publishing a ticket's state (authoring, deletes, recurring
 child writes) pass no guard.
 
-**The one deliberate backward move is a human rewind.** `coga bump
+**The one deliberate backward move is a human rewind.** It is an exceptional
+debug/recovery operation, not normal lifecycle progression. `coga bump
 --to/--backward` moves `step:` backward on purpose, and it shares
 `advance_step` with forward bumps, so guarding it naively would refuse exactly
 the thing the human asked for. `advance_step(rewind=True)` therefore passes
-`allow_step_rewind`, which drops *only* the step-backward rule. The status
-rules stay armed, and `advance_step` writes only `step:` (plus `assignee:`), so
-a status difference during a rewind means the checkout is stale rather than the
-human deliberate — rewinding a ticket another checkout has already closed is
-still refused.
+`allow_step_rewind`, which drops the step-backward rule and tightens the status
+rule to exact equality. `advance_step` writes only `step:` (plus `assignee:`),
+so any status difference during a rewind means the checkout is stale rather
+than the human deliberate. This refuses not only a terminal control copy but
+also `active` / `paused` rewinds whose control copy concurrently became
+`in_progress` or `blocked`.
 
-Those status rules are narrower than "status may not move backward" sounds. The
-progress comparison ranks only the statuses in `git._STATUS_PROGRESS` — `draft`
-0 < `active` 1 < `in_progress` 2 < `done`/`canceled` 3 — and fires only when
-*both* sides are on that ladder. `blocked` and `paused` are absent from it, so
-a landing that involves either on one side skips the progress rule entirely; and
-because `done` and `canceled` tie at 3, it is the separate terminal-status rule
-— never the progress rule — that refuses swapping one terminal status for the
-other.
+Outside that rewind-specific equality rule, the status rules are narrower than
+"status may not move backward" sounds. The progress comparison ranks only the
+statuses in `git._STATUS_PROGRESS` — `draft` 0 < `active` 1 < `in_progress` 2 <
+`done`/`canceled` 3 — and fires only when *both* sides are on that ladder.
+`blocked` and `paused` are absent from it, so a landing that involves either on
+one side skips the progress rule entirely; and because `done` and `canceled`
+tie at 3, it is the separate terminal-status rule — never the progress rule —
+that refuses swapping one terminal status for the other.
 
-A refusal is loud but non-fatal, and deliberately lands *after* the local
+Most refusals are loud but non-fatal, and deliberately land *after* the local
 ticket write: `StateRegressionError` is caught at the sync entry point, the
 reason is written to stderr as `sync refused` and recorded against the task in
 `coga/log.md`, and a local sync commit already made on a feature branch is
-unwound while its files stay dirty. The transition the human asked for stays on
-disk and the checkout is left visibly behind control (`coga status` flags it
-through `stale_coga_task_rels`) rather than being reverted behind their back.
-Moving the write behind a fetch instead would put the network on the hot path
-of every status transition, which the always-on sync contract does not accept.
+unwound while its files stay dirty. A rewind status mismatch is the exception
+at the command boundary: `advance_step` asks the sync layer to re-raise it,
+then `coga bump` exits with `RETRY_WITHOUT_SWEEP_EXIT_CODE` (75). The local
+rewind still stays dirty, but `coga.cli.main` skips its broad catch-all sweep;
+that sweep lacks rewind-specific status equality and could otherwise republish
+the exact stale bytes the narrow guard refused.
+
+The same operator contract covers every rewind whose guarded publication is not
+confirmed, including a configured-remote transport failure and the no-remote
+soft-skip. The retained mutation is a human-inspectable debug artifact,
+deliberately outside ordinary catch-all sync and branch publication: it may be
+dirty or already recorded in local branch history. The operator must reconcile
+the checkout with control before another mutating Coga command, branch push, or
+merge, because none of those later paths retains the rewind-specific equality
+guard. Read-only inspection is safe. This is the accepted sharp edge of an
+exceptional debug/recovery operation, not a routine lifecycle guarantee.
+
+With a reachable remote, a detached rewind makes a scoped commit containing
+only its ticket and audit log before the guarded control landing. Every
+rejected or interrupted landing reconciles that commit through the strict
+candidate probe: a proven unaccepted commit is unwound and the debug bytes stay
+dirty; an accepted or indeterminate candidate is retained for explicit
+reconciliation. With no remote, no detached commit is made and the debug bytes
+stay dirty. After an ordinary success the ticket is clean. The CLI still
+classifies every `bump
+--to/--backward` invocation as non-sweeping, so the broad publisher never gets
+a second chance at the ticket during the command. If an explicit rewind FYI
+fails after publication and appends an audit line, `advance_step` detects that
+post-sync log change and union-publishes only `coga/log.md` (with the same
+scoped detached-commit behavior), never the ticket again. Moving the ticket
+write behind a fetch instead would put the network on the hot path of every
+status transition, which the always-on sync contract does not accept.
 
 ### The catch-all subtree sweep — `sync_coga_state`
 

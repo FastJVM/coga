@@ -268,6 +268,32 @@ be bumped; use `coga mark done` for those.
 The rewind flags are refused for an agent inside a supervised launch — a human
 runs them.
 
+A rewind repositions `step:` and may re-resolve `assignee:` for the target
+step, so it works from `active`, `in_progress`, or `paused` while leaving the
+status where it was. From `active` or `paused`, the target must resolve to a
+configured agent so it remains resumable with `coga launch`; a human or
+unassigned target is accepted only when the ticket is already `in_progress`.
+Rewind refuses a `blocked` ticket (run `coga unblock` first) and the terminal
+statuses, which have no `step:` to move. A concurrent control-status change
+also refuses publication and leaves the local rewind dirty for inspection and
+reconciliation instead of letting the current command's fallback state sweep
+overwrite control.
+
+Rewind is an exceptional human debug/recovery operation, not normal lifecycle
+progression. Whenever guarded publication is unconfirmed — status refusal,
+transport failure, or no configured remote — the retained local rewind may be
+dirty or recorded in local branch history. Reconcile that checkout with control
+before another mutating Coga command, branch push, or merge; those later paths
+do not carry the rewind-specific equality guard. Read-only inspection is safe.
+Rewind commands never run the broad fallback sweep themselves, including after
+a successful scoped publication. A successful detached rewind with a reachable
+remote seals only its ticket and audit log in a local commit; without a remote,
+or when a rejected/interrupted landing is proven not to have published, those
+debug bytes stay dirty. An ambiguous interrupted push is probed before Coga
+decides whether to keep or unwind the scoped commit. If a rewind FYI fails after
+publication, only its merge-union audit log is synced. A forward bump still
+requires `in_progress`.
+
 ### `coga block --task TASK --reason "<ask>"`
 Record an unresolved blocker and set the ticket to `blocked`. Both flags are
 required; `--reason` must be a specific, answerable question — it's written to

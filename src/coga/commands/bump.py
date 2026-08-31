@@ -12,6 +12,7 @@ from coga.bump import (
     AssigneeResolutionError,
     advance_step,
     resolve_step_assignee,
+    rewind_status_error,
 )
 from coga.config import ConfigError, load_config
 from coga.logfile import log_path
@@ -114,7 +115,15 @@ def bump(
         _bail(f"Task {ref.id_slug} has no ticket.md. Cannot advance.")
     ticket = Ticket.parse(ticket_bytes.decode("utf-8"))
 
-    if ticket.status != "in_progress":
+    # A forward bump finishes work, so it requires a ticket that is being
+    # worked on. A rewind only repositions `step:` and never touches `status:`,
+    # so it also accepts the statuses a human can rewind from without first
+    # launching the ticket just to flip it to `in_progress`.
+    if rewind:
+        reason = rewind_status_error(ref.id_slug, ticket.status)
+        if reason:
+            _bail(reason)
+    elif ticket.status != "in_progress":
         _bail(f"Task {ref.id_slug} is {ticket.status!r}. Cannot advance.")
 
     _assert_supervised_step_is_current(ref, ticket.step)
@@ -364,13 +373,33 @@ def bump(
 
     role = new_step.get("assignee")
     new_assignee: str | None = None
+    target_assignee = ticket.assignee
     if role is not None:
         try:
             resolved = resolve_step_assignee(cfg, ticket, role)
         except AssigneeResolutionError as exc:
             _bail(str(exc))
+        target_assignee = resolved
         if resolved != ticket.assignee:
             new_assignee = resolved
+
+    # An active/paused rewind must still be resumable with `coga launch`.
+    # Normal launch intentionally refuses a human or unassigned handoff, while
+    # a forward bump intentionally requires `in_progress`; accepting this
+    # combination would therefore strand the target step. An already
+    # in-progress human handoff remains valid and can be completed normally.
+    if (
+        rewind
+        and ticket.status in {"active", "paused"}
+        and (not target_assignee or target_assignee not in cfg.agents)
+    ):
+        target = repr(target_assignee) if target_assignee else "unassigned"
+        _bail(
+            f"Cannot rewind {ref.id_slug} from {ticket.status!r} to step "
+            f"{next_step} ({new_step_name}): the target is not agent-owned "
+            f"({target}). Only an in_progress ticket can rewind to a human "
+            "or unassigned handoff."
+        )
 
     handoff = f" → assigned to {new_assignee}" if new_assignee else ""
 
@@ -425,6 +454,16 @@ def bump(
             exc,
             rollback,
             publication_succeeded=publication_succeeded,
+        )
+    except git.StateRegressionError as exc:
+        if not rewind:
+            raise
+        _bail(
+            f"Could not publish {ref.id_slug}'s rewind because control state "
+            f"changed: {exc}. The local debug rewind was retained for "
+            "inspection. Reconcile this checkout with control before running "
+            "any other mutating Coga command here, then retry.",
+            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
         )
     except TaskValidationError as exc:
         if rollback is not None:
