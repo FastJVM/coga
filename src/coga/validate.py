@@ -1046,6 +1046,36 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
         except TicketError:
             continue
 
+        # A template's blackboard fence is what bounds its Description. The
+        # body above the fence is the template's instructions — copied into
+        # every period task, composed into every firing's prompt — while the
+        # region below it is the cross-run state a firing rewrites. Lose the
+        # fence and the whole file becomes Description, so the next firing
+        # composes the previous run's notes as its own instructions, unbounded.
+        #
+        # `_check_task` already enforces this for `tasks/`, but it walks
+        # `list_tasks(cfg)` and never sees `recurring/`. That gap is why a
+        # template that had been overwritten by its own firing passed a full
+        # `validate-drift` scan with nothing reported.
+        fences = fence_count(ticket.body)
+        if fences != 1:
+            out.append(Issue(
+                kind="recurring-template-fence",
+                task=f"recurring/{path.name}",
+                message=(
+                    f"recurring template {path.name!r} must contain exactly one "
+                    f"blackboard fence ({BLACKBOARD_FENCE!r}); found {fences}. "
+                    f"Without it the whole of {ticket_path} is Description, and "
+                    f"the next firing composes it as instructions. Read the "
+                    f"file's git history before repairing: if a run overwrote "
+                    f"the template, restore the original Description and put "
+                    f"the run's notes back below the fence — do not just append "
+                    f"a fence to the end, which would keep the run's output as "
+                    f"the template's instructions."
+                ),
+                severity="error",
+            ))
+
         # A template's `schedule:` is what makes it fire at all. Without a
         # static check a missing or malformed cron only surfaces at scan time —
         # until then the template just silently never runs.

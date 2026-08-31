@@ -141,7 +141,11 @@ class TaskOutcome:
 
     template: str
     slug: str
-    result: str  # "completed" | "failed" | "timed-out" | "unfinished" | "refused"
+    # "damaged-template" is the one value not derived from the ticket's
+    # lifecycle status: the run closed its own step but overwrote the recurring
+    # template it was composed from (see `_template_damage`).
+    result: str  # "completed" | "failed" | "timed-out" | "unfinished"
+    #            | "refused" | "damaged-template"
     exit_code: int | None = None
     final_status: str | None = None
     detail: str = ""

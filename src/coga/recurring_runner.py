@@ -32,7 +32,7 @@ from coga.config import (
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, ref_tag_for_path, task_log_lines
 from coga.paths import log_path
-from coga.taskfile import read_blackboard
+from coga.taskfile import TaskFileError, read_blackboard, split_body
 from coga.recurring import (
     DueTask,
     DueScan,
@@ -921,6 +921,10 @@ def _launch_due_tasks(
                 )
             )
             return 2
+        # Baseline for the post-firing template check. Captured here — after
+        # every skip path, immediately before dispatch — so it reflects the
+        # bytes this run was actually composed from.
+        template_description_before = _template_description(cfg, task.template)
         # One dispatch for every template: `coga launch` classifies the period
         # task from its own directory, so a `ticket.py` template runs
         # deterministically and an agent template composes a prompt, without
@@ -962,6 +966,10 @@ def _launch_due_tasks(
                         else ""
                     ),
                     exit_code=delegated.exit_code or None,
+                    template_damage=_template_damage(
+                        template_description_before,
+                        _template_description(cfg, task.template),
+                    ),
                 )
             )
             if delegated.exit_code:
@@ -1044,8 +1052,69 @@ def _launch_due_tasks(
                 and launch_result.period_lease is not None
             ),
         )
-        record.add(_task_outcome(cfg, task.template, task.ref, kind=kind))
+        record.add(
+            _task_outcome(
+                cfg,
+                task.template,
+                task.ref,
+                kind=kind,
+                template_damage=_template_damage(
+                    template_description_before,
+                    _template_description(cfg, task.template),
+                ),
+            )
+        )
     return 2 if forced_refusals else 0
+
+
+def _template_description(cfg: Config, template: str) -> str | None:
+    """A recurring template's body above its blackboard fence, or None.
+
+    That region is the template's *instructions*: `create_template` copies it
+    into every period task, so it is what the next firing composes as its own
+    prompt. A firing legitimately rewrites its template's blackboard — that is
+    where cross-run state lives — but never the region above the fence.
+
+    None means "nothing to compare": the file is unreadable, or it carries no
+    single fence, so the body and the blackboard cannot be told apart. Callers
+    read None-before as "no baseline" and None-after as damage.
+    """
+    path = recurring_dir(cfg) / template / "ticket.md"
+    try:
+        above, _ = split_body(Ticket.read(path).body)
+    except (OSError, TicketError, TaskFileError):
+        return None
+    return above
+
+
+def _template_damage(before: str | None, after: str | None) -> str | None:
+    """Return how a firing damaged its own recurring template, or None.
+
+    The failure this exists for: a run told to "replace the `## Run Summary`
+    section" resolved that section by plain-text search, wrote from there to end
+    of file, and pasted its own notes over the template's instructions and its
+    blackboard fence. The run still reached `done`, so the sweep called it
+    `completed` and reported `problems: 0` — nothing had ever looked at the
+    template file. Compare the bytes instead of trusting the lifecycle status.
+    """
+    if before is None:
+        # No baseline — a template that was already fence-less or unreadable
+        # before this firing is `coga validate`'s finding, not this run's.
+        return None
+    if after is None:
+        return (
+            "the firing left its recurring template without a single readable "
+            "blackboard fence, so its Description is no longer separable from "
+            "the run's own notes; the next firing would compose this run's "
+            "output as its instructions"
+        )
+    if after != before:
+        return (
+            "the firing rewrote its recurring template's Description (the "
+            "region above the blackboard fence); a firing may only write below "
+            "the fence"
+        )
+    return None
 
 
 def _task_outcome(
@@ -1056,6 +1125,7 @@ def _task_outcome(
     kind: str | None = None,
     result: str = "",
     exit_code: int | None = None,
+    template_damage: str | None = None,
 ) -> TaskOutcome:
     """Classify one period task's run for the record.
 
@@ -1064,6 +1134,10 @@ def _task_outcome(
     ticket's status after the run *is* the outcome, and its blackboard is what
     the run had to say. `_stop_if_unfinished_after_launch` has already parked an
     unfinished run, which is what makes `paused` legible here.
+
+    `template_damage` is the one thing status cannot express: a run that closed
+    its own step cleanly *and* overwrote the template it was composed from. It
+    overrides an otherwise-clean result so the sweep counts it as a problem.
     """
     status = outcome_for_ref(cfg, ref)
     detail = ""
@@ -1099,6 +1173,12 @@ def _task_outcome(
             detail = (
                 "the run exited without a terminal transition; the sweep parked it"
             )
+    if template_damage:
+        # Overrides even a clean `completed`: the run finished its own work and
+        # destroyed the instructions for the next one. That is the failure this
+        # check exists for, so it must not be reportable as success.
+        result = "damaged-template"
+        detail = f"{detail}; {template_damage}" if detail else template_damage
     return TaskOutcome(
         template=template,
         slug=ref.id_slug if ref else template,

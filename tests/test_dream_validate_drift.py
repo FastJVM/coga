@@ -150,6 +150,24 @@ def test_classifies_blackboard_fence_as_direct_fix() -> None:
     assert "coga validate --fix" in classified.remediation
 
 
+def test_classifies_recurring_template_fence_as_pr_proposal_not_direct_fix() -> None:
+    # A template usually loses its fence because a firing overwrote it, so the
+    # `blackboard-fence` direct fix — append a fence to the end — would freeze
+    # that run's notes in place as the template's instructions.
+    classified = classify_issue(
+        ValidationIssue(
+            kind="recurring-template-fence",
+            task="recurring/rebase-stale-worktrees",
+            message="must contain exactly one blackboard fence; found 0",
+            severity="error",
+        )
+    )
+
+    assert classified.action == ACTION_PR_PROPOSAL
+    assert "git history" in classified.remediation
+    assert "Do not run `coga validate --fix`" in classified.remediation
+
+
 def test_classifies_missing_ticket_as_human_needed() -> None:
     # The only required per-task file is ticket.md — never recreated from
     # inference, so a missing one is human-needed.
