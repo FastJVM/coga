@@ -454,11 +454,13 @@ bundled refs may replace that list with specific cleanup instructions.
   ticket may rewind to either kind of target. Rewind also refuses a `blocked`
   ticket (run `coga unblock` first, which owns blocker resolution) and the
   terminal statuses, which have no `step:` to move. Rewind is an exceptional
-  human debug/recovery operation, not normal lifecycle progression. If its
-  exact-status publication refuses, Coga deliberately leaves the local debug
-  mutation available for inspection; the operator must reconcile that checkout
-  with control before running another mutating Coga command there. Read-only
-  inspection remains safe. Pausing preserves the step; cancellation clears it.
+  human debug/recovery operation, not normal lifecycle progression. Whenever
+  its guarded publication is not confirmed — status refusal, transport failure,
+  or no configured remote — Coga deliberately leaves the local debug mutation
+  available for inspection, either dirty or in local history. The operator must
+  reconcile that checkout with control before another mutating Coga command,
+  branch push, or merge; read-only inspection remains safe. Pausing preserves
+  the step; cancellation clears it.
 
 Tickets without a `workflow` field have no steps and move through
 statuses directly via `coga mark`. `coga bump` refuses them.

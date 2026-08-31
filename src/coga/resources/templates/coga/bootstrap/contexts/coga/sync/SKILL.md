@@ -669,11 +669,17 @@ at the command boundary: `advance_step` asks the sync layer to re-raise it,
 then `coga bump` exits with `RETRY_WITHOUT_SWEEP_EXIT_CODE` (75). The local
 rewind still stays dirty, but `coga.cli.main` skips its broad catch-all sweep;
 that sweep lacks rewind-specific status equality and could otherwise republish
-the exact stale bytes the narrow guard refused. The retained mutation is a
-human-inspectable debug artifact, deliberately outside the ordinary catch-all
-sync contract: the operator must reconcile the checkout with control before
-running another mutating Coga command there, because a later generic sweep does
-not retain the rewind-specific equality guard. Read-only inspection is safe.
+the exact stale bytes the narrow guard refused.
+
+The same operator contract covers every rewind whose guarded publication is not
+confirmed, including a configured-remote transport failure and the no-remote
+soft-skip. The retained mutation is a human-inspectable debug artifact,
+deliberately outside ordinary catch-all sync and branch publication: it may be
+dirty or already recorded in local branch history. The operator must reconcile
+the checkout with control before another mutating Coga command, branch push, or
+merge, because none of those later paths retains the rewind-specific equality
+guard. Read-only inspection is safe. This is the accepted sharp edge of an
+exceptional debug/recovery operation, not a routine lifecycle guarantee.
 
 With a reachable remote, a detached rewind makes a scoped commit containing
 only its ticket and audit log before the guarded control landing. Every

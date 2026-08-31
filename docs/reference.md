@@ -280,11 +280,13 @@ reconciliation instead of letting the current command's fallback state sweep
 overwrite control.
 
 Rewind is an exceptional human debug/recovery operation, not normal lifecycle
-progression. After a refusal, reconcile that checkout with control before
-running any other mutating Coga command there; a later generic sweep does not
-carry the rewind-specific equality guard. Read-only inspection is safe. Rewind
-commands never run the broad fallback sweep themselves, including after a
-successful scoped publication. A successful detached rewind with a reachable
+progression. Whenever guarded publication is unconfirmed — status refusal,
+transport failure, or no configured remote — the retained local rewind may be
+dirty or recorded in local branch history. Reconcile that checkout with control
+before another mutating Coga command, branch push, or merge; those later paths
+do not carry the rewind-specific equality guard. Read-only inspection is safe.
+Rewind commands never run the broad fallback sweep themselves, including after
+a successful scoped publication. A successful detached rewind with a reachable
 remote seals only its ticket and audit log in a local commit; without a remote,
 or when a rejected/interrupted landing is proven not to have published, those
 debug bytes stay dirty. An ambiguous interrupted push is probed before Coga
