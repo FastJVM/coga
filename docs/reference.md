@@ -115,8 +115,9 @@ task (optionally scoped to `tasks/<DIR>/`).
   the `coga pick` alias.
 - `--relaunch` — re-run the last confirmed picker selection.
 - `--max-tasks <n>` — stop after this many launchable tasks have been attempted.
-- `--agent <type>` — launch swept tasks with this agent regardless of each
-  ticket's assignee (human-assigned tickets still skip).
+- `--agent <type>` — use this agent for picked-draft authoring interviews and
+  the first launched step regardless of the ticket's agent assignee
+  (human-assigned working steps still skip).
 
 Tasks drain oldest-first (first `coga/log.md` line per ref). A sub-directory
 whose tasks are named `1-schema`, `2-migrate`, `3-cutover` instead runs in

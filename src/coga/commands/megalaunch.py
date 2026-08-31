@@ -87,9 +87,10 @@ def megalaunch(
         None,
         "--agent",
         help=(
-            "Launch swept agent-owned tasks with this configured agent type "
-            "(ephemeral first-step override; human-assigned tickets still "
-            "skip, unlike an explicit `coga launch --agent` assist)."
+            "Use this configured agent type for picked-draft authoring and "
+            "the first launched step (ephemeral; human-assigned working "
+            "steps still skip, unlike an explicit `coga launch --agent` "
+            "assist)."
         ),
     ),
 ) -> None:
