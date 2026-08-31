@@ -214,6 +214,7 @@ separate ticket.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/731
 branch: rewind-status-gate
 worktree: /home/n/Code/claude/coga-rewind-status-gate
 
