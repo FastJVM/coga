@@ -966,9 +966,8 @@ def _launch_due_tasks(
                         else ""
                     ),
                     exit_code=delegated.exit_code or None,
-                    template_damage=_template_damage(
-                        template_description_before,
-                        _template_description(cfg, task.template),
+                    template_damage=_damage_since(
+                        cfg, task.template, template_description_before
                     ),
                 )
             )
@@ -1058,9 +1057,8 @@ def _launch_due_tasks(
                 task.template,
                 task.ref,
                 kind=kind,
-                template_damage=_template_damage(
-                    template_description_before,
-                    _template_description(cfg, task.template),
+                template_damage=_damage_since(
+                    cfg, task.template, template_description_before
                 ),
             )
         )
@@ -1115,6 +1113,15 @@ def _template_damage(before: str | None, after: str | None) -> str | None:
             "the fence"
         )
     return None
+
+
+def _damage_since(cfg: Config, template: str, before: str | None) -> str | None:
+    """`_template_damage` against the template's bytes as they are right now.
+
+    Every call site is the same pair — the baseline captured before dispatch,
+    re-read after the run — so it is spelled once here rather than five times.
+    """
+    return _template_damage(before, _template_description(cfg, template))
 
 
 def _task_outcome(
@@ -2107,6 +2114,14 @@ def _launch_created(
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
     launch_context = _recurring_launch_context(interactive)
+    # Same post-firing template check the sweep runs, captured here — after
+    # every "nothing ran" gate, immediately before dispatch. An on-demand
+    # launch is a real firing of a real template (`coga dream` is the one that
+    # rewrote a template's Description in the first place), and it feeds the
+    # same analyst, so it must not be the path where damage goes unreported.
+    # `template` is "" only when the caller had no name to give; that reads as
+    # no baseline rather than a lookup on the wrong directory.
+    template_description_before = _template_description(cfg, template)
     if "delegate" in ticket.frontmatter:
         # An on-demand named launch delegates exactly as the sweep does: the
         # runner launches the bootstrap target in this operator's terminal
@@ -2140,6 +2155,9 @@ def _launch_created(
                         else ""
                     ),
                     exit_code=delegated.exit_code or None,
+                    template_damage=_damage_since(
+                        cfg, template, template_description_before
+                    ),
                 )
             )
         return delegated.exit_code
@@ -2178,6 +2196,9 @@ def _launch_created(
                     ref,
                     result="failed" if code else "",
                     exit_code=code or None,
+                    template_damage=_damage_since(
+                        cfg, template, template_description_before
+                    ),
                 )
             )
         return code
@@ -2185,7 +2206,16 @@ def _launch_created(
     if kind == "skipped":
         return 0
     if record is not None:
-        record.add(_task_outcome(cfg, template or ref.slug, ref))
+        record.add(
+            _task_outcome(
+                cfg,
+                template or ref.slug,
+                ref,
+                template_damage=_damage_since(
+                    cfg, template, template_description_before
+                ),
+            )
+        )
     return 0
 
 

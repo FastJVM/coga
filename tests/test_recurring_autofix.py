@@ -923,6 +923,90 @@ def test_on_demand_launch_closes_the_same_loop(
     assert record.outcomes[0].template == "nightly-check"
 
 
+def test_an_on_demand_firing_that_eats_its_template_is_a_problem(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, autofix_enabled
+) -> None:
+    """`coga dream` and friends fire through `_launch_created`, not the sweep.
+
+    Dream is the actor that overwrote a template's Description in the first
+    place, so the on-demand path is exactly where this must not be missed: the
+    ticket still reaches `done`, and the outcome still feeds the analyst.
+    """
+    from coga import recurring_runner
+
+    from coga.ticket import Ticket
+
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W35."
+    )
+    ref = _ref_with_status(cfg_repo, "active")
+
+    def eats_its_template(slug, **kwargs):  # type: ignore[no-untyped-def]
+        _fenced_template(
+            cfg_repo.repo_root,
+            "sweeper",
+            description="W36 run: 5 branches.",
+            notes="W36.",
+        )
+        ticket = Ticket.read(ref.ticket_path)
+        ticket.frontmatter["status"] = "done"
+        ticket.write(ref.ticket_path)
+        return None
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", eats_its_template
+    )
+
+    record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
+    assert recurring_runner._launch_created(
+        cfg_repo,
+        ref,
+        record=record,
+        template="sweeper",
+        control_remote_expected=False,
+    ) == 0
+
+    assert [o.result for o in record.outcomes] == ["damaged-template"]
+    assert record.outcomes[0].final_status == "done"
+    assert record.problems
+
+
+def test_an_on_demand_firing_that_leaves_its_template_alone_is_clean(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, autofix_enabled
+) -> None:
+    """The guard must not turn every on-demand run into a reported problem."""
+    from coga import recurring_runner
+
+    from coga.ticket import Ticket
+
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W35."
+    )
+    ref = _ref_with_status(cfg_repo, "active")
+
+    def finishing_launch(slug, **kwargs):  # type: ignore[no-untyped-def]
+        ticket = Ticket.read(ref.ticket_path)
+        ticket.frontmatter["status"] = "done"
+        ticket.write(ref.ticket_path)
+        return None
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", finishing_launch
+    )
+
+    record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
+    assert recurring_runner._launch_created(
+        cfg_repo,
+        ref,
+        record=record,
+        template="sweeper",
+        control_remote_expected=False,
+    ) == 0
+
+    assert [o.result for o in record.outcomes] == ["completed"]
+    assert not record.problems
+
+
 def test_a_refused_on_demand_launch_is_not_a_run(
     cfg_repo, monkeypatch: pytest.MonkeyPatch, autofix_enabled
 ) -> None:
