@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -442,6 +442,22 @@ must be reconciled before another mutation, branch push, or merge.
 Test plan: `python -m pytest` (2166 passed); `coga validate --json` against `example/coga` (3 OK, no issues).
 
 ---
+
+## Open PR
+
+Branch was stale against the newly advanced `origin/main` (`a8decd5c`), so
+`coga open-pr` refused first. Fetched and rebased the eight commits onto it —
+conflict-free; branch head is now `51f7c1b7`, worktree clean.
+
+Post-rebase verification: `PYTHONPATH=<worktree>/src python3.12 -m pytest` →
+**2180 passed, 1 failed**. The single failure is
+`tests/test_packaging.py::test_wheel_includes_bootstrap_batteries`, the known
+local-environment gap (host Python has no `hatchling`); re-running that file
+with `hatchling` installed to a temporary path gives **7 passed**. No
+repository files or the installed environment were changed.
+
+`coga open-pr unblock-rewind` from the primary control checkout opened
+PR #731 and recorded `pr:` under `## Dev`.
 
 ## Blockers
 
