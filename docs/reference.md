@@ -275,14 +275,22 @@ configured agent so it remains resumable with `coga launch`; a human or
 unassigned target is accepted only when the ticket is already `in_progress`.
 Rewind refuses a `blocked` ticket (run `coga unblock` first) and the terminal
 statuses, which have no `step:` to move. A concurrent control-status change
-also refuses publication and leaves the local rewind dirty for reconciliation
-instead of letting the fallback state sweep overwrite control. Rewind commands
-never run that broad fallback sweep, including after a successful scoped
-publication. A successful detached rewind seals only its ticket and audit log
-in a local commit, so a later command cannot resweep retained ticket bytes over
-a newer control status; a guard refusal unwinds that commit and preserves the
-dirty local rewind. If a rewind FYI fails after publication, only its
-merge-union audit log is synced. A forward bump still requires `in_progress`.
+also refuses publication and leaves the local rewind dirty for inspection and
+reconciliation instead of letting the current command's fallback state sweep
+overwrite control.
+
+Rewind is an exceptional human debug/recovery operation, not normal lifecycle
+progression. After a refusal, reconcile that checkout with control before
+running any other mutating Coga command there; a later generic sweep does not
+carry the rewind-specific equality guard. Read-only inspection is safe. Rewind
+commands never run the broad fallback sweep themselves, including after a
+successful scoped publication. A successful detached rewind with a reachable
+remote seals only its ticket and audit log in a local commit; without a remote,
+or when a rejected/interrupted landing is proven not to have published, those
+debug bytes stay dirty. An ambiguous interrupted push is probed before Coga
+decides whether to keep or unwind the scoped commit. If a rewind FYI fails after
+publication, only its merge-union audit log is synced. A forward bump still
+requires `in_progress`.
 
 ### `coga block --task TASK --reason "<ask>"`
 Record an unresolved blocker and set the ticket to `blocked`. Both flags are

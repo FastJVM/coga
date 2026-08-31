@@ -286,9 +286,12 @@ ones that affect implementation:
   current `step:` frontmatter and normally advances by one. Humans may rewind
   `active`, `in_progress`, or `paused` workflow tasks to an earlier step with
   `--to` or `--backward`; an `active`/`paused` rewind must target a configured
-  agent so the unchanged status remains launchable. Agents still block instead
-  of going backward. `bump` does finish tickets from their final workflow step
-  by delegating to the same
+  agent so the unchanged status remains launchable. Rewind is explicitly an
+  exceptional human debug/recovery operation, not routine progression; a
+  refused local debug rewind is inspected and reconciled before any other
+  mutating Coga command runs in that checkout. Agents still block instead of
+  going backward. `bump` does finish tickets from their final workflow step by
+  delegating to the same
   `mark_done` finalizer as `coga mark done`. A no-workflow ticket still errors
   and points at `coga mark done` because it has no step for `bump` to finish.
 - **`coga recurring` is the canonical entry point** for the recurring
@@ -301,7 +304,8 @@ ones that affect implementation:
   launch` owns the `active` → `in_progress` start transition; `coga bump`
   owns `step:` movement. Forward bumps require `in_progress`; a human rewind
   also accepts `active` or `paused`, leaves status unchanged, and refuses a
-  human/unassigned target from those statuses.
+  human/unassigned target from those statuses. Its exceptional debug semantics
+  are the deliberate sharp edge outside the ordinary catch-all sweep contract.
   The normal boot is `coga ticket "<title>"` → review the draft →
   `coga launch <slug>`, which activates the draft inline as it starts work.
 

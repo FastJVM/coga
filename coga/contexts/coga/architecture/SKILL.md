@@ -453,8 +453,12 @@ bundled refs may replace that list with specific cleanup instructions.
   handoff and a forward bump requires `in_progress`. An already `in_progress`
   ticket may rewind to either kind of target. Rewind also refuses a `blocked`
   ticket (run `coga unblock` first, which owns blocker resolution) and the
-  terminal statuses, which have no `step:` to move. Pausing preserves the
-  step; cancellation clears it.
+  terminal statuses, which have no `step:` to move. Rewind is an exceptional
+  human debug/recovery operation, not normal lifecycle progression. If its
+  exact-status publication refuses, Coga deliberately leaves the local debug
+  mutation available for inspection; the operator must reconcile that checkout
+  with control before running another mutating Coga command there. Read-only
+  inspection remains safe. Pausing preserves the step; cancellation clears it.
 
 Tickets without a `workflow` field have no steps and move through
 statuses directly via `coga mark`. `coga bump` refuses them.

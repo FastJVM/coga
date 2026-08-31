@@ -171,7 +171,9 @@ Every ticket tracks two independent things, and different commands own each:
   or `--backward` from `active`, `in_progress`, or `paused` — a rewind moves
   the step and leaves the status alone. An `active`/`paused` rewind must target
   a configured agent; human or unassigned targets require `in_progress` so the
-  status-preserving move cannot strand the handoff.
+  status-preserving move cannot strand the handoff. Rewind is an exceptional
+  human debug/recovery operation: if publication refuses, inspect and reconcile
+  its retained local state before running another mutating Coga command there.
 
 Keeping them separate is what lets you pause a task without losing its place, or
 resume a blocked task at the exact step it stopped on. Tickets with no workflow

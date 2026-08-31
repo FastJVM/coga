@@ -2172,22 +2172,30 @@ def _dispatch_branch_sync(
         # Detached HEAD normally has no local commit — it would be orphaned.
         # A rewind is different: leaving its successfully published ticket
         # dirty lets a later generic sweep overlay those retained bytes without
-        # the rewind's exact-status guard. Seal only the caller-owned paths in
-        # a detached commit; if the guard later refuses, unwind that commit and
-        # retain the files dirty for explicit reconciliation.
+        # the rewind's exact-status guard. With a reachable remote, seal only
+        # the caller-owned paths in a detached commit and reconcile every
+        # attempted control push through the strict landing helper. Without a
+        # remote there is no durable destination, so keep the debug state dirty.
+        if not remote_ok:
+            sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
+            return
         detached_before: str | None = None
         detached_committed = False
+        detached_control_base: str | None = None
         if commit_detached:
             if strict_feature_publication or strict_state_publication:
                 raise GitError(
                     "detached scoped commits cannot be combined with strict "
                     "state publication"
                 )
+            detached_control_base = _control_base_for_attempt(
+                root,
+                cfg.git_remote,
+                cfg.git_control_branch,
+                1,
+            )
             detached_before = _run_git(root, "rev-parse", "HEAD").strip()
             detached_committed = _commit_paths(root, local_rels, message)
-        if not remote_ok:
-            sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
-            return
         overlay = set(overlay_rels)
         union_rels = list(
             dict.fromkeys(
@@ -2229,8 +2237,20 @@ def _dispatch_branch_sync(
                 after_strict_publication=after_strict_publication,
             )
             return
-        try:
-            _land_paths_on_control_branch(
+        if commit_detached:
+            assert detached_control_base is not None
+            assert detached_before is not None
+            generated_oid = _run_git(root, "rev-parse", "HEAD").strip()
+
+            def cleanup_detached_commit() -> None:
+                if detached_committed:
+                    _restore_unpushed_sync_commit(
+                        root,
+                        detached_before,
+                        local_rels,
+                    )
+
+            _land_strict_state_on_control(
                 cfg,
                 root,
                 overlay_rels,
@@ -2238,11 +2258,21 @@ def _dispatch_branch_sync(
                 message=message,
                 guard=guard,
                 update_local_control_ref=update_local_control_ref,
+                initial_base=detached_control_base,
+                source_rev=generated_oid,
+                cleanup=cleanup_detached_commit,
+                after_strict_publication=None,
             )
-        except GitError:
-            if detached_committed and detached_before is not None:
-                _restore_unpushed_sync_commit(root, detached_before, local_rels)
-            raise
+            return
+        _land_paths_on_control_branch(
+            cfg,
+            root,
+            overlay_rels,
+            union_rels=union_rels,
+            message=message,
+            guard=guard,
+            update_local_control_ref=update_local_control_ref,
+        )
         return
     else:
         strict_control_tip: str | None = None
@@ -4332,7 +4362,28 @@ def _land_paths_on_control_branch(
             source_bytes=source_bytes,
         )
         if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():
-            return
+            if guard is None:
+                return
+            # A guarded no-op against a stale local control ref is not a
+            # successful publication. Lease an identity push to the exact base:
+            # if live control moved, the rejection drives the normal
+            # refetch/re-guard retry without creating a contentless commit.
+            result = _push_ref(
+                root,
+                push_destination,
+                f"{base}:refs/heads/{branch}",
+                force_with_lease=(f"refs/heads/{branch}", base),
+            )
+            if result is None:
+                if update_local_control_ref:
+                    _try_update_local_ref(root, branch, base)
+                return
+            if not _is_non_fast_forward(result):
+                raise GitError(
+                    f"`git push {remote} {base}:refs/heads/{branch}` failed: "
+                    f"{result}"
+                )
+            continue
 
         new = _run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
         if before_push is not None:

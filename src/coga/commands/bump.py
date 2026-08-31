@@ -460,8 +460,9 @@ def bump(
             raise
         _bail(
             f"Could not publish {ref.id_slug}'s rewind because control state "
-            f"changed: {exc}. The local rewind was retained; reconcile this "
-            "checkout with control and retry.",
+            f"changed: {exc}. The local debug rewind was retained for "
+            "inspection. Reconcile this checkout with control before running "
+            "any other mutating Coga command here, then retry.",
             exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
         )
     except TaskValidationError as exc:

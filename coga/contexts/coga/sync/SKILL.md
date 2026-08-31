@@ -639,7 +639,8 @@ cancellation:
 Callers that are not publishing a ticket's state (authoring, deletes, recurring
 child writes) pass no guard.
 
-**The one deliberate backward move is a human rewind.** `coga bump
+**The one deliberate backward move is a human rewind.** It is an exceptional
+debug/recovery operation, not normal lifecycle progression. `coga bump
 --to/--backward` moves `step:` backward on purpose, and it shares
 `advance_step` with forward bumps, so guarding it naively would refuse exactly
 the thing the human asked for. `advance_step(rewind=True)` therefore passes
@@ -668,13 +669,20 @@ at the command boundary: `advance_step` asks the sync layer to re-raise it,
 then `coga bump` exits with `RETRY_WITHOUT_SWEEP_EXIT_CODE` (75). The local
 rewind still stays dirty, but `coga.cli.main` skips its broad catch-all sweep;
 that sweep lacks rewind-specific status equality and could otherwise republish
-the exact stale bytes the narrow guard refused. A successful detached rewind
-instead makes a commit containing only its ticket and audit log before the
-guarded control landing. If the landing finds a status mismatch or otherwise
-fails, that detached commit is unwound and the local rewind remains dirty;
-after success the ticket is clean, so a later command's generic sweep has no
-retained rewind to republish over a newer blocker. The CLI still classifies
-every `bump
+the exact stale bytes the narrow guard refused. The retained mutation is a
+human-inspectable debug artifact, deliberately outside the ordinary catch-all
+sync contract: the operator must reconcile the checkout with control before
+running another mutating Coga command there, because a later generic sweep does
+not retain the rewind-specific equality guard. Read-only inspection is safe.
+
+With a reachable remote, a detached rewind makes a scoped commit containing
+only its ticket and audit log before the guarded control landing. Every
+rejected or interrupted landing reconciles that commit through the strict
+candidate probe: a proven unaccepted commit is unwound and the debug bytes stay
+dirty; an accepted or indeterminate candidate is retained for explicit
+reconciliation. With no remote, no detached commit is made and the debug bytes
+stay dirty. After an ordinary success the ticket is clean. The CLI still
+classifies every `bump
 --to/--backward` invocation as non-sweeping, so the broad publisher never gets
 a second chance at the ticket during the command. If an explicit rewind FYI
 fails after publication and appends an audit line, `advance_step` detects that
