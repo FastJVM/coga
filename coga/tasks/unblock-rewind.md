@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -111,6 +111,15 @@ Leaving status alone sidesteps the whole problem and costs nothing, because
 - `active` → stays `active`; `coga launch` flips it to `in_progress`.
 - `in_progress` → stays `in_progress` (today's behavior, unchanged).
 - `paused` → stays `paused`; the human resumes with `coga launch`.
+
+Owner clarification after peer review: rewind is exceptional by essence. It is
+a human debug/recovery operation, not routine lifecycle progression. Whenever
+its guarded publication is unconfirmed — exact-status refusal, transport
+failure, or no configured remote — the local rewind remains available for
+inspection rather than being rolled back. The operator must reconcile that
+checkout with control before another mutating Coga command, branch push, or
+merge; this deliberate debug state sits outside the ordinary catch-all sweep
+and branch-publication contracts.
 
 So the change is: split the `bump.py:92` guard so a *forward* bump still
 requires `in_progress`, while a *rewind* accepts `{active, in_progress, paused}`
@@ -324,6 +333,112 @@ suite **1743 passed, 1 skipped**. Repo-wide `coga validate --json` reported
 only the already-recorded unrelated task/config issues. The feature branch is
 clean; no review fixes were committed and the required final rebase/open-PR
 handoff were intentionally not performed while this design finding is open.
+
+## Peer review — follow-up findings
+
+After the owner approved exact rewind-status equality, the native review found
+two remaining publication gaps in the scoped detached-commit implementation:
+
+- a non-control checkout with no configured remote committed the rewind before
+  consulting the shared local control branch, bypassing the exact-status guard;
+- a configured-remote landing failure other than `StateRegressionError` left a
+  detached rewind clean in an unpublished dangling commit.
+
+Resolved in `419d942f` (`peer-review: close rewind publication gaps`): the
+guard now runs against the local control base before any no-remote non-control
+commit, and every failed detached control landing unwinds the scoped commit so
+the rewind remains dirty and retryable. Real-Git coverage exercises feature and
+detached no-remote mismatches plus a detached broken-remote landing. Focused new
+cases: **3 passed**; `tests/test_commands.py tests/test_git.py`: **308 passed**.
+
+## Peer review — second follow-up
+
+The fresh native review passed the 308 focused command/Git tests but reproduced
+three further safety gaps:
+
+- a refused dirty rewind can be published by a later generic state sweep;
+- a guarded landing that is tree-identical to stale local control returns
+  before checking the live remote control tip;
+- `KeyboardInterrupt` after a detached scoped commit bypasses the `GitError`
+  unwind and can hide the only local rewind in a clean orphan commit.
+
+Owner decision: **do not roll back a refused rewind.** Rewind is exceptional by
+essence: it is a human debug/recovery operation, not normal lifecycle
+progression, and its local state must remain available for inspection. This
+exceptional contract and its sharp edge must be explicit in the canonical
+context and CLI explanation: after publication refuses, reconcile that checkout
+before running another mutating Coga command there; ordinary later sweep
+guarantees do not apply to an intentionally unreconciled debug checkout.
+
+The other two fixes remain mechanical: force a live guarded check before
+accepting a no-op landing, and reconcile every detached `BaseException` path
+with a remote-acceptance probe when a push may have started.
+
+## Peer review — owner disposition of final native findings
+
+The final `codex review --base origin/main` independently passed the 313
+command/Git tests and reported two P1 variants of the deliberately retained
+debug-state tradeoff:
+
+- an attached rewind whose guarded push has a transport failure remains in
+  local branch history and can later travel through a push or PR merge without
+  the rewind equality guard;
+- a detached no-remote rewind remains dirty and can later travel through the
+  generic sweep after a remote is added, again without that equality guard.
+
+The owner rejected automatic rollback/quarantine because rewind is exceptional
+debug/recovery state by essence. These findings are therefore accepted sharp
+edges, not unaddressed implementation accidents: the canonical architecture,
+sync, and current-direction contexts plus user docs now state that *every*
+unconfirmed rewind (status refusal, transport failure, or no remote) must be
+inspected and reconciled before another mutation, branch push, or merge.
+
+The review's full bare-environment run reached **2122 passed** and **19 failed**;
+all 19 are the known local-environment subprocess/package failures (`coga`
+unimportable from `/home/n/.local/bin/python`, plus missing `hatchling`). The
+authoritative `PYTHONPATH=<worktree>/src python3.12` run remains pending after
+the required final rebase.
+
+## Peer review — completed
+
+- Applied every non-policy review fix: exact control/local status equality,
+  live verification for guarded tree-identical landings, no-remote local-control
+  guarding, fallback-sweep suppression for the rewind invocation, and scoped
+  detached commit reconciliation across transport failures and interrupts.
+- Pinned the launchable-target rule: `active`/`paused` rewinds require a
+  configured-agent target; `in_progress` may rewind to a human or unassigned
+  target.
+- Recorded the owner's policy disposition for unconfirmed rewinds as an
+  exceptional debug/recovery sharp edge rather than automatic rollback or
+  quarantine. Canonical contexts, packaged copies, and user docs require
+  reconciliation before another mutation, branch push, or merge.
+- Final native review ran the command/Git suites (**313 passed**) and surfaced
+  the two owner-accepted local-debug-state variants recorded above; no other
+  findings remain.
+- Fetched `origin/main` and rebased unconditionally onto `a8850fc5`; the rebase
+  was conflict-free. Branch head is `631b3c1d`, clean, with eight commits ahead
+  of `origin/main`; `git diff --check origin/main` passes and both shipped
+  context/template pairs are byte-identical.
+- Full post-rebase verification: **2166 passed**. The host Python lacked the
+  declared test-only `hatchling` dependency, so the final clean run exposed only
+  Hatchling, PathSpec, and Trove Classifiers from a temporary `/tmp` path; no
+  repository files or installed environment were changed.
+- `coga validate --json` against `example/coga`: **3 OK, no issues**. Repo-wide
+  validation: **139 OK, 33 existing unrelated task/config issues** (including
+  the feature worktree's missing local `user`); this branch introduces none.
+
+## PR
+
+Allow humans to rewind `active`, `in_progress`, or `paused` workflow tickets
+without launching solely for a status flip. Rewinds preserve status, reject
+blocked and terminal tickets, require agent-owned targets from `active` or
+`paused`, re-resolve the target assignee, and publish only while control has the
+same status. Guarded no-ops verify live control and detached publication
+reconciles interrupted candidates. Rewind is explicitly an exceptional
+debug/recovery operation: any unconfirmed local state remains inspectable and
+must be reconciled before another mutation, branch push, or merge.
+
+Test plan: `python -m pytest` (2166 passed); `coga validate --json` against `example/coga` (3 OK, no issues).
 
 ---
 
