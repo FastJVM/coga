@@ -753,6 +753,23 @@ def test_a_template_that_never_had_a_fence_is_not_blamed_on_this_run(
     assert _template_damage(before, _template_description(cfg_repo, "fenceless")) is None
 
 
+def test_an_unreadable_template_does_not_abort_the_sweep(cfg_repo) -> None:
+    """A check that only observes must never be the thing that crashes the run.
+
+    `Ticket.read` goes through `read_text`, so non-UTF-8 bytes raise
+    `UnicodeDecodeError` — a `ValueError`, not an `OSError`.
+    """
+    from coga.recurring_runner import _template_description
+
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W35."
+    )
+    path = cfg_repo.repo_root / "recurring" / "sweeper" / "ticket.md"
+    path.write_bytes(b"---\ntitle: \xff\xfe broken\n---\n")
+
+    assert _template_description(cfg_repo, "sweeper") is None
+
+
 def test_a_missing_template_directory_yields_no_baseline(cfg_repo) -> None:
     from coga.recurring_runner import _template_description
 

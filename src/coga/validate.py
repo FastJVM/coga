@@ -1071,7 +1071,9 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
                     f"the template, restore the original Description and put "
                     f"the run's notes back below the fence — do not just append "
                     f"a fence to the end, which would keep the run's output as "
-                    f"the template's instructions."
+                    f"the template's instructions. A template that never had "
+                    f"one — newly hand-authored, with no run to have eaten it — "
+                    f"just needs the fence and a blackboard region added."
                 ),
                 severity="error",
             ))

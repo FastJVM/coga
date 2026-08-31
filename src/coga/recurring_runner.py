@@ -1013,7 +1013,14 @@ def _launch_due_tasks(
             if code:
                 record.add(
                     _task_outcome(
-                        cfg, task.template, task.ref, result="failed", exit_code=code
+                        cfg,
+                        task.template,
+                        task.ref,
+                        result="failed",
+                        exit_code=code,
+                        template_damage=_damage_since(
+                            cfg, task.template, template_description_before
+                        ),
                     )
                 )
                 return code
@@ -1037,6 +1044,9 @@ def _launch_due_tasks(
                     task.ref,
                     result="refused",
                     exit_code=2,
+                    template_damage=_damage_since(
+                        cfg, task.template, template_description_before
+                    ),
                 )
             )
             return 2
@@ -1080,7 +1090,11 @@ def _template_description(cfg: Config, template: str) -> str | None:
     path = recurring_dir(cfg) / template / "ticket.md"
     try:
         above, _ = split_body(Ticket.read(path).body)
-    except (OSError, TicketError, TaskFileError):
+    except (OSError, UnicodeError, TicketError, TaskFileError):
+        # `UnicodeError` alongside the rest, as the four sibling `Ticket.read`
+        # call sites in this module do: `read_text` raises `UnicodeDecodeError`
+        # on a non-UTF-8 file, and a corrupt template must not abort the sweep
+        # with a traceback from a check that only observes.
         return None
     return above
 
@@ -1101,16 +1115,22 @@ def _template_damage(before: str | None, after: str | None) -> str | None:
         return None
     if after is None:
         return (
-            "the firing left its recurring template without a single readable "
-            "blackboard fence, so its Description is no longer separable from "
-            "the run's own notes; the next firing would compose this run's "
-            "output as its instructions"
+            "the firing left its recurring template without exactly one "
+            "readable blackboard fence — it now has none, or more than one — "
+            "so its Description is no longer separable from the run's own "
+            "notes; the next firing would compose this run's output as its "
+            "instructions. Check which case it is before repairing: a run "
+            "whose notes quote the fence on its own line duplicates it, which "
+            "is a different repair from one that overwrote it"
         )
     if after != before:
         return (
             "the firing rewrote its recurring template's Description (the "
             "region above the blackboard fence); a firing may only write below "
-            "the fence"
+            "the fence. Confirm against git history before restoring anything: "
+            "both reads come from the live working tree, so a run that left the "
+            "checkout on another branch, or that fast-forwarded repo state "
+            "mid-run, can surface a legitimate edit here"
         )
     return None
 
