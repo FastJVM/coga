@@ -32,7 +32,7 @@ from coga.config import (
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, ref_tag_for_path, task_log_lines
 from coga.paths import log_path
-from coga.taskfile import read_blackboard
+from coga.taskfile import TaskFileError, read_blackboard, split_body
 from coga.recurring import (
     DueTask,
     DueScan,
@@ -871,7 +871,8 @@ def _launch_due_tasks(
             except RecurringError as exc:
                 forced_refusals += 1
                 typer.secho(str(exc), fg=typer.colors.RED, err=True)
-                record.add(
+                _record_outcome(
+                    record,
                     TaskOutcome(
                         template=task.template,
                         slug=task.ref.id_slug if task.ref else task.template,
@@ -912,7 +913,8 @@ def _launch_due_tasks(
                 f"reconciliation: {exc}"
             )
             typer.secho(detail, fg=typer.colors.RED, err=True)
-            record.add(
+            _record_outcome(
+                record,
                 TaskOutcome(
                     template=task.template,
                     slug=task.ref.id_slug,
@@ -921,6 +923,10 @@ def _launch_due_tasks(
                 )
             )
             return 2
+        # Baseline for the post-firing template check. Captured here — after
+        # every skip path, immediately before dispatch — so it reflects the
+        # bytes this run was actually composed from.
+        template_description_before = _template_description(cfg, task.template)
         # One dispatch for every template: `coga launch` classifies the period
         # task from its own directory, so a `ticket.py` template runs
         # deterministically and an agent template composes a prompt, without
@@ -950,7 +956,8 @@ def _launch_due_tasks(
             # Main's sweep records every run it performed; `run_autofix` fires
             # only when `record.outcomes` is non-empty, so a delegated run that
             # returned without recording would be invisible to the analyst.
-            record.add(
+            _record_outcome(
+                record,
                 _task_outcome(
                     cfg,
                     task.template,
@@ -962,6 +969,9 @@ def _launch_due_tasks(
                         else ""
                     ),
                     exit_code=delegated.exit_code or None,
+                    template_damage=_damage_since(
+                        cfg, task.template, template_description_before
+                    ),
                 )
             )
             if delegated.exit_code:
@@ -1004,9 +1014,17 @@ def _launch_due_tasks(
             # git sync. The task is deliberately left unfinished, not paused.
             code = _exit_status(exc)
             if code:
-                record.add(
+                _record_outcome(
+                    record,
                     _task_outcome(
-                        cfg, task.template, task.ref, result="failed", exit_code=code
+                        cfg,
+                        task.template,
+                        task.ref,
+                        result="failed",
+                        exit_code=code,
+                        template_damage=_damage_since(
+                            cfg, task.template, template_description_before
+                        ),
                     )
                 )
                 return code
@@ -1023,13 +1041,17 @@ def _launch_due_tasks(
                 "launch established no child-generation lease"
             )
             typer.secho(detail, fg=typer.colors.RED, err=True)
-            record.add(
+            _record_outcome(
+                record,
                 _task_outcome(
                     cfg,
                     task.template,
                     task.ref,
                     result="refused",
                     exit_code=2,
+                    template_damage=_damage_since(
+                        cfg, task.template, template_description_before
+                    ),
                 )
             )
             return 2
@@ -1044,8 +1066,88 @@ def _launch_due_tasks(
                 and launch_result.period_lease is not None
             ),
         )
-        record.add(_task_outcome(cfg, task.template, task.ref, kind=kind))
+        _record_outcome(
+            record,
+            _task_outcome(
+                cfg,
+                task.template,
+                task.ref,
+                kind=kind,
+                template_damage=_damage_since(
+                    cfg, task.template, template_description_before
+                ),
+            )
+        )
     return 2 if forced_refusals else 0
+
+
+def _template_description(cfg: Config, template: str) -> str | None:
+    """A recurring template's body above its blackboard fence, or None.
+
+    That region is the template's *instructions*: `create_template` copies it
+    into every period task, so it is what the next firing composes as its own
+    prompt. A firing legitimately rewrites its template's blackboard — that is
+    where cross-run state lives — but never the region above the fence.
+
+    None means "nothing to compare": the file is unreadable, or it carries no
+    single fence, so the body and the blackboard cannot be told apart. Callers
+    read None-before as "no baseline" and None-after as damage.
+    """
+    path = recurring_dir(cfg) / template / "ticket.md"
+    try:
+        above, _ = split_body(Ticket.read(path).body)
+    except (OSError, UnicodeError, TicketError, TaskFileError):
+        # `UnicodeError` alongside the rest, as the four sibling `Ticket.read`
+        # call sites in this module do: `read_text` raises `UnicodeDecodeError`
+        # on a non-UTF-8 file, and a corrupt template must not abort the sweep
+        # with a traceback from a check that only observes.
+        return None
+    return above
+
+
+def _template_damage(before: str | None, after: str | None) -> str | None:
+    """Return how a firing damaged its own recurring template, or None.
+
+    The failure this exists for: a run told to "replace the `## Run Summary`
+    section" resolved that section by plain-text search, wrote from there to end
+    of file, and pasted its own notes over the template's instructions and its
+    blackboard fence. The run still reached `done`, so the sweep called it
+    `completed` and reported `problems: 0` — nothing had ever looked at the
+    template file. Compare the bytes instead of trusting the lifecycle status.
+    """
+    if before is None:
+        # No baseline — a template that was already fence-less or unreadable
+        # before this firing is `coga validate`'s finding, not this run's.
+        return None
+    if after is None:
+        return (
+            "the firing left its recurring template without exactly one "
+            "readable blackboard fence — it now has none, or more than one — "
+            "so its Description is no longer separable from the run's own "
+            "notes; the next firing would compose this run's output as its "
+            "instructions. Check which case it is before repairing: a run "
+            "whose notes quote the fence on its own line duplicates it, which "
+            "is a different repair from one that overwrote it"
+        )
+    if after != before:
+        return (
+            "the firing rewrote its recurring template's Description (the "
+            "region above the blackboard fence); a firing may only write below "
+            "the fence. Confirm against git history before restoring anything: "
+            "both reads come from the live working tree, so a run that left the "
+            "checkout on another branch, or that fast-forwarded repo state "
+            "mid-run, can surface a legitimate edit here"
+        )
+    return None
+
+
+def _damage_since(cfg: Config, template: str, before: str | None) -> str | None:
+    """`_template_damage` against the template's bytes as they are right now.
+
+    Every call site is the same pair — the baseline captured before dispatch,
+    re-read after the run — so it is spelled once here rather than five times.
+    """
+    return _template_damage(before, _template_description(cfg, template))
 
 
 def _task_outcome(
@@ -1056,6 +1158,7 @@ def _task_outcome(
     kind: str | None = None,
     result: str = "",
     exit_code: int | None = None,
+    template_damage: str | None = None,
 ) -> TaskOutcome:
     """Classify one period task's run for the record.
 
@@ -1064,6 +1167,10 @@ def _task_outcome(
     ticket's status after the run *is* the outcome, and its blackboard is what
     the run had to say. `_stop_if_unfinished_after_launch` has already parked an
     unfinished run, which is what makes `paused` legible here.
+
+    `template_damage` is the one thing status cannot express: a run that closed
+    its own step cleanly *and* overwrote the template it was composed from. It
+    overrides an otherwise-clean result so the sweep counts it as a problem.
     """
     status = outcome_for_ref(cfg, ref)
     detail = ""
@@ -1099,6 +1206,12 @@ def _task_outcome(
             detail = (
                 "the run exited without a terminal transition; the sweep parked it"
             )
+    if template_damage:
+        # Overrides even a clean `completed`: the run finished its own work and
+        # destroyed the instructions for the next one. That is the failure this
+        # check exists for, so it must not be reportable as success.
+        result = "damaged-template"
+        detail = f"{detail}; {template_damage}" if detail else template_damage
     return TaskOutcome(
         template=template,
         slug=ref.id_slug if ref else template,
@@ -1107,6 +1220,26 @@ def _task_outcome(
         final_status=status,
         detail=detail,
         blackboard=blackboard_for_ref(ref),
+    )
+
+
+def _record_outcome(record: RunRecord, outcome: TaskOutcome) -> None:
+    """Record one run and surface template damage without the analyst.
+
+    `COGA_AUTOFIX=0` deliberately disables run-log rendering and analysis, but
+    damage to the next firing's instructions cannot become silent with it. The
+    structured outcome still feeds the analyst when enabled; stderr is the
+    unconditional correction-loop signal.
+    """
+    record.add(outcome)
+    if outcome.result != "damaged-template":
+        return
+    typer.secho(
+        f"Recurring template {outcome.template!r} was damaged by "
+        f"{outcome.slug}: {outcome.detail}\n"
+        "Repair the template from git history before another firing.",
+        fg=typer.colors.RED,
+        err=True,
     )
 
 
@@ -2027,6 +2160,14 @@ def _launch_created(
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
     launch_context = _recurring_launch_context(interactive)
+    # Same post-firing template check the sweep runs, captured here — after
+    # every "nothing ran" gate, immediately before dispatch. An on-demand
+    # launch is a real firing of a real template (`coga dream` is the one that
+    # rewrote a template's Description in the first place), and it feeds the
+    # same analyst, so it must not be the path where damage goes unreported.
+    # `template` is "" only when the caller had no name to give; that reads as
+    # no baseline rather than a lookup on the wrong directory.
+    template_description_before = _template_description(cfg, template)
     if "delegate" in ticket.frontmatter:
         # An on-demand named launch delegates exactly as the sweep does: the
         # runner launches the bootstrap target in this operator's terminal
@@ -2048,7 +2189,8 @@ def _launch_created(
                 )
             return 0
         if record is not None:
-            record.add(
+            _record_outcome(
+                record,
                 _task_outcome(
                     cfg,
                     template or ref.slug,
@@ -2060,6 +2202,9 @@ def _launch_created(
                         else ""
                     ),
                     exit_code=delegated.exit_code or None,
+                    template_damage=_damage_since(
+                        cfg, template, template_description_before
+                    ),
                 )
             )
         return delegated.exit_code
@@ -2091,13 +2236,17 @@ def _launch_created(
         # returning the code keeps the caller's exit-boundary git sync.
         code = _exit_status(exc)
         if record is not None:
-            record.add(
+            _record_outcome(
+                record,
                 _task_outcome(
                     cfg,
                     template or ref.slug,
                     ref,
                     result="failed" if code else "",
                     exit_code=code or None,
+                    template_damage=_damage_since(
+                        cfg, template, template_description_before
+                    ),
                 )
             )
         return code
@@ -2105,7 +2254,17 @@ def _launch_created(
     if kind == "skipped":
         return 0
     if record is not None:
-        record.add(_task_outcome(cfg, template or ref.slug, ref))
+        _record_outcome(
+            record,
+            _task_outcome(
+                cfg,
+                template or ref.slug,
+                ref,
+                template_damage=_damage_since(
+                    cfg, template, template_description_before
+                ),
+            )
+        )
     return 0
 
 

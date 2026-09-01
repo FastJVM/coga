@@ -159,6 +159,26 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "recurring-template-fence":
+        # Deliberately *not* the `blackboard-fence` direct fix above. That one
+        # appends a fence to a task ticket whose body is all Description by
+        # construction. A recurring template usually loses its fence because a
+        # firing overwrote it, so appending one would freeze that run's notes in
+        # place as the template's instructions — the original failure, made
+        # permanent. `coga validate --fix` does not touch templates for the same
+        # reason; the repair needs the file's history read first.
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Open a small PR after reading the template's git history. If a "
+                "firing overwrote it, restore the original Description above the "
+                "fence and move the run's notes below it. Only append a fence "
+                "outright when the history shows the template never had one. Do "
+                "not run `coga validate --fix` for this."
+            ),
+        )
+
     if kind == "missing-file":
         # v2: the only required per-task file is `ticket.md` — the source of
         # truth, never recreated from inference. (The append-only history lives

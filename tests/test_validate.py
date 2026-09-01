@@ -246,6 +246,96 @@ def test_validate_recurring_template_unknown_skill_lists_checked_paths(
     assert "bootstrap/skills/local/missing/SKILL.md" in issue.message
 
 
+def test_validate_reports_recurring_template_that_lost_its_blackboard_fence(
+    repo: Path,
+) -> None:
+    """A firing that overwrites its own template makes the whole file
+    Description, so the next firing composes the last run's notes as its
+    instructions. `_check_task` enforces the fence for `tasks/` only, which is
+    why this went unreported through a full drift scan."""
+    _write(repo / "recurring" / "sweeper" / "ticket.md", """
+        ---
+        schedule: "0 8 * * 1"
+        title: Sweeper
+        ---
+
+        ## Description
+
+        6. **Summarize** — replace the `## Run Summary`
+
+        Serviced 2026-W36. Three branches rebased.
+    """)
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue for issue in report.issues
+        if issue.kind == "recurring-template-fence"
+    )
+    assert issue.task == "recurring/sweeper"
+    assert issue.severity == "error"
+    assert "found 0" in issue.message
+    assert "do not just append" in issue.message
+
+
+def test_validate_reports_recurring_template_with_two_blackboard_fences(
+    repo: Path,
+) -> None:
+    _write(repo / "recurring" / "doubled" / "ticket.md", """
+        ---
+        schedule: "0 8 * * 1"
+        title: Doubled
+        ---
+
+        ## Description
+
+        Fires weekly.
+
+        <!-- coga:blackboard -->
+
+        First region.
+
+        <!-- coga:blackboard -->
+
+        Second region.
+    """)
+
+    report = run(load_config(repo))
+
+    issue = next(
+        issue for issue in report.issues
+        if issue.kind == "recurring-template-fence"
+    )
+    assert issue.task == "recurring/doubled"
+    assert "found 2" in issue.message
+
+
+def test_validate_accepts_a_recurring_template_with_one_fence(repo: Path) -> None:
+    _write(repo / "recurring" / "healthy" / "ticket.md", """
+        ---
+        schedule: "0 8 * * 1"
+        title: Healthy
+        ---
+
+        ## Description
+
+        Fires weekly.
+
+        <!-- coga:blackboard -->
+
+        ## Run Summary
+
+        Serviced 2026-W36.
+    """)
+
+    report = run(load_config(repo))
+
+    assert not [
+        issue for issue in report.issues
+        if issue.kind == "recurring-template-fence"
+    ]
+
+
 def test_validate_reports_recurring_template_without_a_schedule(repo: Path) -> None:
     """A template with no `schedule:` never fires. Catch it statically instead
     of letting the next sweep skip it with a stderr warning."""

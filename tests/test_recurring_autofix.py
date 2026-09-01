@@ -21,7 +21,10 @@ from coga.recurring_autofix import (
     parse_analysis,
 )
 
-from tests.test_recurring import repo  # noqa: F401 — shared repo fixture
+from tests.test_recurring import (  # noqa: F401 — shared repo fixture
+    _write_recurring,
+    repo,
+)
 
 
 # --- parsing the analyst's reply ---------------------------------------------
@@ -620,6 +623,159 @@ def test_the_outcome_carries_the_run_blackboard(cfg_repo) -> None:
     assert "validate-drift found 3 broken refs." in outcome.blackboard
 
 
+# --- a firing that eats its own template --------------------------------------
+
+
+def _fenced_template(repo: Path, name: str, *, description: str, notes: str) -> None:
+    """A recurring template shaped the way the format requires: instructions
+    above the fence, cross-run state below it."""
+    _write_recurring(repo, name, f"""
+        ---
+        schedule: "0 8 * * 1"
+        title: "{name}"
+        ---
+
+        ## Description
+
+        {description}
+
+        <!-- coga:blackboard -->
+
+        ## Run Summary
+
+        {notes}
+        """)
+
+
+def test_a_firing_that_rewrites_only_its_blackboard_is_clean(cfg_repo) -> None:
+    """Writing cross-run state below the fence is what a firing is *supposed*
+    to do, so it must not read as damage."""
+    from coga.recurring_runner import _template_damage, _template_description
+
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W35."
+    )
+    before = _template_description(cfg_repo, "sweeper")
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W36."
+    )
+
+    assert before is not None
+    assert _template_damage(before, _template_description(cfg_repo, "sweeper")) is None
+
+
+def test_a_firing_that_overwrote_its_template_description_is_a_problem(
+    cfg_repo,
+) -> None:
+    """The failure this guard exists for: the ticket reached `done`, so status
+    alone reported the run `completed` and the sweep printed `problems: 0`."""
+    from coga.recurring_runner import (
+        _task_outcome,
+        _template_damage,
+        _template_description,
+    )
+
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W35."
+    )
+    before = _template_description(cfg_repo, "sweeper")
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="W36 run: 5 branches.", notes="W36."
+    )
+
+    damage = _template_damage(before, _template_description(cfg_repo, "sweeper"))
+    ref = _ref_with_status(cfg_repo, "done")
+    outcome = _task_outcome(
+        cfg_repo, "sweeper", ref, kind="script", template_damage=damage
+    )
+
+    assert outcome.final_status == "done"
+    assert outcome.result == "damaged-template"
+    assert outcome.is_problem
+    assert "rewrote its recurring template's Description" in outcome.detail
+
+
+def test_a_firing_that_ate_the_fence_names_the_composition_risk(cfg_repo) -> None:
+    from coga.recurring_runner import (
+        _task_outcome,
+        _template_damage,
+        _template_description,
+    )
+
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W35."
+    )
+    before = _template_description(cfg_repo, "sweeper")
+    _write_recurring(cfg_repo.repo_root, "sweeper", """
+        ---
+        schedule: "0 8 * * 1"
+        title: "sweeper"
+        ---
+
+        ## Description
+
+        W36 run: 5 branches.
+        """)
+
+    damage = _template_damage(before, _template_description(cfg_repo, "sweeper"))
+    outcome = _task_outcome(
+        cfg_repo,
+        "sweeper",
+        _ref_with_status(cfg_repo, "done"),
+        kind="script",
+        template_damage=damage,
+    )
+
+    assert outcome.result == "damaged-template"
+    assert "compose this run's output as its instructions" in outcome.detail
+
+
+def test_a_template_that_never_had_a_fence_is_not_blamed_on_this_run(
+    cfg_repo,
+) -> None:
+    """No baseline means no verdict. A template that was already fence-less is
+    `coga validate`'s `recurring-template-fence` finding, not this firing's."""
+    from coga.recurring_runner import _template_damage, _template_description
+
+    _write_recurring(cfg_repo.repo_root, "fenceless", """
+        ---
+        schedule: "0 8 * * 1"
+        title: "fenceless"
+        ---
+
+        ## Description
+
+        Hand-authored, predates the single-file format.
+        """)
+
+    before = _template_description(cfg_repo, "fenceless")
+    assert before is None
+    assert _template_damage(before, _template_description(cfg_repo, "fenceless")) is None
+
+
+def test_an_unreadable_template_does_not_abort_the_sweep(cfg_repo) -> None:
+    """A check that only observes must never be the thing that crashes the run.
+
+    `Ticket.read` goes through `read_text`, so non-UTF-8 bytes raise
+    `UnicodeDecodeError` — a `ValueError`, not an `OSError`.
+    """
+    from coga.recurring_runner import _template_description
+
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W35."
+    )
+    path = cfg_repo.repo_root / "recurring" / "sweeper" / "ticket.md"
+    path.write_bytes(b"---\ntitle: \xff\xfe broken\n---\n")
+
+    assert _template_description(cfg_repo, "sweeper") is None
+
+
+def test_a_missing_template_directory_yields_no_baseline(cfg_repo) -> None:
+    from coga.recurring_runner import _template_description
+
+    assert _template_description(cfg_repo, "never-existed") is None
+
+
 # --- the loop end to end -------------------------------------------------------
 
 
@@ -782,6 +938,96 @@ def test_on_demand_launch_closes_the_same_loop(
     assert code == 0
     assert [o.result for o in record.outcomes] == ["completed"]
     assert record.outcomes[0].template == "nightly-check"
+
+
+def test_an_on_demand_firing_that_eats_its_template_warns_without_autofix(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`coga dream` and friends fire through `_launch_created`, not the sweep.
+
+    Dream is the actor that overwrote a template's Description in the first
+    place, so the on-demand path is exactly where this must not be missed. The
+    ticket still reaches `done`, and `COGA_AUTOFIX=0` must disable only the
+    optional analyst — not the direct warning.
+    """
+    from coga import recurring_runner
+
+    from coga.ticket import Ticket
+
+    monkeypatch.setenv("COGA_AUTOFIX", "0")
+
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W35."
+    )
+    ref = _ref_with_status(cfg_repo, "active")
+
+    def eats_its_template(slug, **kwargs):  # type: ignore[no-untyped-def]
+        _fenced_template(
+            cfg_repo.repo_root,
+            "sweeper",
+            description="W36 run: 5 branches.",
+            notes="W36.",
+        )
+        ticket = Ticket.read(ref.ticket_path)
+        ticket.frontmatter["status"] = "done"
+        ticket.write(ref.ticket_path)
+        return None
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", eats_its_template
+    )
+
+    record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
+    assert recurring_runner._launch_created(
+        cfg_repo,
+        ref,
+        record=record,
+        template="sweeper",
+        control_remote_expected=False,
+    ) == 0
+
+    assert [o.result for o in record.outcomes] == ["damaged-template"]
+    assert record.outcomes[0].final_status == "done"
+    assert record.problems
+    warning = capsys.readouterr().err
+    assert "Recurring template 'sweeper' was damaged" in warning
+    assert "Repair the template from git history before another firing" in warning
+
+
+def test_an_on_demand_firing_that_leaves_its_template_alone_is_clean(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, autofix_enabled
+) -> None:
+    """The guard must not turn every on-demand run into a reported problem."""
+    from coga import recurring_runner
+
+    from coga.ticket import Ticket
+
+    _fenced_template(
+        cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W35."
+    )
+    ref = _ref_with_status(cfg_repo, "active")
+
+    def finishing_launch(slug, **kwargs):  # type: ignore[no-untyped-def]
+        ticket = Ticket.read(ref.ticket_path)
+        ticket.frontmatter["status"] = "done"
+        ticket.write(ref.ticket_path)
+        return None
+
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", finishing_launch
+    )
+
+    record = RunRecord(started=datetime(2026, 8, 24, 9, 0))
+    assert recurring_runner._launch_created(
+        cfg_repo,
+        ref,
+        record=record,
+        template="sweeper",
+        control_remote_expected=False,
+    ) == 0
+
+    assert [o.result for o in record.outcomes] == ["completed"]
+    assert not record.problems
 
 
 def test_a_refused_on_demand_launch_is_not_a_run(
