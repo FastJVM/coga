@@ -323,6 +323,10 @@ def test_recipe_writes_a_failure_report_to_the_blackboard_on_the_hard_exit(
     assert "Task: `skill-update`" in written
     assert "### Failed" in written
     assert "(stale info)" in written
+    # Not "PR: none opened": the update raises only after the child ran, and the
+    # push precedes the `gh` calls, so a real PR or branch update may exist.
+    assert "PR: not confirmed" in written
+    assert "none opened" not in written
     assert report.report == written
 
 
@@ -359,6 +363,65 @@ def test_render_failure_report_names_the_command_and_the_detail() -> None:
     assert "### Failed" in report
     assert "failed with exit 2: boom" in report
     assert report.endswith("```\n")
+
+
+def test_recipe_keeps_the_success_report_when_the_blackboard_write_fails(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `append_report` raises RuntimeError on a missing blackboard parent — the
+    # same exception type a failed update raises. If the success-path write sits
+    # inside the update's `try`, a clean run gets filed as "the update failed;
+    # no skills were classified" while `results` still holds the classification.
+    blackboard = repo / "tasks" / "missing" / "blackboard.md"
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
+
+    def clean_run(*, cwd: Path | None, pr: bool, pr_title: str):
+        payload = {
+            "results": [
+                {
+                    "name": "code/open-pr",
+                    "source_type": "url",
+                    "status": "updated",
+                    "message": "",
+                    "changed": True,
+                }
+            ],
+            "pr_url": "https://github.com/FastJVM/coga/pull/9",
+        }
+        return payload, ["coga", "skill", "update", "--all", "--pr"]
+
+    monkeypatch.setattr(skill_update, "run_update_json", clean_run)
+
+    report = SkillUpdateReport()
+    with pytest.raises(RuntimeError, match="Blackboard parent does not exist"):
+        skill_update.run_skill_update_recipe(load_config(repo), [], result=report)
+
+    # The run succeeded; the report it produced must describe that, not a failure.
+    assert [result.name for result in report.results] == ["code/open-pr"]
+    assert report.pr_url == "https://github.com/FastJVM/coga/pull/9"
+    assert "the update failed" not in report.report
+
+
+def test_recipe_survives_a_permission_error_on_the_hard_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The realistic unwritable-blackboard failure is OSError, not RuntimeError:
+    # `append_report` only converts a missing parent into the latter, while the
+    # write itself raises PermissionError on a read-only checkout or full disk.
+    blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
+    blackboard.parent.mkdir(parents=True)
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
+
+    def boom(*, cwd: Path | None, pr: bool, pr_title: str):
+        raise RuntimeError("coga skill update failed")
+
+    def unwritable(self, *args, **kwargs):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(skill_update, "run_update_json", boom)
+    monkeypatch.setattr(Path, "write_text", unwritable)
+
+    assert skill_update.run_skill_update_recipe(load_config(repo), []) == 2
 
 
 def test_skill_update_skill_declares_contract() -> None:

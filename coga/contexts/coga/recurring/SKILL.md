@@ -716,19 +716,32 @@ Operating it:
   template's own `ticket.py`; Coga rejects the delegate before creating a
   period task rather than relocating admission failure into the run.
 
-- **A job that pushes to a dedicated long-lived branch must prune the remote
-  ref before pushing.** `coga skill update --pr` reuses one fixed branch
-  (`coga/skill-update`) and pushes it with a bare `git push --force-with-lease`
-  (`src/coga/skill_manager.py`), with no fetch first. Once the previous
-  period's PR is merged *and its remote branch deleted*, the local
-  `refs/remotes/<remote>/coga/skill-update` still points at the old SHA, so the
-  lease cannot be satisfied and the push fails with
+- **A job that pushes to a dedicated long-lived branch must resolve the remote
+  tip at push time, not trust a tracking ref.** `coga skill update --pr` reuses
+  one fixed branch (`coga/skill-update`), and the sweep never fetches with
+  `--prune`. A bare `git push --force-with-lease` takes its expected OID from
+  `refs/remotes/<remote>/coga/skill-update`, so once the previous period's PR is
+  merged *and its remote branch deleted*, that ref still points at the old SHA,
+  the lease names an OID the remote has never heard of, and the push fails with
   `! [rejected] coga/skill-update -> coga/skill-update (stale info)` — exit 2,
-  and the period task looks like a real failure. This recurs **every period
-  after a merge+delete cycle**, not once. `git fetch --prune <remote>` clears
-  the dead tracking ref and the rerun succeeds; pruning is local-only, touches
-  no remote state, and is safe to run before retrying. Any recurring job that
-  force-pushes a reused branch inherits the same trap.
+  and the period task looks like a real failure. It recurred **every period
+  after a merge+delete cycle**, not once.
+
+  `src/coga/skill_manager.py` now asks `git ls-remote` for the tip at push time
+  and leases against that exact OID, pushing with no lease at all when the
+  branch is genuinely absent — so the tracking ref is no longer consulted and
+  the trap is closed at the source. `git fetch --prune <remote>` remains a
+  correct local cleanup for a checkout carrying a dead tracking ref, but it is
+  no longer the remedy for this failure. Any recurring job that force-pushes a
+  reused branch inherits the trap until it resolves its tip the same way;
+  `src/coga/open_pr.py`, `src/coga/branchcleanup.py` and `src/coga/git.py` all
+  already do.
+
+  Note what the lease does *not* buy here: `_commit_skill_updates` rebuilds the
+  branch with `git checkout -B <branch> <control-branch>` every period, so the
+  push is always a history rewrite and a freshly-resolved lease can never fail.
+  A commit pushed onto the open skill-update PR by hand is discarded by the next
+  period without a rejection.
 
 ## What this context does NOT cover
 

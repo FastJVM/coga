@@ -619,10 +619,21 @@ def run_command_string(
     return (runner or run_subprocess)(shlex.split(command), cwd)
 
 
+def _remote_push_urls(run: Runner, remote: str, cwd: Path | None) -> list[str]:
+    """Return the URLs a `git push <remote>` actually writes to."""
+    result = run(["git", "remote", "get-url", "--push", "--all", remote], cwd)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip() or "no output"
+        raise SkillManagerError(
+            f"`git remote get-url --push --all {remote}` failed: {detail}"
+        )
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
 def _remote_branch_oid(
     run: Runner, remote: str, branch: str, cwd: Path | None
 ) -> str | None:
-    """Return the OID `remote` currently advertises for `branch`, else None.
+    """Return the OID the push destinations advertise for `branch`, else None.
 
     Asked live over the wire rather than read from a remote-tracking ref: the
     recurring sweep fetches without `--prune`, so a tracking ref outlives the
@@ -630,15 +641,33 @@ def _remote_branch_oid(
     names an OID the remote has never heard of and the push is rejected with
     `stale info`. `None` means the branch genuinely does not exist, so there is
     nothing for a lease to protect.
+
+    Resolved per *push URL* rather than by remote name, matching
+    `git._remote_branch_oid`: git reads a remote's fetch URL for
+    `ls-remote <name>` but writes its `pushurl` values for `push <name>`, so a
+    lease taken by name can name a destination the push never touches. Multiple
+    push URLs are supported only while they agree about the branch, since git
+    can partially update a multi-push remote.
     """
-    result = run(["git", "ls-remote", "--heads", remote, f"refs/heads/{branch}"], cwd)
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout).strip() or "no output"
-        raise SkillManagerError(
-            f"`git ls-remote --heads {remote} refs/heads/{branch}` failed: {detail}"
+    observed: list[str | None] = []
+    for push_url in _remote_push_urls(run, remote, cwd):
+        result = run(
+            ["git", "ls-remote", "--heads", push_url, f"refs/heads/{branch}"], cwd
         )
-    line = next((line for line in result.stdout.splitlines() if line.strip()), "")
-    return line.split(maxsplit=1)[0] if line else None
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip() or "no output"
+            raise SkillManagerError(
+                f"`git ls-remote --heads {push_url} refs/heads/{branch}` failed: "
+                f"{detail}"
+            )
+        line = next((line for line in result.stdout.splitlines() if line.strip()), "")
+        observed.append(line.split(maxsplit=1)[0] if line else None)
+    if len(set(observed)) != 1:
+        raise SkillManagerError(
+            f"effective push destinations for {remote!r}/{branch} disagree about "
+            "the branch tip; refusing to lease a push against one of them."
+        )
+    return observed[0]
 
 
 def open_or_update_pr(
@@ -650,9 +679,11 @@ def open_or_update_pr(
     runner: Runner | None = None,
     cwd: Path | None = None,
 ) -> str:
+    run = runner or run_subprocess
+
     def run_gh(args: Sequence[str]) -> subprocess.CompletedProcess[str]:
         try:
-            return (runner or run_subprocess)(["gh", *args], cwd)
+            return run(["gh", *args], cwd)
         except FileNotFoundError as exc:
             raise SkillManagerError(
                 "GitHub CLI (`gh`) is required to open a skill-update PR. "
@@ -661,7 +692,7 @@ def open_or_update_pr(
             ) from exc
 
     if branch is None:
-        branch_result = (runner or run_subprocess)(["git", "branch", "--show-current"], cwd)
+        branch_result = run(["git", "branch", "--show-current"], cwd)
         if branch_result.returncode != 0 or not branch_result.stdout.strip():
             raise SkillManagerError(
                 "Could not determine current git branch for skill update PR."
@@ -671,16 +702,17 @@ def open_or_update_pr(
         fh.write(body)
         body_file = fh.name
     try:
-        # Lease against the OID the remote advertises right now, matching
-        # `open_pr.py`. A bare `--force-with-lease` would instead take its
-        # expected value from the remote-tracking ref, which the unpruned
+        # Lease against the tip the push destination advertises right now,
+        # matching `open_pr.py`. A bare `--force-with-lease` would instead take
+        # its expected value from the remote-tracking ref, which the unpruned
         # sweep leaves pointing at a branch GitHub already deleted.
-        remote_oid = _remote_branch_oid(runner or run_subprocess, remote, branch, cwd)
-        push_args = ["git", "push"]
-        if remote_oid:
-            push_args.append(f"--force-with-lease=refs/heads/{branch}:{remote_oid}")
-        push_args.extend(["-u", remote, branch])
-        pushed = (runner or run_subprocess)(push_args, cwd)
+        remote_oid = _remote_branch_oid(run, remote, branch, cwd)
+        lease = (
+            [f"--force-with-lease=refs/heads/{branch}:{remote_oid}"]
+            if remote_oid
+            else []
+        )
+        pushed = run(["git", "push", *lease, "-u", remote, branch], cwd)
         if pushed.returncode != 0:
             raise SkillManagerError((pushed.stderr or pushed.stdout).strip())
         existing = run_gh(
