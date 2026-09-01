@@ -162,12 +162,13 @@ def run_megalaunch(
     included), same semantics as `coga status <dir>` — an unknown directory
     raises `UnknownDirectoryError` rather than sweeping nothing silently.
 
-    `agent_override` launches swept agent-owned tickets with that configured
-    agent type instead of each ticket's `assignee:`. It is ephemeral and
-    applies only to the first launched step, so `other-agent` rotation on later
-    steps still lands on the ticket's resolved assignee. Unlike an explicit
-    `coga launch --agent`, megalaunch keeps its independent human gate:
-    human-assigned tickets still skip.
+    `agent_override` runs picked-draft authoring interviews and launches swept
+    agent-owned tickets with that configured agent type instead of the default
+    authoring agent / each ticket's `assignee:`. It is ephemeral and applies
+    only to authoring plus the first launched step, so `other-agent` rotation
+    on later steps still lands on the ticket's resolved assignee. Unlike an
+    explicit `coga launch --agent`, megalaunch keeps its independent human
+    gate: human-assigned working steps still skip.
 
     `selection` (exact `id_slug`s) switches to explicit mode: only the named
     tasks run, any owner's, and the run is staged so every human-in-the-loop
@@ -591,7 +592,12 @@ def _run_selection(
             except TicketError:
                 continue
             if ticket.status == "draft":
-                _author_draft(cfg, ref, ticket)
+                _author_draft(
+                    cfg,
+                    ref,
+                    ticket,
+                    agent_override=agent_override,
+                )
 
     # Phase 2 — Activate. Bring every picked draft/paused/blocked to `active`
     # (a blocked ticket keeps its open asks for the launch-time preamble), and
@@ -675,7 +681,13 @@ def _run_selection(
     return results
 
 
-def _author_draft(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+def _author_draft(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    *,
+    agent_override: str | None = None,
+) -> None:
     """Run the guided `coga ticket` authoring interview on a picked draft.
 
     Best-effort prep, not a launch: it reuses the same authoring session
@@ -697,7 +709,10 @@ def _author_draft(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         return
     bootstrap_ticket = read_ticket(bootstrap_ref)
     launch_assignee = (
-        bootstrap_ticket.assignee or ticket.agent or ticket.assignee
+        agent_override
+        or bootstrap_ticket.assignee
+        or ticket.agent
+        or ticket.assignee
     )
     if not launch_assignee:
         return

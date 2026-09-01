@@ -700,12 +700,13 @@ directory claim the same position — the one case where the order you wrote
 down is ambiguous and the sort silently invents an answer from creation time.
 Gaps and unnumbered siblings are legal and unflagged.
 
-Pass `--agent <type>` to launch swept agent-owned tasks (and launchable tasks
-in the picker's confirmed set) with that configured agent type. The override
-is ephemeral and applies only to the first launched step—later steps follow
-the ticket's resolved assignee, so `other-agent` rotation keeps its meaning.
-Megalaunch deliberately keeps its own human gate: unlike an explicit
-`coga launch --agent` assist, a human-assigned ticket still skips.
+Pass `--agent <type>` to run picked-draft guided authoring interviews and to
+launch swept agent-owned tasks (and launchable tasks in the picker's confirmed
+set) with that configured agent type. The override is ephemeral and applies to
+authoring plus the first launched step—later steps follow the ticket's resolved
+assignee, so `other-agent` rotation keeps its meaning. Megalaunch deliberately
+keeps its own human gate: unlike an explicit `coga launch --agent` assist, a
+human-assigned working step still skips.
 
 An optional positional `DIR` scopes the sweep or the picker to tasks under
 `tasks/<DIR>/` (nested ones included), exactly like `coga status <dir>` —

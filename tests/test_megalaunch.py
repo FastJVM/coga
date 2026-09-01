@@ -2197,8 +2197,11 @@ def test_megalaunch_selection_authors_drafts_before_any_launch(
 
     events: list[tuple[str, str]] = []
 
-    def fake_author(cfg_, ref, ticket):  # type: ignore[no-untyped-def]
+    def fake_author(  # type: ignore[no-untyped-def]
+        cfg_, ref, ticket, *, agent_override=None
+    ):
         events.append(("author", ref.id_slug))
+        assert agent_override == "codex"
         t = Ticket.read(ref.ticket_path)
         t.frontmatter["workflow"] = "code"
         t.write(ref.ticket_path)
@@ -2221,7 +2224,10 @@ def test_megalaunch_selection_authors_drafts_before_any_launch(
     monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(
-        cfg, selection=[first["slug"], second["slug"]], author_drafts=True
+        cfg,
+        selection=[first["slug"], second["slug"]],
+        author_drafts=True,
+        agent_override="codex",
     )
 
     assert run.counts["completed"] == 2
@@ -2251,7 +2257,9 @@ def test_megalaunch_selection_without_opt_in_skips_authoring(
         watchers=[],
     )
 
-    def boom(cfg_, ref, ticket):  # type: ignore[no-untyped-def]
+    def boom(  # type: ignore[no-untyped-def]
+        cfg_, ref, ticket, *, agent_override=None
+    ):
         raise AssertionError("authoring must not run without opt-in")
 
     monkeypatch.setattr("coga.megalaunch._author_draft", boom)
@@ -2285,7 +2293,10 @@ def test_megalaunch_selection_draft_unready_after_authoring_is_reported(
     t.write(draft["path"])
 
     # The interview runs but the human leaves without adding a workflow.
-    monkeypatch.setattr("coga.megalaunch._author_draft", lambda cfg_, ref, ticket: None)
+    monkeypatch.setattr(
+        "coga.megalaunch._author_draft",
+        lambda cfg_, ref, ticket, *, agent_override=None: None,
+    )
     launched = _done_on_spawn(monkeypatch)
 
     run = run_megalaunch(cfg, selection=[draft["slug"]], author_drafts=True)
@@ -2318,6 +2329,49 @@ def test_author_draft_without_bootstrap_is_noop(repo: Path) -> None:
     _author_draft(cfg, ref, Ticket.read(draft["path"]))  # must not raise
 
     assert Ticket.read(draft["path"]).frontmatter == before
+
+
+def test_author_draft_prefers_megalaunch_agent_override(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The megalaunch override also selects the picked draft's authoring
+    assistant, without changing the ticket's persisted assignee."""
+    from coga.megalaunch import _author_draft
+    from coga.tasks import resolve_task
+
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Author with Codex",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    ref = resolve_task(cfg, draft["slug"])
+    captured: dict[str, object] = {}
+
+    # Reusing the draft as the bootstrap ref gives the fallback path a Claude
+    # assignee. The explicit Codex override must still win.
+    monkeypatch.setattr(
+        "coga.megalaunch.resolve_bootstrap", lambda cfg_, name: ref
+    )
+    monkeypatch.setattr(
+        "coga.commands.ticket._run_authoring_session",
+        lambda **kwargs: captured.update(kwargs),
+    )
+
+    _author_draft(
+        cfg,
+        ref,
+        Ticket.read(draft["path"]),
+        agent_override="codex",
+    )
+
+    assert captured["launch_assignee"] == "codex"
+    assert Ticket.read(draft["path"]).assignee == "claude"
 
 
 def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
@@ -2932,7 +2986,9 @@ def test_megalaunch_cli_pick_prompts_before_authoring_drafts(
         authored: list[str] = []
         monkeypatch.setattr(
             "coga.megalaunch._author_draft",
-            lambda cfg_, ref, ticket, _a=authored: _a.append(ref.id_slug),
+            lambda cfg_, ref, ticket, *, agent_override=None, _a=authored: (
+                _a.append(ref.id_slug)
+            ),
         )
         _done_on_spawn(monkeypatch)
         # Only this draft is offered (prior iterations' tasks are already done).
