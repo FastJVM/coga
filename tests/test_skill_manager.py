@@ -822,8 +822,16 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
             return _completed(command, stdout="")
         if command == [
             "git",
+            "ls-remote",
+            "--heads",
+            "origin",
+            "refs/heads/coga/skill-update",
+        ]:
+            return _completed(command, stdout="1111111111111111111111111111111111111111\trefs/heads/coga/skill-update\n")
+        if command == [
+            "git",
             "push",
-            "--force-with-lease",
+            "--force-with-lease=refs/heads/coga/skill-update:1111111111111111111111111111111111111111",
             "-u",
             "origin",
             "coga/skill-update",
@@ -854,7 +862,7 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
     assert [
         "git",
         "push",
-        "--force-with-lease",
+        "--force-with-lease=refs/heads/coga/skill-update:1111111111111111111111111111111111111111",
         "-u",
         "origin",
         "coga/skill-update",
@@ -903,8 +911,16 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
             return _completed(command, stdout="")
         if command == [
             "git",
+            "ls-remote",
+            "--heads",
+            "upstream",
+            "refs/heads/coga/skill-update",
+        ]:
+            return _completed(command, stdout="1111111111111111111111111111111111111111\trefs/heads/coga/skill-update\n")
+        if command == [
+            "git",
             "push",
-            "--force-with-lease",
+            "--force-with-lease=refs/heads/coga/skill-update:1111111111111111111111111111111111111111",
             "-u",
             "upstream",
             "coga/skill-update",
@@ -932,7 +948,7 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
     assert [
         "git",
         "push",
-        "--force-with-lease",
+        "--force-with-lease=refs/heads/coga/skill-update:1111111111111111111111111111111111111111",
         "-u",
         "upstream",
         "coga/skill-update",
@@ -979,8 +995,16 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
             return _completed(command)
         if command == [
             "git",
+            "ls-remote",
+            "--heads",
+            "origin",
+            "refs/heads/coga/skill-update",
+        ]:
+            return _completed(command, stdout="1111111111111111111111111111111111111111\trefs/heads/coga/skill-update\n")
+        if command == [
+            "git",
             "push",
-            "--force-with-lease",
+            "--force-with-lease=refs/heads/coga/skill-update:1111111111111111111111111111111111111111",
             "-u",
             "origin",
             "coga/skill-update",
@@ -1006,7 +1030,7 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
     push = [
         "git",
         "push",
-        "--force-with-lease",
+        "--force-with-lease=refs/heads/coga/skill-update:1111111111111111111111111111111111111111",
         "-u",
         "origin",
         "coga/skill-update",
@@ -1017,12 +1041,81 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
     assert not any(command[:4] == ["gh", "pr", "create", "--draft"] for command in commands)
 
 
+def test_skill_update_pr_pushes_without_a_lease_when_remote_branch_is_gone(
+    tmp_path: Path,
+) -> None:
+    # GitHub deletes `coga/skill-update` when its PR closes, but the recurring
+    # sweep fetches without `--prune`, so the remote-tracking ref outlives it.
+    # A bare `--force-with-lease` takes its expected OID from that stale ref and
+    # the push is rejected with `stale info`, wedging the whole sweep. With no
+    # remote branch there is nothing for a lease to protect, so the push carries
+    # none and republishes the branch.
+    commands: list[list[str]] = []
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command == [
+            "git",
+            "ls-remote",
+            "--heads",
+            "origin",
+            "refs/heads/coga/skill-update",
+        ]:
+            # The branch is gone: `ls-remote` advertises nothing.
+            return _completed(command, stdout="")
+        if command == ["git", "push", "-u", "origin", "coga/skill-update"]:
+            return _completed(command)
+        if command[:4] == ["gh", "pr", "list", "--head"]:
+            return _completed(command, stdout="")
+        if command[:4] == ["gh", "pr", "create", "--draft"]:
+            return _completed(
+                command, stdout="https://github.com/FastJVM/coga/pull/144\n"
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    url = open_or_update_pr(
+        "Update Coga-managed skills",
+        "summary",
+        branch="coga/skill-update",
+        runner=runner,
+        cwd=tmp_path,
+    )
+
+    assert url == "https://github.com/FastJVM/coga/pull/144"
+    assert ["git", "push", "-u", "origin", "coga/skill-update"] in commands
+    # No lease at all — not one inherited from the stale tracking ref.
+    assert not any(
+        any(arg.startswith("--force-with-lease") for arg in command)
+        for command in commands
+    )
+
+
+def test_skill_update_pr_reports_a_failed_ls_remote(tmp_path: Path) -> None:
+    def runner(args, cwd=None):
+        command = list(args)
+        if command[:2] == ["git", "ls-remote"]:
+            return _completed(command, returncode=128, stderr="fatal: no such remote\n")
+        raise AssertionError(f"unexpected command: {command}")
+
+    with pytest.raises(SkillManagerError, match="fatal: no such remote"):
+        open_or_update_pr(
+            "Update Coga-managed skills",
+            "summary",
+            branch="coga/skill-update",
+            runner=runner,
+            cwd=tmp_path,
+        )
+
+
 def test_skill_update_pr_reports_missing_gh_with_setup_hint(tmp_path: Path) -> None:
     commands: list[list[str]] = []
 
     def runner(args, cwd=None):
         command = list(args)
         commands.append(command)
+        if command[:2] == ["git", "ls-remote"]:
+            return _completed(command)
         if command[:2] == ["git", "push"]:
             return _completed(command)
         if command[:2] == ["gh", "pr"]:

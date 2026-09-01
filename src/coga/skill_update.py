@@ -236,6 +236,45 @@ def render_blackboard_report(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def render_failure_report(
+    detail: str,
+    *,
+    generated_at: str,
+    command: list[str],
+    pr_requested: bool,
+    task_slug: str | None = None,
+) -> str:
+    """Render the report for a run that failed before classifying anything.
+
+    A hard failure has to be as legible in the run record as a follow-up one.
+    The recurring sweep discards a task's stderr, so a run that only wrote its
+    diagnostic there showed up as a failed task with a blank blackboard and no
+    reason. `detail` is the `RuntimeError` message, which already names the
+    command, its exit code, and the stderr the subprocess produced.
+    """
+    lines = [
+        "## Skill Update",
+        "",
+        f"Generated: {generated_at}",
+        f"Command: `{shlex.join(command)}`",
+    ]
+    if task_slug:
+        lines.append(f"Task: `{task_slug}`")
+    lines.append("")
+    lines.append("Result: the update failed; no skills were classified.")
+    if pr_requested:
+        lines.append("PR: none opened — the update failed.")
+    else:
+        lines.append("PR: none opened (--no-pr).")
+    lines.append("")
+    lines.append("### Failed")
+    lines.append("")
+    lines.append("```")
+    lines.append(detail.strip() or "no output")
+    lines.append("```")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def has_followups(results: list[SkillUpdate]) -> bool:
     return any(classify_status(result.status) == GROUP_FOLLOWUP for result in results)
 
@@ -267,7 +306,10 @@ def run_skill_update_recipe(
     are recorded on it as they are computed, so a caller summarizing the run
     reads them directly. The attempted `command` and `pr_requested` are
     recorded before the update runs, so the exit-2 path reports what it tried;
-    the exit-1 path additionally carries everything it collected.
+    the exit-1 path additionally carries everything it collected. Both non-zero
+    exits leave a `## Skill Update` section on the blackboard: exit 2 writes the
+    failure detail there rather than to stderr alone, which the recurring sweep
+    discards.
     """
     del cfg
     report_out = result if result is not None else SkillUpdateReport()
@@ -326,7 +368,26 @@ def run_skill_update_recipe(
             )
             return 1
     except RuntimeError as exc:
-        sys.stderr.write(f"{exc}\n")
+        detail = str(exc)
+        sys.stderr.write(f"{detail}\n")
+        failure = render_failure_report(
+            detail,
+            generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            command=report_out.command,
+            pr_requested=pr,
+            task_slug=task_slug,
+        )
+        report_out.report = failure
+        try:
+            if blackboard:
+                append_report(blackboard, failure)
+            else:
+                sys.stdout.write(failure)
+        except RuntimeError as write_exc:
+            # The blackboard itself is unwritable (or was what raised above).
+            # Say so on stderr and still exit 2 rather than replacing the
+            # original diagnostic with a traceback.
+            sys.stderr.write(f"Could not write the failure report: {write_exc}\n")
         return 2
 
     return 0

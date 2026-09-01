@@ -29,6 +29,7 @@ SkillUpdate = skill_update.SkillUpdate
 classify_status = skill_update.classify_status
 parse_results = skill_update.parse_results
 render_blackboard_report = skill_update.render_blackboard_report
+render_failure_report = skill_update.render_failure_report
 build_update_command = skill_update.build_update_command
 has_followups = skill_update.has_followups
 render_result_line = skill_update.render_result_line
@@ -287,9 +288,77 @@ def test_recipe_result_names_the_command_a_failed_run_attempted(
         pr=False, pr_title="Update Coga-managed skills"
     )
     assert report.pr_requested is False
-    # Nothing was collected: the run failed before returning a payload.
+    # Nothing was *classified*: the run failed before returning a payload. The
+    # rendered report is the failure itself, not a tally.
     assert report.results == []
-    assert report.report == ""
+    assert "## Skill Update" in report.report
+    assert "coga skill update failed" in report.report
+
+
+def test_recipe_writes_a_failure_report_to_the_blackboard_on_the_hard_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The recurring sweep discards a task's stderr, so an exit-2 run that only
+    # wrote its diagnostic there showed up in the run record as a failed task
+    # with a blank blackboard and no reason. The failure has to land on the
+    # blackboard like every other outcome.
+    blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
+    blackboard.parent.mkdir(parents=True)
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
+    monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
+
+    def boom(*, cwd: Path | None, pr: bool, pr_title: str):
+        raise RuntimeError(
+            "`coga skill update --all --pr --json` failed with exit 1: "
+            "! [rejected] coga/skill-update -> coga/skill-update (stale info)"
+        )
+
+    monkeypatch.setattr(skill_update, "run_update_json", boom)
+
+    report = SkillUpdateReport()
+    assert skill_update.run_skill_update_recipe(load_config(repo), [], result=report) == 2
+
+    written = blackboard.read_text()
+    assert "## Skill Update" in written
+    assert "Task: `skill-update`" in written
+    assert "### Failed" in written
+    assert "(stale info)" in written
+    assert report.report == written
+
+
+def test_recipe_survives_an_unwritable_blackboard_on_the_hard_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A blackboard that cannot be written must not replace the original
+    # diagnostic with a traceback: the exit code stays 2.
+    blackboard = repo / "tasks" / "missing" / "blackboard.md"
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
+
+    def boom(*, cwd: Path | None, pr: bool, pr_title: str):
+        raise RuntimeError("coga skill update failed")
+
+    monkeypatch.setattr(skill_update, "run_update_json", boom)
+
+    assert skill_update.run_skill_update_recipe(load_config(repo), []) == 2
+
+
+def test_render_failure_report_names_the_command_and_the_detail() -> None:
+    report = render_failure_report(
+        "`coga skill update --all --json` failed with exit 2: boom",
+        generated_at="2026-09-01T00:00:00+00:00",
+        command=["coga", "skill", "update", "--all", "--json"],
+        pr_requested=False,
+        task_slug="recurring/skill-update",
+    )
+
+    assert report.startswith("## Skill Update\n")
+    assert "Command: `coga skill update --all --json`" in report
+    assert "Task: `recurring/skill-update`" in report
+    assert "Result: the update failed; no skills were classified." in report
+    assert "PR: none opened (--no-pr)." in report
+    assert "### Failed" in report
+    assert "failed with exit 2: boom" in report
+    assert report.endswith("```\n")
 
 
 def test_skill_update_skill_declares_contract() -> None:

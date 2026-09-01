@@ -619,6 +619,28 @@ def run_command_string(
     return (runner or run_subprocess)(shlex.split(command), cwd)
 
 
+def _remote_branch_oid(
+    run: Runner, remote: str, branch: str, cwd: Path | None
+) -> str | None:
+    """Return the OID `remote` currently advertises for `branch`, else None.
+
+    Asked live over the wire rather than read from a remote-tracking ref: the
+    recurring sweep fetches without `--prune`, so a tracking ref outlives the
+    branch GitHub deletes when a PR closes. A lease taken from that stale ref
+    names an OID the remote has never heard of and the push is rejected with
+    `stale info`. `None` means the branch genuinely does not exist, so there is
+    nothing for a lease to protect.
+    """
+    result = run(["git", "ls-remote", "--heads", remote, f"refs/heads/{branch}"], cwd)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip() or "no output"
+        raise SkillManagerError(
+            f"`git ls-remote --heads {remote} refs/heads/{branch}` failed: {detail}"
+        )
+    line = next((line for line in result.stdout.splitlines() if line.strip()), "")
+    return line.split(maxsplit=1)[0] if line else None
+
+
 def open_or_update_pr(
     title: str,
     body: str,
@@ -649,10 +671,16 @@ def open_or_update_pr(
         fh.write(body)
         body_file = fh.name
     try:
-        pushed = (runner or run_subprocess)(
-            ["git", "push", "--force-with-lease", "-u", remote, branch],
-            cwd,
-        )
+        # Lease against the OID the remote advertises right now, matching
+        # `open_pr.py`. A bare `--force-with-lease` would instead take its
+        # expected value from the remote-tracking ref, which the unpruned
+        # sweep leaves pointing at a branch GitHub already deleted.
+        remote_oid = _remote_branch_oid(runner or run_subprocess, remote, branch, cwd)
+        push_args = ["git", "push"]
+        if remote_oid:
+            push_args.append(f"--force-with-lease=refs/heads/{branch}:{remote_oid}")
+        push_args.extend(["-u", remote, branch])
+        pushed = (runner or run_subprocess)(push_args, cwd)
         if pushed.returncode != 0:
             raise SkillManagerError((pushed.stderr or pushed.stdout).strip())
         existing = run_gh(
