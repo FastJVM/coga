@@ -940,18 +940,21 @@ def test_on_demand_launch_closes_the_same_loop(
     assert record.outcomes[0].template == "nightly-check"
 
 
-def test_an_on_demand_firing_that_eats_its_template_is_a_problem(
-    cfg_repo, monkeypatch: pytest.MonkeyPatch, autofix_enabled
+def test_an_on_demand_firing_that_eats_its_template_warns_without_autofix(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """`coga dream` and friends fire through `_launch_created`, not the sweep.
 
     Dream is the actor that overwrote a template's Description in the first
-    place, so the on-demand path is exactly where this must not be missed: the
-    ticket still reaches `done`, and the outcome still feeds the analyst.
+    place, so the on-demand path is exactly where this must not be missed. The
+    ticket still reaches `done`, and `COGA_AUTOFIX=0` must disable only the
+    optional analyst — not the direct warning.
     """
     from coga import recurring_runner
 
     from coga.ticket import Ticket
+
+    monkeypatch.setenv("COGA_AUTOFIX", "0")
 
     _fenced_template(
         cfg_repo.repo_root, "sweeper", description="Rebase stale branches.", notes="W35."
@@ -986,6 +989,9 @@ def test_an_on_demand_firing_that_eats_its_template_is_a_problem(
     assert [o.result for o in record.outcomes] == ["damaged-template"]
     assert record.outcomes[0].final_status == "done"
     assert record.problems
+    warning = capsys.readouterr().err
+    assert "Recurring template 'sweeper' was damaged" in warning
+    assert "Repair the template from git history before another firing" in warning
 
 
 def test_an_on_demand_firing_that_leaves_its_template_alone_is_clean(

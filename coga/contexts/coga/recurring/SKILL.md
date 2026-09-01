@@ -609,8 +609,10 @@ The output is unchanged; the loop is what got added after it
 
 1. **The sweep builds a run record as it works** — per period task: how the
    launch ended (clean, timed out, stopped by a failing `ticket.py`, left
-   unfinished, refused by `--force`), the ticket's status afterwards, and the
-   period task's **blackboard**, plus any template that failed to load. It is
+   unfinished, refused by `--force`, or `damaged-template` when the firing
+   changed the template instructions it was composed from), the ticket's
+   status afterwards, and the period task's **blackboard**, plus any template
+   that failed to load. It is
    *built*, not scraped: tee-ing fd 1 would make `isatty` false and every
    interactive agent launch would then refuse itself. The blackboard is read
    instead because it is where a `ticket.py` phase and an agent session both
@@ -639,6 +641,20 @@ That cadence is also why the analyst is told what is already ticketed: the open
 `autofix/` tickets go into the prompt so a template that fails every night
 answers `duplicate` instead of minting a ticket a night.
 
+Template damage also has a synchronous path that does not depend on this
+analyst. Immediately before dispatch, the runner snapshots the template's
+Description — the bytes above its single blackboard fence — and compares that
+region after the firing. A changed Description, or a template that is no longer
+readable with exactly one fence, records `damaged-template` and prints an
+immediate stderr warning even when `COGA_AUTOFIX=0`; the next firing must not
+silently consume the corrupted instructions. `coga validate` independently
+reports a missing or duplicated template fence as
+`recurring-template-fence`. Repair from git history before another firing:
+distinguish a run that overwrote the fence from notes that duplicated a quoted
+fence, restore the intended Description, and keep cross-run notes below the
+single fence. Do not merely append a fence to the damaged file — that would
+preserve the previous run's output as the next run's instructions.
+
 Two properties keep a broken analyst from becoming a broken sweep:
 
 - **It never changes the sweep's exit code.** The sweep's return value reports
@@ -656,11 +672,13 @@ blackboard either — that existing rule now has a second reason.
 
 Operating it:
 
-- `COGA_AUTOFIX=0` disables the loop; `COGA_AUTOFIX_TIMEOUT` (seconds) bounds
-  the call, which defaults to 300s and disarms at `<= 0`. The bound is on the
-  analysis, not on each subprocess inside it: the first attempt, the
-  `claude auth status` probe, and the subscription retry share one deadline, so
-  the auth fallback below cannot stretch the wait a sweep signed up for.
+- `COGA_AUTOFIX=0` disables the analysis and autofix-ticket loop, but not the
+  direct template-damage warning or static validation above.
+  `COGA_AUTOFIX_TIMEOUT` (seconds) bounds the call, which defaults to 300s and
+  disarms at `<= 0`. The bound is on the analysis, not on each subprocess
+  inside it: the first attempt, the `claude auth status` probe, and the
+  subscription retry share one deadline, so the auth fallback below cannot
+  stretch the wait a sweep signed up for.
 - Every run record is also written machine-locally to
   `.coga/recurring-runs/<stamp>.md` (gitignored — one operator's sweep
   transcript is not team state), whether or not it gets ticketed.

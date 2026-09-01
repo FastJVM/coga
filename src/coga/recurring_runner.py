@@ -871,7 +871,8 @@ def _launch_due_tasks(
             except RecurringError as exc:
                 forced_refusals += 1
                 typer.secho(str(exc), fg=typer.colors.RED, err=True)
-                record.add(
+                _record_outcome(
+                    record,
                     TaskOutcome(
                         template=task.template,
                         slug=task.ref.id_slug if task.ref else task.template,
@@ -912,7 +913,8 @@ def _launch_due_tasks(
                 f"reconciliation: {exc}"
             )
             typer.secho(detail, fg=typer.colors.RED, err=True)
-            record.add(
+            _record_outcome(
+                record,
                 TaskOutcome(
                     template=task.template,
                     slug=task.ref.id_slug,
@@ -954,7 +956,8 @@ def _launch_due_tasks(
             # Main's sweep records every run it performed; `run_autofix` fires
             # only when `record.outcomes` is non-empty, so a delegated run that
             # returned without recording would be invisible to the analyst.
-            record.add(
+            _record_outcome(
+                record,
                 _task_outcome(
                     cfg,
                     task.template,
@@ -1011,7 +1014,8 @@ def _launch_due_tasks(
             # git sync. The task is deliberately left unfinished, not paused.
             code = _exit_status(exc)
             if code:
-                record.add(
+                _record_outcome(
+                    record,
                     _task_outcome(
                         cfg,
                         task.template,
@@ -1037,7 +1041,8 @@ def _launch_due_tasks(
                 "launch established no child-generation lease"
             )
             typer.secho(detail, fg=typer.colors.RED, err=True)
-            record.add(
+            _record_outcome(
+                record,
                 _task_outcome(
                     cfg,
                     task.template,
@@ -1061,7 +1066,8 @@ def _launch_due_tasks(
                 and launch_result.period_lease is not None
             ),
         )
-        record.add(
+        _record_outcome(
+            record,
             _task_outcome(
                 cfg,
                 task.template,
@@ -1214,6 +1220,26 @@ def _task_outcome(
         final_status=status,
         detail=detail,
         blackboard=blackboard_for_ref(ref),
+    )
+
+
+def _record_outcome(record: RunRecord, outcome: TaskOutcome) -> None:
+    """Record one run and surface template damage without the analyst.
+
+    `COGA_AUTOFIX=0` deliberately disables run-log rendering and analysis, but
+    damage to the next firing's instructions cannot become silent with it. The
+    structured outcome still feeds the analyst when enabled; stderr is the
+    unconditional correction-loop signal.
+    """
+    record.add(outcome)
+    if outcome.result != "damaged-template":
+        return
+    typer.secho(
+        f"Recurring template {outcome.template!r} was damaged by "
+        f"{outcome.slug}: {outcome.detail}\n"
+        "Repair the template from git history before another firing.",
+        fg=typer.colors.RED,
+        err=True,
     )
 
 
@@ -2163,7 +2189,8 @@ def _launch_created(
                 )
             return 0
         if record is not None:
-            record.add(
+            _record_outcome(
+                record,
                 _task_outcome(
                     cfg,
                     template or ref.slug,
@@ -2209,7 +2236,8 @@ def _launch_created(
         # returning the code keeps the caller's exit-boundary git sync.
         code = _exit_status(exc)
         if record is not None:
-            record.add(
+            _record_outcome(
+                record,
                 _task_outcome(
                     cfg,
                     template or ref.slug,
@@ -2226,7 +2254,8 @@ def _launch_created(
     if kind == "skipped":
         return 0
     if record is not None:
-        record.add(
+        _record_outcome(
+            record,
             _task_outcome(
                 cfg,
                 template or ref.slug,
