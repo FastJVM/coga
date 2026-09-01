@@ -184,6 +184,33 @@ def group_results(results: list[SkillUpdate]) -> dict[str, list[SkillUpdate]]:
     return grouped
 
 
+# The heading both report variants carry. Named here because it is the report's
+# contract with everything that reads it back: the packaged skill-update SKILL.md
+# and ticket.md, the workflow run.md, and the tests that assert on the section.
+SKILL_UPDATE_HEADING = "## Skill Update"
+
+
+def _report_header(
+    *, generated_at: str, command: list[str], task_slug: str | None
+) -> list[str]:
+    """The opening lines every skill-update report shares, success or failure.
+
+    A failure report is still a skill-update report: it is read out of the same
+    blackboard section by the same readers, so the two renderers must not drift
+    apart about what identifies a run.
+    """
+    lines = [
+        SKILL_UPDATE_HEADING,
+        "",
+        f"Generated: {generated_at}",
+        f"Command: `{shlex.join(command)}`",
+    ]
+    if task_slug:
+        lines.append(f"Task: `{task_slug}`")
+    lines.append("")
+    return lines
+
+
 def render_blackboard_report(
     results: list[SkillUpdate],
     *,
@@ -193,15 +220,9 @@ def render_blackboard_report(
     pr_requested: bool,
     task_slug: str | None = None,
 ) -> str:
-    lines = [
-        "## Skill Update",
-        "",
-        f"Generated: {generated_at}",
-        f"Command: `{shlex.join(command)}`",
-    ]
-    if task_slug:
-        lines.append(f"Task: `{task_slug}`")
-    lines.append("")
+    lines = _report_header(
+        generated_at=generated_at, command=command, task_slug=task_slug
+    )
 
     if not results:
         lines.append(f"Result: {render_result_line(results)}")
@@ -236,6 +257,45 @@ def render_blackboard_report(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def render_failure_report(
+    detail: str,
+    *,
+    generated_at: str,
+    command: list[str],
+    pr_requested: bool,
+    task_slug: str | None = None,
+) -> str:
+    """Render the report for a run that failed before classifying anything.
+
+    A hard failure has to be as legible in the run record as a follow-up one.
+    The recurring sweep discards a task's stderr, so a run that only wrote its
+    diagnostic there showed up as a failed task with a blank blackboard and no
+    reason. `detail` is the `RuntimeError` message, which already names the
+    command, its exit code, and the stderr the subprocess produced.
+    """
+    lines = _report_header(
+        generated_at=generated_at, command=command, task_slug=task_slug
+    )
+    lines.append("Result: the update failed; no skills were classified.")
+    if pr_requested:
+        # Deliberately not "none opened": `run_update_json` raises only after
+        # the child process has run, and `open_or_update_pr` pushes the branch
+        # before it calls `gh`. A `gh` failure can therefore leave a real PR —
+        # or a real branch update — behind. Report what was observed.
+        lines.append(
+            "PR: not confirmed — the update failed; check the skill-update branch."
+        )
+    else:
+        lines.append("PR: none opened (--no-pr).")
+    lines.append("")
+    lines.append("### Failed")
+    lines.append("")
+    lines.append("```")
+    lines.append(detail.strip() or "no output")
+    lines.append("```")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def has_followups(results: list[SkillUpdate]) -> bool:
     return any(classify_status(result.status) == GROUP_FOLLOWUP for result in results)
 
@@ -253,6 +313,14 @@ def append_report(blackboard: Path, report: str) -> None:
     blackboard.write_text(existing + separator + report)
 
 
+def _emit_report(blackboard: Path | None, report: str) -> None:
+    """Send a rendered report to the blackboard, or to stdout when there is none."""
+    if blackboard:
+        append_report(blackboard, report)
+    else:
+        sys.stdout.write(report)
+
+
 def script_task_slug_from_env() -> str | None:
     return os.environ.get("COGA_TASK_SLUG")
 
@@ -267,7 +335,16 @@ def run_skill_update_recipe(
     are recorded on it as they are computed, so a caller summarizing the run
     reads them directly. The attempted `command` and `pr_requested` are
     recorded before the update runs, so the exit-2 path reports what it tried;
-    the exit-1 path additionally carries everything it collected.
+    the exit-1 path additionally carries everything it collected. Both non-zero
+    exits leave a `## Skill Update` section on the blackboard: exit 2 writes the
+    failure detail there rather than to stderr alone, which the recurring sweep
+    discards.
+
+    That exit-2 blackboard write is the first instance of a property the other
+    recipes still lack — `dream_validate_drift`, `dream_cleanup_orphan_markers`,
+    `branchsweep`, `autoclose`, `blocker_reminders` and `recurring_autofix` all
+    exit non-zero to stderr alone. It belongs in the recipe layer rather than
+    here; do not paste a seventh copy, generalize it instead.
     """
     del cfg
     report_out = result if result is not None else SkillUpdateReport()
@@ -299,34 +376,55 @@ def run_skill_update_recipe(
     # failed runs a caller most wants to name.
     report_out.command = build_update_command(pr=pr, pr_title=args.pr_title)
 
+    # Scoped to the update itself. `_emit_report` is deliberately *outside* it:
+    # `append_report` also raises `RuntimeError` (a missing blackboard parent),
+    # and catching that here would file a successful run under "the update
+    # failed; no skills were classified" while `report_out.results` still held
+    # the full classification.
     try:
         payload, command = run_update_json(cwd=args.cwd, pr=pr, pr_title=args.pr_title)
-        results = parse_results(payload)
-        raw_pr_url = payload.get("pr_url")
-        pr_url = raw_pr_url if isinstance(raw_pr_url, str) and raw_pr_url else None
-        report = render_blackboard_report(
-            results,
+    except RuntimeError as exc:
+        detail = str(exc)
+        sys.stderr.write(f"{detail}\n")
+        failure = render_failure_report(
+            detail,
             generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            command=command,
-            pr_url=pr_url,
+            command=report_out.command,
             pr_requested=pr,
             task_slug=task_slug,
         )
-        report_out.results = results
-        report_out.pr_url = pr_url
-        report_out.report = report
-        if blackboard:
-            append_report(blackboard, report)
-        else:
-            sys.stdout.write(report)
-        if pr and pr_url is None and has_followups(results):
-            sys.stderr.write(
-                "Skill update needs human follow-up and no PR was opened; "
-                "see the task blackboard for the conflict report.\n"
-            )
-            return 1
-    except RuntimeError as exc:
-        sys.stderr.write(f"{exc}\n")
+        report_out.report = failure
+        try:
+            _emit_report(blackboard, failure)
+        except (RuntimeError, OSError) as write_exc:
+            # `OSError` as well as `RuntimeError`: `append_report` only converts
+            # a missing parent directory into the latter, while the write itself
+            # raises `PermissionError` on a read-only checkout or a full disk.
+            # Either way, say so on stderr and still exit 2 rather than burying
+            # the original diagnostic under a traceback.
+            sys.stderr.write(f"Could not write the failure report: {write_exc}\n")
         return 2
+
+    results = parse_results(payload)
+    raw_pr_url = payload.get("pr_url")
+    pr_url = raw_pr_url if isinstance(raw_pr_url, str) and raw_pr_url else None
+    report = render_blackboard_report(
+        results,
+        generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        command=command,
+        pr_url=pr_url,
+        pr_requested=pr,
+        task_slug=task_slug,
+    )
+    report_out.results = results
+    report_out.pr_url = pr_url
+    report_out.report = report
+    _emit_report(blackboard, report)
+    if pr and pr_url is None and has_followups(results):
+        sys.stderr.write(
+            "Skill update needs human follow-up and no PR was opened; "
+            "see the task blackboard for the conflict report.\n"
+        )
+        return 1
 
     return 0

@@ -42,7 +42,11 @@ PR.
   no PR is opened, `ticket.py` exits non-zero after writing the report so the
   period task remains visible.
 - Output: append `## Skill Update` to the task blackboard, bucketing every
-  skill by its update status and linking the PR when one was opened.
+  skill by its update status and linking the PR when one was opened. A run that
+  fails before it classifies anything appends the same section carrying a
+  `### Failed` block with the command and its stderr, so a hard failure is as
+  legible in the run record as a follow-up — the recurring sweep discards a
+  task's stderr, so a diagnostic written only there is lost.
 
 ## How to Run
 

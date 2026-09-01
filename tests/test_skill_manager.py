@@ -78,6 +78,35 @@ def _completed(
     return subprocess.CompletedProcess(args, returncode, stdout=stdout, stderr=stderr)
 
 
+# The fake tip `ls-remote` advertises for the skill-update branch, and the URL
+# the push destination resolves to. Named so the expected `--force-with-lease`
+# argv is built from the same value the stub answers with.
+_REMOTE_OID = "1" * 40
+_PUSH_URL = "https://github.com/FastJVM/coga.git"
+
+
+def _lease_stub(command: list[str], remote: str, branch: str, oid: str | None):
+    """Answer the two commands `_remote_branch_oid` runs before a push.
+
+    Returns the `CompletedProcess` for `git remote get-url --push --all` and for
+    the `ls-remote` against the resolved push URL, or `None` when `command` is
+    neither, so a caller's runner can fall through to its own cases. `oid=None`
+    stands for "the remote branch is gone".
+    """
+    if command == ["git", "remote", "get-url", "--push", "--all", remote]:
+        return _completed(command, stdout=f"{_PUSH_URL}\n")
+    if command == ["git", "ls-remote", "--heads", _PUSH_URL, f"refs/heads/{branch}"]:
+        stdout = f"{oid}\trefs/heads/{branch}\n" if oid else ""
+        return _completed(command, stdout=stdout)
+    return None
+
+
+def _leased_push(branch: str, remote: str = "origin", oid: str | None = _REMOTE_OID):
+    """The exact push argv `open_or_update_pr` should produce."""
+    lease = [f"--force-with-lease=refs/heads/{branch}:{oid}"] if oid else []
+    return ["git", "push", *lease, "-u", remote, branch]
+
+
 def _gh_install_runner(commands: list[list[str]]):
     def runner(args, cwd=None):
         command = list(args)
@@ -820,14 +849,10 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
         if command[:4] == ["gh", "pr", "list", "--head"]:
             assert command[4] == "coga/skill-update"
             return _completed(command, stdout="")
-        if command == [
-            "git",
-            "push",
-            "--force-with-lease",
-            "-u",
-            "origin",
-            "coga/skill-update",
-        ]:
+        lease = _lease_stub(command, "origin", "coga/skill-update", _REMOTE_OID)
+        if lease is not None:
+            return lease
+        if command == _leased_push("coga/skill-update", "origin"):
             return _completed(command, stdout="")
         if command[:4] == ["gh", "pr", "create", "--draft"]:
             body_file = Path(command[command.index("--body-file") + 1])
@@ -851,14 +876,7 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
     # restored to where the caller left it (`main`), never committed there.
     assert ["git", "checkout", "-B", "coga/skill-update", "main"] in commands
     assert ["git", "commit", "-m", "Update Coga-managed skills"] in commands
-    assert [
-        "git",
-        "push",
-        "--force-with-lease",
-        "-u",
-        "origin",
-        "coga/skill-update",
-    ] in commands
+    assert _leased_push("coga/skill-update", "origin") in commands
     assert ["git", "checkout", "main"] in commands
 
 
@@ -901,14 +919,10 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
             return _completed(command)
         if command[:4] == ["gh", "pr", "list", "--head"]:
             return _completed(command, stdout="")
-        if command == [
-            "git",
-            "push",
-            "--force-with-lease",
-            "-u",
-            "upstream",
-            "coga/skill-update",
-        ]:
+        lease = _lease_stub(command, "upstream", "coga/skill-update", _REMOTE_OID)
+        if lease is not None:
+            return lease
+        if command == _leased_push("coga/skill-update", "upstream"):
             return _completed(command, stdout="")
         if command[:4] == ["gh", "pr", "create", "--draft"]:
             return _completed(
@@ -929,14 +943,7 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
     assert result.pr_url == "https://github.com/FastJVM/coga/pull/143"
     # The configured `[git].remote` flows through to the push, not a hardcoded
     # `origin` — the whole point of the ticket.
-    assert [
-        "git",
-        "push",
-        "--force-with-lease",
-        "-u",
-        "upstream",
-        "coga/skill-update",
-    ] in commands
+    assert _leased_push("coga/skill-update", "upstream") in commands
     assert not any(
         command[:1] == ["git"] and "origin" in command for command in commands
     )
@@ -977,14 +984,10 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
             return _completed(command, returncode=1)
         if command == ["git", "commit", "-m", "Update Coga-managed skills"]:
             return _completed(command)
-        if command == [
-            "git",
-            "push",
-            "--force-with-lease",
-            "-u",
-            "origin",
-            "coga/skill-update",
-        ]:
+        lease = _lease_stub(command, "origin", "coga/skill-update", _REMOTE_OID)
+        if lease is not None:
+            return lease
+        if command == _leased_push("coga/skill-update", "origin"):
             return _completed(command)
         if command[:4] == ["gh", "pr", "list", "--head"]:
             return _completed(command, stdout=f"{existing_url}\n")
@@ -1003,18 +1006,156 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
         runner=runner,
     )
 
-    push = [
-        "git",
-        "push",
-        "--force-with-lease",
-        "-u",
-        "origin",
-        "coga/skill-update",
-    ]
+    push = _leased_push("coga/skill-update", "origin")
     edit = next(command for command in commands if command[:3] == ["gh", "pr", "edit"])
     assert result.pr_url == existing_url
     assert commands.index(push) < commands.index(edit)
     assert not any(command[:4] == ["gh", "pr", "create", "--draft"] for command in commands)
+
+
+def test_skill_update_pr_pushes_without_a_lease_when_remote_branch_is_gone(
+    tmp_path: Path,
+) -> None:
+    # GitHub deletes `coga/skill-update` when its PR closes, but the recurring
+    # sweep fetches without `--prune`, so the remote-tracking ref outlives it.
+    # A bare `--force-with-lease` takes its expected OID from that stale ref and
+    # the push is rejected with `stale info`, wedging the whole sweep. With no
+    # remote branch there is nothing for a lease to protect, so the push carries
+    # none and republishes the branch.
+    commands: list[list[str]] = []
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        # The branch is gone: `ls-remote` advertises nothing.
+        lease = _lease_stub(command, "origin", "coga/skill-update", None)
+        if lease is not None:
+            return lease
+        if command == _leased_push("coga/skill-update", oid=None):
+            return _completed(command)
+        if command[:4] == ["gh", "pr", "list", "--head"]:
+            return _completed(command, stdout="")
+        if command[:4] == ["gh", "pr", "create", "--draft"]:
+            return _completed(
+                command, stdout="https://github.com/FastJVM/coga/pull/144\n"
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    url = open_or_update_pr(
+        "Update Coga-managed skills",
+        "summary",
+        branch="coga/skill-update",
+        runner=runner,
+        cwd=tmp_path,
+    )
+
+    assert url == "https://github.com/FastJVM/coga/pull/144"
+    assert _leased_push("coga/skill-update", oid=None) in commands
+    # No lease at all — not one inherited from the stale tracking ref.
+    assert not any(
+        any(arg.startswith("--force-with-lease") for arg in command)
+        for command in commands
+    )
+
+
+def test_skill_update_pr_leases_against_the_push_url_not_the_fetch_url(
+    tmp_path: Path,
+) -> None:
+    # Git reads a remote's *fetch* URL for `ls-remote <name>` but writes its
+    # `pushurl` for `push <name>`. Leasing by remote name would name a tip the
+    # push never touches: against a read-only mirror fetch URL the lease either
+    # fails with the same `stale info` this change exists to fix, or resolves to
+    # None and drops the force entirely. The lease must inspect the destination
+    # it actually updates.
+    push_url = "https://github.com/FastJVM/coga-fork.git"
+    commands: list[list[str]] = []
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command == ["git", "remote", "get-url", "--push", "--all", "origin"]:
+            return _completed(command, stdout=f"{push_url}\n")
+        if command == [
+            "git",
+            "ls-remote",
+            "--heads",
+            push_url,
+            "refs/heads/coga/skill-update",
+        ]:
+            return _completed(
+                command, stdout=f"{_REMOTE_OID}\trefs/heads/coga/skill-update\n"
+            )
+        if command == _leased_push("coga/skill-update"):
+            return _completed(command)
+        if command[:4] == ["gh", "pr", "list", "--head"]:
+            return _completed(command, stdout="")
+        if command[:4] == ["gh", "pr", "create", "--draft"]:
+            return _completed(
+                command, stdout="https://github.com/FastJVM/coga/pull/145\n"
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    open_or_update_pr(
+        "Update Coga-managed skills",
+        "summary",
+        branch="coga/skill-update",
+        runner=runner,
+        cwd=tmp_path,
+    )
+
+    # The tip was read from the push URL; the remote name was never ls-remoted.
+    assert ["git", "ls-remote", "--heads", push_url, "refs/heads/coga/skill-update"] in (
+        commands
+    )
+    assert not any(
+        command[:4] == ["git", "ls-remote", "--heads", "origin"] for command in commands
+    )
+
+
+def test_skill_update_pr_refuses_disagreeing_push_destinations(tmp_path: Path) -> None:
+    # Git can partially update a multi-push remote, so one lease cannot describe
+    # both destinations when they hold different tips.
+    first = "https://github.com/FastJVM/coga.git"
+    second = "https://example.invalid/mirror.git"
+
+    def runner(args, cwd=None):
+        command = list(args)
+        if command == ["git", "remote", "get-url", "--push", "--all", "origin"]:
+            return _completed(command, stdout=f"{first}\n{second}\n")
+        if command[:3] == ["git", "ls-remote", "--heads"]:
+            oid = _REMOTE_OID if command[3] == first else "2" * 40
+            return _completed(
+                command, stdout=f"{oid}\trefs/heads/coga/skill-update\n"
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    with pytest.raises(SkillManagerError, match="disagree about the branch tip"):
+        open_or_update_pr(
+            "Update Coga-managed skills",
+            "summary",
+            branch="coga/skill-update",
+            runner=runner,
+            cwd=tmp_path,
+        )
+
+
+def test_skill_update_pr_reports_a_failed_ls_remote(tmp_path: Path) -> None:
+    def runner(args, cwd=None):
+        command = list(args)
+        if command[:3] == ["git", "remote", "get-url"]:
+            return _completed(command, stdout=f"{_PUSH_URL}\n")
+        if command[:2] == ["git", "ls-remote"]:
+            return _completed(command, returncode=128, stderr="fatal: no such remote\n")
+        raise AssertionError(f"unexpected command: {command}")
+
+    with pytest.raises(SkillManagerError, match="fatal: no such remote"):
+        open_or_update_pr(
+            "Update Coga-managed skills",
+            "summary",
+            branch="coga/skill-update",
+            runner=runner,
+            cwd=tmp_path,
+        )
 
 
 def test_skill_update_pr_reports_missing_gh_with_setup_hint(tmp_path: Path) -> None:
@@ -1023,6 +1164,9 @@ def test_skill_update_pr_reports_missing_gh_with_setup_hint(tmp_path: Path) -> N
     def runner(args, cwd=None):
         command = list(args)
         commands.append(command)
+        lease = _lease_stub(command, "origin", "coga/skill-update", _REMOTE_OID)
+        if lease is not None:
+            return lease
         if command[:2] == ["git", "push"]:
             return _completed(command)
         if command[:2] == ["gh", "pr"]:
