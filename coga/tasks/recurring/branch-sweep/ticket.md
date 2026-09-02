@@ -1,7 +1,7 @@
 ---
 slug: recurring/branch-sweep
 title: Branch sweep
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     - coga/branch-sweep/sweep
     assignee: agent
 secrets: null
-step: 1 (sweep)
 ---
 
 ## Description
