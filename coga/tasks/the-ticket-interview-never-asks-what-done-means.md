@@ -73,9 +73,8 @@ The interview wording can ship without it. Recommend the split at
   "Parked to v2 for the release") carries that verdict as change 1 of 6. Its
   `## Context` also says a formal Acceptance Criteria section is out of scope
   for it.
-- **`v2/acceptance-criteria`** (zach, paused 2026-07-01) wants the opposite
-  emphasis: an acceptance-criteria slot on the ticket format, the interview
-  question, *and* a `coga create <slug> --ac1 "..." --ac2 "..."` CLI flag.
+- **`v2/acceptance-criteria`** (zach, paused 2026-07-01) wants the section, the
+  interview question, and a CLI flag (see the `--ac1/--ac2` constraint below).
 - **Dream 2026-08-24**, Phase 2 knowledge scan (shard-12), classified this a
   `gap` and filed the present ticket, unaware of all three.
 
@@ -188,11 +187,10 @@ conservative Step 4) stay with it and are out of scope here.
   `## Acceptance Criteria` section (`grep -rl '^## Acceptance Criteria'
   coga/tasks --include=*.md | wc -l`) — mostly tickets that ran `code/design`.
   So the section has real de-facto adoption, but ~89% of tickets lack it and an
-  error-severity check would fail the repo on day one. Decide severity, which
-  statuses it applies to, and whether it is draft-only like its precedent. Also
-  check whether those 17 existing sections share a shape the check could
-  actually assert — if the design step's freeform criteria and an
-  interview-authored version disagree, the check has no stable target.
+  error-severity check would fail the repo on day one. Decide severity and which
+  statuses it applies to. Also check whether those 17 existing sections share a
+  shape the check could actually assert — if the design step's freeform criteria
+  and an interview-authored version disagree, the check has no stable target.
   `coga validate --json` on this repo is the smoke test, but **do not expect
   zero**: the 2026-09-01 baseline is 28 issues / 144 ok (4 error
   `unsynthesized-draft-blackboard`; warns: 11 `unfrozen-workflow`, 6
