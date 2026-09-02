@@ -1,7 +1,7 @@
 ---
 slug: ticket-specs-should-cite-symbols-not-line-numbers
 title: Ticket specs should cite symbols, not line numbers
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
