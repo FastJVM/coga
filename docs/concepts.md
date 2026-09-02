@@ -217,13 +217,14 @@ workflow.
 
 `coga launch` builds one prompt, fresh, every time, by stacking layers in order:
 
-1. Base prompt + agent-mode instructions (shipped with the package).
-2. This repo's context (`coga/context.md`).
-3. The ticket's attached `contexts:`.
-4. The ticket body's inline `## Context`.
-5. The current step's skill (and any ticket-level skills).
-6. The blackboard.
-7. The task description (the body's `## Description`).
+1. Base prompt (shipped with the package).
+2. Session conduct for the launch context — exactly one, so the agent reads how
+   to operate before any task material.
+3. This repo's context (`coga/context.md`).
+4. The ticket's attached `contexts:`.
+5. The ticket-level skills, then the current step's skill.
+6. The ticket itself, last and contiguous, in the order it sits on disk: the
+   body's `## Description`, then its inline `## Context`, then the blackboard.
 
 That's the whole input — there's no follow-up loading. Two consequences worth
 internalizing:
@@ -231,9 +232,9 @@ internalizing:
 - **The prompt is a pure function of the files on disk now.** Nothing is carried
   over from a previous session. That's precisely why an edit between runs takes
   effect completely and inspectably: fix the file, relaunch, done.
-- **The log is deliberately never a layer.** Only the blackboard (layer 6)
-  carries state forward, which is why it must stay small and the log can grow
-  forever.
+- **The log is deliberately never a layer.** Only the blackboard — the last
+  thing in the prompt — carries state forward, which is why it must stay small
+  and the log can grow forever.
 
 If a prompt gets bloated, `coga launch <task> --prompt-report` shows which layer
 to trim.
