@@ -5,7 +5,7 @@ description: What we're building right now in coga. Recent decisions, open ticke
 
 # Coga — current direction
 
-Last updated: 2026-07-30.
+Last updated: 2026-08-31.
 
 ## Current redesign (recurring lifecycle and identity)
 

@@ -5,7 +5,7 @@ description: Current sequencing guidance for Coga. Use live task state for the b
 
 # Coga roadmap
 
-Last updated: 2026-07-15.
+Last updated: 2026-09-02.
 
 This context is sequencing guidance, not a cached board. Run `coga status` for
 the current task set, status, assignee, and step; read ticket bodies for scope.
@@ -25,9 +25,11 @@ Do not infer present work from ticket names recorded in an older roadmap.
    is the deterministic unattended path, and Dream owns generic
    done-ticket cleanup. Operator scheduling remains outside Coga until a
    concrete scheduling design is approved.
-4. **Design primitive changes before mechanical renames.** The open
-   workflow-to-playbook direction changes a reserved ticket field and must be
-   settled in its design ticket before contexts or stored tickets are renamed.
+4. **Design primitive changes before mechanical renames.** A change that
+   touches a reserved ticket field, or any other shared primitive, is settled
+   in a design pass before contexts, stored tickets, or code are renamed to
+   match it. This is ordering guidance only: whether a particular rename is on
+   the current path is a question for live task state, not for this context.
 5. **Prefer deletion to compatibility layers.** Coga is pre-product. Remove
    obsolete commands, fields, and one-off process rather than preserving
    shims for historical task artifacts.
