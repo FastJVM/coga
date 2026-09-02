@@ -1,5 +1,5 @@
 ---
-name: "dochub"
+name: browser/dochub
 description: "Use when automating DocHub (dochub.com) e-sign or PDF-form workflows from the terminal: placing text annotations on a document, placing a signature field via record-and-replay coordinates, assigning a field to a signer, and sending a sign request. Builds on the browser/playwright CLI substrate."
 ---
 

@@ -31,4 +31,7 @@ Optional. Useful when the description alone is ambiguous.
 If this skill ships with scripts, drop them next to SKILL.md and describe
 when each is called. The agent invokes them during its session; describe how
 to run one rather than expecting `coga launch` to execute it. Deterministic
-headless behavior belongs in a registered `coga run` recipe instead.
+headless behavior belongs at one of the two sanctioned edges instead: the
+reserved sibling `ticket.py` beside a ticket, which `coga launch` subprocesses
+before any agent phase, or a registered `coga run` recipe when the behavior
+needs a repository-independent argv/stdout/exit contract.
