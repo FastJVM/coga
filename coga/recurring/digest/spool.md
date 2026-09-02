@@ -35,3 +35,4 @@ consumed_through: 648b8acd2a45
 {"id":"648b8acd2a45","ts":"2026-09-02T11:59","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
 {"id":"d02bd15e6b4e","ts":"2026-09-02T11:59","project":"coga","kind":"done","detail":"claude finished: flush → done ✅","ticket":"recurring/digest","owner":"nicktoper"}
 {"id":"da3966f8791e","ts":"2026-09-02T11:59","project":"coga","kind":"done","detail":"claude finished: remind → done ✅","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+{"id":"dc61b2946205","ts":"2026-09-02T12:35","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — Dream 2026-W36: 10 PRs (#737-#746), 9 draft tickets, 7 period tickets direct-deleted, 57 findings; 22 validate issues + 21 retirement-debt tickets need owner decisions.","ticket":"recurring/dream","owner":"nicktoper"}
