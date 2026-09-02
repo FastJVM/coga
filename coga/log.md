@@ -4196,3 +4196,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 12:29 [no-context-records-the-ci-posture-publish-only-rel] [human:nicktoper] created (status=draft)
 2026-09-02 12:29 [coga/recurring-never-mentions-the-packaged-twin-every-t] [human:nicktoper] created (status=draft)
 2026-09-02 12:29 [coga/sync-omits-preflight-post-from-the-notification-co] [human:nicktoper] created (status=draft)
+2026-09-02 12:30 [recurring-context-never-mentions-the-packaged-twin] [human:nicktoper] created (status=draft)
