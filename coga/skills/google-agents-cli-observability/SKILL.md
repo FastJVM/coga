@@ -1,21 +1,21 @@
 ---
 description: |
-    This skill should be used when the user wants to "set up tracing", "monitor my ADK agent", "configure logging", "add observability", "debug production traffic", or needs guidance on monitoring deployed ADK (Agent Development Kit) agents. Covers Cloud Trace, prompt-response logging, BigQuery Agent Analytics, third-party integrations (AgentOps, Phoenix, MLflow, etc.), and troubleshooting. Part of the Google ADK (Agent Development Kit) skills suite. Do NOT use for deployment setup (use google-agents-cli-deploy) or API code patterns (use google-agents-cli-adk-code).
+    This skill should be used when the user wants to "set up tracing", "monitor my agent", "configure logging", "add observability", "debug production traffic", or needs guidance on monitoring deployed agents, including ADK (Agent Development Kit) agents. Covers Cloud Trace, prompt-response logging, BigQuery Agent Analytics, third-party integrations (AgentOps, Phoenix, MLflow, etc.), and troubleshooting. Part of the agents-cli skills suite. Do NOT use for deployment setup (use google-agents-cli-deploy) or API code patterns (use google-agents-cli-adk-code).
 metadata:
     author: Google
     github-path: skills/google-agents-cli-observability
-    github-ref: refs/tags/v1.4.1
+    github-ref: refs/tags/v1.5.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 344192a66cd13d882fe4c4acf7ef3ef1c3f365b8
+    github-tree-sha: e849391424d58fe0fcfdc18ff78cf801a8f97291
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.4.1
+    version: 1.5.0
 name: google-agents-cli-observability
 ---
-# ADK Observability Guide
+# Observability Guide
 
 > **Cloud Trace** works out of the box — no infrastructure needed. **Prompt-response logging** and **BigQuery Agent Analytics** require Terraform-provisioned infrastructure (service account, GCS bucket, BigQuery dataset). Run `agents-cli infra single-project --project PROJECT_ID` to provision these resources. See `references/cloud-trace-and-logging.md` for details, env vars, and verification commands. If your project isn't scaffolded yet, see `/google-agents-cli-scaffold` first.
 
@@ -34,6 +34,7 @@ Already ran `agents-cli deploy`? Two options:
 |------|----------|
 | `references/cloud-trace-and-logging.md` | Scaffolded project details — Terraform-provisioned resources, environment variables, verification commands, enabling/disabling locally |
 | `references/bigquery-agent-analytics.md` | BQ Agent Analytics plugin — enabling, key features, GCS offloading, tool provenance |
+| `references/adk-docs.md` | **ADK:** adk.dev pages to fetch for detail beyond this skill |
 | `references/feedback-mechanism.md` | Adding a user-feedback endpoint — request model, structured logging, log sink → BigQuery |
 
 ---
@@ -45,9 +46,9 @@ Choose the right level of observability based on your needs:
 | Tier | What It Does | Scope | Default State | Best For |
 |------|-------------|-------|---------------|----------|
 | **Cloud Trace** | Distributed tracing — execution flow, latency, errors via OpenTelemetry spans | All templates, all environments | Always enabled | Debugging latency, understanding agent execution flow |
-| **Prompt-Response Logging** | GenAI interactions exported to GCS, BigQuery, and Cloud Logging | ADK agents only | Disabled locally, enabled when deployed | Auditing LLM interactions, compliance |
-| **BigQuery Agent Analytics** | Structured agent events (LLM calls, tool use, outcomes) to BigQuery | ADK agents with plugin enabled | Opt-in (`--bq-analytics` at scaffold time) | Conversational analytics, custom dashboards, LLM-as-judge evals |
-| **Third-Party Integrations** | External observability platforms (AgentOps, Phoenix, MLflow, etc.) | Any ADK agent | Opt-in, per-provider setup | Team collaboration, specialized visualization, prompt management |
+| **Prompt-Response Logging** | GenAI interactions exported to GCS, BigQuery, and Cloud Logging | Scaffolded projects | Disabled locally, enabled when deployed | Auditing LLM interactions, compliance |
+| **BigQuery Agent Analytics** | Structured agent events (LLM calls, tool use, outcomes) to BigQuery | ADK agents with the plugin enabled | Opt-in (`--bq-analytics` at scaffold time) | Conversational analytics, custom dashboards, LLM-as-judge evals |
+| **Third-Party Integrations** | External observability platforms (AgentOps, Phoenix, MLflow, etc.) | Any OpenTelemetry-instrumented agent | Opt-in, per-provider setup | Team collaboration, specialized visualization, prompt management |
 
 **Ask the user** which tier(s) they need — they can be combined. Cloud Trace is always on; the others are additive.
 
@@ -55,9 +56,11 @@ Choose the right level of observability based on your needs:
 
 ## Cloud Trace
 
-ADK uses OpenTelemetry to emit distributed traces. Every agent invocation produces spans that track the full execution flow.
+Scaffolded agents use OpenTelemetry to emit distributed traces. Every agent invocation produces spans that track the full execution flow.
 
 ### Span Hierarchy
+
+> **ADK projects.** These are ADK's span names; other frameworks emit their own (`generate_content` comes from the shared google-genai instrumentor either way).
 
 ```
 invoke_workflow (top-level run)
@@ -71,14 +74,16 @@ invoke_workflow (top-level run)
 
 | Deployment | Setup |
 |-----------|-------|
-| **Agent Runtime** | Automatic — `get_fast_api_app(otel_to_cloud=True)`, gated on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY` (set by deploy); exports to Cloud Trace/Logging + Agent Engine console |
-| **Cloud Run / GKE (scaffolded)** | Automatic — `get_fast_api_app(otel_to_cloud=True)` exports to Cloud Trace/Logging |
+| **Agent Runtime** | Automatic — exporters wired at startup, gated on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY` (set by deploy); exports to Cloud Trace/Logging + Agent Engine console |
+| **Cloud Run / GKE (scaffolded)** | Automatic — exporters wired at startup, exports to Cloud Trace/Logging |
 | **Cloud Run / GKE (manual)** | Configure OpenTelemetry exporter in your app |
 | **Local dev** | Works with `agents-cli playground`; traces visible in Cloud Console |
 
+**ADK:** the wiring is `get_fast_api_app(otel_to_cloud=True)` in `app/fast_api_app.py`. Other templates call their own setup at startup (e.g. `app/app_utils/telemetry.py`).
+
 View traces: **Cloud Console → Trace → Trace explorer**
 
-For detailed setup instructions (Agent Runtime CLI/SDK, Cloud Run, custom deployments), fetch `https://adk.dev/integrations/cloud-trace/index.md`.
+**ADK:** for detailed setup instructions (Agent Runtime CLI/SDK, Cloud Run, custom deployments), fetch `https://adk.dev/integrations/cloud-trace/index.md`.
 
 ---
 
@@ -89,7 +94,7 @@ Captures GenAI interactions and exports to GCS (JSONL) and BigQuery (via log sin
 | Tier | Captures | Controlled by | Default (Terraform deploy) |
 |------|----------|---------------|----------------------------|
 | **GCS/BigQuery completions** | Full prompts/responses (the prompt-response logging feature) | `OTEL_INSTRUMENTATION_GENAI_COMPLETION_HOOK=upload` + `LOGS_BUCKET_NAME` | **On** — full content |
-| **Trace spans / Cloud Logging events** | Span/event content | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` + `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false` | **Off** — `NO_CONTENT` |
+| **Trace spans / Cloud Logging events** | Span/event content | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` (plus `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false`, **ADK only**) | **Off** — `NO_CONTENT` |
 
 The tiers are independent: GCS/BigQuery uploads capture full content whenever their upload vars are set and do **not** honor `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`, which governs the traces/events tier only. Its valid (experimental-semconv) values:
 
@@ -104,13 +109,13 @@ For the full mechanics (semconv opt-in, declarative Terraform config, env-var ta
 
 ## BigQuery Agent Analytics Plugin
 
-Optional plugin that logs structured agent events to BigQuery. Enable with `--bq-analytics` at scaffold time. See `references/bigquery-agent-analytics.md` for details.
+> **ADK projects.** Optional ADK plugin that logs structured agent events to BigQuery. Enable with `--bq-analytics` at scaffold time. See `references/bigquery-agent-analytics.md` for details.
 
 ---
 
 ## Third-Party Integrations
 
-ADK supports many third-party observability platforms (via OpenTelemetry or custom instrumentation). The table below covers common ones; the full list is larger (see the pointer below it).
+Many third-party observability platforms can ingest agent telemetry (via OpenTelemetry or custom instrumentation). The table below covers common ones; the full list is larger (see the pointer below it).
 
 | Platform | Key Differentiator | Setup Complexity | Self-Hosted Option |
 |----------|-------------------|-----------------|-------------------|
@@ -122,7 +127,7 @@ ADK supports many third-party observability platforms (via OpenTelemetry or cust
 | **Weave** | W&B platform, team collaboration, timeline views | Low | No (SaaS) |
 | **Freeplay** | Prompt management + evals + observability in one platform | Low | No (SaaS) |
 
-**Ask the user** which platform they prefer — present the trade-offs and let them choose. Fetch a platform's setup page at `https://adk.dev/integrations/<slug>/index.md` (slugs for the table above: `agentops`, `arize-ax`, `phoenix`, `mlflow-tracing`, `monocle`, `weave`, `freeplay`). ADK has more observability integrations (Datadog, Galileo, LangWatch, Latitude, Future AGI, Respan, Zespan, …) — browse the complete, current list at `https://adk.dev/integrations/` (observability topic).
+**Ask the user** which platform they prefer — present the trade-offs and let them choose. **ADK:** fetch a platform's setup page at `https://adk.dev/integrations/<slug>/index.md` (slugs for the table above: `agentops`, `arize-ax`, `phoenix`, `mlflow-tracing`, `monocle`, `weave`, `freeplay`); ADK has more observability integrations (Datadog, Galileo, LangWatch, Latitude, Future AGI, Respan, Zespan, …) — browse the complete, current list at `https://adk.dev/integrations/` (observability topic). On other frameworks the OpenTelemetry-based platforms still work, but follow the platform's own setup docs.
 
 ---
 
@@ -130,26 +135,13 @@ ADK supports many third-party observability platforms (via OpenTelemetry or cust
 
 | Issue | Solution |
 |-------|----------|
-| No traces in Cloud Trace | Verify `fast_api_app.py` uses `get_fast_api_app(otel_to_cloud=True)` (Agent Runtime gates it on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY`) and the SA has the `cloudtrace.agent` role |
+| No traces in Cloud Trace | Verify telemetry setup runs at startup (**ADK:** `fast_api_app.py` uses `get_fast_api_app(otel_to_cloud=True)`; Agent Runtime gates it on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY`) and the SA has the `cloudtrace.agent` role |
 | Prompt-response data not appearing | Check `LOGS_BUCKET_NAME` is set; verify SA has `storage.objectCreator` on the bucket; check app logs for telemetry setup warnings |
 | Content in traces/events (unwanted) | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=NO_CONTENT` keeps content out of spans/events. NOTE: GCS/BigQuery completions still capture full content — to stop that, remove `LOGS_BUCKET_NAME`/`OTEL_INSTRUMENTATION_GENAI_COMPLETION_HOOK` (drop the upload block in `service.tf`) |
-| BigQuery Analytics not logging | Verify plugin is configured in `app/agent.py`; check `BQ_ANALYTICS_DATASET_ID` env var is set |
+| BigQuery Analytics not logging | **ADK:** verify the plugin is configured in `app/agent.py`; check `BQ_ANALYTICS_DATASET_ID` env var is set |
 | Third-party integration not capturing spans | Check provider-specific env vars (API keys, endpoints); some providers (AgentOps) replace native telemetry |
-| Traces missing tool spans | Tool execution spans appear under `execute_tool` — check trace explorer filters |
+| Traces missing tool spans | **ADK:** tool execution spans appear under `execute_tool` (other frameworks use their own span names) — check trace explorer filters |
 | High telemetry costs | Switch to `NO_CONTENT` mode; reduce BigQuery retention; disable unused tiers |
-
----
-
-## Deep Dive: ADK Docs (WebFetch URLs)
-
-For detailed documentation beyond what this skill covers, fetch these pages:
-
-| Topic | URL |
-|-------|-----|
-| Observability overview | `https://adk.dev/observability/index.md` |
-| Agent activity logging | `https://adk.dev/observability/logging/index.md` |
-| Cloud Trace integration | `https://adk.dev/integrations/cloud-trace/index.md` |
-| BigQuery Agent Analytics | `https://adk.dev/integrations/bigquery-agent-analytics/index.md` |
 
 ---
 

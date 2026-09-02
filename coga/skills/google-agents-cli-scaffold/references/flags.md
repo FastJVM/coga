@@ -21,6 +21,10 @@
 
 For all available flags, run `agents-cli scaffold create --help`.
 
+> **ADK-specific:** `--adk` is a shortcut for the built-in ADK template, and `adk` is the only
+> built-in one. `--agent` also takes a template repo (`<org>/<repo>[/<path>]@<tag>` or `local@<path>`),
+> which is how other frameworks ship.
+
 > To use Google AI Studio instead of Vertex AI, edit the generated `.env`: comment the `GOOGLE_*` lines and uncomment `GEMINI_API_KEY`.
 
 ## `agents-cli scaffold enhance` Flags

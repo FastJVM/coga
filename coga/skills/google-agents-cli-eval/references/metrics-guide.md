@@ -100,6 +100,10 @@ Evaluates responses using custom Python code.
 | `custom_function_file` | one of | Path to a `.py` file containing `def evaluate(instance):`, **resolved relative to the eval config file's directory** (absolute paths honored). Keeps the metric a real, lintable/testable module instead of an inline blob. Mutually exclusive with `custom_function`. Works with both `execution` modes (for `remote`, the file's source is uploaded). |
 | `execution` | no | Where the function runs. `"local"` (default) — executed in the CLI process; no GCP project or region required; **runs with the CLI's privileges**, so only use trusted code. `"remote"` — uploaded and executed inside Vertex AI's `CodeExecutionMetric` sandbox; requires a configured GCP project + region. |
 
+> **Local metrics grade cases concurrently.** Build the client once per thread, never inside `evaluate()`, which re-does ADC and the TLS handshake every case. Per thread rather than per process: one client cannot serve several threads behind a client certificate. `tests/eval/response_quality.py` has the shape to copy.
+
+> **`evaluate()` can run up to five times for one case**, since transient failures are retried. Avoid side effects that must happen exactly once.
+
 **Minimal `custom_function_file` example** — point the metric at a sibling `.py` file instead of an inline blob:
 
 ```yaml
