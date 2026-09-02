@@ -427,6 +427,46 @@ worktree: /home/n/Code/codex/coga-agent-peers
 - Final branch is clean, two commits ahead of freshly fetched `origin/main`,
   and the final unconditional rebase reports it is up to date.
 
+## Review (step 4)
+
+Codex left two P1 threads on PR 727 against `3a1c548e`. Both are now answered
+and resolved; the work is in `5b96c6b4 review: validate step and close moves
+before writing them`.
+
+**Accepted — `validate.py` post-write ordering.** Verified: `advance_step`
+wrote the ticket before `assert_task_valid`, and the ordinary bump path
+(`commands/bump.py`, `rollback is None`) bailed with the step already advanced
+on disk, no audit line, no sync; a retry advanced it again. `mark_done` had the
+same shape. Root cause worth keeping: `unresolvable-step-assignee` is the first
+error-severity check keyed off `[agents.*]` rather than ticket content, so it
+breaks the assumption behind `assert_task_valid`'s documented "leaves the
+written ticket on disk for correction" contract — there is nothing on disk to
+correct, and the frozen snapshot must not be hand-edited. Fixed with the idiom
+already in `mark.py`: build a prospective ticket, validate it through
+`ticket_override`, then commit. Severity stays `error` as decided.
+
+**Declined — `peer` in `coga.local.toml`.** The ticket decides it explicitly
+and the third-agent machine has no other way to wire itself up. But Codex's
+underlying point was sharper than the ticket's "accepted tradeoff" paragraph,
+which only covers `cli` resolving per machine and leaving no committed trace:
+resolving `other-agent` rewrites committed `assignee:`, so a local-only `peer`
+makes durable ticket state depend on which machine bumped. That asymmetry, and
+the remedy (put `peer` in `coga.toml` for a single shared answer), is now in
+`coga/architecture` and its packaged twin.
+
+**Left for the owner.** `mark_active` / `mark_in_progress` / `mark_blocked` /
+`mark_paused` still validate after the write. Their strict callers arm
+`mutation_snapshot` for exactly this case, so the ordinary path is the only gap,
+and converting all six shared lifecycle writers is a wider change to
+state-machine semantics than this PR should carry. Worth its own ticket.
+
+**Verification.** Full suite 2,129 passed (2,127 + 2 new regression tests, both
+confirmed failing without the fix). Seeded `example/coga` validates 3 OK, zero
+issues. Source repo has no `unresolvable-step-assignee` findings and remains
+nonzero only for the four pre-existing `unsynthesized-draft-blackboard` errors
+plus unrelated warnings. Architecture twins byte-identical;
+`git diff --check` clean.
+
 ## PR
 
 Layer machine-local `[agents.*]` tables over shared config at key granularity,
