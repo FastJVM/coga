@@ -4130,3 +4130,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-01 17:11 [recurring/autoclose-merged] [system] created (status=active)
 2026-09-01 17:11 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-01
 2026-09-01 17:11 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-01
+2026-09-01 17:11 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
