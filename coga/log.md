@@ -4138,3 +4138,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-01 17:16 [rewrite-coga-base-prompt-and-agent-mode-block] [human:nicktoper] auto-bumped on merge of PR #726 → done
 2026-09-01 17:16 [select-session-conduct-instead-of-appending-a-cont] [human:nicktoper] auto-bumped on merge of PR #729 → done
 2026-09-01 17:16 [unblock-rewind] [human:nicktoper] auto-bumped on merge of PR #731 → done
+2026-09-01 17:17 [cloning-a-coga-repo-has-no-setup-path] [human:nick] created (status=draft)
