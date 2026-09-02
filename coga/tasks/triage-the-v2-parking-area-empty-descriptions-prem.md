@@ -34,22 +34,21 @@ step: 1 (implement)
 
 ## Description
 
-The `coga/tasks/v2/` parking area needs a human triage pass. Dream 2026-08-24 found, mechanically:
+The `coga/tasks/v2/` parking area needs a human triage pass. Dream 2026-08-24 found it mechanically;
+the counts below are re-derived against `main` on 2026-09-02 and supersede the scan's own figures.
 
-- **18 of ~75 drafts have an empty `## Description`** — nothing between the heading and the next
-  one. The v2 README's own premise check cannot be run on them.
-- **A premise-dead cohort.** Confirmed dead: `audit-rules-md-usage-across-relay-and-decide-wheth`
-  (`rules.md` no longer exists anywhere), `document-workflow-less-concept-capture-drafts-as-s`
-  (architecture already documents it), `skill-update-aborts-on-uncommitted-log-file` (primary fix
-  landed), `autotrigger-ticket-type` (every cross-reference dead), `split-context-to-doc-user-
-  accessible-and-editable` (question answered by shipped precedent), plus `dev-loop-git-hygiene`,
-  `relay-design-repositories`, and `add-relay-skill-search-with-candidate-eval` each settled the
-  other way.
-- **The known-stale-surfaces table is incomplete**: it omits `script:`, which 15 drafts in this very
-  directory still carry, and its `relay-os/… -> coga/…` rename mapping sends readers to
-  `workflows/code/*` paths that exist only inside the package.
-- **`coga validate` is permanently red**, and every error in the repo comes from this directory. A
-  green validate is not achievable, which quietly weakens the gate everywhere else.
+- **17 of the 81 tasks in `v2/` have an empty `## Description`** — and all 17 are title-only stubs:
+  frontmatter, an empty `## Description`, an empty `## Context`, the placeholder blackboard, 328–714
+  bytes total. The v2 README's premise check cannot be run on them because there is nothing to run it
+  against. They need an owner interview, not an edit.
+- **A premise-dead cohort of 8 drafts**, of which only 2 are confirmed dead on verified evidence and
+  1 is demonstrably still alive. The cohort is broken out by evidence strength in `## Context`;
+  cancelling any of them is a lifecycle write and human-gated.
+- **The known-stale-surfaces table is incomplete.** Its `relay-os/… -> coga/…` rename mapping sends
+  readers to `workflows/code/*` paths that exist only inside the package. Separately, 15 drafts carry
+  a dead `script:` field — see `## Context` for why this may not warrant a table row at all.
+- **`coga validate` is permanently red**, and all 4 errors in the repo come from this directory. A
+  green validate is not achievable today, which quietly weakens the gate everywhere else.
 
 Cancelling a premise-dead draft is a lifecycle change and human-only, which is why this is a ticket
 and not a PR.
@@ -57,58 +56,130 @@ and not a PR.
 ## Context
 
 Found by Dream 2026-08-24, Phase 2 knowledge scan (shards 06, 09, 11, 12), classified `gap`.
+Re-verified against `main` 2026-09-02, including an independent cold review whose corrections are
+folded in below. **Where this section and the original Dream findings disagree, this section wins.**
 
 **The contract for this directory is `coga/tasks/v2/README.md`.** Read it first. It defines the
 two-question premise check, carries the known-stale-surfaces table this ticket amends, and records
 the `decide-the-fate-of-two-premise-dead-v2-drafts-whos` precedent for cancelling a parked draft
 with a recorded reason. Cancel spelling is `coga mark canceled v2/<slug> --message "<reason>"`.
 
-**Conflict to resolve first.** Phase 1 `validate-drift` proposes `unsynthesized-draft-blackboard`
-synthesis PRs for four drafts, two of which — `autotrigger-ticket-type` and `split-context-to-doc`
-— this scan independently found premise-dead. Do not synthesize a dead draft's authoring notes into
-its body; decide cancel-vs-synthesize per draft here. The other two
-(`measure-relay-prompt-scope-and-agent-precision`, `use-worktree-when-starting-a-dev-task`) keep the
-synthesis route.
+### Counting `v2/` correctly
 
-Standing pattern worth naming: the v2 README records that two drafts it cancelled as premise-dead
-"were themselves Dream `gap` findings originally". Dream findings parked here decay. Whatever this
-triage decides should also say where future `gap` findings go instead.
+`coga status v2 --all` reports **81 tasks** (1 in_progress, 65 draft, 12 paused, 3 canceled). Do not
+count with `ls coga/tasks/v2/*.md` — that glob returns 76, because it counts the
+`cleanup-core-commands/` directory as one entry and misses its six children, all of which have real
+Descriptions.
 
-### Verified against `main` on 2026-09-02
+Exactly **17** drafts have an empty `## Description`. Two files that a naive glob also flags are
+**directory indexes that must never receive a Description**: `coga/tasks/v2/README.md` and
+`coga/tasks/v2/cleanup-core-commands/README.md`. The Dream scan's "18" was this artifact.
 
-All four Description claims re-checked and still exact:
+### The 17 stubs — interview, do not invent
 
-- 18 of 76 v2 drafts have an empty `## Description`.
-- 15 drafts carry `script:`, all of them `script: null`. This is a *different* dead surface from the
-  `mode: script` row the table already has — `script:` is ticket frontmatter, and core has no reader
-  for it anywhere. It needs its own row.
-- The table's `relay-os/… -> coga/…` row misleads for workflow refs: `coga/workflows/code/` does not
-  exist in the repo. The `code/*` workflows resolve only from
-  `src/coga/resources/templates/coga/bootstrap/workflows/code/`.
-- `coga validate` reports exactly 4 errors, all `unsynthesized-draft-blackboard`, all under `v2/`.
+Every one is title-only with no recoverable content; for `model-selector` and `add-subproject` the
+entire informational payload is the slug. Titles include `docs-and-contt-block-should-be-merged`,
+`remote-stale-command-line-toosl`, `generic-lib-to-use-e-g-patent-models`.
 
-**Green validate is achievable.** That rule fires only on `status == "draft"`
-(`src/coga/validate.py:447`), so cancelling the two premise-dead drafts and synthesizing the other
-two clears all four errors. Everything else in `coga validate` output is a WARN, not an ERROR.
+**Writing a Description inferred from the slug is forbidden.** That fabricates a record of what
+someone wanted, which is the precise failure `coga/tasks/v2/README.md:15-19` exists to prevent.
 
-### Human gate placement — known and accepted
+The owner has chosen to be interviewed on each one. In the `implement` step, walk the owner through
+all 17 — slug, title, and any repo evidence you found — and write only what they tell you. Where
+they have no intent left for a stub, cancel it with their reason rather than leaving it empty.
 
-This ticket runs `code/with-review`, whose only human gate is the final `review` step, after the PR
-is open. That was a deliberate choice by the owner, not an oversight. The consequence: the file
-edits (empty descriptions, README table, the two blackboard syntheses) land in a branch and are
-reviewable as a diff, but the eight `coga mark canceled` calls are lifecycle writes to
-`coga/log.md` with Slack notifications — they are not part of any diff and are awkward to reverse.
+### The premise-dead cohort — graded by evidence, not asserted
 
-So, in the `implement` step: do the file edits in the branch, but **do not fire the cancels
-unreviewed**. Present the per-draft verdict (slug, dead-or-alive, the evidence) and get explicit
-human confirmation first — the session is attended, so ask. If for any reason no human is reachable,
-leave the cancels undone, land the mechanical half, and hand the verdict table to the `review` step
-rather than guessing.
+Do not treat the original 8 as a uniform "confirmed dead" list. It is not.
+
+**Confirmed dead (evidence verified — cancel is correct):**
+- `audit-rules-md-usage-across-relay-and-decide-wheth` — `rules.md` survives only as a stale-artifact
+  fixture in a prune test (`tests/test_init.py:1379`); the "Global rules" compose layer it audits is
+  gone (`grep rules src/coga/compose.py src/coga/paths.py` is empty).
+- `document-workflow-less-concept-capture-drafts-as-s` — deliverable shipped at
+  `coga/contexts/coga/architecture/SKILL.md:363-400`, which names the exact validator-nagging
+  problem the draft was written about.
+
+**Subject was never built, not deleted — this is NOT the README's premise test:**
+- `autotrigger-ticket-type` — the evidence offered was "every cross-reference dead" (6 of 7 named
+  slugs confirmed absent). But dead cross-references make a draft harder to *act on*; they do not
+  make its subject gone. Recurring is alive (`src/coga/recurring_runner.py`, three workflows under
+  `coga/workflows/`), so the proposed unification was never built. Re-adjudicate on the README's
+  actual two questions.
+
+**Cancel only if the surviving residue is named in the reason:**
+- `skill-update-aborts-on-uncommitted-log-file` — the stated root cause is genuinely gone
+  (`src/coga/commands/launch_script.py` and `run_script_mode` no longer exist). But its secondary
+  finding is live: `_assert_no_unmerged_paths` (`src/coga/skill_manager.py:417`) still filters on
+  `--diff-filter=U` only, so an ordinary dirty tracked file still walks past it into `_checkout`
+  (line 488). A bare cancel silently drops a real bug.
+
+**Asserted with no recorded evidence — re-derive before touching:**
+- `dev-loop-git-hygiene`, `relay-design-repositories`, `split-context-to-doc-user-accessible-and-editable`
+  were each given a one-clause reason with no pointer to where the settlement is recorded.
+- `add-relay-skill-search-with-candidate-eval` was listed as settled and **is not**. `coga skill`
+  exposes install / install-local / install-url / update / remove / status — there is no `search`.
+  The subject was never built, the surfaces it names are still live, and `coga/log.md` records no
+  decision. It passes both of the README's questions. **Do not cancel this one** absent new evidence.
+
+**Guard:** a green `coga validate` is never a reason to cancel a draft. Two of the four errors sit on
+`autotrigger-ticket-type` and `split-context-to-doc`, so ruling them dead is the cheapest path to a
+green gate. Adjudicate each on the README's two questions alone and accept a still-red validate if
+that is where the evidence lands.
+
+### The `script:` field — correction
+
+An earlier draft of this ticket claimed core "has no reader" for `script:`. **That is wrong.**
+`src/coga/ticket.py:74-80` is a bounded migration that pops `script` when its value is `None`, and
+all 15 occurrences are `script: null` — so they are already handled and self-heal on the next write
+through core. Do not add a README row asserting the field is unhandled. Either omit the row, or write
+it accurately: "`script:` — Gone; a bounded migration in `src/coga/ticket.py:74` strips `script: null`
+on next write." Decide which with the owner; the honest answer may be no row.
+
+The other table defect is real and unqualified: the `relay-os/… -> coga/…` row misleads for workflow
+refs, because `coga/workflows/code/` does not exist. The `code/*` workflows resolve only from
+`src/coga/resources/templates/coga/bootstrap/workflows/code/`.
+
+### The two blackboard syntheses
+
+`measure-relay-prompt-scope-and-agent-precision` (4,215-char blackboard) and
+`use-worktree-when-starting-a-dev-task` keep the synthesis route; do **not** synthesize any draft you
+cancel. "Synthesize" is defined in `coga/contexts/coga/architecture/SKILL.md` (~lines 720-730): fold
+durable content from the blackboard up into the ticket body, or move deliberate launch notes under a
+`## Production notes` heading, which the validator accepts as the alternative. Read that passage
+before starting — it is not attached as a context because the file is 59 KB.
+
+### Green validate is achievable
+
+`unsynthesized-draft-blackboard` fires only on `status == "draft"` (`src/coga/validate.py:447`), so
+cancelling or synthesizing each of the four clears it. Everything else `coga validate` prints is a
+WARN, not an ERROR. But see the guard above: do not let this goal drive a cancel verdict.
+
+### Human gate placement — known, accepted, and how to escalate
+
+This ticket runs `code/with-review`, whose only human gate is the final `review` step. The owner
+chose this deliberately. Two consequences the `implement` step must respect:
+
+1. **Do not fire the 8 cancels unreviewed.** Present the per-draft verdict with evidence and get
+   explicit confirmation first. Step 1 launched by the owner runs attended, so ask directly.
+2. **If no human is reachable** (the supervisor auto-chains agent steps —
+   `code/with-review.md:39,44`), the correct action is `coga block --task <slug> --reason "<the
+   verdict table and the 17 stub questions>"`. Do **not** defer them to the `review` step: that step
+   runs `code/address-pr-comments`, which is explicitly barred from advancing or closing a task
+   (`code/with-review.md:134-135`). Prior art for this stalling: `coga/log.md:3794`.
+
+### Where future `gap` findings go
+
+The v2 README records that two drafts it cancelled as premise-dead "were themselves Dream `gap`
+findings originally" — findings parked here decay. This ticket should decide where they go instead,
+and that decision is durable routing policy, so it lands in a file, not in this ticket: write it into
+`coga/tasks/v2/README.md` (the contract for what this directory accepts) and, if it changes Dream's
+own behavior, the roadmap's "Deferred work" section. Confirm the target with the owner.
 
 ### Out of scope
 
-Re-validating the premise of all 76 drafts. This ticket triages the cohort the Dream scan already
-named plus the 18 empty descriptions; the rest of the parking area stays as-is.
+Re-validating the premise of all 81 tasks. This ticket triages the 8-draft cohort, the 17 stubs, and
+the 4 validate errors; the rest of the parking area stays as-is.
 
 <!-- coga:blackboard -->
 
