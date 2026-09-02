@@ -4218,3 +4218,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 13:44 [ticket-specs-should-cite-symbols-not-line-numbers] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-02 13:44 [vendored-skills-carry-no-coga-source-json-so-coga] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-02 13:44 [the-ticket-interview-never-asks-what-done-means] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-09-02 13:44 [the-ticket-interview-never-asks-what-done-means] [megalaunch] launched via coga megalaunch
