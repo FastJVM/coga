@@ -81,8 +81,30 @@ conservative Step 4) stay with it and are out of scope here.
 - **Most tickets never run `code/design`.** `code/with-review`,
   `code/with-self-review` and `direct/body` have no design step, so today a
   ticket only gets acceptance criteria if it happened to pick the one workflow
-  that writes them. That asymmetry is the real argument for putting the
-  question in the interview instead.
+  that writes them.
+- **Read this before proposing a section: `compose` drops it.**
+  `src/coga/compose.py` extracts exactly two body sections into the launched
+  prompt — `_extract_section(body_above, "Description")` (line ~280) and
+  `_extract_section(body_above, "Context")` (line ~290) — plus the blackboard
+  region. `_extract_section` (line ~378) stops at the next `##`, so **every
+  other body section is silently dropped**. Confirmed empirically:
+  `coga launch nightly-auto-drain-run-for-ready-tickets --prompt-report` lists
+  only `task_description`, `task_context`, `blackboard`, while that ticket's
+  body carries `## Acceptance Criteria`, `## Proposed Shape`, `## Out of Scope`,
+  `## Design notes` and `## Decisions`. None of them reach the agent.
+
+  Three consequences this ticket turns on:
+
+  1. The asymmetry above is worse than "most workflows lack a design step" —
+     even `code/design`'s acceptance criteria never reach the `implement`
+     agent's prompt. Today they exist only for a human reading `ticket.md`.
+  2. The section option is therefore **not** a text-only edge change. It needs
+     a fourth ticket layer in `src/coga/compose.py` — a core change. Weigh it
+     against the microkernel rule deliberately; don't discover it at
+     `implement`.
+  3. It is an independent argument for the prior verdict (a sentence inside
+     `## Description`, which already composes). That verdict was reached
+     without this fact; it survives it, and is strengthened by it.
 - **`coga validate` has no body-prose checks today** — every check is
   frontmatter, refs, secrets, or workflow/step shape. The one precedent for
   reading the body region is `unsynthesized-draft-blackboard`
@@ -100,10 +122,24 @@ conservative Step 4) stay with it and are out of scope here.
   that was wrong; there is nothing to sync. Do not edit the copy under
   `.venv/.../site-packages/coga/` (install output); check whether the active
   install serves `src/` directly or needs a reinstall to pick up changes.
-- **Ticket template: a genuine twin pair.** `coga/tasks/_template/ticket.md`
-  and `src/coga/resources/templates/coga/tasks/_template/ticket.md` are two
-  real files, currently byte-identical. If a section is added to the template,
-  both must change (CLAUDE.md live/packaged sync rule).
+- **`coga create` hardcodes the scaffold — the template is not the source.**
+  `src/coga/create.py` (~line 226) writes
+  `ticket_body = f"## Description\n\n{desc_body}\n\n## Context\n\n"` and
+  never reads `_template/ticket.md`. Editing the template alone changes nothing
+  about what `coga create` / `coga ticket` actually produce. Any new section
+  needs `create.py` too.
+- **Ticket template: a genuine twin pair, and separately maintained.**
+  `coga/tasks/_template/ticket.md` and
+  `src/coga/resources/templates/coga/tasks/_template/ticket.md` are two real
+  files, currently byte-identical; the template is `coga init` seed material
+  and a validator-checked artifact (`validate.py` ~1049). If a section is added,
+  both must change (CLAUDE.md live/packaged sync rule) — *in addition to*
+  `create.py`, not instead of it.
+- **`code/design` is also a real twin pair.** `coga/skills/code/design/SKILL.md`
+  and `src/coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md`
+  are two separate identical files — unlike `bootstrap/ticket`, which is a
+  symlink. If this ticket changes how the design step's section relates to an
+  interview-authored one, that is two edits kept in sync, not one.
 - **Validator:** `src/coga/validate.py`.
 - **Tests:** `tests/test_bootstrap_ticket_skill_template.py` already asserts
   properties of the shipped skill text — extend it rather than starting a new
@@ -111,11 +147,18 @@ conservative Step 4) stay with it and are out of scope here.
 
 ### Constraints and traps
 
-- **The 4–6 question interview budget is deliberate** (`docs/vision.md`, Coga
-  principles, and the skill's own Step 3). Fold "done" into an existing
-  question; do not add a seventh.
-- **Microkernel rule** (CLAUDE.md): skill and template text is the edge. Only
-  reach into `src/coga/` if the validator check genuinely needs Python logic.
+- **The 4–6 question interview budget is deliberate**, but it is written in
+  exactly one place: `bootstrap/ticket` SKILL.md **line 12** ("Keep the
+  interview short — 4–6 questions, not a survey"). Neither `docs/vision.md` nor
+  `coga/contexts/coga/principles/SKILL.md` states it — don't go looking there
+  and conclude it isn't real. The deleted proposal's "the interview can stay at
+  five human-facing prompts" is the supporting reference. Fold "done" into an
+  existing question; do not add a seventh.
+- **Microkernel rule** (CLAUDE.md): skill and template text is the edge. The
+  prose option stays entirely at the edge. The section option does **not** — it
+  touches `compose.py`, `create.py`, both template copies, and possibly
+  `validate.py`. That cost difference is a first-class input to the decision,
+  not an implementation detail to be discovered later.
 - **Grandfathering is the hard part of the validator option.** As of
   2026-09-01, **17 of 151** ticket files under `coga/tasks/` already have an
   `## Acceptance Criteria` section (`grep -rl '^## Acceptance Criteria'
