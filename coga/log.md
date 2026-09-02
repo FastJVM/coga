@@ -4201,3 +4201,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 12:30 [no-rule-says-ticket-context-must-cite-symbols-not] [human:nicktoper] created (status=draft)
 2026-09-02 12:30 [dream-findings-have-three-routing-holes-that-lose] [human:nicktoper] created (status=draft)
 2026-09-02 12:30 [the-human-doc-vs-agent-context-boundary-is-decided] [human:nicktoper] created (status=draft)
+2026-09-02 12:30 [dream-2026-w36-extract-backlog-18-findings-phase-4] [human:nicktoper] created (status=draft)
