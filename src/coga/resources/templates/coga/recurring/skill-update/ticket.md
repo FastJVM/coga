@@ -12,11 +12,18 @@ workflow: skill-update/run
 
 Update every clean imported (Coga-managed) skill in one reviewable PR.
 
-Imported skills live as plain directories under `coga/skills/` with
-`.coga-source.json` provenance. Once a week this ticket fires on its schedule
-and its `ticket.py` runs `coga skill update --all --pr`, which:
+Imported skills live as plain directories under `coga/skills/`. No skill
+currently carries a `.coga-source.json` file: Coga writes that provenance only
+for URL-installed skills, and none are installed. The GitHub-backed skills — the
+seven `google-agents-cli-*` refs declared in `managed-skills.toml` — are tracked
+by `gh skill`'s own metadata instead, and the two vendored packs
+(`anthropic/skill-creator`, `browser/playwright`) carry hand-written attribution
+and report as unmanaged. Once a week this ticket fires on its schedule and its
+`ticket.py` runs `coga skill update --all --pr`, which:
 
-1. walks every imported skill with recorded provenance,
+1. delegates every GitHub-backed skill to a single `gh skill update --dir
+   coga/skills --all`, then walks in Coga's own code only those skills that do
+   carry `.coga-source.json` with `source_type = "url"` — today an empty set,
 2. rewrites in place each skill whose upstream digest changed and whose local
    copy is unmodified,
 3. commits the clean updates onto the dedicated `coga/skill-update` branch
