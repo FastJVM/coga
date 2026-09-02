@@ -34,6 +34,21 @@ Question 1 was already answered once (yes, as prose). Question 2 is the part
 that was deferred and never resolved. Do not treat question 1 as reopened
 without a reason drawn from the prior art below.
 
+**Two notes for the `design` step.** First, read the `compose.py` bullet under
+"Prior art" *before* proposing an `## Acceptance Criteria` section, so
+`review-design` is not asked to approve something that never reaches the
+implementing agent. Second, this ticket dogfoods the problem: `code/design`
+will write its spec into these very sections, and per that same bullet the
+Acceptance Criteria / Proposed Shape / Out of Scope it writes will **not**
+compose into the `implement` prompt. Carry anything the implementer must know
+into `## Description` or `## Context` before bumping.
+
+**Splitting is an expected outcome, not a failure.** If question 2 lands on a
+validator check, that check — a first-ever body-prose rule, plus severity and
+status policy, plus grandfathering ~134 tickets — is ticket-sized on its own.
+The interview wording can ship without it. Recommend the split at
+`review-design` rather than building both here.
+
 ## Context
 
 ### Prior decisions — this ticket is a rediscovery, not a new idea
@@ -119,9 +134,11 @@ conservative Step 4) stay with it and are out of scope here.
   `src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md`.
   `coga/.agent-skills/bootstrap/ticket` is a **symlink** into it. An earlier
   version of this ticket called them an "identical pair" to keep in sync —
-  that was wrong; there is nothing to sync. Do not edit the copy under
-  `.venv/.../site-packages/coga/` (install output); check whether the active
-  install serves `src/` directly or needs a reinstall to pick up changes.
+  that was wrong; there is nothing to sync. **Edits to `src/` are live — no
+  reinstall needed.** The PATH `coga` is an editable install
+  (`_editable_impl_coga.pth` → `/home/n/Code/claude/coga/src`), and
+  `coga.__file__` resolves into `src/`. The `site-packages/coga/` directories
+  are stale shadow copies; ignore them and never edit them.
 - **`coga create` hardcodes the scaffold — the template is not the source.**
   `src/coga/create.py` (~line 226) writes
   `ticket_body = f"## Description\n\n{desc_body}\n\n## Context\n\n"` and
@@ -140,6 +157,13 @@ conservative Step 4) stay with it and are out of scope here.
   are two separate identical files — unlike `bootstrap/ticket`, which is a
   symlink. If this ticket changes how the design step's section relates to an
   interview-authored one, that is two edits kept in sync, not one.
+- **Neither twin pair is test-enforced — a half-edit will pass CI.**
+  `tests/test_packaging.py::IDENTICAL_LIVE_PACKAGED_PAIRS` has 19 entries and
+  includes **neither** `code/design/SKILL.md` nor `_template/ticket.md`. Diff
+  each pair by hand before opening the PR. The open draft
+  `live-and-packaged-twin-pairs-are-edited-together-b` covers this hole; if this
+  ticket edits either pair, consider adding them to that tuple here rather than
+  waiting.
 - **Validator:** `src/coga/validate.py`.
 - **Tests:** `tests/test_bootstrap_ticket_skill_template.py` already asserts
   properties of the shipped skill text — extend it rather than starting a new
@@ -169,8 +193,11 @@ conservative Step 4) stay with it and are out of scope here.
   check whether those 17 existing sections share a shape the check could
   actually assert — if the design step's freeform criteria and an
   interview-authored version disagree, the check has no stable target.
-  `coga validate --json` on this repo is the smoke test — run it before and
-  after.
+  `coga validate --json` on this repo is the smoke test, but **do not expect
+  zero**: the 2026-09-01 baseline is 28 issues / 144 ok (4 error
+  `unsynthesized-draft-blackboard`; warns: 11 `unfrozen-workflow`, 6
+  `stuck-in-progress`, 5 `unknown-assignee`, 2 `large-blackboard`). Compare
+  counts before and after, don't chase a clean run.
 - **Zach's `--ac1/--ac2` CLI flag**: decide explicitly in or out and say why.
   New CLI surface needs a stronger justification than a text change, and
   `coga create` currently writes only the scaffold.
