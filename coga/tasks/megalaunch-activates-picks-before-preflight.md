@@ -1,7 +1,7 @@
 ---
 slug: megalaunch-activates-picks-before-preflight
 title: Megalaunch activates picked tickets before its preflight checks refuse them
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
