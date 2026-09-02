@@ -42,8 +42,18 @@ without a reason drawn from the prior art below.
   produced a ranked proposal on its blackboard. Verdict: *ask for "done" up
   front, and land it as a sentence in `## Description`, not a new section.* A
   formal `## Acceptance Criteria` section was ranked **P2 and deliberately
-  deferred**. Read the "Ranked changes" section of that ticket's blackboard —
-  it has ready-to-adapt prompt wording.
+  deferred**. **The file was deleted in `ffb0a383` (2026-07-23) — it is not on
+  disk.** Recover it before you start; it is the most load-bearing prior art
+  here and it already contains ready-to-adapt prompt wording:
+
+  ```
+  git show ffb0a383^:coga/tasks/improve-prompt-for-relay-ticket.md
+  ```
+
+  In that blob: `### Ranked changes` at line 185, the P0 greeting wording at
+  ~196 (*"What should it do, why now, and what would count as done?"*), and the
+  explicit P2 deferral (*"Do not add a permanent `Acceptance Criteria` section
+  yet"*) at ~319.
 - **`v2/implement-accepted-ticket-interview-improvements`** (paused 2026-07-27,
   "Parked to v2 for the release") carries that verdict as change 1 of 6. Its
   `## Context` also says a formal Acceptance Criteria section is out of scope
@@ -106,12 +116,18 @@ conservative Step 4) stay with it and are out of scope here.
   question; do not add a seventh.
 - **Microkernel rule** (CLAUDE.md): skill and template text is the edge. Only
   reach into `src/coga/` if the validator check genuinely needs Python logic.
-- **Grandfathering is the hard part of the validator option.** Every existing
-  ticket under `coga/tasks/` lacks an `## Acceptance Criteria` section, so an
-  error-severity check would fail the whole repo on day one. Decide severity,
-  which statuses it applies to, and whether it is draft-only like its
-  precedent. `coga validate --json` on this repo is the smoke test — run it
-  before and after.
+- **Grandfathering is the hard part of the validator option.** As of
+  2026-09-01, **17 of 151** ticket files under `coga/tasks/` already have an
+  `## Acceptance Criteria` section (`grep -rl '^## Acceptance Criteria'
+  coga/tasks --include=*.md | wc -l`) — mostly tickets that ran `code/design`.
+  So the section has real de-facto adoption, but ~89% of tickets lack it and an
+  error-severity check would fail the repo on day one. Decide severity, which
+  statuses it applies to, and whether it is draft-only like its precedent. Also
+  check whether those 17 existing sections share a shape the check could
+  actually assert — if the design step's freeform criteria and an
+  interview-authored version disagree, the check has no stable target.
+  `coga validate --json` on this repo is the smoke test — run it before and
+  after.
 - **Zach's `--ac1/--ac2` CLI flag**: decide explicitly in or out and say why.
   New CLI surface needs a stronger justification than a text change, and
   `coga create` currently writes only the scaffold.
