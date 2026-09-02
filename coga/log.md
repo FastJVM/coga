@@ -4134,3 +4134,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-01 17:13 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
 2026-09-01 17:16 [bumppy-requires-exactly-two-agents] [human:nicktoper] auto-bumped on merge of PR #727 → done
 2026-09-01 17:16 [fix-the-autofix-analyst] [human:nicktoper] auto-bumped on merge of PR #724 → done
+2026-09-01 17:16 [reconcile-recurring-wrapper-tty-admission-guidance] [human:nicktoper] auto-bumped on merge of PR #723 → done
