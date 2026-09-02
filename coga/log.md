@@ -4193,3 +4193,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 11:59 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-02 11:59 [recurring/dream] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-09-02 12:29 [isolated-checkouts-nothing-says-what-a-fresh-workt] [human:nicktoper] created (status=draft)
+2026-09-02 12:29 [no-context-records-the-ci-posture-publish-only-rel] [human:nicktoper] created (status=draft)
