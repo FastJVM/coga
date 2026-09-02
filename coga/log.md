@@ -4199,3 +4199,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 12:30 [recurring-context-never-mentions-the-packaged-twin] [human:nicktoper] created (status=draft)
 2026-09-02 12:30 [sync-context-omits-preflight-post-from-the-notific] [human:nicktoper] created (status=draft)
 2026-09-02 12:30 [no-rule-says-ticket-context-must-cite-symbols-not] [human:nicktoper] created (status=draft)
+2026-09-02 12:30 [dream-findings-have-three-routing-holes-that-lose] [human:nicktoper] created (status=draft)
