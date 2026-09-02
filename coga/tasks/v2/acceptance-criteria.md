@@ -48,6 +48,12 @@ that flag explicitly, in or out). Everything here was folded into its
 `## Context`. Do not work this ticket; close or cancel it once the successor
 lands.
 
+**Taken over by nicktoper on 2026-09-01** (was zach's). The `--ac1/--ac2` flag
+call moves with it and is now decided in the successor ticket. Note the
+`owner:`/`human:` frontmatter still reads `zach` — there is no CLI command to
+reassign it, and those fields are not agent-editable, so a human needs to change
+them by hand if the record should match.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

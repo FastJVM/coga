@@ -30,9 +30,25 @@ ticket is the single owner of the question and supersedes both parked drafts
 2. **Where does the answer land?** Prose inside `## Description`, or a
    first-class `## Acceptance Criteria` section that `coga validate` checks.
 
-Question 1 was already answered once (yes, as prose). Question 2 is the part
-that was deferred and never resolved. Do not treat question 1 as reopened
-without a reason drawn from the prior art below.
+Question 1 was already answered once (yes, as prose) and question 2 was
+deferred. **Both are open here** — the owner has explicitly cleared question 1
+to be reopened if the evidence warrants it (2026-09-01).
+
+That is permission, not an invitation to start from a blank page. The July
+verdict was reached with reasons; re-derive nothing, and reopen only against
+the prior art below. Two things have changed since it was made, and the design
+step should weigh them both:
+
+- The July reasoning leaned on "it does not yet prove every ticket needs a new
+  top-level section." Three independent rediscoveries since are arguably that
+  proof.
+- The `compose.py` fact below was **not** known in July. Note that it argues
+  *for* the same conclusion (prose), so discovering it is not by itself a
+  reason to overturn the verdict.
+
+If you land somewhere other than the July verdict, say plainly which fact
+changed the answer. If you land on the same place, say that too — a confirmed
+decision with fresh reasons is a real outcome and ends the rediscovery cycle.
 
 **Two notes for the `design` step.** First, read the `compose.py` bullet under
 "Prior art" *before* proposing an `## Acceptance Criteria` section, so
@@ -196,9 +212,12 @@ conservative Step 4) stay with it and are out of scope here.
   `unsynthesized-draft-blackboard`; warns: 11 `unfrozen-workflow`, 6
   `stuck-in-progress`, 5 `unknown-assignee`, 2 `large-blackboard`). Compare
   counts before and after, don't chase a clean run.
-- **Zach's `--ac1/--ac2` CLI flag**: decide explicitly in or out and say why.
-  New CLI surface needs a stronger justification than a text change, and
-  `coga create` currently writes only the scaffold.
+- **The `--ac1/--ac2` CLI flag** (from `v2/acceptance-criteria`): decide
+  explicitly in or out and say why. New CLI surface needs a stronger
+  justification than a text change, and `coga create` currently writes only the
+  scaffold. **nicktoper took over that ticket on 2026-09-01**, so this call is
+  his alone — no cross-owner consultation needed, and the decision belongs in
+  this ticket rather than buried in the paused one.
 - The repo is mid Relay→Coga rename; use Coga wording in anything you touch.
 - Verify with `python -m pytest` and `coga validate --json`.
 
