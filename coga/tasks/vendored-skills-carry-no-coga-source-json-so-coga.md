@@ -1,7 +1,7 @@
 ---
 slug: vendored-skills-carry-no-coga-source-json-so-coga
 title: Vendored skills carry no .coga-source.json so coga skill update walks nothing
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
