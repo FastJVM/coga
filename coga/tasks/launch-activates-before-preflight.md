@@ -459,31 +459,6 @@ reintroduce line numbers: `_launch` grew ~790 lines between 2026-08-14 and
 retired. See the sibling ticket
 `ticket-specs-should-cite-symbols-not-line-numbers`.
 
-## Open Questions
-
-1. **Does a wrong instruction actually exist in `weather-events`?** (Zach's
-   original ask, half (a).) It cannot be actioned from this repo — no
-   mapping-form `secrets:` example exists here outside this ticket's own body.
-   If it does exist there, name the file and it becomes a separate ticket in
-   that repo. Answering "no / don't care" closes this cleanly; the code fix
-   stands either way.
-2. ~~**Should the slug be renamed?**~~ **Resolved 2026-09-02** by the owner:
-   renamed `secrets-instructions-correction` → `launch-activates-before-preflight`.
-   `coga/log.md` is append-only, so pre-rename history stays under the old
-   slug; see "Slug history" in `## Context`.
-3. **Is `coga megalaunch`'s up-front activation intended to stay as-is?** It
-   activates all picked tickets before launching any, and
-   `_preflight_agent_launch` requires `active`/`in_progress`, so the same
-   "activated but never ran" residue is reachable there — a queue pick whose
-   secrets are malformed fails at `build_launch_env` with the ticket already
-   flipped. I read this as a deliberately different contract (an explicit human
-   pick *is* the activation decision) and left it out of scope. Say so if you'd
-   rather it match `launch`.
-4. **Should a refused launch of a ticket that was already `active` be touched
-   at all?** Current behavior leaves it `active`, which seems right — nothing
-   was falsely claimed. The spec preserves it. Flagging only because it is the
-   case the existing test covers.
-
 ## Evaluator review
 
 An independent cold session (2026-09-02) verified the spec against source and
