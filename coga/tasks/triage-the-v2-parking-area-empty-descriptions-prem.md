@@ -183,6 +183,19 @@ the 4 validate errors; the rest of the parking area stays as-is.
 
 <!-- coga:blackboard -->
 
+## Split into three tickets — 2026-09-02
+
+This ticket was split and is to be canceled. The cold review below is the reason; its findings are
+folded into the three children, not lost here.
+
+- `correct-the-v2-known-stale-surfaces-table-and-rout` — README table + gap-finding routing + the 2
+  blackboard syntheses. `code/with-review`. No lifecycle writes.
+- `adjudicate-the-eight-premise-dead-v2-drafts` — the 8 verdicts. `code/design-then-implement`, so
+  the owner gates the table before any cancel runs.
+- `interview-the-owner-on-the-17-title-only-v2-stubs` — the stub interview.
+  `code/design-then-implement`.
+
+
 ## Evaluator review
 
 Independent cold read, 2026-09-02. Verbatim.
