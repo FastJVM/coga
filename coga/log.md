@@ -4203,3 +4203,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 12:30 [the-human-doc-vs-agent-context-boundary-is-decided] [human:nicktoper] created (status=draft)
 2026-09-02 12:30 [dream-2026-w36-extract-backlog-18-findings-phase-4] [human:nicktoper] created (status=draft)
 2026-09-02 12:30 [four-parked-tickets-carry-premises-that-have-since] [human:nicktoper] created (status=draft)
+2026-09-02 12:35 [recurring/dream] [agent:claude] slack: Dream 2026-W36: 57 findings -> 10 proposal PRs (#737-#746) + 9 draft tickets; Retro direct-deleted 7 period tickets, cleanup no-op; 22 validate issues and 21 retirement-debt tickets need the owner.

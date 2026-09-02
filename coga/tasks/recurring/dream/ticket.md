@@ -894,3 +894,95 @@ Generated: 2026-09-02T19:24:04+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated 2026-09-02 (period **2026-W36**). Repo `FastJVM/coga`, control branch
+`main`.
+
+| # | Phase | Result | Detail |
+|---|---|---|---|
+| 1 | validate-drift | `reported` | 27 issues: 0 direct-fix, 5 pr-proposal, 22 human-needed. Fix pass repaired nothing. |
+| 2 | knowledge scan | `reported` | 15/15 shards complete, 0 incomplete. 242 corpus files, 1.74 MB. 54 raw blocks → 51 distinct findings. |
+| 3 | contract audit | `reported` | 8/8 shards complete, 0 incomplete. 69-file contract surface. 13 raw blocks → 6 new distinct findings. |
+| 4 | retro/done-ticket | `direct-fixed` | 7 eligible tickets, all no-durable-knowledge → 7 direct deletes on `origin/main`. 0 knowledge PRs. |
+| 5 | cleanup-orphan-markers | `no-op` | No processed done ticket still has a task directory. |
+| 6 | disposition | `pr-opened` + `proposed` | 10 proposal PRs, 9 tracked draft tickets, 1 deferred for PR overlap. |
+
+**Findings: 57 distinct** — 18 `extract`, 23 `stale`, 10 `gap`, 6 `drift`.
+Three raw blocks were dropped as self-retracted or duplicate (see `## Findings`);
+catching those is why shards write retractions rather than silently correcting.
+
+### PRs opened — all `pr-required`, none auto-merged
+
+| PR | Subject |
+|---|---|
+| #737 | period-task: five period-key shapes, no workflow-less finish path, important alert not FYI |
+| #738 | sync: correct the notification producer list; record the Slack classification + webhook-redaction boundary |
+| #739 | extension-model: delegate launch-internals detail; reconcile the kernel rule with `coga/codebase` |
+| #740 | path-qualify three skill frontmatter names; name both deterministic edges in the skill template |
+| #741 | codebase: admit the hand-vendored skill shape; secrets: record the `OP_SERVICE_ACCOUNT_TOKEN` trust boundary |
+| #742 | roadmap: stop citing a parked pre-rename ticket; fix two stale currency stamps |
+| #743 | skill-update template: stop asserting `.coga-source.json` provenance no skill carries |
+| #744 | architecture: step-gate registry, composition constraint, reserved frontmatter keys, launch env vars |
+| #745 | cut agent instructions from `code/*` workflow step bodies that never compose |
+| #746 | document `coga usage` and `coga digest`; drop a nonexistent `cron.sh`; fix the concepts prompt-layer order |
+
+Verified after the fact: every branch is pushed, every enforced live/packaged twin
+pair touched by a PR is still byte-identical, and no PR edits a file another PR edits.
+
+### Draft tickets created (`code/with-review`)
+
+- `isolated-checkouts-nothing-says-what-a-fresh-workt`
+- `no-context-records-the-ci-posture-publish-only-rel`
+- `recurring-context-never-mentions-the-packaged-twin`
+- `sync-context-omits-preflight-post-from-the-notific`
+- `no-rule-says-ticket-context-must-cite-symbols-not`
+- `dream-findings-have-three-routing-holes-that-lose`
+- `the-human-doc-vs-agent-context-boundary-is-decided`
+- `dream-2026-w36-extract-backlog-18-findings-phase-4`
+- `four-parked-tickets-carry-premises-that-have-since`
+
+### `human-needed` — decisions this run could not make
+
+1. **Phase 1's 22 `human-needed` validator issues have no route out of this
+   blackboard.** They are: 11 `unfrozen-workflow`, 6 `stuck-in-progress`, 5
+   `unknown-assignee: 'nicktoper'`. Four consecutive runs have reported the same
+   classes with no downward trend (W33 23, W34 23, W35 29, W36 22), and two of the
+   stuck tickets have been idle since before W34. Ticketed as
+   `dream-findings-have-three-routing-holes-that-lose`, but the underlying
+   lifecycle decisions are the owner's.
+2. **21 done tickets are outstanding retirement debt.** Each records a real `## Dev`
+   branch and worktree, so Retro must not touch them and `coga retire <slug>` stays
+   the human-typed path. They are listed in full in the Phase 4 eligibility section
+   above. This is also why Phase 4 had no knowledge to extract.
+3. **All 18 `extract` findings are orphaned by that debt.** Phase 6's `extract` route
+   assumes Phase 4 handled them; Phase 4 structurally could not. Carried into
+   `dream-2026-w36-extract-backlog-18-findings-phase-4` so they survive this
+   blackboard, but whether to land them as knowledge PRs or let `coga retire` consume
+   them is a human call.
+4. **Two code-side gaps found but not fixed** (documentation-only PRs by design):
+   `config._RESERVED_TICKET_FIELD_NAMES` omits `period_generation` (so
+   `[ticket.fields.period_generation]` is accepted and would collide with the
+   runner-written key on any period task) and omits `slug` (so
+   `[ticket.fields.slug]` loads despite `slug` being required). Flagged in PR #744.
+5. **One finding deferred for overlap.** `coga/skills/google-agents-cli-workflow/SKILL.md`
+   tells agents to refresh the pack with `uvx google-agents-cli setup`, bypassing
+   `coga skill install`/`update` and the `recurring/skill-update` PR loop. Open PR
+   **#736** already edits that file, so per the Dream body no conflicting PR was
+   opened — it goes to that PR's review.
+
+### Notes for the operator
+
+- `coga/tasks/triage-the-v2-parking-area-empty-descriptions-prem.md` was being edited
+  by a concurrent session throughout this run (an evaluator review written into its
+  blackboard). Dream did not touch it, but the `coga create` calls in Phase 6 fired
+  the ordinary `sync_coga_state` sweep, which will have published that in-progress
+  edit along with the new tickets. That is normal Coga behavior, not data loss — and
+  it is the same hazard `extract` finding 14 describes.
+- This task's own blackboard now trips the `large-blackboard` warning. Expected: the
+  recurring scanner deletes this task before creating the 2026-W37 Dream.
+- Scan directories `/tmp/dream-ks-Poha8f` and `/tmp/dream-ca-6o1Ife` were deleted
+  after their findings merged. The Phase 4 worktree, its temporary branch, the copied
+  `coga.local.toml` and the evidence snapshot were all removed and verified gone. The
+  ten PR worktrees were removed; their branches are kept because the PRs need them.
