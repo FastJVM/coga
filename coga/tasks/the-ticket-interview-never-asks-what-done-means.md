@@ -1,7 +1,7 @@
 ---
 slug: the-ticket-interview-never-asks-what-done-means
 title: The ticket interview never asks what done means
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
