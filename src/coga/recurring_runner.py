@@ -1993,6 +1993,16 @@ def run_recurring_named(
                 name,
                 ref,
                 respect_handled_period=False,
+                # A replacement deliberately overwrites the prior-period `done`
+                # task at the stable path, so control still holding that path is
+                # not evidence this firing was handled — `run_delete_task`
+                # removed it from the working tree only. Left respected, the
+                # landing returns `already_handled`, the unwind restores the
+                # committed `done` ticket over the fresh `active` one, and the
+                # launch silently reports "is done; not launching" *after* the
+                # ledger already recorded the period as serviced. The sweep
+                # disables it for the same reason; see `_broadcast_scan`.
+                respect_existing_task=not outcome.replaced_done,
                 expected_period_key=outcome.period_key,
                 control_ledger=control_ledger,
             )
