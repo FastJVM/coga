@@ -49,3 +49,4 @@ consumed_through: f2582ef9174f
 {"id":"b4599127c6a8","ts":"2026-09-01T17:16","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/726|PR #726> merged ✅","ticket":"rewrite-coga-base-prompt-and-agent-mode-block","owner":"nicktoper"}
 {"id":"345a3fc92684","ts":"2026-09-01T17:16","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/729|PR #729> merged ✅","ticket":"select-session-conduct-instead-of-appending-a-cont","owner":"nicktoper"}
 {"id":"4dca8e16207c","ts":"2026-09-01T17:16","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/731|PR #731> merged ✅","ticket":"unblock-rewind","owner":"nicktoper"}
+{"id":"5593d0b1614f","ts":"2026-09-02T11:57","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/branch-sweep","owner":"nicktoper"}
