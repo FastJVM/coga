@@ -4210,3 +4210,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 13:38 [correct-the-v2-known-stale-surfaces-table-and-rout] [human:nicktoper] created (status=draft)
 2026-09-02 13:38 [adjudicate-the-eight-premise-dead-v2-drafts] [human:nicktoper] created (status=draft)
 2026-09-02 13:38 [interview-the-owner-on-the-17-title-only-v2-stubs] [human:nicktoper] created (status=draft)
+2026-09-02 13:42 [triage-the-v2-parking-area-empty-descriptions-prem] [human:nicktoper] canceled (draft → canceled): Split into correct-the-v2-known-stale-surfaces-table-and-rout, adjudicate-the-eight-premise-dead-v2-drafts, interview-the-owner-on-the-17-title-only-v2-stubs

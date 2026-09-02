@@ -2,7 +2,7 @@
 slug: triage-the-v2-parking-area-empty-descriptions-prem
 title: 'Triage the v2 parking area: empty descriptions, premise-dead drafts, permanently
   red validate'
-status: draft
+status: canceled
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
 ---
 
 ## Description
