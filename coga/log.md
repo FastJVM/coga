@@ -4228,3 +4228,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 13:54 [ticket-specs-should-cite-symbols-not-line-numbers] [megalaunch] launched via coga megalaunch
 2026-09-02 14:23 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-09-02 14:27 [secrets-instructions-correction] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-09-02 15:10 [megalaunch-activates-picked-tickets-before-its-pre] [human:nicktoper] created (status=draft)
