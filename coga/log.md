@@ -4229,3 +4229,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 14:23 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-09-02 14:27 [secrets-instructions-correction] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-09-02 15:10 [megalaunch-activates-picked-tickets-before-its-pre] [human:nicktoper] created (status=draft)
+2026-09-02 15:40 [launch-activates-before-preflight] [agent:nicktoper] advanced to step 3 (implement) → assigned to claude
