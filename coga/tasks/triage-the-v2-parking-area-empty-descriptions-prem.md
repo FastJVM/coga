@@ -112,4 +112,93 @@ named plus the 18 empty descriptions; the rest of the parking area stays as-is.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Evaluator review
+
+Independent cold read, 2026-09-02. Verbatim.
+
+I read the ticket, the v2 README, the `code/with-review` workflow, and spot-checked the claims against `main`. Findings below, ordered within each point by how likely they are to make the launched agent do the wrong thing.
+
+### 1. Description clarity — one blocking gap
+
+**The "18 empty descriptions" half has no stated deliverable.** The Description states the *finding* — "18 of ~75 drafts have an empty `## Description`" — and never says what the agent should do about it. The only place a verb attaches is a parenthetical: "the file edits (empty descriptions, README table, the two blackboard syntheses)". "Do file edits to empty descriptions" is not a task; write them? cancel them? ask the owner?
+
+That gap is load-bearing because of what those files actually contain. I checked all 17 (see #5): every one is a title-only stub — frontmatter, an empty `## Description`, an empty `## Context`, and the 77-byte placeholder blackboard. Total file size 328–714 bytes. There is **zero** material to write a description from except the slug. Titles include `docs-and-contt-block-should-be-merged`, `remote-stale-command-line-toosl`, `generic-lib-to-use-e-g-patent-models`. An agent told to "fix the empty descriptions" with no other instruction will infer the description from the title — which is precisely the failure the contract file it's told to read exists to prevent (`coga/tasks/v2/README.md:15-19`). Inventing a Description fabricates a record of what someone wanted at the time.
+
+**The count is wrong, and the 18th item is a trap.** I count 17 files with an empty `## Description` under `coga/tasks/v2/*.md`. The 18th is `coga/tasks/v2/cleanup-core-commands/README.md` — a directory *index* whose first lines read "Directory index for the core-command cleanup tickets. Launch one of the child tickets below, not this file." It has no `## Description` by design and must not get one. Its six child tickets all have real Descriptions (420–1300 chars). An agent that trusts "18" will either burn time hunting a nonexistent 18th or write a Description into the index.
+
+**"76 drafts" is also wrong.** `coga status v2 --all` reports 81 tasks (78 live, 3 canceled). 76 is what you get from `ls coga/tasks/v2 | wc -l` minus README — it counts the `cleanup-core-commands/` directory as one draft and ignores its six children. Same glob artifact that produced the 18.
+
+### 2. Workflow fit — the mitigation is not adequate as written
+
+**a) "the session is attended, so ask" contradicts the workflow's own documented behavior.** `code/with-review.md` states the supervisor "auto-chains across these agent boundaries… it only returns control to the human at the final `review` step." The implement step is not guaranteed attended. The mitigation should key off the actual launch mode (the workflow's own guidance is "ask the attending human, or `coga block` in a queue run") rather than asserting attendance.
+
+**b) The fallback normalizes a half-done ticket.** "leave the cancels undone, land the mechanical half" — but there is no mechanical half. The empty-description work is 17 judgment calls, not edits. The fallback lands a README edit plus two syntheses and defers everything requiring judgment (8 cancels + 17 stub verdicts) to `review`.
+
+**c) `review` can't absorb that.** Its skill is `code/address-pr-comments`, and the workflow file's `## review` section explicitly bounds an assisting agent: it "must not… run `coga bump` or `coga mark done`, or otherwise advance/close the task." Eight `coga mark canceled` calls are exactly that class of write. The escape hatch routes decisions into the one step contractually barred from making them. Add this repo's history of the post-PR gate stalling (`coga/log.md:3794`: a prior ticket blocked because four `code/with-review` tickets sat on open PRs).
+
+The mitigation would be adequate if it (i) tested launch mode instead of asserting attendance, and (ii) said explicitly that with no human reachable the correct action is `coga block` with the verdict table as the ask — not "hand it to review."
+
+### 3. Contexts — the no-contexts call is right, with one real omission
+
+Attaching nothing is defensible on size alone: `coga/contexts/coga/architecture/SKILL.md` is 59 KB (~15k tokens), which would quadruple a 20 KiB prompt to answer a handful of questions. Copying facts in was the right call.
+
+**But one required fact wasn't copied.** The ticket assigns two blackboard syntheses and never says what "synthesize" means. The only place in the repo that defines it — including the `## Production notes` marker that is the alternative — is `coga/contexts/coga/architecture/SKILL.md:~720-730`. Copy those three lines in, or cite the file:line. `measure-relay-prompt-scope-and-agent-precision`'s blackboard is 4,215 characters — this is not a trivial synthesis to improvise.
+
+### 4. Context breadth — one item is too broad, one claim is wrong
+
+**Too broad for inlining:** the "Standing pattern worth naming" paragraph asks the ticket to decide "where future `gap` findings go instead." That is a durable routing policy for the Dream pipeline, not a fact about this cohort. Per `CLAUDE.md`, whatever gets decided belongs in a context or the roadmap, and the ticket should name the target file rather than leaving an agent to invent a home for it mid-triage.
+
+**Wrong, and it would get committed into a contract file:** the ticket asserts `script:` "is ticket frontmatter, and core has no reader for it anywhere." There is a reader. `src/coga/ticket.py:74-80`:
+
+```python
+# Bounded model migration: older Coga versions wrote `script: null`
+# into every ticket. The launch-integrated script field no longer
+# exists, so treat that inert legacy value exactly like an absent key.
+if fm.get("script") is None:
+    fm.pop("script", None)
+```
+
+All 15 occurrences are `script: null`, so they are already handled and self-heal on the next write through core. The proposed new README row would be false prose in the file that is the contract for the directory. The correct row is "`script:` — Gone; a bounded migration in `src/coga/ticket.py:74` strips `script: null` on next write," which also means this may not warrant a row at all.
+
+**Verified correct** (no action needed): the empty-`## Description` mechanic; 15 drafts carrying `script:`, all null; `coga/workflows/` exists but has no `code/` subdirectory; `coga validate` reports exactly 4 ERRORs, all `unsynthesized-draft-blackboard`, all under `v2/`; the draft-only gating at `src/coga/validate.py:447`; everything else WARN.
+
+### 5. Scope — this is three tickets
+
+The "18 empty descriptions" half is **not** the cheap mechanical half the framing implies. All 17 real files are title-only stubs with an empty `## Context` as well. For `model-selector` (328 B) or `add-subproject` (328 B) the entire informational content is the slug. Each one is an owner-interview question or a cancel decision. That is 17 human judgments, not 17 edits.
+
+Full inventory of decisions in this ticket:
+- 17 stub verdicts (interview / cancel / leave), each needing the owner
+- 8 premise verdicts, 3 of them with no evidence supplied (#6)
+- 8 `coga mark canceled` lifecycle writes with Slack notifications
+- 2 README table rows (one of which is currently wrong)
+- 2 blackboard syntheses, one over a 4.2 KB blackboard
+- the "where do future gap findings go" policy question (#4)
+
+The natural split: (a) README table correction — small, PR-shaped, no lifecycle writes; (b) premise-dead cohort adjudication — 8 slugs, human-gated, needs evidence for 3; (c) the stub cohort — an owner interview, not a code ticket.
+
+### 6. Assumptions to question — the premise-dead list does not hold uniformly
+
+I spot-checked four of the eight.
+
+**Holds cleanly (2):**
+- `audit-rules-md-usage-across-relay-and-decide-wheth` — confirmed dead. `rules.md` exists nowhere except as a stale-artifact fixture in a prune test (`tests/test_init.py:1379`). `grep rules src/coga/compose.py src/coga/paths.py` returns nothing — the "Global rules" layer the draft audits no longer exists.
+- `document-workflow-less-concept-capture-drafts-as-s` — confirmed dead. Its deliverable shipped: `coga/contexts/coga/architecture/SKILL.md:363-400` documents workflow-less drafts as a valid authoring state and explicitly names the validator-nagging problem the draft was written about.
+
+**Does not hold as stated (1) — highest-value flag:**
+- `add-relay-skill-search-with-candidate-eval` is listed under "each settled the other way." I find no settlement. `coga skill --help` shows install / install-local / install-url / update / remove / status — **no `search`**. The subject the draft proposes was never built, and the surfaces it names are still live. `coga/log.md` contains only its creation and two unrelated git-sync failures — no decision, no cancel, no counter-ticket. By the README's own two-question test it passes both. It is a live gap, not premise-dead. Cancelling it would delete an open gap with a recorded reason that isn't true.
+
+This generalizes: **five of the eight slugs get a parenthetical reason; three — `dev-loop-git-hygiene`, `relay-design-repositories`, `add-relay-skill-search-with-candidate-eval` — get only "each settled the other way,"** with no pointer to where the settlement is recorded. Those three are exactly the ones an agent must re-derive from nothing, and the one I checked contradicts the claim.
+
+**Partially holds (2):**
+- `skill-update-aborts-on-uncommitted-log-file` — the stated root cause is genuinely gone (`src/coga/commands/launch_script.py` no longer exists, no `run_script_mode` anywhere). But the draft's *secondary* finding is untouched: `_assert_no_unmerged_paths` at `src/coga/skill_manager.py:417` still filters on `--diff-filter=U` only, so it still walks past an ordinary dirty tracked file before `_checkout` at line 488. A cancel reason must name the surviving residue or it silently drops a live gap. (Note the repo's `git status` at session start: `M coga/log.md` — the dirty-tree condition is not hypothetical.)
+- `autotrigger-ticket-type` — evidence given is "every cross-reference dead." I verified 6 of 7 named slugs do not exist. But dead cross-references make a draft *harder to act on*; they are not the README's premise test. The subject is a proposed unification of recurring + idle triggers — recurring is very much alive — so the subject was never deleted, it was never built. **Compounding incentive:** this slug and `split-context-to-doc` are 2 of the 4 `coga validate` ERRORs, and the ticket notes that cancelling them is what turns validate green. An agent under pressure to deliver a green gate has a direct incentive to rule "dead." Worth stating explicitly that a green validate must not be a reason to cancel.
+
+### Composed-prompt size
+
+`workflow_skill` (code/implement) at 8.1 KiB is **40.3% of the 20.1 KiB total** — the one layer over the flag line. But it's generic, fixed, per-launch overhead shared by every `code/with-review` ticket; trimming it is a repo-wide change, not a fix for this ticket, and I'd rate it low-value.
+
+The more useful reading is the inverse. Ticket-specific payload — `task_description` (1.4 KiB) + `task_context` (3.3 KiB) — is 4.7 KiB, **23% of the prompt**, carrying roughly 27 distinct judgment calls. That's ~175 bytes of guidance per decision. The composition isn't bloated; the ticket is under-specified for its own scope.
+
+### Bottom line
+
+The mechanical claims re-verified on 2026-09-02 mostly hold and hold precisely — the `coga/workflows/code/` observation and the `validate.py:447` draft-only gating are genuinely good catches. The problems are on the judgment side: one half of the ticket (17 stubs) has no deliverable and no recoverable material; one of the two "confirmed dead" cohorts contains at least one draft that a five-minute check shows is alive; one Context fact is wrong in a way that would land false prose in a contract file; and the human-gate mitigation routes decisions into a step that is barred from making them. I would not launch this as-is.

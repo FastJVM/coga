@@ -415,3 +415,482 @@ Result: 27 issue(s): 0 direct fix, 5 PR proposal, 22 human-needed.
   Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
 - `v2/relay-design-repositories`: `unknown-assignee` (warn) - assignee 'nicktoper' is neither a known agent type nor one of this ticket's role-field values
   Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+
+## Dream Run Notes — 2026-W36
+
+Serviced period read from `coga/log.md`: `created recurring/dream for 2026-W36`
+(2026-09-02 11:55). Repo root `/home/n/Code/claude/coga`, control branch `main`,
+remote `origin` → `https://github.com/FastJVM/coga/`.
+
+### Phase 1 — validate-drift: `reported`
+
+`coga run validate-drift` → 27 issues (0 direct-fix, 5 pr-proposal, 22
+human-needed). Full classification in `## Dream Skill: validate-drift` above.
+The fix pass repaired nothing (no missing blackboard fences).
+
+### Phase 2/3 scan mechanics
+
+- Knowledge scan directory: `/tmp/dream-ks-Poha8f` — 15 shards (`ks-01`…`ks-15`),
+  242 corpus files (155 tickets + 87 knowledge files, 1.74 MB) each owned exactly
+  once, every shard inside the 150 KB / 40 file budget.
+- Contract audit directory: `/tmp/dream-ca-6o1Ife` — 8 shards (`ca-01`…`ca-08`),
+  69-file living contract surface (22 contexts, 23 skills, 8 recurring template
+  files, 13 docs, README/CLAUDE.md/AGENTS.md) each owned exactly once.
+
+### Phase 4 — Retro eligibility (computed before delegation)
+
+Scanned every `status: done` task under `coga/tasks/` for a real `## Dev`
+`branch:`/`worktree:` value and checked both open PRs (#735, #736) for marker
+or deletion overlap. Neither open PR touches any candidate.
+
+**Eligible (7)** — done, directory present, no feature checkout recorded:
+
+- `retire-autoclose-skips-annotated-pr-lines` (done retire task; its
+  `## Retro run` note documents a *different* ticket's Retro pass, so it is not
+  a marker on itself)
+- `recurring/autoclose-merged`
+- `recurring/blocker-reminders`
+- `recurring/branch-sweep`
+- `recurring/digest`
+- `recurring/resolve-conflicts`
+- `recurring/skill-update`
+
+**Deferred retirement debt (21)** — `status: done` but the blackboard `## Dev`
+records a real branch and worktree, so these are retirement debt, not Retro
+input. Left on disk untouched so the human-typed `coga retire <slug>` stays
+valid: `autoclose-should-name-the-retire-follow-up`,
+`bumppy-requires-exactly-two-agents`,
+`dream-phases-2-3-cannot-complete-scan-subagents-re`,
+`fix-the-autofix-analyst`, `launch-ignores-the-recorded-worktree-stranding-bla`,
+`megalaunch-only-shows-one-page`,
+`migrate-recurring-templates-to-ticket-py-shims-and`,
+`move-cogacontext-to-roodoc-so-its-easier-for-human`, `put-build-back`,
+`read-the-recurring-serviced-period-from-the-log-dr`,
+`reconcile-recurring-wrapper-tty-admission-guidance`,
+`recurring-last-serviced-period-compares-as-a-strin`,
+`recurring-recipe-question`, `refuse-recurring-runs-from-a-non-control-branch`,
+`remove-coga-build-and-project`, `remove-legacy-config-compatibility-shims`,
+`review-slack-channels`, `rewrite-coga-base-prompt-and-agent-mode-block`,
+`select-session-conduct-instead-of-appending-a-cont`, `unblock-rewind`,
+`validate-drift-classifier-misses-17-emitted-kinds`.
+
+**Not Retro input:** `status: canceled` tasks. `retro/done-ticket` stops and asks
+when any passed task is not `status: done`, so the 7 canceled tickets
+(`digest-can-clobber-recurring-last-serviced-period`,
+`nightly-auto-drain-run-for-ready-tickets`, `parse-agents-rejects-cogalocaltoml`,
+`ship-a-shared-recurring-reminder-engine-battery`,
+`v2/document-interactive-recurring-sweep-hazard-in-rel`,
+`v2/document-parent-orchestrates-child-script-tasks-pa`,
+`v2/move-some-alerts-to-coga-important-instead-of-coga`) are out of scope for
+this phase.
+
+## Findings
+
+Merged from Phase 2 (`/tmp/dream-ks-Poha8f`, 15/15 shards complete) and Phase 3
+(`/tmp/dream-ca-6o1Ife`). 54 raw Phase-2 blocks → 51 distinct findings after
+de-duplication: 18 `extract`, 23 `stale`, 10 `gap`.
+
+Two blocks were dropped as non-findings:
+- `ks-02` filed "Packaged digest recurring template declares a workflow that is
+  not packaged" and then **retracted it in a later block**. The retraction is
+  correct: `digest/post.md` is packaged under
+  `src/coga/resources/templates/coga/bootstrap/workflows/digest/post.md` (the
+  bundled-fallback tree resolved by `coga.paths.workflow_path`), and
+  `tests/test_packaging.py` registers that twin explicitly. No action.
+- `ks-13` and `ks-11` independently reported the same `coga/scripts/cron.sh`
+  defect; merged into one finding below.
+
+### Blocking structural result — Phase 4 cannot consume any `extract` finding
+
+**All 18 `extract` findings name a source ticket that is retirement debt or
+canceled.** None is in Phase 4's eligible set (see the eligibility section
+above). The Dream body assumes `extract` findings are "already handled by
+Phase 4"; this run they cannot be, because every knowledge-bearing done ticket
+in the corpus records a real `## Dev` checkout and is therefore deferred to
+`coga retire`, not delegated to Retro.
+
+The knowledge itself is not at risk — those tickets stay on disk. The *findings*
+are, because this blackboard is deleted at the next firing. Phase 6 therefore
+routes the whole `extract` backlog to a tracked draft ticket rather than letting
+it die here, and files the routing hole itself as a `gap`.
+
+### `extract` — grouped by the context/skill area they touch
+
+**coga/codebase** (5)
+1. `autoclose-should-name-the-retire-follow-up` — peer review's microkernel
+   refinement: do not promote a helper to core while its existing duplicate
+   consumers stay unmigrated. `append_report` exists as three byte-identical
+   private copies (`skill_update.py`, `dream_validate_drift.py`,
+   `dream_cleanup_orphan_markers.py`); the rule is "consolidate the real
+   consumers, don't add a fifth".
+2. `bumppy-requires-exactly-two-agents` — validate-before-write for lifecycle
+   mutations: build a prospective `Ticket`, validate via
+   `assert_task_valid(..., ticket_override=...)`, then commit. Three writers
+   converted (`mark.py:193`, `:334`, `bump.py:178`); `mark_active`,
+   `mark_in_progress`, `mark_blocked`, `mark_paused` still write-then-validate.
+3. `select-session-conduct-instead-of-appending-a-cont` — `coga launch
+   --prompt-report` reads as a report but runs under the mutating `launch`
+   command and is swept, so it publishes working-tree edits. The codebase
+   context's "read-only commands are safe" list invites exactly the wrong
+   inference.
+4. `megalaunch-only-shows-one-page` — silent twin of the documented editable-
+   install failure: inside a feature worktree a bare `python -m pytest` imports
+   the *primary* checkout's source. `PYTHONPATH=$PWD/src` is the default
+   invocation, not a repair.
+5. `rewrite-coga-base-prompt-and-agent-mode-block` — authoring rules for
+   `src/coga/resources/prompt*.md`: an abridged restatement inside a prompt
+   resource is often the only version an agent sees, and a guard split across
+   two resources can be deleted wholesale in one commit with tests still green.
+
+**coga/recurring** (3)
+6. `recurring-last-serviced-period-compares-as-a-strin` — how to suppress a new
+   template's first firing (record a real ledger line for the period; a
+   placeholder token is rejected, not silently accepted).
+7. `migrate-recurring-templates-to-ticket-py-shims-and` — why a `ticket.py`-
+   backed step keeps `assignee: agent`: the assignee vocabulary is deliberately
+   role-only, and a script role would reintroduce the rejected `mode:` field.
+8. `fix-the-autofix-analyst` — two of the ticket's three specified defects are
+   still live in `src/coga/recurring_autofix.py`: `detail = (result.stderr or
+   result.stdout or "")` hides the real cause, and the analyst subprocess passes
+   no `stdin`, so piped bytes graft onto the prompt.
+
+**dev/code** (2)
+9. `launch-ignores-the-recorded-worktree-stranding-bla` — `coga launch` never
+   chooses the agent's working directory: `run_with_done_marker` takes no `cwd`
+   and there is no `os.chdir` in `src/coga/`. `worktree:` authorizes the
+   single-checkout assist; it does not place anything.
+10. `launch-ignores-the-recorded-worktree-stranding-bla` — the `requires: branch`
+    gate is cheaply satisfiable by hand-copying the lines, and `open-pr`'s
+    "commit or stash them" remediation steers an agent into committing the
+    stranded duplicate onto the feature branch, manufacturing a `ticket.md`
+    merge conflict.
+
+**coga/architecture** (1)
+11. `put-build-back` — a `--agent` override now propagates across *directly
+    consecutive* frozen agent steps and stops at a role change or human assist
+    (`launch.py`, `consecutive_agent_override`). Architecture still describes it
+    as "for that launch only".
+
+**coga/extension-model** (1)
+12. `remove-legacy-config-compatibility-shims` — alias-validation failure modes:
+    a built-in collision is a hard `ConfigError` at dispatch, except `coga init`
+    and the cross-repo `coga recurring --all` parent, which discard the invalid
+    map; an `uninstall` alias is warned-and-ignored.
+
+**coga/period-task + coga/codebase gotchas** (1)
+13. `ship-a-shared-recurring-reminder-engine-battery` (canceled) — cross-run
+    state writers must use the fence-aware `coga.blackboard` / `coga.taskfile`
+    API. A hand-rolled whole-file regex mistakes body prose for state; a bare
+    append destroys a fence on a file that ends at one, breaking every
+    blackboard reader at once.
+
+**coga/sync** (1)
+14. `move-cogacontext-to-roodoc-so-its-easier-for-human` — an experiment that
+    mutates tracked repo state and is exercised *through Coga commands*
+    publishes itself: the catch-all `sync_coga_state` sweep committed and pushed
+    the relocation on the first `coga validate`. There is no window in which
+    such an experiment is only local; run it with `[git] enabled = false` or in
+    a throwaway clone.
+
+**coga/project-stage** (1)
+15. `put-build-back` — two more delete-then-restore cycles for the
+    bias-toward-deletion precedent list (`coga build` #691→#701; the `remove-run-py`
+    epic's #670 reversed by the `ticket.py` seam), plus the partial-revert
+    procedure both produced.
+
+**bootstrap/retro** (1)
+16. `dream-phases-2-3-cannot-complete-scan-subagents-re` — Phase 4 is the one
+    Dream phase with no on-disk progress contract. The scan protocol
+    generalized the hedge for Phases 2–3 only; Retro, the *destructive* phase,
+    still delivers all-or-nothing through a final message.
+
+**code/with-review workflow** (1)
+17. `reconcile-recurring-wrapper-tty-admission-guidance` — the workflow never
+    says the peer review must have *returned and been read* before `coga bump`.
+    PR #723 was opened, advanced and merged while its review was still running;
+    the review then returned six actionable regressions in merged code,
+    including two P1 lifecycle races.
+
+**code/self-qa** (1)
+18. `megalaunch-only-shows-one-page` — no rule covers surfaces automated tests
+    structurally cannot reach. The `--pick` TTY loop was uncovered by a green
+    suite and the bug was found by eye; a recorded manual sweep with exact
+    conditions should be a gate, and an undrivable terminal a blocker.
+
+### `stale` — a context, skill, or template contradicts repo reality
+
+**coga/contexts/coga/architecture/SKILL.md** (2)
+19. The step-gate section still presents `pr` as the whole gate registry and
+    closes with "both `pr` policies". `step_gate.py` registers two tokens —
+    `branch` (`_has_branch_linkage`) alongside `pr` — and `dev/code` plus
+    `code/implement` already cite `requires: branch`.
+20. The prompt-composition section concludes "the agent reads the ticket as
+    written". Composition carries exactly `## Description`, `## Context`, and
+    the blackboard; `_extract_section` stops at the next `##`, so every other
+    body section is silently dropped.
+
+**coga/skills/code/design/SKILL.md** (1)
+21. `code/design` writes `## Acceptance Criteria`, `## Proposed Shape`, and
+    `## Out of Scope` as sibling sections that never reach the implement agent's
+    prompt — the same root cause as #20, from the authoring side.
+
+**coga/contexts/coga/extension-model/SKILL.md** (2)
+22. It inlines ~450 words of lease/publication/snapshot detail that
+    `coga/launch-internals` owns, and never references that context — not in the
+    body and not in its does-NOT-cover list.
+23. Its kernel derivation and command-classification table exclude commands core
+    actually keeps (`digest`, `megalaunch`, and the dozen-plus verbs
+    `cli.py` registers), contradicting `coga/codebase` and CLAUDE.md.
+
+**coga/contexts/coga/sync/SKILL.md** (2)
+24. The live-producer pointers name `commands/block.py`, `commands/bump.py`, and
+    `commands/launch.py`; those modules now only call `preflight_post`. The
+    actual deliveries are `src/coga/bump.py:250` and `src/coga/mark.py:986`.
+25. It omits the `slack_response.py` boundary: the `live`/`revoked`/`unreachable`
+    classification behind the `slack-revoked` and `slack-misconfigured` issue
+    kinds, and — more importantly — `redact_slack_webhook_credentials`, which
+    exists because a webhook URL is a bearer token and coga writes failure
+    strings to the git-tracked `coga/log.md`.
+
+**coga/contexts/coga/period-task/SKILL.md** (2)
+26. It enumerates four period-key shapes; `src/coga/recurring.py` emits five
+    (`YYYYMMDDTHHMM` for schedules outside the four buckets). This is the context
+    auto-attached to every firing.
+27. Step 3 offers "`coga mark done` for a workflow-less ticket" — a state the
+    code forbids: every period task is created with a workflow, and activation
+    refuses a workflow-less ticket.
+
+**coga/contexts/coga/codebase/SKILL.md** (1)
+28. Its skill inventory presents two categories (repo-authored namespaced;
+    `coga skill install` flat). `anthropic/skill-creator/` is a third shape —
+    hand-vendored under a namespace, absent from `managed-skills.toml`, carrying
+    its own attribution and licence.
+
+**coga/contexts/coga/secrets/SKILL.md** (1)
+29. It frames vault/SA scoping as the boundary bounding automation reach, and
+    never states what architecture does: `build_launch_env()` never scrubs
+    `OP_SERVICE_ACCOUNT_TOKEN`, so a launched agent reaches every vault the SA
+    can, regardless of the ticket's `secrets:` declaration.
+
+**coga/contexts/coga/roadmap/SKILL.md** (1)
+30. `## Current sequence` item 4 presents the workflow-to-playbook rename as live
+    ordering guidance; its only ticket is a `draft` in the v2 parking area whose
+    body is entirely pre-rename (`relay/architecture`, `src/relay/*`). The same
+    context's own deferred-work section says v2 items are pulled forward only by
+    explicit decision. `Last updated: 2026-07-15`.
+
+**coga/contexts/coga/current-direction/SKILL.md** (1)
+31. Its `Last updated` stamp is 32 days behind its own content, and nothing
+    bumps it.
+
+**Packaged `coga/cli` context** (2) — `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`
+32. It offers `coga/scripts/cron.sh` as the optional scheduler entry point. No
+    `cron.sh` and no `coga/scripts/` exists in the checkout or the wheel.
+    (Reported independently by `ks-13` and `ks-11`; merged.) This also strands
+    the parked draft `v2/wire-recurring-sweep-into-system-cron`, whose whole
+    deliverable is scheduling that file.
+33. It has no section for `coga usage` or `coga digest`, both registered in
+    `cli.py`. This is the only shipped `coga/*` context with **no live twin**, so
+    the "update both copies" habit never fires for it.
+
+**Recurring templates** (1)
+34. `coga/recurring/skill-update/ticket.md` and its packaged twin open by
+    asserting imported skills carry `.coga-source.json` provenance and instruct
+    the run to walk skills with recorded provenance. Zero such files exist, so
+    the weekly run's stated scan set is empty. Owned by the open draft
+    `vendored-skills-carry-no-coga-source-json-so-coga`.
+
+**Skills — frontmatter and vendored packs** (2)
+35. `coga/skills/anthropic/skill-creator/SKILL.md` carries upstream's bare
+    `name: skill-creator`, which is exactly what its own `ATTRIBUTION.md`
+    forbids. `browser/dochub` and `browser/playwright` likewise carry bare
+    quoted names instead of their `browser/` prefix.
+36. `coga/skills/google-agents-cli-workflow/SKILL.md` tells the agent to install
+    or refresh the pack with `uvx google-agents-cli setup` / `agents-cli setup
+    --skip-auth`. In this repo those packs are managed by `coga skill install`
+    / `coga skill update` and refreshed by `recurring/skill-update`; following
+    the vendored instruction writes an unmanaged second copy outside the PR
+    loop. **Overlaps open PR #736**, which edits this file — defer, do not open
+    a conflicting PR.
+
+**Shipped `code/*` workflows** (1)
+37. All three packaged `code/*` workflows carry long agent-directed inline `##`
+    step bodies for steps that declare `skills:`. `_step_layers` returns early
+    when a step has skills, so no launched agent has ever read them. The
+    `## implement` body is byte-identical across two files and differs by one
+    word in the third — three unenforced copies of a rule whose purpose is to
+    make the stranded-write failure loud.
+
+**Stale *tickets* (not contract surface — routed differently)** (4)
+38. `v2/dream-recurring-persist-done-stop-inline-delete` — a detailed spec whose
+    four load-bearing assumptions all inverted (flat `recurring-<name>-<period>`
+    slugs, no dedupe, `tasks/recurring/` grouping "out of scope"). Reads as
+    authoritative to whoever unpauses it.
+39. `v2/automerge-ticket` — its `## Evaluator review` explicitly *verified* that
+    `code/` is not packaged and needs no dual-copy sync. The layout is now
+    exactly inverted. The verification is what makes it dangerous.
+40. `v2/dev-loop-git-hygiene-lift-sync-with-main-into-code` — both halves of its
+    `## Acceptance` already shipped (`code/implement` step 8; `branch-sweep`).
+41. `verify-the-pr-review-comment-loop-once-the-review` — blocked on a
+    precondition ("once the review queue drains") that is now satisfied.
+
+### `gap` — a repeated pattern with no context, skill, or workflow to carry it
+
+42. **`coga.local.toml` in isolated checkouts** — `dev/code` "Checkout boundary"
+    and `code/implement` both instruct the agent to create a linked worktree or
+    `/tmp` clone, and neither mentions that `coga/coga.local.toml` is gitignored,
+    so the next mutating Coga command exits 2. Confirmed by two tickets that hit
+    it as a dead end, plus three places that already work around it ad hoc.
+    Target: `coga/contexts/dev/code/SKILL.md`.
+43. **What a fresh linked worktree lacks** — three tickets in the
+    "run recurring from somewhere else" family each re-derived the same facts,
+    one as a mid-implementation blocker: the three gitignored paths and which
+    self-heal, the one-checkout-per-branch rule, and the detached-HEAD publish
+    refusal. Target: `coga/contexts/coga/codebase/SKILL.md`.
+44. **CI posture** — three tickets each re-derived it and all three are now
+    wrong. `.github/workflows/release.yml` exists but is publish-only; there is
+    no PR/push test job, so the local suite plus `coga validate` are the whole
+    release gate. Target: `coga/contexts/coga/codebase/SKILL.md`.
+45. **Live/packaged twin rule for recurring templates** — all seven templates
+    have packaged twins, `IDENTICAL_LIVE_PACKAGED_PAIRS` enforces only some, and
+    `coga/recurring` never mentions the twin at all. Three tickets circle it.
+    Target: `coga/contexts/coga/recurring/SKILL.md`.
+46. **`preflight_post`** — `coga/sync`'s "Design rule for new features" lists
+    cadence, destination, post-after-write ordering and `sync_task_state`, but
+    not the preflight that makes misconfiguration crash *before* the state
+    write. Five call sites. The omission is invisible in any repo whose webhook
+    resolves. Target: `coga/contexts/coga/sync/SKILL.md`.
+47. **Cite symbols, not line numbers** — grepping contexts, skills and workflows
+    for "line number" returns nothing, while `bootstrap/ticket` owns `## Context`
+    authoring. A cold evaluator tabulated nine stale citations in one ticket and
+    called it blocking; the follow-up ticket pinned twenty more anyway.
+    Target: `bootstrap/ticket` SKILL.
+48. **Dream refiles gaps it already ticketed** — nothing tells a shard to check
+    for an existing owner before classifying a `gap`. Four drafts show the cycle,
+    including two filed by different runs for the identical gap. Target:
+    `bootstrap/dream/scan/knowledge-scan` SKILL.
+49. **Phase 1 `human-needed` issues have no durable home** — `coga/log.md` shows
+    W33 23, W34 23, W35 29, W36 22: four runs, no trend, no ticket, no marker.
+    Two of the stuck tickets have been reported by every run since W34. Needs a
+    routing rule (one draft per systematic class, or a hygiene ledger outside the
+    period blackboard). Target: Dream body Phase 6 + `validate-drift` skill.
+50. **Dream `gap` tickets get parked in `coga/tasks/v2/` and decay** — no context
+    states they must not be. Target: `coga/tasks/v2/README.md` + Dream Phase 6.
+51. **The human-doc vs agent-context boundary** is re-opened by every new ticket
+    and recorded nowhere. Target: `coga/contexts/coga/architecture/SKILL.md`.
+
+### `drift` — Phase 3 contract audit
+
+8/8 shards complete, 13 raw blocks → 6 new distinct findings. `ca-03` (sync,
+dev/code, marketing, browser contexts), `ca-06` (recurring templates + copy
+divergence) and `ca-07` (README, CLAUDE.md, AGENTS.md, `docs/reference.md` and
+the operational docs) each returned an explicit **0 findings** — those surfaces
+audit clean.
+
+Dropped as non-findings:
+- `ca-01` and `ca-02` both reported that three live contexts point at a
+  `coga/cli` context absent from `coga/contexts/`. **`ca-02` then retracted it,
+  correctly**: `paths.resolve_context_path` falls back to the packaged
+  `bootstrap/contexts/<ref>/SKILL.md`, and the 65 KB `coga/cli` seed is tracked
+  there. The same bundled fallback covers the `code/*` workflows that are
+  likewise absent from `coga/workflows/`. Neither is drift. (Contrast finding 52
+  below, which is a genuinely missing *file*, not an unresolved ref.)
+- `ca-05` filed an evidence addendum to its own skill-creator finding; folded in.
+
+Three Phase-3 findings duplicate Phase-2 findings from different evidence and are
+merged rather than listed twice: the bare skill `name:` frontmatter (Phase 2 #35,
+now with `ca-04`/`ca-05`'s code proof that `paths.resolve_skill_path` builds
+`skills_root / ref / "SKILL.md"`, so the advertised name is unciteable, and that
+`browser/playwright`'s packaged twin carries the same bare name); and
+`current-direction`'s stale `Last updated` stamp (Phase 2 #31).
+
+**New drift:**
+
+52. **`coga/contexts/coga/architecture/SKILL.md` — the reserved frontmatter key
+    list matches neither code constant.** This is load-bearing:
+    `src/coga/config.py:678` raises "collides with the canonical ticket
+    frontmatter key ... See the `coga/architecture` context for the reserved
+    set", naming this list as the source of truth. Two defects. `period_generation`
+    is in `ticket.CANONICAL_TICKET_KEYS` and `validate.OPTIONAL_TASK_KEYS` but
+    missing from both the context list and `config._RESERVED_TICKET_FIELD_NAMES`
+    — so `[ticket.fields.period_generation]` is accepted today and would collide
+    with the runner-written key on any recurring period task. Conversely `slug`
+    is listed as reserved in the context but is absent from
+    `_RESERVED_TICKET_FIELD_NAMES`, so `[ticket.fields.slug]` loads without error
+    despite `slug` being in `validate.REQUIRED_TASK_KEYS`.
+53. **`coga/contexts/coga/architecture/SKILL.md` — the launch env-var contract
+    lists seven members and says "two are conditional".** `task_env.TASK_ENV_KEYS`
+    has ten: the seven plus `COGA_ASSIST_AGENT`, `COGA_ASSIST_BRANCH`,
+    `COGA_ASSIST_PR`. All three are really exported (`commands/launch.py:3004`,
+    `launch_script.py:279`) and read back by in-session state commands
+    (`pr_assist.py`, `cli.py:229`). `grep -rn COGA_ASSIST coga/contexts/coga/*/SKILL.md`
+    is empty — including `coga/launch-internals`, where architecture defers the
+    strict-assist invariants. Ten members, five conditional.
+54. **`coga/contexts/coga/period-task/SKILL.md` — calls the unadvanced-state-key
+    alert "a Slack FYI".** `mark.py:602` posts it with `important=True`, and
+    `coga/important` independently names "unadvanced recurring state" as a
+    coga-important event. The two contexts disagree; period-task is wrong.
+55. **`docs/concepts.md` — the documented prompt-layer order no longer matches
+    `compose_prompt`.** The doc places the ticket's inline `## Context` before
+    skills (code emits it after) and the blackboard before the task description
+    (code emits description first, blackboard last). `compose.py:272` records the
+    contiguous-ticket ordering as a deliberate change (#427). The follow-on
+    sentence "Only the blackboard (layer 6) carries state forward" cites a layer
+    number that no longer corresponds to the blackboard.
+56. **`coga/skills/_template/SKILL.md` — names `coga run` as the only home for
+    deterministic headless behavior.** The microkernel rule in `coga/codebase`
+    and CLAUDE.md now sanctions two edges: a fixed `runner.RECIPES` entry for
+    behavior needing a repo-independent argv/stdout/exit contract, and the
+    reserved sibling `ticket.py` for a ticket-owned headless phase. The
+    `ticket.py` route is how every recurring job in this repo actually runs, and
+    the starter template points a new author at only one of the two.
+57. **Skill frontmatter `name:` is unqualified in three vendored packs** (merged
+    with Phase 2 #35): `anthropic/skill-creator` (`name: skill-creator`, which its
+    own `ATTRIBUTION.md` explicitly forbids), `browser/playwright`
+    (`name: "playwright"`, and its packaged twin carries the same bare name, so a
+    fix must touch both), and `browser/dochub` (`name: "dochub"`). Coga resolves
+    skills by path, so each advertises a name no ticket can cite. PR #736 does not
+    touch any of these three, so the fix is conflict-free.
+
+### Phase 4 — retro/done-ticket: `direct-fixed` (7 direct deletes, 0 knowledge PRs)
+
+Delegated as one subagent run of `retro/done-ticket` with all seven eligible
+slugs, in a dedicated linked worktree at `/tmp/coga-dream-retro-247403`
+(branch `dream-w36-retro-1788376680`, based on the fetched `origin/main` tip
+`39fdef32`). The caller's gitignored `coga.local.toml` was ordinary-copied in at
+mode 0600 and never staged. Evidence snapshot: `/tmp/dream-retro-snap-bSyo7t`
+(read-only ordinary copies of the seven resolved artifacts including sibling
+`ticket.py` files, `coga/log.md`, the live `contexts/` and `skills/` corpus, and
+this task's `## Findings`).
+
+Every one of the seven carried **no new durable knowledge**, so all seven were
+direct-deleted with `coga delete <slug> --keep-control-checkout`. No knowledge
+PR, no `## Retro` marker, no `## Pruned` bookkeeping. Recovery is `git restore`.
+
+Independently verified after a fresh fetch — not taken from the subagent's report:
+
+- `origin/main` advanced `39fdef32` → `38858dd9` across exactly seven
+  `Ticket: <slug> — deleted` commits.
+- All seven paths are absent from `origin/main`.
+- `git diff --name-only 39fdef32 38858dd9` touches **only** `coga/tasks/` paths —
+  nothing else was modified.
+- `coga/recurring/` still holds all seven templates, and `coga/log.md` on
+  `origin/main` still carries the `created recurring/dream for 2026-W36`
+  serviced-period line.
+- The Dream task itself (`coga/tasks/recurring/dream/ticket.md`) is untouched.
+
+Deleted: `retire-autoclose-skips-annotated-pr-lines`,
+`recurring/autoclose-merged`, `recurring/blocker-reminders`,
+`recurring/branch-sweep`, `recurring/digest`, `recurring/resolve-conflicts`,
+`recurring/skill-update`.
+
+This is the expected shape for period tickets — their output was the
+notification post each already produced — and it is corroborated by Phase 2
+finding zero `extract` findings against any of the seven.
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-09-02T19:24:04+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
