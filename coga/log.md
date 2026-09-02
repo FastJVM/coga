@@ -4169,3 +4169,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 11:57 [recurring/branch-sweep] [human:nicktoper] task done
 2026-09-02 11:57 [recurring/branch-sweep] [system] script exited with code 0
 2026-09-02 11:57 [bootstrap/resolve-conflicts] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-09-02 11:57 [recurring/resolve-conflicts] [system] started (active → in_progress) via recurring delegation to bootstrap/resolve-conflicts
