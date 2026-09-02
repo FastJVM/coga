@@ -4219,3 +4219,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 13:44 [vendored-skills-carry-no-coga-source-json-so-coga] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-02 13:44 [the-ticket-interview-never-asks-what-done-means] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-02 13:44 [the-ticket-interview-never-asks-what-done-means] [megalaunch] launched via coga megalaunch
+2026-09-02 13:49 [the-ticket-interview-never-asks-what-done-means] [agent:claude] advanced to step 2 (review-design) → assigned to nicktoper — Design done: July verdict confirmed (done-question folded into the interview, criteria as prose in ## Description, no new section, no validator check). No split needed; two compose/validator follow-ups recommended on the blackboard.
