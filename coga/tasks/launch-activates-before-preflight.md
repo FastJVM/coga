@@ -6,7 +6,8 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
-contexts: []
+contexts:
+  - coga/launch-internals
 skills: []
 workflow:
   name: code/design-then-implement
@@ -22,6 +23,7 @@ workflow:
     skills:
     - code/implement
     assignee: agent
+    requires: branch
   - name: open-pr
     skills:
     - code/open-pr
@@ -103,6 +105,37 @@ deliberately upstream of the agent-only preflights because a `ticket.py` run
 genuinely *is* work starting. It is out of scope to move, but it is a third
 caller of `_auto_activate` and the refactor below must keep it working.
 
+**`coga megalaunch` has the same defect, and it is in scope** (owner decision,
+2026-09-02). The invariant this ticket establishes is *activation is atomic
+everywhere*, not "atomic in `launch`, best-effort in `megalaunch`".
+`megalaunch._activate_for_launch` durably `mark_active`s a ticket, and
+`_preflight_agent_launch` — which runs `compose_prompt`, `build_launch_env`, and
+the push-auth check, i.e. the same refusals — runs later. A queue pick with a
+malformed `secrets:` is flipped and then refused, exactly as in `launch`.
+
+The megalaunch half is **not** the same edit, and this is the main reason the
+ticket grew. Three structural differences:
+
+1. **Megalaunch re-reads the ticket from disk between activation and launch.**
+   Phase 2 activates every picked ticket and appends to `launch_plan`; Phase 3
+   then loops and calls `read_ticket(ref)` per entry. The "carry an in-memory
+   activated ticket" technique that works in `_launch` does **not** transfer —
+   a prepared-but-uncommitted mutation would be discarded by that re-read.
+2. **`_preflight_agent_launch` refuses on status.** It returns
+   `f"status is {ticket.status}; expected active or in_progress"`, so it
+   structurally depends on the durable activation already having happened. It
+   has to learn to accept a prospective/prepared view before activation can be
+   deferred behind it.
+3. **The batch shape is deliberate and load-bearing in one place.** Deferring
+   per-ticket activation to just before its own launch is a real semantic
+   change: a ticket picked but never reached under `--max-tasks` would no
+   longer be activated. That is arguably the *desired* behavior, but it is a
+   behavior change to decide, not a refactor. Separately, the
+   dependency-drain call site activates *before* resolving blockers, defended
+   by a comment ("Activate first, resolve second") because the reverse order
+   strands a blocked ticket with no open asks — a state `coga launch` and
+   `coga unblock` both refuse. **That ordering must not be disturbed.**
+
 ## Context
 
 Original report was a raw paste; the Description above was rewritten at design
@@ -177,6 +210,19 @@ whose every line-number citation pointed at the wrong code.
       unaffected either way.
 - [ ] The blocked-resume path, the assist path, and the script path are
       untouched in behavior.
+- [ ] **Megalaunch:** a picked ticket whose `secrets:` is malformed (or which
+      fails any other `_preflight_agent_launch` check) is reported as
+      `skipped-unlaunchable`/`failed` with its status unchanged on disk — no
+      `activated … — explicit megalaunch pick` line in `coga/log.md`, no
+      activation state commit.
+- [ ] **Megalaunch:** one bad ticket still does not kill the sweep — refusals
+      keep returning a `MegalaunchResult` rather than exiting the process.
+- [ ] **Megalaunch:** the dependency-drain call site still activates *before*
+      resolving open blockers, so a refused activation leaves the ticket
+      `blocked` with its asks intact.
+- [ ] **Megalaunch:** the `--max-tasks` interaction is decided and asserted —
+      whether a picked-but-unreached ticket is left unactivated is a stated
+      behavior, not an accident.
 - [ ] New test: a draft ticket + bad `secrets:` → non-zero exit, ticket still
       `draft`, no agent spawned, `coga/log.md` byte-identical to before.
 - [ ] `python -m pytest` passes; `coga validate --json` is clean.
@@ -299,9 +345,49 @@ changes in `mark.py`, `config.py`, or `compose.py` — `prepare_active` and
    - One happy-path assertion that a successful draft launch still logs
      `activated` then `started`, in that order.
 
+### Megalaunch (`src/coga/megalaunch.py`)
+
+In scope by owner decision. Do this **second**, as a separate commit — it is a
+behavior change, not a pure reordering, and it should be reviewable on its own.
+
+6. **Give `_activate_for_launch` the same prepare/commit split.** Its `except`
+   ladder maps the identical five exceptions to `MegalaunchResult`s instead of
+   `_bail`s, and splits along the same seam (four from `prepare_active`,
+   `TaskValidationError` from the post-write `assert_task_valid`). Keep the
+   loud-result-not-exit contract — one bad task must not kill the sweep.
+7. **Teach `_preflight_agent_launch` to accept a prospective view.** Today it
+   refuses anything not already `active`/`in_progress`. It needs to run its
+   `compose_prompt` / `build_launch_env` / push-auth checks against a *prepared*
+   ticket, with the status check narrowed to what it is actually there to catch
+   (a terminal or otherwise unlaunchable ticket), not to the activation it is
+   now upstream of.
+8. **Move the Phase 2 activation into Phase 3, per ticket.** Phase 2 keeps
+   selection and the prepared view; Phase 3 preflights, then commits the
+   activation immediately before the launch of that same ticket. Note Phase 3's
+   `read_ticket(ref)` re-read: either the prepare must be redone after it, or
+   the re-read must be reconciled with the prepared view. **Do not** try to
+   carry an in-memory ticket across it.
+9. **Leave the dependency-drain call site alone.** Its activate-before-resolve
+   order is defended by comment and is correct for a different reason. If the
+   split changes its call shape, preserve the ordering exactly.
+10. **Decide and document the `--max-tasks` semantics.** Deferring activation
+    means a picked-but-unreached ticket is no longer activated. State the
+    chosen behavior in the code and assert it in a test.
+11. **Megalaunch tests** in the megalaunch test module: a picked draft with bad
+    `secrets:` stays `draft` with no `activated` log line and a
+    `skipped-unlaunchable` result; the sweep continues past it to the next
+    ticket; the dependency-drain path still activates before resolving.
+
 Suggested order of work: (1) + (2) + (3) together (the refactor is not
 separable from the move), then (4), then (5) — or write the primary regression
-test first and watch it fail, which is cheap here.
+test first and watch it fail, which is cheap here. Land that as one commit,
+then do (6)–(11) as a second.
+
+**Scope note.** Megalaunch was moved in scope deliberately after the tradeoff
+was put to the owner. It roughly doubles the ticket: a second file, a changed
+preflight contract, a batch-semantics decision, and its own tests. If it turns
+out to want its own review cycle, splitting it back out at `implement` is
+reasonable — the `launch` half stands alone and delivers the reported fix.
 
 ## Out of Scope
 
@@ -324,11 +410,6 @@ test first and watch it fail, which is cheap here.
   is at least live for a future normal sweep"). Deliberate, and untouched — but
   it means the criteria above are true of `coga launch`, not repo-wide. Noted
   because an implementer grepping `mark_active` will hit it.
-- **`coga megalaunch`'s early activation.** It activates picked tickets up front
-  (`activated … — explicit megalaunch pick`) and `_preflight_agent_launch`
-  requires `active`/`in_progress` by design. That is a deliberate different
-  contract — an explicit human pick *is* the activation decision. Untouched
-  here; flagged as an Open Question.
 - **Restructuring the preflight gauntlet** into a declarative list. Tempting
   while in this code; a much larger diff than the ordering fix warrants.
 
@@ -405,94 +486,92 @@ retired. See the sibling ticket
 
 ## Evaluator review
 
-Cold review, 2026-09-02, by an independent session that did not see the
-authoring conversation. Verbatim.
+An independent cold session (2026-09-02) verified the spec against source and
+CONFIRMED all five central claims: `_auto_activate` is a durable write via
+`mark_active`; its draft/paused call site really does precede the
+`SecretError` refusal, the push-auth preflight, and the `in_progress` flip;
+there are exactly three call sites, each described correctly; the
+prepare/commit exception seam is exact; and
+`test_launch_fails_loud_on_op_read_error` really does start from an
+already-active fixture. The bug is live on `main`.
 
-### Verification against source
+Findings applied to the spec above:
 
-I read `src/coga/commands/launch.py` (3478 lines; `_launch` spans 494–1986), `src/coga/mark.py`, and `tests/test_launch.py`.
+- **`prior_status` would have been unbound.** Step 3's condition reads it on
+  paths where the step-2 guard never fires → `UnboundLocalError`. Fixed by
+  initializing above the `try`.
+- **`test_launch_refuses_unsynthesized_draft_blackboard` is the better model**
+  for the new regression test — it already asserts byte-equality and log
+  absence. Named in step 5, along with the fixture trap that a draft blackboard
+  carrying authoring notes refuses with `BlackboardNeedsSynthesis` and never
+  reaches `SecretError`.
+- **"no state sync" was imprecise** — `_bail` still runs
+  `_refresh_launch_checkout`. Criterion narrowed to the activation commit.
+- **Criterion 6 was half wrong** — `_refuse_human_handoff_launch` reads only
+  `ticket.assignee` and does not depend on the activated view. Only
+  `compose_prompt` does.
+- **Two ordering changes** (the `active` echo, and `assert_task_valid`) now
+  stated in step 3.
+- **`recurring_runner.py`** has a third instance of the pattern, deliberately
+  defended by its docstring. Added to Out of Scope.
+- **The dead `sync_state` kwarg** on `_auto_activate` is flagged in step 3.
+- **Two fragile invariants** the deferral depends on are now required as code
+  comments, not blackboard notes (the no-reread window, and why the
+  commit-half `prepare_active` re-run is idempotent).
 
-**1. `_auto_activate` performs a durable write via `mark_active` — CONFIRMED.**
-`_auto_activate` is at `src/coga/commands/launch.py:2297`; its body calls `mark_active(...)` with `log_message=f"activated ({prior} → active) — auto on launch"`. `mark_active` (`src/coga/mark.py:748`) does exactly what the ticket claims, in this order: `prepare_active` → `ticket.write(ref.ticket_path)` → `assert_task_valid(action="mark active")` → `append_log` → `typer.echo` → `git.sync_task_state(message=f"Ticket: {slug} — active")`. Durable, logged, and pushed.
+Left as an explicit implementer decision rather than silently inherited: the
+**lost-update window** the deferral opens (blocked-resume has it unguarded;
+assist guards it with a byte comparison). Step 3 requires the choice be made
+and recorded.
 
-**2. The draft/paused agent-path call site precedes `build_launch_env`/`SecretError`, `_preflight_push_auth`, and `mark_in_progress` — CONFIRMED, exactly in the order the ticket's table gives.** Inside the `try:` at line 1316: the `not is_bootstrap and isinstance(ref, TaskRef) and ticket.status in {"draft","paused"} and assist_publication is None` guard calls `_auto_activate` at **1328**, under the "Typing `coga launch` *is* the readiness signal" comment. Then `_refuse_human_handoff_launch` (1330) → `_interactive_stdio_has_tty()`/`_refuse_tty_launch` (1332) → `cfg.agent_type` → `shutil.which` → `compose_prompt` (with the "Fail loud BEFORE flipping status" comment at 1359) → `build_launch_env` → `except SecretError: _bail` (1372–1376) → `_preflight_push_auth` (1398) → the `ticket.status == "active" and assist_publication is None` guard → `mark_in_progress` (1455). The bug is live on `main` as described.
+Notes not acted on: the evaluator also observed that a few refusals already
+precede activation (`agent_type(agent_override)`, the no-assignee bail), so
+"everything that can refuse is below" is true of the listed preflights rather
+than literally every refusal. It does not change the fix.
 
-Two harmless omissions from the ticket's table: `preflight_post` (assist-only), `warn_if_installed_predates_source` (warn-only), and the assist PR head re-verification block also sit in that window. Also worth knowing: a few refusals *already* precede activation (`cfg.agent_type(agent_override)` at ~1300, `_refresh_agent_skills_for_launch`, the "has no assignee" bail at 1314), so the ticket's "everything that can refuse is below" is true only of the listed preflights, not literally of all refusals. Doesn't change the fix.
+## Owner decisions — resolved 2026-09-02
 
-**3. Exactly three `_auto_activate` call sites, each described correctly — CONFIRMED.** `grep -rn "_auto_activate" src/` returns 1153 (script path), 1328 (buggy agent path), 1452 (blocked-resume), plus the definition at 2297. The script branch is verbatim `elif not is_bootstrap and isinstance(ref, TaskRef) and ticket.status in {"draft","paused","blocked"}` inside `if entry is not None:`, preceded by `build_launch_env(cfg, ticket.secrets)` under the "Secret resolution belongs before the activation write" comment. Blocked-resume is `if blocked_resume and isinstance(ref, TaskRef) and ticket.status == "blocked": if assist_publication is None: _auto_activate(...)` immediately above the `in_progress` block. The assist precedent is real too: `_prospective_assist_ticket` (2047) calls `prepare_active` on a *copy* and maps the same errors to `ComposeError`; `_publish_assist_lifecycle_before_spawn` (~2158) calls `mark_active(..., sync_state=False, mutation_snapshot=snapshot)` at the final gate.
+1. **`coga/launch-internals` attached** to `contexts:`, per the context's own
+   instruction to attach it to tickets changing `launch.py`. Costs ~5k tokens
+   per launch; accepted deliberately.
+2. **Frozen `workflow:` snapshot repaired** — `requires: branch` added to the
+   `implement` step to match the live `code/design-then-implement` definition.
+   Done at the owner's explicit instruction; a frozen snapshot is otherwise
+   CLI/human-owned. The implementer must record `branch:` and `worktree:` under
+   a `## Dev` section in the checkout they bump from, or `coga bump` will
+   refuse implement→open-pr.
+3. **Megalaunch brought in scope** — the invariant is "activation is atomic
+   everywhere". See the megalaunch half of Proposed Shape; it is a genuine
+   scope increase, not a second copy of the same edit.
+4. **This blackboard trimmed** — the verbatim evaluator review was 60% of the
+   composed prompt once its substance had been folded into the spec above the
+   fence.
 
-Note: `_auto_activate`'s `sync_state: bool = True` keyword is **dead** — no call site passes it. The split should decide whether to keep it.
+## Open Questions
 
-**4. Prepare/commit exception split — CONFIRMED.** In `prepare_active` (`mark.py:721`): `CancellationError` (canceled), `BlackboardNeedsSynthesis` (via `_refuse_unsynthesized_draft_blackboard`, **only when prior status is `draft`**), `WorkflowMissing` (`_has_workflow`), `WorkflowError` (`_freeze_workflow_ref` → `Workflow.load`), `RequiredExtensionMissing`. `TaskValidationError` comes only from `assert_task_valid` *after* `ticket.write` in `mark_active`. The claimed seam is exact.
+1. **Does a wrong instruction actually exist in `weather-events`?** (Zach's
+   original ask, half (a).) It cannot be actioned from this repo — no
+   mapping-form `secrets:` example exists here outside this ticket's own body.
+   If it does exist there, name the file and it becomes a separate ticket in
+   that repo. Answering "no / don't care" closes this cleanly; the code fix
+   stands either way.
+2. ~~**Should the slug be renamed?**~~ **Resolved 2026-09-02** by the owner:
+   renamed `secrets-instructions-correction` → `launch-activates-before-preflight`.
+   `coga/log.md` is append-only, so pre-rename history stays under the old
+   slug; see "Slug history" in `## Context`.
+3. ~~**Is `coga megalaunch`'s up-front activation intended to stay as-is?**~~
+   **Resolved 2026-09-02** by the owner: no — bring it in scope, so the
+   invariant is "activation is atomic everywhere" rather than "atomic in
+   `launch`, best-effort in `megalaunch`".
+4. **Should a refused launch of a ticket that was already `active` be touched
+   at all?** Current behavior leaves it `active`, which seems right — nothing
+   was falsely claimed. The spec preserves it. Flagging only because it is the
+   case the existing test covers.
 
-The idempotency claim also holds, for a reason the ticket doesn't state: at commit time `prior_status` is already `"active"`, so the re-run of `prepare_active` skips both `CancellationError` and the blackboard check (which is gated on `prior_status != "draft"`), `_freeze_workflow_ref` is a no-op on a frozen dict with a step, and the extension check re-passes. So the commit half genuinely cannot raise the four prepare-side errors.
-
-**5. Test claims — CONFIRMED.** `test_launch_fails_loud_on_op_read_error` (`tests/test_launch.py:2207`) takes the `active_task` fixture, uses `list_tasks(cfg)[0]` (`fix-retry-logic`, already active), and ends `assert Ticket.read(ref.ticket_path).status == "active"` — it never exercises draft→active. `test_launch_auto_activates_draft_and_paused` (2990, parametrized draft/paused) and `test_launch_auto_activate_bails_without_workflow` (3101) both exist and assert what the ticket says.
-
-**One test the ticket missed:** `test_launch_refuses_unsynthesized_draft_blackboard` (3017) also pins the activation ladder (the `BlackboardNeedsSynthesis` arm) and — crucially — is a *better model for the new regression test* than `test_launch_fails_loud_on_op_read_error`, because it already asserts the shape the criteria want: `ticket_md.read_text() == before` and `"activated (draft" not in _read_log(...)`. The spec should name it.
-
-### Reviewer assessment
-
-**Description clarity — good, genuinely cold-startable.** The symbol/guard-condition anchoring works; I located every cited site on the first try. The ticket is honest about what does and doesn't reproduce. Main cost is length and duplication (below).
-
-**Workflow fit — yes.** `code/design-then-implement` at step 2 (`review-design`, owner) is right: the design exists, the owner needs to approve and answer the Open Questions, then bump to `implement`. One concrete hazard: **the frozen `workflow:` snapshot in this ticket's frontmatter is stale.** The live `code/design-then-implement` (`src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md`) now declares `requires: branch` on the `implement` step; the ticket's frozen copy does not. So the branch/worktree gate will *not* fire at implement→open-pr, and the ticket will instead fail later at `coga open-pr` with "No usable `branch:` recorded". The implementer must record `branch:`/`worktree:` under `## Dev` in the checkout they bump from anyway. (There is no `## Dev` section in the ticket today.)
-
-**Contexts `[]` — this is wrong.** `coga/contexts/coga/launch-internals/SKILL.md` says in its own front matter and body: "Attach only to tickets that change launch.py, the recurring runner, open-pr, or the step gates… Add `coga/launch-internals` to a ticket's `contexts:` list when the work touches those paths." This ticket changes lifecycle publication ordering in `launch.py` and sits adjacent to the strict-assist publication machinery (leases, mutation snapshots, `_publish_assist_lifecycle_before_spawn`) that it explicitly promises not to disturb. That is precisely the guarantee set that context documents. It's ~19 KiB (~5k tokens), which would roughly double the prompt — a deliberate call, but the repo's own instruction points at attaching it, at minimum for the `implement` step.
-
-**Scope — right-sized.** One file, one helper split, one moved call, two comment rewrites, four tests. Not bundled. The Out of Scope list is doing real work.
-
-**Proposed Shape — implementable, with these gaps:**
-
-1. **`prior_status` must be initialized before the guard, not inside it.** Step 2 says "capture `prior_status = ticket.status` alongside it"; step 3's condition reads `prior_status in {"draft","paused"}`. If the guard doesn't fire (bootstrap, `BootstrapRef`, assist, already-active, blocked), that name is unbound → `UnboundLocalError` at step 3. Initialize `prior_status: str | None = None` above the `try:` at 1316.
-2. **A new lost-update window the spec doesn't acknowledge.** Today the activation write is instantaneous. Deferred, the in-memory `ticket` is held across `compose_prompt`, `build_launch_env` (which may shell out to `op read`) and `_preflight_push_auth` (a real network `git push --dry-run`) — seconds — and then `mark_active` renders and overwrites `ref.ticket_path` wholesale. A concurrent edit to the ticket in that window is silently clobbered. The assist precedent the ticket cites as "already does the right thing" guards exactly this: `_publish_assist_lifecycle_before_spawn` compares `ref.ticket_path.read_bytes() != initial_bytes` and refuses. Blocked-resume has the same unguarded window today, so this isn't a regression relative to that path — but the spec should either capture the pre-prepare bytes and refuse on drift, or state explicitly that it accepts the window.
-3. **Output ordering changes and the spec doesn't say so.** `mark_active` echoes `{slug}: active — auto on launch` before syncing. After the move, that line appears *after* the `Launch: agent … (cli=…)` / `Launch: found agent CLI at …` lines instead of before. No current test asserts stdout order (only `_read_log`), so nothing breaks, but it's an operator-visible change worth a line in the ticket.
-4. **`assert_task_valid(action="mark active")` also moves.** Deferring the commit means an activation-time validation failure now surfaces *after* the agent-CLI, compose, secret and push-auth refusals rather than before. Criterion 5 ("same operator-facing messages") still holds; the *ordering* of which error the operator sees first changes. Worth stating.
-5. **Criterion 6 is half wrong.** `_refuse_human_handoff_launch` (line 3417) reads only `ticket.assignee` — it never touches the workflow or the step. So it does not depend on the activated view at all, and "does not regress step-assignee refusal" overstates it. `compose_prompt` genuinely does depend on it (`compose.py:403` `ticket.current_step()`, `:426` `ticket.workflow`), so keeping the *prepare* call at the current call site is load-bearing — the spec gets that part right.
-6. **Criterion "no state sync" is imprecise.** `_bail` calls `sys.exit`, which lands in the `except SystemExit` handler at 1499 → `_refresh_launch_checkout(cfg)` → `git.refresh_coga_state_from_control(..., message="Refresh coga state after launch")`. So a refused launch may still produce git activity; what the criterion means is "no `Ticket: &lt;slug&gt; — active` commit". The `coga/log.md` byte-identity criterion *is* sound — I confirmed there is no `append_log` anywhere in `_launch` before the flip.
-7. **Test trap for the new draft+bad-secrets test.** `prepare_active` checks the blackboard *before* the workflow, and only for `prior_status == "draft"`. A draft fixture whose blackboard carries authoring notes will refuse with `BlackboardNeedsSynthesis` and never reach `SecretError`. The `active_task`/`fix-retry-logic` fixture is clean (which is why `test_launch_auto_activate_bails_without_workflow` reaches the "no workflow" message), but a test built on `_create_chain_task` + `replace_blackboard` could easily assert the wrong refusal.
-8. **Missed code path: `recurring_runner.py:3638`.** A forced recurring run durably `mark_active`s the period ticket *before* invoking launch's preflights, and its own docstring defends that ("If the later launch preflight fails, the task is at least live for a future normal sweep"). The ticket lists megalaunch as out of scope but never mentions this one. It doesn't change the fix, but it means criteria 1–3 are true of `coga launch` only, not repo-wide — and an implementer who greps `mark_active` will hit it and wonder.
-9. **Megalaunch out-of-scope reasoning verified, and it is the weaker half.** `megalaunch._activate_for_launch` (1044) durably activates, and `_preflight_agent_launch` (1189) then runs `compose_prompt`, `build_launch_env`, and the push-auth check — so the identical "activated but never ran" residue is fully reachable there, exactly as Open Question 3 says. The "an explicit human pick *is* the activation decision" rationale is coherent but thin: the operator picking from a queue hasn't asserted the secrets parse either. This is the Open Question most worth the owner actually answering before implement, because the answer determines whether the invariant is "launch is atomic" or "launch is atomic, megalaunch isn't."
-
-**Assumptions to question before implementing:**
-
-- "Nothing between the call and the flip re-reads the ticket from disk" — I re-verified this for the non-assist path in the 1328–1452 window and it holds today. It is a *fragile* invariant that the deferral now depends on; the ticket should say so in a code comment, not only on the blackboard.
-- The spec's "`mark_active` re-runs `prepare_active` internally, which is harmless and idempotent" is correct, but only because the second run sees `prior_status == "active"` and therefore skips the draft-only blackboard gate. That's worth a comment in the code, since a future change to `_refuse_unsynthesized_draft_blackboard`'s gating would silently change the commit half's behavior.
-- Open Question 1 (weather-events) is unanswerable from this repo and doesn't gate the fix — the owner can close it "no/don't care" at review-design without touching scope.
-
-**Prompt budget:** no single layer exceeds 40% (blackboard 1627/5259 = 31%, base_prompt 27%, task_description 21%, task_context 12%). But ticket-owned text is 63% of the prompt and is substantially self-duplicating — the blackboard's "Design notes" bullets restate the Description table and the Context section nearly verbatim (durable-write claim, call-site ordering, the two precedents, the masking test, the third call site, the ladder split). Collapsing the verified-facts list into the Description and leaving the blackboard as Open Questions + Blockers would cut ~800–1000 tokens with no information loss, and would buy back most of the cost of attaching `coga/launch-internals`.
-
-### Disposition
-
-Applied to the spec in this session: gaps 1, 3, 4, 5, 6, 7, 8, the dead
-`sync_state` kwarg, the two code-comment invariants, and the better model test
-(`test_launch_refuses_unsynthesized_draft_blackboard`). Gap 2 (lost-update
-window) is written into Proposed Shape as an explicit decision the implementer
-must make and record rather than silently inherit.
-
-Left for the owner at `review-design` — see Owner decisions below.
-
-## Owner decisions
-
-1. **Attach `coga/launch-internals` to `contexts:`?** The context's own
-   description says to attach it to tickets that change `launch.py`. It is
-   24 KiB (~5k tokens) and would roughly double this ticket's composed prompt
-   (currently ~5,259 tokens). Not attached — it is a real token cost against a
-   real instruction, and the call is the owner's.
-2. **The frozen `workflow:` snapshot is stale.** The live
-   `code/design-then-implement` declares `requires: branch` on `implement`;
-   this ticket's frozen copy predates that. Left untouched — a frozen snapshot
-   is CLI/human-owned state and rewriting it during authoring is out of
-   bounds. Consequence if left: the branch/worktree gate will not fire at
-   implement→open-pr, and the failure surfaces later at `coga open-pr` as
-   "No usable `branch:` recorded". There is also no `## Dev` section on the
-   ticket yet.
-3. **Open Question 3 (megalaunch)** is the one the evaluator says most deserves
-   an answer before `implement`, because it decides whether the invariant is
-   "launch is atomic" or "launch is atomic, megalaunch isn't".
-4. **Blackboard trim.** The evaluator estimates ~800–1000 tokens of duplication
-   between Design notes and the Description/Context. Not cut — the duplication
-   is the evidence trail that twice stopped this ticket from being retired by
-   mistake, so removing it has a cost that isn't only tokens.
+5. **Does the ticket title still fit?** It says "Launch activates a draft before
+   its preflight checks refuse it"; the work now covers `megalaunch` too. Left
+   unchanged — the title is owner-owned and the `launch` half is still the
+   headline.
 
 ---
 
