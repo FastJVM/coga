@@ -40,6 +40,14 @@ Possibly have a way to set acceptance criteria on relay create (ie relay create 
 
 ## Context
 
+**Superseded by `the-ticket-interview-never-asks-what-done-means` (2026-09-01).**
+That ticket now owns the whole acceptance-criteria question — the interview
+question, the `## Acceptance Criteria` body section, whether `coga validate`
+checks it, and the `coga create --ac1/--ac2` flag proposed above (it must decide
+that flag explicitly, in or out). Everything here was folded into its
+`## Context`. Do not work this ticket; close or cancel it once the successor
+lands.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

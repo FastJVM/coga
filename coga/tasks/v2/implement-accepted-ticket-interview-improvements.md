@@ -71,6 +71,15 @@ buckets, both current task shapes, and the evaluator severity/synthesis rules;
 
 ## Context
 
+**Change 1 ("Ask for \"done\" up front") moved out on 2026-09-01.** It is now
+owned by `the-ticket-interview-never-asks-what-done-means`, together with the
+P2 `## Acceptance Criteria` section this ticket deferred and the parked
+`v2/acceptance-criteria` draft — one ticket settles section-vs-sentence rather
+than two landing in conflict. **Changes 2–6 remain this ticket's scope and are
+unaffected.** If this ticket is unpaused first, skip change 1 and leave the
+Description/greeting wording to the successor.
+
+
 - Target file: `src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md`.
   Despite the proposal saying "both live and packaged copies", this repo has
   **no** live override under `coga/skills/` for the bootstrap namespace — the
