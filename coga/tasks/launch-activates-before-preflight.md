@@ -105,36 +105,12 @@ deliberately upstream of the agent-only preflights because a `ticket.py` run
 genuinely *is* work starting. It is out of scope to move, but it is a third
 caller of `_auto_activate` and the refactor below must keep it working.
 
-**`coga megalaunch` has the same defect, and it is in scope** (owner decision,
-2026-09-02). The invariant this ticket establishes is *activation is atomic
-everywhere*, not "atomic in `launch`, best-effort in `megalaunch`".
-`megalaunch._activate_for_launch` durably `mark_active`s a ticket, and
-`_preflight_agent_launch` — which runs `compose_prompt`, `build_launch_env`, and
-the push-auth check, i.e. the same refusals — runs later. A queue pick with a
-malformed `secrets:` is flipped and then refused, exactly as in `launch`.
-
-The megalaunch half is **not** the same edit, and this is the main reason the
-ticket grew. Three structural differences:
-
-1. **Megalaunch re-reads the ticket from disk between activation and launch.**
-   Phase 2 activates every picked ticket and appends to `launch_plan`; Phase 3
-   then loops and calls `read_ticket(ref)` per entry. The "carry an in-memory
-   activated ticket" technique that works in `_launch` does **not** transfer —
-   a prepared-but-uncommitted mutation would be discarded by that re-read.
-2. **`_preflight_agent_launch` refuses on status.** It returns
-   `f"status is {ticket.status}; expected active or in_progress"`, so it
-   structurally depends on the durable activation already having happened. It
-   has to learn to accept a prospective/prepared view before activation can be
-   deferred behind it.
-3. **The batch shape is deliberate and load-bearing in one place.** Deferring
-   per-ticket activation to just before its own launch is a real semantic
-   change: a ticket picked but never reached under `--max-tasks` would no
-   longer be activated. That is arguably the *desired* behavior, but it is a
-   behavior change to decide, not a refactor. Separately, the
-   dependency-drain call site activates *before* resolving blockers, defended
-   by a comment ("Activate first, resolve second") because the reverse order
-   strands a blocked ticket with no open asks — a state `coga launch` and
-   `coga unblock` both refuse. **That ordering must not be disturbed.**
+**`coga megalaunch` has the same defect and is tracked separately** — see
+`megalaunch-activates-picks-before-preflight`. It is the same bug but not the
+same edit (megalaunch re-reads each ticket from disk between activation and
+launch, and its preflight refuses on status), so folding it in here would have
+roughly doubled this ticket for no shared code. Split by owner decision,
+2026-09-02.
 
 ## Context
 
@@ -210,19 +186,6 @@ whose every line-number citation pointed at the wrong code.
       unaffected either way.
 - [ ] The blocked-resume path, the assist path, and the script path are
       untouched in behavior.
-- [ ] **Megalaunch:** a picked ticket whose `secrets:` is malformed (or which
-      fails any other `_preflight_agent_launch` check) is reported as
-      `skipped-unlaunchable`/`failed` with its status unchanged on disk — no
-      `activated … — explicit megalaunch pick` line in `coga/log.md`, no
-      activation state commit.
-- [ ] **Megalaunch:** one bad ticket still does not kill the sweep — refusals
-      keep returning a `MegalaunchResult` rather than exiting the process.
-- [ ] **Megalaunch:** the dependency-drain call site still activates *before*
-      resolving open blockers, so a refused activation leaves the ticket
-      `blocked` with its asks intact.
-- [ ] **Megalaunch:** the `--max-tasks` interaction is decided and asserted —
-      whether a picked-but-unreached ticket is left unactivated is a stated
-      behavior, not an accident.
 - [ ] New test: a draft ticket + bad `secrets:` → non-zero exit, ticket still
       `draft`, no agent spawned, `coga/log.md` byte-identical to before.
 - [ ] `python -m pytest` passes; `coga validate --json` is clean.
@@ -345,49 +308,9 @@ changes in `mark.py`, `config.py`, or `compose.py` — `prepare_active` and
    - One happy-path assertion that a successful draft launch still logs
      `activated` then `started`, in that order.
 
-### Megalaunch (`src/coga/megalaunch.py`)
-
-In scope by owner decision. Do this **second**, as a separate commit — it is a
-behavior change, not a pure reordering, and it should be reviewable on its own.
-
-6. **Give `_activate_for_launch` the same prepare/commit split.** Its `except`
-   ladder maps the identical five exceptions to `MegalaunchResult`s instead of
-   `_bail`s, and splits along the same seam (four from `prepare_active`,
-   `TaskValidationError` from the post-write `assert_task_valid`). Keep the
-   loud-result-not-exit contract — one bad task must not kill the sweep.
-7. **Teach `_preflight_agent_launch` to accept a prospective view.** Today it
-   refuses anything not already `active`/`in_progress`. It needs to run its
-   `compose_prompt` / `build_launch_env` / push-auth checks against a *prepared*
-   ticket, with the status check narrowed to what it is actually there to catch
-   (a terminal or otherwise unlaunchable ticket), not to the activation it is
-   now upstream of.
-8. **Move the Phase 2 activation into Phase 3, per ticket.** Phase 2 keeps
-   selection and the prepared view; Phase 3 preflights, then commits the
-   activation immediately before the launch of that same ticket. Note Phase 3's
-   `read_ticket(ref)` re-read: either the prepare must be redone after it, or
-   the re-read must be reconciled with the prepared view. **Do not** try to
-   carry an in-memory ticket across it.
-9. **Leave the dependency-drain call site alone.** Its activate-before-resolve
-   order is defended by comment and is correct for a different reason. If the
-   split changes its call shape, preserve the ordering exactly.
-10. **Decide and document the `--max-tasks` semantics.** Deferring activation
-    means a picked-but-unreached ticket is no longer activated. State the
-    chosen behavior in the code and assert it in a test.
-11. **Megalaunch tests** in the megalaunch test module: a picked draft with bad
-    `secrets:` stays `draft` with no `activated` log line and a
-    `skipped-unlaunchable` result; the sweep continues past it to the next
-    ticket; the dependency-drain path still activates before resolving.
-
 Suggested order of work: (1) + (2) + (3) together (the refactor is not
 separable from the move), then (4), then (5) — or write the primary regression
-test first and watch it fail, which is cheap here. Land that as one commit,
-then do (6)–(11) as a second.
-
-**Scope note.** Megalaunch was moved in scope deliberately after the tradeoff
-was put to the owner. It roughly doubles the ticket: a second file, a changed
-preflight contract, a batch-semantics decision, and its own tests. If it turns
-out to want its own review cycle, splitting it back out at `implement` is
-reasonable — the `launch` half stands alone and delivers the reported fix.
+test first and watch it fail, which is cheap here.
 
 ## Out of Scope
 
@@ -410,6 +333,10 @@ reasonable — the `launch` half stands alone and delivers the reported fix.
   is at least live for a future normal sweep"). Deliberate, and untouched — but
   it means the criteria above are true of `coga launch`, not repo-wide. Noted
   because an implementer grepping `mark_active` will hit it.
+- **`coga megalaunch`'s early activation.** Same defect, split into
+  `megalaunch-activates-picks-before-preflight` rather than carried here — the
+  fix does not share code with this one and the analysis is recorded on that
+  ticket.
 - **Restructuring the preflight gauntlet** into a declarative list. Tempting
   while in this code; a much larger diff than the ordering fix warrants.
 
@@ -515,9 +442,13 @@ than literally every refusal. It does not change the fix.
    CLI/human-owned. The implementer must record `branch:` and `worktree:` under
    a `## Dev` section in the checkout they bump from, or `coga bump` will
    refuse implement→open-pr.
-3. **Megalaunch brought in scope** — the invariant is "activation is atomic
-   everywhere". See the megalaunch half of Proposed Shape; it is a genuine
-   scope increase, not a second copy of the same edit.
+3. **Megalaunch split into its own ticket**
+   (`megalaunch-activates-picks-before-preflight`). Briefly brought in scope,
+   then split back out the same day once the edit turned out to share no code
+   with this one: megalaunch re-reads each ticket from disk between activation
+   and launch, and `_preflight_agent_launch` refuses on status. The invariant
+   is still "activation is atomic everywhere" — it is just delivered by two
+   tickets.
 4. **This blackboard trimmed** — the verbatim evaluator review was 60% of the
    composed prompt once its substance had been folded into the spec above the
    fence.
@@ -535,18 +466,13 @@ than literally every refusal. It does not change the fix.
    `coga/log.md` is append-only, so pre-rename history stays under the old
    slug; see "Slug history" in `## Context`.
 3. ~~**Is `coga megalaunch`'s up-front activation intended to stay as-is?**~~
-   **Resolved 2026-09-02** by the owner: no — bring it in scope, so the
-   invariant is "activation is atomic everywhere" rather than "atomic in
-   `launch`, best-effort in `megalaunch`".
+   **Resolved 2026-09-02** by the owner: no, it should be fixed — but as its
+   own ticket, `megalaunch-activates-picks-before-preflight`, since the two
+   fixes share an invariant rather than any code.
 4. **Should a refused launch of a ticket that was already `active` be touched
    at all?** Current behavior leaves it `active`, which seems right — nothing
    was falsely claimed. The spec preserves it. Flagging only because it is the
    case the existing test covers.
-
-5. **Does the ticket title still fit?** It says "Launch activates a draft before
-   its preflight checks refuse it"; the work now covers `megalaunch` too. Left
-   unchanged — the title is owner-owned and the `launch` half is still the
-   headline.
 
 ---
 
