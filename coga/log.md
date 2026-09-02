@@ -4176,3 +4176,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 11:58 [recurring/resolve-conflicts] [system] completed (delegated bootstrap/resolve-conflicts run finished) via coga recurring
 2026-09-02 11:58 [recurring/skill-update] [system] started (active → in_progress) via coga launch
 2026-09-02 11:58 [recurring/skill-update] [system] launched as a script (ticket.py)
+2026-09-02 11:58 [recurring/skill-update] [human:nicktoper] task done
