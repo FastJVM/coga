@@ -104,9 +104,11 @@ the only one that needs code.
 
 ## Notes
 
-- Distinct from `secrets-instructions-correction`, which is about the *shape*
-  of the `secrets:` frontmatter (list of single-key entries, not a mapping).
-  This ticket is about which vaults one credential may span.
+- Distinct from `launch-activates-before-preflight` (was
+  `secrets-instructions-correction`), which a malformed `secrets:` block only
+  triggered — that ticket is about `coga launch` durably activating a draft
+  before the preflights that refuse it. This ticket is about which vaults one
+  credential may span.
 - Raised from `FastJVM/admin` by Zach, 2026-08-11.
 
 <!-- coga:blackboard -->
