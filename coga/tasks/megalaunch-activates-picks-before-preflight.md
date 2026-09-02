@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -174,3 +174,100 @@ badly enough on line numbers to look retired twice.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: megalaunch-defer-activation
+worktree: /home/n/Code/claude/coga-megalaunch-defer-activation
+
+## Owner decisions — 2026-09-02
+
+1. **`--max-tasks`: unreached picks are left untouched.** Deferring activation
+   to just-before-launch means a picked ticket the run never reaches keeps its
+   `draft`/`paused`/`blocked` status, with no `activated …` log line. Chosen
+   deliberately (it is what the invariant implies), documented in code, and
+   asserted in a test.
+2. **`_preflight_agent_launch`'s status check is narrowed**, per the spec's
+   Proposed Shape: it now refuses terminal statuses instead of requiring
+   `active`/`in_progress`. It is also *fed the prospective view*, so the
+   composed prompt and env are the ones the launch will actually use.
+
+## Design
+
+- Phase 2 no longer writes. It builds a prospective `active` view with
+  `prepare_active` on a copy of the ticket, reports the prepare-half refusals
+  with today's outcomes/details, and runs the "no current workflow step" gate
+  against that view. Plan entries carry `needs_activation`.
+- Phase 3 re-reads (unchanged) and hands `_launch_until_stop` the flag. Per
+  spec item 1, the prepare is **redone** from the freshly read ticket — no
+  prepared object is carried across the re-read.
+- `_launch_until_stop` commits the activation on its first step only, after
+  `_preflight_agent_launch` has passed on the prospective view. This keeps the
+  preflight running exactly once per launch: doing it in Phase 3 instead would
+  cost a second `compose_prompt` and a second `git push --dry-run` probe per
+  ticket, since `_launch_until_stop` preflights again on its own.
+- Exception seam: `_prepare_for_launch` handles only the four prepare-half
+  exceptions; `TaskValidationError` stays on the commit half in
+  `_activate_for_launch`, which keeps its full ladder because the drain path
+  calls it with no prior prepare. Both share one refusal-mapping helper so the
+  five outcomes/details are identical to today.
+- Drain path call order (activate, *then* resolve asks) is untouched.
+
+## Implemented — commit `63086a43`
+
+`src/coga/megalaunch.py` (plus the two `commands/megalaunch.py` help strings
+that described the old phase names), and four tests in
+`tests/test_megalaunch.py`.
+
+- `_prepare_for_launch` — new prepare half. `prepare_active` on a throwaway
+  `Ticket` copy; returns the prospective view or a `MegalaunchResult`. Handles
+  only the four `prepare_active` exceptions.
+- `_activation_refusal` — the shared mapping, so a refusal reads identically on
+  either side of the write. `_activate_for_launch` keeps the full ladder
+  (`*_PREPARE_ACTIVE_ERRORS, TaskValidationError`) because the drain commits
+  through it with no preceding prepare, and `mark_active` re-runs
+  `prepare_active` anyway.
+- Phase 2 → **check**: prepares, reports, gates on `prepared.current_step()`.
+  Writes nothing. `_PlannedLaunch(ref, blocked_resume, needs_activation)`
+  replaces the 2-tuple plan entry.
+- Phase 3 → activates inside `_launch_until_stop` (new `activate:` kwarg), on
+  the first step only, between the preflight and `mark_in_progress`.
+- `_preflight_agent_launch` status check narrowed to `TERMINAL_STATUSES`.
+
+Two deliberate semantic changes beyond the refusal fix, both asserted:
+
+1. A pick the run never reaches under `--max-tasks` is left unactivated
+   (owner decision 1 above).
+2. A pick that reached a terminal status while an earlier launch ran is
+   reported `skipped-unlaunchable` instead of activated. This one is *forced*
+   by the fix: deferral widens the pick→launch window, and `prepare_active`
+   raises `CancellationError` on a canceled ticket — uncaught, that would have
+   killed the sweep. Guarded at Phase 3's re-read.
+
+### Tests
+
+Four added; each of the first three was confirmed to fail against `main`'s
+`megalaunch.py` and pass against the new one:
+
+- `…_does_not_activate_pick_refused_by_preflight` — mapping-form `secrets:`,
+  asserts byte-identical ticket, `status == "draft"`, no `activated` log line,
+  and that the second pick still launched.
+- `…_does_not_activate_pick_without_agent_cli` — the missing-CLI refusal.
+- `…_leaves_picks_beyond_max_tasks_unactivated` — semantic change 1.
+- `…_logs_activation_before_start` — unchanged happy path; passes on `main`
+  too, which is the point.
+
+`test_megalaunch_drain_keeps_ask_open_when_activation_refuses` still passes
+unchanged: the drain's activate-then-resolve ordering was not touched.
+
+### Verification
+
+- `python -m pytest` — 2206 passed. One unrelated pre-existing failure,
+  `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries`, which
+  fails identically on `main` in this environment (`No module named pip` in the
+  venv). Not caused by this change; not fixed here.
+- `coga validate --json` — output byte-identical to `main` (30 pre-existing
+  issues, one of them an error on the unrelated `v2/autotrigger-ticket-type`
+  draft). This change moves it neither way.
+- No `example/` fixture change: task layout, prompt composition, and workflow
+  semantics are untouched.
