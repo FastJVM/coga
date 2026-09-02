@@ -121,20 +121,38 @@ coga/
                            exact sibling ticket.py is its deterministic phase
   tasks/<dir>/.../<slug>/ ← tickets in sub-dirs at any depth (ref'd by path)
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
-                           (imported skills land flat: skills/<name>/)
+                           (installer-managed imports land flat: skills/<ref>/)
   contexts/<ns>/<name>/  ← default project-local domain knowledge / overrides
   workflows/<ns>/<name>.md ← step definitions (local-first over bootstrap/workflows/)
   .agent-skills/         ← generated local-plus-bundled skill view for agents
 ```
 
 `<ns>/<name>/` is the convention for skills this repo *authors* — `code/`,
-`coga/`, `browser/`, `direct/`. It is not a requirement, and imported skills do
-not follow it: `coga skill install` lays a Coga-managed skill down flat at
-`coga/skills/<ref>/` under its upstream ref name, so this repo also carries
-seven flat `google-agents-cli-*` directories (declared in
-`src/coga/resources/managed-skills.toml`) alongside `_template/`. Skill
-resolution reads the directory path either way; prefer a namespace for anything
-you write, and expect the flat form for anything you imported.
+`coga/`, `browser/`, `direct/`, `anthropic/`. It is not a requirement, and it is
+not the only shape in the tree. Three shapes coexist under `coga/skills/`:
+
+- **Repo-authored, namespaced** — `code/`, `coga/`, `browser/`, `direct/`, with
+  `_template/` sitting beside them as the starter directory to copy.
+- **Installer-managed, flat** — `coga skill install` lays a Coga-managed skill
+  down flat at `coga/skills/<ref>/` under its upstream ref name, so this repo
+  also carries seven flat `google-agents-cli-*` directories, each declared in
+  `src/coga/resources/managed-skills.toml`.
+- **Hand-vendored upstream copies** — a verbatim copy of someone else's skill,
+  committed under a namespace that names its origin and carrying its own
+  `ATTRIBUTION.md` (upstream repo, upstream path, pinned commit, refresh
+  instructions) and `LICENSE.txt`. `anthropic/skill-creator/` is the only one
+  today. It is deliberately *not* in `managed-skills.toml`: the installer
+  neither placed it nor updates it, and refreshing it means re-copying from a
+  newer upstream commit by hand and re-applying the Coga-side namespaced
+  `name:`. Nothing installs its dependencies either — its `scripts/` directory
+  holds nine Python files and no `requirements.txt`, so the
+  `install_skill_requirements` pass described below finds nothing to install on
+  its behalf. A vendored skill with imports is on its own.
+
+Skill resolution reads the directory path in all three cases. Prefer a
+namespace for anything you write, expect the flat form for anything the
+installer imported, and use namespace-plus-attribution for anything you vendor
+by hand.
 
 File-form `tasks/<slug>.md` tickets cannot carry attachments and therefore
 cannot be script-backed. In a directory-form ticket, only `ticket.py` is

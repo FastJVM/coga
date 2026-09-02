@@ -33,6 +33,19 @@ as OP_SERVICE_ACCOUNT_TOKEN at run time.
 > current behavior and leave the model to the operator; do not publish one
 > option as the contract.
 
+**Scoping bounds the grant, not the process.** Everything above describes how
+1Password grants bound what a leaked token reads. It does not describe a
+sandbox around a launched task, and the two are easy to conflate.
+`coga/contexts/coga/architecture/SKILL.md` records the mechanism under "This is
+a declaration, not a sandbox": `config.build_launch_env()` starts from the full
+parent environment and scrubs only the source variables an `env:VAR` ref names,
+and it never scrubs `OP_SERVICE_ACCOUNT_TOKEN` — so a launched agent can run
+`op read` against every vault that service account can reach, regardless of what
+its ticket declared. A ticket's `secrets:` list bounds what Coga *resolves and
+names* for the task; it does not bound what the task's process can reach. Read
+the vault and SA grant as the real boundary; read the declaration as
+documentation of intent.
+
 The `op` CLI auto-uses `OP_SERVICE_ACCOUNT_TOKEN` when it is set, so no coga
 code changes for headless auth — exporting the token in the job process is
 enough for every `op://` ref a **ticket's `secrets:`** declares to resolve.
