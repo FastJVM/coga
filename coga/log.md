@@ -4135,3 +4135,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-01 17:16 [bumppy-requires-exactly-two-agents] [human:nicktoper] auto-bumped on merge of PR #727 → done
 2026-09-01 17:16 [fix-the-autofix-analyst] [human:nicktoper] auto-bumped on merge of PR #724 → done
 2026-09-01 17:16 [reconcile-recurring-wrapper-tty-admission-guidance] [human:nicktoper] auto-bumped on merge of PR #723 → done
+2026-09-01 17:16 [rewrite-coga-base-prompt-and-agent-mode-block] [human:nicktoper] auto-bumped on merge of PR #726 → done
