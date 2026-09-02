@@ -24,6 +24,12 @@ steps:
       - code/address-pr-comments
 ---
 
+A step that declares `skills:` does **not** compose the `## <step>` section
+below: Coga builds that step's prompt from the skill file alone, and the inline
+section is never read by the launched agent. Agent instructions therefore belong
+in the skill. Sections here for a skilled step are human-facing framing only.
+Skill-less steps *do* compose their section, so those bodies are load-bearing.
+
 ## review-design
 
 Owner reviews the spec the `design` step wrote into `ticket.md` —
@@ -35,51 +41,26 @@ enough to redo, relaunch the `design` step instead of bumping.
 
 ## implement
 
-Follow the `code/implement` skill. This step declares `requires: branch`: `coga
-bump` refuses to advance until both `branch:` and `worktree:` are recorded under
-`## Dev` **in the ticket copy of the checkout `coga bump` runs from**. Like
-`requires: pr` below, that is a data check rather than a matter of the agent's
-say-so — and it is what makes the stranded-write failure loud. If `## Dev` is
-written from inside the feature checkout while `coga bump` runs from the primary
-checkout, the write is invisible to the bump (and to the ticket sync it
-performs), and the open-pr step later fails with "No usable `branch:`
-recorded" even though implement did record it. Record the two lines in the
-checkout you bump from, or re-run bump from the checkout that has the write.
-The gate is presence-based, not freshness-based, so on a relaunched or retried
-implement, confirm the recorded lines describe *this* attempt's branch and
-checkout.
+Agent step, owned by the `code/implement` skill. It declares `requires: branch`,
+so `coga bump` refuses to advance until `branch:` and `worktree:` are recorded
+under `## Dev` in the ticket copy of the checkout the bump runs from.
 
 ## open-pr
 
-Follow the `code/open-pr` skill: run `coga open-pr <slug>` from the checkout that
-owns the live ticket, then `coga bump`. That is the primary control checkout for
-a separate recorded worktree, or the recorded primary checkout on its feature
-branch for the single-checkout layout.
-The command reads `branch:` / `worktree:` from `## Dev`, confirms the recorded
-checkout is on that branch, clean, ahead of `main`, and not stale, pushes, opens
-the PR, and records `pr: <url>`. In the single-checkout layout it commits and
-pushes that generated ticket write. This step declares `requires: pr`, so `coga
-bump` refuses to advance until `pr:` is recorded — a skipped or failed `coga
-open-pr` (nothing committed to PR, a stale branch, or broken auth) leaves the
-step put. On a successful single-checkout bump, the gate republishes the
-post-transition ticket commit to the PR branch so it stays mergeable with the
-control copy. Fix the cause and re-run it (idempotent), or `coga block`.
+Agent step, owned by the `code/open-pr` skill: `coga open-pr <slug>` pushes the
+recorded branch, opens the PR, and writes `pr:` back under `## Dev`. It declares
+`requires: pr`, so `coga bump` holds the step until that line exists.
 
-There is no peer/self-review step here, so the PR body falls back to the
-ticket's `## Description` (the reviewed design spec). If the `implement` step
-wants a more specific body, it can write a `## PR` section on the blackboard;
-otherwise the spec is used as-is.
+There is no peer/self-review step in this workflow, so the PR body falls back to
+the ticket's `## Description` — the design spec the owner already reviewed —
+unless the `implement` step leaves a `## PR` section on the blackboard.
 
 ## review
 
-Owner reviews the open PR. This is an owner-controlled gate. If an agent
-is launched or asked to assist during this step, it may inspect the PR,
-run verification, prepare or push explicitly requested fixes, and report a
-recommendation. It must not merge the PR, delete the branch, run
-`coga bump` or `coga mark done`, or otherwise advance/close the
-task unless the human explicitly says to do that for this PR.
+Owner-controlled gate. The human reviews the open PR and decides whether to
+edit, request changes, push fixes, or merge. An agent launched to assist here
+runs the `code/address-pr-comments` skill, which carries the do-not-merge and
+do-not-bump rules for that assist.
 
-The human owner decides whether to edit, request changes, push fixes, or
-merge. After the human merges, the `autoclose-merged` recurring sweep
-marks the task `done` on its next run (≤24h); to close it immediately,
-run `coga bump`.
+After the human merges, the `autoclose-merged` recurring sweep marks the task
+`done` on its next run (≤24h); `coga bump` closes it immediately.
