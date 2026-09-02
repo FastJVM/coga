@@ -52,3 +52,4 @@ consumed_through: f2582ef9174f
 {"id":"5593d0b1614f","ts":"2026-09-02T11:57","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/branch-sweep","owner":"nicktoper"}
 {"id":"23f7c213b1f6","ts":"2026-09-02T11:58","project":"coga","kind":"done","detail":"→ done (delegate: bootstrap/resolve-conflicts)","ticket":"recurring/resolve-conflicts","owner":"nicktoper"}
 {"id":"1b7bb2cdf86f","ts":"2026-09-02T11:58","project":"coga","kind":"done","detail":"claude finished: update → done ✅","ticket":"recurring/skill-update","owner":"nicktoper"}
+{"id":"648b8acd2a45","ts":"2026-09-02T11:59","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
