@@ -2162,6 +2162,179 @@ def test_megalaunch_selection_activates_draft_and_paused(
     assert Ticket.read(paused["path"]).status == "done"
 
 
+def _log_lines_for(cfg, slug: str, needle: str) -> list[str]:
+    """Audit-log lines tagged with `slug` that mention `needle`."""
+    from coga.paths import log_path
+
+    return [
+        line
+        for line in log_path(cfg).read_text().splitlines()
+        if f"[{slug}]" in line and needle in line
+    ]
+
+
+def test_megalaunch_selection_does_not_activate_pick_refused_by_preflight(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pick the launch preflights refuse is never written as `active`.
+
+    `active` on disk means a session began. The refusal now lands before the
+    durable flip, so the ticket stays a draft with no `activated` log line —
+    and one bad pick does not end the sweep.
+    """
+    cfg = load_config(repo)
+    refused = create_task(
+        cfg=cfg,
+        title="Bad secrets pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    healthy = create_task(
+        cfg=cfg,
+        title="Good pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    ticket = Ticket.read(refused["path"])
+    # Mapping-form `secrets:` is malformed — `build_launch_env` refuses it in
+    # the preflight, which the old code only reached after activating.
+    ticket.frontmatter["secrets"] = {"stripe_key": "env:STRIPE_SECRET_KEY"}
+    ticket.write(refused["path"])
+    before = Path(refused["path"]).read_bytes()
+
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[refused["slug"], healthy["slug"]])
+
+    result = next(r for r in run.results if r.slug == refused["slug"])
+    assert result.outcome == "failed"
+    assert "secrets" in result.detail
+    assert result.launched is False
+    # Nothing durable happened: same bytes, same status, no activation logged.
+    assert Path(refused["path"]).read_bytes() == before
+    assert Ticket.read(refused["path"]).status == "draft"
+    assert _log_lines_for(cfg, refused["slug"], "activated") == []
+    # The sweep carried on, and the healthy pick activated as it launched.
+    assert launched == [healthy["slug"]]
+    assert len(_log_lines_for(cfg, healthy["slug"], "activated")) == 1
+
+
+def test_megalaunch_selection_does_not_activate_pick_without_agent_cli(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The missing-CLI refusal is upstream of activation too."""
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="No CLI pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    before = Path(draft["path"]).read_bytes()
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: None)
+
+    run = run_megalaunch(cfg, selection=[draft["slug"]])
+
+    result = next(r for r in run.results if r.slug == draft["slug"])
+    assert result.outcome == "failed"
+    assert "claude" in result.detail
+    assert Path(draft["path"]).read_bytes() == before
+    assert Ticket.read(draft["path"]).status == "draft"
+    assert _log_lines_for(cfg, draft["slug"], "activated") == []
+
+
+def test_megalaunch_selection_leaves_picks_beyond_max_tasks_unactivated(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--max-tasks` stops before the second pick, so it is never activated.
+
+    Activation is deferred into each ticket's own launch, so a pick the run
+    never reaches keeps its draft status. Deliberate: nothing on disk should
+    claim work began on a session that never started.
+    """
+    cfg = load_config(repo)
+    first = create_task(
+        cfg=cfg,
+        title="Aaa reached pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    second = create_task(
+        cfg=cfg,
+        title="Bbb unreached pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    before = Path(second["path"]).read_bytes()
+
+    launched = _done_on_spawn(monkeypatch)
+
+    run_megalaunch(
+        cfg,
+        selection=[first["slug"], second["slug"]],
+        max_tasks=1,
+    )
+
+    assert launched == [first["slug"]]
+    assert Path(second["path"]).read_bytes() == before
+    assert Ticket.read(second["path"]).status == "draft"
+    assert _log_lines_for(cfg, second["slug"], "activated") == []
+
+
+def test_megalaunch_selection_logs_activation_before_start(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A working pick is unchanged: activated first, then started."""
+    from coga.paths import log_path
+
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Ordinary pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[draft["slug"]])
+
+    assert launched == [draft["slug"]]
+    assert run.counts["completed"] == 1
+    lines = [
+        line
+        for line in log_path(cfg).read_text().splitlines()
+        if f"[{draft['slug']}]" in line
+    ]
+    activated = next(i for i, line in enumerate(lines) if "activated" in line)
+    started = next(i for i, line in enumerate(lines) if "started" in line)
+    assert activated < started
+
+
 def test_megalaunch_selection_authors_drafts_before_any_launch(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

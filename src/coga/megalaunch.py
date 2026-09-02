@@ -15,8 +15,10 @@ any non-terminal status — by staging the run in three phases so every
 human-in-the-loop step lands before the first launch: **prepare** (when the
 operator accepts the CLI's batch prompt, each picked `draft` runs the guided
 `coga ticket` authoring interview so a not-ready ticket becomes launchable),
-**activate** (every draft/paused/blocked → `active`), then **launch** (each
-activated ticket runs). A picked `blocked`
+**check** (every draft/paused/blocked is validated against the `active` view it
+would get, and the ones that still can't launch are reported), then **launch**
+(each remaining ticket is activated and run, in that order, as its own turn
+comes). A picked `blocked`
 ticket resumes interactively with the resolve-or-re-block preamble, returning
 to `blocked` if the session exits with the ask still open. A selected ticket
 that still can't launch (terminal, or a draft the interview left with no workflow)
@@ -76,6 +78,7 @@ from coga.mark import (
     mark_active,
     mark_blocked,
     mark_in_progress,
+    prepare_active,
 )
 from coga.repl_supervisor import build_supervised_step_env
 from coga.workflow import WorkflowError
@@ -556,6 +559,15 @@ def _as_drained(result: MegalaunchResult, dependency: str) -> MegalaunchResult:
     )
 
 
+@dataclass(frozen=True)
+class _PlannedLaunch:
+    """One confirmed pick that the check phase cleared for launching."""
+
+    ref: TaskRef
+    blocked_resume: bool
+    needs_activation: bool
+
+
 def _run_selection(
     cfg: Config,
     queue: list[TaskRef],
@@ -569,12 +581,16 @@ def _run_selection(
 ) -> list[MegalaunchResult]:
     """The explicit picker path, staged so all human-in-the-loop prep lands
     before the first launch: **prepare** (author picked drafts, when the
-    operator opted in), then **activate** (draft/paused/blocked → active),
-    then **launch** (run each).
+    operator opted in), then **check** (validate every draft/paused/blocked
+    against the `active` view it would get), then **launch** (activate and run
+    each).
 
     Batching the phases means the operator answers every authoring interview
-    and every activation up front, then the working launches proceed without
-    further gating them on a not-yet-ready ticket further down the list.
+    and sees every unlaunchable pick up front, then the working launches
+    proceed without further gating them on a not-yet-ready ticket further down
+    the list. Activation itself is *not* batched: it is durable state saying
+    work began, so each pick is flipped inside its own launch, after the
+    preflights that can still refuse it.
     """
     results: list[MegalaunchResult] = []
 
@@ -599,11 +615,13 @@ def _run_selection(
                     agent_override=agent_override,
                 )
 
-    # Phase 2 — Activate. Bring every picked draft/paused/blocked to `active`
-    # (a blocked ticket keeps its open asks for the launch-time preamble), and
-    # report the ones that still can't launch. What survives is the launch
-    # plan, each entry remembering whether it was a blocked resume.
-    launch_plan: list[tuple[TaskRef, bool]] = []
+    # Phase 2 — Check. Validate every picked draft/paused/blocked against the
+    # `active` view it would get, and report the ones that still can't launch.
+    # Nothing is written: the durable flip happens in phase 3, inside each
+    # ticket's own launch. What survives is the launch plan, each entry
+    # remembering whether it was a blocked resume and whether it still needs
+    # activating.
+    launch_plan: list[_PlannedLaunch] = []
     for ref in queue:
         try:
             ticket = read_ticket(ref)
@@ -630,14 +648,18 @@ def _run_selection(
             results.append(candidate)
             continue
         was_blocked = ticket.status == "blocked"
-        if ticket.status in {"draft", "paused", "blocked"}:
-            failure = _activate_for_launch(cfg, ref, ticket)
-            if failure is not None:
-                results.append(failure)
+        needs_activation = ticket.status in {"draft", "paused", "blocked"}
+        if needs_activation:
+            # Prepare only — a blocked ticket also keeps its open asks here for
+            # the launch-time preamble. A refusal reads exactly as the durable
+            # flip used to report it, with nothing written to disk.
+            prepared = _prepare_for_launch(cfg, ref, ticket)
+            if isinstance(prepared, MegalaunchResult):
+                results.append(prepared)
                 continue
-            # Activation froze the workflow and seeded step 1. A ticket with
-            # no resulting step cannot be launched.
-            if ticket.current_step() is None:
+            # Activation will freeze the workflow and seed step 1. A ticket
+            # with no resulting step cannot be launched.
+            if prepared.current_step() is None:
                 results.append(
                     _result(
                         ref,
@@ -647,14 +669,20 @@ def _run_selection(
                     )
                 )
                 continue
-        launch_plan.append((ref, was_blocked))
+        launch_plan.append(_PlannedLaunch(ref, was_blocked, needs_activation))
 
-    # Phase 3 — Launch. Every entry is now an activated ticket; run them one at
-    # a time, honouring `--max-tasks` over the launches.
+    # Phase 3 — Launch. Activate and run the plan one entry at a time,
+    # honouring `--max-tasks` over the launches.
     attempted = 0
-    for ref, blocked_resume in launch_plan:
+    for planned in launch_plan:
         if max_tasks is not None and attempted >= max_tasks:
+            # `--max-tasks` stops the run here and activation is deferred into
+            # each launch, so a pick the run never reaches keeps its
+            # draft/paused/blocked status untouched. That is deliberate: an
+            # `active` ticket on disk means a session started, and this one
+            # never did. Re-pick it to run it.
             break
+        ref = planned.ref
         try:
             ticket = read_ticket(ref)
         except TicketNotFoundError:
@@ -664,6 +692,19 @@ def _run_selection(
             continue
         except TicketError as exc:
             results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
+            continue
+        # Deferring activation widens the window between the check phase and
+        # the launch: a pick that finished or was canceled while an earlier
+        # launch ran is reported, never activated.
+        if ticket.status in TERMINAL_STATUSES:
+            results.append(
+                _result(
+                    ref,
+                    "skipped-unlaunchable",
+                    f"status is {ticket.status}",
+                    ticket.assignee,
+                )
+            )
             continue
         attempted += 1
         results.append(
@@ -675,7 +716,8 @@ def _run_selection(
                 max_steps_per_task=max_steps_per_task,
                 idle_timeout=idle_timeout,
                 max_session=max_session,
-                blocked_resume=blocked_resume,
+                blocked_resume=planned.blocked_resume,
+                activate=planned.needs_activation,
             )
         )
     return results
@@ -891,10 +933,12 @@ def _launch_until_stop(
     idle_timeout: float | None = None,
     max_session: float | None = None,
     blocked_resume: bool = False,
+    activate: bool = False,
 ) -> MegalaunchResult:
-    # `ticket` is already `active` / `in_progress` — the sweep only reaches
-    # here for ready work, and the selection path activates draft/paused/
-    # blocked in its own phase before launching. `blocked_resume` marks a
+    # `ticket` is `active` / `in_progress` unless `activate` is set — the sweep
+    # only reaches here for ready work, while the selection path hands over a
+    # still-unactivated draft/paused/blocked pick and lets the first step below
+    # flip it, after the preflights. `blocked_resume` marks a
     # ticket that was blocked when picked: the composed prompt carries the
     # resolve-or-re-block preamble off the blackboard's still-open asks, and an
     # exit that leaves an ask open returns it to `blocked` below.
@@ -929,7 +973,20 @@ def _launch_until_stop(
         )
         first_step = False
 
-        preflight = _preflight_agent_launch(cfg, ref, ticket, launch_assignee)
+        # A deferred activation belongs to the first step only. Preflight the
+        # prospective `active` view — the exact prompt and env this launch will
+        # use — and commit the flip only once every refusal below has passed,
+        # so a ticket whose session never starts is never left claiming it did.
+        preflight_view = ticket
+        if activate:
+            prepared = _prepare_for_launch(cfg, ref, ticket)
+            if isinstance(prepared, MegalaunchResult):
+                return prepared
+            preflight_view = prepared
+
+        preflight = _preflight_agent_launch(
+            cfg, ref, preflight_view, launch_assignee
+        )
         if preflight is not None:
             return _result(
                 ref,
@@ -938,6 +995,12 @@ def _launch_until_stop(
                 launch_assignee,
                 launched=launched,
             )
+
+        if activate:
+            activate = False
+            failure = _activate_for_launch(cfg, ref, ticket)
+            if failure is not None:
+                return failure
 
         if ticket.status == "active":
             try:
@@ -1041,6 +1104,86 @@ def _launch_until_stop(
         ticket = after
 
 
+# The refusals `prepare_active` raises before `mark_active` writes anything.
+# `TaskValidationError` is deliberately not one of them: it comes from the
+# post-write `assert_task_valid`, so it belongs to the commit half alone.
+_PREPARE_ACTIVE_ERRORS = (
+    WorkflowMissing,
+    WorkflowError,
+    RequiredExtensionMissing,
+    BlackboardNeedsSynthesis,
+)
+
+
+def _activation_refusal(
+    ref: TaskRef,
+    ticket: Ticket,
+    prior: str,
+    exc: Exception,
+) -> MegalaunchResult:
+    """Map a refused activation to the loud result the sweep reports.
+
+    Shared by the prepare and commit halves so a refusal reads identically
+    whichever side of the durable write raised it.
+    """
+    if isinstance(exc, WorkflowMissing):
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"{prior} with no workflow — set `workflow:` in ticket.md or run "
+            f"`coga ticket {ref.id_slug}`",
+            ticket.assignee,
+        )
+    if isinstance(exc, WorkflowError):
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"`workflow:` ref could not be frozen — {exc}",
+            ticket.assignee,
+        )
+    if isinstance(exc, RequiredExtensionMissing):
+        names = ", ".join(repr(f) for f in exc.fields)
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"required extension field(s) empty: {names}",
+            ticket.assignee,
+        )
+    if isinstance(exc, BlackboardNeedsSynthesis):
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"blackboard needs synthesis before first launch: {exc.reason}",
+            ticket.assignee,
+        )
+    return _result(ref, "failed", str(exc), ticket.assignee)
+
+
+def _prepare_for_launch(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+) -> Ticket | MegalaunchResult:
+    """The `active` view a picked ticket *would* get, without writing it.
+
+    The prepare half of the activation: `prepare_active` on a throwaway copy,
+    so every refusal it can raise — and every preflight run against the view it
+    returns — happens before anything durable exists. Returns the prospective
+    ticket, or the refusal result to report instead.
+
+    Callers must re-run this after any re-read of the ticket rather than
+    carrying the prepared view across one: it is an uncommitted mutation, and a
+    fresh `read_ticket` discards it.
+    """
+    prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+    prior = ticket.status
+    try:
+        prepare_active(cfg, ref, prospective)
+    except _PREPARE_ACTIVE_ERRORS as exc:
+        return _activation_refusal(ref, ticket, prior, exc)
+    return prospective
+
+
 def _activate_for_launch(
     cfg: Config,
     ref: TaskRef,
@@ -1048,12 +1191,17 @@ def _activate_for_launch(
     *,
     log_message: str | None = None,
 ) -> MegalaunchResult | None:
-    """Bring a picked or dependency-drained ticket to `active`.
+    """Commit a picked or dependency-drained ticket to `active`.
 
     Mirrors `coga launch`'s inline auto-activation, but returns a loud result
     instead of exiting the process — one bad task must not kill the sweep.
     `mark_active` mutates `ticket` in place (status, frozen workflow, seeded
     step), so the caller's launch loop continues off the same object.
+
+    The durable half. It still maps the prepare-half refusals as well as the
+    post-write `TaskValidationError`, because `mark_active` re-runs
+    `prepare_active` before writing and the dependency drain commits here with
+    no preceding `_prepare_for_launch`.
     """
     prior = ticket.status
     try:
@@ -1068,38 +1216,8 @@ def _activate_for_launch(
             ),
             echo=None,
         )
-    except WorkflowMissing:
-        return _result(
-            ref,
-            "skipped-unlaunchable",
-            f"{prior} with no workflow — set `workflow:` in ticket.md or run "
-            f"`coga ticket {ref.id_slug}`",
-            ticket.assignee,
-        )
-    except WorkflowError as exc:
-        return _result(
-            ref,
-            "skipped-unlaunchable",
-            f"`workflow:` ref could not be frozen — {exc}",
-            ticket.assignee,
-        )
-    except RequiredExtensionMissing as exc:
-        names = ", ".join(repr(f) for f in exc.fields)
-        return _result(
-            ref,
-            "skipped-unlaunchable",
-            f"required extension field(s) empty: {names}",
-            ticket.assignee,
-        )
-    except BlackboardNeedsSynthesis as exc:
-        return _result(
-            ref,
-            "skipped-unlaunchable",
-            f"blackboard needs synthesis before first launch: {exc.reason}",
-            ticket.assignee,
-        )
-    except TaskValidationError as exc:
-        return _result(ref, "failed", str(exc), ticket.assignee)
+    except (*_PREPARE_ACTIVE_ERRORS, TaskValidationError) as exc:
+        return _activation_refusal(ref, ticket, prior, exc)
     return None
 
 
@@ -1193,8 +1311,11 @@ def _preflight_agent_launch(
         agent = cfg.agent_type(launch_assignee or "")
     except ConfigError as exc:
         return str(exc)
-    if ticket.status not in {"active", "in_progress"}:
-        return f"status is {ticket.status}; expected active or in_progress"
+    # Callers may pass a prospective `active` view of a ticket that has not
+    # been activated yet, so this checks only what it exists to catch: work
+    # that can never be launched at all.
+    if ticket.status in TERMINAL_STATUSES:
+        return f"status is {ticket.status}; a terminal task cannot be launched"
     if shutil.which(agent.cli) is None:
         return agent_cli_missing_message(agent.cli)
     try:
