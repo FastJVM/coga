@@ -256,14 +256,18 @@ publication failure restores the blocked bytes and removes only the generated
 audit line, while an ambiguous accepted push retains evidence for explicit
 reconciliation.
 
-If the exact post-publication local reread refuses a start, compensation may
-move the ticket back to `active` only while its lifecycle and launch generation
-still identify that unlaunched attempt. That backward write uses another exact
-whole-ticket control lease and strict publication. Transport, repository, or
-guard failure restores local `in_progress` evidence and reports no successful
-compensation; an ambiguous push again retains the generated state and requires
-reconciliation. Git-disabled repositories retain the local byte-CAS behavior
-without claiming a nonexistent control publication.
+After strict publication returns, an exact local reread catches changes made
+during that synchronous boundary. The shared `before_spawn` seam then repeats
+the local proof and freshly fetches every effective control push destination
+immediately before the PTY supervisor; each control ticket must still equal the
+whole preflighted `in_progress` revision, binding both `launch_generation` and
+prompt inputs at the actual spawn boundary. Any mismatch or unverifiable fetch
+refuses the child and retains the current `in_progress` state for safe resume.
+It never compensates backward to `active`: an ordinary `coga launch` resume may
+already be running from the same generation and changing its blackboard, so
+that token alone is not proof that no session owns the state. Git-disabled
+repositories retain both exact local rereads without claiming a nonexistent
+control publication.
 
 ## Recurring admission generations
 

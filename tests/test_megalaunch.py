@@ -2526,7 +2526,8 @@ def test_megalaunch_refuses_peer_edit_during_start_sync(
     assert run.results[0].outcome == "failed"
     assert (
         run.results[0].detail
-        == "ticket changed during start publication; retry"
+        == "ticket changed during start publication; current state retained "
+        "for safe resume; retry"
     )
     assert peer_bytes is not None
     assert Path(active["path"]).read_bytes() == peer_bytes
@@ -2534,10 +2535,10 @@ def test_megalaunch_refuses_peer_edit_during_start_sync(
     assert len(_log_lines_for(cfg, active["slug"], "started (")) == 1
 
 
-def test_megalaunch_restores_active_after_body_edit_during_start_sync(
+def test_megalaunch_does_not_compensate_over_an_ordinary_resume(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A refused unlaunched start must not remain ``in_progress``."""
+    """An ordinary resume may own same-generation ``in_progress`` bytes."""
     cfg = load_config(repo)
     active = create_task(
         cfg=cfg,
@@ -2553,15 +2554,25 @@ def test_megalaunch_restores_active_after_body_edit_during_start_sync(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
     sync_calls = 0
+    claimed_generation: str | None = None
 
     def racing_sync(*_args, **_kwargs):  # type: ignore[no-untyped-def]
-        nonlocal sync_calls
+        nonlocal claimed_generation, sync_calls
         sync_calls += 1
         if sync_calls != 1:
             return
         peer = Ticket.read(active["path"])
         assert peer.status == "in_progress"
-        peer.body = f"{peer.body.rstrip()}\n\nPeer clarified the body.\n"
+        claimed_generation = peer.launch_generation
+        assert claimed_generation is not None
+        # An ordinary `coga launch` resume does not rotate megalaunch's
+        # generation before its child starts. Its in-session blackboard write
+        # therefore cannot be distinguished from an unlaunched peer edit by
+        # generation alone.
+        peer.body = (
+            f"{peer.body.rstrip()}\n\n"
+            "Ordinary coga launch session is running.\n"
+        )
         peer.write(active["path"])
 
     def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
@@ -2576,15 +2587,15 @@ def test_megalaunch_restores_active_after_body_edit_during_start_sync(
     assert run.results[0].outcome == "failed"
     assert (
         run.results[0].detail
-        == "ticket changed during start publication; returned the unlaunched "
-        "ticket to active; retry"
+        == "ticket changed during start publication; current state retained "
+        "for safe resume; retry"
     )
-    restored = Ticket.read(active["path"])
-    assert restored.status == "active"
-    assert restored.launch_generation is None
-    assert "Peer clarified the body." in restored.body
+    retained = Ticket.read(active["path"])
+    assert retained.status == "in_progress"
+    assert retained.launch_generation == claimed_generation
+    assert "Ordinary coga launch session is running." in retained.body
     assert len(_log_lines_for(cfg, active["slug"], "started (")) == 1
-    assert len(_log_lines_for(cfg, active["slug"], "restored (")) == 1
+    assert _log_lines_for(cfg, active["slug"], "restored (") == []
 
 
 def test_megalaunch_does_not_restore_active_over_a_peer_session_claim(
@@ -2644,7 +2655,8 @@ def test_megalaunch_does_not_restore_active_over_a_peer_session_claim(
     assert run.results[0].outcome == "failed"
     assert (
         run.results[0].detail
-        == "ticket changed during start publication; retry"
+        == "ticket changed during start publication; current state retained "
+        "for safe resume; retry"
     )
     assert peer_generation is not None
     assert peer_generation != outer_generation
@@ -2906,19 +2918,16 @@ def test_megalaunch_launch_claim_cas_excludes_a_second_checkout(
     assert remote.launch_generation == peer_generation
 
 
-def test_megalaunch_does_not_report_failed_rollback_as_restored(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
+    git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A failed compensation push restores local ``in_progress`` evidence."""
-    from dataclasses import replace
-
+    """A claim rotated after prompt setup cannot reach the PTY supervisor."""
     from coga import git as git_module
-    from coga.github_preflight import CheckResult
 
-    cfg = replace(load_config(repo), git_enabled=True)
+    cfg = load_config(git_repo.coga_os)
     active = create_task(
-        cfg=replace(cfg, git_enabled=False),
-        title="Failed start compensation",
+        cfg=cfg,
+        title="Final spawn claim",
         workflow_name="code",
         contexts=[],
         owner="marc",
@@ -2926,46 +2935,59 @@ def test_megalaunch_does_not_report_failed_rollback_as_restored(
         status="active",
         watchers=[],
     )
+    git_module.sync_task_state(
+        cfg, Path(active["path"]), message="Seed final spawn claim"
+    )
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
+    ticket_path = Path(active["path"])
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    outer_generation: str | None = None
+    peer_generation = "peer-final-spawn-claim"
+    reached_spawn_boundary = False
+
+    def rotate_before_pty(
+        _cfg, _ref, claimed: Ticket, _agent, *, before_spawn, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal outer_generation, reached_spawn_boundary
+        outer_generation = claimed.launch_generation
+        assert outer_generation is not None
+        assert outer_generation != peer_generation
+        peer = Ticket.parse(
+            git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+        )
+        assert peer.launch_generation == outer_generation
+        peer.frontmatter["launch_generation"] = peer_generation
+        peer.body = f"{peer.body.rstrip()}\n\nPeer claimant is running.\n"
+        git_repo.push_competing_commit(ticket_rel, peer.render())
+        reached_spawn_boundary = True
+        before_spawn()
+        raise AssertionError("a superseded claimant must not reach PTY spawn")
+
     monkeypatch.setattr(
-        "coga.megalaunch.check_git_remote",
-        lambda _remote: CheckResult("git-remote", False, "test stub"),
+        "coga.megalaunch.spawn_agent_session", rotate_before_pty
     )
-
-    def racing_start_sync(*_args, **kwargs):  # type: ignore[no-untyped-def]
-        assert kwargs["raise_state_regression"] is True
-        assert kwargs["raise_git_error"] is True
-        peer = Ticket.read(active["path"])
-        assert peer.status == "in_progress"
-        peer.body = f"{peer.body.rstrip()}\n\nPeer clarified the body.\n"
-        peer.write(active["path"])
-
-    def fail_compensation(*_args, **kwargs):  # type: ignore[no-untyped-def]
-        assert kwargs["raise_state_regression"] is True
-        assert kwargs["raise_git_error"] is True
-        raise git_module.GitError("simulated compensation transport failure")
-
-    def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
-        raise AssertionError("a ticket changed during start sync must not spawn")
-
-    monkeypatch.setattr(git_module, "sync_task_state", racing_start_sync)
-    monkeypatch.setattr(git_module, "sync_paths", fail_compensation)
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
 
+    assert reached_spawn_boundary
     assert run.results[0].outcome == "failed"
-    assert (
+    assert not run.results[0].launched
+    assert "launch claim changed on control before agent spawn" in (
         run.results[0].detail
-        == "ticket changed during start publication; retry"
     )
-    retained = Ticket.read(active["path"])
-    assert retained.status == "in_progress"
-    assert retained.launch_generation is not None
-    assert "Peer clarified the body." in retained.body
-    assert len(_log_lines_for(cfg, active["slug"], "restored (")) == 0
+    local = Ticket.read(ticket_path)
+    assert local.status == "in_progress"
+    assert local.launch_generation == outer_generation
+    remote = Ticket.parse(
+        git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    )
+    assert remote.status == "in_progress"
+    assert remote.launch_generation == peer_generation
+    assert "Peer claimant is running." in remote.body
+    assert _log_lines_for(cfg, active["slug"], "restored (") == []
 
 
 def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_launch(

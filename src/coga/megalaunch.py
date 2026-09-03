@@ -117,6 +117,10 @@ class MegalaunchError(Exception):
     """Megalaunch cannot run at all — e.g. no TTY for the interactive REPLs."""
 
 
+class _LaunchClaimRefused(Exception):
+    """The published megalaunch claim stopped matching before PTY spawn."""
+
+
 MegalaunchOutcome = Literal[
     "completed",
     "canceled",
@@ -144,7 +148,6 @@ class _PreparedAgentLaunch:
 
     ticket: Ticket
     source_ticket_bytes: bytes
-    launch_generation: str
     agent: AgentType
     env: dict[str, str]
     prompt: str
@@ -1265,35 +1268,20 @@ def _launch_until_stop(
             post_start_ticket_bytes = None
         expected_started_bytes = prepared_launch.ticket.render().encode("utf-8")
         if post_start_ticket_bytes != expected_started_bytes:
-            try:
-                restored = (
-                    prior_start_status == "active"
-                    and _restore_unlaunched_start(
-                        cfg,
-                        ref,
-                        prepared_launch.ticket,
-                        prepared_launch.launch_generation,
-                    )
-                )
-            except git.UncertainFeaturePublicationError as exc:
-                return _result(
-                    ref,
-                    "failed",
-                    "ticket changed during start publication; rollback "
-                    "publication outcome is uncertain; generated local state "
-                    f"retained for reconciliation — {exc}",
-                    launch_assignee,
-                    launched=launched,
-                )
-            detail = "ticket changed during start publication"
-            if restored:
-                detail += "; returned the unlaunched ticket to active"
             return _result(
                 ref,
                 "failed",
-                f"{detail}; retry",
+                "ticket changed during start publication; current state "
+                "retained for safe resume; retry",
                 launch_assignee,
                 launched=launched,
+            )
+
+        def revalidate_launch_claim() -> None:
+            _revalidate_launch_claim_before_spawn(
+                cfg,
+                ref,
+                expected_started_bytes=expected_started_bytes,
             )
 
         before = prepared_launch.ticket
@@ -1319,6 +1307,15 @@ def _launch_until_stop(
                 label="Megalaunch",
                 warn_blackboard=True,
                 composed_prompt=prepared_launch.prompt,
+                before_spawn=revalidate_launch_claim,
+            )
+        except _LaunchClaimRefused as exc:
+            return _result(
+                ref,
+                "failed",
+                f"{exc}; current state retained for safe resume; retry",
+                launch_assignee,
+                launched=launched,
             )
         except (ComposeError, ConfigError, SecretError) as exc:
             return _result(ref, "failed", str(exc), launch_assignee)
@@ -1595,114 +1592,72 @@ def _activate_for_launch(
     return None
 
 
-def _restore_unlaunched_start(
+def _revalidate_launch_claim_before_spawn(
     cfg: Config,
     ref: TaskRef,
-    expected_started: Ticket,
-    expected_launch_generation: str,
-) -> bool:
-    """Return our refused ``in_progress`` start to ``active`` when still ours.
+    *,
+    expected_started_bytes: bytes,
+) -> None:
+    """Re-prove one exact local/control claim at the actual PTY boundary.
 
-    A synchronous start publication may integrate a peer's body-only edit and
-    therefore return with ticket bytes different from the preflighted spawn.
-    The session must not start from stale inputs, but leaving that exact
-    lifecycle at ``in_progress`` would claim a session did start. Capture and
-    parse the conflicting revision, require its lifecycle tuple *and durable
-    launch generation* to remain the ones this launch wrote, then use the
-    shared active-state writer against that exact local revision. Another
-    launcher rotates the generation before spawning, so its same-lifecycle
-    edit cannot be mistaken for ours. The control landing gets a second,
-    full-ticket CAS; a later concurrent edit wins instead of being overwritten.
+    Strict claim publication closes the race between preflight and the first
+    control push, but a second launcher can rotate ``launch_generation`` after
+    that push while this process writes its prompt and builds argv. Reread the
+    local ticket and every effective control push destination from a private
+    fetch immediately before ``run_with_done_marker``. Exact ticket bytes bind
+    the proof to the preflighted prompt as well as the generation.
+
+    Refusal deliberately leaves ``in_progress`` untouched. Ordinary
+    ``coga launch`` may already have resumed those same bytes and changed only
+    the blackboard; unlike megalaunch it does not rotate ``launch_generation``,
+    so no compensation can prove that moving the ticket backward is safe.
     """
-    audit_path = log_path(cfg)
-    rollback = git.FileMutationRollback.capture(
-        (ref.ticket_path, audit_path),
-        union_paths=(audit_path,),
-    )
-    source_bytes = rollback.originals[ref.ticket_path]
-    if source_bytes is None or expected_started.status != "in_progress":
-        return False
-    try:
-        current = Ticket.parse(source_bytes.decode("utf-8"))
-    except (UnicodeDecodeError, TicketError):
-        return False
+    def require_local_claim() -> None:
+        try:
+            local_bytes = ref.ticket_path.read_bytes()
+        except OSError as exc:
+            raise _LaunchClaimRefused(
+                f"launch claim could not be read before agent spawn: {exc}"
+            ) from exc
+        if local_bytes != expected_started_bytes:
+            raise _LaunchClaimRefused(
+                "launch claim changed locally before agent spawn"
+            )
 
-    if (
-        expected_started.launch_generation != expected_launch_generation
-        or current.launch_generation != expected_launch_generation
-    ):
-        return False
-
-    expected_lifecycle = (
-        expected_started.status,
-        expected_started.step,
-        expected_started.assignee,
-    )
-    current_lifecycle = (current.status, current.step, current.assignee)
-    if current_lifecycle != expected_lifecycle:
-        return False
+    require_local_claim()
+    if not cfg.git_enabled:
+        return
 
     try:
-        mark_active(
+        root = git._toplevel(ref.path)
+        if root is None:
+            raise git.GitError(
+                "strict launch-claim verification requires a Git checkout"
+            )
+        guard = git.ticket_state_guard(
             cfg,
-            ref,
-            current,
-            actor="megalaunch",
-            log_message=(
-                "restored (in_progress → active) after megalaunch refused "
-                "the unlaunched start"
-            ),
-            echo=None,
-            sync_state=False,
-            mutation_snapshot=rollback,
+            ref.ticket_path,
+            expected_ticket_bytes=expected_started_bytes,
         )
-    except (*_PREPARE_ACTIVE_ERRORS, TaskValidationError, git.FeaturePublicationError):
-        rollback.restore()
-        return False
-
-    try:
-        # Only the ticket and its append-only audit line belong to this
-        # compensation. Do not resync the whole task directory and risk
-        # overlaying a peer attachment that changed during the refused start.
-        git.sync_paths(
-            cfg,
-            ref.path,
-            (ref.ticket_path,),
-            message=f"Ticket: {ref.id_slug} — active after refused start",
-            guard=git.ticket_state_guard(
-                cfg,
-                ref.ticket_path,
-                expected_lifecycle=expected_lifecycle,
-                allow_status_regression=True,
-                expected_ticket_bytes=source_bytes,
-            ),
-            generated_paths=rollback.generated,
-            raise_state_regression=True,
-            raise_git_error=cfg.git_enabled,
-        )
-    except git.UncertainFeaturePublicationError:
-        # An ambiguous control push cannot be followed by local rollback: the
-        # active compensation may already be durable. Surface that uncertainty
-        # and retain the generated bytes for explicit reconciliation.
-        raise
-    except git.GitError:
-        # A peer changed control after our local CAS. Undo only our generated
-        # active bytes after any ordinary transport/repository failure too, so
-        # the checkout cannot advertise a restoration that was refused or
-        # never reached control.
-        rollback.restore()
-        return False
-
-    try:
-        restored = read_ticket(ref)
-    except TicketError:
-        return False
-    return (
-        restored.status == "active"
-        and restored.step == expected_started.step
-        and restored.assignee == expected_started.assignee
-        and restored.launch_generation is None
-    )
+        for push_url in git._remote_push_urls(root, cfg.git_remote):
+            control_tip = git._fetch_branch_oid(
+                root,
+                push_url,
+                cfg.git_control_branch,
+            )
+            guard(control_tip)
+    except git.StateRegressionError as exc:
+        raise _LaunchClaimRefused(
+            f"launch claim changed on control before agent spawn: {exc}"
+        ) from exc
+    except git.GitError as exc:
+        raise _LaunchClaimRefused(
+            f"launch claim could not be verified before agent spawn: {exc}"
+        ) from exc
+    # Fetching control may take long enough for a local ordinary launch to
+    # update the blackboard. Keep the last filesystem action before returning
+    # to the PTY call an exact local reread too.
+    require_local_claim()
 
 
 def _reblock_unresolved(
@@ -1815,8 +1770,7 @@ def _preflight_agent_launch(
     launch_ticket = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     if launch_ticket.status == "active":
         launch_ticket.frontmatter["status"] = "in_progress"
-    launch_generation = str(uuid4())
-    launch_ticket.frontmatter["launch_generation"] = launch_generation
+    launch_ticket.frontmatter["launch_generation"] = str(uuid4())
     try:
         prompt = compose_prompt(
             cfg, ref, launch_ticket, launch_context="megalaunch"
@@ -1835,7 +1789,6 @@ def _preflight_agent_launch(
     return _PreparedAgentLaunch(
         ticket=launch_ticket,
         source_ticket_bytes=expected_source_bytes,
-        launch_generation=launch_generation,
         agent=agent,
         env=env,
         prompt=prompt,
