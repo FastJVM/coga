@@ -128,7 +128,8 @@ coga/
 ```
 
 `<ns>/<name>/` is the convention for skills this repo *authors* — `code/`,
-`coga/`, `browser/`, `direct/`. It is not a requirement, and it is
+`coga/`, `direct/`, and the repo-authored members of `browser/`. It is not a
+requirement, and it is
 not the only shape in the tree. Three shapes coexist under `coga/skills/`:
 
 - **Repo-authored, namespaced** — `code/`, `coga/`, `browser/`, `direct/`, with
@@ -137,29 +138,32 @@ not the only shape in the tree. Three shapes coexist under `coga/skills/`:
   down flat at `coga/skills/<ref>/` under its upstream ref name, so this repo
   also carries seven flat `google-agents-cli-*` directories, each declared in
   `src/coga/resources/managed-skills.toml`.
-- **Hand-vendored upstream copies** — a verbatim copy of someone else's skill,
-  committed under a namespace that names its origin and carrying its own
-  `ATTRIBUTION.md` (upstream repo, upstream path, pinned commit, refresh
-  instructions) and `LICENSE.txt`. `anthropic/skill-creator/` is the only one
-  today. It is deliberately *not* in `managed-skills.toml`: the installer
-  neither placed it nor updates it, and refreshing it means re-copying from a
-  newer upstream commit by hand while preserving the upstream, standards-valid
-  leaf `name:`. Coga derives the namespaced ref from the directory path; a slash
-  does not belong in SKILL.md `name:` metadata. Nothing installs its
-  dependencies either — its `scripts/` directory
-  holds nine Python files and no `requirements.txt`, so the
-  `install_skill_requirements` pass described below finds nothing to install on
-  its behalf. A vendored skill with imports is on its own.
+- **Hand-vendored upstream skills, verbatim or adapted** — committed under a
+  namespace and carrying their upstream source, license, and modification /
+  refresh record in `ATTRIBUTION.md` or `NOTICE.txt` plus `LICENSE.txt`.
+  `anthropic/skill-creator/` is a verbatim pinned copy;
+  `browser/playwright/` is an adapted derivative of
+  `microsoft/playwright-cli` with a wrapper and local references. Neither is in
+  `managed-skills.toml`: the installer neither placed nor updates them.
+  Refreshing a verbatim copy means re-copying the reviewed upstream revision;
+  refreshing an adapted copy also means deliberately reapplying and reviewing
+  its recorded local modifications. Preserve a standards-valid leaf `name:`
+  from upstream when applicable; Coga derives the namespaced ref from the
+  directory path, and a slash does not belong in upstream leaf metadata.
+  Nothing installs a hand-vendored skill's dependencies on its behalf unless
+  that directory supplies a supported requirements manifest. A vendored skill
+  with unlisted imports is on its own.
 
 Skill resolution reads the directory path in all three cases. Prefer a
 namespaced directory for anything you write, expect the flat form for anything
-the installer imported, and use a namespaced directory plus attribution for
-anything you vendor by hand. Repo-authored namespaced skills use the Coga ref
+the installer imported, and use a namespaced directory plus attribution,
+license, and modification history for anything you vendor by hand.
+Repo-authored namespaced skills use the Coga ref
 (`name: <namespace>/<name>`) established by the authoring template. Flat
-installer-managed imports retain their upstream metadata. A verbatim
-hand-vendored import is the narrower exception: preserve its standards-valid
-upstream leaf `name:` even though Coga derives a namespaced ref from its
-directory path.
+installer-managed imports retain their upstream metadata. A hand-vendored
+import is the narrower exception: preserve its standards-valid upstream leaf
+`name:` when applicable even though Coga derives a namespaced ref from its
+directory path, and make adaptations explicit in its notice.
 
 File-form `tasks/<slug>.md` tickets cannot carry attachments and therefore
 cannot be script-backed. In a directory-form ticket, only `ticket.py` is

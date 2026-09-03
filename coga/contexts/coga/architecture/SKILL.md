@@ -783,13 +783,16 @@ account state committed to git.
 
   **This is a declaration, not a sandbox.** `config.build_launch_env()` starts
   from the **full parent environment** and removes only the source variables an
-  `env:VAR` ref names, then adds back the resolved, scoped aliases. Every other
-  variable the operator's shell carries is inherited by the child — including
-  `OP_SERVICE_ACCOUNT_TOKEN`, which Coga never scrubs, so a launched agent can
-  run `op read` against anything that service account can reach regardless of
-  what the ticket declared. The `secrets:` list bounds what Coga *resolves and
-  names* for a task; it does not bound what the task's process can reach. Real
-  confinement needs process isolation Coga does not yet have.
+  `env:VAR` ref names, then adds back the resolved, scoped destination aliases.
+  Every variable the operator's shell carries is otherwise inherited by the
+  child. That normally includes `OP_SERVICE_ACCOUNT_TOKEN`, so a launched agent
+  can run `op read` against anything that service account can reach regardless
+  of what the ticket declared. The exact declaration can change the final
+  environment: `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` scrubs the
+  well-known name, while declaring that same well-known name as a destination
+  restores or replaces it. The `secrets:` list bounds what Coga *resolves and
+  names* for a task; it does not otherwise bound what the task's process can
+  reach. Real confinement needs process isolation Coga does not yet have.
 
 ## One shared agent-spawn path
 
