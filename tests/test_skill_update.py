@@ -159,7 +159,7 @@ def test_render_handles_empty_results() -> None:
         pr_requested=True,
         task_slug="skill-update",
     )
-    assert "Result: no installed skills to update." in report
+    assert "Result: no managed update results." in report
     assert "PR: none opened" in report
 
 
@@ -186,7 +186,7 @@ def test_render_result_line_is_the_reports_own_result_sentence() -> None:
 
 
 def test_render_result_line_handles_empty_results() -> None:
-    assert render_result_line([]) == "no installed skills to update."
+    assert render_result_line([]) == "no managed update results."
 
 
 def test_recipe_hands_back_the_results_it_already_holds(
