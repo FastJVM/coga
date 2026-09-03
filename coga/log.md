@@ -4324,3 +4324,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-03 11:16 [cleanup/handle-a-bare-slack-webhook-url-during-empty-repo] [human:nick] created (status=draft)
 2026-09-03 11:16 [cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f] [human:nick] created (status=draft)
 2026-09-03 11:16 [cleanup/add-contributing-docs-issue-templates-and-a-repo-d] [human:nick] created (status=draft)
+2026-09-03 11:16 [cleanup/check-the-demo-video-against-current-cli-names] [human:nick] created (status=draft)
