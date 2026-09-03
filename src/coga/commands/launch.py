@@ -550,10 +550,10 @@ def _launch(
                 f"{exc}. No work was started.",
                 exit_code=git.STALE_CONTROL_EXIT_CODE,
             )
-        fresh, freshness_error = _sync_control_checkout_ahead(
+        catchup = _sync_control_checkout_ahead(
             current_cfg, announce_failure=False
         )
-        if not fresh and current_cfg.git_enabled:
+        if not catchup.fresh and current_cfg.git_enabled:
             try:
                 control_checkout = git._toplevel(current_cfg.repo_root)
                 remote_present_now = _control_remote_present_at_admission(
@@ -571,7 +571,7 @@ def _launch(
                 _bail(
                     f"Cannot launch {task}: could not confirm this checkout "
                     f"includes the latest {current_cfg.git_remote}/"
-                    f"{current_cfg.git_control_branch}: {freshness_error}. "
+                    f"{current_cfg.git_control_branch}: {catchup.reason}. "
                     "No work was started.",
                     exit_code=git.STALE_CONTROL_EXIT_CODE,
                 )

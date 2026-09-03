@@ -133,10 +133,23 @@ no in-memory state.
   and skipped, while distinct Coga workspaces in one monorepo still run. One
   scheduler entry therefore cannot race one control branch through multiple
   worktrees. Each dispatched child must fetch/rebase its checked-out control
-  branch successfully before scanning; TOML parse errors and operational
+  branch successfully before scanning. A child whose checkout is not on the
+  control branch at all no longer fails the repo: the branch is free by
+  definition, so the child checks it out in a temporary linked worktree under
+  the system temp dir (outside any plausible scan root), re-dispatches its own
+  scan there, and removes the worktree afterwards. The operator's branch,
+  working tree, and stash are untouched, and every ordinary sync, ledger, and
+  push path applies unmodified because the run really is on the control branch.
+  Only recipe templates run that way — agent templates are named and skipped
+  with that reason, not the misleading "requires a TTY". `git worktree add`
+  doubles as the concurrency lock, since git refuses to check one branch out
+  twice: a second sweep, or an unrelated worktree already holding the branch,
+  keeps the loud refusal. A *diverged* control checkout still fails loud; only
+  a human can reconcile those commits. TOML parse errors and operational
   failures still fail that repo, and the parent keeps sweeping before returning
-  the aggregate result. `--force` is the explicit schedule/status bypass and
-  composes with the parent sweep.
+  the aggregate result, listing temp-worktree services separately from ordinary
+  sweeps. `--force` is the explicit schedule/status bypass and composes with
+  the parent sweep.
 - **Bootstrap tickets** are stateless launch targets. With only `ticket.md`
   they compose an agent prompt; with the exact sibling `ticket.py` they run
   deterministically with no task lifecycle or blackboard. No status, no

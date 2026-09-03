@@ -254,11 +254,64 @@ ticket-plus-generation control lease instead, and any transport failure while
 confirming or publishing that lease refuses the child. The
 unattended `coga recurring --all <path>` child keeps its stricter existing
 precondition: it must also fetch and integrate the latest remote control tip
-before scanning. Repos with `[git].enabled = false` and workspaces outside a
+before scanning. That child is the one place where being off the control branch
+is *not* a refusal — see "An `--all` child services an off-branch checkout from
+a temporary worktree" below. Repos with `[git].enabled = false` and workspaces outside a
 git checkout have no Coga-managed control checkout, so the branch-only gate
 does not apply to them. Only a confirmed non-git workspace self-skips: a Git
 inspection failure refuses rather than silently treating the checkout as
 unmanaged.
+
+## An `--all` child services an off-branch checkout from a temporary worktree
+
+The branch gate above is right — the scan reads working-tree templates and
+period tasks and writes period state, so running it from a stale feature branch
+could re-fire runs the control branch already serviced. What was wrong was the
+only recovery: a human noticing cron output and running `git checkout` by hand,
+while every sweep failed the repo in the meantime.
+
+So when an `--all` child's catch-up fails *only* because the control branch is
+not checked out here, the child does not give up. Nothing holds that branch, so
+it checks it out in a temporary linked worktree under the system temp dir,
+seeds the gitignored `coga.local.toml` into it (without it there is no `user`
+and `load_config` raises), re-dispatches its own scan there, and removes the
+worktree in a `finally` — on success, on a recipe's non-zero exit, on an
+exception, and on SIGINT/SIGTERM. A worktree stranded by SIGKILL is pruned by
+the next run before it adds its own.
+
+Three properties make this shape the right one:
+
+- **The operator's checkout is never moved.** No stash, no switch, no restore.
+  Their branch, tree (dirty or not), and stash list are byte-identical
+  afterwards. A stash-and-switch would hold their work hostage for the whole
+  sweep, conflict on `stash pop` against the scan's own writes to
+  `coga/tasks/**` and `coga/log.md`, race Coga's own concurrent sessions, and
+  strand the work outright on a cron timeout.
+- **The branch is genuinely checked out, so nothing downstream changes.**
+  `git.sync_log` and `_sync_recurring_create_paths` both refuse to publish from
+  a detached HEAD, and the serviced-period ledger line is what stops the next
+  sweep re-firing the period once Dream reaps the task. A worktree detached at
+  the remote tip would land the period task without its ledger line; checking
+  the branch out gets the whole publication path for free.
+- **`git worktree add` is the concurrency lock.** Git refuses to check one
+  branch out twice, so a second sweep — or any unrelated worktree already
+  holding the control branch — loses the race there and falls back to the loud
+  refusal, which names the holder and the manual remedy.
+
+Only recipe-backed templates run in this mode, whether or not a TTY exists: a
+throwaway worktree is the wrong place to spawn an agent REPL that composes
+prompts, edits files, and opens PRs. Each skipped agent template is reported by
+name with that reason rather than the (here false) "an agent run requires a
+TTY". The `--all` summary lists these repos separately from ordinary sweeps.
+
+The *diverged* control checkout — on the control branch, but unable to rebase
+onto the fetched tip — is deliberately out of scope and still fails loud.
+Servicing it from a worktree at the remote tip would silently step around
+commits a human has to reconcile.
+
+Single-repo runs are unchanged: bare `coga recurring`, `coga recurring launch
+<name>`, and `--interactive` still refuse off the control branch, because they
+scan the working tree they are in.
 
 The control-landing path for recurring state still handles a create made on a
 feature branch. Normal recurring commands no longer reach that case, but the

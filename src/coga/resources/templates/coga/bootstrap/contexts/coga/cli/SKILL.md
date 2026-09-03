@@ -868,15 +868,37 @@ first locally configured checkout already on its control branch), and every
 duplicate is named and skipped. Distinct Coga workspaces inside one monorepo
 remain separate scheduler targets. Each selected repo runs its ordinary
 recurring command in a fresh CLI process, sequentially, with a strict entry
-gate: `[git]` must be enabled, the configured control branch must be checked
-out, and its pre-scan fetch/rebase must succeed before period state is read or
-written. TOML parse errors and operational failures remain loud; one selected
+gate: `[git]` must be enabled, and the configured control branch's pre-scan
+fetch/rebase must succeed before period state is read or written.
+
+A repo whose checkout is parked *off* the control branch — a feature branch, a
+detached HEAD — is serviced rather than failed. Nothing holds the control
+branch, so the child checks it out in a temporary linked worktree under the
+system temp dir, runs its scan from there, and removes it when the run ends
+(on success, on a recipe's non-zero exit, on an exception, and on
+SIGINT/SIGTERM; a worktree stranded by SIGKILL is pruned by the next run before
+it adds its own). The operator's branch, working tree, and stash are untouched
+— there is deliberately no stash/switch/restore — and the run publishes period
+tasks and the `coga/log.md` serviced-period ledger to the control branch
+exactly as an ordinary sweep does. Only recipe-backed templates run in that
+mode; each agent template is named and skipped with that reason. `git worktree
+add` is the concurrency lock: a second sweep, or any other worktree already
+holding the control branch, keeps the loud refusal, which names the holder and
+the manual `git -C <root> checkout <control>` remedy. A *diverged* control
+checkout — checked out here but unable to integrate the fetched tip — still
+fails loud, because stepping around commits a human has to reconcile is the
+opposite of what that error is for.
+
+TOML parse errors and operational failures remain loud; one selected
 repo's failure does not starve later repos, but the parent exits non-zero after
 reporting the aggregate, naming each failed repo in the summary. A gate
 refusal (a diverged control checkout) is reported once, distilled to the
 conflict lines plus the exact resolve command — no rebase progress spew, no
 follow-up refresh/sync attempts re-failing against the same divergence, and no
-new local commits deepening it. This keeps schedules, task state, config, Slack, and
+new local commits deepening it. Repos serviced from a temporary control
+worktree are listed in their own summary section, separate from ordinary
+sweeps, so an operator can see whose agent templates did not run. This keeps
+schedules, task state, config, Slack, and
 git sync owned by each repo while allowing one cron entry such as `coga
 recurring --all ~/Code` without racing two checkouts of one remote workspace.
 

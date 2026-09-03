@@ -404,12 +404,20 @@ def _order_for_launch(tasks: Iterable[DueTask]) -> list[DueTask]:
     )
 
 
+_AGENT_NEEDS_TTY = (
+    "an agent run requires a TTY (stdin and stdout must both be terminals). "
+    "Run `coga recurring --interactive` from a real shell, or give the "
+    f"template a `{SCRIPT_ENTRY_POINT}` deterministic half for unattended runs."
+)
+
+
 def scan_due(
     cfg: Config,
     now: datetime | None = None,
     *,
     allow_interactive: bool = True,
     force: bool = False,
+    agent_unavailable_reason: str | None = None,
 ) -> DueScan:
     """Scan every recurring template and get-or-create its current-period task.
 
@@ -425,6 +433,12 @@ def scan_due(
     `recurring/<name>` task is get-or-created and surfaced for launch even when
     it already ran — `coga launch` re-activates a finished one. It does not
     invent a separate scratch task; `--force` is a real run, not a sandbox.
+
+    `agent_unavailable_reason` replaces the default "requires a TTY" text on
+    every template dropped by `allow_interactive=False`. A caller that excludes
+    agent templates for its own reason — a sweep running from a temporary
+    control worktree, where a TTY may well exist — passes the true one so the
+    reported skip is not a lie.
     """
     now = now or datetime.now()
     root = recurring_dir(cfg)
@@ -518,6 +532,7 @@ def scan_due(
                 template,
                 now,
                 allow_agent=allow_interactive,
+                agent_unavailable_reason=agent_unavailable_reason,
                 # Forced scans defer every status/period mutation until the
                 # sequential launch loop actually reaches that template.
                 replace_done=not force,
@@ -581,11 +596,15 @@ def create_template(
     allow_agent: bool = True,
     replace_done: bool = True,
     serviced: dict[str, str] | None = None,
+    agent_unavailable_reason: str | None = None,
 ) -> CreateOutcome:
     """Create one recurring template for `now`'s firing. Idempotent.
 
     `serviced` is the caller's prefetched valid-period map when it is walking
     every template; None reads and validates this template's ledger state.
+
+    `agent_unavailable_reason` overrides the refusal text raised when
+    `allow_agent` is false; None keeps the default no-TTY explanation.
     """
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
@@ -613,12 +632,7 @@ def create_template(
     if live is not None:
         live_delegate = frozen_task_delegate(live, read_ticket(live))
         if not allow_agent and live_delegate is not None:
-            raise RecurringError(
-                "an agent run requires a TTY (stdin and stdout must both be "
-                "terminals). Run `coga recurring --interactive` from a real "
-                f"shell, or give the template a `{SCRIPT_ENTRY_POINT}` "
-                "deterministic half for unattended runs."
-            )
+            raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
         return CreateOutcome(
             ref=live,
             created=False,
@@ -640,12 +654,7 @@ def create_template(
             if template.delegate is not None:
                 resolve_agent_delegate(cfg, template.delegate)
             if not allow_agent and template.script_entry_point is None:
-                raise RecurringError(
-                    "an agent run requires a TTY (stdin and stdout must both be "
-                    "terminals). Run `coga recurring --interactive` from a real "
-                    f"shell, or give the template a `{SCRIPT_ENTRY_POINT}` "
-                    "deterministic half for unattended runs."
-                )
+                raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
             replaced_done_ticket_bytes = existing.ticket_path.read_bytes()
             try:
                 run_delete_task(existing)
@@ -683,11 +692,7 @@ def create_template(
     if template.delegate is not None:
         resolve_agent_delegate(cfg, template.delegate)
     if not allow_agent and template.script_entry_point is None:
-        raise RecurringError(
-            "an agent run requires a TTY (stdin and stdout must both be "
-            "terminals). Run `coga recurring --interactive` from a real shell, "
-            f"or give the template a `{SCRIPT_ENTRY_POINT}` deterministic half."
-        )
+        raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
     outcome = _create_at_slug(
         cfg,
         template,

@@ -1347,7 +1347,9 @@ def test_direct_recurring_launch_refuses_an_unverified_control_catch_up(
     monkeypatch.setattr(
         recurring_cmd,
         "_sync_control_checkout_ahead",
-        lambda *args, **kwargs: (False, "simulated rebase conflict"),
+        lambda *args, **kwargs: recurring_cmd._ControlCatchup(
+            fresh=False, reason="simulated rebase conflict"
+        ),
     )
     monkeypatch.setattr(
         launch_module,

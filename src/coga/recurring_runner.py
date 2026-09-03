@@ -7,9 +7,11 @@ import json
 import math
 import os
 import re
+import signal
 import subprocess
 import shutil
 import sys
+import tempfile
 import tomllib
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -338,6 +340,11 @@ def run_recurring_all_repos(
     config guards are summarized as unconfigured instead of dispatched.
     Failures from dispatched repos are isolated: the sweep continues through
     later repos and returns non-zero after reporting the aggregate.
+
+    A repo whose checkout is parked off the control branch is no longer one of
+    those failures: its child services the repo's recipe templates from a
+    temporary control worktree instead. Those repos are reported separately
+    from ordinary sweeps, because only their recipe templates ran.
     """
     root = scan_root.expanduser().resolve()
     if not root.is_dir():
@@ -378,6 +385,7 @@ def run_recurring_all_repos(
     duplicate_of = _duplicate_remote_checkouts(serviceable)
     failed: list[str] = []
     skipped_duplicates: list[str] = []
+    serviced_from_worktree: list[str] = []
     for index, coga_os in enumerate(serviceable, 1):
         label = _repo_label(coga_os, root)
         typer.secho(
@@ -396,6 +404,11 @@ def run_recurring_all_repos(
                 err=True,
             )
             continue
+        # Observed before dispatch, because the child may put the control
+        # branch back within its own run. A repo that was off-control here and
+        # still exited 0 can only have been serviced through the temporary
+        # control worktree — every other outcome of that state is non-zero.
+        off_control = _off_control_branch(coga_os)
         process_started = True
         try:
             code = _run_repo_recurring(
@@ -408,6 +421,12 @@ def run_recurring_all_repos(
             process_started = False
             code = 1
             typer.secho(f"  ✗ {label} — {exc}", fg=typer.colors.RED, err=True)
+        if not code and off_control:
+            serviced_from_worktree.append(label)
+            typer.secho(
+                f"  ✓ {label} — serviced from a temporary control worktree",
+                fg=typer.colors.GREEN,
+            )
         if code:
             failed.append(label)
             if process_started:
@@ -464,6 +483,18 @@ def run_recurring_all_repos(
             fg=typer.colors.YELLOW,
             err=True,
         )
+    if serviced_from_worktree:
+        count = len(serviced_from_worktree)
+        repo_word = "repo" if count == 1 else "repos"
+        # Named, not just counted: only recipe templates run in this mode, so
+        # an operator reading the summary needs to know which repos to put back
+        # on the control branch to get their agent templates running again.
+        listed = "\n".join(f"  {entry}" for entry in serviced_from_worktree)
+        typer.secho(
+            f"Serviced {count} {repo_word} from a temporary control worktree "
+            f"(checkout is on another branch; recipe templates only):\n{listed}",
+            fg=typer.colors.YELLOW,
+        )
     if failed:
         typer.secho(
             f"{len(failed)} repo(s) failed: {', '.join(failed)} — see each "
@@ -473,6 +504,28 @@ def run_recurring_all_repos(
         )
         return 1
     return 0
+
+
+def _off_control_branch(coga_os: Path) -> bool:
+    """Whether this workspace's checkout is on something other than control.
+
+    Best-effort and deliberately conservative: every inspection failure reports
+    False. The child process is the authoritative gate, and an unverified guess
+    must not let the summary claim a repo took the temp-worktree path.
+    """
+    try:
+        cfg = load_config(coga_os, require_user=False)
+    except Exception:
+        return False
+    if not cfg.git_enabled:
+        return False
+    try:
+        root = _git_toplevel(coga_os)
+        if root is None:
+            return False
+        return _current_branch(root) != cfg.git_control_branch
+    except (git.GitError, OSError):
+        return False
 
 
 def _repo_label(coga_os: Path, root: Path) -> str:
@@ -648,8 +701,17 @@ def _run_repo_recurring(
     force: bool,
     interactive: bool,
     agent_override: str | None,
+    control_worktree: bool = False,
+    control_worktree_host: str = "",
+    cwd: Path | None = None,
 ) -> int:
-    """Dispatch the registered recurring recipe from ``coga_os``'s host."""
+    """Dispatch the registered recurring recipe from ``coga_os``'s host.
+
+    `cwd` overrides the host directory the child runs from. The parent sweep
+    leaves it unset and gets `coga_os.parent`, exactly as before;
+    `_service_from_control_worktree` names the temporary checkout's own root so
+    config discovery lands on the mirrored workspace whatever the repo's layout.
+    """
     command = [
         sys.executable,
         "-m",
@@ -664,14 +726,196 @@ def _run_repo_recurring(
         command.append("--interactive")
     if agent_override:
         command.extend(("--agent", agent_override))
+    if control_worktree:
+        command.append("--control-worktree")
+        if control_worktree_host:
+            command.extend(("--control-worktree-host", control_worktree_host))
 
     result = subprocess.run(
         command,
-        cwd=coga_os.parent,
+        cwd=cwd if cwd is not None else coga_os.parent,
         env=os.environ.copy(),
         check=False,
     )
     return result.returncode
+
+
+# Temporary checkouts this feature creates. Named with a stable prefix so a
+# directory stranded by SIGKILL is recognizable, and placed under the system
+# temp dir so `discover_coga_repos` — which walks any directory below a scan
+# root — can never pick one up as another Coga repo mid-sweep.
+_CONTROL_WORKTREE_PREFIX = "coga-recurring-"
+
+
+def _control_worktree_agent_refusal(cfg: Config, host: str) -> str:
+    """Why agent templates are skipped in a temporary-control-worktree run."""
+    where = host or "the host checkout"
+    return (
+        "serviced from a temporary control worktree because "
+        f"{where} does not have {cfg.git_control_branch!r} checked out; "
+        "agent templates need that checkout on the control branch."
+    )
+
+
+def _service_from_control_worktree(
+    cfg: Config,
+    *,
+    force: bool,
+    interactive: bool,
+    agent_override: str | None,
+) -> tuple[int, None] | tuple[None, str]:
+    """Run this repo's recipe templates from a temp worktree on the control
+    branch. Returns `(exit_code, None)`, or `(None, why_unavailable)`.
+
+    The caller reaches this only when the control branch is *not* checked out
+    anywhere in this repo, which is what makes the shape safe: the temporary
+    worktree checks the branch out, so the inner scan is an ordinary
+    on-control run from a different directory and every existing sync, ledger,
+    and push path applies unmodified. A detached worktree at the remote tip
+    would not — `git.sync_log` refuses to commit from a detached HEAD, so the
+    serviced-period ledger would never reach control and the next sweep would
+    re-fire the period.
+
+    `git worktree add` is also the concurrency lock: git refuses to check one
+    branch out twice, so a second sweep (or an unrelated worktree already
+    holding the branch) fails here and the caller keeps today's loud refusal.
+
+    The operator's checkout is never touched — no stash, no switch, no
+    restore. The one shared thing that moves is the local control ref, which
+    advances exactly as it does in any on-control sweep.
+    """
+    if not cfg.git_enabled:
+        return None, "[git].enabled = false"
+    root = _git_toplevel(cfg.repo_root)
+    if root is None:
+        return None, "workspace is not inside a git checkout"
+    try:
+        workspace_rel = cfg.repo_root.resolve().relative_to(root.resolve())
+    except (OSError, ValueError):
+        return None, f"{cfg.repo_root} is not inside the git checkout at {root}"
+
+    control = cfg.git_control_branch
+    try:
+        host_branch = _current_branch(root)
+    except git.GitError as exc:
+        return None, f"could not read the current branch of {root}: {exc}"
+
+    try:
+        # Reap first: a registration stranded by a killed run still pins the
+        # control branch even though its directory went with /tmp, and would
+        # refuse the worktree this run is about to add.
+        git._run_git(root, "worktree", "prune")
+        control_ref_exists = _local_branch_exists(root, control)
+        if not control_ref_exists:
+            _fetch_control_branch(cfg, root)
+    except git.GitError as exc:
+        return None, str(exc)
+
+    parent = Path(
+        tempfile.mkdtemp(prefix=f"{_CONTROL_WORKTREE_PREFIX}{root.name}-")
+    )
+    # `git worktree add` refuses a directory that already exists with content,
+    # so the checkout is a fresh subpath of the temp parent, not the parent.
+    checkout = parent / "checkout"
+    # A repo that has never checked the control branch out locally has no
+    # `refs/heads/<control>` to add a worktree for, so the ref is created from
+    # the fetched remote tip. Where it does exist it is used as-is: the inner
+    # scan runs its own catch-up against origin, which is where that
+    # integration belongs.
+    add_args = (
+        [str(checkout), control]
+        if control_ref_exists
+        else ["-b", control, str(checkout), f"{cfg.git_remote}/{control}"]
+    )
+    try:
+        git._run_git(root, "worktree", "add", *add_args)
+    except git.GitError as exc:
+        shutil.rmtree(parent, ignore_errors=True)
+        holder = git._worktree_holding_branch(root, control)
+        blocker = (
+            f"{control!r} is already checked out at {holder}"
+            if holder is not None and holder != git._WORKTREES_UNKNOWN
+            else str(exc)
+        )
+        return None, (
+            f"could not check {control!r} out at {checkout}: {blocker}. "
+            f"Free that branch, or check it out in {root} yourself, "
+            "then re-run."
+        )
+
+    previous_sigterm: object = None
+    installed_sigterm = False
+    try:
+        # SIGINT already unwinds through this `finally` as KeyboardInterrupt.
+        # A cron kill arrives as SIGTERM, whose default action would skip the
+        # cleanup entirely and strand a worktree registration.
+        previous_sigterm = signal.signal(signal.SIGTERM, _raise_on_sigterm)
+        installed_sigterm = True
+    except (OSError, ValueError):
+        # Not the main thread, or a platform without SIGTERM. The next run's
+        # `git worktree prune` is the backstop.
+        installed_sigterm = False
+
+    try:
+        local_config = cfg.repo_root / "coga.local.toml"
+        if local_config.is_file():
+            # Required, not a nicety: `coga.local.toml` is gitignored, so a
+            # fresh worktree has no `user` and `load_config` raises before the
+            # scan starts. It carries secret *references*, never values, and
+            # the copy is mode 0600 in a directory only this run knows.
+            mirrored = checkout / workspace_rel / local_config.name
+            mirrored.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(local_config, mirrored)
+            mirrored.chmod(0o600)
+
+        where = (
+            "a detached HEAD"
+            if host_branch == "HEAD"
+            else f"branch {host_branch!r}"
+        )
+        typer.secho(
+            f"{root} is on {where}; servicing recipe templates from a "
+            f"temporary {control!r} worktree at {checkout}.",
+            fg=typer.colors.CYAN,
+        )
+        return (
+            _run_repo_recurring(
+                checkout / workspace_rel,
+                force=force,
+                interactive=interactive,
+                agent_override=agent_override,
+                control_worktree=True,
+                control_worktree_host=str(root),
+                cwd=checkout,
+            ),
+            None,
+        )
+    finally:
+        if installed_sigterm:
+            signal.signal(signal.SIGTERM, previous_sigterm)
+        try:
+            git._run_git(root, "worktree", "remove", "--force", str(checkout))
+        except git.GitError:
+            # The directory removal below plus `prune` still clears it.
+            pass
+        shutil.rmtree(parent, ignore_errors=True)
+        try:
+            git._run_git(root, "worktree", "prune")
+        except git.GitError:
+            pass
+
+
+def _raise_on_sigterm(signum: int, _frame: object) -> None:
+    """Turn a scheduler's SIGTERM into an exception so `finally` blocks run."""
+    raise KeyboardInterrupt(f"terminated by signal {signum}")
+
+
+def _local_branch_exists(root: Path, branch: str) -> bool:
+    try:
+        git._run_git(root, "rev-parse", "--verify", f"refs/heads/{branch}")
+    except git.GitError:
+        return False
+    return True
 
 
 def run_recurring_scan(
@@ -681,6 +925,8 @@ def run_recurring_scan(
     interactive: bool = False,
     agent_override: str | None = None,
     require_fresh_control: bool = False,
+    control_worktree: bool = False,
+    control_worktree_host: str = "",
 ) -> int:
     """Scan every recurring template and launch any due tasks, sequentially.
 
@@ -717,6 +963,16 @@ def run_recurring_scan(
     control tip returns non-zero before `scan_due` can mutate period state.
     Bare single-repo sweeps retain the established best-effort catch-up.
 
+    When that gate fails only because the control branch is not checked out
+    here, the run does not give up: the branch is free by definition, so
+    `_service_from_control_worktree` checks it out in a temporary linked
+    worktree and re-dispatches this scan there, leaving the operator's tree and
+    branch untouched. `control_worktree` marks that inner run. It stops the
+    recursion and restricts the scan to recipe templates — a throwaway worktree
+    is the wrong place to spawn an agent REPL that composes prompts, edits
+    files, and opens PRs — with `control_worktree_host` naming the operator's
+    checkout so each skipped agent template says why.
+
     `coga recurring launch <name>` force-runs one named template now.
 
     A repo with a committed `owner` refuses this for every other operator —
@@ -730,14 +986,33 @@ def run_recurring_scan(
         return 2
 
     control_remote_expected = _control_remote_present_at_admission(cfg)
-    fresh, freshness_error = _sync_control_checkout_ahead(
+    catchup = _sync_control_checkout_ahead(
         cfg, announce_failure=not require_fresh_control
     )
+    fresh = catchup.fresh
     if require_fresh_control and not fresh:
+        if catchup.off_control_branch and not control_worktree:
+            # The control branch is free — nothing holds it here. Service the
+            # repo from a temporary worktree that checks it out instead of
+            # failing the whole repo until a human runs `git checkout`.
+            serviced, unavailable = _service_from_control_worktree(
+                cfg,
+                force=force,
+                interactive=interactive,
+                agent_override=agent_override,
+            )
+            if serviced is not None:
+                return serviced
+            typer.secho(
+                "Could not service this repo from a temporary control "
+                f"worktree: {unavailable}",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
         typer.secho(
             "Recurring scan skipped: could not confirm this checkout includes "
             f"the latest {cfg.git_remote}/{cfg.git_control_branch}: "
-            f"{freshness_error}",
+            f"{catchup.reason}",
             fg=typer.colors.RED,
             err=True,
         )
@@ -751,7 +1026,14 @@ def run_recurring_scan(
     if not _valid_agent_override(cfg, agent_override):
         return 2
     scan = scan_due(
-        cfg, allow_interactive=_interactive_stdio_has_tty(), force=force
+        cfg,
+        allow_interactive=_interactive_stdio_has_tty() and not control_worktree,
+        force=force,
+        agent_unavailable_reason=(
+            _control_worktree_agent_refusal(cfg, control_worktree_host)
+            if control_worktree
+            else None
+        ),
     )
     _broadcast_scan(
         cfg,
@@ -1253,6 +1535,10 @@ def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
     parser.add_argument("--interactive", action="store_true")
     parser.add_argument("--agent")
     parser.add_argument("--require-fresh-control", action="store_true")
+    # Internal dispatch flags. `_service_from_control_worktree` sets them on the
+    # scan it re-dispatches into the temporary checkout; nothing else does.
+    parser.add_argument("--control-worktree", action="store_true")
+    parser.add_argument("--control-worktree-host", default="")
     args = parser.parse_args(argv)
     return run_recurring_scan(
         cfg,
@@ -1260,6 +1546,8 @@ def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
         interactive=args.interactive,
         agent_override=args.agent,
         require_fresh_control=args.require_fresh_control,
+        control_worktree=args.control_worktree,
+        control_worktree_host=args.control_worktree_host,
     )
 
 
@@ -1962,7 +2250,7 @@ def run_recurring_named(
     if _refuse_non_control_branch(cfg):
         return 2
     control_remote_expected = _control_remote_present_at_admission(cfg)
-    fresh, _reason = _sync_control_checkout_ahead(cfg)
+    fresh = _sync_control_checkout_ahead(cfg).fresh
     if _refuse_non_owner(cfg):
         return 2
     if not _valid_agent_override(cfg, agent_override):
@@ -2063,9 +2351,27 @@ def run_recurring_named(
             run_autofix(cfg, record, agent_override=agent_override)
 
 
+@dataclass(frozen=True)
+class _ControlCatchup:
+    """Outcome of the pre-scan control-branch catch-up.
+
+    `fresh` and `reason` are what every caller has always needed. The third
+    field exists because "not fresh" collapsed two very different situations:
+    the control branch is not checked out here at all (recoverable — the branch
+    is free, so this run can check it out somewhere else), and the control
+    branch is checked out but its tip could not be integrated (a human has to
+    reconcile it). Only the first is a candidate for the temporary control
+    worktree, so the distinction has to survive the return.
+    """
+
+    fresh: bool
+    reason: str
+    off_control_branch: bool = False
+
+
 def _sync_control_checkout_ahead(
     cfg: Config, *, announce_failure: bool = True
-) -> tuple[bool, str]:
+) -> _ControlCatchup:
     """Catch the checked-out control branch up to origin before scanning.
 
     The scan decides what is due from working-tree templates and period tasks;
@@ -2073,7 +2379,9 @@ def _sync_control_checkout_ahead(
     already serviced, instead of relying solely on the per-create FETCH_HEAD
     checks. Runs while the tree is still clean of scan writes, so the rebase
     is normally a plain fast-forward. Only applies when this checkout holds
-    the control branch. Returns a confirmation flag and an actionable reason.
+    the control branch. Returns a `_ControlCatchup`: a confirmation flag, an
+    actionable reason, and whether the refusal was merely "the control branch
+    is not checked out here".
     Bare and named sweeps keep misses best-effort because each create still
     reconciles against FETCH_HEAD; the `--all` child treats a false result as
     an entry-gate failure before scanning.
@@ -2084,18 +2392,26 @@ def _sync_control_checkout_ahead(
     print the same conflict twice.
     """
     if not cfg.git_enabled:
-        return False, "[git].enabled = false"
+        return _ControlCatchup(fresh=False, reason="[git].enabled = false")
     root = _git_toplevel(cfg.repo_root)
     if root is None:
-        return False, "workspace is not inside a git checkout"
+        return _ControlCatchup(
+            fresh=False, reason="workspace is not inside a git checkout"
+        )
     fetched = False
     try:
         current = _current_branch(root)
         if current != cfg.git_control_branch:
             where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
-            return False, (
-                f"configured control branch {cfg.git_control_branch!r} is not "
-                f"checked out ({where})"
+            return _ControlCatchup(
+                fresh=False,
+                reason=(
+                    f"configured control branch {cfg.git_control_branch!r} is "
+                    f"not checked out ({where})."
+                    f"\nCheck that branch out — `git -C {root} checkout "
+                    f"{cfg.git_control_branch}` — then re-run."
+                ),
+                off_control_branch=True,
             )
         _fetch_control_branch(cfg, root)
         fetched = True
@@ -2114,8 +2430,8 @@ def _sync_control_checkout_ahead(
             )
         if announce_failure:
             sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {exc}\n")
-        return False, reason
-    return True, ""
+        return _ControlCatchup(fresh=False, reason=reason)
+    return _ControlCatchup(fresh=True, reason="")
 
 
 def _launch_created(
