@@ -5,12 +5,12 @@ status: draft
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts:
   - marketing/plan
   - marketing/positioning
 skills: []
-workflow: null
+workflow: draft-for-human
 secrets: null
 ---
 
@@ -27,6 +27,84 @@ token-measurement collection** post 3 needs during phases 1-2. Output: the
 concrete phase-0 worklist, written to this ticket's blackboard.
 
 ## Context
+
+**What this is.** An inventory of what exists versus what post 1 needs — not
+a review of the plan or the pitch. `marketing/plan` is settled (fork A
+pinned); this ticket checks its phase-0 preconditions against reality and
+produces a worklist: what must be true before post 1 ships, who owns each
+item. Fixing things is out of scope — that's `marketing/readme-top`,
+`marketing/discord`, etc. Record findings, not repairs.
+
+**Workflow shape.** `draft-for-human`: the agent runs every check it can
+observe and drafts the worklist (step 1); the owner fills in what only they
+can see and makes the two assignments (step 2); the agent records the final
+worklist (step 3). The worklist lives on this ticket's blackboard, under a
+`## Worklist` heading, one line per item: `[owner] item — status/evidence`.
+
+### Checks the agent runs (step 1)
+
+1. **README top** — read `README.md`. Does the first screen tell the post-1
+   story (what it is, for whom, the day-shape: "an hour or two in the
+   morning, then I leave")? Note the specific gaps for `marketing/readme-top`.
+2. **Quickstart, end-to-end** — follow the README install/first-run path
+   *exactly as written* (PyPI install into a fresh venv, a scratch git repo
+   under the scratchpad, first launch). Record every step where the text and
+   reality diverge. Test what a reader gets, not the local checkout.
+3. **Narrative material** — quotable, real examples for post 1, non-Coga
+   repos first. Every Coga-run repo on this machine has a `coga/log.md`,
+   `coga/tasks/`, and blocker history: `~/Code/multiply` (primary),
+   `~/Code/admin`, `~/Code/magicator`, `~/Code/patents`, `~/Code/tablet`,
+   `~/Code/xpllm`, `~/Code/coga-hosting-probes`, `~/Code/demo-hackathon`.
+   Look for: actual questions agents queued via `coga block`, a real morning's
+   answer-review-launch sequence, a megalaunch sweep. Collect 5–10 candidates
+   with date + repo + the literal text; the writer picks. Read-only — do not
+   modify those repos.
+4. **Megalaunch state** — is it stable enough to be *described* in present
+   tense without lying? Check recent tickets/log entries in this repo for
+   megalaunch and watchdog failures. This is a narrative-honesty check, not
+   a product review.
+5. **Distribution surfaces** (public, agent fetches and reports):
+   - Blog: https://deviantabstraction.com — last post date, newsletter
+     signup present?, per-channel URL / analytics feasibility, any existing
+     mention of Coga.
+   - fastjvm.com — the owner's other venture; check audience overlap and
+     whether a Coga link fits there (report, don't decide).
+   - HN: user `top256` (karma 213 at ticket authoring, account since 2016;
+     `https://hacker-news.firebaseio.com/v0/user/top256.json`). Note recent
+     submission pattern and whether the story-submission plan fits the
+     account's history.
+   - Reddit: `https://www.reddit.com/user/Let047/` — karma, which subreddits
+     the owner is already a member of (the plan only posts where already a
+     member).
+   - Lobste.rs — the owner has an account; username to be supplied by the
+     owner in step 2. Check invite/tag fit for a story submission.
+   - Community home — does a GitHub Discussions tab or Discord exist yet?
+     (`marketing/discord` decides; this ticket just reports the state.)
+6. **Token-measurement plan, drafted** — post 3 needs same-task-with-vs-
+   without-contexts receipts collected during phases 1–2 (`--prompt-report`,
+   schema-2 usage records; see `scripts/human_minutes.py` for the token
+   ledger reader). Draft *how* it would be collected and by what mechanism
+   (a recurring ticket? a script? manual?), so the owner only has to assign
+   it.
+7. **Prepared replies** — `marketing/plan` says to write them before post 1
+   ships. Do they exist anywhere yet? Report.
+
+### Owner-only items (step 2)
+
+- **Bookface** — login-gated; owner reports standing and whether a pre-HN
+  Bookface post is realistic on the planned timeline.
+- **Lobste.rs username**, and Reddit/HN nuance the profile doesn't show.
+- **Assign** the token-measurement collection (who/what, from the drafted
+  plan).
+- **Phase-1 thresholds** — the private success numbers the retro will be
+  scored against (plan: "noted before publishing, privately is fine").
+
+### Out of scope
+
+- Any fix or rewrite (README, docs, quickstart bugs — file findings, and
+  create follow-up tickets only if the owner asks in step 2).
+- Re-opening fork A / the essay-series decision.
+- Anything from the shelved proof-post apparatus.
 
 <!-- coga:blackboard -->
 
