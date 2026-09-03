@@ -23,10 +23,12 @@ steps:
 ---
 
 A step that declares `skills:` does **not** compose the `## <step>` section
-below: Coga builds that step's prompt from the skill file alone, and the inline
-section is never read by the launched agent. Agent instructions therefore belong
-in the skill. Sections here for a skilled step are human-facing framing only.
-Skill-less steps *do* compose their section, so those bodies are load-bearing.
+below: Coga builds that step-specific layer from the declared skill files, and
+the inline section is never read by the launched agent. The base prompt,
+contexts, ticket-level skills, ticket body, and blackboard still compose
+normally. Agent instructions therefore belong in the step's skills. Sections
+here for a skilled step are human-facing framing only. Skill-less steps *do*
+compose their section, so those bodies are load-bearing.
 
 ## already-satisfied
 
