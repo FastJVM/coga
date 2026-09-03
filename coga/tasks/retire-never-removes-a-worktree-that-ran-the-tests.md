@@ -32,7 +32,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -314,36 +314,89 @@ Investigated before writing the spec:
   deletion is explicit and reported, not implicit — but that tension is open
   question 1 below.
 
+## Dev
+branch: retire-cache-worktrees
+worktree: /home/n/Code/claude/coga-retire-cache-worktrees
+
+## Implementation notes (2026-09-02)
+
+Shipped the spec as designed. Open questions 1 and 3 were confirmed by the
+human at the start of the implement session (ship the regenerable
+classification; write the preserved-checkout note into the retro body).
+Questions 2 and 4 were already settled by the spec's own Out of Scope section
+(constant not config; `.venv/` and `.coga/` stay blocking) and were taken as
+written.
+
+What landed, one commit `774a208f`:
+
+- `branchcleanup.py`: `REGENERABLE_IGNORED_DIRS` constant, `_WorktreeLocalState`
+  dataclass, `_classify_status_records` / `_regenerable_dir` /
+  `_regenerable_suffix` / `_sample` helpers, `-z` on the status probe, the
+  three-way gate (regenerable-only removes, ignored-only refuses *with* the
+  force line, tracked/untracked refuses *without* it), the extended success
+  note, and the rewritten worktree safety model in the module docstring.
+- `commands/retire.py`: `_cleanup_checkout` returns the `WorktreeCleanupResult`
+  (or `None` when cleanup was skipped); `_retire_body` takes it and appends a
+  `### Checkout cleanup` section via `_checkout_cleanup_section` when a
+  worktree was recorded and preserved. Failures stay swallowed.
+- Both `dev/code/SKILL.md` copies (live + packaged bootstrap) updated in the
+  "Who retires the checkout" section; `diff` still clean between them.
+
+Decisions made during implementation, beyond the spec:
+
+- `_WorktreeLocalState` carries `blocking_all_ignored` rather than the gate
+  re-deriving "all ignored" from the reconstructed `!! ` string prefix. An
+  unparsed record has no reliable prefix, and re-deriving would have offered
+  `--force` over state retire could not identify. The flag clears on any
+  non-`!!` or unparsed blocking entry.
+- Added `errors="surrogateescape"` to the shared `_git` helper. `status -z`
+  is the one call site that hands back raw undecodable path bytes, and the
+  parent decodes with the ambient locale, not the child's `LC_ALL=C`. Without
+  it a non-ASCII cache filename raises instead of classifying. Sampled entries
+  go through `repr()`, which escapes surrogates, so notes stay printable.
+- `### Checkout cleanup` (not `##`) to match the heading level of the
+  neighbouring sections in `resources/retire.md`. The section says explicitly
+  that it is a note for the human and not a retro step, so the retro agent
+  does not act on the force command.
+
+Verified `-z` rename ordering empirically in a scratch repo: git emits
+`R  new.txt\0old.txt\0` — new path first, source second. The classifier
+consumes the second record; the unit test's synthetic input matches.
+
+Real-data smoke against this feature worktree after a full test run: 160
+entries classified regenerable under `.pytest_cache/` and `__pycache__/`, and
+only the 6 genuinely modified files blocking. Before this change all 166 were
+blocking.
+
+## Verification
+
+- `python -m pytest`: 2209 passed, 1 failed.
+  The single failure is `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries`,
+  which is **pre-existing and environmental** — it shells out to
+  `sys.executable -m pip wheel` and the `.venv` interpreter has no `pip`
+  (`ensurepip` is available but pip is not installed). Reproduced identically
+  on clean `main` with the same interpreter. This change adds no new packaged
+  files; it only edits an already-shipped bootstrap resource, so packaging
+  inclusion is unchanged. Left the venv alone rather than mutating the
+  operator's environment.
+- `tests/test_branchcleanup.py` + `tests/test_retire.py`: 43 passed.
+- `coga validate --json`: 155 ok. The 4 errors and 24 warnings are all
+  pre-existing task-file issues on unrelated `v2/*` drafts; this change
+  touches no task files.
+
 ## Open Questions
 
-1. **The spec overrules the ticket's preferred pairing — confirm or reject.**
-   The ticket ranks (1) *stop generating the junk* + (2) *report and offer* as
-   "the pairing to beat". The spec ships (3) *classify by disposability* + (2),
-   and declines (1). Reasoning: (1)+(2) never actually removes a worktree. (1)
-   only reduces how often caches appear and covers nothing but the tooling we
-   remember to redirect; (2) improves the message but deletes nothing. Under
-   that pairing retire's documented promise stays broken, the `dev/code` context
-   still has to be softened to "retire will usually refuse and tell you what to
-   type", and accumulation continues at roughly today's rate. (3) is defensible
-   as a *correction of the gate's predicate* rather than Coga judging the
-   operator's files: retire already deletes the whole tracked working tree, and
-   the four cache directories are recoverable by construction. If you disagree,
-   the fallback is to ship section 2 (durable report) + the message split in
-   section 1 and drop the regenerable classification — the PR shrinks to the
-   reporting half and the context doc gets the softened promise instead.
-2. **Constant or config?** The spec hardcodes `REGENERABLE_IGNORED_DIRS` in
-   `branchcleanup.py`. The alternative is a `coga.toml` key (say
-   `[retire] regenerable_ignored = [...]`) so a non-Python repo can set its own
-   and Coga ships only a default. That answers the ticket's "Python-specific in
-   a tool that is not" objection properly, at the cost of new config surface.
-   Recommendation: constant now, config when a real non-Python consumer asks.
-3. **Should the preserved-checkout note reach the retro task body?** Section 2
-   of Proposed Shape says yes — otherwise the report is echoed to a terminal
-   that immediately scrolls under the retro launch, which is most of why the
-   current refusal is invisible. It is ~10 lines in `commands/retire.py` plus a
-   test. Say so if you want the PR kept to `branchcleanup.py` + docs.
-4. **`.venv/` and `.coga/` are deliberately *not* in the regenerable set.** Both
-   are ignored, both would still preserve a checkout, and both are technically
-   rebuildable — but expensively, and `.coga/` holds a vendored CLI and the
-   per-launch worktrees. They get the force hint instead. Confirm that is the
-   line you want.
+**All resolved 2026-09-02 — kept below as the record of what was decided.**
+
+1. **RESOLVED — ship the spec as designed.** The human confirmed the
+   classify-by-disposability approach over the ticket's preferred
+   "stop generating the junk + report" pairing, for the reason the spec gives:
+   that pairing never actually removes a worktree.
+2. **RESOLVED — constant, not config.** Settled by the spec's Out of Scope
+   section. `REGENERABLE_IGNORED_DIRS` is hardcoded; add `[retire]` config when
+   a real non-Python consumer asks.
+3. **RESOLVED — yes, the note reaches the retro task body.** Confirmed by the
+   human. Implemented in `commands/retire.py` as `### Checkout cleanup`.
+4. **RESOLVED — `.venv/` and `.coga/` stay out of the regenerable set.**
+   Settled by the spec's Out of Scope section. They keep preserving the
+   checkout and get the force hint.
