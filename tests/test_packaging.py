@@ -46,6 +46,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md",
     "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.md",
     "coga/resources/templates/coga/recurring/digest/ticket.md",
@@ -127,6 +128,11 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
     (
         "coga/contexts/coga/patterns/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/patterns/SKILL.md",
+    ),
+    (
+        "coga/contexts/coga/recurring/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/"
+        "SKILL.md",
     ),
     (
         "coga/contexts/coga/principles/SKILL.md",
