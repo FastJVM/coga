@@ -41,19 +41,24 @@ a declaration, not a sandbox": `config.build_launch_env()` starts from the full
 parent environment and scrubs only the source variables an `env:VAR` ref names.
 It does not special-case `OP_SERVICE_ACCOUNT_TOKEN`, so the token normally
 survives and a launched agent can run `op read` against every vault that service
-account can reach, regardless of what its ticket declared. The exception is a
-ticket that explicitly uses `env:OP_SERVICE_ACCOUNT_TOKEN` as a secret source:
-Coga removes the original name and exposes only the declared alias, so `op` no
-longer auto-authenticates from that variable. A ticket's `secrets:` list bounds
-what Coga *resolves and names* for the task; it does not otherwise bound what
-the task's process can reach. Read the vault and SA grant as the real boundary;
-read the declaration as documentation of intent.
+account can reach, regardless of what its ticket declared. Secret construction
+first removes every named `env:VAR` source, then writes each resolved value
+under its declared destination alias. The final alias set therefore matters as
+much as the sources: `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` removes the
+well-known name and prevents `op` auto-authentication, while
+`OP_SERVICE_ACCOUNT_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` restores it and
+`OP_SERVICE_ACCOUNT_TOKEN: env:OTHER_TOKEN` overwrites any inherited value with
+the resolved `OTHER_TOKEN`. A ticket's `secrets:` list bounds what Coga
+*resolves and names* for the task; it does not otherwise bound what the task's
+process can reach. Read the final child environment plus the vault and SA grant
+as the real boundary; read the declaration as documentation of intent.
 
 The `op` CLI auto-uses `OP_SERVICE_ACCOUNT_TOKEN` while it remains set, so no
 coga code changes are normally needed for headless auth — exporting the token
 in the job process is enough for every `op://` ref a **ticket's `secrets:`**
-declares to resolve. Do not remap that variable through an `env:` declaration
-when the launched process itself must continue using `op` directly.
+declares to resolve. When the launched process itself must continue using `op`
+directly, ensure the *final destination aliases* still include
+`OP_SERVICE_ACCOUNT_TOKEN`; merely using it as an `env:` source is not enough.
 Config values resolve almost nothing. Exactly two fields —
 `[notification.slack].webhook` and `[notification.slack].important_webhook` —
 run an `env:VAR` reference through the shared resolver; every other string in

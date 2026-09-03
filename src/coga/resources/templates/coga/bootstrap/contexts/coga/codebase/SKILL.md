@@ -128,7 +128,7 @@ coga/
 ```
 
 `<ns>/<name>/` is the convention for skills this repo *authors* — `code/`,
-`coga/`, `browser/`, `direct/`, `anthropic/`. It is not a requirement, and it is
+`coga/`, `browser/`, `direct/`. It is not a requirement, and it is
 not the only shape in the tree. Three shapes coexist under `coga/skills/`:
 
 - **Repo-authored, namespaced** — `code/`, `coga/`, `browser/`, `direct/`, with
@@ -154,8 +154,12 @@ not the only shape in the tree. Three shapes coexist under `coga/skills/`:
 Skill resolution reads the directory path in all three cases. Prefer a
 namespaced directory for anything you write, expect the flat form for anything
 the installer imported, and use a namespaced directory plus attribution for
-anything you vendor by hand. Keep each skill's frontmatter `name:` compatible
-with the standard leaf-name grammar; it is metadata, not the Coga path ref.
+anything you vendor by hand. Repo-authored namespaced skills use the Coga ref
+(`name: <namespace>/<name>`) established by the authoring template. Flat
+installer-managed imports retain their upstream metadata. A verbatim
+hand-vendored import is the narrower exception: preserve its standards-valid
+upstream leaf `name:` even though Coga derives a namespaced ref from its
+directory path.
 
 File-form `tasks/<slug>.md` tickets cannot carry attachments and therefore
 cannot be script-backed. In a directory-form ticket, only `ticket.py` is
