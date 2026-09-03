@@ -1,7 +1,7 @@
 ---
 slug: no-skill-exists-for-the-cold-evaluator-review-of-a
 title: No skill exists for the cold evaluator review of a design spec
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
