@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -67,6 +67,7 @@ before the marketing materials ship.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/753
 branch: init-control-branch
 worktree: /home/n/Code/coga-init-control-branch
 
@@ -102,9 +103,17 @@ Tradeoff accepted: a fresh init on a non-`main` repo now writes a real `[git]`
 table into a config that previously shipped comments-only, and a later branch
 rename still needs a manual edit.
 
+Peer-review refinement (confirmed with the human): the current branch is safe
+to infer only for a ref-less fresh repo with no configured remote. In an
+established repo, use a confirmed cached remote default; otherwise print the
+manual fix. This gives up automatic detection for an established local-only
+`master` repo rather than risk making a disposable feature branch shared
+policy.
+
 ## Implemented (2026-09-03)
 
-Commit `e4a6f82f` on `init-control-branch`, rebased onto `origin/main`.
+Implementation commit `5439fb90` and peer-review commit `e3635b1d` on
+`init-control-branch`, rebased onto `origin/main` at `213093a0`.
 
 `src/coga/commands/init.py`:
 
@@ -115,11 +124,13 @@ Commit `e4a6f82f` on `init-control-branch`, rebased onto `origin/main`.
   `SLACK_WEBHOOK_URL` aborted and rolled back the whole init). `declared` is
   true when the scaffold ships a real `[git]` table, which init then refuses to
   edit (a second table would not parse).
-- `_detect_control_branch(target, *, control_branch, remote)` gates on
-  `git._control_branch_present` — the exact predicate behind the nag — then
-  reads `git._symbolic_head` (resolves an *unborn* HEAD, so it works before the
-  first commit). Soft-skips on `GitError`/`OSError`; the `OSError` arm matters
-  because three existing tests run init with `PATH=""`, i.e. no `git` binary.
+- `_detect_control_branch(target, *, control_branch, remote)` first recognizes
+  an unborn configured HEAD, then gates on `git._control_branch_present` — the
+  exact predicate behind the nag. A missing configured branch is replaced only
+  by a ref-less fresh HEAD with no remote or by a confirmed cached remote
+  default. Detached, ambiguous, and valid-repo probe failures return loud
+  guidance; missing Git and synthetic unreadable `.git/` fixtures keep their
+  existing soft-skip because earlier init gates own those cases.
 - `_pin_control_branch` inserts the table above the `# --- Aliases ---` heading
   in the scaffolded `coga.toml`, before `_git_commit_coga_os` commits it.
   Falls back to appending for a scaffold without the shipped headings.
@@ -128,10 +139,11 @@ Commit `e4a6f82f` on `init-control-branch`, rebased onto `origin/main`.
 
 `docs/getting-started.md`: bullet under "A few things worth knowing about init".
 
-`tests/test_init.py`: six tests — `master` repo pins, `main` repo on a feature
-branch does *not* pin, detached HEAD warns, an unreadable repo soft-skips, a
-scaffold with its own `[git]` table is left alone, and the packaged template
-still carries the insertion anchor and no `[git]` table.
+`tests/test_init.py`: eleven tests cover fresh `master` pinning, an unborn
+`main`, existing `main`, an established repo's cached `master` default,
+ambiguous feature HEADs, detached HEAD, remote-probe failure, an unreadable
+fixture, an explicit scaffold `[git]` table, and the packaged template's
+default plus insertion anchor.
 
 ## Verification
 
@@ -150,3 +162,28 @@ imports of underscore-prefixed names (matching how init.py already imports
 `_refresh_coga_gitignore` from `commands/update`). Both are genuine shared
 infra with two consumers now; promoting them to public names is a separate
 tidy-up, out of scope for this ticket.
+
+## Peer review (2026-09-03)
+
+- `codex review --base main` found three actionable issues: an established
+  non-`main` repo could pin a transient feature HEAD; a remote branch-probe
+  failure was silently treated as a valid default; and an unborn `main` wrote
+  a redundant table while claiming `main` was absent.
+- Fixed all three in `e3635b1d`, added the safe-inference policy to both the
+  live and packaged `coga/sync` contexts, and kept those copies byte-identical.
+- Fetched `origin/main` and rebased unconditionally. The feature branch is
+  clean, two commits ahead, and has `origin/main` as an ancestor.
+- Post-rebase verification:
+  `/tmp/coga-cold-design-review-venv/bin/python -m pytest -q` — 2214 passed.
+
+## PR
+
+Make `coga init` record a safe control branch instead of creating the mismatch
+that later commands warn about. Fresh ref-less repositories record their unborn
+branch, established repositories use an existing configured branch or a
+confirmed cached remote default, and detached, ambiguous, or failed-probe cases
+print the explicit config remedy without promoting a feature branch. The
+getting-started guide and both copies of the sync behavioral contract document
+the same boundary, with regression coverage for each path.
+
+Test plan: `/tmp/coga-cold-design-review-venv/bin/python -m pytest -q` — 2214 passed.
