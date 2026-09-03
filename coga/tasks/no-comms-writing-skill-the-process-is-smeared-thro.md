@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -24,7 +24,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -232,4 +232,89 @@ agent reads anyway. Files being edited are read, not composed.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: write-post-skill
+worktree: /home/n/Code/claude/coga-write-post-skill
+commit: 49c7ca37 (single squashed commit; worktree clean)
+
+## What shipped
+
+1. **clarity imported** at `coga/skills/clarity/` (flat, as the ticket predicted),
+   pruned to `SKILL.md` + `references/` + `scripts/{strip_markdown,prose_stats}.py` +
+   `LICENSE`. 76 KB from ~16k lines. `.coga-source.json` records `source_type: url`
+   and the prune in `local_adaptation_notes`. `coga skill status` reports
+   `locally-adapted (url)` — the expected consequence of pruning, and the protection
+   the ticket wanted.
+2. **`coga/skills/marketing/write-post/SKILL.md`** — 8 ordered steps, each with
+   Do / Exit / Blocks, plus a consolidated 8-item gate list.
+3. **Both contexts thinned** and their forward references made real.
+4. **Three post tickets rewired** — `skills: [marketing/write-post]` plus a pointer
+   in each `## Context`.
+
+## Decisions taken this session
+
+**The clarity boundary (the ticket required this be explicit).** `write-post` owns
+steps 1-4 (brief, thesis stress-test, outline, draft); clarity is entered only in
+**rewrite → review → lint**. Rejected deferring to clarity's co-write mode: it runs
+an author interview to derive an outline, but `marketing/plan` has already fixed the
+arc, beats, audience and voice, and the source material is a readable repo — there is
+no open interview to run, and two skills would fight over the same slot. One carved
+exception: `references/interview.md`'s "If a draft already exists" three-question
+probe is available at step 4 for a beat weak on support. Written into the skill.
+
+**Codex degradation.** `commands/` was pruned, so clarity's slash commands do not
+exist in this repo at all. `write-post` says to invoke clarity by reading its
+`SKILL.md` and following the named mode. No Claude-Code-only idiom on the path.
+
+**Clarity is not on the tickets' `skills:` list.** Only `marketing/write-post` is.
+`write-post` names clarity's exact path and clarity's own body lazy-loads its
+references by path, so attaching it would inline 7.7 KB into every post launch for a
+file the agent is told to open anyway. Reversible if a launch shows the agent missing it.
+
+## Scope deviation — owner-approved
+
+The ticket is markdown-only, but `coga skill install-url` could not run at all:
+`install_url_skill` computes `skill_ref` for `_skill_target` and never passes it to
+`gh skill install` (`src/coga/skill_manager.py:164`), while `run_subprocess` captures
+output (`:772`), so gh is never interactive and refuses to auto-pick. Verified against
+a minimal single-skill directory: **every** non-interactive URL install failed, not
+just multi-skill archives. Coga's translated error ("the source exposes more than
+one") was also wrong.
+
+I raised this and offered three routes; **the owner chose to fix the core bug in this
+ticket** rather than work around it or switch workflows. Fixed both the argv and the
+error text, with a regression assertion in
+`tests/test_skill_manager.py::test_install_url_downloads_local_installs_and_records_coga_metadata`.
+
+**For peer-review:** this ticket now carries a `src/coga/` diff under
+`docs/with-review`, whose review step is prose-oriented. The reviewer should also run
+`python -m pytest` and read the `skill_manager.py` diff as code, not prose.
+
+## Verification run
+
+- `python -m pytest` — 2202 passed, 1 failed. The failure
+  (`test_packaging.py::test_wheel_includes_bootstrap_batteries`) is environmental —
+  `No module named pip` in the venv — and reproduces identically on `main`.
+- `coga validate --json` — diffed against `main`: 168 ok / 28 issues on both, zero new
+  findings. The one finding on a touched task (`marketing/phase-0-audit`,
+  `large-blackboard`) predates this branch.
+- `coga skill status` — `clarity: locally-adapted (url)`, not `delegated (github)` or
+  `unmanaged`, so the right install path was used.
+- `compose.resolve_skill_path` resolves both `marketing/write-post` and `clarity`.
+- Both kept clarity scripts run standalone against a real markdown file.
+- No packaged twin: `src/coga/resources/templates/coga/contexts/` holds only `browser`
+  and `_template`, and packaged `bootstrap/skills/` has no `marketing/`. CLAUDE.md's
+  sync rule does not bite, as the ticket said.
+
+## Notes for follow-up (not folded in)
+
+- The ticket's claim that the gh ambiguity is about archives exposing several skills is
+  wrong in general — gh refuses non-interactively regardless of count. Worth correcting
+  wherever that assumption is documented; open PR **#743** is in the same area.
+- `coga skill install-url` auto-committed the unpruned tree as "Sync coga state" before
+  I could prune. I squashed it away so the branch does not carry a ~600 KB PNG and a
+  whole Astro site in its history, but an install-then-prune workflow racing coga's own
+  sync commit is a sharp edge someone will hit again.
+- `install_github_skill` and `install_local_skill` still write no provenance; that is
+  the gap PR #743 exists for and is untouched here.
