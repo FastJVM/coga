@@ -1,5 +1,5 @@
 ---
-slug: publish-coga-1-0-to-pypi
+slug: cleanup/publish-coga-1-0-to-pypi
 title: Publish coga 1.0 to PyPI
 status: draft
 owner: nick

@@ -596,10 +596,14 @@ later") and stay open for a later pass. Ordered: blockers for post 1 first.
 
 **Step 2 decisions (owner, 2026-09-02)**
 
-- 1.0 release: ticketed as `publish-coga-1-0-to-pypi` (draft,
+- **A `cleanup/` task directory now holds everything the owner wants done
+  before the marketing materials ship** (owner's words, 2026-09-03). Nine
+  drafts; see `coga/tasks/cleanup/README.md`. Drain with
+  `coga megalaunch cleanup`.
+- 1.0 release: ticketed as `cleanup/publish-coga-1-0-to-pypi` (draft,
   `brief-for-human`); the owner will run it later, not as part of this audit.
 - Python 3.11 crash: fix, not re-floor. Ticketed as
-  `fix-coga-init-crash-on-python-3-11-by-adding-the-r` (draft,
+  `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` (draft,
   `code/with-review`). Must land before the release.
 - Narrative candidates: all confidential, none publishable (see ruling above).
   Non-Coga repos therefore yield zero quotable examples; this is the shortfall
@@ -609,12 +613,15 @@ later") and stay open for a later pass. Ordered: blockers for post 1 first.
   phase 1 starts.
 - Owner-only facts (Lobste.rs, Reddit, Bookface, fastjvm.com, blog analytics)
   and phase-1 thresholds: still open, nothing on record yet.
-- `[?]` triage findings: deferred by the owner.
+- Triage findings: all ticketed into `cleanup/` except the two that needed no
+  action (megalaunch honesty, HN plan fit), which the owner accepted as-is.
+- Demo video: checked as far as read-only access allows (see the finding
+  below); the 95 seconds of watching are ticketed.
 
 **Blocking post 1**
 
-- [nicktoper] Publish `coga 1.0` to PyPI — ticketed: `publish-coga-1-0-to-pypi` (draft). PyPI serves 0.2.0 and 0.2.0's `coga init` crashes; 0.3.1's `init` pip-installs its own version from PyPI into the vendored venv, so nothing works from PyPI until 1.0 is there. Release path: GitHub Release → `.github/workflows/release.yml` (Trusted Publishing); runbook in `docs/releasing.md`.
-- [agent] Fix Python 3.11 — ticketed: `fix-coga-init-crash-on-python-3-11-by-adding-the-r` (draft). Add `src/coga/resources/__init__.py` (`MultiplexedPath.joinpath(*parts)` is 3.12+). Owner chose the fix over re-flooring. Must land before 1.0.
+- [nicktoper] Publish `coga 1.0` to PyPI — ticketed: `cleanup/publish-coga-1-0-to-pypi` (draft). PyPI serves 0.2.0 and 0.2.0's `coga init` crashes; 0.3.1's `init` pip-installs its own version from PyPI into the vendored venv, so nothing works from PyPI until 1.0 is there. Release path: GitHub Release → `.github/workflows/release.yml` (Trusted Publishing); runbook in `docs/releasing.md`.
+- [agent] Fix Python 3.11 — ticketed: `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` (draft). Add `src/coga/resources/__init__.py` (`MultiplexedPath.joinpath(*parts)` is 3.12+). Owner chose the fix over re-flooring. Must land before 1.0.
 - [nicktoper, step 3 agent] Re-run the quickstart from PyPI 1.0 in a real terminal — step 1 run stopped at the TTY gate; the Claude Code spawn itself was not exercised.
 - [marketing/discord] Community home — nothing exists: Discussions disabled (404), no Discord link, no repo homepage URL. Decide and create before post 1.
 - [marketing/readme-top] README first screen — add the day-shape sentence and the internal-tool envelope; pull "for whom" above the fold; decide whether "Measured on itself" (31 workstreams) moves below the primitives. "Acting as the CPU" is already there.
@@ -631,13 +638,16 @@ later") and stay open for a later pass. Ordered: blockers for post 1 first.
 - [nicktoper] fastjvm.com cross-link — single-page research index with GA; no blog/team/about slot; links to `manycore-com` org, not `FastJVM`. Decide yes/no.
 - [nicktoper] Blog readiness — WordPress.com, last post 2026-06-02 (three months quiet), Jetpack subscribe block exists, Jetpack Stats shows referrers only (no UTM table). Decide whether referrer-level attribution is enough for the phase decisions.
 
-**Findings for triage (owner deferred these in step 2; revisit later)**
+**Findings for triage — owner dispositions (2026-09-03)**
 
-- [?] PyPI `0.0.1` placeholder — on a 3.9/3.10 default `python3`, `pip install coga` silently installs the 1 KB placeholder with no `coga` binary. Consider yanking 0.0.1 so pip errors instead, and say in getting-started what the failure looks like.
-- [?] `coga init` hard-codes `control_branch = "main"` — on a machine whose `git init` makes `master`, every command prints the control-branch nag 2–3 times. Init should detect the current branch or the docs should say to set it.
-- [?] First-run noise — `coga status` in a one-minute-old repo lists six recurring jobs as "due — not created"; `init` installs seven managed skills (incl. `google-agents-cli-*`) and pip-installs gmail/google-calendar deps into a stranger's repo. Decide whether that is the intended first impression.
-- [?] Empty-repo `init` crashes with a `ConfigError` traceback when a bare `SLACK_WEBHOOK_URL` is in the environment; the existing-project path handles the same case with a tip. Edge case.
-- [?] Megalaunch honesty — describable in present tense (real sweeps 08-26, 09-02 here; 07-22 magicator; 09-01 admin). Open bugs: `megalaunch-activates-picks-before-preflight` (at review), `launch-activates-before-preflight` (in progress). Keep the positioning caveat; no crashes in the last two weeks, failures are DNS/Slack.
-- [?] Repo hygiene arrivals will see — 3 stars, 17 open PRs, 0 issues, no `CONTRIBUTING.md` / code of conduct / issue templates, repo description "A blackboard for humans and agents" differs from the README tagline. Optional before post 1.
-- [?] HN plan fit — confirmed: three front-page hits were plain essay titles; both Show HNs flopped; a resubmission four days later took once. Nothing to do.
-- [?] Demo video (README line 18) — check it still matches current CLI names before it is reused.
+Seven of the eight are now drafts under `cleanup/`. Two needed no action.
+
+- [cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f] PyPI `0.0.1` placeholder — owner: yes. Yanking survives the 1.0 release: every real release requires >= 3.11, so a 3.9/3.10 interpreter still resolves to the placeholder unless it is yanked.
+- [cleanup/add-a-debug-mode-to-init-for-vendoring-from-source] Debug mode, build-from-source vs release — owner's own addition when triaging the init findings. `COGA_REPO_URL` is today's undocumented workaround; make the distinction explicit. `code/design-then-implement`.
+- [cleanup/detect-the-current-git-branch-instead-of-hard-codi] `control_branch = "main"` nag on a `master` repo — ticketed.
+- [cleanup/quiet-the-first-run-noise-from-recurring-jobs-and] First-run noise (six "due — not created" recurring rows; seven managed skills incl. `google-agents-cli-*` pip-installing gmail/calendar deps) — ticketed with a design step, because "is this the intended first impression?" is a decision before it is a fix.
+- [cleanup/handle-a-bare-slack-webhook-url-during-empty-repo] Empty-repo `init` `ConfigError` traceback with a bare `SLACK_WEBHOOK_URL` — ticketed; make it match the existing-project path's tip.
+- [cleanup/add-contributing-docs-issue-templates-and-a-repo-d] Repo hygiene — ticketed (owner: "see previous points"). `CONTRIBUTING.md`, code of conduct, issue/PR templates, repo description and homepage URL. Stops short of the community-home decision, which is `marketing/discord`'s.
+- [cleanup/check-the-demo-video-against-current-cli-names] Demo video — **checked read-only 2026-09-03.** Uploaded 2026-07-18, 95 s, no captions, no description, so its content cannot be verified without watching it. CLI surface diff from the last pre-upload commit (`0c8eb75e`) to `main`: **`coga project` is the only command from that era that no longer exists** (removed in `8394d3b3`, PR #691; `coga build` was removed in the same commit and restored by #701). `coga open-pr` became an alias for the `coga run open-pr` recipe with the spelling unchanged, so it is still correct on screen. No mention of `coga project` survives in README, docs, or contexts — the video is the last place it could appear. Remaining work: 95 seconds of a human watching for that one name.
+- [accepted as-is] Megalaunch honesty — describable in present tense. Real sweeps here on 2026-08-26 and 2026-09-02. Open bugs `megalaunch-activates-picks-before-preflight` (at review) and `launch-activates-before-preflight` (in progress); no crashes in the last two weeks, the log's failures are DNS and Slack. Keep the positioning caveat.
+- [accepted as-is] HN plan fit — confirmed, nothing to do. Three front-page hits were plain essay titles, both Show HN posts flopped, one resubmission four days later took. "Plain story submission, never Show HN" matches the account's history.
