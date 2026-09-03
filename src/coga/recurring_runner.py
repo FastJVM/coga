@@ -712,13 +712,12 @@ def _run_repo_recurring(
     control_worktree_parent: Path | None = None,
     cwd: Path | None = None,
 ) -> int:
-    """Dispatch the registered recurring recipe from ``coga_os``'s host.
+    """Dispatch the registered recurring recipe from its Coga workspace.
 
-    `cwd` overrides the host directory the child runs from. The parent sweep
-    leaves it unset and gets `coga_os.parent`, exactly as before;
-    `_service_from_control_worktree` names the mirrored workspace's host inside
-    the temporary checkout so config discovery also works for deeply nested
-    monorepo workspaces.
+    `cwd` overrides the directory the child runs from. The parent sweep leaves
+    it unset and runs from `coga_os` itself;
+    `_service_from_control_worktree` names the mirrored Coga workspace itself
+    so config discovery works for both root and deeply nested layouts.
     """
     command = [
         sys.executable,
@@ -739,7 +738,7 @@ def _run_repo_recurring(
         if control_worktree_host:
             command.extend(("--control-worktree-host", control_worktree_host))
 
-    child_cwd = cwd if cwd is not None else coga_os.parent
+    child_cwd = cwd if cwd is not None else coga_os
     child_env = os.environ.copy()
     if control_worktree:
         if control_worktree_parent is None:
@@ -1404,13 +1403,14 @@ def _service_from_control_worktree(
         installed_sigterm = False
 
     try:
+        mirrored_coga_os = checkout / workspace_rel
         local_config = cfg.repo_root / "coga.local.toml"
         if local_config.is_file():
             # Required, not a nicety: `coga.local.toml` is gitignored, so a
             # fresh worktree has no `user` and `load_config` raises before the
             # scan starts. It carries secret *references*, never values, and
             # the copy is mode 0600 in a directory only this run knows.
-            mirrored = checkout / workspace_rel / local_config.name
+            mirrored = mirrored_coga_os / local_config.name
             mirrored.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(local_config, mirrored)
             mirrored.chmod(0o600)
@@ -1427,14 +1427,14 @@ def _service_from_control_worktree(
         )
         return (
             _run_repo_recurring(
-                checkout / workspace_rel,
+                mirrored_coga_os,
                 force=force,
                 interactive=interactive,
                 agent_override=agent_override,
                 control_worktree=True,
                 control_worktree_host=str(root),
                 control_worktree_parent=parent,
-                cwd=(checkout / workspace_rel).parent,
+                cwd=mirrored_coga_os,
             ),
             None,
         )

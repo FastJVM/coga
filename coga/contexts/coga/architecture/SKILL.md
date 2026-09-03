@@ -141,9 +141,9 @@ no in-memory state.
   the system temp dir. If the local branch itself is missing, Coga seeds it
   from an exact command-scoped fetch rather than requiring a remote-tracking
   ref, so narrow clones work without trusting shared `FETCH_HEAD`. The child
-  re-dispatches from the
-  mirrored workspace's own host directory, and normally removes the worktree
-  afterwards.
+  re-dispatches from the mirrored Coga workspace itself — the checkout
+  directory for a root layout, or the nested Coga directory in a monorepo —
+  and normally removes the worktree afterwards.
   The operator's branch, tracked and untracked project files, and stash are
   untouched; the machine-local run transcript is copied into that workspace's
   gitignored `.coga/recurring-runs/`. Every ordinary sync, ledger, and push

@@ -1398,7 +1398,7 @@ def test_repo_recurring_dispatch_uses_current_python_and_ordinary_argv(
         "--agent",
         "codex",
     ]
-    assert captured["cwd"] == coga_os.parent
+    assert captured["cwd"] == coga_os
     assert captured["check"] is False
 
 
@@ -9383,7 +9383,7 @@ def test_control_worktree_seeds_missing_branch_in_a_narrow_clone(
 def test_control_worktree_services_a_deeply_nested_monorepo_workspace(
     git_repo,
 ) -> None:
-    """The inner child's cwd is the mirrored workspace host, not repo root."""
+    """The child starts in the mirrored workspace, not the monorepo root."""
     _seed_recipe_template_on_control(git_repo)
     original = git_repo.coga_os
     nested = git_repo.root / "tools" / "ops" / "coga"
@@ -9405,6 +9405,30 @@ def test_control_worktree_services_a_deeply_nested_monorepo_workspace(
         "show", "main:tools/ops/coga/log.md", cwd=git_repo.origin
     )
     assert "created recurring/z-script-check" in ledger
+
+
+def test_control_worktree_services_a_root_layout_workspace(git_repo) -> None:
+    """A root Coga layout starts inside `checkout`, not its temp parent."""
+    _seed_recipe_template_on_control(git_repo)
+    nested = git_repo.coga_os
+    for child in nested.iterdir():
+        shutil.move(str(child), str(git_repo.root / child.name))
+    nested.rmdir()
+    git_repo.coga_os = git_repo.root
+    (git_repo.root / ".gitignore").write_text("coga.local.toml\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "move Coga to the checkout root")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("agent/parked-work")
+    before = _checkout_state(git_repo)
+
+    cfg = load_config(git_repo.root)
+    assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 0
+
+    assert _checkout_state(git_repo) == before
+    ledger = git_repo.git("show", "main:log.md", cwd=git_repo.origin)
+    assert "created recurring/z-script-check" in ledger
+    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
 
 
 def test_control_worktree_run_does_not_refire_the_serviced_period(git_repo) -> None:

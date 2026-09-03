@@ -285,8 +285,8 @@ seed does not depend on `<remote>/<control>` existing, so a single-branch or
 narrow-refspec clone is serviceable without trusting checkout-wide
 `FETCH_HEAD`. It then seeds the gitignored `coga.local.toml` into it (without
 that file there is no `user` and `load_config` raises), and re-dispatches from
-that mirrored workspace's host directory (including a deeply nested monorepo
-workspace). Before removing
+the mirrored Coga workspace itself — the checkout directory in a root layout,
+or the nested Coga directory in a monorepo. Before removing
 the worktree, it copies every machine-local `.coga/recurring-runs/*.md`
 transcript into the matching workspace in the operator's durable checkout;
 same-name, different-content records are kept side by side. If that transfer

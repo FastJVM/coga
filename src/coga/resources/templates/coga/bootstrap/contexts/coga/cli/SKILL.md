@@ -879,8 +879,9 @@ branch, so the child checks it out in a temporary linked worktree under the
 system temp dir. A missing local control ref is seeded from a private,
 command-scoped fetch, so single-branch and narrow-refspec clones do not require
 `origin/<control>` or rely on shared `FETCH_HEAD`. The child runs its scan from
-the mirrored workspace's host directory (even for a deeply nested monorepo
-workspace), and normally removes it when the run ends
+the mirrored Coga workspace itself — `checkout` for a root layout or the Coga
+directory for a deeply nested monorepo workspace — and normally removes it
+when the run ends
 (on success, on a recipe's non-zero exit, on an exception, and on
 SIGINT/SIGTERM). Once the inner scan's process handle is known, cancellation
 signals its whole process group and reaps its leader, so a recipe descendant
