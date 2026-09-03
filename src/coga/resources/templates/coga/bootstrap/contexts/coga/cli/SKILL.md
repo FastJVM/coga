@@ -688,9 +688,12 @@ working launch:
    through activation and the following `in_progress` write: if the ticket
    changes during preflight, activation sync, or start publication, megalaunch
    refuses that launch rather than overwriting or spawning against the newer
-   revision. With Git sync enabled, both lifecycle writes use that source as an
-   exact whole-ticket control compare-and-set and must publish durably before
-   spawn, so two checkouts cannot both claim one revision. After
+   revision. The final activation snapshot is itself reclassified, including
+   open blocker asks parsed from its captured bytes, so resolving the last ask
+   in the read/capture window cannot make an ask-less blocked ticket launch.
+   With Git sync enabled, both lifecycle writes use that source as an exact
+   whole-ticket control compare-and-set and must publish durably before spawn,
+   so two checkouts cannot both claim one revision. After
    `mark_in_progress` returns, the live ticket must still equal the exact
    preflighted `in_progress` bytes. Every megalaunch start and resume writes a
    unique, visible `launch_generation` claim before spawn. The final shared

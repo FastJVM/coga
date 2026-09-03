@@ -117,16 +117,20 @@ task (optionally scoped to `tasks/<DIR>/`).
   bound to one exact ticket revision through both lifecycle writes; an edit
   during preflight, activation sync, or the following start publication refuses
   that launch rather than overwriting or spawning against the newer ticket.
-  When Git sync is enabled, activation and start compare-and-swap against the
-  exact whole-ticket control revision and must publish before spawn. After
+  The final activation snapshot is itself reclassified, including open blocker
+  asks parsed from its captured bytes, so resolving the last ask in the
+  read/capture window cannot make an ask-less blocked ticket launch. When Git
+  sync is enabled, activation and start compare-and-swap against the exact
+  whole-ticket control revision and must publish before spawn. After
   `mark_in_progress` returns, megalaunch requires the live file to equal the
-  exact preflighted `in_progress` bytes before spawn. Every start and resume
-  first writes a unique `launch_generation` claim. If newer bytes still carry
-  this attempt's claim, megalaunch preserves them and guardedly returns the
-  provably unlaunched ticket to `active` only after durable publication; a
-  failed or uncertain compensation is not reported as restored. Another
-  launcher's rotated claim or a peer lifecycle change such as `done` is left
-  untouched. The prompt, resolved
+  exact preflighted `in_progress` bytes before spawn. Every megalaunch start
+  and resume first writes a unique `launch_generation` claim. The final shared
+  `before_spawn` seam rereads those local bytes and freshly verifies the whole
+  ticket on every effective control destination immediately before the PTY.
+  A changed or unverifiable claim refuses the child and retains
+  `in_progress`; it never compensates backward to `active`, because an
+  ordinary `coga launch` may already be running from the same generation and
+  changing the blackboard. The prompt, resolved
   secret environment, and agent
   are materialized by that preflight and reused at spawn, so no fallible
   derivation happens after the ticket reaches `in_progress`. The selection is

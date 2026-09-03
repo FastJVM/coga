@@ -97,7 +97,12 @@ from coga.mark import (
 from coga.paths import log_path
 from coga.repl_supervisor import build_supervised_step_env
 from coga.workflow import WorkflowError
-from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard
+from coga.taskfile import (
+    TaskFileError,
+    read_blackboard,
+    replace_blackboard,
+    split_body,
+)
 from coga.service_order import service_order
 from coga.tasks import (
     TaskNotFoundError,
@@ -832,10 +837,37 @@ def _run_selection(
                 continue
             try:
                 ticket = Ticket.parse(captured.decode("utf-8"))
-            except (UnicodeDecodeError, TicketError) as exc:
+                _body, captured_blackboard = split_body(ticket.body)
+                assert captured_blackboard is not None
+                captured_blockers = [
+                    blocker
+                    for blocker in parse_blockers_text(captured_blackboard)
+                    if not blocker.resolved
+                ]
+            except (UnicodeDecodeError, TicketError, TaskFileError) as exc:
                 results.append(
                     _result(ref, "failed", f"unreadable ticket: {exc}")
                 )
+                continue
+            if ticket.status in TERMINAL_STATUSES:
+                results.append(
+                    _result(
+                        ref,
+                        "skipped-unlaunchable",
+                        f"status is {ticket.status}",
+                        ticket.assignee,
+                    )
+                )
+                continue
+            captured_candidate = _candidate_result(
+                cfg,
+                ref,
+                ticket,
+                explicit=True,
+                blockers=captured_blockers,
+            )
+            if captured_candidate is not None:
+                results.append(captured_candidate)
                 continue
             blocked_resume = ticket.status == "blocked"
             needs_activation = ticket.status in {"draft", "paused", "blocked"}
@@ -1022,8 +1054,10 @@ def _candidate_result(
     ticket: Ticket,
     *,
     explicit: bool = False,
+    blockers: list[Blocker] | None = None,
 ) -> MegalaunchResult | None:
-    blockers = open_blockers(ref.ticket_path)
+    if blockers is None:
+        blockers = open_blockers(ref.ticket_path)
     if ticket.status == "blocked":
         # The initial unattended pass does not resume a blocked ticket. Its
         # terminal dependency drain may later resolve and activate one whose

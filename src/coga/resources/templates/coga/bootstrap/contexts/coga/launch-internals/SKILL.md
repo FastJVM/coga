@@ -236,14 +236,18 @@ separate human gate and does not inherit this relaxation.
 ## Megalaunch claim publication
 
 Megalaunch binds its preflight to exact source ticket bytes before either a
-deferred activation or an `in_progress` claim writes locally. With Git sync
-enabled, each of those writes is also a strict compare-and-set against the
-same whole-ticket bytes on a freshly fetched control tip. The generated local
-commit is unwound and the caller-owned ticket and audit bytes are restored when
-that lease or an ordinary publication attempt fails; an ambiguous accepted
-push retains generated evidence for explicit reconciliation. A session never
-spawns until the unique `launch_generation` claim is durably published. This
-prevents two checkouts preflighted from one control revision from both starting.
+deferred activation or an `in_progress` claim writes locally. A picker launch
+also parses status, routing, and open blocker asks from that captured revision
+and reclassifies it before activation; a blocker resolved in the read/capture
+window therefore remains `blocked` and is reported as ask-less instead of
+starting. With Git sync enabled, each lifecycle write is also a strict
+compare-and-set against the same whole-ticket bytes on a freshly fetched
+control tip. The generated local commit is unwound and the caller-owned ticket
+and audit bytes are restored when that lease or an ordinary publication attempt
+fails; an ambiguous accepted push retains generated evidence for explicit
+reconciliation. A session never spawns until the unique `launch_generation`
+claim is durably published. This prevents two checkouts preflighted from one
+control revision from both starting.
 
 The dependency drain enters that boundary with one extra state change. It
 re-captures the exact `blocked` ticket and open asks, validates the prospective

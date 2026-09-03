@@ -3116,6 +3116,69 @@ def test_megalaunch_selection_recomputes_blocked_resume_after_earlier_launch(
     assert len(open_blockers(Path(newly_blocked["path"]))) == 1
 
 
+def test_megalaunch_selection_reclassifies_captured_blocker_state(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blocker resolved just before capture cannot bypass the ask gate."""
+    from coga.blackboard import (
+        append_blocker,
+        open_blockers as read_open_blockers,
+        resolve_open_blockers,
+    )
+
+    cfg = load_config(repo)
+    blocked = create_task(
+        cfg=cfg,
+        title="Blocker resolved during selection",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket_path = Path(blocked["path"])
+    append_blocker(ticket_path, actor="claude", reason="Which region?")
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(ticket_path)
+    blocker_reads = 0
+
+    def resolve_after_phase_three_classification(path: Path):
+        nonlocal blocker_reads
+        blocker_reads += 1
+        blockers = read_open_blockers(path)
+        if blocker_reads == 2:
+            assert resolve_open_blockers(
+                path,
+                actor="marc",
+                answer="Resolved independently before activation.",
+            )
+        return blockers
+
+    def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("an ask-less blocked ticket must not spawn")
+
+    monkeypatch.setattr(
+        "coga.megalaunch.open_blockers",
+        resolve_after_phase_three_classification,
+    )
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+
+    run = run_megalaunch(cfg, selection=[blocked["slug"]])
+
+    assert blocker_reads == 2
+    assert run.counts["skipped-unlaunchable"] == 1
+    assert run.results[0].detail == (
+        "blocked but has no open blocker asks to resolve"
+    )
+    retained = Ticket.read(ticket_path)
+    assert retained.status == "blocked"
+    assert read_open_blockers(ticket_path) == []
+    assert _log_lines_for(cfg, blocked["slug"], "activated") == []
+    assert _log_lines_for(cfg, blocked["slug"], "started (") == []
+
+
 def test_megalaunch_selection_refuses_invalid_status_before_spawn(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
