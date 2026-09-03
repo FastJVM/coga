@@ -34,7 +34,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -343,6 +343,72 @@ test first and watch it fail, which is cheap here.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: defer-launch-activation
+worktree: /home/n/Code/claude/coga-defer-launch-activation
+
+## Implementation (2026-09-02)
+
+Committed on `defer-launch-activation` as `ac5f46a7`.
+
+**Shape.** `_auto_activate` split at the seam `mark.py` already provided:
+
+- `_prepare_auto_activate(cfg, ref, ticket)` — runs `prepare_active` in memory
+  and owns the four pre-write refusals (`WorkflowMissing`, `WorkflowError`,
+  `RequiredExtensionMissing`, `BlackboardNeedsSynthesis`). Called at the
+  existing draft/paused guard, so `compose_prompt` still sees the activated
+  ticket.
+- `_commit_auto_activate(cfg, ref, ticket, *, prior)` — `mark_active` plus the
+  post-write `TaskValidationError`. Called immediately before the
+  `in_progress` flip, directly above the blocked-resume gate.
+- `_auto_activate` kept as prepare-then-commit for the two callers with no
+  refusing preflight in between: the script path and blocked-resume.
+
+`auto_activate_prior: str | None` is initialized above the `try` and carries
+the real prior status across the split, since `ticket.status` reads `active`
+by commit time. Unused `sync_state` kwarg dropped.
+
+**Ordering changes**, as predicted at design time: the
+`<slug>: active — auto on launch` echo and `assert_task_valid` both now run
+after the preflights rather than before. No test depended on either.
+
+**Lost-update window — owner decision, 2026-09-02.** Left unguarded and
+documented in `_commit_auto_activate`'s docstring rather than enforced with a
+byte compare. The owner's call: Coga is single-writer and a ticket is not
+edited concurrently with its own launch. This matches blocked-resume, which
+already deferred across the same preflights with no guard. The strict assist
+path remains the exception.
+
+**Required code comments written**, per the evaluator's finding that these are
+too fragile to leave on a blackboard:
+
+- at the commit gate: nothing between the prepare guard and there re-reads the
+  ticket from disk, so `ticket` is still the prepared object;
+- in `_commit_auto_activate`: why `mark_active`'s re-run of `prepare_active` is
+  idempotent (the canceled and unsynthesized-draft checks key off
+  `prior_status`, now `active`; `_freeze_workflow_ref` is a documented no-op on
+  a frozen dict with a step; the rest are pure re-reads).
+
+Also corrected the stale comment above `compose_prompt` — it claimed to guard
+"flipping status" when only the `in_progress` half was true of it. Now true of
+both halves.
+
+**Test.** `test_launch_refusal_leaves_draft_unactivated`, parametrized over
+`draft`/`paused`, modeled on `test_launch_refuses_unsynthesized_draft_blackboard`
+(byte-equality + log absence) with the `op read` mock from
+`test_launch_fails_loud_on_op_read_error`. Verified to fail on the pre-fix
+source — the ticket comes back `status: active` — and pass after.
+
+**Suite.** 2204 passed, 1 failed:
+`tests/test_packaging.py::test_wheel_includes_bootstrap_batteries`, which
+fails identically on unmodified `main` (`No module named pip` in the venv).
+Environment, not this change. Note the suite needs a 3.11+ interpreter —
+`PYTHONPATH=src .venv/bin/python -m pytest`.
+
+No example-fixture change: task layout, prompt composition, and workflow
+semantics are all unaffected.
 
 ## Design notes
 
