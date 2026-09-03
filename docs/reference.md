@@ -117,12 +117,16 @@ task (optionally scoped to `tasks/<DIR>/`).
   bound to one exact ticket revision through both lifecycle writes; an edit
   during preflight, activation sync, or the following start publication refuses
   that launch rather than overwriting or spawning against the newer ticket.
-  After `mark_in_progress` returns, megalaunch requires the live file to equal
-  the exact preflighted `in_progress` bytes before spawn. Every start and resume
+  When Git sync is enabled, activation and start compare-and-swap against the
+  exact whole-ticket control revision and must publish before spawn. After
+  `mark_in_progress` returns, megalaunch requires the live file to equal the
+  exact preflighted `in_progress` bytes before spawn. Every start and resume
   first writes a unique `launch_generation` claim. If newer bytes still carry
   this attempt's claim, megalaunch preserves them and guardedly returns the
-  provably unlaunched ticket to `active`; another launcher's rotated claim or a
-  peer lifecycle change such as `done` is left untouched. The prompt, resolved
+  provably unlaunched ticket to `active` only after durable publication; a
+  failed or uncertain compensation is not reported as restored. Another
+  launcher's rotated claim or a peer lifecycle change such as `done` is left
+  untouched. The prompt, resolved
   secret environment, and agent
   are materialized by that preflight and reused at spawn, so no fallible
   derivation happens after the ticket reaches `in_progress`. The selection is

@@ -2655,6 +2655,221 @@ def test_megalaunch_does_not_restore_active_over_a_peer_session_claim(
     assert _log_lines_for(cfg, active["slug"], "restored (") == []
 
 
+def test_megalaunch_deferred_activation_cas_uses_exact_control_ticket(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A control-side prose edit defeats the draft-to-active publication."""
+    cfg = load_config(git_repo.coga_os)
+    draft = create_task(
+        cfg=cfg,
+        title="Exact activation claim",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    from coga import git as git_module
+
+    git_module.sync_task_state(
+        cfg, Path(draft["path"]), message="Seed exact activation claim"
+    )
+    real_sync = git_module.sync_task_state
+    ticket_path = Path(draft["path"])
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    raced = False
+
+    def racing_sync(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if not raced:
+            raced = True
+            assert kwargs["raise_state_regression"] is True
+            assert kwargs["raise_git_error"] is True
+            peer = Ticket.parse(
+                git_repo.git(
+                    "show", f"main:{ticket_rel}", cwd=git_repo.origin
+                )
+            )
+            peer.body = f"{peer.body.rstrip()}\n\nPeer clarified control.\n"
+            git_repo.push_competing_commit(ticket_rel, peer.render())
+        return real_sync(*args, **kwargs)
+
+    def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a launch with a lost activation lease must not spawn")
+
+    monkeypatch.setattr(git_module, "sync_task_state", racing_sync)
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+
+    run = run_megalaunch(cfg, selection=[draft["slug"]])
+
+    assert raced
+    assert run.results[0].outcome == "failed"
+    assert "exact control ticket changed" in run.results[0].detail
+    local = Ticket.read(ticket_path)
+    assert local.status == "draft"
+    assert local.launch_generation is None
+    remote = Ticket.parse(
+        git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    )
+    assert remote.status == "draft"
+    assert "Peer clarified control." in remote.body
+    assert _log_lines_for(cfg, draft["slug"], "activated (") == []
+
+
+def test_megalaunch_launch_claim_cas_excludes_a_second_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only one checkout may publish and spawn from the same active revision."""
+    cfg = load_config(git_repo.coga_os)
+    active = create_task(
+        cfg=cfg,
+        title="Exclusive launch claim",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    from coga import git as git_module
+
+    git_module.sync_task_state(
+        cfg, Path(active["path"]), message="Seed exclusive launch claim"
+    )
+    peer_root = git_repo.root.parent / "peer-checkout"
+    git_repo.git(
+        "clone", str(git_repo.origin), str(peer_root), cwd=git_repo.root.parent
+    )
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer_root)
+    git_repo.git("config", "user.name", "Peer", cwd=peer_root)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer_root)
+    git_repo.git("checkout", "-B", "main", "origin/main", cwd=peer_root)
+    (peer_root / "coga" / "coga.local.toml").write_text(
+        'user = "marc"\n', encoding="utf-8"
+    )
+    peer_cfg = load_config(peer_root / "coga")
+
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    real_sync = git_module.sync_task_state
+    peer_started = False
+    peer_generation: str | None = None
+    spawned_paths: list[Path] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def one_peer_spawn(
+        _cfg, ref, claimed: Ticket, _agent, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal peer_generation
+        spawned_paths.append(ref.ticket_path)
+        assert ref.ticket_path.is_relative_to(peer_root)
+        peer_generation = claimed.launch_generation
+        assert peer_generation is not None
+        return _Session()
+
+    def racing_sync(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal peer_started
+        if not peer_started:
+            peer_started = True
+            peer_run = run_megalaunch(peer_cfg, selection=[active["slug"]])
+            assert peer_run.results[0].launched
+        return real_sync(*args, **kwargs)
+
+    monkeypatch.setattr(git_module, "sync_task_state", racing_sync)
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", one_peer_spawn)
+
+    run = run_megalaunch(cfg, selection=[active["slug"]])
+
+    assert run.results[0].outcome == "failed"
+    assert not run.results[0].launched
+    assert "exact control ticket changed" in run.results[0].detail
+    assert len(spawned_paths) == 1
+    assert peer_generation is not None
+    local = Ticket.read(active["path"])
+    assert local.status == "active"
+    assert local.launch_generation is None
+    ticket_rel = str(Path(active["path"]).relative_to(git_repo.root))
+    remote = Ticket.parse(
+        git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    )
+    assert remote.status == "in_progress"
+    assert remote.launch_generation == peer_generation
+
+
+def test_megalaunch_does_not_report_failed_rollback_as_restored(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed compensation push restores local ``in_progress`` evidence."""
+    from dataclasses import replace
+
+    from coga import git as git_module
+    from coga.github_preflight import CheckResult
+
+    cfg = replace(load_config(repo), git_enabled=True)
+    active = create_task(
+        cfg=replace(cfg, git_enabled=False),
+        title="Failed start compensation",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.check_git_remote",
+        lambda _remote: CheckResult("git-remote", False, "test stub"),
+    )
+
+    def racing_start_sync(*_args, **kwargs):  # type: ignore[no-untyped-def]
+        assert kwargs["raise_state_regression"] is True
+        assert kwargs["raise_git_error"] is True
+        peer = Ticket.read(active["path"])
+        assert peer.status == "in_progress"
+        peer.body = f"{peer.body.rstrip()}\n\nPeer clarified the body.\n"
+        peer.write(active["path"])
+
+    def fail_compensation(*_args, **kwargs):  # type: ignore[no-untyped-def]
+        assert kwargs["raise_state_regression"] is True
+        assert kwargs["raise_git_error"] is True
+        raise git_module.GitError("simulated compensation transport failure")
+
+    def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a ticket changed during start sync must not spawn")
+
+    monkeypatch.setattr(git_module, "sync_task_state", racing_start_sync)
+    monkeypatch.setattr(git_module, "sync_paths", fail_compensation)
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+
+    run = run_megalaunch(cfg, selection=[active["slug"]])
+
+    assert run.results[0].outcome == "failed"
+    assert (
+        run.results[0].detail
+        == "ticket changed during start publication; retry"
+    )
+    retained = Ticket.read(active["path"])
+    assert retained.status == "in_progress"
+    assert retained.launch_generation is not None
+    assert "Peer clarified the body." in retained.body
+    assert len(_log_lines_for(cfg, active["slug"], "restored (")) == 0
+
+
 def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_launch(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -1,14 +1,14 @@
 ---
 name: coga/launch-internals
-description: The strict publication invariants behind coga launch, the recurring runner, and the requires-pr gate — recorded-checkout and PR-head proofs, leases, compare-and-set publication, compensation, and recurring admission generations. Attach only to tickets that change launch.py, the recurring runner, open-pr, or the step gates.
+description: The strict publication invariants behind coga launch, megalaunch, the recurring runner, and the requires-pr gate — recorded-checkout and PR-head proofs, leases, compare-and-set publication, compensation, and recurring admission generations. Attach only to tickets that change launch.py, megalaunch.py, the recurring runner, open-pr, or the step gates.
 ---
 
 # Coga launch internals
 
-These are the concurrency and publication guarantees behind `coga launch`, the
-recurring runner, and the `requires: pr` step gate. They are what a change to
-`commands/launch.py`, the recurring scan, `step_gate.py`, or `open_pr.py` must
-not break.
+These are the concurrency and publication guarantees behind `coga launch`,
+`coga megalaunch`, the recurring runner, and the `requires: pr` step gate. They
+are what a change to `commands/launch.py`, `megalaunch.py`, the recurring scan,
+`step_gate.py`, or `open_pr.py` must not break.
 
 **Not attached by default, on purpose.** `coga/architecture` carries the model
 an agent needs to *operate* — what runs when, what advances a step, what a
@@ -232,6 +232,27 @@ temporary failure rather than falling through CLI teardown with 130/143. This
 preserves the PR branch's local/remote alignment without the catch-all sweep
 committing retained state on an unrelated or closed branch. Megalaunch keeps a
 separate human gate and does not inherit this relaxation.
+
+## Megalaunch claim publication
+
+Megalaunch binds its preflight to exact source ticket bytes before either a
+deferred activation or an `in_progress` claim writes locally. With Git sync
+enabled, each of those writes is also a strict compare-and-set against the
+same whole-ticket bytes on a freshly fetched control tip. The generated local
+commit is unwound and the caller-owned ticket and audit bytes are restored when
+that lease or an ordinary publication attempt fails; an ambiguous accepted
+push retains generated evidence for explicit reconciliation. A session never
+spawns until the unique `launch_generation` claim is durably published. This
+prevents two checkouts preflighted from one control revision from both starting.
+
+If the exact post-publication local reread refuses a start, compensation may
+move the ticket back to `active` only while its lifecycle and launch generation
+still identify that unlaunched attempt. That backward write uses another exact
+whole-ticket control lease and strict publication. Transport, repository, or
+guard failure restores local `in_progress` evidence and reports no successful
+compensation; an ambiguous push again retains the generated state and requires
+reconciliation. Git-disabled repositories retain the local byte-CAS behavior
+without claiming a nonexistent control publication.
 
 ## Recurring admission generations
 

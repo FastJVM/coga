@@ -3069,10 +3069,11 @@ def guard_ticket_state(
     step/status never move backward. Automatic unresolved-resume cleanup is the
     narrow exception: it may set ``allow_terminal_change`` only while also
     pinning ``expected_lifecycle`` to the exact script result it is undoing.
-    ``allow_status_regression`` is the still narrower unlaunched-start
-    compensation: it requires ``expected_ticket_bytes`` and permits a backward
-    status write only while the complete control ticket still equals the
-    caller's captured revision.
+    ``expected_ticket_bytes`` is the exact whole-ticket compare-and-set used by
+    launch claims and their compensation. ``allow_status_regression`` is the
+    still narrower unlaunched-start exception: it requires that exact byte
+    lease and permits a backward status write only while the control ticket
+    still equals the caller's captured revision.
 
     Pass the ticket file (`TaskRef.ticket_path`), not the task directory — the
     comparison reads ticket frontmatter, and a directory rel matches nothing.
@@ -3093,8 +3094,7 @@ def guard_ticket_state(
         and committed_bytes != expected_ticket_bytes
     ):
         raise StateRegressionError(
-            f"{rel}: exact control ticket changed before guarded status "
-            "rollback"
+            f"{rel}: exact control ticket changed before guarded publication"
         )
     if expected_lifecycle is not None:
         actual = _ticket_lifecycle_state(committed_bytes)
@@ -3138,8 +3138,10 @@ def ticket_state_guard(
     ``allow_terminal_change`` is reserved for automatic unresolved-resume
     cleanup and must be paired with the exact pre-cleanup
     ``expected_lifecycle``.
-    ``allow_status_regression`` is reserved for undoing an unlaunched start and
-    is accepted only with the complete pre-rollback control ticket bytes.
+    ``expected_ticket_bytes`` additionally binds any publication to one exact
+    whole-ticket control revision. ``allow_status_regression`` is reserved for
+    undoing an unlaunched start and is accepted only with those complete
+    pre-rollback control ticket bytes.
     """
 
     def guard(base: str) -> None:

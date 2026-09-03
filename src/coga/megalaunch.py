@@ -1137,12 +1137,39 @@ def _launch_until_stop(
                 ),
                 echo=None,
                 mutation_snapshot=start_snapshot,
+                state_guard=(
+                    git.ticket_state_guard(
+                        cfg,
+                        ref.ticket_path,
+                        expected_ticket_bytes=(
+                            prepared_launch.source_ticket_bytes
+                        ),
+                    )
+                    if cfg.git_enabled
+                    else None
+                ),
+                strict_state_guard=cfg.git_enabled,
+                strict_state_sync=cfg.git_enabled,
             )
         except TaskValidationError as exc:
             start_snapshot.restore()
             return _result(ref, "failed", str(exc), ticket.assignee)
-        except git.FeaturePublicationError as exc:
-            return _result(ref, "failed", str(exc), ticket.assignee)
+        except git.UncertainFeaturePublicationError as exc:
+            return _result(
+                ref,
+                "failed",
+                "launch claim publication outcome is uncertain; generated "
+                f"local state retained for reconciliation — {exc}",
+                ticket.assignee,
+            )
+        except git.GitError as exc:
+            start_snapshot.restore()
+            return _result(
+                ref,
+                "failed",
+                f"launch claim publication refused: {exc}; retry",
+                ticket.assignee,
+            )
         # `mark_in_progress` includes synchronous Git publication. A peer can
         # replace, complete, or claim the ticket while that network boundary
         # is in flight, after our pre-write CAS has already succeeded. Spawn
@@ -1154,15 +1181,26 @@ def _launch_until_stop(
             post_start_ticket_bytes = None
         expected_started_bytes = prepared_launch.ticket.render().encode("utf-8")
         if post_start_ticket_bytes != expected_started_bytes:
-            restored = (
-                prior_start_status == "active"
-                and _restore_unlaunched_start(
-                    cfg,
-                    ref,
-                    prepared_launch.ticket,
-                    prepared_launch.launch_generation,
+            try:
+                restored = (
+                    prior_start_status == "active"
+                    and _restore_unlaunched_start(
+                        cfg,
+                        ref,
+                        prepared_launch.ticket,
+                        prepared_launch.launch_generation,
+                    )
                 )
-            )
+            except git.UncertainFeaturePublicationError as exc:
+                return _result(
+                    ref,
+                    "failed",
+                    "ticket changed during start publication; rollback "
+                    "publication outcome is uncertain; generated local state "
+                    f"retained for reconciliation — {exc}",
+                    launch_assignee,
+                    launched=launched,
+                )
             detail = "ticket changed during start publication"
             if restored:
                 detail += "; returned the unlaunched ticket to active"
@@ -1364,6 +1402,21 @@ def _activate_for_launch(
     path.
     """
     prior = ticket.status
+    strict_source_bytes: bytes | None = None
+    strict_activation = (
+        cfg.git_enabled
+        and prepared is not None
+        and mutation_snapshot is not None
+    )
+    if strict_activation:
+        strict_source_bytes = mutation_snapshot.originals.get(ref.ticket_path)
+        if strict_source_bytes is None:
+            return _result(
+                ref,
+                "failed",
+                "ticket disappeared before deferred activation",
+                ticket.assignee,
+            )
     if prepared is not None:
         ticket.frontmatter = dict(prepared.frontmatter)
         ticket.body = prepared.body
@@ -1378,14 +1431,44 @@ def _activate_for_launch(
                 or f"activated ({prior} → active) — explicit megalaunch pick"
             ),
             echo=None,
+            sync_state=not strict_activation,
             mutation_snapshot=mutation_snapshot,
+        )
+        if strict_activation:
+            assert mutation_snapshot is not None
+            assert strict_source_bytes is not None
+            git.sync_task_state(
+                cfg,
+                ref.path,
+                message=f"Ticket: {ref.id_slug} — active",
+                guard=git.ticket_state_guard(
+                    cfg,
+                    ref.ticket_path,
+                    expected_ticket_bytes=strict_source_bytes,
+                ),
+                generated_paths=mutation_snapshot.generated,
+                raise_state_regression=True,
+                raise_git_error=True,
+            )
+    except git.UncertainFeaturePublicationError as exc:
+        return _activation_refusal(
+            ref,
+            ticket,
+            prior,
+            git.FeaturePublicationError(
+                "activation publication outcome is uncertain; generated "
+                f"local state retained for reconciliation — {exc}"
+            ),
         )
     except (
         *_PREPARE_ACTIVE_ERRORS,
         TaskValidationError,
-        git.FeaturePublicationError,
+        git.GitError,
     ) as exc:
-        if isinstance(exc, TaskValidationError) and mutation_snapshot is not None:
+        if (
+            isinstance(exc, (TaskValidationError, git.GitError))
+            and mutation_snapshot is not None
+        ):
             mutation_snapshot.restore()
         return _activation_refusal(ref, ticket, prior, exc)
     return None
@@ -1474,11 +1557,18 @@ def _restore_unlaunched_start(
             ),
             generated_paths=rollback.generated,
             raise_state_regression=True,
+            raise_git_error=cfg.git_enabled,
         )
-    except git.StateRegressionError:
+    except git.UncertainFeaturePublicationError:
+        # An ambiguous control push cannot be followed by local rollback: the
+        # active compensation may already be durable. Surface that uncertainty
+        # and retain the generated bytes for explicit reconciliation.
+        raise
+    except git.GitError:
         # A peer changed control after our local CAS. Undo only our generated
-        # active bytes so the local checkout cannot advertise a regression
-        # that was correctly refused remotely.
+        # active bytes after any ordinary transport/repository failure too, so
+        # the checkout cannot advertise a restoration that was refused or
+        # never reached control.
         rollback.restore()
         return False
 
