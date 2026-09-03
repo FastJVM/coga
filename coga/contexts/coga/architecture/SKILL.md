@@ -137,10 +137,12 @@ no in-memory state.
   control branch at all no longer fails the repo: the branch is free by
   definition, so the child checks it out in a temporary linked worktree under
   the system temp dir (outside any plausible scan root), re-dispatches from the
-  mirrored workspace's own host directory, and removes the worktree afterwards.
-  The operator's branch,
-  working tree, and stash are untouched, and every ordinary sync, ledger, and
-  push path applies unmodified because the run really is on the control branch.
+  mirrored workspace's own host directory, and normally removes the worktree
+  afterwards.
+  The operator's branch, tracked and untracked project files, and stash are
+  untouched; the machine-local run transcript is copied into that workspace's
+  gitignored `.coga/recurring-runs/`. Every ordinary sync, ledger, and push
+  path applies unmodified because the run really is on the control branch.
   Only deterministic `ticket.py` phases run that way — agent templates are
   named and skipped with that reason, not the misleading "requires a TTY";
   existing periods are admitted from their frozen materialized `ticket.py`,
@@ -148,11 +150,14 @@ no in-memory state.
   period, its presence is not permission to spawn an agent: the inner run
   carries a hard refusal through shared launch, keeps completed script output,
   and pauses the exact period if agent work remains. The inner scan owns a
-  separate process session; on cancellation
-  the wrapper signals the whole process group and reaps its leader before
-  removing the checkout. A SIGKILL survivor carries a repo/branch/PID
-  marker, so a later run can remove that exact dead Coga worktree without
-  touching a live sweep or user-owned checkout. `git worktree add`
+  separate process session; on cancellation the wrapper signals the whole
+  process group and reaps its leader before removing the checkout. A versioned
+  SIGKILL-survivor marker carries the repo, branch, workspace, wrapper PID, and
+  inner spawn state/process-group ID. A later run removes that exact Coga
+  worktree only after both known processes are dead; an ambiguous spawn window
+  is retained. Normal and stale cleanup first copy machine-local run records
+  into the durable checkout, retaining the worktree if that transfer fails.
+  `git worktree add`
   doubles as the concurrency lock, since git refuses to check one branch out
   twice: a second sweep, or an unrelated worktree already holding the branch,
   keeps the loud refusal. A *diverged* control checkout still fails loud; only

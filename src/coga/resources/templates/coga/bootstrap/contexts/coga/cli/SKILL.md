@@ -875,15 +875,20 @@ A repo whose checkout is parked *off* the control branch — a feature branch, a
 detached HEAD — is serviced rather than failed. Nothing holds the control
 branch, so the child checks it out in a temporary linked worktree under the
 system temp dir, runs its scan from the mirrored workspace's host directory
-(even for a deeply nested monorepo workspace), and removes it when the run ends
+(even for a deeply nested monorepo workspace), and normally removes it when
+the run ends
 (on success, on a recipe's non-zero exit, on an exception, and on
 SIGINT/SIGTERM). The inner scan has its own process session; cancellation
 signals the whole group and reaps its leader, so a recipe descendant cannot
-continue mutating a removed checkout. A SIGKILL survivor carries a
-repo/branch/PID marker; a later run removes that exact worktree only when its
-owner is dead, leaving live sweeps and user worktrees alone. The operator's
-branch, working tree, and stash are untouched
-— there is deliberately no stash/switch/restore — and the run publishes period
+continue mutating a removed checkout. A versioned SIGKILL-survivor marker
+records the wrapper PID and the inner spawn state/process-group ID; a later run
+removes that exact worktree only when both known processes are dead, while an
+ambiguous spawn window, live sweep, and user worktree remain protected. Before
+normal or stale cleanup, machine-local run records are copied into the matching
+durable workspace; a failed transfer retains the worktree. The operator's
+branch, tracked and untracked project files, and stash are untouched — there is
+deliberately no stash/switch/restore — apart from that gitignored transcript,
+and the run publishes period
 tasks and the `coga/log.md` serviced-period ledger to the control branch
 exactly as an ordinary sweep does. Only deterministic `ticket.py` phases run
 in that mode; each agent-only template is named and skipped with that reason.
@@ -1038,7 +1043,8 @@ the sweep's exit code. Operator knobs: `COGA_AUTOFIX=0` disables the loop,
 analysis over a recorded run by hand. `coga recurring launch <name>` closes
 the same loop, so the `coga dream` / `coga autoclose` / `coga skill-update`
 aliases analyze their run too. The mechanism, the run record's contents, and
-the auth fallback are in `coga/recurring`.
+the auth fallback are in `coga/recurring`. Temporary-control scans copy their
+record back to the durable workspace before removing the worktree.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 

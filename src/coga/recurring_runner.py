@@ -705,6 +705,7 @@ def _run_repo_recurring(
     agent_override: str | None,
     control_worktree: bool = False,
     control_worktree_host: str = "",
+    control_worktree_parent: Path | None = None,
     cwd: Path | None = None,
 ) -> int:
     """Dispatch the registered recurring recipe from ``coga_os``'s host.
@@ -737,7 +738,32 @@ def _run_repo_recurring(
     child_cwd = cwd if cwd is not None else coga_os.parent
     child_env = os.environ.copy()
     if control_worktree:
+        if control_worktree_parent is None:
+            raise ValueError(
+                "a control-worktree dispatch requires its owner-marker parent"
+            )
+        # `starting` closes the unsafe half of the spawn window. If this
+        # wrapper is SIGKILLed before it can publish the child's process-group
+        # identity, a later sweep retains the checkout rather than guessing
+        # that no descendant exists.
+        _transition_control_worktree_inner(
+            control_worktree_parent,
+            expected="not-started",
+            state="starting",
+        )
         process = _start_repo_recurring_process(command, child_cwd, child_env)
+        try:
+            _transition_control_worktree_inner(
+                control_worktree_parent,
+                expected="starting",
+                state="running",
+                pgid=process.pid,
+            )
+        except BaseException:
+            # A child whose identity could not be durably published must not
+            # escape while the normal cleanup path removes its checkout.
+            _terminate_repo_recurring_process(process)
+            raise
         try:
             return process.wait()
         except BaseException:
@@ -780,8 +806,15 @@ def _repo_recurring_process_group_exists(
     process: subprocess.Popen[bytes],
 ) -> bool:
     """Whether any descendant still occupies the isolated process group."""
+    return _process_group_is_running(process.pid)
+
+
+def _process_group_is_running(pgid: int) -> bool:
+    """Conservatively report whether a process group may still be alive."""
+    if pgid <= 0:
+        return True
     try:
-        os.killpg(process.pid, 0)
+        os.killpg(pgid, 0)
     except ProcessLookupError:
         return False
     except OSError:
@@ -822,30 +855,135 @@ def _terminate_repo_recurring_process(
 # root — can never pick one up as another Coga repo mid-sweep.
 _CONTROL_WORKTREE_PREFIX = "coga-recurring-"
 _CONTROL_WORKTREE_OWNER_FILE = ".coga-recurring-owner.json"
+_CONTROL_WORKTREE_INNER_STATES = {"not-started", "starting", "running"}
+
+
+@dataclass(frozen=True)
+class _ControlWorktreeOwner:
+    pid: int
+    workspace_rel: Path
+    inner_state: str
+    inner_pgid: int | None
+
+
+def _is_positive_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _safe_control_worktree_workspace(
+    root: Path, workspace: str | Path
+) -> Path | None:
+    """Return a workspace relative to ``root``, or None for an escape."""
+    workspace_rel = Path(workspace)
+    resolved_root = root.resolve()
+    if (
+        workspace_rel.is_absolute()
+        or ".." in workspace_rel.parts
+        or not (resolved_root / workspace_rel)
+        .resolve()
+        .is_relative_to(resolved_root)
+    ):
+        return None
+    return workspace_rel
+
+
+def _atomic_write_control_worktree_owner(
+    marker: Path, payload: Mapping[str, object]
+) -> None:
+    """Replace an ownership marker without exposing a partial state."""
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=marker.parent,
+            prefix=f".{marker.name}.",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.chmod(0o600)
+        os.replace(temporary, marker)
+        temporary = None
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def _write_control_worktree_owner(
     parent: Path,
     root: Path,
     control: str,
+    workspace_rel: Path,
     *,
     pid: int | None = None,
+    inner_state: str = "not-started",
+    inner_pgid: int | None = None,
 ) -> None:
     """Mark a temp directory as this process's narrowly owned checkout."""
-    marker = parent / _CONTROL_WORKTREE_OWNER_FILE
-    marker.write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "pid": os.getpid() if pid is None else pid,
-                "root": str(root.resolve()),
-                "control": control,
-            },
-            sort_keys=True,
+    owner_pid = os.getpid() if pid is None else pid
+    if not _is_positive_int(owner_pid):
+        raise ValueError(f"invalid control-worktree owner pid: {owner_pid}")
+    requested_workspace = workspace_rel
+    workspace_rel = _safe_control_worktree_workspace(root, requested_workspace)
+    if workspace_rel is None:
+        raise ValueError(
+            f"unsafe control-worktree workspace: {requested_workspace}"
         )
-        + "\n"
+    resolved_root = root.resolve()
+    if inner_state not in _CONTROL_WORKTREE_INNER_STATES:
+        raise ValueError(f"unknown control-worktree inner state: {inner_state}")
+    if inner_state == "running":
+        if not _is_positive_int(inner_pgid):
+            raise ValueError("a running control worktree requires an inner pgid")
+    elif inner_pgid is not None:
+        raise ValueError(f"{inner_state} cannot carry an inner pgid")
+
+    marker = parent / _CONTROL_WORKTREE_OWNER_FILE
+    _atomic_write_control_worktree_owner(
+        marker,
+        {
+            "version": 2,
+            "pid": owner_pid,
+            "root": str(resolved_root),
+            "control": control,
+            "workspace": workspace_rel.as_posix(),
+            "inner_state": inner_state,
+            "inner_pgid": inner_pgid,
+        },
     )
-    marker.chmod(0o600)
+
+
+def _transition_control_worktree_inner(
+    parent: Path,
+    *,
+    expected: str,
+    state: str,
+    pgid: int | None = None,
+) -> None:
+    """Durably advance the marker around the isolated child spawn."""
+    marker = parent / _CONTROL_WORKTREE_OWNER_FILE
+    try:
+        payload = json.loads(marker.read_text())
+    except (OSError, TypeError, ValueError, UnicodeError) as exc:
+        raise OSError(
+            f"could not read control-worktree owner marker: {exc}"
+        ) from exc
+    if (
+        not isinstance(payload, dict)
+        or payload.get("version") != 2
+        or payload.get("pid") != os.getpid()
+        or payload.get("inner_state") != expected
+        or state not in _CONTROL_WORKTREE_INNER_STATES
+        or (state == "running" and not _is_positive_int(pgid))
+        or (state != "running" and pgid is not None)
+    ):
+        raise OSError("control-worktree owner marker changed unexpectedly")
+    payload["inner_state"] = state
+    payload["inner_pgid"] = pgid
+    _atomic_write_control_worktree_owner(marker, payload)
 
 
 def _process_is_running(pid: int) -> bool:
@@ -861,10 +999,10 @@ def _process_is_running(pid: int) -> bool:
     return True
 
 
-def _stale_owned_control_worktree(
+def _read_control_worktree_owner(
     root: Path, control: str, checkout: Path
-) -> bool:
-    """Whether ``checkout`` is a dead Coga temp worktree for this exact repo."""
+) -> _ControlWorktreeOwner | None:
+    """Read a marker only for this repo's exact Coga-owned temp checkout."""
     try:
         temp_root = Path(tempfile.gettempdir()).resolve()
         checkout = checkout.resolve()
@@ -876,31 +1014,164 @@ def _stale_owned_control_worktree(
                 f"{_CONTROL_WORKTREE_PREFIX}{root.name}-"
             )
         ):
-            return False
+            return None
         payload = json.loads(
             (parent / _CONTROL_WORKTREE_OWNER_FILE).read_text()
         )
+        if not isinstance(payload, dict):
+            return None
         pid = payload.get("pid")
+        workspace = payload.get("workspace")
+        inner_state = payload.get("inner_state")
+        inner_pgid = payload.get("inner_pgid")
         if (
-            payload.get("version") != 1
+            payload.get("version") != 2
             or payload.get("root") != str(root.resolve())
             or payload.get("control") != control
-            or not isinstance(pid, int)
+            or not _is_positive_int(pid)
+            or not isinstance(workspace, str)
+            or not workspace
+            or not isinstance(inner_state, str)
+            or inner_state not in _CONTROL_WORKTREE_INNER_STATES
+            or (
+                inner_state == "running"
+                and not _is_positive_int(inner_pgid)
+            )
+            or (inner_state != "running" and inner_pgid is not None)
         ):
-            return False
-    except (OSError, ValueError, TypeError, json.JSONDecodeError):
-        return False
-    return not _process_is_running(pid)
+            return None
+        workspace_rel = _safe_control_worktree_workspace(root, workspace)
+        if workspace_rel is None:
+            return None
+    except (OSError, ValueError, TypeError, UnicodeError):
+        return None
+    return _ControlWorktreeOwner(
+        pid=pid,
+        workspace_rel=workspace_rel,
+        inner_state=inner_state,
+        inner_pgid=inner_pgid,
+    )
+
+
+def _stale_owned_control_worktree(
+    root: Path, control: str, checkout: Path
+) -> _ControlWorktreeOwner | None:
+    """Return ownership only when wrapper and any known child are both dead."""
+    owner = _read_control_worktree_owner(root, control, checkout)
+    if owner is None or _process_is_running(owner.pid):
+        return None
+    if owner.inner_state == "not-started":
+        return owner
+    if (
+        owner.inner_state == "running"
+        and owner.inner_pgid is not None
+        and not _process_group_is_running(owner.inner_pgid)
+    ):
+        return owner
+    # `starting` means the wrapper died inside the one window where a child
+    # may exist but its pgid was not yet publishable. Retain the checkout and
+    # force a human to establish that it is safe.
+    return None
+
+
+def _copy_control_worktree_run_log(source: Path, destination_dir: Path) -> Path:
+    """Copy one run record without replacing any durable local record."""
+    data = source.read_bytes()
+    collision = 0
+    while True:
+        destination = (
+            destination_dir / source.name
+            if collision == 0
+            else destination_dir
+            / f"{source.stem}.worktree-{collision:03d}{source.suffix}"
+        )
+        try:
+            descriptor = os.open(
+                destination,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+            )
+        except FileExistsError:
+            if (
+                not destination.is_symlink()
+                and destination.is_file()
+                and destination.read_bytes() == data
+            ):
+                return destination
+            collision += 1
+            continue
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+        except BaseException:
+            destination.unlink(missing_ok=True)
+            raise
+        return destination
+
+
+def _persist_control_worktree_run_logs(
+    source_coga_os: Path, destination_coga_os: Path
+) -> None:
+    """Move temp-checkout run records into the operator's durable checkout."""
+    source_runs = source_coga_os / ".coga" / "recurring-runs"
+    if not source_runs.exists():
+        return
+    source_root = source_coga_os.resolve()
+    if (
+        source_runs.parent.is_symlink()
+        or source_runs.is_symlink()
+        or not source_runs.is_dir()
+        or not source_runs.resolve().is_relative_to(source_root)
+    ):
+        raise OSError(f"unsafe temporary recurring-run directory: {source_runs}")
+
+    if not destination_coga_os.is_dir():
+        raise OSError(
+            f"durable Coga workspace is unavailable: {destination_coga_os}"
+        )
+    destination_root = destination_coga_os.resolve()
+    destination_state = destination_coga_os / ".coga"
+    destination_runs = destination_state / "recurring-runs"
+    if destination_state.is_symlink() or destination_runs.is_symlink():
+        raise OSError(
+            f"unsafe durable recurring-run directory: {destination_runs}"
+        )
+    destination_runs.mkdir(parents=True, exist_ok=True)
+    if not destination_runs.resolve().is_relative_to(destination_root):
+        raise OSError(
+            f"durable recurring-run directory escapes its workspace: "
+            f"{destination_runs}"
+        )
+
+    for source in sorted(source_runs.glob("*.md")):
+        if source.is_symlink() or not source.is_file():
+            continue
+        _copy_control_worktree_run_log(source, destination_runs)
 
 
 def _reap_stale_control_worktree(root: Path, control: str) -> None:
     """Remove a dead, marker-proven Coga holder without touching live/user trees."""
     holder = git._worktree_holding_branch(root, control)
-    if (
-        holder is None
-        or holder == git._WORKTREES_UNKNOWN
-        or not _stale_owned_control_worktree(root, control, holder)
-    ):
+    if holder is None or holder == git._WORKTREES_UNKNOWN:
+        return
+    owner = _stale_owned_control_worktree(root, control, holder)
+    if owner is None:
+        return
+    try:
+        _persist_control_worktree_run_logs(
+            holder / owner.workspace_rel,
+            root / owner.workspace_rel,
+        )
+    except OSError as exc:
+        typer.secho(
+            "Recurring control-worktree recovery retained "
+            f"{holder}: could not preserve its run logs in "
+            f"{root / owner.workspace_rel}: {exc}",
+            fg=typer.colors.RED,
+            err=True,
+        )
         return
     git._run_git(root, "worktree", "remove", "--force", str(holder))
     shutil.rmtree(holder.parent, ignore_errors=True)
@@ -978,7 +1249,7 @@ def _service_from_control_worktree(
     parent = Path(
         tempfile.mkdtemp(prefix=f"{_CONTROL_WORKTREE_PREFIX}{root.name}-")
     )
-    _write_control_worktree_owner(parent, root, control)
+    _write_control_worktree_owner(parent, root, control, workspace_rel)
     # `git worktree add` refuses a directory that already exists with content,
     # so the checkout is a fresh subpath of the temp parent, not the parent.
     checkout = parent / "checkout"
@@ -1051,6 +1322,7 @@ def _service_from_control_worktree(
                 agent_override=agent_override,
                 control_worktree=True,
                 control_worktree_host=str(root),
+                control_worktree_parent=parent,
                 cwd=(checkout / workspace_rel).parent,
             ),
             None,
@@ -1059,15 +1331,34 @@ def _service_from_control_worktree(
         if installed_sigterm:
             signal.signal(signal.SIGTERM, previous_sigterm)
         try:
-            git._run_git(root, "worktree", "remove", "--force", str(checkout))
-        except git.GitError:
-            # The directory removal below plus `prune` still clears it.
-            pass
-        shutil.rmtree(parent, ignore_errors=True)
-        try:
-            git._run_git(root, "worktree", "prune")
-        except git.GitError:
-            pass
+            _persist_control_worktree_run_logs(
+                checkout / workspace_rel,
+                cfg.repo_root,
+            )
+        except OSError as exc:
+            # The temp checkout is now the only durable copy. Keep both its
+            # directory and Git registration so the next sweep can retry the
+            # marker-proven transfer before reaping it.
+            typer.secho(
+                "Recurring control worktree retained at "
+                f"{checkout}: could not preserve its run logs in "
+                f"{cfg.repo_root}: {exc}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+        else:
+            try:
+                git._run_git(
+                    root, "worktree", "remove", "--force", str(checkout)
+                )
+            except git.GitError:
+                # The directory removal below plus `prune` still clears it.
+                pass
+            shutil.rmtree(parent, ignore_errors=True)
+            try:
+                git._run_git(root, "worktree", "prune")
+            except git.GitError:
+                pass
 
 
 def _raise_on_sigterm(signum: int, _frame: object) -> None:

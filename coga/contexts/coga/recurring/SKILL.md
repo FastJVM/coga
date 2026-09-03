@@ -279,23 +279,34 @@ not checked out here, the child does not give up. Nothing holds that branch, so
 it checks it out in a temporary linked worktree under the system temp dir,
 seeds the gitignored `coga.local.toml` into it (without it there is no `user`
 and `load_config` raises), and re-dispatches from that mirrored workspace's
-host directory (including a deeply nested monorepo workspace). It removes the
-worktree in a `finally` — on success, on a recipe's non-zero exit, on an
-exception, and on SIGINT/SIGTERM. The inner scan starts in its own process
-session; on cancellation the wrapper signals the entire process group and
-waits for its leader to exit, so a `ticket.py` descendant cannot continue
-against a checkout that has already been removed. Each temp
-parent carries a repo/branch/PID ownership marker. If SIGKILL bypasses cleanup
-and leaves both the directory and its valid Git registration behind, the next
-run removes it only after that exact marker proves it is a Coga-owned checkout
-for this repo and its owner is dead; a live sweep and an unrelated user
-worktree remain protected by the ordinary branch-lock refusal.
+host directory (including a deeply nested monorepo workspace). Before removing
+the worktree, it copies every machine-local `.coga/recurring-runs/*.md`
+transcript into the matching workspace in the operator's durable checkout;
+same-name, different-content records are kept side by side. If that transfer
+fails, the registered temp worktree is retained rather than destroying the
+only copy. Otherwise removal runs in a `finally` — on success, on a recipe's
+non-zero exit, on an exception, and on SIGINT/SIGTERM. The inner scan starts in
+its own process session; on cancellation the wrapper signals the entire
+process group and waits for its leader to exit, so a `ticket.py` descendant
+cannot continue against a checkout that has already been removed.
+
+Each temp parent carries a versioned repo/branch/workspace ownership marker
+with the wrapper PID and the isolated child's spawn state. It publishes
+`starting` before spawn and the process-group ID immediately afterwards. If
+SIGKILL bypasses cleanup, the next run removes that exact Coga-owned checkout
+only when the wrapper is dead and either no child had started or the published
+process group is also dead. An ambiguous `starting` window, a live wrapper or
+group, an old/invalid marker, and every unrelated user worktree remain
+protected by the ordinary branch-lock refusal. Stale recovery also transfers
+the saved run records before removal and retains the checkout if it cannot.
 
 Three properties make this shape the right one:
 
-- **The operator's checkout is never moved.** No stash, no switch, no restore.
-  Their branch, tree (dirty or not), and stash list are byte-identical
-  afterwards. A stash-and-switch would hold their work hostage for the whole
+- **The operator's project state is never moved.** No stash, no switch, no
+  restore. Their branch, tracked and untracked project files (dirty or not),
+  and stash list are unchanged; the one deliberate local write is the
+  gitignored run transcript copied into `.coga/recurring-runs/`. A
+  stash-and-switch would hold their work hostage for the whole
   sweep, conflict on `stash pop` against the scan's own writes to
   `coga/tasks/**` and `coga/log.md`, race Coga's own concurrent sessions, and
   strand the work outright on a cron timeout.
@@ -756,7 +767,9 @@ Operating it:
   stretch the wait a sweep signed up for.
 - Every run record is also written machine-locally to
   `.coga/recurring-runs/<stamp>.md` (gitignored — one operator's sweep
-  transcript is not team state), whether or not it gets ticketed.
+  transcript is not team state), whether or not it gets ticketed. A scan in a
+  temporary control worktree copies that record back to the matching durable
+  workspace before cleanup; a transfer failure retains the temp worktree.
 - `coga run autofix-analyze [<run-log.md>] [--dry-run]` re-runs the analysis
   over a recorded run by hand; with no path it takes the most recent one.
 - The argv for the one-shot call is built in for `claude` and `codex`. Another

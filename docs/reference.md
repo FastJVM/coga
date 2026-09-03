@@ -189,7 +189,10 @@ nothing more.
   `claude auth status` probe, and the subscription retry below all draw on the
   same deadline, so the fallback cannot double what the sweep waits for.
 - Every run record is also written to `.coga/recurring-runs/<stamp>.md`
-  (gitignored), whether or not it is ticketed.
+  (gitignored), whether or not it is ticketed. Temporary-control scans copy
+  that record into the matching durable workspace before cleanup; if the copy
+  fails, Coga retains the temporary worktree rather than deleting the only
+  record.
 - `coga run autofix-analyze [RUN_LOG] [--dry-run] [--agent TYPE]` re-runs the
   analysis over a recorded run by hand; with no path it reads the most recent
   one.

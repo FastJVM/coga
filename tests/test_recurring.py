@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -9282,11 +9283,11 @@ def _seed_recipe_template_on_control(git_repo, name: str = "z-script-check") -> 
 
 
 def _checkout_state(git_repo) -> tuple[str, str, str, str]:
-    """Everything the operator's checkout must not lose during a sweep."""
+    """Project state the temporary sweep must not change or lose."""
     return (
         git_repo.git("rev-parse", "HEAD"),
         git_repo.git("rev-parse", "--abbrev-ref", "HEAD"),
-        git_repo.git("status", "--porcelain", "--untracked-files=all", "--ignored"),
+        git_repo.git("status", "--porcelain", "--untracked-files=all"),
         git_repo.git("stash", "list"),
     )
 
@@ -9307,8 +9308,9 @@ def test_recurring_all_scan_services_off_control_checkout_from_worktree(
     cfg = load_config(git_repo.coga_os)
     assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 0
 
-    # The operator's checkout is byte-identical: same branch, same HEAD, same
-    # tracked/untracked/ignored status, and no stash entry was ever created.
+    # The operator's project state is identical: same branch, same HEAD, same
+    # tracked/untracked status, and no stash entry was ever created. The one
+    # intentional machine-local addition is the preserved run transcript.
     assert _checkout_state(git_repo) == before
 
     # The period task and its ledger line both reached control, which is what
@@ -9438,6 +9440,107 @@ def test_control_worktree_is_removed_when_the_inner_run_raises(
     assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
 
 
+def test_control_worktree_preserves_machine_local_run_logs_before_removal(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The temp checkout must not take its autofix transcript with it."""
+    _seed_recipe_template_on_control(git_repo)
+    git_repo.checkout_branch("agent/parked-work")
+    run_name = "20260903T120000.md"
+    run_body = "# Temp-control sweep\n"
+
+    def write_temp_log(
+        coga_os: Path, **_kwargs
+    ) -> int:  # type: ignore[no-untyped-def]
+        _write(coga_os / ".coga" / "recurring-runs" / run_name, run_body)
+        return 0
+
+    monkeypatch.setattr(recurring_cmd, "_run_repo_recurring", write_temp_log)
+
+    cfg = load_config(git_repo.coga_os)
+    assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 0
+
+    durable = git_repo.coga_os / ".coga" / "recurring-runs" / run_name
+    assert durable.read_text() == run_body
+    assert durable.stat().st_mode & 0o777 == 0o600
+    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+
+
+def test_control_worktree_run_log_copy_keeps_colliding_records(
+    tmp_path: Path,
+) -> None:
+    """A same-second local record is preserved alongside the temp one."""
+    source = tmp_path / "source" / "coga"
+    destination = tmp_path / "destination" / "coga"
+    source.mkdir(parents=True)
+    destination.mkdir(parents=True)
+    name = "20260903T120000.md"
+    _write(source / ".coga" / "recurring-runs" / name, "temp\n")
+    _write(destination / ".coga" / "recurring-runs" / name, "durable\n")
+
+    recurring_cmd._persist_control_worktree_run_logs(source, destination)
+    # Retrying stale recovery is idempotent rather than inventing another copy.
+    recurring_cmd._persist_control_worktree_run_logs(source, destination)
+
+    runs = destination / ".coga" / "recurring-runs"
+    assert (runs / name).read_text() == "durable\n"
+    recovered = runs / "20260903T120000.worktree-001.md"
+    assert recovered.read_text() == "temp\n"
+    assert sorted(path.name for path in runs.glob("*.md")) == [
+        name,
+        recovered.name,
+    ]
+
+
+def test_control_worktree_is_retained_when_run_logs_cannot_be_preserved(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """Cleanup never destroys the only copy after a transfer failure."""
+    _seed_recipe_template_on_control(git_repo)
+    git_repo.checkout_branch("agent/parked-work")
+    run_name = "20260903T120002.md"
+
+    def write_temp_log(
+        coga_os: Path, **_kwargs
+    ) -> int:  # type: ignore[no-untyped-def]
+        _write(coga_os / ".coga" / "recurring-runs" / run_name, "only copy\n")
+        return 0
+
+    monkeypatch.setattr(recurring_cmd, "_run_repo_recurring", write_temp_log)
+
+    def fail_transfer(*_args, **_kwargs) -> None:  # type: ignore[no-untyped-def]
+        raise OSError("simulated durable-storage failure")
+
+    monkeypatch.setattr(
+        recurring_cmd, "_persist_control_worktree_run_logs", fail_transfer
+    )
+
+    cfg = load_config(git_repo.coga_os)
+    holder: Path | str | None = None
+    try:
+        assert recurring_cmd.run_recurring_scan(
+            cfg, require_fresh_control=True
+        ) == 0
+        holder = coga_git._worktree_holding_branch(git_repo.root, "main")
+        assert isinstance(holder, Path)
+        assert holder.is_dir()
+        workspace_rel = git_repo.coga_os.relative_to(git_repo.root)
+        assert (
+            holder
+            / workspace_rel
+            / ".coga"
+            / "recurring-runs"
+            / run_name
+        ).read_text() == "only copy\n"
+        error = capsys.readouterr().err
+        assert "control worktree retained" in error
+        assert "simulated durable-storage failure" in error
+    finally:
+        if isinstance(holder, Path):
+            git_repo.git("worktree", "remove", "--force", str(holder))
+            shutil.rmtree(holder.parent, ignore_errors=True)
+
+
 def test_control_worktree_reaps_cancelled_child_before_removal(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -9520,16 +9623,125 @@ def test_control_worktree_reaps_a_present_checkout_stranded_by_sigkill(
         )
     )
     stranded = parent / "checkout"
+    workspace_rel = git_repo.coga_os.relative_to(git_repo.root)
     recurring_cmd._write_control_worktree_owner(
-        parent, git_repo.root, "main", pid=424242
+        parent,
+        git_repo.root,
+        "main",
+        workspace_rel,
+        pid=424242,
+        inner_state="running",
+        inner_pgid=515151,
     )
     git_repo.git("worktree", "add", str(stranded), "main")
+    stranded_log = (
+        stranded
+        / workspace_rel
+        / ".coga"
+        / "recurring-runs"
+        / "20260903T120001.md"
+    )
+    _write(stranded_log, "# Recovered after SIGKILL\n")
     monkeypatch.setattr(recurring_cmd, "_process_is_running", lambda _pid: False)
+    monkeypatch.setattr(
+        recurring_cmd, "_process_group_is_running", lambda _pgid: False
+    )
 
     cfg = load_config(git_repo.coga_os)
     assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 0
     assert _control_serviced_period(git_repo, "z-script-check") is not None
+    assert (
+        git_repo.coga_os
+        / ".coga"
+        / "recurring-runs"
+        / stranded_log.name
+    ).read_text() == "# Recovered after SIGKILL\n"
     assert not parent.exists()
+
+
+def test_control_worktree_does_not_reap_a_live_inner_group_after_wrapper_sigkill(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A dead wrapper is insufficient while its isolated child still lives."""
+    _seed_recipe_template_on_control(git_repo)
+    git_repo.checkout_branch("agent/parked-work")
+    parent = Path(
+        tempfile.mkdtemp(
+            prefix=(
+                f"{recurring_cmd._CONTROL_WORKTREE_PREFIX}"
+                f"{git_repo.root.name}-"
+            )
+        )
+    )
+    holder = parent / "checkout"
+    recurring_cmd._write_control_worktree_owner(
+        parent,
+        git_repo.root,
+        "main",
+        git_repo.coga_os.relative_to(git_repo.root),
+        pid=424242,
+        inner_state="running",
+        inner_pgid=515151,
+    )
+    git_repo.git("worktree", "add", str(holder), "main")
+    monkeypatch.setattr(recurring_cmd, "_process_is_running", lambda _pid: False)
+    monkeypatch.setattr(
+        recurring_cmd, "_process_group_is_running", lambda pgid: pgid == 515151
+    )
+
+    try:
+        cfg = load_config(git_repo.coga_os)
+        assert recurring_cmd.run_recurring_scan(
+            cfg, require_fresh_control=True
+        ) == coga_git.STALE_CONTROL_EXIT_CODE
+
+        assert holder.is_dir()
+        assert str(holder) in capsys.readouterr().err
+    finally:
+        git_repo.git("worktree", "remove", "--force", str(holder))
+        shutil.rmtree(parent, ignore_errors=True)
+
+
+def test_control_worktree_does_not_reap_an_ambiguous_spawn_window(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`starting` is retained because its unpublished child may still live."""
+    _seed_recipe_template_on_control(git_repo)
+    git_repo.checkout_branch("agent/parked-work")
+    parent = Path(
+        tempfile.mkdtemp(
+            prefix=(
+                f"{recurring_cmd._CONTROL_WORKTREE_PREFIX}"
+                f"{git_repo.root.name}-"
+            )
+        )
+    )
+    holder = parent / "checkout"
+    recurring_cmd._write_control_worktree_owner(
+        parent,
+        git_repo.root,
+        "main",
+        git_repo.coga_os.relative_to(git_repo.root),
+        pid=424242,
+        inner_state="starting",
+    )
+    git_repo.git("worktree", "add", str(holder), "main")
+    monkeypatch.setattr(recurring_cmd, "_process_is_running", lambda _pid: False)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_process_group_is_running",
+        lambda _pgid: pytest.fail("an unpublished pgid must not be guessed"),
+    )
+
+    try:
+        cfg = load_config(git_repo.coga_os)
+        assert recurring_cmd.run_recurring_scan(
+            cfg, require_fresh_control=True
+        ) == coga_git.STALE_CONTROL_EXIT_CODE
+        assert holder.is_dir()
+    finally:
+        git_repo.git("worktree", "remove", "--force", str(holder))
+        shutil.rmtree(parent, ignore_errors=True)
 
 
 def test_control_worktree_does_not_reap_a_live_owned_checkout(
@@ -9548,7 +9760,11 @@ def test_control_worktree_does_not_reap_a_live_owned_checkout(
     )
     holder = parent / "checkout"
     recurring_cmd._write_control_worktree_owner(
-        parent, git_repo.root, "main", pid=31337
+        parent,
+        git_repo.root,
+        "main",
+        git_repo.coga_os.relative_to(git_repo.root),
+        pid=31337,
     )
     git_repo.git("worktree", "add", str(holder), "main")
     monkeypatch.setattr(recurring_cmd, "_process_is_running", lambda _pid: True)
@@ -9803,13 +10019,27 @@ def test_repo_recurring_dispatch_threads_the_control_worktree_flags(
     coga_os = tmp_path / "project" / "coga"
     _write(coga_os / "coga.toml", "version = 1\n")
     captured: dict[str, object] = {}
+    owner_parent = tmp_path / "owner"
+    owner_parent.mkdir()
+    recurring_cmd._write_control_worktree_owner(
+        owner_parent,
+        tmp_path / "project",
+        "main",
+        Path("coga"),
+    )
 
     class CompletedProcess:
+        pid = 4242
+
         def wait(self, timeout=None):  # type: ignore[no-untyped-def]
             assert timeout is None
             return 0
 
     def fake_start(command, cwd, env):  # type: ignore[no-untyped-def]
+        marker = json.loads(
+            (owner_parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text()
+        )
+        captured["state_at_spawn"] = marker["inner_state"]
         captured["command"] = command
         captured["cwd"] = cwd
         captured["env"] = env
@@ -9824,6 +10054,7 @@ def test_repo_recurring_dispatch_threads_the_control_worktree_flags(
         agent_override=None,
         control_worktree=True,
         control_worktree_host="/home/op/project",
+        control_worktree_parent=owner_parent,
         cwd=tmp_path / "elsewhere",
     ) == 0
 
@@ -9839,6 +10070,12 @@ def test_repo_recurring_dispatch_threads_the_control_worktree_flags(
         "/home/op/project",
     ]
     assert captured["cwd"] == tmp_path / "elsewhere"
+    assert captured["state_at_spawn"] == "starting"
+    marker = json.loads(
+        (owner_parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text()
+    )
+    assert marker["inner_state"] == "running"
+    assert marker["inner_pgid"] == 4242
 
 
 def test_control_worktree_child_starts_in_an_isolated_session(
