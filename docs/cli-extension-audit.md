@@ -205,20 +205,25 @@ conclusion: the surface collapses to **three homes for logic, plus sugar**.
 
 **The home falls out of the shape, not taste** — four questions: is it a fixed
 argv rewrite (alias)? is it a stateless parameterized call (command/external)? is
-it stateful reviewable work (ticket)? is it regress/bootstrap-locked or a
-mid-flight trust hook (kernel)?
+it stateful reviewable work (ticket)? or is it launch/bootstrap-locked, a
+mid-flight trust hook, a fixed registered recipe, or an irreducible Python
+command implementation (kernel)?
 
-**The kernel is `launch` and its dependency closure** — not a taxonomy. It is
-`launch`/compose plus everything `launch` calls or depends on mid-flight (the
-`mark`/`bump` state-writes, secret injection, skill verify-at-compose (not yet
-built), notify) and the `create` primitive + fresh `init` that must precede a
-launch. The test for any
-command: does `launch` call it *while running* (kernel), or does a human/cron call
-it *to start* a launch (movable)? Nothing else is kernel.
+**The kernel's common case is `launch` and its dependency closure**, not a
+complete taxonomy. It includes `launch`/compose plus everything `launch` calls
+or depends on mid-flight (the `mark`/`bump` state-writes, secret injection,
+skill verify-at-compose (not yet built), notify) and the `create` primitive +
+fresh `init` that must precede a launch. For ordinary launch-target spellings,
+the useful test remains: does `launch` call it *while running* (kernel), or does
+a human/cron call it *to start* a launch (movable)? Two narrow exceptions keep
+real command contracts in core: the closed `coga run` recipe table, and a
+Python command implementation that genuinely cannot be expressed as an alias.
+`coga digest` and `coga megalaunch` are examples of the latter. Merely being
+implemented in Python today does not qualify.
 
-**Most current built-ins are not kernel — they're fused or already external.**
-`automerge`/`digest`/`delete` already run as a script-backed sweep / post
-step / the shared `coga.delete_task` removal. `coga ticket` is the worked collapsed case: its authoring
+**Current built-ins mix real kernel implementations with thin command heads.**
+`digest` and `megalaunch` are irreducible command implementations; `delete`
+fronts the fixed `delete-task` recipe. `coga ticket` is the worked collapsed case: its authoring
 conversation is the `bootstrap/ticket` launch target already, its post-exit
 validate + git-sync lives in `coga.authoring`, and the `arg → draft` head in
 `commands/ticket.py` is irreducible. The command calls the
