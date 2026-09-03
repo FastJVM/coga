@@ -191,12 +191,9 @@ So the thinning is not done until:
 
 ### Contexts are deliberately not attached
 
-`marketing/plan` (14,676 B) and `marketing/positioning` (8,225 B) are the *editing targets*, named
-by exact path above and opened first thing. Attaching them would pay ~22.9 KiB on every step —
-including `peer-review` and `open-pr`, where it is pure noise — to duplicate files the agent reads
-anyway. Files being edited are read, not composed. The one real cost: the `peer-review` agent is a
-fresh session with no marketing posture, on a change whose correctness is "did the split preserve
-the posture." Accepted — that reviewer has `git diff main` and the files themselves.
+`marketing/plan` and `marketing/positioning` are the *editing targets*, named by exact path above
+and opened first thing; attaching them would pay ~22.9 KiB on every step to duplicate files the
+agent reads anyway. Files being edited are read, not composed.
 
 ### Scope boundaries
 
@@ -216,4 +213,116 @@ the posture." Accepted — that reviewer has `git diff main` and the files thems
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Evaluator review
+
+Independent cold read, 2026-09-03. Verbatim, less the recap of findings already folded into the
+body. All findings below were verified against source before acting.
+
+**1. Import mechanics factually wrong about provenance.** `install_github_skill`
+(`src/coga/skill_manager.py:101`) just shells out to `gh skill install --dir <skills root>` and
+returns. Only `install_url_skill` writes Coga metadata. Confirmed empirically: `find coga/skills
+-name .coga-source.json` returns nothing, and `coga skill status` reports every
+`google-agents-cli-*` skill as `delegated (github) - managed by gh skill metadata`. Three ticket
+instructions fell over: the `local_adaptation_notes` edit was unactionable, and the `coga skill
+status` check verified nothing. Open PR #743 is literally "stop the skill-update recurring
+template asserting `.coga-source.json` provenance that no skill carries" — the ticket walked into
+the same trap. Adaptation is only safely recordable on the `install-url` path, and the ticket
+explicitly contemplates pruning, so `install-url` is the primary, not the fallback.
+
+**2. Wrong workflow — `docs/with-review` exists and is the exact fit.** Its body: "Pick
+`docs/with-review` for **docs-only** tickets ... the `peer-review` step reviews prose, accuracy,
+and cross-copy sync instead of running `/code-review` on a code diff plus `python -m pytest`,
+which evaluators have repeatedly flagged as value-light on markdown-only diffs." The cost is
+concrete: `code/with-review`'s `implement` step declares `skills: [code/implement]`, and
+`_step_layers` (`compose.py:408`) composes step skills into the prompt.
+`coga/skills/code/implement/SKILL.md` is 8.3 KiB, so the prompt report understated the real first
+launch — it was taken on a draft, where `current_step()` is empty. Under `code/with-review` the
+composed prompt goes to ~22 KiB with a code-implementation skill as the largest layer (~37%) on a
+ticket that ships no code. `docs/with-review`'s implement step attaches no skill; its inline body
+composes instead, is smaller and correct, and even carries the repo↔packaged sync check this
+ticket asks for by hand. Because the workflow is a bare string on a draft, this is free to fix now
+and expensive later.
+
+**3. The thinning breaks a live downstream consumer, and the ticket has no wiring step.** The
+finding I'd hold the launch for. `marketing/post-async-megalaunch` has `contexts: [marketing/plan,
+marketing/positioning]` and `skills: []`. It composes the plan context to get the five beats and
+the writing rules. Strip the procedure out and that ticket silently loses the beats. The
+deliverable list stopped at "thin the two contexts" and never said to wire `marketing/write-post`
+into `post-async-megalaunch` / `post-you-own-it` / `post-doc-as-cache`. `bootstrap/import` step 5
+is explicit that wiring is part of the job. Also unaddressed: `marketing/plan`'s "Execution
+tickets" list and both contexts' "What this context does NOT cover" sections need to point at the
+new skill. Without a wiring step this ships a skill nothing invokes and a regression in the ticket
+that most needed it.
+
+**4. Is `addyosmani/clarity` a match, or motivated reasoning?** The verifiable facts check out:
+MIT, 158 stars, `SKILL.md` at repo root alongside `samples/`, `evals/`, `site/`, `netlify.toml`,
+`scripts/`, `.claude/`, `commands/`, `DESIGN.md`, `PRODUCT.md`, `skills.sh.json`. The footprint
+warning is well-founded. The substance broadly matches — anti-fabrication, one arguable claim per
+piece, "Take a position, and say where it is weak," authentic author voice, no em-dash ban. The
+direction of the mapping table is real, not invented. Caveats: (a) the quotes are drawn mostly
+from `references/longform.md` rather than `SKILL.md` — author's note: verified verbatim, and
+per-quote source attribution was added rather than relabelling them as paraphrase; (b) **the
+bigger mismatch is shape, not values** — clarity is not a "generic prose-craft layer" but a
+mode-driven end-to-end process (`/clarity interview`, `rewrite`, `review`) with its own
+`commands/` and `.claude/`. The clean division the ticket asserts is not one clarity's design
+supports: `interview` occupies the same slot `write-post` wants. Read `SKILL.md` and `commands/`
+first and decide explicitly whether `write-post` calls rewrite/review only or replaces
+`interview`. Secondary: `/clarity …` is a Claude Code slash-command idiom, and this repo rotates
+to Codex for peer-review — verify it degrades sanely.
+
+**5. Contexts deliberately not attached — the reasoning is sound.** Sustained, and better-argued
+than most. The contexts are named by exact path, they are the editing targets, and attaching
+22.9 KiB (14,676 + 8,225 B) to every launch of every step to duplicate files the agent opens first
+is real waste — paid again on `peer-review` and `open-pr` where it is pure noise. "Files being
+edited are read, not composed" is the right principle. One cost: the `peer-review` agent gets no
+marketing posture on a change whose correctness is "did the split preserve the posture." A mild
+argument for attaching `marketing/positioning`, but not one I'd act on — the reviewer can read
+`git diff main` plus the files. Leave as is.
+
+**6. Will the agent just restate the contexts in `write-post`?** Yes, on the original
+instructions there was a real chance. The "must carry" list read as *content to relocate*; an
+agent optimizing for completeness would cut-and-paste five sections under new headings and call it
+a skill. That is a move, not an extraction. Two things were missing: a **shape spec** (ordered
+steps with entry/exit conditions and gates — `bootstrap/import`'s worked example is step-shaped,
+`write-post` should be too) and a **hard test** (*after thinning, `marketing/plan` must still
+stand alone as posture, and `write-post` must be unreadable as a context — if a section reads
+equally well in either file it belongs in neither and needs rewriting as a step*). Also: several
+bullets are genuinely *posture* and should stay in the contexts with the skill only referencing
+them. "Fork A is pinned" is an owner decision recorded in `marketing/positioning` — a skill should
+cite it, never own it. Same for the claim-discipline rationale: the skill wants "check the draft
+against `marketing/plan`'s claim discipline; if any figure appears as a result, stop — the post
+has graduated into the proof-post regime," not a copy of the rule.
+
+**7. Prompt report.** `task_context` at 41% was over threshold and 5.5x the `task_description` it
+supports. Suggested trims: compress the rejected-candidates section to one sentence keeping only
+the behavior-changing line (borrow the `dialectic` beat); reduce the mapping table; the
+"Contexts are deliberately not attached" section is a note to a future ticket author rather than
+an instruction. *Author's note:* the suggestion to park rationales on the blackboard was not
+taken — the blackboard is itself a composed prompt layer (it appears in the report), so moving
+bytes there saves nothing, and `bootstrap/ticket` requires a draft's blackboard to be reset to the
+stock placeholder before hand-off. Compressed in place instead.
+
+**8. Smaller items.** PR #717 pinned as MERGED (the ticket said "five stale claims", the PR says
+six); the "5x" concern is already resolved — `marketing/plan` now cites `docs/velocity-report.md`'s
+no-5x line correctly. No packaged twin exists for the marketing contexts
+(`src/coga/resources/templates/coga/contexts/` holds only `browser/` and `_template/`), though the
+CLAUDE.md sync rule still matters for the skills side if `write-post` were ever packaged — it
+should not be, being repo-specific. `coga/skills/marketing/` does not exist yet and will be
+created, matching `bootstrap/import`'s convention; the flat-landing prediction for the import is
+correct, so `write-post` will reference a flat `clarity` ref while living under a `marketing/`
+namespace. **Scope:** three parts is acceptable *because* they are interdependent — importing
+without writing leaves a generic skill with no Coga hook; writing without thinning creates
+duplication that immediately drifts. Do not split; add the wiring as a fourth part, since the
+thinning is what creates the breakage.
+
+**On the size trade.** "The trade is right, and I'd make it again. 1455 → ~3000 tokens is about
+6 KiB on a prompt that was going to be ~22 KiB anyway under the frozen `code/with-review` — and
+switching to `docs/with-review` drops the 8.3 KiB `code/implement` layer, so the composed prompt
+is net smaller than the original plan."
+
+### Disposition
+
+Findings 1, 2, 3, 4(b), 6 acted on in full. Finding 5 sustained, no change. Finding 4(a) corrected
+— quotes verified verbatim, source attribution added instead. Finding 7 partially taken: sections
+compressed in place; `task_context` grew to ~3,000 tokens net, a deliberate trade of prompt size
+for four verified decisions that each prevent a wasted launch.
