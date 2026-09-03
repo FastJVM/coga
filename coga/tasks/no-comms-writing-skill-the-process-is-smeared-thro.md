@@ -1,7 +1,7 @@
 ---
 slug: no-comms-writing-skill-the-process-is-smeared-thro
 title: No comms-writing skill; the process is smeared through marketing plan
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
