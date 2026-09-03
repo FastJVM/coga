@@ -143,16 +143,19 @@ not the only shape in the tree. Three shapes coexist under `coga/skills/`:
   instructions) and `LICENSE.txt`. `anthropic/skill-creator/` is the only one
   today. It is deliberately *not* in `managed-skills.toml`: the installer
   neither placed it nor updates it, and refreshing it means re-copying from a
-  newer upstream commit by hand and re-applying the Coga-side namespaced
-  `name:`. Nothing installs its dependencies either — its `scripts/` directory
+  newer upstream commit by hand while preserving the upstream, standards-valid
+  leaf `name:`. Coga derives the namespaced ref from the directory path; a slash
+  does not belong in SKILL.md `name:` metadata. Nothing installs its
+  dependencies either — its `scripts/` directory
   holds nine Python files and no `requirements.txt`, so the
   `install_skill_requirements` pass described below finds nothing to install on
   its behalf. A vendored skill with imports is on its own.
 
 Skill resolution reads the directory path in all three cases. Prefer a
-namespace for anything you write, expect the flat form for anything the
-installer imported, and use namespace-plus-attribution for anything you vendor
-by hand.
+namespaced directory for anything you write, expect the flat form for anything
+the installer imported, and use a namespaced directory plus attribution for
+anything you vendor by hand. Keep each skill's frontmatter `name:` compatible
+with the standard leaf-name grammar; it is metadata, not the Coga path ref.
 
 File-form `tasks/<slug>.md` tickets cannot carry attachments and therefore
 cannot be script-backed. In a directory-form ticket, only `ticket.py` is

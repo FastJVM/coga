@@ -38,17 +38,22 @@ as OP_SERVICE_ACCOUNT_TOKEN at run time.
 sandbox around a launched task, and the two are easy to conflate.
 `coga/contexts/coga/architecture/SKILL.md` records the mechanism under "This is
 a declaration, not a sandbox": `config.build_launch_env()` starts from the full
-parent environment and scrubs only the source variables an `env:VAR` ref names,
-and it never scrubs `OP_SERVICE_ACCOUNT_TOKEN` — so a launched agent can run
-`op read` against every vault that service account can reach, regardless of what
-its ticket declared. A ticket's `secrets:` list bounds what Coga *resolves and
-names* for the task; it does not bound what the task's process can reach. Read
-the vault and SA grant as the real boundary; read the declaration as
-documentation of intent.
+parent environment and scrubs only the source variables an `env:VAR` ref names.
+It does not special-case `OP_SERVICE_ACCOUNT_TOKEN`, so the token normally
+survives and a launched agent can run `op read` against every vault that service
+account can reach, regardless of what its ticket declared. The exception is a
+ticket that explicitly uses `env:OP_SERVICE_ACCOUNT_TOKEN` as a secret source:
+Coga removes the original name and exposes only the declared alias, so `op` no
+longer auto-authenticates from that variable. A ticket's `secrets:` list bounds
+what Coga *resolves and names* for the task; it does not otherwise bound what
+the task's process can reach. Read the vault and SA grant as the real boundary;
+read the declaration as documentation of intent.
 
-The `op` CLI auto-uses `OP_SERVICE_ACCOUNT_TOKEN` when it is set, so no coga
-code changes for headless auth — exporting the token in the job process is
-enough for every `op://` ref a **ticket's `secrets:`** declares to resolve.
+The `op` CLI auto-uses `OP_SERVICE_ACCOUNT_TOKEN` while it remains set, so no
+coga code changes are normally needed for headless auth — exporting the token
+in the job process is enough for every `op://` ref a **ticket's `secrets:`**
+declares to resolve. Do not remap that variable through an `env:` declaration
+when the launched process itself must continue using `op` directly.
 Config values resolve almost nothing. Exactly two fields —
 `[notification.slack].webhook` and `[notification.slack].important_webhook` —
 run an `env:VAR` reference through the shared resolver; every other string in
