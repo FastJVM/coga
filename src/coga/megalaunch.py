@@ -1138,6 +1138,26 @@ def _launch_until_stop(
                 return _result(ref, "failed", str(exc), ticket.assignee)
             except git.FeaturePublicationError as exc:
                 return _result(ref, "failed", str(exc), ticket.assignee)
+            # `mark_in_progress` includes synchronous Git publication. A peer
+            # can replace or complete the ticket while that network boundary is
+            # in flight, after our pre-write CAS has already succeeded. Spawn
+            # only if the live file is still the exact `in_progress` revision
+            # whose prompt, environment, and agent were materialized above.
+            try:
+                post_start_ticket_bytes = ref.ticket_path.read_bytes()
+            except FileNotFoundError:
+                post_start_ticket_bytes = None
+            expected_started_bytes = prepared_launch.ticket.render().encode(
+                "utf-8"
+            )
+            if post_start_ticket_bytes != expected_started_bytes:
+                return _result(
+                    ref,
+                    "failed",
+                    "ticket changed during start publication; retry",
+                    launch_assignee,
+                    launched=launched,
+                )
         else:
             try:
                 current_ticket_bytes = ref.ticket_path.read_bytes()

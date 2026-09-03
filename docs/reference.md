@@ -115,11 +115,14 @@ task (optionally scoped to `tasks/<DIR>/`).
   at a time, activating each pick only after its own preflights pass. Picks not
   reached under `--max-tasks` remain unchanged. Preparation and activation are
   bound to one exact ticket revision through both lifecycle writes; an edit
-  during preflight or activation sync refuses that launch rather than
-  overwriting the newer ticket. The prompt, resolved secret environment, and
-  agent are materialized by that preflight and reused at spawn, so no fallible
-  derivation happens after the ticket reaches `in_progress`. The selection is
-  saved for `--relaunch`. Also available as the `coga pick` alias.
+  during preflight, activation sync, or the following start publication refuses
+  that launch rather than overwriting or spawning against the newer ticket.
+  After `mark_in_progress` returns, megalaunch requires the live file to equal
+  the exact preflighted `in_progress` bytes before spawn. The prompt, resolved
+  secret environment, and agent are materialized by that preflight and reused
+  at spawn, so no fallible derivation happens after the ticket reaches
+  `in_progress`. The selection is saved for `--relaunch`. Also available as the
+  `coga pick` alias.
 - `--relaunch` — re-run the last confirmed picker selection.
 - `--max-tasks <n>` — stop after this many launchable tasks have been attempted.
 - `--agent <type>` — use this agent for picked-draft authoring interviews and

@@ -850,7 +850,10 @@ once": compose (or accept an already preflighted `composed_prompt`) → write th
 prompt file → build the agent command → spawn under the PTY watcher → log →
 cleanup. Megalaunch supplies that preflighted prompt together with its already
 resolved environment and agent, binding the inputs checked before lifecycle
-writes to the eventual spawn. `coga launch`'s `while True:` supervisor chain
+writes to the eventual spawn. Its pre-write compare-and-swap prevents a stale
+start write, and an exact reread after synchronous `in_progress` publication
+prevents a peer change during that sync from reaching spawn. `coga launch`'s
+`while True:` supervisor chain
 (per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the
 done-sentinel, respawn) **wraps** that call per step; the chain stays
 launch-only and is *not* pushed into the shared unit. `coga ticket` authoring

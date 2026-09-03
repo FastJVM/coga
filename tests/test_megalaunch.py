@@ -2485,6 +2485,55 @@ def test_megalaunch_selection_preserves_peer_edit_during_activation_sync(
     assert _log_lines_for(cfg, draft["slug"], "started (") == []
 
 
+def test_megalaunch_refuses_peer_edit_during_start_sync(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The spawned prompt remains bound after start publication returns."""
+    cfg = load_config(repo)
+    active = create_task(
+        cfg=cfg,
+        title="Start sync race",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    peer_bytes: bytes | None = None
+
+    def racing_sync(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        nonlocal peer_bytes
+        peer = Ticket.read(active["path"])
+        assert peer.status == "in_progress"
+        peer.frontmatter["status"] = "done"
+        peer.frontmatter.pop("step", None)
+        peer.body = f"{peer.body.rstrip()}\n\nPeer completed during start sync.\n"
+        peer.write(active["path"])
+        peer_bytes = Path(active["path"]).read_bytes()
+
+    def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a ticket changed during start sync must not spawn")
+
+    monkeypatch.setattr("coga.mark.git.sync_task_state", racing_sync)
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+
+    run = run_megalaunch(cfg, selection=[active["slug"]])
+
+    assert run.results[0].outcome == "failed"
+    assert (
+        run.results[0].detail
+        == "ticket changed during start publication; retry"
+    )
+    assert peer_bytes is not None
+    assert Path(active["path"]).read_bytes() == peer_bytes
+    assert Ticket.read(active["path"]).status == "done"
+    assert len(_log_lines_for(cfg, active["slug"], "started (")) == 1
+
+
 def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_launch(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
