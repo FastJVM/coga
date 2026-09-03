@@ -12,18 +12,19 @@ workflow: skill-update/run
 
 Update every clean imported (Coga-managed) skill in one reviewable PR.
 
-Imported skills live as plain directories under `coga/skills/`. No skill
-currently carries a `.coga-source.json` file: Coga writes that provenance only
-for URL-installed skills, and none are installed. The GitHub-backed skills — the
-seven `google-agents-cli-*` refs declared in `managed-skills.toml` — are tracked
-by `gh skill`'s own metadata instead, and the two vendored packs
-(`anthropic/skill-creator`, `browser/playwright`) carry hand-written attribution
-and report as unmanaged. Once a week this ticket fires on its schedule and its
-`ticket.py` runs `coga skill update --all --pr`, which:
+Imported skills live as plain directories under `coga/skills/`. GitHub-backed
+installs are tracked by `gh skill`'s own metadata. URL-installed skills instead
+carry Coga's `.coga-source.json` provenance with `source_type = "url"`, while
+hand-vendored packs carry attribution and report as unmanaged. A freshly
+initialized repo attempts to install the optional GitHub refs declared in
+`managed-skills.toml`, but installation may be skipped or fail and operators may
+add either source type later, so each run discovers the actual inventory on
+disk. Once a week this ticket fires on its schedule and its `ticket.py` runs
+`coga skill update --all --pr`, which:
 
-1. delegates every GitHub-backed skill to a single `gh skill update --dir
-   coga/skills --all`, then walks in Coga's own code only those skills that do
-   carry `.coga-source.json` with `source_type = "url"` — today an empty set,
+1. delegates the installed GitHub-backed skills to `gh skill update --dir
+   coga/skills --all`, then walks in Coga's own code every skill carrying
+   `.coga-source.json` with `source_type = "url"`,
 2. rewrites in place each skill whose upstream digest changed and whose local
    copy is unmodified,
 3. commits the clean updates onto the dedicated `coga/skill-update` branch
