@@ -306,18 +306,31 @@ understatement until 1.0 ships.
   and the contact footer. GitHub link points at `manycore-com`, not the
   `FastJVM` org that hosts Coga. No Coga mention. Whether to cross-link is
   the owner's call (step 2); structurally there is no natural place.
-- **HN (`top256`):** karma 213, since 2016, 101 submissions. Three
-  front-page hits in two years, all essay titles: "Why Tech Inevitability
-  is Self-Defeating" (87 pts / 58 comments, 2025-10), "My bytecode
-  optimizer beats Copilot by 2x" (47 / 35, 2025-07), "Computing Industry
-  Doesn't Care about Performance" (32 / 19, 2024-11 — took on resubmission
-  four days after a 1-pt first try). Both **Show HN** posts flopped (3 pts
-  and 2 pts). The 2026-06-03 essay ("AI Delegation Starts with Inspectable
-  Work") got 1 pt. Pattern: submits own essays, replies heavily when one
-  hits, otherwise quiet. **The plan's "plain story submission, never Show
-  HN" matches the account's history exactly**; the second-chance
-  resubmission branch has precedent on this account. Coga has never been
-  submitted.
+- **HN (`top256`):** karma 213, since 2016. **Corrected 2026-09-03** against
+  the public HN search API; three figures in the original step-1 finding were
+  wrong. It is **26 stories**, not 101 submissions — that count included
+  comments. There are **four** results at 30+ points, not three: the step-1
+  pass missed "VC and the marginal-dollar problem" (52 pts, 2017-10).
+  And the six **Show HN** attempts scored 1–6 points, not the "3 and 2"
+  recorded; the conclusion that they flop is unchanged.
+  The named hits are right: "Why Tech Inevitability is Self-Defeating"
+  (87 / 58, 2025-10), "My bytecode optimizer beats Copilot by 2x" (47 / 35,
+  2025-07), "Computing Industry Doesn't Care about Performance" (32 / 19,
+  2024-11). The API records points, not placement, so **"front page" is an
+  inference** — near-certain at 87, merely likely at 32.
+  The 2026-06-03 essay ("AI Delegation Starts with Inspectable Work") got
+  1 pt; the owner confirms it was written for himself and his team and was
+  never a launch attempt, so it is not evidence that the category fails.
+  Pattern: submits own essays, replies heavily when one hits, otherwise quiet.
+  Coga has never been submitted.
+  **What the step-1 pass concluded here was wrong** — it read the record as
+  "plain story submission matches the account's history exactly". The Show HN
+  half holds; the "plain story" half does not. See the corrected reading in
+  `marketing/build-the-launch-plan`: every hit names an opponent, and the same
+  URL scored 1 point with a descriptive title and 32 with an adversarial one
+  four days later. That also reframes the second-chance branch — the
+  resubmission worked because the *title changed*, not because it was
+  resubmitted.
 - **Reddit (`Let047`) — supplied by the owner 2026-09-03** (every
   unauthenticated fetch returned 403 or a JavaScript wall, on `www`,
   `old.reddit.com`, and `about.json`). **7,781 karma, 2,609 contributions,
@@ -638,7 +651,8 @@ later") and stay open for a later pass. Ordered: blockers for post 1 first.
 - Owner-only facts (Lobste.rs, Reddit, Bookface, fastjvm.com, blog analytics)
   and phase-1 thresholds: still open, nothing on record yet.
 - Triage findings: all ticketed into `cleanup/` except the two that needed no
-  action (megalaunch honesty, HN plan fit), which the owner accepted as-is.
+  action at the time (megalaunch honesty, HN plan fit). **HN plan fit was
+  later superseded** — see its entry below.
 - Demo video: checked as far as read-only access allows (see the finding
   below); the 95 seconds of watching are ticketed.
 
@@ -674,7 +688,7 @@ Seven of the eight are now drafts under `cleanup/`. Two needed no action.
 - [cleanup/add-contributing-docs-issue-templates-and-a-repo-d] Repo hygiene — ticketed (owner: "see previous points"). `CONTRIBUTING.md`, code of conduct, issue/PR templates, repo description and homepage URL. Stops short of the community-home decision, which is `marketing/discord`'s.
 - [cleanup/check-the-demo-video-against-current-cli-names] Demo video — **checked read-only 2026-09-03.** Uploaded 2026-07-18, 95 s, no captions, no description, so its content cannot be verified without watching it. CLI surface diff from the last pre-upload commit (`0c8eb75e`) to `main`: **`coga project` is the only command from that era that no longer exists** (removed in `8394d3b3`, PR #691; `coga build` was removed in the same commit and restored by #701). `coga open-pr` became an alias for the `coga run open-pr` recipe with the spelling unchanged, so it is still correct on screen. No mention of `coga project` survives in README, docs, or contexts — the video is the last place it could appear. Remaining work: 95 seconds of a human watching for that one name.
 - [accepted as-is] Megalaunch honesty — describable in present tense. Real sweeps here on 2026-08-26 and 2026-09-02. Open bugs `megalaunch-activates-picks-before-preflight` (at review) and `launch-activates-before-preflight` (in progress); no crashes in the last two weeks, the log's failures are DNS and Slack. Keep the positioning caveat.
-- [accepted as-is] HN plan fit — confirmed, nothing to do. Three front-page hits were plain essay titles, both Show HN posts flopped, one resubmission four days later took. "Plain story submission, never Show HN" matches the account's history.
+- [SUPERSEDED 2026-09-03 — was "accepted as-is, nothing to do"] HN plan fit. Re-verified against the HN API and the disposition flipped: there *is* something to do. Never Show HN still holds, but "plain story submission" does not — every 30+ point result on this account names an opponent, and one URL scored 1 point descriptively and 32 adversarially four days apart. The plan's "titles are the experience, never the thesis" rule was corrected in `coga/contexts/marketing/plan` on the same date. Owned by `marketing/build-the-launch-plan`.
 
 ## Proposed phase-1 thresholds
 

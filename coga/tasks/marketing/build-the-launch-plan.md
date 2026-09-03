@@ -36,11 +36,15 @@ findings into an operational launch plan.
 
 ## Context
 
-**The distinction this ticket rests on.** The three angles are the *message*
-— what we say and in what order. The launch plan is the *operation* — what
-ships when, where, and on what preconditions. The existing
+**Scope: this ticket owns both the message and the operation.** It was first
+written around a split — the three angles are the message, the plan is the
+operation — and that split did not survive the 2026-09-03 evidence review.
+Once post 1's spine is in question (a practice story versus a contrarian
+claim naming an opponent), the message decision *drives* the sequencing rather
+than sitting beside it. So both are in scope here. The existing
 `coga/contexts/marketing/plan` context holds a lot of settled thinking about
-the message and almost nothing about the operation, which is the gap.
+the message and almost nothing about the operation, and one of its message
+rules has already been corrected against evidence.
 
 ### Input 1 — the three angles (owner, 2026-09-03)
 

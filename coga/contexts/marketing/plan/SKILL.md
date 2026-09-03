@@ -177,18 +177,48 @@ thank early testers. Nothing to schedule; a standard to hold.
 
 - **HN failure branch:** if the submission dies in /new, mail
   hn@ycombinator.com (second-chance pool), then resubmit after a decent
-  interval. **Never solicit upvotes** — share the link, let people act.
-- Weekday morning US for HN; founder present in the thread.
-- **Titles are the experience, never the thesis** — a thesis title gets
-  argued before it gets read. The thesis opens paragraph one.
+  interval **with a different title**. The one successful resubmission on
+  this account changed the title, and that is what moved it — see the titling
+  rule below. **Never solicit upvotes** — share the link, let people act.
+- Founder present in the thread. On *timing*, this file used to say "weekday
+  morning US"; the account's own record does not support it. Submission time
+  is a near-constant around midday Eastern across all 26 stories and separates
+  nothing, and two of the four best results landed on a weekend (52 points on
+  a Saturday, 32 points on a Sunday night). Treat timing as unproven here and
+  do not spend judgment on it.
+- **Titles name an opponent.** *Corrected 2026-09-03 against this account's
+  actual record; this rule previously read "titles are the experience, never
+  the thesis", which the evidence contradicts.* Every story `top256` has
+  scored well with is a thesis title with something in it to disagree with:
+  tech inevitability, the computing industry, Copilot, VC. Every descriptive
+  or definitional title scored 1–3 points, as did all six Show HN attempts.
+  The proof is a natural experiment in the account's own history —
+  `deviantabstraction.com/2024/10/24/faster-computer/` was submitted twice,
+  four days apart:
+
+  | Title | Points |
+  |---|---|
+  | "Making All Software Faster: Experiments with Bytecode on Real-World Apps" | 1 |
+  | "Computing Industry Doesn't Care about Performance: how I made things faster" | 32 |
+
+  Same article, same account, same week; only the title changed. So: make the
+  *frame* adversarial and keep the *claim* conservative. The blog-to-HN
+  retitles already do this — "Against Tech Inevitability" became "Why Tech
+  Inevitability is Self-Defeating", and "Beats gpt5 by 4X" became "beats
+  Copilot by 2x", a smaller number against a more recognizable target.
+  The thesis still opens paragraph one; it now also opens the title.
 - Quote the claim *genre* ("fully autonomous", "+500%"), never the brand.
 - **Attribution without telemetry:** per-channel URLs into the blog
   (first-party analytics), laid against PyPI download curve and GitHub
   star timeline vs post timestamps. Phase decisions get made from this.
 - **Craft risk is priced, not ignored:** the plan bets everything on the
   quality of the writing (no structural novelty backs it up), and that bet
-  is on a demonstrated strength — the founder has front-paged HN twice on
-  prose alone. Post 1 still gets iterations plus a Bookface read before HN.
+  is on a demonstrated strength — the founder has cleared 30 points on HN
+  four times, three of them on prose alone (87, 52 and 32 points; the fourth,
+  47, was a benchmark claim). Verified 2026-09-03 against the public HN API,
+  which corrects an earlier "twice" here. Note the API records points, not
+  placement, so "front page" is an inference everywhere this file uses it —
+  near-certain at 87 points, merely likely at 32. Post 1 still gets iterations plus a Bookface read before HN.
 
 ## Prepared replies (comment-section discipline)
 
