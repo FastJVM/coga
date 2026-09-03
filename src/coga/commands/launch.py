@@ -1313,19 +1313,28 @@ def _launch(
             reblock_after_script_safely()
         setup_bail(f"Task {ref.id_slug} has no assignee")
 
+    # Carried across the prepare/commit split below, so the deferred audit line
+    # can still name the real transition once `ticket.status` reads `active`.
+    # Initialized here because the commit gate is reached on paths where the
+    # prepare guard never fires.
+    auto_activate_prior: str | None = None
+
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
         # is brought to `active` inline rather than refused with a "run
-        # `coga mark active` first" hint. The flip to `in_progress` still happens
-        # later (after the compose pre-flight), so this only does the `mark active`
-        # half.
+        # `coga mark active` first" hint. Only the *in-memory* half runs here,
+        # so the composed prompt sees the activated ticket; the durable write is
+        # deferred past every refusing preflight to `_commit_auto_activate`
+        # below, immediately before the `in_progress` flip. A refused launch
+        # must not leave a ticket on disk claiming a session started.
         if (
             not is_bootstrap
             and isinstance(ref, TaskRef)
             and ticket.status in {"draft", "paused"}
             and assist_publication is None
         ):
-            _auto_activate(cfg, ref, ticket)
+            auto_activate_prior = ticket.status
+            _prepare_auto_activate(cfg, ref, ticket)
 
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
@@ -1355,10 +1364,11 @@ def _launch(
             _bail(agent_cli_missing_message(agent.cli))
         typer.echo(f"Launch: found agent CLI at {agent_path}")
 
-        # Fail loud BEFORE flipping status: if a referenced context or skill is
-        # missing, the composed prompt would drop a layer the human expected the
-        # agent to have. Refuse to start — and don't flip the ticket to
-        # in_progress or post a "started" broadcast for a task that never runs.
+        # Fail loud BEFORE any status is written: if a referenced context or
+        # skill is missing, the composed prompt would drop a layer the human
+        # expected the agent to have. Refuse to start — and don't write the
+        # activation, flip the ticket to in_progress, or post a "started"
+        # broadcast for a task that never runs.
         # The per-step loop below re-composes; this is a cheap pre-flight (file
         # reads only) so the flip and notification post are never reached on a bad ref.
         try:
@@ -1446,6 +1456,16 @@ def _launch(
                     "was started."
                 )
             assist_publication = fresh_publication
+
+        # Every refusing preflight has passed, so the activation staged in
+        # memory above is now safe to write. Nothing between the prepare guard
+        # and here re-reads the ticket from disk, so `ticket` is still the
+        # object that was prepared — keep it that way, or the deferred write
+        # will publish a ticket the preflights never saw.
+        if auto_activate_prior is not None and isinstance(ref, TaskRef):
+            _commit_auto_activate(
+                cfg, ref, ticket, prior=auto_activate_prior
+            )
 
         if blocked_resume and isinstance(ref, TaskRef) and ticket.status == "blocked":
             if assist_publication is None:
@@ -2294,37 +2314,35 @@ def _restore_assist_state(snapshot: git.FileMutationRollback) -> str:
     )
 
 
-def _auto_activate(
-    cfg: Config, ref: TaskRef, ticket: Ticket, *, sync_state: bool = True
-) -> None:
-    """Bring a draft / paused / resumable blocked ticket to `active` inline.
+_AUTO_ACTIVATE_SUFFIX = " — auto on launch"
+
+
+def _prepare_auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+    """Bring a draft / paused / resumable blocked ticket to `active` in memory.
 
     `coga launch` used to refuse any status but `active`/`in_progress` and
-    point the operator at `coga mark active`. Now launching *is* the
-    readiness decision, so we run that activation here. The core `mark_active`
-    mutates `ticket` in place — status → active, a bare-string `workflow:`
-    frozen, and `step:` seeded — so the later `mark_in_progress` flip fires off
-    the same object. (A terminal ticket never reaches here: launch refuses it
-    earlier rather than restart closed work. A blocked ticket reaches
-    here only after the launch preflights have passed.)
+    point the operator at `coga mark active`. Now launching *is* the readiness
+    decision, so we run that activation here. This is the pure half: it mutates
+    `ticket` in place — status → active, a bare-string `workflow:` frozen, and
+    `step:` seeded — so the later `mark_in_progress` flip fires off the same
+    object, but it writes nothing durable. `_commit_auto_activate` writes.
+
+    Splitting the two is the point: everything that can *refuse* a launch runs
+    between them, so a refused launch leaves no ticket on disk claiming a
+    session started. (A terminal ticket never reaches here: launch refuses it
+    earlier rather than restart closed work. A blocked ticket reaches here only
+    after the launch preflights have passed.)
 
     Fails loud, leaving the ticket untouched, when activation can't legally
     happen: the ticket has no workflow to advance, its `workflow:` ref can't
-    be frozen, or a `required` extension field is empty. These mirror the
-    `coga mark active` errors so the remedy is the same.
+    be frozen, a `required` extension field is empty, or a draft still carries
+    unsynthesized authoring notes. These mirror the `coga mark active` errors
+    so the remedy is the same. `TaskValidationError` is *not* handled here —
+    it comes from the post-write `assert_task_valid` in the commit half.
     """
     prior = ticket.status
-    suffix = " — auto on launch"
     try:
-        mark_active(
-            cfg,
-            ref,
-            ticket,
-            actor=f"human:{cfg.current_user}",
-            log_message=f"activated ({prior} → active){suffix}",
-            echo=f"{ref.id_slug}: active{suffix}",
-            sync_state=sync_state,
-        )
+        prepare_active(cfg, ref, ticket)
     except WorkflowMissing:
         _bail(
             f"Cannot launch {ref.id_slug}: it is {prior!r} and has no workflow, "
@@ -2349,8 +2367,56 @@ def _auto_activate(
                 ref.id_slug, action="launch", reason=exc.reason
             )
         )
+
+
+def _commit_auto_activate(
+    cfg: Config, ref: TaskRef, ticket: Ticket, *, prior: str
+) -> None:
+    """Write the activation `_prepare_auto_activate` already staged in memory.
+
+    `prior` is the status the ticket held *before* the prepare half mutated it;
+    the caller must carry it across, because `ticket.status` reads `active` by
+    the time we get here and the audit line names the real transition.
+
+    `mark_active` re-runs `prepare_active` on the already-prepared ticket. That
+    is deliberately idempotent: the canceled check and the unsynthesized-draft
+    refusal both key off `prior_status`, which is now `active`, so neither
+    fires twice; `_freeze_workflow_ref` is a documented no-op on a frozen
+    workflow dict that already carries a step; and the extension check and the
+    status assignment are pure re-reads. Keep it that way — the split relies on
+    the second run being free of side effects the first already had.
+
+    This assumes nothing rewrote `ref.ticket_path` while the preflights ran:
+    the in-memory ticket is written over whatever is on disk, unguarded. Coga
+    is a single-writer, locally operated tool and tickets are not edited
+    concurrently with a launch of the same ticket; the blocked-resume gate in
+    `_launch` makes the same assumption across the same preflights. The strict
+    assist path is the exception and guards its publication explicitly — see
+    `coga/launch-internals`.
+    """
+    try:
+        mark_active(
+            cfg,
+            ref,
+            ticket,
+            actor=f"human:{cfg.current_user}",
+            log_message=f"activated ({prior} → active){_AUTO_ACTIVATE_SUFFIX}",
+            echo=f"{ref.id_slug}: active{_AUTO_ACTIVATE_SUFFIX}",
+        )
     except TaskValidationError as exc:
         _bail(str(exc))
+
+
+def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+    """Prepare and durably write an activation in one step.
+
+    For callers that have no refusing preflight to run in between — the script
+    path, whose `ticket.py` run genuinely *is* work starting, and the
+    blocked-resume gate, which already sits below every preflight.
+    """
+    prior = ticket.status
+    _prepare_auto_activate(cfg, ref, ticket)
+    _commit_auto_activate(cfg, ref, ticket, prior=prior)
 
 
 def _reblock_unresolved_resume(

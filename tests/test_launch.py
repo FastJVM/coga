@@ -3014,6 +3014,58 @@ def test_launch_auto_activates_draft_and_paused(
     assert f"activated ({prior} → active) — auto on launch" in log
 
 
+@pytest.mark.parametrize("prior", ["draft", "paused"])
+def test_launch_refusal_leaves_draft_unactivated(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch, prior: str
+) -> None:
+    """A preflight refusal must not leave the activation behind.
+
+    `coga launch` used to write the draft/paused → `active` transition before
+    the preflights that can refuse the launch, so an unresolvable secret left
+    the ticket on disk claiming a session started — frozen workflow, seeded
+    step, and an `activated … — auto on launch` audit line — for an agent that
+    never ran. The activation is staged in memory and only written once every
+    refusal is behind it.
+    """
+    from coga.ticket import Ticket
+
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    ticket_md = Path(ref["path"])
+    t = Ticket.read(ticket_md)
+    t.frontmatter["status"] = prior
+    t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
+    t.write(ticket_md)
+    before = ticket_md.read_text()
+
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[:2] == ["op", "read"]:
+            return subprocess.CompletedProcess(
+                cmd, 1, stdout="", stderr="[ERROR] not signed in"
+            )
+        calls.append(cmd)
+        return type("R", (), {"returncode": 0})()
+
+    monkeypatch.setattr("coga.config.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code != 0
+    combined = result.output + (result.stderr or "")
+    assert "stripe_key" in combined and "op://vault/stripe/key" in combined
+    assert calls == []  # no agent spawned
+    # The whole point: nothing durable was written for a session that never ran.
+    assert ticket_md.read_text() == before
+    assert "activated (" not in _read_log(active_task)
+
+
 def test_launch_refuses_unsynthesized_draft_blackboard(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
