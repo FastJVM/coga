@@ -315,6 +315,7 @@ Investigated before writing the spec:
   question 1 below.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/751
 branch: retire-cache-worktrees
 worktree: /home/n/Code/claude/coga-retire-cache-worktrees
 
