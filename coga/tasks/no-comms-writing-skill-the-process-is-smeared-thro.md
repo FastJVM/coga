@@ -126,21 +126,39 @@ Expect the skill to land flat at `coga/skills/clarity/`, matching the existing
 `google-agents-cli-*` skills, not under a namespace. Record the actual installed path and use the
 real ref in `write-post`; do not force a `writing/` namespace the tooling will not produce.
 
-### What `write-post` must carry (and clarity cannot know)
+### `write-post` is a procedure, not a relocation
 
-Extract from the two marketing contexts, keeping the reasons, not just the rules:
+**The failure mode to design against:** cut-and-pasting five sections out of `marketing/plan`
+under new headings and calling it a skill. That is a move, not an extraction — same prose at a new
+path, and `marketing/plan` left a stub that no longer reads as posture.
 
-- The **five-beat arc** for post 1 and the series defaults (present tense, never as genesis;
-  first person; real concrete detail).
-- **Claim discipline**: no numbers as claims; essays claim ideas, not results; the one publishable
-  ratio is the `docs/vision.md` two-person/output-of-ten *bet*, kept as a bet. Crossing into a
-  stated figure graduates the post into the proof-post regime.
-- **Fork A is pinned** — write to it; do not reopen the fork question inside a comms ticket.
-- The **prepared-replies pass** (comment-section discipline written before ship, never improvised
-  in-thread).
-- **Channel sequencing as a gate**: Bookface before HN, HN as a plain-titled story submission and
-  never Show HN, titles are the experience and never the thesis.
-- Where the skill **hands off to `clarity`** for the craft pass instead of restating it.
+**Shape.** `write-post` is ordered steps with entry and exit conditions and explicit gates — what
+the agent does first, what it does last, what blocks a step. Follow `bootstrap/import`'s worked
+example for shape. If a section of `write-post` reads equally well as a context, it is not a step
+yet; rewrite it as one.
+
+**What the skill owns** (procedure — genuinely absent today):
+
+- The order of work: brief → thesis stress-test (the `dialectic` beat) → outline against the
+  five-beat arc → draft → craft pass via clarity → claim-discipline check → prepared-replies pass
+  → channel sequencing.
+- The gates: a post does not ship until the prepared replies are written, and Bookface precedes
+  HN. Name what blocks, not just what to do.
+- The craft handoff to clarity, per the boundary decision above.
+
+**What the skill cites but must NOT own** (posture — it stays in the contexts):
+
+- **Fork A is pinned.** An owner decision recorded in `marketing/positioning`. The skill points at
+  it; it never restates or re-derives it.
+- **The claim-discipline rationale.** The skill carries the *check* — "if any figure appears as a
+  result, stop: the post has graduated into the proof-post regime" — and defers the reasoning to
+  `marketing/plan`.
+- **The five beats' content**, series voice, and audience. The skill sequences them; the contexts
+  define them.
+
+**The test for done:** after thinning, `marketing/plan` still stands alone as posture and plan
+state, and `write-post` is unreadable as a context. A section that reads equally well in either
+file belongs in neither and needs rewriting as a step.
 
 ### Thinning without rewiring is a regression — this is the part not to skip
 
@@ -173,12 +191,12 @@ So the thinning is not done until:
 
 ### Contexts are deliberately not attached
 
-`marketing/plan` (~14.7 KB) and `marketing/positioning` (~8.2 KB) are the *editing targets* here,
-named by exact path above, and the implementing agent opens them as its first action. Attaching
-them would add ~23 KB (~5,700 tokens) to every launch to duplicate files that get read anyway.
-Files being edited are read, not composed. If a future revision needs one narrow fact as
-background rather than as a target, copy that fact into this section instead of attaching the
-context.
+`marketing/plan` (14,676 B) and `marketing/positioning` (8,225 B) are the *editing targets*, named
+by exact path above and opened first thing. Attaching them would pay ~22.9 KiB on every step —
+including `peer-review` and `open-pr`, where it is pure noise — to duplicate files the agent reads
+anyway. Files being edited are read, not composed. The one real cost: the `peer-review` agent is a
+fresh session with no marketing posture, on a change whose correctness is "did the split preserve
+the posture." Accepted — that reviewer has `git diff main` and the files themselves.
 
 ### Scope boundaries
 
