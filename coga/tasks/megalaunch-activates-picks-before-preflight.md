@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -177,6 +177,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/747
 branch: megalaunch-defer-activation
 worktree: /home/n/Code/claude/coga-megalaunch-defer-activation
 
@@ -191,16 +192,21 @@ worktree: /home/n/Code/claude/coga-megalaunch-defer-activation
    Proposed Shape: it now refuses terminal statuses instead of requiring
    `active`/`in_progress`. It is also *fed the prospective view*, so the
    composed prompt and env are the ones the launch will actually use.
+   **Peer-review refinement:** the prospective view is already `active`, so
+   the strict `active`/`in_progress` gate was restored. That still accepts the
+   prospective path while refusing malformed lifecycle values before spawn.
 
 ## Design
 
 - Phase 2 no longer writes. It builds a prospective `active` view with
   `prepare_active` on a copy of the ticket, reports the prepare-half refusals
   with today's outcomes/details, and runs the "no current workflow step" gate
-  against that view. Plan entries carry `needs_activation`.
-- Phase 3 re-reads (unchanged) and hands `_launch_until_stop` the flag. Per
-  spec item 1, the prepare is **redone** from the freshly read ticket — no
-  prepared object is carried across the re-read.
+  against that view. Plan entries carry only the task ref.
+- Phase 3 re-reads (unchanged), re-runs the explicit candidate gate, and
+  recalculates `blocked_resume` and `needs_activation` from that fresh ticket
+  before handing `_launch_until_stop` the flag. Per spec item 1, the prepare is
+  **redone** from the freshly read ticket — no prepared object or stale
+  lifecycle decision is carried across the re-read.
 - `_launch_until_stop` commits the activation on its first step only, after
   `_preflight_agent_launch` has passed on the prospective view. This keeps the
   preflight running exactly once per launch: doing it in Phase 3 instead would
@@ -213,7 +219,7 @@ worktree: /home/n/Code/claude/coga-megalaunch-defer-activation
   five outcomes/details are identical to today.
 - Drain path call order (activate, *then* resolve asks) is untouched.
 
-## Implemented — commit `63086a43`
+## Implemented — rebased commit `72847dd9`
 
 `src/coga/megalaunch.py` (plus the two `commands/megalaunch.py` help strings
 that described the old phase names), and four tests in
@@ -228,11 +234,13 @@ that described the old phase names), and four tests in
   through it with no preceding prepare, and `mark_active` re-runs
   `prepare_active` anyway.
 - Phase 2 → **check**: prepares, reports, gates on `prepared.current_step()`.
-  Writes nothing. `_PlannedLaunch(ref, blocked_resume, needs_activation)`
-  replaces the 2-tuple plan entry.
+  Writes nothing. The launch plan retains only task refs.
 - Phase 3 → activates inside `_launch_until_stop` (new `activate:` kwarg), on
-  the first step only, between the preflight and `mark_in_progress`.
-- `_preflight_agent_launch` status check narrowed to `TERMINAL_STATUSES`.
+  the first step only, between the preflight and `mark_in_progress`. It
+  reclassifies the fresh ticket first so an earlier session's concurrent start
+  or block cannot be overwritten by Phase 2 state.
+- `_preflight_agent_launch` accepts the prospective `active` view while
+  retaining the strict `active`/`in_progress` spawn boundary.
 
 Two deliberate semantic changes beyond the refusal fix, both asserted:
 
@@ -271,3 +279,49 @@ unchanged: the drain's activate-then-resolve ordering was not touched.
   draft). This change moves it neither way.
 - No `example/` fixture change: task layout, prompt composition, and workflow
   semantics are untouched.
+
+## Peer review — 2026-09-02
+
+`codex review --base main` found three must-fix issues, all applied in rebased
+commit `65b399c5`:
+
+- Phase 2's `needs_activation` and `blocked_resume` flags became stale across
+  earlier launches. Phase 3 now re-runs candidate classification and derives
+  both flags from its fresh `read_ticket(ref)` result.
+- Narrowing `_preflight_agent_launch` to terminals admitted malformed status
+  values. The strict `active`/`in_progress` check is restored; a prepared pick
+  reaches it as the prospective `active` view.
+- `docs/reference.md`, `docs/cli-extension-audit.md`, the packaged `coga/cli`
+  context, and the engine docstring still described batch activation. They now
+  document prepare → check → per-ticket preflight/activation/launch and the
+  unchanged state of picks not reached under `--max-tasks`.
+
+Three regression tests cover a pick concurrently started by an earlier
+session, a pick newly blocked during an earlier session, and invalid lifecycle
+state at the spawn gate. The branch was fetched and rebased cleanly onto
+`origin/main` at `a4ed9fab`; it is clean with two commits ahead.
+
+Post-rebase verification:
+
+- `python -m pytest tests/test_megalaunch.py -q` — 78 passed.
+- `python -m pytest` — 2191 passed; 19 unrelated environment failures. Eighteen
+  subprocess tests cannot import `coga` because this checkout is not installed
+  in the active interpreter, and the wheel test lacks `hatchling`. Both failure
+  classes were reproduced on untouched `main`; no megalaunch test failed.
+- `coga validate --json` — no fixes; only the repo's pre-existing validation
+  issues (including unrelated draft-blackboard errors and missing local user
+  configuration in the feature worktree).
+- `git diff --check origin/main...HEAD` — clean.
+
+## PR
+
+Defer megalaunch picker activation until each reached ticket passes its own
+agent-launch preflights, using `prepare_active` to compose the prospective
+state without writing it. Re-read and reclassify every planned pick immediately
+before launch so concurrent starts and blocks are preserved; retain the
+dependency drain's activate-before-resolve ordering, strict lifecycle spawn
+gate, refusal mapping, and sweep-through-errors behavior. Unreached
+`--max-tasks` picks remain unchanged, and the CLI/reference context now states
+that contract.
+
+Test plan: `python -m pytest tests/test_megalaunch.py -q` (78 passed); full `python -m pytest` reached 2191 passed with 19 environment-only failures reproduced on `main`; `git diff --check origin/main...HEAD` clean.
