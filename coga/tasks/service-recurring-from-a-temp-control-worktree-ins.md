@@ -34,7 +34,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -365,6 +365,11 @@ on-control sweep does today.
 
 <!-- coga:blackboard -->
 
+## Dev
+
+branch: recurring-control-worktree
+worktree: /home/n/Code/claude/coga-recurring-control-worktree
+
 ## Design notes (design step, 2026-08-17)
 
 Evidence gathered while writing the spec, so `implement` does not re-derive it:
@@ -393,9 +398,95 @@ Evidence gathered while writing the spec, so `implement` does not re-derive it:
   succeeds and that test must be rewritten to assert the new behavior. Same for
   any sibling asserting `STALE_CONTROL_EXIT_CODE` purely from being off-branch.
 
+## Implementation notes (implement step, 2026-09-02)
+
+Shipped exactly the `## Proposed Shape` order. Branch `recurring-control-worktree`.
+
+What landed, and where it differs from the spec's sketch:
+
+- `_ControlCatchup` (frozen dataclass, `recurring_runner.py`) replaces the
+  `tuple[bool, str]` return of `_sync_control_checkout_ahead`. Three call sites
+  updated, including one the spec did not list:
+  `commands/launch.py::authorize_direct_recurring`. Six test monkeypatches
+  returned 2-tuples and were updated with it.
+- The remedy is appended to the not-checked-out reason, as specified.
+- `_service_from_control_worktree` + `_local_branch_exists` +
+  `_raise_on_sigterm` + `_control_worktree_agent_refusal`, all private to
+  `recurring_runner.py`.
+- **Two dispatch flags, not one.** The spec's honest-refusal wording names the
+  operator's checkout, which the *child* cannot derive — inside the temp
+  worktree `_git_toplevel` returns the temp checkout, which is on control. So
+  `--control-worktree` (the recursion stop + recipe-only switch) is joined by
+  `--control-worktree-host <path>`, carrying the one value the message needs.
+- **`_run_repo_recurring` also took a `cwd` override.** It hardcoded
+  `coga_os.parent`, which is right for the nested layout but lands on the bare
+  temp parent for a root-layout workspace. The temp path passes the mirrored
+  checkout root explicitly; the parent sweep's call is unchanged and its
+  existing argv/cwd test still passes.
+- `scan_due` / `create_template` gained `agent_unavailable_reason`. The three
+  hardcoded "requires a TTY" strings (two identical, one slightly reworded)
+  collapsed into one `_AGENT_NEEDS_TTY` constant used as the default.
+- `--all` reporting uses a new `_off_control_branch(coga_os)` helper rather
+  than threading `_configured_remote_identity`'s observation out of
+  `_duplicate_remote_checkouts` — same signal, no perturbation of the
+  duplicate-grouping logic, and it skips that path's `git remote get-url` call.
+
+Contexts updated (behavior change, per CLAUDE.md): `coga/architecture` (live +
+packaged twin, kept byte-identical), the packaged-only `coga/cli`, and
+`coga/contexts/coga/recurring` — which gained a section "An `--all` child
+services an off-branch checkout from a temporary worktree" carrying the
+rejected alternatives' reasoning, so it does not live only on this ticket.
+
+### Tests
+
+17 new tests in `tests/test_recurring.py`, all on the real-git `git_repo`
+fixture with `git worktree add`, the recipe subprocess, and the control push
+running for real. `test_recurring_all_scan_refuses_detached_checkout` was
+deleted and replaced by `..._services_detached_checkout_from_worktree`, as the
+design notes predicted; no sibling asserted `STALE_CONTROL_EXIT_CODE` purely
+from being off-branch, so nothing else needed rewriting.
+
+Two fixture details worth knowing for follow-up work here:
+
+- The end-to-end template's `ticket.py` has to run `coga bump` itself. The
+  seeded `direct/body` workflow's step expects an agent phase after the script,
+  so a bare `raise SystemExit(0)` leaves the step open and the sweep exits 2 —
+  on control as much as in the temp worktree. The shipped recipe templates all
+  bump from `ticket.py`; the test mirrors them.
+- Those tests write a `coga.local.toml` with `[notification.slack].enabled =
+  false`. That both silences the fixture's unconfigured-webhook crash on scan
+  errors and makes the local-config copy load-bearing: without the copy the
+  temp worktree has no `user` and `load_config` raises.
+
+### Verification
+
+- `python -m pytest`: 2218 passed, 1 failed —
+  `test_packaging.py::test_wheel_includes_bootstrap_batteries`, which fails
+  identically on unmodified `main` because this machine's venv has no `pip`.
+  Unrelated to this change.
+- `coga validate --json`: 155 ok / 29 issues, byte-identical issue set to
+  `main`. The example fixture validates clean (3 ok, 0 issues); no fixture
+  change was needed, since nothing here touches task layout, prompt
+  composition, or workflow semantics.
+
 ## Open Questions
 
-For `review-design`:
+All four were resolved by the spec's own text and are recorded here as closed,
+not carried forward:
+
+1. **Parent summary derivation** — accepted the inference; `## Proposed Shape`
+   §5 says "No new exit-code protocol". Implemented that way, with a comment at
+   the observation point explaining why the combination cannot be wrong, and a
+   test that a non-zero off-control repo is *not* listed as serviced.
+2. **`--control-worktree` visibility** — internal dispatch flag. Not documented
+   in `coga/cli` as an operator spelling; the argparse additions carry a comment
+   saying only `_service_from_control_worktree` sets them.
+3. **Stranded-worktree reaping** — prune-on-start only, per `## Out of Scope`
+   ("Repo-wide branch and worktree hygiene remains `branch-sweep`'s job").
+   `branch-sweep` was not touched.
+4. **Copy or symlink for `coga.local.toml`** — copy at 0600, per the spec.
+
+Original text, for the record:
 
 1. **Parent summary derivation.** The `--all` summary infers "serviced from a
    temp control worktree" from its own pre-dispatch `on_control_branch`
