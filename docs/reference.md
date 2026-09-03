@@ -113,7 +113,9 @@ task (optionally scoped to `tasks/<DIR>/`).
   pre-filter; unlaunchable picks are reported by the staged run); the confirmed
   set is prepared, checked without writing activation state, then launched one
   at a time, activating each pick only after its own preflights pass. Picks not
-  reached under `--max-tasks` remain unchanged. The selection is saved for
+  reached under `--max-tasks` remain unchanged. Preparation and activation are
+  bound to one exact ticket revision; an edit during preflight refuses that
+  launch rather than overwriting the newer ticket. The selection is saved for
   `--relaunch`. Also available as the `coga pick` alias.
 - `--relaunch` — re-run the last confirmed picker selection.
 - `--max-tasks <n>` — stop after this many launchable tasks have been attempted.

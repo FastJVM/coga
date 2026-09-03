@@ -56,6 +56,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
+from coga import git
 from coga.blackboard import Blocker, open_blockers, resolve_open_blockers
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
@@ -80,6 +81,7 @@ from coga.mark import (
     mark_in_progress,
     prepare_active,
 )
+from coga.paths import log_path
 from coga.repl_supervisor import build_supervised_step_env
 from coga.workflow import WorkflowError
 from coga.taskfile import read_blackboard, replace_blackboard
@@ -704,6 +706,45 @@ def _run_selection(
             continue
         blocked_resume = ticket.status == "blocked"
         needs_activation = ticket.status in {"draft", "paused", "blocked"}
+        activation_snapshot: git.FileMutationRollback | None = None
+        if needs_activation:
+            # Bind preparation, every launch preflight, and the eventual write
+            # to one exact ticket revision. Reading the parsed ticket back from
+            # the snapshot closes the read/capture gap; mark_active consumes
+            # the same snapshot immediately before its write.
+            audit_path = log_path(cfg)
+            activation_snapshot = git.FileMutationRollback.capture(
+                (ref.ticket_path, audit_path),
+                union_paths=(audit_path,),
+            )
+            captured = activation_snapshot.originals[ref.ticket_path]
+            if captured is None:
+                results.append(
+                    _result(ref, "failed", "ticket disappeared before launch")
+                )
+                continue
+            try:
+                ticket = Ticket.parse(captured.decode("utf-8"))
+            except (UnicodeDecodeError, TicketError) as exc:
+                results.append(
+                    _result(ref, "failed", f"unreadable ticket: {exc}")
+                )
+                continue
+            blocked_resume = ticket.status == "blocked"
+            needs_activation = ticket.status in {"draft", "paused", "blocked"}
+            if not needs_activation:
+                # A peer moved the task between the phase-3 read and the exact
+                # capture. Refuse this stale selection rather than treating a
+                # newly started or closed task as the draft we meant to flip.
+                results.append(
+                    _result(
+                        ref,
+                        "failed",
+                        "ticket changed before deferred activation; retry",
+                        ticket.assignee,
+                    )
+                )
+                continue
         attempted += 1
         results.append(
             _launch_until_stop(
@@ -716,6 +757,7 @@ def _run_selection(
                 max_session=max_session,
                 blocked_resume=blocked_resume,
                 activate=needs_activation,
+                activation_snapshot=activation_snapshot,
             )
         )
     return results
@@ -932,6 +974,7 @@ def _launch_until_stop(
     max_session: float | None = None,
     blocked_resume: bool = False,
     activate: bool = False,
+    activation_snapshot: git.FileMutationRollback | None = None,
 ) -> MegalaunchResult:
     # `ticket` is `active` / `in_progress` unless `activate` is set — the sweep
     # only reaches here for ready work, while the selection path hands over a
@@ -976,11 +1019,13 @@ def _launch_until_stop(
         # use — and commit the flip only once every refusal below has passed,
         # so a ticket whose session never starts is never left claiming it did.
         preflight_view = ticket
+        prepared_activation: Ticket | None = None
         if activate:
             prepared = _prepare_for_launch(cfg, ref, ticket)
             if isinstance(prepared, MegalaunchResult):
                 return prepared
             preflight_view = prepared
+            prepared_activation = prepared
 
         preflight = _preflight_agent_launch(
             cfg, ref, preflight_view, launch_assignee
@@ -996,7 +1041,13 @@ def _launch_until_stop(
 
         if activate:
             activate = False
-            failure = _activate_for_launch(cfg, ref, ticket)
+            failure = _activate_for_launch(
+                cfg,
+                ref,
+                ticket,
+                prepared=prepared_activation,
+                mutation_snapshot=activation_snapshot,
+            )
             if failure is not None:
                 return failure
 
@@ -1188,6 +1239,8 @@ def _activate_for_launch(
     ticket: Ticket,
     *,
     log_message: str | None = None,
+    prepared: Ticket | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
 ) -> MegalaunchResult | None:
     """Commit a picked or dependency-drained ticket to `active`.
 
@@ -1196,12 +1249,18 @@ def _activate_for_launch(
     `mark_active` mutates `ticket` in place (status, frozen workflow, seeded
     step), so the caller's launch loop continues off the same object.
 
-    The durable half. It still maps the prepare-half refusals as well as the
-    post-write `TaskValidationError`, because `mark_active` re-runs
-    `prepare_active` before writing and the dependency drain commits here with
-    no preceding `_prepare_for_launch`.
+    The durable half. A deferred picker launch supplies the exact prospective
+    ticket its preflight saw plus a mutation snapshot of the source revision.
+    `mark_active` therefore sees an already-prepared `active` ticket (so it
+    cannot freeze a changed workflow definition) and refuses immediately
+    before writing if a peer changed the ticket. Dependency drain callers have
+    no preceding `_prepare_for_launch` and keep the ordinary prepare-and-write
+    path.
     """
     prior = ticket.status
+    if prepared is not None:
+        ticket.frontmatter = dict(prepared.frontmatter)
+        ticket.body = prepared.body
     try:
         mark_active(
             cfg,
@@ -1213,8 +1272,15 @@ def _activate_for_launch(
                 or f"activated ({prior} → active) — explicit megalaunch pick"
             ),
             echo=None,
+            mutation_snapshot=mutation_snapshot,
         )
-    except (*_PREPARE_ACTIVE_ERRORS, TaskValidationError) as exc:
+    except (
+        *_PREPARE_ACTIVE_ERRORS,
+        TaskValidationError,
+        git.FeaturePublicationError,
+    ) as exc:
+        if isinstance(exc, TaskValidationError) and mutation_snapshot is not None:
+            mutation_snapshot.restore()
         return _activation_refusal(ref, ticket, prior, exc)
     return None
 

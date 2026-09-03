@@ -2255,6 +2255,120 @@ def test_megalaunch_selection_does_not_activate_pick_without_agent_cli(
     assert _log_lines_for(cfg, draft["slug"], "activated") == []
 
 
+def test_megalaunch_selection_preserves_peer_edit_during_preflight(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The deferred write is a CAS against the ticket its preflight saw."""
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Racing draft",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    launched = _done_on_spawn(monkeypatch)
+    peer_bytes: bytes | None = None
+
+    def racing_preflight(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        nonlocal peer_bytes
+        peer = Ticket.read(draft["path"])
+        peer.frontmatter["status"] = "done"
+        peer.frontmatter.pop("step", None)
+        peer.body = f"{peer.body.rstrip()}\n\nPeer completed this ticket.\n"
+        peer.write(draft["path"])
+        peer_bytes = Path(draft["path"]).read_bytes()
+        return None
+
+    monkeypatch.setattr(
+        "coga.megalaunch._preflight_agent_launch", racing_preflight
+    )
+
+    run = run_megalaunch(cfg, selection=[draft["slug"]])
+
+    assert launched == []
+    assert run.results[0].outcome == "failed"
+    assert "changed before writing" in run.results[0].detail
+    assert peer_bytes is not None
+    assert Path(draft["path"]).read_bytes() == peer_bytes
+    assert Ticket.read(draft["path"]).status == "done"
+    assert _log_lines_for(cfg, draft["slug"], "activated") == []
+
+
+def test_megalaunch_selection_commits_the_preflighted_workflow_snapshot(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A workflow edit during preflight cannot change the activation snapshot."""
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Bare workflow draft",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    ticket = Ticket.read(draft["path"])
+    ticket.frontmatter["workflow"] = "code"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(draft["path"])
+
+    def changing_preflight(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        _write(
+            repo / "workflows" / "code.md",
+            """
+            ---
+            name: code
+            description: changed while the launch preflight ran.
+            steps:
+              - name: implement
+                assignee: owner
+              - name: review
+                assignee: owner
+            ---
+
+            ## implement
+            Write the code.
+
+            ## review
+            Review the code.
+            """,
+        )
+        return None
+
+    class _Session:
+        exit_code = 1
+        termination_kind = "natural"
+
+    seen_workflow: dict[str, object] = {}
+
+    def fake_spawn(  # type: ignore[no-untyped-def]
+        _cfg, _ref, launched, _agent, **_kwargs
+    ):
+        seen_workflow.update(launched.workflow or {})
+        return _Session()
+
+    monkeypatch.setattr(
+        "coga.megalaunch._preflight_agent_launch", changing_preflight
+    )
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg, selection=[draft["slug"]])
+
+    assert run.results[0].outcome == "failed"
+    steps = seen_workflow["steps"]
+    assert isinstance(steps, list)
+    assert steps[0]["assignee"] == "agent"
+    persisted = Ticket.read(draft["path"])
+    assert persisted.workflow is not None
+    assert persisted.workflow["steps"][0]["assignee"] == "agent"
+
+
 def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_launch(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
