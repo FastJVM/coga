@@ -134,7 +134,9 @@ not the only shape in the tree. Three shapes coexist under `coga/skills/`:
 
 - **Repo-authored, namespaced** — `code/`, `coga/`, `direct/`, and
   `browser/dochub`; `_template/` sits beside them as the starter directory to
-  copy. DocHub declares its full Coga ref as `name: browser/dochub`.
+  copy. DocHub's Coga ref is `browser/dochub`, derived from that directory
+  path, while its portable Agent Skills metadata deliberately keeps the
+  standards-valid leaf `name: dochub`.
 - **Installer-managed, flat** — `coga skill install` lays a Coga-managed skill
   down flat at `coga/skills/<ref>/` under its upstream ref name, so this repo
   also carries seven flat `google-agents-cli-*` directories, each declared in
@@ -159,12 +161,15 @@ Skill resolution reads the directory path in all three cases. Prefer a
 namespaced directory for anything you write, expect the flat form for anything
 the installer imported, and use a namespaced directory plus attribution,
 license, and modification history for anything you vendor by hand.
-Repo-authored namespaced skills use the Coga ref
-(`name: <namespace>/<name>`) established by the authoring template. Flat
-installer-managed imports retain their upstream metadata. A hand-vendored
-import is the narrower exception: preserve its standards-valid upstream leaf
-`name:` when applicable even though Coga derives a namespaced ref from its
-directory path, and make adaptations explicit in its notice.
+Repo-authored namespaced skills normally use the Coga ref
+(`name: <namespace>/<name>`) established by the authoring template. A skill
+also intended to satisfy the portable Agent Skills metadata grammar may keep a
+standards-valid leaf `name:` while Coga derives its namespaced ref from the
+directory path; DocHub is the checked-in example. Flat installer-managed
+imports retain their upstream metadata. A hand-vendored import follows the
+same portable rule: preserve its standards-valid upstream leaf `name:` when
+applicable even though Coga derives a namespaced ref from its directory path,
+and make adaptations explicit in its notice.
 
 File-form `tasks/<slug>.md` tickets cannot carry attachments and therefore
 cannot be script-backed. In a directory-form ticket, only `ticket.py` is

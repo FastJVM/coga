@@ -117,6 +117,11 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
         "address-pr-comments/SKILL.md",
     ),
     (
+        "coga/skills/browser/dochub/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/skills/browser/dochub/"
+        "SKILL.md",
+    ),
+    (
         "coga/contexts/coga/sync/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
     ),
@@ -211,6 +216,15 @@ def test_live_and_packaged_copies_stay_identical() -> None:
         assert (repo_root / live).read_bytes() == (repo_root / packaged).read_bytes(), (
             f"{live} and {packaged} have drifted; edit both copies together"
         )
+
+
+def test_dochub_skill_keeps_portable_leaf_name() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    skill = (repo_root / "coga/skills/browser/dochub/SKILL.md").read_text()
+    frontmatter = skill.split("---", 2)[1]
+
+    assert '\nname: "dochub"\n' in frontmatter
+    assert "browser/dochub" not in frontmatter
 
 
 def test_executable_context_instructions_honor_layout_override() -> None:
