@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -83,9 +83,15 @@ where that validator rule does not apply.
 ## Verification
 
 - `python -m pytest`: 2204 passed (isolated `/tmp` venv with `.[test]`).
-- Rebased cleanly onto `origin/main` at `b10351f2`; post-rebase full suite:
-  2204 passed. Feature commit is `8b0a8e91`.
+- Peer review ran `codex review --base main` and found one must-fix P2 about
+  live prompts misdirecting older frozen workflow snapshots.
+- Applied the finding and added legacy-snapshot composition coverage; the full
+  suite passed before and after the final rebase: 2205 passed.
+- Rebased cleanly onto `origin/main` at `ff5d7542`. Feature commits are
+  `2ec58c22` (implementation) and `8ae7f9fb` (peer-review fix).
 - Focused composition and packaging tests: 8 passed.
+- Post-review focused compatibility, twin-copy, and wheel checks: 4 passed.
+- Targeted task validation: 1 task OK, no issues.
 - `coga validate --json` in `example/coga`: 3 tasks OK, no issues.
 - Full-repo validation finds only existing repository warnings and the four
   known `unsynthesized-draft-blackboard` errors; no new workflow/skill issue.
@@ -102,8 +108,20 @@ but step skills and skill-less inline workflow prose stay live. Older
 bump reaches `evaluate-design` and the updated owner prompt requires a
 nonexistent `## Evaluator review`.
 
-Proposed fix, pending attended-session approval: make `code/design` neutral
-about the exact next step; make `review-design` consume evaluator findings only
-when the frozen ticket actually contains them; and add regression coverage for
-an older frozen snapshot. This preserves snapshot compatibility at the cost of
-slightly less explicit prose in the shared design skill.
+The proposed fix was accepted and applied. The shared `code/design` skill now
+names the next frozen step rather than `evaluate-design`; the owner prompt
+conditionally consumes `## Evaluator review`; and the regression composes both
+steps from a pre-evaluator snapshot. The skill-creator guidance favored this
+narrow, outcome-oriented correction over versioning or migrating existing
+tickets.
+
+## PR
+
+Add a reusable cold design-review skill and route newly frozen
+`code/design-then-implement` tickets through an independent `other-agent`
+evaluation before owner approval. Keep draft evaluator notes under the existing
+synthesis gate, preserve accurate prompts for older frozen workflow snapshots,
+and cover composition plus packaged/live resource parity.
+
+Test plan: `python -m pytest` (2205 passed), including focused composition,
+live/packaged-pair, and wheel-packaging coverage.
