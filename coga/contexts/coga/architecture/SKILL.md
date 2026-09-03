@@ -843,8 +843,11 @@ plugins. This remains the repository-independent parameterized command surface;
 ticket-owned deterministic behavior can instead live in `ticket.py`, which
 launch subprocesses without adding it to the registry. State-machine commands
 (`create`, `mark`, `bump`, `block`, `unblock`,
-`launch`, `megalaunch`) remain ordinary core commands, as do shared gates,
-parsers, preflights, and config/secrets machinery.
+`launch`) remain ordinary core commands, as do shared gates, parsers,
+preflights, and config/secrets machinery. `megalaunch` currently lives in core
+as the queue/drain orchestrator, but that is implementation inventory rather
+than a settled home: the co-versioning proof or migration required to classify
+it remains open under `coga/extension-model`.
 
 `open-pr` and `delete-task` are registered recipes like the rest: their
 implementations live in `coga.open_pr` and `coga.delete_task`, they take the
