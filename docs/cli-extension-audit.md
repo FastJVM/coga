@@ -218,12 +218,15 @@ the useful test remains: does `launch` call it *while running* (kernel), or does
 a human/cron call it *to start* a launch (movable)? Two narrow exceptions keep
 real command contracts in core: the closed `coga run` recipe table, and a
 Python command implementation that genuinely cannot be expressed as an alias.
-`coga digest` and `coga megalaunch` are examples of the latter. Merely being
+`coga digest` and `coga megalaunch` currently occupy that in-package shape,
+but the active command-cleanup design ticket still owns the decision whether
+their behavior is actually irreducible or should migrate. Merely being
 implemented in Python today does not qualify.
 
-**Current built-ins mix real kernel implementations with thin command heads.**
-`digest` and `megalaunch` are irreducible command implementations; `delete`
-fronts the fixed `delete-task` recipe. `coga ticket` is the worked collapsed case: its authoring
+**Current built-ins mix kernel candidates with thin command heads.** `digest`
+and `megalaunch` remain Python command implementations pending that shape
+review; this inventory records their current home rather than prejudging the
+migration. `delete` fronts the fixed `delete-task` recipe. `coga ticket` is the worked collapsed case: its authoring
 conversation is the `bootstrap/ticket` launch target already, its post-exit
 validate + git-sync lives in `coga.authoring`, and the `arg → draft` head in
 `commands/ticket.py` is irreducible. The command calls the

@@ -52,7 +52,7 @@ Reach for the lowest tier the *shape* allows — shape decides, not taste:
   implementation that genuinely needs Python logic and cannot be expressed as
   an alias (below).
 
-## The kernel is the launch closure, fixed recipes, and irreducible commands
+## The kernel is the launch closure, fixed recipes, and proven command code
 
 Most of the kernel is not a taxonomy to memorize — it is **one thing and its
 dependency closure**. The kernel is `launch`/compose, plus everything `launch`
@@ -72,13 +72,16 @@ extend the table.
 
 The second is a **real command implementation** that genuinely needs Python
 logic and cannot be expressed as an alias. It stays in the kernel even when no
-launch depends on it: `coga digest` (`commands/digest.py`) and `coga
-megalaunch` (`megalaunch.py`) are the shipped examples. This is the same rule
-`coga/codebase` and `CLAUDE.md` state for `src/coga/` — core holds shared infra
-with two or more consumers plus real command implementations — and the launch
-closure is its common case, not its whole extent. The allowance is narrow, not
-an escape hatch: "it is written in Python today" does not qualify, and a verb
-whose whole body starts a launch is an alias however it is spelled.
+launch depends on it. This is the same rule `coga/codebase` and `CLAUDE.md`
+state for `src/coga/` — core holds shared infra with two or more consumers plus
+real command implementations — and the launch closure is its common case, not
+its whole extent. The allowance is narrow, not an escape hatch: "it is written
+in Python today" does not qualify, and a verb whose whole body starts a launch
+is an alias however it is spelled. `coga digest` (`commands/digest.py`) and
+`coga megalaunch` (`megalaunch.py`) are current in-package implementations,
+not ratified examples of irreducibility: the active command-cleanup design
+ticket is explicitly responsible for classifying and migrating them where
+their shape allows.
 
 What that closure contains, and why each is there:
 
@@ -235,17 +238,18 @@ actively fights the capability boundary.
 
 | Home | Members |
 | --- | --- |
-| **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · fixed `coga run` recipes · irreducible command implementations such as `digest` and `megalaunch` · *(hooks)* secret-inject, skill-verify-at-compose |
+| **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · fixed `coga run` recipes · command implementations proven not expressible as aliases · *(hooks)* secret-inject, skill-verify-at-compose |
 | **Stateful tickets** | reviewable work with its own lifecycle; may run `ticket.py`, an agent, or both |
 | **Stateless command tickets** | package/repo bootstrap targets such as `resolve-conflicts`; agent-backed or no-operand `ticket.py`, launched in place |
 | **External tools** | existing CLIs such as `git`, `gh`, and `op` |
 | **Alias (sugar)** | fixed rewrites to launch/bootstrap or other real command targets |
 
-The table names homes and their settled members; it is not an inventory of
-`coga`'s live verbs. Several verbs still implemented in `src/coga/` are movable
-under the rule above and are deliberately absent from the Kernel row —
-`docs/cli-extension-audit.md` holds the verb-by-verb inventory and where each
-one lands.
+The table names home criteria and settled primitives; it does not ratify every
+current `src/coga/` verb as a permanent kernel member. Several live verbs are
+still under classification — including `digest` and `megalaunch` — and may
+move when their reviewed shape permits it. `docs/cli-extension-audit.md` holds
+the current verb-by-verb inventory; an active migration ticket remains
+authoritative about decisions it was created to settle.
 
 ## Migration rule, not a redesign
 
