@@ -5845,7 +5845,18 @@ def test_forced_recurring_run_refuses_canceled_period(repo: Path) -> None:
     ticket.frontmatter["status"] = "canceled"
     ticket.frontmatter.pop("step", None)
     ticket.write(ticket_path)
-    forced = scan_due(cfg, now=now, force=True)
+    forced = scan_due(
+        cfg,
+        now=now,
+        force=True,
+        allow_interactive=False,
+        agent_unavailable_reason=(
+            "temporary control worktree accepts deterministic periods only"
+        ),
+    )
+
+    assert forced.errors == []
+    assert forced.forced[0].status == "canceled"
 
     with pytest.raises(
         recurring_cmd.RecurringError,
@@ -6796,6 +6807,39 @@ def test_recurring_force_skips_interactive_template_without_tty(
     assert "skipping weekly-check" in combined
     assert "an agent run requires a TTY" in combined
     assert list_tasks(load_config(repo)) == []
+
+
+def test_recurring_force_refuses_canceled_agent_period_without_tty(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Headless admission must not hide a forced cancellation refusal."""
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "weekly-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    ticket = Ticket.read(outcome.ref.ticket_path)
+    ticket.frontmatter["status"] = "canceled"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(outcome.ref.ticket_path)
+
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: False
+    )
+    _patch_recurring_command_launch(
+        monkeypatch, repo, lambda slug, **kwargs: launched.append(slug)
+    )
+    monkeypatch.chdir(repo)
+
+    result = CliRunner().invoke(app, ["recurring", "--force"])
+
+    assert result.exit_code == 2, result.output
+    assert launched == []
+    combined = result.output + (result.stderr or "")
+    assert "task is canceled and cannot be reactivated" in combined
+    assert "No recurring templates to launch." not in combined
+    assert "an agent run requires a TTY" not in combined
+    assert Ticket.read(outcome.ref.ticket_path).status == "canceled"
 
 
 def test_recurring_launch_unknown_template_fails(dream_repo: Path) -> None:

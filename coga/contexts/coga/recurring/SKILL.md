@@ -94,8 +94,12 @@ the example under "Extend recurring with a task-specific workflow").
   the real period task for every template, reactivating `done` and `paused`
   runs. A `canceled` task remains terminal: the runner reports a controlled
   refusal for it, continues through later templates, and exits non-zero after
-  the sweep. Deleting that canceled period task is the explicit prerequisite
-  for a fresh run.
+  the sweep. This status refusal takes precedence over agent admission: a
+  headless or temporary-control-worktree scan retains an already materialized
+  canceled agent period so the force runner can report the refusal instead of
+  silently filtering it as unavailable. No agent is admitted by doing so.
+  Deleting that canceled period task is the explicit prerequisite for a fresh
+  run.
 - `coga recurring --all <path>` — discovers every Coga repo below an explicit
   parent directory, pruning dependency/tool-state and `_`-prefixed directory
   trees, and runs the ordinary due sweep in each configured target,

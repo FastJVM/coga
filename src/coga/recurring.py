@@ -537,6 +537,12 @@ def scan_due(
                 now,
                 allow_agent=allow_interactive,
                 agent_unavailable_reason=agent_unavailable_reason,
+                # A canceled period never reaches an agent phase. Keep it in
+                # a forced scan even when agents are unavailable so the
+                # sequential runner can report the terminal-status refusal
+                # (and fail the sweep) instead of misclassifying it as an
+                # unavailable agent template.
+                retain_canceled=force,
                 # Forced scans defer every status/period mutation until the
                 # sequential launch loop actually reaches that template.
                 replace_done=not force,
@@ -601,6 +607,7 @@ def create_template(
     replace_done: bool = True,
     serviced: dict[str, str] | None = None,
     agent_unavailable_reason: str | None = None,
+    retain_canceled: bool = False,
 ) -> CreateOutcome:
     """Create one recurring template for `now`'s firing. Idempotent.
 
@@ -609,6 +616,11 @@ def create_template(
 
     `agent_unavailable_reason` overrides the refusal text raised when
     `allow_agent` is false; None keeps the default no-TTY explanation.
+
+    `retain_canceled` lets a forced scan return an already materialized
+    canceled period even when no agent may run. It does not make that period
+    launchable; the force runner consumes it only to issue the canceled-task
+    refusal and a non-zero sweep result.
     """
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
@@ -686,7 +698,11 @@ def create_template(
                 cfg, template, period_key, outcome, now, serviced
             )
             return outcome
-        if not allow_agent and resolve_script_entry_point(existing) is None:
+        if (
+            not allow_agent
+            and not (retain_canceled and ticket.status == "canceled")
+            and resolve_script_entry_point(existing) is None
+        ):
             raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
         return CreateOutcome(
             ref=existing,
