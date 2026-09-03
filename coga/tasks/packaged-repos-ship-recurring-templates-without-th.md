@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -53,6 +53,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/750
 branch: package-recurring-context
 worktree: /home/n/Code/claude/coga-package-recurring-context
 
@@ -77,7 +78,7 @@ Evidence gathered before deciding:
   a recurring ticket" section and its closing cross-reference). In a fresh
   `coga init` repo that ref resolved to nothing.
 - **No prompt-bloat cost.** Contexts resolve on demand via
-  `resolve_context_ref` (local-first, bundled fallback); `coga/recurring` is
+  `resolve_context_path` (local-first, bundled fallback); `coga/recurring` is
   composed only when a ticket attaches it, not into every prompt.
 - **No packaging-config change needed.** `pyproject.toml` force-includes the
   whole `bootstrap/` tree, so a new context directory ships automatically.
@@ -129,3 +130,37 @@ Neither list is generated from the tree, so a context can be added to (or
 dropped from) `bootstrap/contexts/` without any test noticing. A follow-up
 could derive the ship list from the directory walk instead of hand-maintaining
 it. Out of scope for this ticket.
+
+## Peer review
+
+- `codex review --base main` found no actionable issues: the context is at the
+  correct packaged fallback path, byte-identical to its live source, and
+  covered by both wheel-inclusion and parity tests.
+- Fetched `origin/main` and rebased the feature commit unconditionally onto
+  `6a4287e3`; the rebase completed without conflicts. The rebased feature
+  commit is `dec4c014`, and the branch is clean with one commit ahead.
+- Rechecked the newly created live/packaged twin by hand after the rebase:
+  both files have SHA-256
+  `294f348d5bc09a692182db9a513300fe1904a4a30d239e2babf848d240a4133c`.
+- `python -m pytest` — **2203 passed** after the rebase. The sole warning was
+  pytest being unable to update its cache in the read-only feature worktree;
+  it did not affect collection or test results.
+- `git diff --check origin/main...HEAD` — clean.
+
+## PR
+
+### Summary
+
+- Ship the canonical `coga/recurring` context with the packaged bootstrap
+  resources so fresh repositories receive the operating contract for the
+  recurring templates they already get.
+- Package the live context verbatim, preserving the established local-first
+  override model without adding prompt cost for tickets that do not attach it.
+- Assert both wheel inclusion and byte-for-byte parity so packaging regressions
+  and future one-sided context edits fail tests.
+
+### Test plan
+
+`python -m pytest` (2203 passed); `git diff --check origin/main...HEAD` clean;
+built wheel inspected for
+`coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md`.
