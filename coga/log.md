@@ -4321,3 +4321,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-03 11:16 [cleanup/add-a-debug-mode-to-init-for-vendoring-from-source] [human:nick] created (status=draft)
 2026-09-03 11:16 [cleanup/detect-the-current-git-branch-instead-of-hard-codi] [human:nick] created (status=draft)
 2026-09-03 11:16 [cleanup/quiet-the-first-run-noise-from-recurring-jobs-and] [human:nick] created (status=draft)
+2026-09-03 11:16 [cleanup/handle-a-bare-slack-webhook-url-during-empty-repo] [human:nick] created (status=draft)
