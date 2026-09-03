@@ -193,17 +193,12 @@ reserved — no extension or alias may collide with them:
 
 `slug`, `title`, `status`, `owner`, `human`, `agent`,
 `assignee`, `watchers`, `workflow`, `step`, `contexts`, `skills`, `delegate`,
-`period_generation`, `secrets`.
+`period_generation`, `launch_generation`, `secrets`.
 
-That is `ticket.CANONICAL_TICKET_KEYS`, and it is the set
-`validate.REQUIRED_TASK_KEYS` plus `OPTIONAL_TASK_KEYS` admits. The collision
-check that points readers here — `config._RESERVED_TICKET_FIELD_NAMES` — is
-currently narrower at both ends: it omits `period_generation` and `slug`, so
-`[ticket.fields.period_generation]` and `[ticket.fields.slug]` load without
-error even though the runner writes `period_generation:` onto every
-materialized recurring period task and `slug:` is required on every ticket. The
-list above is the reserved set regardless; the gap in that check is a known
-defect, not permission to take those two names.
+That is `ticket.CANONICAL_TICKET_KEYS`, which
+`config._RESERVED_TICKET_FIELD_NAMES` reuses to reject extension collisions;
+it is also the set `validate.REQUIRED_TASK_KEYS` plus `OPTIONAL_TASK_KEYS`
+admits.
 
 `slug` is the task's path-qualified reference, recorded on the ticket for
 legibility (the path under `tasks/` stays the addressing source of truth).
@@ -218,6 +213,11 @@ value. Ordinary tasks may not declare it.
 task under `tasks/recurring/`. The creator stamps it once per stable-path
 generation and the runner's start lease reads it back as a bounded witness;
 templates and ordinary tasks that declare it are rejected. See `coga/recurring`.
+
+`launch_generation` is megalaunch's transient, durable session-claim token:
+every start or resume rotates it before spawn, and activation clears it. Both
+generation fields are system-owned optional fields, never repository
+extensions.
 
 `secrets` is nullable and declared **inline** — there is no central
 `[secrets]` catalog. Absent / `null` / `[]` inject nothing; otherwise it is a

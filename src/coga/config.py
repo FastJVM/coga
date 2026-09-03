@@ -11,6 +11,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from coga.ticket import CANONICAL_TICKET_KEYS
+
 
 class ConfigError(Exception):
     """Raised for any invalid/missing config."""
@@ -619,24 +621,11 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
     return out
 
 
-_RESERVED_TICKET_FIELD_NAMES: frozenset[str] = frozenset({
-    # Canonical ticket frontmatter keys — see `coga/architecture` and
-    # `coga.validate.REQUIRED_TASK_KEYS` / `OPTIONAL_TASK_KEYS`. Extensions
-    # may not collide with any of these.
-    "title",
-    "status",
-    "owner",
-    "human",
-    "agent",
-    "assignee",
-    "watchers",
-    "workflow",
-    "step",
-    "contexts",
-    "skills",
-    "delegate",
-    "secrets",
-})
+# Ticket rendering already owns the canonical key set. Reuse it here so every
+# new internal field is reserved from `[ticket.fields.*]` in the same change;
+# a duplicate hand-maintained list let `launch_generation` be declared as user
+# data even though megalaunch overwrites it as a session claim.
+_RESERVED_TICKET_FIELD_NAMES: frozenset[str] = CANONICAL_TICKET_KEYS
 
 _ALLOWED_TICKET_FIELD_KEYS: frozenset[str] = frozenset({
     "description",

@@ -241,4 +241,9 @@ class Ticket:
         return None
 
 
-__all__ = ["Ticket", "TicketError", "TicketNotFoundError"]
+__all__ = [
+    "CANONICAL_TICKET_KEYS",
+    "Ticket",
+    "TicketError",
+    "TicketNotFoundError",
+]
