@@ -4281,3 +4281,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 21:46 [marketing/phase-0-audit] [human:nick] activated (draft → active) — auto on launch
 2026-09-02 21:46 [marketing/phase-0-audit] [human:nick] started (active → in_progress) via coga launch
 2026-09-02 21:47 [no-skill-exists-for-the-cold-evaluator-review-of-a] [human:nicktoper] activated (draft → active) — auto on launch
+2026-09-02 21:47 [no-skill-exists-for-the-cold-evaluator-review-of-a] [human:nicktoper] started (active → in_progress) via coga launch
