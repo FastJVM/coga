@@ -110,9 +110,11 @@ task (optionally scoped to `tasks/<DIR>/`).
 
 - `--pick` — choose interactively from an arrow-key list of every non-terminal
   task (any owner, any status except done/canceled — no launchability
-  pre-filter; unlaunchable picks are reported by the staged run); the confirmed set is
-  prepared, activated, launched, and saved for `--relaunch`. Also available as
-  the `coga pick` alias.
+  pre-filter; unlaunchable picks are reported by the staged run); the confirmed
+  set is prepared, checked without writing activation state, then launched one
+  at a time, activating each pick only after its own preflights pass. Picks not
+  reached under `--max-tasks` remain unchanged. The selection is saved for
+  `--relaunch`. Also available as the `coga pick` alias.
 - `--relaunch` — re-run the last confirmed picker selection.
 - `--max-tasks <n>` — stop after this many launchable tasks have been attempted.
 - `--agent <type>` — use this agent for picked-draft authoring interviews and

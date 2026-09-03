@@ -676,18 +676,20 @@ working launch:
    is already fine; decline the prompt and picked drafts go straight to
    phase 2 (an unready one is reported, not launched). A pick with no drafts
    is never prompted.
-2. **Activate** — every picked `draft`/`paused`/`blocked` ticket is brought to
-   `active` (a `blocked` ticket keeps its open asks for the launch-time
-   resolve-or-re-block preamble), and picks that still can't launch are
-   reported now.
-3. **Launch** — each activated ticket runs, one at a time; a resumed `blocked`
-   pick returns to `blocked` if its session exits with the ask still open.
+2. **Check** — every picked `draft`/`paused`/`blocked` ticket is validated
+   against the prospective `active` view it would get, without writing that
+   state. Picks that still can't launch are reported now.
+3. **Launch** — each cleared ticket is re-read and reclassified when its own
+   turn arrives, then preflighted against its current prospective view. Only
+   after those preflights pass is that ticket activated and launched. A
+   resumed `blocked` pick returns to `blocked` if its session exits with the
+   ask still open; a pick not reached under `--max-tasks` remains unchanged.
 
-Checking a task in the picker is thus the deliberate human act of starting
-it, and another owner's ticket launches when picked. A selected task that
-still can't launch (terminal, or a draft the interview left with no workflow to
-activate) is reported as `skipped-unlaunchable` rather than silently dropped —
-you picked it, so its outcome is owed back.
+Checking a task in the picker is the deliberate human act of selecting it for
+an attempted launch, and another owner's ticket launches when reached. A
+selected task that still can't launch (terminal, or a draft the interview left
+with no workflow to activate) is reported as `skipped-unlaunchable` rather
+than silently dropped — you picked it, so its outcome is owed back.
 
 The sweep silently filters out tickets whose `owner` is not
 `load_config().current_user` (including owner-less tickets, so other owners'

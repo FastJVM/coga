@@ -178,12 +178,13 @@ def run_megalaunch(
     step happens before the first launch — **prepare** (when `author_drafts`,
     each picked `draft` runs the guided `coga ticket` authoring interview so a
     not-ready ticket becomes launchable; the human can end the interview at
-    once if it is already fine), then **activate** (every draft/paused/blocked
-    → `active`), then **launch** (each activated ticket runs). A picked
-    `blocked` ticket resumes interactively (re-blocked if the session exits
-    with the ask still open); a named task that still can't launch — done, or
-    a draft with no workflow to activate — is reported as
-    `skipped-unlaunchable` instead of dropped. A selection slug matching no
+    once if it is already fine), then **check** (validate the prospective
+    `active` view without writing it), then **launch** (re-read each pick,
+    preflight its current prospective view, and activate it only as its own
+    launch starts). A picked `blocked` ticket resumes interactively (re-blocked
+    if the session exits with the ask still open); a named task that still
+    can't launch — done, or a draft with no workflow to activate — is reported
+    as `skipped-unlaunchable` instead of dropped. A selection slug matching no
     task raises `MegalaunchError`.
 
     `author_drafts` gates the prepare phase: the CLI sets it from a one-shot
@@ -559,15 +560,6 @@ def _as_drained(result: MegalaunchResult, dependency: str) -> MegalaunchResult:
     )
 
 
-@dataclass(frozen=True)
-class _PlannedLaunch:
-    """One confirmed pick that the check phase cleared for launching."""
-
-    ref: TaskRef
-    blocked_resume: bool
-    needs_activation: bool
-
-
 def _run_selection(
     cfg: Config,
     queue: list[TaskRef],
@@ -618,10 +610,10 @@ def _run_selection(
     # Phase 2 — Check. Validate every picked draft/paused/blocked against the
     # `active` view it would get, and report the ones that still can't launch.
     # Nothing is written: the durable flip happens in phase 3, inside each
-    # ticket's own launch. What survives is the launch plan, each entry
-    # remembering whether it was a blocked resume and whether it still needs
-    # activating.
-    launch_plan: list[_PlannedLaunch] = []
+    # ticket's own launch. Only refs survive into the launch plan: every
+    # lifecycle-dependent decision is re-derived from the fresh phase-3 read,
+    # after any earlier picked ticket has finished running.
+    launch_plan: list[TaskRef] = []
     for ref in queue:
         try:
             ticket = read_ticket(ref)
@@ -647,7 +639,6 @@ def _run_selection(
         if candidate is not None:
             results.append(candidate)
             continue
-        was_blocked = ticket.status == "blocked"
         needs_activation = ticket.status in {"draft", "paused", "blocked"}
         if needs_activation:
             # Prepare only — a blocked ticket also keeps its open asks here for
@@ -669,12 +660,12 @@ def _run_selection(
                     )
                 )
                 continue
-        launch_plan.append(_PlannedLaunch(ref, was_blocked, needs_activation))
+        launch_plan.append(ref)
 
     # Phase 3 — Launch. Activate and run the plan one entry at a time,
     # honouring `--max-tasks` over the launches.
     attempted = 0
-    for planned in launch_plan:
+    for ref in launch_plan:
         if max_tasks is not None and attempted >= max_tasks:
             # `--max-tasks` stops the run here and activation is deferred into
             # each launch, so a pick the run never reaches keeps its
@@ -682,7 +673,6 @@ def _run_selection(
             # `active` ticket on disk means a session started, and this one
             # never did. Re-pick it to run it.
             break
-        ref = planned.ref
         try:
             ticket = read_ticket(ref)
         except TicketNotFoundError:
@@ -694,8 +684,10 @@ def _run_selection(
             results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
             continue
         # Deferring activation widens the window between the check phase and
-        # the launch: a pick that finished or was canceled while an earlier
-        # launch ran is reported, never activated.
+        # the launch. Reclassify the fresh ticket instead of carrying phase-2
+        # status decisions across earlier agent sessions: a concurrent start
+        # must not be reactivated, and a newly blocked pick must retain the
+        # resume/re-block contract.
         if ticket.status in TERMINAL_STATUSES:
             results.append(
                 _result(
@@ -706,6 +698,12 @@ def _run_selection(
                 )
             )
             continue
+        candidate = _candidate_result(cfg, ref, ticket, explicit=True)
+        if candidate is not None:
+            results.append(candidate)
+            continue
+        blocked_resume = ticket.status == "blocked"
+        needs_activation = ticket.status in {"draft", "paused", "blocked"}
         attempted += 1
         results.append(
             _launch_until_stop(
@@ -716,8 +714,8 @@ def _run_selection(
                 max_steps_per_task=max_steps_per_task,
                 idle_timeout=idle_timeout,
                 max_session=max_session,
-                blocked_resume=planned.blocked_resume,
-                activate=planned.needs_activation,
+                blocked_resume=blocked_resume,
+                activate=needs_activation,
             )
         )
     return results
@@ -1311,11 +1309,11 @@ def _preflight_agent_launch(
         agent = cfg.agent_type(launch_assignee or "")
     except ConfigError as exc:
         return str(exc)
-    # Callers may pass a prospective `active` view of a ticket that has not
-    # been activated yet, so this checks only what it exists to catch: work
-    # that can never be launched at all.
-    if ticket.status in TERMINAL_STATUSES:
-        return f"status is {ticket.status}; a terminal task cannot be launched"
+    # A not-yet-activated pick arrives as its prospective `active` view. Keep
+    # the launch boundary strict so malformed or concurrently changed states
+    # cannot reach the agent spawn path.
+    if ticket.status not in {"active", "in_progress"}:
+        return f"status is {ticket.status}; expected active or in_progress"
     if shutil.which(agent.cli) is None:
         return agent_cli_missing_message(agent.cli)
     try:

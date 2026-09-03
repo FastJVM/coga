@@ -2255,6 +2255,161 @@ def test_megalaunch_selection_does_not_activate_pick_without_agent_cli(
     assert _log_lines_for(cfg, draft["slug"], "activated") == []
 
 
+def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_launch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Phase 3 reclassifies each fresh ticket instead of replaying phase-2 state."""
+    cfg = load_config(repo)
+    first = create_task(
+        cfg=cfg,
+        title="Aaa first pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    started_elsewhere = create_task(
+        cfg=cfg,
+        title="Bbb concurrently started pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    launched: list[str] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref_obj.id_slug)
+        if ref_obj.id_slug == first["slug"]:
+            concurrent = Ticket.read(started_elsewhere["path"])
+            concurrent.frontmatter["status"] = "in_progress"
+            concurrent.frontmatter["step"] = "1 (implement)"
+            concurrent.write(started_elsewhere["path"])
+        completed = Ticket.read(ref_obj.ticket_path)
+        completed.frontmatter["status"] = "done"
+        completed.frontmatter.pop("step", None)
+        completed.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(
+        cfg,
+        selection=[first["slug"], started_elsewhere["slug"]],
+    )
+
+    assert launched == [first["slug"], started_elsewhere["slug"]]
+    assert run.counts["completed"] == 2
+    assert _log_lines_for(cfg, started_elsewhere["slug"], "activated") == []
+    assert _log_lines_for(cfg, started_elsewhere["slug"], "started (") == []
+
+
+def test_megalaunch_selection_recomputes_blocked_resume_after_earlier_launch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A newly blocked pick launches as a resume and is re-blocked on exit."""
+    from coga.blackboard import append_blocker, open_blockers
+
+    cfg = load_config(repo)
+    first = create_task(
+        cfg=cfg,
+        title="Aaa first pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="draft",
+        watchers=[],
+    )
+    newly_blocked = create_task(
+        cfg=cfg,
+        title="Bbb newly blocked pick",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(newly_blocked["path"])
+    ticket.frontmatter["status"] = "paused"
+    ticket.write(newly_blocked["path"])
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    launched: list[str] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref_obj.id_slug)
+        if ref_obj.id_slug == first["slug"]:
+            append_blocker(
+                Path(newly_blocked["path"]),
+                actor="claude",
+                reason="Need a decision made during the earlier launch",
+            )
+            concurrent = Ticket.read(newly_blocked["path"])
+            concurrent.frontmatter["status"] = "blocked"
+            concurrent.write(newly_blocked["path"])
+            completed = Ticket.read(ref_obj.ticket_path)
+            completed.frontmatter["status"] = "done"
+            completed.frontmatter.pop("step", None)
+            completed.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(
+        cfg,
+        selection=[first["slug"], newly_blocked["slug"]],
+    )
+
+    result = next(r for r in run.results if r.slug == newly_blocked["slug"])
+    assert launched == [first["slug"], newly_blocked["slug"]]
+    assert result.outcome == "blocked"
+    assert Ticket.read(newly_blocked["path"]).status == "blocked"
+    assert len(open_blockers(Path(newly_blocked["path"]))) == 1
+
+
+def test_megalaunch_selection_refuses_invalid_status_before_spawn(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Narrowing for prospective activation must not admit malformed state."""
+    cfg = load_config(repo)
+    malformed = create_task(
+        cfg=cfg,
+        title="Malformed lifecycle",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(malformed["path"])
+    ticket.frontmatter["status"] = "unexpected"
+    ticket.write(malformed["path"])
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[malformed["slug"]])
+
+    result = next(r for r in run.results if r.slug == malformed["slug"])
+    assert launched == []
+    assert result.outcome == "failed"
+    assert result.detail == "status is unexpected; expected active or in_progress"
+    assert Ticket.read(malformed["path"]).status == "unexpected"
+
+
 def test_megalaunch_selection_leaves_picks_beyond_max_tasks_unactivated(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
