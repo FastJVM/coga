@@ -975,10 +975,14 @@ branch, and the recorded `pr:` URL — are set only once launch has verified a
 strict human-assist checkout, for both the agent session and a `ticket.py`
 subprocess. An ordinary spawn drops all three before exec, so nested work
 cannot inherit an outer session's publish rights. In-session lifecycle commands
-rebuild the scoped capability from those three plus the expected-task witness,
-and refuse when one is missing or names an unknown agent: the variables are the
-capability's only carrier, which is why the namespace clear above has to cover
-them and not just the metadata seven.
+opt into strict publication only when the assist branch and expected-task
+witness are both present and the witness names the current task. Once that
+predicate selects the strict path, a missing recorded PR or effective agent —
+or an unknown agent — is refused. A missing branch or expected-task witness,
+or a witness for another task, selects the ordinary non-assist path instead.
+Launch itself exports the complete scoped capability together; clearing the
+namespace before an ordinary spawn prevents a partial outer capability from
+silently reaching nested work.
 
 Each known skill's `SKILL.md` carries a `## Known Skill Contract` section
 with these fields:
