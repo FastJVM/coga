@@ -4328,3 +4328,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-03 11:17 [fix-coga-init-crash-on-python-3-11-by-adding-the-r] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-03 11:17 [fix-coga-init-crash-on-python-3-11-by-adding-the-r] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-03 11:19 [bootstrap/orient] [human:nick] launched (assignee=claude, agent=claude)
+2026-09-03 11:17 [fix-coga-init-crash-on-python-3-11-by-adding-the-r] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-09-03 11:34 [cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
