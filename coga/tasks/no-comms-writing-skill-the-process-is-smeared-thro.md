@@ -8,7 +8,7 @@ agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: code/with-review
+workflow: docs/with-review
 secrets: null
 ---
 
@@ -21,11 +21,14 @@ context should carry posture; a skill should carry procedure.
 
 Two deliverables, designed against each other:
 
-1. **Import** `addyosmani/clarity` as a Coga-managed skill — the generic prose-craft layer
-   (mode selection, anti-generic safeguards, longform editing pass, prose-stat scripts).
+1. **Import** `addyosmani/clarity` as a Coga-managed skill via `coga skill install-url` — the
+   generic prose-craft layer (mode selection, anti-generic safeguards, longform editing pass,
+   prose-stat scripts).
 2. **Write** `coga/skills/marketing/write-post/SKILL.md` locally — the Coga-specific procedure
    extracted from the two marketing contexts. It delegates the prose-craft pass to the imported
    skill rather than restating it.
+
+3. **Rewire the three consumer tickets**, or thinning becomes a silent regression (see below).
 
 Then thin the two contexts so each keeps only posture and plan state, with the procedure removed
 and a pointer to the new skill in its place. Do not delete plan status, phasing, or scheduling —
@@ -71,26 +74,67 @@ scripts. It was selected because its rules are Coga's rules already generalized:
 | "Choose one intended takeaway" | plan: **"One post, one idea"** |
 | "Keep the author in the prose" | first-person founder voice |
 
-`references/longform.md` is the file that matters most for post 1; read it before writing
-`write-post` so the two do not overlap.
+Quote sources, so `write-post` can cite them accurately: rows 1 is verbatim from clarity's
+`SKILL.md` ("Shared safeguards" #1); rows 2, 3 and 5 are verbatim from `references/longform.md`
+("Give the opening one job", "Make the piece develop", and the section heading "Keep the author in
+the prose"); row 4 truncates longform.md's "Choose one intended takeaway appropriate to the
+register". Re-read before quoting — upstream moved a week before this ticket was written.
 
-### Import mechanics
+**Resolve the boundary before writing a line of `write-post`.** Clarity is not a passive
+"craft layer" that `write-post` can simply call at the end. It is a mode-driven, end-to-end
+process — `interview` / `write`, `rewrite`, `review`, `lint` — shipped with its own `commands/`
+directory. Its `interview` mode co-writes from scratch, which is **the same slot `write-post`
+wants**. The clean division this ticket describes is asserted, not something clarity's design
+hands you. So:
 
-- Use `coga skill install addyosmani/clarity` (wraps `gh skill install`, which is available and
-  authenticated here). It writes the `.coga-source.json` provenance record; do **not** hand-write
-  a provenance block into `SKILL.md`.
-- **Verify the install footprint before committing.** `clarity`'s `SKILL.md` sits at the repo
-  root alongside `samples/` (including a ~600 KB PNG), `evals/`, `netlify.toml`, and `site/`. If
-  the install drags the whole tree in, fall back to `coga skill install-url` against a narrowed
-  path, or prune the non-skill directories and record why in `local_adaptation_notes`.
-- Existing GitHub-managed skills (`google-agents-cli-*`) land **flat** at `coga/skills/<name>/`,
-  not under a namespace. Expect `coga/skills/clarity/`; record the actual installed path and use
-  the real ref in `write-post`. Do not force a `writing/` namespace if the tool will not produce
-  one.
-- Keep any adaptation minimal and write one or two lines into `local_adaptation_notes` saying
-  what changed and why. An adaptation is a fork we then maintain.
-- Confirm with `coga skill status` that it reports as managed with source metadata, not
-  `unmanaged`.
+- Read clarity's `SKILL.md` and `commands/` **first** — the collision is in the mode structure,
+  not in `references/longform.md`. Read longform.md too, but for content overlap, not for the
+  boundary question.
+- Decide explicitly, and write the decision into `write-post`: does `write-post` own the
+  interview/outline/draft and hand off to clarity's **rewrite and review modes only**, or does it
+  defer to clarity's `interview` and contribute only Coga's constraints? Either is defensible;
+  leaving it implicit gets two skills fighting over the same job.
+- Check the handoff **degrades sanely under Codex**. `docs/with-review` rotates `peer-review` to
+  `other-agent`, so a `/clarity …` slash-command idiom that only Claude Code understands must not
+  be the sole invocation path. Prefer naming the skill and its mode in prose over a bare slash
+  command.
+
+### Import mechanics — use `install-url`, not `install`
+
+**`coga skill install` is the wrong path here, and the reason is load-bearing.**
+`install_github_skill` (`src/coga/skill_manager.py:101`) only shells out to
+`gh skill install --dir <skills root>` and returns. It writes **no** `.coga-source.json`, so there
+is no `local_adaptation_notes` field and no dirty-detection. Verified: `find coga/skills -name
+.coga-source.json` returns nothing repo-wide, and `coga skill status` reports every
+`google-agents-cli-*` skill as `delegated (github)` with no source metadata. Open PR **#743**
+exists because the skill-update recurring template made exactly this wrong assumption — do not
+repeat it.
+
+Only `install_url_skill` writes Coga provenance (`source_type: "url"`, digests, and the
+hand-editable `local_adaptation_notes`), and only it refuses to overwrite a locally adapted skill
+without `--force`. Since this import **requires pruning** (below), that protection is the whole
+point.
+
+Do this:
+
+1. `coga skill install-url https://github.com/addyosmani/clarity/archive/refs/heads/main.tar.gz`
+   — verified 2026-09-03 to resolve (HTTP 200 via codeload).
+2. **Prune.** `SKILL.md` sits at the archive *root* alongside a lot of non-skill scaffolding, so
+   the selector cannot exclude it and the whole tree lands. Archive root contains: `SKILL.md`,
+   `references/`, `scripts/`, `commands/`, `evals/`, `samples/`, `site/`, `.claude/`, `.github/`,
+   `DESIGN.md`, `PRODUCT.md`, `README.md` (~20 KB), `netlify.toml`, `skills.sh.json`, `.gitignore`.
+   **Keep** `SKILL.md`, `references/` (the body loads these by path), `scripts/` (the lint mode
+   calls `strip_markdown.py` and `prose_stats.py`), and `LICENSE` (MIT — attribution is required,
+   do not drop it). Drop the rest; `samples/` alone carries a ~600 KB PNG.
+3. **Record the prune** in `local_adaptation_notes` — one or two lines saying what was removed and
+   why. This is a hand-edit to `.coga-source.json`; do not write a provenance block into
+   `SKILL.md`.
+4. **Verify** with `coga skill status` that it reports `url` with source metadata. If it reports
+   `delegated (github)` or `unmanaged`, the wrong install path was used — redo it.
+
+Expect the skill to land flat at `coga/skills/clarity/`, matching the existing
+`google-agents-cli-*` skills, not under a namespace. Record the actual installed path and use the
+real ref in `write-post`; do not force a `writing/` namespace the tooling will not produce.
 
 ### What `write-post` must carry (and clarity cannot know)
 
@@ -108,6 +152,35 @@ Extract from the two marketing contexts, keeping the reasons, not just the rules
   never Show HN, titles are the experience and never the thesis.
 - Where the skill **hands off to `clarity`** for the craft pass instead of restating it.
 
+### Thinning without rewiring is a regression — this is the part not to skip
+
+Verified 2026-09-03: `marketing/post-async-megalaunch`, `marketing/post-you-own-it`, and
+`marketing/post-doc-as-cache` are all `status: draft` and all three carry exactly:
+
+```yaml
+contexts:
+  - marketing/plan
+  - marketing/positioning
+skills: []
+```
+
+They get the five beats and the writing rules *only* by composing `marketing/plan`. Strip the
+procedure out of that context and all three silently lose it — attached contexts, empty skills
+list, no pointer to the new skill. `post-async-megalaunch` is the ticket that most needs this
+skill and would be the most damaged.
+
+So the thinning is not done until:
+
+- Each of the three tickets lists `marketing/write-post` (and the clarity ref, if `write-post`
+  does not load it itself) under `skills:`. All three are drafts with `workflow: null`, so there
+  is no frozen workflow step to attach a skill to — put the refs on the ticket `skills:` field.
+- `marketing/plan`'s **"Execution tickets"** list and **both** contexts' **"What this context does
+  NOT cover"** sections point at the new skill. `marketing/positioning` already says the writing
+  process "would be a skill" and `marketing/plan` defers process the same way — those forward
+  references become real and must name it.
+- Nothing else in the repo still reaches for the moved procedure: grep for references to the
+  moved sections before declaring done.
+
 ### Contexts are deliberately not attached
 
 `marketing/plan` (~14.7 KB) and `marketing/positioning` (~8.2 KB) are the *editing targets* here,
@@ -120,6 +193,11 @@ context.
 ### Scope boundaries
 
 - Markdown only. No changes under `src/coga/` — this adds no core code and no new CLI surface.
+  This is why the workflow is `docs/with-review` and not `code/with-review`: the peer-review step
+  reviews prose, accuracy, and cross-copy sync rather than running `/code-review` and `pytest` on
+  a diff of SKILL.md files, which that workflow's own body calls "value-light on markdown-only
+  diffs". If implementation turns out to need real code, escalate to switch workflows rather than
+  folding code into this one.
 - Do not touch `docs/vision.md`, `docs/market-thesis.md`, or `docs/velocity-report.md`; they are
   the sources of truth the contexts defer to.
 - Do not write post 1 itself. `marketing/post-async-megalaunch` is that ticket; this one only
