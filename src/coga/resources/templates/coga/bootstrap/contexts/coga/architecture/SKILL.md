@@ -141,7 +141,12 @@ no in-memory state.
   working tree, and stash are untouched, and every ordinary sync, ledger, and
   push path applies unmodified because the run really is on the control branch.
   Only recipe templates run that way — agent templates are named and skipped
-  with that reason, not the misleading "requires a TTY". `git worktree add`
+  with that reason, not the misleading "requires a TTY"; existing periods are
+  classified from their frozen materialized `ticket.py`, not the mutable
+  template. On cancellation the wrapper terminates and reaps the inner scan
+  before removing its checkout. A SIGKILL survivor carries a repo/branch/PID
+  marker, so a later run can remove that exact dead Coga worktree without
+  touching a live sweep or user-owned checkout. `git worktree add`
   doubles as the concurrency lock, since git refuses to check one branch out
   twice: a second sweep, or an unrelated worktree already holding the branch,
   keeps the loud refusal. A *diverged* control checkout still fails loud; only

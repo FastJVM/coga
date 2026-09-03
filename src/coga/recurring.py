@@ -406,8 +406,9 @@ def _order_for_launch(tasks: Iterable[DueTask]) -> list[DueTask]:
 
 _AGENT_NEEDS_TTY = (
     "an agent run requires a TTY (stdin and stdout must both be terminals). "
-    "Run `coga recurring --interactive` from a real shell, or give the "
-    f"template a `{SCRIPT_ENTRY_POINT}` deterministic half for unattended runs."
+    "Run `coga recurring --interactive` from a real shell. New unattended "
+    f"periods require a `{SCRIPT_ENTRY_POINT}` deterministic half in the "
+    "template; an existing period must already carry its frozen copy."
 )
 
 
@@ -623,15 +624,13 @@ def create_template(
     # therefore defers the next period until it reaches a terminal/paused state; that
     # is deliberate — finish the in-flight run before piling another on.
     #
-    # A live period is returned rather than duplicated. Delegation adds one
-    # narrower admission rule: classify it from the materialized task's frozen
-    # field and skip it before a no-TTY sweep reaches its bootstrap launch.
-    # Preserve the established force/resume behavior for ordinary agent periods;
-    # this ticket changes only the double-hop delegation shape.
+    # A live period is returned rather than duplicated. A headless caller must
+    # classify execution from the materialized task's frozen `ticket.py`, not
+    # from a template that may have changed since creation, and skip every
+    # existing agent-backed shape before the launch loop can reach it.
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
-        live_delegate = frozen_task_delegate(live, read_ticket(live))
-        if not allow_agent and live_delegate is not None:
+        if not allow_agent and resolve_script_entry_point(live) is None:
             raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
         return CreateOutcome(
             ref=live,
@@ -682,6 +681,8 @@ def create_template(
                 cfg, template, period_key, outcome, now, serviced
             )
             return outcome
+        if not allow_agent and resolve_script_entry_point(existing) is None:
+            raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
         return CreateOutcome(
             ref=existing,
             created=False,

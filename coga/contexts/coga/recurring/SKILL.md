@@ -276,8 +276,14 @@ it checks it out in a temporary linked worktree under the system temp dir,
 seeds the gitignored `coga.local.toml` into it (without it there is no `user`
 and `load_config` raises), re-dispatches its own scan there, and removes the
 worktree in a `finally` — on success, on a recipe's non-zero exit, on an
-exception, and on SIGINT/SIGTERM. A worktree stranded by SIGKILL is pruned by
-the next run before it adds its own.
+exception, and on SIGINT/SIGTERM. On cancellation the wrapper first forwards
+termination to the inner scan and waits for it to exit, so recipe side effects
+cannot continue against a checkout that has already been removed. Each temp
+parent carries a repo/branch/PID ownership marker. If SIGKILL bypasses cleanup
+and leaves both the directory and its valid Git registration behind, the next
+run removes it only after that exact marker proves it is a Coga-owned checkout
+for this repo and its owner is dead; a live sweep and an unrelated user
+worktree remain protected by the ordinary branch-lock refusal.
 
 Three properties make this shape the right one:
 
@@ -300,9 +306,12 @@ Three properties make this shape the right one:
 
 Only recipe-backed templates run in this mode, whether or not a TTY exists: a
 throwaway worktree is the wrong place to spawn an agent REPL that composes
-prompts, edits files, and opens PRs. Each skipped agent template is reported by
-name with that reason rather than the (here false) "an agent run requires a
-TTY". The `--all` summary lists these repos separately from ordinary sweeps.
+prompts, edits files, and opens PRs. Existing periods are classified from the
+frozen `ticket.py` in their materialized task, not from a template that may
+have changed since creation, including every status surfaced by `--force`.
+Each skipped agent template is reported by name with that reason rather than
+the (here false) "an agent run requires a TTY". The `--all` summary lists these
+repos separately from ordinary sweeps.
 
 The *diverged* control checkout — on the control branch, but unable to rebase
 onto the fetched tip — is deliberately out of scope and still fails loud.

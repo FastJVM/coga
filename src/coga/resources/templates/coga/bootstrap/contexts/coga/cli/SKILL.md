@@ -876,13 +876,18 @@ detached HEAD — is serviced rather than failed. Nothing holds the control
 branch, so the child checks it out in a temporary linked worktree under the
 system temp dir, runs its scan from there, and removes it when the run ends
 (on success, on a recipe's non-zero exit, on an exception, and on
-SIGINT/SIGTERM; a worktree stranded by SIGKILL is pruned by the next run before
-it adds its own). The operator's branch, working tree, and stash are untouched
+SIGINT/SIGTERM). Cancellation first terminates and reaps the inner scan, so it
+cannot continue mutating a removed checkout. A SIGKILL survivor carries a
+repo/branch/PID marker; a later run removes that exact worktree only when its
+owner is dead, leaving live sweeps and user worktrees alone. The operator's
+branch, working tree, and stash are untouched
 — there is deliberately no stash/switch/restore — and the run publishes period
 tasks and the `coga/log.md` serviced-period ledger to the control branch
 exactly as an ordinary sweep does. Only recipe-backed templates run in that
-mode; each agent template is named and skipped with that reason. `git worktree
-add` is the concurrency lock: a second sweep, or any other worktree already
+mode; each agent template is named and skipped with that reason. Existing
+periods are classified from the `ticket.py` frozen in the materialized task,
+including statuses surfaced by `--force`, rather than from a mutable template.
+`git worktree add` is the concurrency lock: a second sweep, or any other worktree already
 holding the control branch, keeps the loud refusal, which names the holder and
 the manual `git -C <root> checkout <control>` remedy. A *diverged* control
 checkout — checked out here but unable to integrate the fetched tip — still

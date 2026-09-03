@@ -7,9 +7,9 @@ import json
 import math
 import os
 import re
+import shutil
 import signal
 import subprocess
-import shutil
 import sys
 import tempfile
 import tomllib
@@ -731,13 +731,55 @@ def _run_repo_recurring(
         if control_worktree_host:
             command.extend(("--control-worktree-host", control_worktree_host))
 
+    child_cwd = cwd if cwd is not None else coga_os.parent
+    child_env = os.environ.copy()
+    if control_worktree:
+        process = _start_repo_recurring_process(command, child_cwd, child_env)
+        try:
+            return process.wait()
+        except BaseException:
+            # The caller owns a temporary checkout. Do not let its `finally`
+            # remove that checkout until the inner scan can no longer mutate
+            # it. In particular, a SIGTERM is converted to KeyboardInterrupt
+            # by `_service_from_control_worktree` in this outer process only;
+            # explicitly forward termination and reap the inner child here.
+            _terminate_repo_recurring_process(process)
+            raise
+
     result = subprocess.run(
         command,
-        cwd=cwd if cwd is not None else coga_os.parent,
-        env=os.environ.copy(),
+        cwd=child_cwd,
+        env=child_env,
         check=False,
     )
     return result.returncode
+
+
+_CONTROL_WORKTREE_STOP_TIMEOUT = 10.0
+
+
+def _start_repo_recurring_process(
+    command: list[str], cwd: Path, env: dict[str, str]
+) -> subprocess.Popen[bytes]:
+    """Start the inner temp-worktree scan behind a narrow test seam."""
+    return subprocess.Popen(command, cwd=cwd, env=env)
+
+
+def _terminate_repo_recurring_process(
+    process: subprocess.Popen[bytes],
+) -> None:
+    """Terminate and reap an interrupted inner scan before checkout cleanup."""
+    if process.poll() is not None:
+        return
+    try:
+        process.terminate()
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=_CONTROL_WORKTREE_STOP_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
 
 
 # Temporary checkouts this feature creates. Named with a stable prefix so a
@@ -745,6 +787,89 @@ def _run_repo_recurring(
 # temp dir so `discover_coga_repos` — which walks any directory below a scan
 # root — can never pick one up as another Coga repo mid-sweep.
 _CONTROL_WORKTREE_PREFIX = "coga-recurring-"
+_CONTROL_WORKTREE_OWNER_FILE = ".coga-recurring-owner.json"
+
+
+def _write_control_worktree_owner(
+    parent: Path,
+    root: Path,
+    control: str,
+    *,
+    pid: int | None = None,
+) -> None:
+    """Mark a temp directory as this process's narrowly owned checkout."""
+    marker = parent / _CONTROL_WORKTREE_OWNER_FILE
+    marker.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "pid": os.getpid() if pid is None else pid,
+                "root": str(root.resolve()),
+                "control": control,
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    marker.chmod(0o600)
+
+
+def _process_is_running(pid: int) -> bool:
+    """Conservatively report whether an owner PID may still be alive."""
+    if pid <= 0:
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
+def _stale_owned_control_worktree(
+    root: Path, control: str, checkout: Path
+) -> bool:
+    """Whether ``checkout`` is a dead Coga temp worktree for this exact repo."""
+    try:
+        temp_root = Path(tempfile.gettempdir()).resolve()
+        checkout = checkout.resolve()
+        parent = checkout.parent
+        if (
+            checkout.name != "checkout"
+            or parent.parent != temp_root
+            or not parent.name.startswith(
+                f"{_CONTROL_WORKTREE_PREFIX}{root.name}-"
+            )
+        ):
+            return False
+        payload = json.loads(
+            (parent / _CONTROL_WORKTREE_OWNER_FILE).read_text()
+        )
+        pid = payload.get("pid")
+        if (
+            payload.get("version") != 1
+            or payload.get("root") != str(root.resolve())
+            or payload.get("control") != control
+            or not isinstance(pid, int)
+        ):
+            return False
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return False
+    return not _process_is_running(pid)
+
+
+def _reap_stale_control_worktree(root: Path, control: str) -> None:
+    """Remove a dead, marker-proven Coga holder without touching live/user trees."""
+    holder = git._worktree_holding_branch(root, control)
+    if (
+        holder is None
+        or holder == git._WORKTREES_UNKNOWN
+        or not _stale_owned_control_worktree(root, control, holder)
+    ):
+        return
+    git._run_git(root, "worktree", "remove", "--force", str(holder))
+    shutil.rmtree(holder.parent, ignore_errors=True)
 
 
 def _control_worktree_agent_refusal(cfg: Config, host: str) -> str:
@@ -801,9 +926,12 @@ def _service_from_control_worktree(
         return None, f"could not read the current branch of {root}: {exc}"
 
     try:
-        # Reap first: a registration stranded by a killed run still pins the
-        # control branch even though its directory went with /tmp, and would
-        # refuse the worktree this run is about to add.
+        # Prune missing checkouts, then explicitly reap a still-present
+        # checkout only when its repo/branch marker identifies this feature
+        # and its owning process is gone. A live concurrent sweep and every
+        # unrelated user worktree remain the branch-lock refusal below.
+        git._run_git(root, "worktree", "prune")
+        _reap_stale_control_worktree(root, control)
         git._run_git(root, "worktree", "prune")
         control_ref_exists = _local_branch_exists(root, control)
         if not control_ref_exists:
@@ -814,6 +942,7 @@ def _service_from_control_worktree(
     parent = Path(
         tempfile.mkdtemp(prefix=f"{_CONTROL_WORKTREE_PREFIX}{root.name}-")
     )
+    _write_control_worktree_owner(parent, root, control)
     # `git worktree add` refuses a directory that already exists with content,
     # so the checkout is a fresh subpath of the temp parent, not the parent.
     checkout = parent / "checkout"
