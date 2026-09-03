@@ -1,16 +1,28 @@
 ---
 slug: marketing/phase-0-audit
 title: Phase 0 audit
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts:
-  - marketing/plan
+- marketing/plan
 skills: []
-workflow: draft-for-human
+workflow:
+  name: draft-for-human
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: human
+  - name: report-to-coga
+    skills: []
+    assignee: agent
 secrets: null
+step: 1 (agent-produces)
 ---
 
 ## Description
@@ -46,18 +58,21 @@ worklist (step 3). The worklist lives on this ticket's blackboard, under a
 1. **README top** — read `README.md`. Does the first screen tell the post-1
    story (what it is, for whom, the day-shape: "an hour or two in the
    morning, then I leave")? Note the specific gaps for `marketing/readme-top`.
-2. **Quickstart, end-to-end** — follow the README install/first-run path
-   as a reader would, with one substitution: install *this checkout*
-   (`pip install /home/n/Code/coga`) into a fresh venv instead of
-   `pip install coga`, because PyPI still has `0.2.0` and this repo is
-   `0.3.1`. The owner decided (2026-09-02) that 0.3.1 ships to PyPI before
-   post 1; put **"publish 0.3.1 to PyPI"** on the worklist as an owner item
-   and do not test the stale package. Then a scratch git repo under the
-   scratchpad, `coga init --user`, and `docs/getting-started.md` (where the
-   README sends readers) as part of the path under test. Run `coga build`
-   only as far as the first composed prompt / first launch attempt — do not
-   let a nested agent run to completion. Record every step where the text
-   and reality diverge.
+2. **Quickstart, end-to-end, from PyPI** — the reader's path, no
+   substitutions: `uv tool install coga` / `pip install coga` into a fresh
+   venv, a scratch git repo under the scratchpad, `coga init --user`, and
+   `docs/getting-started.md` (where the README sends readers) as part of the
+   path under test. Run `coga build` only as far as the first composed
+   prompt / first launch attempt — do not let a nested agent run to
+   completion. Record every step where the text and reality diverge.
+   **Sequencing:** PyPI has `0.2.0`; this repo is `0.3.1`; the owner decided
+   (2026-09-02) the launch release is **`1.0`**, published to PyPI before
+   post 1. In step 1, check what PyPI serves: if it is still `0.2.0`, record
+   that as the finding, run the rest of the path from this checkout
+   (`pip install /home/n/Code/coga`) so the README text still gets tested,
+   and mark the check "re-run from PyPI after 1.0". In step 3, after the
+   owner has published, re-run the whole check from PyPI 1.0 — that run is
+   the one that counts.
 3. **Narrative material** — quotable, real examples for post 1, non-Coga
    repos first. Every Coga-run repo on this machine has a `coga/log.md`,
    `coga/tasks/`, and blocker history: `~/Code/multiply` (primary),
@@ -111,7 +126,9 @@ worklist (step 3). The worklist lives on this ticket's blackboard, under a
   Bookface post is realistic on the planned timeline.
 - **Lobste.rs username**, and Reddit/HN nuance the profile doesn't show.
 - **fastjvm.com audience overlap** and whether to cross-link.
-- **Publish `coga 0.3.1` to PyPI** before post 1 (decided 2026-09-02).
+- **Publish `coga 1.0` to PyPI** before post 1 (decided 2026-09-02; bump
+  `pyproject.toml` from 0.3.1 — a separate release ticket if the owner wants
+  an agent to do it). Step 3 re-runs the quickstart against it.
 - **Assign** the token-measurement collection (who/what, from the drafted
   plan).
 - **Phase-1 thresholds** — the private success numbers the retro will be
