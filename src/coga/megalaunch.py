@@ -1342,7 +1342,7 @@ def _launch_until_stop(
                 label="Megalaunch",
                 warn_blackboard=True,
                 composed_prompt=prepared_launch.prompt,
-                before_spawn=revalidate_launch_claim,
+                validate_before_spawn=revalidate_launch_claim,
             )
         except _LaunchClaimRefused as exc:
             return _result(

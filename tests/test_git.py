@@ -3022,6 +3022,27 @@ def test_file_mutation_rollback_preserves_peer_ticket_and_log_edits(
     assert log.read_text() == "prior audit\nconcurrent audit\n"
 
 
+def test_file_mutation_rollback_captures_a_disappeared_path_as_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A peer removal during capture is an absent snapshot, not an exception."""
+    ticket = tmp_path / "ticket.md"
+    ticket.write_text("status: active\n")
+    real_read_bytes = Path.read_bytes
+
+    def disappear_on_read(path: Path) -> bytes:
+        if path == ticket:
+            path.unlink()
+            raise FileNotFoundError(path)
+        return real_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", disappear_on_read)
+
+    rollback = git.FileMutationRollback.capture((ticket,))
+
+    assert rollback.originals == {ticket: None}
+
+
 def test_file_mutation_rollback_does_not_adopt_peer_edit_before_arm(
     tmp_path: Path,
 ) -> None:

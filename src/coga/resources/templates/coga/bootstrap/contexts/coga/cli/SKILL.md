@@ -698,10 +698,11 @@ working launch:
    preflighted `in_progress` bytes. An unclaimed megalaunch start or resume
    writes a unique, visible `launch_generation` before spawn; another
    megalaunch refuses a published generation instead of replacing it. The
-   final shared
-   `before_spawn` seam rereads those local bytes and freshly verifies the whole
-   ticket on every effective control destination immediately before the PTY.
-   A changed or unverifiable claim refuses the child and retains
+   final shared `validate_before_spawn` seam rereads those local bytes and
+   freshly verifies the whole
+   ticket on every effective control destination before the launch audit and
+   PTY. A changed or unverifiable claim refuses the child without a false
+   launch record and retains
    `in_progress`; it never compensates backward to `active`, because an
    ordinary `coga launch` may already be running from the same generation and
    changing the blackboard. Step advancement and lifecycle transitions that

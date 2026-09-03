@@ -221,10 +221,14 @@ class FileMutationRollback:
         *,
         union_paths: Iterable[Path] = (),
     ) -> FileMutationRollback:
-        originals = {
-            path: path.read_bytes() if path.is_file() else None
-            for path in paths
-        }
+        originals: dict[Path, bytes | None] = {}
+        for path in paths:
+            try:
+                # Read directly instead of checking ``is_file`` first: a peer
+                # may remove the path between those two filesystem operations.
+                originals[path] = path.read_bytes()
+            except (FileNotFoundError, IsADirectoryError):
+                originals[path] = None
         return cls(
             originals=originals,
             union_paths=frozenset(union_paths),

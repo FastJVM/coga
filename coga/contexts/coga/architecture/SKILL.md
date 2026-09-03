@@ -862,13 +862,14 @@ compare-and-swap against the exact whole-ticket control revision and require
 strict control publication before spawn. Two checkouts starting from the same
 revision therefore cannot both acquire a launch claim. An exact local reread
 after synchronous `in_progress` publication prevents a peer change during
-that sync from reaching spawn. At the shared final `before_spawn` seam,
-megalaunch rereads those exact local bytes and freshly fetches every effective
-control destination; the whole control ticket, including `launch_generation`,
-must still match immediately before the PTY starts. A changed or unverifiable
-claim refuses the child and retains `in_progress` for safe resume. Once
-published, a generation is not automatically reclaimable by another
-megalaunch, closing the interval after the point-in-time final fetch; a step
+that sync from reaching spawn. At the shared final `validate_before_spawn`
+seam, megalaunch rereads those exact local bytes and freshly fetches every
+effective control destination; the whole control ticket, including `launch_generation`,
+must still match before the launch audit append and PTY start. A changed or
+unverifiable claim refuses the child, records no false launch audit, and retains
+`in_progress` for safe resume. Once published, a generation is not
+automatically reclaimable by another megalaunch, closing the interval after
+the point-in-time final fetch; a step
 advance or lifecycle transition that ends or parks the session clears it.
 Ordinary `coga launch` remains the explicit recovery path and can resume the
 same generation while writing its blackboard. Megalaunch therefore never

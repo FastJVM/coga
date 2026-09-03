@@ -240,7 +240,9 @@ deferred activation or an `in_progress` claim writes locally. A picker launch
 also parses status, routing, and open blocker asks from that captured revision
 and reclassifies it before activation; a blocker resolved in the read/capture
 window therefore remains `blocked` and is reported as ask-less instead of
-starting. With Git sync enabled, each lifecycle write is also a strict
+starting. Snapshot capture treats a ticket removed during the filesystem read
+as absent, so that pick fails without aborting later queue entries. With Git
+sync enabled, each lifecycle write is also a strict
 compare-and-set against the same whole-ticket bytes on a freshly fetched
 control tip. The generated local commit is unwound and the caller-owned ticket
 and audit bytes are restored when that lease or an ordinary publication attempt
@@ -265,12 +267,15 @@ audit line, while an ambiguous accepted push retains evidence for explicit
 reconciliation.
 
 After strict publication returns, an exact local reread catches changes made
-during that synchronous boundary. The shared `before_spawn` seam then repeats
-the local proof and freshly fetches every effective control push destination
-immediately before the PTY supervisor; each control ticket must still equal the
-whole preflighted `in_progress` revision, binding both `launch_generation` and
-prompt inputs at the actual spawn boundary. Any mismatch or unverifiable fetch
+during that synchronous boundary. The shared `validate_before_spawn` seam then
+repeats the local proof and freshly fetches every effective control push
+destination before the launch audit and PTY supervisor; each control ticket
+must still equal the whole preflighted `in_progress` revision, binding both
+`launch_generation` and prompt inputs at the actual spawn boundary. Any
+mismatch or unverifiable fetch
 refuses the child and retains the current `in_progress` state for safe resume.
+That final proof runs before the launch audit append, so a refused claim never
+records a child as launched.
 It never compensates backward to `active`: an ordinary `coga launch` resume may
 already be running from the same generation and changing its blackboard, so
 that token alone is not proof that no session owns the state. Another

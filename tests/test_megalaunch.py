@@ -2630,7 +2630,7 @@ def test_megalaunch_does_not_reclaim_a_published_session_claim(
         _cfg, _ref, claimed: Ticket, _agent, **kwargs
     ):  # type: ignore[no-untyped-def]
         assert claimed.launch_generation == outer_generation
-        kwargs["before_spawn"]()
+        kwargs["validate_before_spawn"]()
         finished = Ticket.read(active["path"])
         finished.frontmatter["status"] = "done"
         finished.frontmatter.pop("step", None)
@@ -2922,6 +2922,7 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
 ) -> None:
     """A claim rotated after prompt setup cannot reach the PTY supervisor."""
     from coga import git as git_module
+    import coga.megalaunch as megalaunch_module
 
     cfg = load_config(git_repo.coga_os)
     active = create_task(
@@ -2946,9 +2947,17 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
     outer_generation: str | None = None
     peer_generation = "peer-final-spawn-claim"
     reached_spawn_boundary = False
+    real_spawn = megalaunch_module.spawn_agent_session
+
+    def fail_if_spawned(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a refused final claim must not reach PTY spawn")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fail_if_spawned
+    )
 
     def rotate_before_pty(
-        _cfg, _ref, claimed: Ticket, _agent, *, before_spawn, **_kwargs
+        cfg_, ref_, claimed: Ticket, agent_, *, validate_before_spawn, **kwargs
     ):  # type: ignore[no-untyped-def]
         nonlocal outer_generation, reached_spawn_boundary
         outer_generation = claimed.launch_generation
@@ -2962,8 +2971,14 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
         peer.body = f"{peer.body.rstrip()}\n\nPeer claimant is running.\n"
         git_repo.push_competing_commit(ticket_rel, peer.render())
         reached_spawn_boundary = True
-        before_spawn()
-        raise AssertionError("a superseded claimant must not reach PTY spawn")
+        return real_spawn(
+            cfg_,
+            ref_,
+            claimed,
+            agent_,
+            validate_before_spawn=validate_before_spawn,
+            **kwargs,
+        )
 
     monkeypatch.setattr(
         "coga.megalaunch.spawn_agent_session", rotate_before_pty
@@ -2986,6 +3001,9 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
     assert remote.status == "in_progress"
     assert remote.launch_generation == peer_generation
     assert "Peer claimant is running." in remote.body
+    assert _log_lines_for(
+        cfg, active["slug"], "launched via coga megalaunch"
+    ) == []
     assert _log_lines_for(cfg, active["slug"], "restored (") == []
 
 
@@ -3036,7 +3054,13 @@ def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
         termination_kind = "natural"
 
     def spawn_after_peer_attempt(
-        _cfg, ref_obj, claimed: Ticket, _agent, *, before_spawn, **_kwargs
+        _cfg,
+        ref_obj,
+        claimed: Ticket,
+        _agent,
+        *,
+        validate_before_spawn,
+        **_kwargs,
     ):  # type: ignore[no-untyped-def]
         nonlocal outer_generation, peer_result
         if ref_obj.ticket_path.is_relative_to(peer_root):
@@ -3044,9 +3068,9 @@ def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
         spawned_paths.append(ref_obj.ticket_path)
         outer_generation = claimed.launch_generation
         assert outer_generation is not None
-        # This is the actual shared final-spawn seam. Start the competing
+        # This is the actual shared final validation seam. Start the competing
         # megalaunch only after A has completed that point-in-time proof.
-        before_spawn()
+        validate_before_spawn()
         git_repo.git("pull", "--ff-only", "origin", "main", cwd=peer_root)
         peer_run = run_megalaunch(peer_cfg, selection=[active["slug"]])
         peer_result = peer_run.results[0]
@@ -4475,6 +4499,63 @@ def test_megalaunch_cli_picker_requires_tty(repo: Path) -> None:
 
     assert result.exit_code == 2
     assert "TTY" in result.output
+
+
+def test_megalaunch_disappeared_activation_ticket_fails_only_its_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A removal during snapshot capture becomes one failed queue row."""
+    from coga import git as git_module
+
+    cfg = load_config(repo)
+    first = create_task(
+        cfg=cfg,
+        title="A disappearing paused task",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="paused",
+        watchers=[],
+    )
+    second = create_task(
+        cfg=cfg,
+        title="B still launches",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    first_path = Path(first["path"])
+    real_capture = git_module.FileMutationRollback.capture
+    disappeared = False
+
+    def disappear_during_capture(paths, *, union_paths=()):  # type: ignore[no-untyped-def]
+        nonlocal disappeared
+        captured_paths = tuple(paths)
+        if first_path in captured_paths and not disappeared:
+            disappeared = True
+            first_path.unlink()
+        return real_capture(captured_paths, union_paths=union_paths)
+
+    monkeypatch.setattr(
+        git_module.FileMutationRollback,
+        "capture",
+        staticmethod(disappear_during_capture),
+    )
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, selection=[first["slug"], second["slug"]])
+
+    assert disappeared
+    assert launched == [second["slug"]]
+    assert [(result.slug, result.outcome) for result in run.results] == [
+        (first["slug"], "failed"),
+        (second["slug"], "completed"),
+    ]
+    assert run.results[0].detail == "ticket disappeared before launch"
 
 
 def test_megalaunch_disappeared_prompt_layer_fails_only_its_task(

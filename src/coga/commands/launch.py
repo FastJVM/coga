@@ -2986,6 +2986,7 @@ def spawn_agent_session(
     assist_agent: str | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
     before_recompose: Callable[[], None] | None = None,
+    validate_before_spawn: Callable[[], None] | None = None,
     before_spawn: Callable[[], None] | None = None,
     record_launch: bool = True,
     secrets_are_scoped: bool = True,
@@ -3041,7 +3042,9 @@ def spawn_agent_session(
     publication. Once it returns, this preflight pass exits through a private
     signal so the caller can reload and re-compose from state those publications
     may have moved. The recomposed pass sets ``record_launch=False`` because the
-    first pass already made that audit durable. ``before_spawn`` is the final
+    first pass already made that audit durable. ``validate_before_spawn`` is a
+    guard-only boundary before the launch audit, so a refusal cannot leave a
+    false ``launched`` record. ``before_spawn`` remains the final publication
     boundary immediately before the PTY supervisor: human assists publish
     lifecycle there, while recurring delegation revalidates its period lease.
     """
@@ -3139,6 +3142,9 @@ def spawn_agent_session(
             f"{label}: command: "
             f"{_format_agent_command_for_console(cmd, prompt)}"
         )
+
+        if validate_before_spawn is not None:
+            validate_before_spawn()
 
         if record_launch:
             append_log(cfg, ref.id_slug, actor, log_message)
