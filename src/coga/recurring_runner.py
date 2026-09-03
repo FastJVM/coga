@@ -1974,6 +1974,9 @@ def run_recurring_named(
         return 2
 
     ref = outcome.ref
+    created_period_lease = (
+        _local_period_lease(cfg, ref) if outcome.created else None
+    )
     control_ledger: dict[str, str] | None = None
     if fresh:
         # `create_named` captured this target-aware answer before it could
@@ -1993,16 +1996,11 @@ def run_recurring_named(
                 name,
                 ref,
                 respect_handled_period=False,
-                # A replacement deliberately overwrites the prior-period `done`
-                # task at the stable path, so control still holding that path is
-                # not evidence this firing was handled — `run_delete_task`
-                # removed it from the working tree only. Left respected, the
-                # landing returns `already_handled`, the unwind restores the
-                # committed `done` ticket over the fresh `active` one, and the
-                # launch silently reports "is done; not launching" *after* the
-                # ledger already recorded the period as serviced. The sweep
-                # disables it for the same reason; see `_broadcast_scan`.
-                respect_existing_task=not outcome.replaced_done,
+                # A replacement may overwrite only the stale completed
+                # generation observed before `run_delete_task`. A concurrent
+                # checkout that has already reactivated or replaced the stable
+                # path remains the owner of that new generation.
+                replaced_done_ticket_bytes=outcome.replaced_done_ticket_bytes,
                 expected_period_key=outcome.period_key,
                 control_ledger=control_ledger,
             )
@@ -2018,6 +2016,13 @@ def run_recurring_named(
         return 2
 
     if outcome.created:
+        if _local_period_lease(cfg, ref) != created_period_lease:
+            typer.secho(
+                f"{ref.id_slug} changed on the control branch during recurring "
+                "admission; not launching.",
+                fg=typer.colors.BRIGHT_BLACK,
+            )
+            return 0
         if not (ref.ticket_path).is_file():
             typer.secho(
                 f"{ref.id_slug} was already handled on the control branch; "
@@ -2308,6 +2313,7 @@ def _sync_recurring_create(
     *,
     respect_handled_period: bool = True,
     respect_existing_task: bool = True,
+    replaced_done_ticket_bytes: bytes | None = None,
     restore_existing_control_task: bool = False,
     overwrite_dirty_control_task: bool = False,
     force_period_key: str | None = None,
@@ -2387,6 +2393,7 @@ def _sync_recurring_create(
             message=message,
             respect_handled_period=respect_handled_period,
             respect_existing_task=respect_existing_task,
+            replaced_done_ticket_bytes=replaced_done_ticket_bytes,
             restore_existing_control_task=restore_existing_control_task,
             overwrite_dirty_control_task=overwrite_dirty_control_task,
             force_period_key=force_period_key,
@@ -2423,6 +2430,7 @@ def _sync_recurring_create_paths(
     message: str,
     respect_handled_period: bool,
     respect_existing_task: bool,
+    replaced_done_ticket_bytes: bytes | None,
     restore_existing_control_task: bool,
     overwrite_dirty_control_task: bool,
     force_period_key: str | None,
@@ -2503,6 +2511,7 @@ def _sync_recurring_create_paths(
             control_ledger=control_ledger,
             include_ledger=respect_handled_period,
             include_task=respect_existing_task,
+            replaced_done_ticket_bytes=replaced_done_ticket_bytes,
         ):
             if branch == cfg.git_control_branch:
                 _restore_selected_paths_from_ref(root, "HEAD", rels)
@@ -2550,6 +2559,7 @@ def _sync_recurring_create_paths(
                 message=message,
                 respect_handled_period=respect_handled_period,
                 respect_existing_task=respect_existing_task,
+                replaced_done_ticket_bytes=replaced_done_ticket_bytes,
                 restore_existing_control_task=restore_existing_control_task,
                 overwrite_dirty_control_task=overwrite_dirty_control_task,
                 force_period_key=force_period_key,
@@ -2578,6 +2588,7 @@ def _sync_recurring_create_paths(
             message=message,
             respect_handled_period=respect_handled_period,
             respect_existing_task=respect_existing_task,
+            replaced_done_ticket_bytes=replaced_done_ticket_bytes,
             restore_existing_control_task=restore_existing_control_task,
             overwrite_dirty_control_task=overwrite_dirty_control_task,
             force_period_key=force_period_key,
@@ -2678,6 +2689,7 @@ def _land_recurring_create_on_control_branch(
     message: str,
     respect_handled_period: bool,
     respect_existing_task: bool,
+    replaced_done_ticket_bytes: bytes | None,
     restore_existing_control_task: bool,
     overwrite_dirty_control_task: bool,
     force_period_key: str | None,
@@ -2731,6 +2743,7 @@ def _land_recurring_create_on_control_branch(
             control_ledger=control_ledger,
             include_ledger=respect_handled_period,
             include_task=respect_existing_task,
+            replaced_done_ticket_bytes=replaced_done_ticket_bytes,
         ):
             return base, True
         _adopt_control_template(
@@ -2787,6 +2800,7 @@ def _sync_recurring_create_on_checked_out_control_branch(
     message: str,
     respect_handled_period: bool,
     respect_existing_task: bool,
+    replaced_done_ticket_bytes: bytes | None,
     restore_existing_control_task: bool,
     overwrite_dirty_control_task: bool,
     force_period_key: str | None,
@@ -2807,6 +2821,7 @@ def _sync_recurring_create_on_checked_out_control_branch(
         message=message,
         respect_handled_period=respect_handled_period,
         respect_existing_task=respect_existing_task,
+        replaced_done_ticket_bytes=replaced_done_ticket_bytes,
         restore_existing_control_task=restore_existing_control_task,
         overwrite_dirty_control_task=overwrite_dirty_control_task,
         force_period_key=force_period_key,
@@ -2869,6 +2884,7 @@ def _control_already_has_period(
     control_ledger: dict[str, str] | None = None,
     include_ledger: bool = True,
     include_task: bool = True,
+    replaced_done_ticket_bytes: bytes | None = None,
 ) -> bool:
     # An override disables the *dedup decision*, not ledger validation. Always
     # parse control's record so `--force` / named launches cannot run through a
@@ -2891,7 +2907,15 @@ def _control_already_has_period(
             raise RecurringError(
                 f"invalid serviced-period comparison for {template_ref}: {exc}"
             ) from exc
-    return include_task and _ref_has_path(root, ref, task_rel)
+    if not include_task or not _ref_has_path(root, ref, task_rel):
+        return False
+    if replaced_done_ticket_bytes is not None:
+        control_ticket = git._tree_bytes(
+            root, ref, f"{task_rel.rstrip('/')}/ticket.md"
+        )
+        if control_ticket == replaced_done_ticket_bytes:
+            return False
+    return True
 
 
 def _control_serviced_period_cached(
@@ -3748,15 +3772,19 @@ def _broadcast_scan(
                 continue
             if task.ref is None:
                 continue
+            created_period_lease = (
+                _local_period_lease(cfg, task.ref) if task.created else None
+            )
             created_on_control = _sync_recurring_create(
                 cfg,
                 task.template,
                 task.ref,
                 respect_handled_period=respect_handled_period,
-                # A normal replacement deliberately replaces the prior-period
-                # `done` task at the stable path. The period ledger still guards
-                # against racing another machine that handled this firing first.
-                respect_existing_task=not (sync_existing or task.replaced_done),
+                # `--all` deliberately reconciles an existing task. A normal
+                # replacement remains guarded, except for the exact stale done
+                # ticket captured before its canonical local deletion.
+                respect_existing_task=not sync_existing,
+                replaced_done_ticket_bytes=task.replaced_done_ticket_bytes,
                 restore_existing_control_task=sync_existing,
                 overwrite_dirty_control_task=sync_existing and task.created,
                 force_period_key=task.period_key if sync_existing else None,
@@ -3775,6 +3803,17 @@ def _broadcast_scan(
             typer.secho(
                 f"{task.ref.id_slug} was already handled on the control branch; "
                 "not launching.",
+                fg=typer.colors.BRIGHT_BLACK,
+            )
+            continue
+        if (
+            created_period_lease is not None
+            and _local_period_lease(cfg, task.ref) != created_period_lease
+        ):
+            scan.tasks.remove(task)
+            typer.secho(
+                f"{task.ref.id_slug} changed on the control branch during "
+                "recurring admission; not launching.",
                 fg=typer.colors.BRIGHT_BLACK,
             )
             continue
