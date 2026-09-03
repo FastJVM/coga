@@ -650,13 +650,13 @@ later") and stay open for a later pass. Ordered: blockers for post 1 first.
 - [marketing/discord] Community home — nothing exists: Discussions disabled (404), no Discord link, no repo homepage URL. Decide and create before post 1.
 - [marketing/readme-top] README first screen — add the day-shape sentence and the internal-tool envelope; pull "for whom" above the fold; decide whether "Measured on itself" (31 workstreams) moves below the primitives. "Acting as the CPU" is already there.
 - [nicktoper] Prepared replies — none exist outside the plan's bullets; write the four out (suggest: `marketing/post-async-megalaunch` blackboard).
-- [marketing/post-async-megalaunch] Narrative material — owner ruled all ten non-Coga candidates confidential; nothing quotable from magicator/xpllm/admin. Post 1 quotes this repo's log or paraphrases. Shortfall recorded.
+- [BLOCKS POST 1 — plan premise failed] Narrative material. Owner ruled all ten non-Coga candidates confidential, then concluded (2026-09-03): **"the plan doesn't work; the only thing we can use is coga building coga as evidence, and we don't have a real plan yet."** This is the audit's most consequential finding and it is a *precondition failure*, not a worklist item. See `## Plan premise failure` at the end of this blackboard. `marketing/post-async-megalaunch` cannot be written to the current plan.
 
 **Owner-only decisions (step 2)**
 
 - [agent] Token-measurement collection — assigned (owner accepted check 6 as drafted): one `direct`-workflow ticket `marketing/token-receipts`, 4–6 ticket pairs (`<slug>` vs `<slug>-nocontext` copy with `contexts: []`), receipts from `coga usage --task --json` + `--prompt-report` + first-commit timestamp; no new code. Create the ticket when phase 1 starts.
 - [answered 2026-09-03] Lobste.rs — `ntoper`, created 2025-06-05, karma 55, one prior self-authored submission of a `deviantabstraction.com` essay at 26 points / 19 comments. Not a new account; the domain is already seen and well received. Tags: `vibecoding` + `practices`, never `ai` (verified against `/tags.json`). Full detail in check 5 above. Nothing left for the owner here beyond deciding to submit.
-- [recommendation, owner to confirm] fastjvm.com cross-link — **recommend no.** It is a single-page Next.js research index for JVM performance work; the only slots are the "Our research" link list and a contact footer, and its GitHub link points at `manycore-com` rather than the `FastJVM` org that hosts Coga. Its readers are JVM performance researchers; post 1 addresses founders of small technical teams. A forced link would read as an ad on a research page. Revisit at post 3, where the token/documentation angle is technically adjacent enough to earn a slot.
+- [decided 2026-09-03] fastjvm.com cross-link — **announce the launch there, but treat it as unimportant short term** (owner). So: add a Coga mention or link at launch, do not count fastjvm.com as a phase-1 channel, do not include it in the attribution measurement, and do not let it block post 1. The agent's recommendation had been to skip it entirely on the grounds that a single-page research index has no natural slot and its readers are JVM performance researchers rather than post 1's audience; the owner's call keeps the announcement anyway at near-zero cost, while agreeing it carries no short-term weight.
 - [recommendation, owner to confirm] Blog attribution — **recommend accepting referrer-level and not buying analytics.** The phase decision asks which channel sent traffic; HN, Lobsters, Reddit and the newsletter are four distinct referrer domains, so Jetpack Stats separates them cleanly. What it cannot do is split two links posted to the same channel or attribute a subscriber to a channel, and neither changes a phase-1 decision. **One hard prerequisite:** record the pre-publication baseline — current subscriber count and monthly views — before post 1 goes out, or every delta below is unmeasurable.
 - [partly answered 2026-09-03] Reddit (`Let047`) — owner supplied: 7,781 karma, 2,609 contributions, 6 years old, 56 followers. Established account, so the cold-account failure mode the plan worried about does not apply. **Outstanding: the joined-subreddit list**, which the public profile does not expose and which decides whether Reddit is in the channel set at all.
 - [nicktoper, still owner-only] Bookface standing and whether a pre-HN post fits the timeline — login-gated to YC; no external check is possible.
@@ -709,3 +709,44 @@ this account (the 2024-11 essay took on a resubmission four days after a
 1-point first try). Missing the subscriber and community bars while hitting
 the HN bar means the post worked and the funnel did not, which is a
 landing-page problem for `marketing/readme-top`, not a thesis problem.
+
+## Plan premise failure (owner, 2026-09-03)
+
+The audit's job was to check phase-0 preconditions against reality. One of
+them is false, and it is load-bearing.
+
+**What the plan assumed.** `marketing/plan` builds post 1 around real,
+quotable examples of the async/megalaunch practice, drawn from **non-Coga
+repos first** — explicitly `multiply`, and by extension the other seven
+Coga-run repos on this machine. The point of preferring non-Coga repos is to
+avoid a post whose only evidence is the tool building itself.
+
+**What is actually true.** Step 1 collected ten candidates and found the
+strong ones live in `magicator`, `xpllm`, and `admin`. In step 2 the owner
+ruled **all of them confidential**. The supply of non-Coga evidence is
+therefore zero, not merely thin. The owner's conclusion: the only usable
+evidence is **Coga building Coga**, and **there is no real plan yet**.
+
+**Consequence.** Post 1 cannot be written as specified.
+`marketing/post-async-megalaunch` is not startable, and the plan's fork-A
+"settled" status now covers a structure whose evidence base does not exist.
+This is not a drafting problem a writer can solve in the post; it is a
+premise the plan has to be re-decided against.
+
+**One reframe worth weighing before rewriting anything.** The plan treats
+"Coga builds Coga" as the weak option, but that ranking may be backwards on
+the axis that matters. A quote from a private repo is unverifiable: the
+reader cannot check it, and an essay whose receipts cannot be inspected is
+asking for trust. `FastJVM/coga` is public, so every claim made from its log
+is reproducible by anyone who clones it — which is the same
+"recompute it yourself" discipline `docs/velocity-report.md` already applies.
+The confidentiality ruling may have removed the *weaker* evidence and left
+the stronger. What it does cost is the answer to "does this work on anything
+but itself", and that objection is real; the honest handling is one sentence
+in the post acknowledging the other repos exist and are private, rather than
+pretending the question was not asked.
+
+**Open, and owned by the human.** Whether to re-decide the plan wholesale or
+patch its evidence section; whether post 1 keeps its current structure with
+Coga-on-Coga evidence; whether the essay series order changes. Nothing below
+this line should be written until that is settled.
