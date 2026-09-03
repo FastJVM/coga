@@ -689,7 +689,10 @@ working launch:
    changes during preflight, activation sync, or start publication, megalaunch
    refuses that launch rather than overwriting or spawning against the newer
    revision. After `mark_in_progress` returns, the live ticket must still equal
-   the exact preflighted `in_progress` bytes. Preflight also materializes the
+   the exact preflighted `in_progress` bytes. If newer bytes retain that exact
+   unlaunched lifecycle, megalaunch preserves them and guardedly returns the
+   ticket to `active`; a peer lifecycle change such as `done` remains
+   untouched. Preflight also materializes the
    exact prompt, resolved secret environment, and agent used by the spawn, so
    no fallible input derivation is repeated after lifecycle state is written.
 

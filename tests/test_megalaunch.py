@@ -2534,6 +2534,58 @@ def test_megalaunch_refuses_peer_edit_during_start_sync(
     assert len(_log_lines_for(cfg, active["slug"], "started (")) == 1
 
 
+def test_megalaunch_restores_active_after_body_edit_during_start_sync(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refused unlaunched start must not remain ``in_progress``."""
+    cfg = load_config(repo)
+    active = create_task(
+        cfg=cfg,
+        title="Start body race",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    sync_calls = 0
+
+    def racing_sync(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        nonlocal sync_calls
+        sync_calls += 1
+        if sync_calls != 1:
+            return
+        peer = Ticket.read(active["path"])
+        assert peer.status == "in_progress"
+        peer.body = f"{peer.body.rstrip()}\n\nPeer clarified the body.\n"
+        peer.write(active["path"])
+
+    def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a ticket changed during start sync must not spawn")
+
+    monkeypatch.setattr("coga.mark.git.sync_task_state", racing_sync)
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+
+    run = run_megalaunch(cfg, selection=[active["slug"]])
+
+    assert sync_calls == 1
+    assert run.results[0].outcome == "failed"
+    assert (
+        run.results[0].detail
+        == "ticket changed during start publication; returned the unlaunched "
+        "ticket to active; retry"
+    )
+    restored = Ticket.read(active["path"])
+    assert restored.status == "active"
+    assert "Peer clarified the body." in restored.body
+    assert len(_log_lines_for(cfg, active["slug"], "started (")) == 1
+    assert len(_log_lines_for(cfg, active["slug"], "restored (")) == 1
+
+
 def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_launch(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

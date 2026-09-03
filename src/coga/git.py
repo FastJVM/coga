@@ -3056,6 +3056,8 @@ def guard_ticket_state(
     allow_step_rewind: bool = False,
     allow_terminal_change: bool = False,
     expected_lifecycle: tuple[str | None, str | None, str | None] | None = None,
+    allow_status_regression: bool = False,
+    expected_ticket_bytes: bytes | None = None,
 ) -> None:
     """Refuse to land one ticket over a newer copy already on `base`.
 
@@ -3067,16 +3069,34 @@ def guard_ticket_state(
     step/status never move backward. Automatic unresolved-resume cleanup is the
     narrow exception: it may set ``allow_terminal_change`` only while also
     pinning ``expected_lifecycle`` to the exact script result it is undoing.
+    ``allow_status_regression`` is the still narrower unlaunched-start
+    compensation: it requires ``expected_ticket_bytes`` and permits a backward
+    status write only while the complete control ticket still equals the
+    caller's captured revision.
 
     Pass the ticket file (`TaskRef.ticket_path`), not the task directory — the
     comparison reads ticket frontmatter, and a directory rel matches nothing.
     """
+    if allow_status_regression and expected_ticket_bytes is None:
+        raise ValueError(
+            "allow_status_regression requires exact expected_ticket_bytes"
+        )
     root = _toplevel(ticket_path)
     if root is None:
         return
-    if expected_lifecycle is not None:
-        rel = _relative_to_root(root, ticket_path)
+    rel = _relative_to_root(root, ticket_path)
+    committed_bytes: bytes | None = None
+    if expected_lifecycle is not None or expected_ticket_bytes is not None:
         committed_bytes = _tree_bytes(root, base, rel)
+    if (
+        expected_ticket_bytes is not None
+        and committed_bytes != expected_ticket_bytes
+    ):
+        raise StateRegressionError(
+            f"{rel}: exact control ticket changed before guarded status "
+            "rollback"
+        )
+    if expected_lifecycle is not None:
         actual = _ticket_lifecycle_state(committed_bytes)
         if actual != expected_lifecycle:
             raise StateRegressionError(
@@ -3091,6 +3111,7 @@ def guard_ticket_state(
         base,
         allow_step_rewind=allow_step_rewind,
         allow_terminal_change=allow_terminal_change,
+        allow_status_regression=allow_status_regression,
     )
 
 
@@ -3101,6 +3122,8 @@ def ticket_state_guard(
     allow_step_rewind: bool = False,
     allow_terminal_change: bool = False,
     expected_lifecycle: tuple[str | None, str | None, str | None] | None = None,
+    allow_status_regression: bool = False,
+    expected_ticket_bytes: bytes | None = None,
 ) -> _StateGuard:
     """Bind `guard_ticket_state` to one ticket, ready for `sync_paths(guard=)`.
 
@@ -3115,6 +3138,8 @@ def ticket_state_guard(
     ``allow_terminal_change`` is reserved for automatic unresolved-resume
     cleanup and must be paired with the exact pre-cleanup
     ``expected_lifecycle``.
+    ``allow_status_regression`` is reserved for undoing an unlaunched start and
+    is accepted only with the complete pre-rollback control ticket bytes.
     """
 
     def guard(base: str) -> None:
@@ -3125,6 +3150,8 @@ def ticket_state_guard(
             allow_step_rewind=allow_step_rewind,
             allow_terminal_change=allow_terminal_change,
             expected_lifecycle=expected_lifecycle,
+            allow_status_regression=allow_status_regression,
+            expected_ticket_bytes=expected_ticket_bytes,
         )
 
     return guard
@@ -3219,6 +3246,7 @@ def _guard_coga_state_regressions(
     *,
     allow_step_rewind: bool = False,
     allow_terminal_change: bool = False,
+    allow_status_regression: bool = False,
 ) -> None:
     """Fail loud before a catch-all sweep commits stale task frontmatter.
 
@@ -3246,6 +3274,7 @@ def _guard_coga_state_regressions(
             working=working_state,
             allow_step_rewind=allow_step_rewind,
             allow_terminal_change=allow_terminal_change,
+            allow_status_regression=allow_status_regression,
         )
         if reason is None:
             continue
@@ -3316,6 +3345,7 @@ def _ticket_state_regression_reason(
     working: _TicketState,
     allow_step_rewind: bool = False,
     allow_terminal_change: bool = False,
+    allow_status_regression: bool = False,
 ) -> str | None:
     """Why landing `working` over `committed` would lose state, or `None`.
 
@@ -3365,7 +3395,8 @@ def _ticket_state_regression_reason(
     committed_status = _STATUS_PROGRESS.get(committed.status or "")
     working_status = _STATUS_PROGRESS.get(working.status or "")
     if (
-        committed_status is not None
+        not allow_status_regression
+        and committed_status is not None
         and working_status is not None
         and working_status < committed_status
     ):

@@ -852,7 +852,11 @@ cleanup. Megalaunch supplies that preflighted prompt together with its already
 resolved environment and agent, binding the inputs checked before lifecycle
 writes to the eventual spawn. Its pre-write compare-and-swap prevents a stale
 start write, and an exact reread after synchronous `in_progress` publication
-prevents a peer change during that sync from reaching spawn. `coga launch`'s
+prevents a peer change during that sync from reaching spawn. When that reread
+finds the same `in_progress` lifecycle with peer-edited ticket bytes,
+megalaunch preserves those bytes and compare-and-set publishes `active` again:
+the refused, unlaunched session no longer claims it started. A different
+lifecycle such as `done` wins untouched. `coga launch`'s
 `while True:` supervisor chain
 (per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the
 done-sentinel, respawn) **wraps** that call per step; the chain stays

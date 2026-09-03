@@ -1151,10 +1151,18 @@ def _launch_until_stop(
                 "utf-8"
             )
             if post_start_ticket_bytes != expected_started_bytes:
+                restored = _restore_unlaunched_start(
+                    cfg,
+                    ref,
+                    prepared_launch.ticket,
+                )
+                detail = "ticket changed during start publication"
+                if restored:
+                    detail += "; returned the unlaunched ticket to active"
                 return _result(
                     ref,
                     "failed",
-                    "ticket changed during start publication; retry",
+                    f"{detail}; retry",
                     launch_assignee,
                     launched=launched,
                 )
@@ -1390,6 +1398,98 @@ def _activate_for_launch(
             mutation_snapshot.restore()
         return _activation_refusal(ref, ticket, prior, exc)
     return None
+
+
+def _restore_unlaunched_start(
+    cfg: Config,
+    ref: TaskRef,
+    expected_started: Ticket,
+) -> bool:
+    """Return our refused ``in_progress`` start to ``active`` when still ours.
+
+    A synchronous start publication may integrate a peer's body-only edit and
+    therefore return with ticket bytes different from the preflighted spawn.
+    The session must not start from stale inputs, but leaving that exact
+    lifecycle at ``in_progress`` would claim a session did start. Capture and
+    parse the conflicting revision, require its lifecycle tuple to remain the
+    one this launch wrote, then use the shared active-state writer against that
+    exact local revision. Its control landing gets a second, full-ticket CAS;
+    a concurrent lifecycle or prose edit wins instead of being overwritten.
+    """
+    audit_path = log_path(cfg)
+    rollback = git.FileMutationRollback.capture(
+        (ref.ticket_path, audit_path),
+        union_paths=(audit_path,),
+    )
+    source_bytes = rollback.originals[ref.ticket_path]
+    if source_bytes is None or expected_started.status != "in_progress":
+        return False
+    try:
+        current = Ticket.parse(source_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError):
+        return False
+
+    expected_lifecycle = (
+        expected_started.status,
+        expected_started.step,
+        expected_started.assignee,
+    )
+    current_lifecycle = (current.status, current.step, current.assignee)
+    if current_lifecycle != expected_lifecycle:
+        return False
+
+    try:
+        mark_active(
+            cfg,
+            ref,
+            current,
+            actor="megalaunch",
+            log_message=(
+                "restored (in_progress → active) after megalaunch refused "
+                "the unlaunched start"
+            ),
+            echo=None,
+            sync_state=False,
+            mutation_snapshot=rollback,
+        )
+    except (*_PREPARE_ACTIVE_ERRORS, TaskValidationError, git.FeaturePublicationError):
+        rollback.restore()
+        return False
+
+    try:
+        # Only the ticket and its append-only audit line belong to this
+        # compensation. Do not resync the whole task directory and risk
+        # overlaying a peer attachment that changed during the refused start.
+        git.sync_paths(
+            cfg,
+            ref.path,
+            (ref.ticket_path,),
+            message=f"Ticket: {ref.id_slug} — active after refused start",
+            guard=git.ticket_state_guard(
+                cfg,
+                ref.ticket_path,
+                expected_lifecycle=expected_lifecycle,
+                allow_status_regression=True,
+                expected_ticket_bytes=source_bytes,
+            ),
+            generated_paths=rollback.generated,
+            raise_state_regression=True,
+        )
+    except git.StateRegressionError:
+        # The exact control revision moved after our local CAS. Keep the local
+        # compensating state visible (ordinary Coga state writes are
+        # markdown-first) but never overwrite the newer control ticket.
+        pass
+
+    try:
+        restored = read_ticket(ref)
+    except TicketError:
+        return False
+    return (
+        restored.status == "active"
+        and restored.step == expected_started.step
+        and restored.assignee == expected_started.assignee
+    )
 
 
 def _reblock_unresolved(
