@@ -436,6 +436,10 @@ def test_skill_update_skill_declares_contract() -> None:
     assert "`coga/skill-update` branch" in norm
     assert "never the caller's branch" in norm
     assert "Bundled (package-backed) skills are not updated here" in norm
+    assert "`gh skill`'s own metadata for GitHub-backed installs" in norm
+    assert "Coga `.coga-source.json` provenance for URL-backed installs" in norm
+    assert "delegated GitHub path does not promise to preserve local edits" in norm
+    assert "Do not keep local adaptations in GitHub-backed directories" in norm
     assert "- Output: append `## Skill Update`" in text
     assert "COGA_TASK_BLACKBOARD" in text
     assert "--blackboard" not in text

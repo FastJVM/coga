@@ -8,11 +8,14 @@ description: Update clean imported Coga-managed skills into one reviewable PR, a
 This skill documents the skill-update run behind the
 `recurring/skill-update/` task, whose `ticket.py` calls
 `coga.skill_update.run_skill_update_recipe` directly — no agent, no composed
-prompt. The run performs `coga skill update --all --pr`: every clean update lands in one draft PR on a dedicated branch, while
-any skill that cannot be updated cleanly — a local adaptation, a provenance
-conflict, a fetch failure — is left untouched and reported so a human can
-follow up. Bundled (package-backed) skills are not updated here; they ship
-with the coga package and refresh when the package is upgraded.
+prompt. The run performs `coga skill update --all --pr`: GitHub-backed skills
+are delegated to `gh skill update`, while URL-backed skills use Coga's digest
+and provenance checks. Updates land in one draft PR on a dedicated branch.
+URL-backed local adaptations and provenance conflicts are left untouched and
+reported; GitHub-backed directories follow `gh skill`'s stored-tree-SHA policy
+and can be overwritten before that PR is opened. Bundled (package-backed)
+skills are not updated here; they ship with the coga package and refresh when
+the package is upgraded.
 
 The skill never decides *what* a conflicting skill should become. It only
 applies the clean updates and records the buckets; the conflicts and skips
@@ -25,22 +28,28 @@ PR.
   skills that need human follow-up.
 - Runs: the period task's `ticket.py` in its inherited task context; the
   same behavior is available by hand as `coga run skill-update`.
-- Inputs: the installed skills under `coga/skills/`, their recorded
-  `.coga-source.json` provenance, and (for the PR) git plus `gh` against the
-  control-plane checkout.
+- Inputs: the installed skills under `coga/skills/`; `gh skill`'s own metadata
+  for GitHub-backed installs; Coga `.coga-source.json` provenance for
+  URL-backed installs; and (for the PR) git plus `gh` against the control-plane
+  checkout. Hand-vendored and bundled skills have no managed source here and
+  are not updated by this run.
 - May change: imported skill files under `coga/skills/` (rewritten in place
   by `coga skill update`), committed onto the dedicated `coga/skill-update`
   branch — never the caller's branch. The clean updates are published as a
   draft PR; nothing is merged.
 - Action: `pr-required`
-- Idempotency: `coga skill update` only overwrites a skill whose recorded
-  upstream digest changed and skips any locally-adapted skill, so a rerun with
-  no upstream changes makes no commit and opens no PR.
-- Stop and ask: any skill reported with a follow-up status (a conflict, a
-  skipped local adaptation, or a failure) needs a human — the skill reports it
-  and does not force the update. If those follow-ups are the only result and
-  no PR is opened, `ticket.py` exits non-zero after writing the report so the
-  period task remains visible.
+- Idempotency: URL-backed updates overwrite only when the upstream digest
+  changed and the local tree still matches its recorded installed digest.
+  GitHub-backed updates rely on `gh skill`'s stored tree SHA. With no upstream
+  changes the combined run makes no commit and opens no PR; unlike the URL
+  path, the delegated GitHub path does not promise to preserve local edits when
+  upstream changed.
+- Stop and ask: a URL-backed conflict or skipped local adaptation, or a failure
+  from either updater, needs a human — the skill reports it and does not force
+  the URL update. If those follow-ups are the only result and no PR is opened,
+  `ticket.py` exits non-zero after writing the report so the period task
+  remains visible. Do not keep local adaptations in GitHub-backed directories:
+  the draft PR can review a resulting overwrite but cannot recover it.
 - Output: append `## Skill Update` to the task blackboard, bucketing every
   skill by its update status and linking the PR when one was opened. A run that
   fails before it classifies anything appends the same section carrying a
@@ -63,11 +72,11 @@ blackboard, so run from one the recipe writes its report to stdout rather than
 into a packaged `bootstrap/<name>/ticket.md`.
 
 The skill runs `coga skill update --all --pr --json`, then groups the results
-by their raw update status so each status (e.g. `updated`,
-`skipped-local-adaptation`, a future `conflict`, `failed`) is reported in its
-own bucket. It exits non-zero when the `coga skill update` command itself
-failed, or when a run needs human follow-up but opened no PR to carry that
-follow-up forward.
+by their raw update status so each status (e.g. `updated`, URL-backed
+`skipped-local-adaptation` / `conflict`, or `failed`) is reported in its own
+bucket. It exits non-zero when the `coga skill update` command itself failed,
+or when a run needs human follow-up but opened no PR to carry that follow-up
+forward.
 
 ## Output
 
