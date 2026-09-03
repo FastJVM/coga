@@ -318,16 +318,28 @@ understatement until 1.0 ships.
   submitted.
 - **Reddit (`Let047`):** every fetch returned 403 or a login wall.
   **Owner-only in step 2:** karma and the subreddits already joined.
-- **Lobste.rs:** live site refused TLS from here; rules read from the
-  site's open-source templates and tag pages. Invite-only; new accounts
-  **cannot use the `show` tag or submit never-seen domains**; self-promo
-  should stay under about a quarter of one's activity; the submit form has
-  an "I am the author" checkbox; the `ai` tag is for *building* AI —
-  AI-usage stories go under **`vibecoding`** (+ `practices`). Fit for a
-  first-person essay on agent workflow: plausible but marginal — the site
-  lists "personal productivity systems" and "management" as off-topic, so
-  the post has to read as engineering practice. Owner supplies the
-  username and account age in step 2 (new-user restrictions may apply).
+- **Lobste.rs — answered from the API on 2026-09-03** (the step-1 run could
+  not reach the site; a retry succeeded). Username **`ntoper`**, created
+  **2025-06-05** (15 months old), karma **55**, invited by `skeptrune`, empty
+  "about". **Exactly one submission ever:** 2025-10-01, "is tech inevitable",
+  pointing at `deviantabstraction.com`, **26 points / 19 comments**, tagged
+  `philosophy`, submitted with "I am the author". That is the same essay that
+  took the HN front page at 87 points.
+  Three consequences, all favorable: the account is long past any new-user
+  window, so those restrictions do not apply; **`deviantabstraction.com` is
+  already a seen domain there and did well**, which was the audit's main
+  worry; and the one prior submission proves self-authored essays land on
+  this account. The one genuine risk is ratio — every story `ntoper` has ever
+  submitted is his own, so a second self-authored link is 2 for 2. Volume is
+  low enough (one story in 15 months) that it reads as occasional rather than
+  as a promotion channel, but a comment or two on other people's stories
+  before submitting would cost nothing.
+  **Tags confirmed against `/tags.json`, not inferred:** `ai` reads
+  "Developing artificial intelligence, machine learning. Tag AI usage only
+  with `vibecoding`", and `vibecoding` reads "Using AI/LLM, coding tools.
+  Don't also tag with `ai`." So post 1 is **`vibecoding` + `practices`**, and
+  explicitly not `ai`. "Personal productivity systems" and "management" are
+  off-topic there, so the post has to read as engineering practice.
 - **Community home:** `FastJVM/coga` is public (AGPL-3.0), 3 stars,
   0 forks, 0 open issues, 17 open PRs, **Discussions disabled** (404),
   **no Discord link anywhere**, one release (`v0.2.0`, 2026-06-27), no
@@ -631,12 +643,12 @@ later") and stay open for a later pass. Ordered: blockers for post 1 first.
 **Owner-only decisions (step 2)**
 
 - [agent] Token-measurement collection — assigned (owner accepted check 6 as drafted): one `direct`-workflow ticket `marketing/token-receipts`, 4–6 ticket pairs (`<slug>` vs `<slug>-nocontext` copy with `contexts: []`), receipts from `coga usage --task --json` + `--prompt-report` + first-commit timestamp; no new code. Create the ticket when phase 1 starts.
-- [nicktoper] Phase-1 thresholds — still open. Private success numbers noted before publishing so the phase-1 retro is not post-hoc (subscribers, community joins, referrer split; installs are not the bar).
-- [nicktoper] Bookface standing and whether a pre-HN post fits the timeline — login-gated.
-- [nicktoper] Lobste.rs username + account age — invite-only; new accounts can't use `show` or submit unseen domains; tag would be `vibecoding` + `practices`, not `ai`; self-promo under ~¼ of activity. Fit is marginal ("productivity systems" is off-topic there).
-- [nicktoper] Reddit — profile unreachable unauthenticated; report karma and joined subreddits.
-- [nicktoper] fastjvm.com cross-link — single-page research index with GA; no blog/team/about slot; links to `manycore-com` org, not `FastJVM`. Decide yes/no.
-- [nicktoper] Blog readiness — WordPress.com, last post 2026-06-02 (three months quiet), Jetpack subscribe block exists, Jetpack Stats shows referrers only (no UTM table). Decide whether referrer-level attribution is enough for the phase decisions.
+- [answered 2026-09-03] Lobste.rs — `ntoper`, created 2025-06-05, karma 55, one prior self-authored submission of a `deviantabstraction.com` essay at 26 points / 19 comments. Not a new account; the domain is already seen and well received. Tags: `vibecoding` + `practices`, never `ai` (verified against `/tags.json`). Full detail in check 5 above. Nothing left for the owner here beyond deciding to submit.
+- [recommendation, owner to confirm] fastjvm.com cross-link — **recommend no.** It is a single-page Next.js research index for JVM performance work; the only slots are the "Our research" link list and a contact footer, and its GitHub link points at `manycore-com` rather than the `FastJVM` org that hosts Coga. Its readers are JVM performance researchers; post 1 addresses founders of small technical teams. A forced link would read as an ad on a research page. Revisit at post 3, where the token/documentation angle is technically adjacent enough to earn a slot.
+- [recommendation, owner to confirm] Blog attribution — **recommend accepting referrer-level and not buying analytics.** The phase decision asks which channel sent traffic; HN, Lobsters, Reddit and the newsletter are four distinct referrer domains, so Jetpack Stats separates them cleanly. What it cannot do is split two links posted to the same channel or attribute a subscriber to a channel, and neither changes a phase-1 decision. **One hard prerequisite:** record the pre-publication baseline — current subscriber count and monthly views — before post 1 goes out, or every delta below is unmeasurable.
+- [nicktoper, still owner-only] Reddit (`Let047`) — unreachable. Retried on 2026-09-03 against `www`, `old.reddit.com`, and the `about.json` endpoint; all returned 403 or a JavaScript wall. Karma and joined subreddits have to come from the owner's logged-in session. The plan only posts where already a member, so this gates whether Reddit is in the channel list at all.
+- [nicktoper, still owner-only] Bookface standing and whether a pre-HN post fits the timeline — login-gated to YC; no external check is possible.
+- [nicktoper, proposed below] Phase-1 thresholds — a grounded proposal is in `## Proposed phase-1 thresholds`; the owner accepts or adjusts. Note this repo is public, so anything recorded here is public too.
 
 **Findings for triage — owner dispositions (2026-09-03)**
 
@@ -651,3 +663,37 @@ Seven of the eight are now drafts under `cleanup/`. Two needed no action.
 - [cleanup/check-the-demo-video-against-current-cli-names] Demo video — **checked read-only 2026-09-03.** Uploaded 2026-07-18, 95 s, no captions, no description, so its content cannot be verified without watching it. CLI surface diff from the last pre-upload commit (`0c8eb75e`) to `main`: **`coga project` is the only command from that era that no longer exists** (removed in `8394d3b3`, PR #691; `coga build` was removed in the same commit and restored by #701). `coga open-pr` became an alias for the `coga run open-pr` recipe with the spelling unchanged, so it is still correct on screen. No mention of `coga project` survives in README, docs, or contexts — the video is the last place it could appear. Remaining work: 95 seconds of a human watching for that one name.
 - [accepted as-is] Megalaunch honesty — describable in present tense. Real sweeps here on 2026-08-26 and 2026-09-02. Open bugs `megalaunch-activates-picks-before-preflight` (at review) and `launch-activates-before-preflight` (in progress); no crashes in the last two weeks, the log's failures are DNS and Slack. Keep the positioning caveat.
 - [accepted as-is] HN plan fit — confirmed, nothing to do. Three front-page hits were plain essay titles, both Show HN posts flopped, one resubmission four days later took. "Plain story submission, never Show HN" matches the account's history.
+
+## Proposed phase-1 thresholds
+
+Drafted 2026-09-03 for the owner to accept or adjust. The plan requires
+thresholds noted *before* publishing so the phase-1 retro cannot be post-hoc
+rationalization. Every number below is anchored to something this audit
+actually measured, rather than picked for feeling ambitious.
+
+**The anchors.** On HN, `top256` has three front-page hits at 87, 47 and 32
+points, and its misses sit at 1 to 3 points — including the 2026-06-03 essay
+at 1 point. There is almost no middle ground on that account, so a threshold
+between the two clusters is meaningful. On Lobsters, the one prior submission
+of a `deviantabstraction.com` essay scored 26 points with 19 comments.
+
+| Signal | Proposed bar for post 1 | Why this number |
+|---|---|---|
+| HN | Front page, >= 30 points | Sits just under the weakest of three real hits (32) and far above every miss (1-3) |
+| Lobsters | >= 15 points and >= 5 comments | Prior essay on the same domain took 26 / 19; more than half of that is a real result |
+| Blog subscribers | +25 net in the two weeks after post 1 | Softest number here — there is no recorded baseline yet, so record it first and revise this |
+| Community home | >= 15 joins in two weeks, and >= 3 people posting something that is not an introduction | Joins alone measure curiosity; the second half measures whether anyone stays |
+| Vocabulary taking | >= 1 instance of someone the owner does not know using "you are the CPU" or "batch your judgment" unprompted | The plan's actual success metric — the idea circulating, not the artifact spreading |
+
+**Explicitly not the bar:** installs, stars, and downloads. The plan says the
+essay posts convert lightly by construction and that installs are the
+long-arc goal, so treat all three as trailing proxies worth recording and not
+worth scoring.
+
+**Scoring rule.** Decide before publishing what a miss triggers, or the retro
+will negotiate with itself. Suggested: HN missing the front page triggers the
+plan's existing second-chance resubmission branch, which has precedent on
+this account (the 2024-11 essay took on a resubmission four days after a
+1-point first try). Missing the subscriber and community bars while hitting
+the HN bar means the post worked and the funnel did not, which is a
+landing-page problem for `marketing/readme-top`, not a thesis problem.

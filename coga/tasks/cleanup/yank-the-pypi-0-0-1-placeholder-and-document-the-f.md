@@ -2,7 +2,7 @@
 slug: cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f
 title: Yank the PyPI 0.0.1 placeholder and document the failure
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: claude

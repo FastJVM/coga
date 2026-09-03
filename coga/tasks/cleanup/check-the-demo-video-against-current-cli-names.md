@@ -2,7 +2,7 @@
 slug: cleanup/check-the-demo-video-against-current-cli-names
 title: Check the demo video against current CLI names
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: claude

@@ -2,7 +2,7 @@
 slug: remov-digest-in-recurring
 title: remov digest in recurring
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: nick

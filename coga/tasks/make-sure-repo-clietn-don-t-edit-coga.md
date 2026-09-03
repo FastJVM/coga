@@ -2,7 +2,7 @@
 slug: make-sure-repo-clietn-don-t-edit-coga
 title: make sure repo clietn don't edit coga
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: nick

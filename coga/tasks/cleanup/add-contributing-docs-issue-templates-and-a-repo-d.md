@@ -2,7 +2,7 @@
 slug: cleanup/add-contributing-docs-issue-templates-and-a-repo-d
 title: Add contributing docs, issue templates and a repo description
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: claude

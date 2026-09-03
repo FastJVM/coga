@@ -2,7 +2,7 @@
 slug: cleanup/quiet-the-first-run-noise-from-recurring-jobs-and
 title: Quiet the first-run noise from recurring jobs and managed skills
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: claude

@@ -2,7 +2,7 @@
 slug: cleanup/detect-the-current-git-branch-instead-of-hard-codi
 title: Detect the current git branch instead of hard-coding control branch main
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: claude

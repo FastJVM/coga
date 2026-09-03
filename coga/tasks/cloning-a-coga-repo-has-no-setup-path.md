@@ -2,7 +2,7 @@
 slug: cloning-a-coga-repo-has-no-setup-path
 title: Cloning a coga repo has no setup path
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: claude

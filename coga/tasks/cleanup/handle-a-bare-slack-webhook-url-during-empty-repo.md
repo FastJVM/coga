@@ -2,7 +2,7 @@
 slug: cleanup/handle-a-bare-slack-webhook-url-during-empty-repo
 title: Handle a bare SLACK_WEBHOOK_URL during empty-repo init
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: claude

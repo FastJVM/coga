@@ -2,7 +2,7 @@
 slug: run-recurring-agent-templates-off-the-control-bran
 title: Run recurring agent templates off the control branch
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: nick

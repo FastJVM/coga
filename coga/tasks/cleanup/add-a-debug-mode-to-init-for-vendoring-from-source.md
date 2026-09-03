@@ -2,7 +2,7 @@
 slug: cleanup/add-a-debug-mode-to-init-for-vendoring-from-source
 title: Add a debug mode to init for vendoring from source instead of PyPI
 status: draft
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: claude

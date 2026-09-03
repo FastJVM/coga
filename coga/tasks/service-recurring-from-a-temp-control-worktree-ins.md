@@ -2,7 +2,7 @@
 slug: service-recurring-from-a-temp-control-worktree-ins
 title: Service recurring from a temp control worktree instead of failing the repo
 status: in_progress
-owner: nick
+owner: nicktoper
 human: nick
 agent: claude
 assignee: nick
