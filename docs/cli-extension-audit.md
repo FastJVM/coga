@@ -27,9 +27,9 @@ the `coga/cli` *context*. Read this for the worked classification; read
 
 2. **Built-in command heads** — `src/coga/commands/*.py`, registered in
    `cli.py` by the block of `app.command(...)` / `app.add_typer(...)` calls
-   that follows the `_root` `@app.callback()`. These hold the irreducible command-shaped parts: argument
-   resolution, guards, and calls into focused core modules when an
-   alias has no hook point.
+   that follows the `_root` `@app.callback()`. This is current inventory, not a
+   blanket kernel classification: inability to use an alias does not decide
+   between a co-versioned package command, command ticket, or external CLI.
 
 3. **Bootstrap command tickets / recurring launches** — package-backed or
    repo-local tickets at `bootstrap/<name>/ticket.md` are stateless command
@@ -206,8 +206,8 @@ conclusion: the surface collapses to **three homes for logic, plus sugar**.
 **The home falls out of the shape, not taste** — four questions: is it a fixed
 argv rewrite (alias)? is it a stateless parameterized call (command/external)? is
 it stateful reviewable work (ticket)? or is it launch/bootstrap-locked, a
-mid-flight trust hook, a fixed registered recipe, or an irreducible Python
-command implementation (kernel)?
+mid-flight trust hook, a fixed registered recipe, or a command with a reviewed
+package-private co-versioning invariant (kernel)?
 
 **The kernel's common case is `launch` and its dependency closure**, not a
 complete taxonomy. It includes `launch`/compose plus everything `launch` calls
@@ -217,11 +217,12 @@ fresh `init` that must precede a launch. For ordinary launch-target spellings,
 the useful test remains: does `launch` call it *while running* (kernel), or does
 a human/cron call it *to start* a launch (movable)? Two narrow exceptions keep
 real command contracts in core: the closed `coga run` recipe table, and a
-Python command implementation that genuinely cannot be expressed as an alias.
-`coga digest` and `coga megalaunch` currently occupy that in-package shape,
-but the active command-cleanup design ticket still owns the decision whether
-their behavior is actually irreducible or should migrate. Merely being
-implemented in Python today does not qualify.
+command whose reviewed contract names the package-private invariant or atomic
+transaction that requires it to be versioned with core. `coga digest` and
+`coga megalaunch` currently occupy that in-package shape, but the active
+command-cleanup design ticket still owns the decision: it must record that
+co-versioning proof or migrate them. Python logic and inability to use an alias
+do not distinguish a package command from an edge command.
 
 **Current built-ins mix kernel candidates with thin command heads.** `digest`
 and `megalaunch` remain Python command implementations pending that shape

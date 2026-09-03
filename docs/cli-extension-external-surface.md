@@ -25,9 +25,9 @@ of real command code that cannot live at the edge:
   loaded for use.
 - The closed `coga run` recipe registry, whose fixed argv/stdout/exit contracts
   are implemented in-package and cannot be extended by tickets or skills.
-- A command implementation proven to need Python logic rather than a fixed
-  alias rewrite. This is a shape test, not a grandfather clause for every
-  command currently implemented in Python.
+- A command whose reviewed contract proves it must be co-versioned with the
+  package by naming the package-private invariant or atomic transaction that a
+  command ticket or external CLI using stable interfaces could not preserve.
 
 Everything a human, cron job, or alias calls to start work is movable unless it
 is in that closure or one of those two explicit command-code classes. Fresh
@@ -39,8 +39,8 @@ process is not.
 
 This document does not settle the still-active verb-by-verb migration. In
 particular, `digest` and `megalaunch` remain current in-package implementations,
-not ratified examples of irreducibility; the command-cleanup design ticket must
-still prove whether their behavior belongs in core or can move.
+not ratified examples of the co-versioning exception; the command-cleanup design
+ticket must still prove whether their behavior belongs in core or can move.
 
 For Coga-authored stateless capabilities outside the kernel and ticket model,
 the first-class surface is a local external CLI. For the lead case, the skill
@@ -53,10 +53,12 @@ general plugin registry and not a `coga/scripts/` dispatcher.
 The common-case boundary test is operational:
 
 > Does `launch` call it while running, or must it exist before any launch can
-> run? If yes, it is kernel. Otherwise, is it a fixed registered recipe or real
-> Python command logic that cannot be expressed as an alias? If yes, it is one
-> of the two reviewed exceptions. If a human or scheduler merely calls it to
-> start or inspect work, it is movable.
+> run? If yes, it is kernel. Otherwise, is it a fixed registered recipe, or does
+> its reviewed contract name a package-private invariant that requires
+> co-versioning? If yes, it is one of the two reviewed exceptions. Python logic
+> only rules out alias sugar; it does not rule out a command ticket or external
+> CLI. If a human or scheduler merely calls it to start or inspect work, it is
+> movable.
 
 This keeps the kernel small for a reason. The kernel is the code that protects
 the files-on-disk invariant and the moment-of-use trust boundary, plus those
@@ -122,7 +124,8 @@ It belongs here when all of these are true:
   `gh`, `git`, `op`, or another operator tool.
 - **Not bootstrap/kernel:** `launch` does not call it mid-flight, a fresh
   `coga/` does not need it before launch can run, it is not a fixed registered
-  recipe, and it does not require irreducible Python command logic.
+  recipe, and no reviewed package-private invariant requires it to be
+  co-versioned with core.
 - **Not a trust hook:** it may acquire a capability, but verification or secret
   injection at use stays in the kernel.
 
@@ -133,7 +136,7 @@ Use the other homes when one of those tests fails:
 | Existing third-party CLI | External tool | `gh`, `git`, `op` |
 | Coga-authored stateless one-shot | External script | Skill acquirer wrapper |
 | Stateful, reviewable work | Ticket / workflow | `retire`, recurring Dream work |
-| Mid-flight launch dependency, fresh bootstrap, fixed recipe, or irreducible command implementation | Kernel | compose, state writes, secret inject, fresh `init`, registered recipes |
+| Mid-flight launch dependency, fresh bootstrap, fixed recipe, or command with a documented co-versioning invariant | Kernel | compose, state writes, secret inject, fresh `init`, registered recipes |
 | Fixed argv rewrite with no logic | Alias | `dream` -> `recurring launch dream` |
 
 ## Mechanism candidates

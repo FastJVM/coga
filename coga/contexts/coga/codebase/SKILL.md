@@ -61,12 +61,18 @@ kinds of code**:
    composer, config loading, task/ticket IO, the launch machinery, the shared
    `## Dev` PR-link parsers and `gh` helpers in `autoclose.py`. If exactly one
    thing calls it, it is not shared infra.
-2. **A real command implementation** that genuinely needs Python logic and
-   can't be expressed as an alias — e.g. `coga digest` (`commands/digest.py` →
-   `run_digest`) and `coga megalaunch` (`megalaunch.py`), plus the fixed
-   functions registered behind `coga run` such as `open_pr.py` and
-   `delete_task.py`. These carry real logic and stable command contracts, not
-   just "launch this target."
+2. **A reviewed, co-versioned command contract** — either a function in the
+   deliberately fixed `coga run` registry, such as `open_pr.py` or
+   `delete_task.py`, or a command whose contract names the package-private
+   invariant or atomic transaction that an edge implementation using stable
+   CLI/filesystem interfaces could not preserve. Python logic and inability to
+   use a fixed alias are necessary to rule out alias sugar, but do not by
+   themselves choose core over a command ticket or external CLI.
+
+`coga digest` (`commands/digest.py` → `run_digest`) and `coga megalaunch`
+(`megalaunch.py`) currently live in core, but that is inventory, not a settled
+classification. The active command-cleanup design must either record the exact
+co-versioning proof for each or migrate it to the appropriate edge.
 
 **Everything else stays at the edge.** A single-consumer helper may live beside
 the ticket or skill that uses it and import **only shared core infra**. An agent
@@ -78,16 +84,19 @@ repository-independent `coga run` argv/stdout/exit contract remains a fixed
 `runner.RECIPES` entry in a focused `src/coga/` module; skills are never
 executable launch plugins.
 
-**"Backs a CLI command" is not by itself a pass into core.** Ask whether the
-command is a real Python implementation or just an alias to a launch target. A
+**"Backs a CLI command" is not by itself a pass into core.** First ask whether
+it is just an alias to a launch target. If it owns Python logic, ask the separate
+home question: which named package-private invariant requires co-versioning,
+and why could stable CLI/filesystem interfaces not preserve it? Without that
+proof, substantive logic belongs in a command ticket or external CLI. A
 launch-target command is an argv rewrite in `[aliases]` (`dream = "recurring
 launch dream"`, `chat = "launch bootstrap/orient"`), never a Typer command with
 logic. The launch target itself may have a deterministic `ticket.py`; its scope
 is that one selected ticket and it receives no operands in v1. A registered
-`coga run` name is a genuine package implementation: its function has a public
-argv, stdout/stderr, and integer-exit contract enforced by the package registry.
-The registry is explicit and closed; the fixed-path ticket classifier does not
-extend or discover entries in it.
+`coga run` name is a deliberate package exception: its function has a public
+argv, stdout/stderr, and integer-exit contract enforced by the closed package
+registry. The fixed-path ticket classifier does not extend or discover entries
+in it.
 
 **The consumer test decides the split, and it can keep a symbol in core.** When
 an edge implementation moves out, any helper it shares with another core
@@ -98,7 +107,7 @@ core for the different reason above: they are fixed `coga run` commands. Their
 skills are invocation contracts and contain no executable Python.
 
 PR #517 first exposed the line by moving open-pr's former edge implementation
-out of core. PR #585 later turned `open-pr` into a real command implementation,
+out of core. PR #585 later turned `open-pr` into a registered command implementation,
 so the same test placed it back in core under exception 2, and it now lives
 there as the registered `open-pr` recipe (`open_pr.py`) — the fixed name is the
 contract, so the implementation is importable. `delete-task` followed the same

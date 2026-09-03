@@ -48,9 +48,9 @@ Reach for the lowest tier the *shape* allows — shape decides, not taste:
   a `ticket.py` sibling without acquiring a kernel registry entry.
 - **Kernel** if `launch` calls or depends on it mid-flight, it must exist
   before any launch can run, it is one of the deliberately fixed deterministic
-  commands registered behind `coga run` (below), or it is a real command
-  implementation that genuinely needs Python logic and cannot be expressed as
-  an alias (below).
+  commands registered behind `coga run` (below), or its reviewed contract names
+  a package-private invariant that requires the command and kernel to be
+  versioned together (below).
 
 ## The kernel is the launch closure, fixed recipes, and proven command code
 
@@ -70,18 +70,21 @@ or discovered skill plugins, so they also live in focused core modules. Adding
 a name is a reviewed kernel change; repository-local tickets and skills cannot
 extend the table.
 
-The second is a **real command implementation** that genuinely needs Python
-logic and cannot be expressed as an alias. It stays in the kernel even when no
-launch depends on it. This is the same rule `coga/codebase` and `CLAUDE.md`
-state for `src/coga/` — core holds shared infra with two or more consumers plus
-real command implementations — and the launch closure is its common case, not
-its whole extent. The allowance is narrow, not an escape hatch: "it is written
-in Python today" does not qualify, and a verb whose whole body starts a launch
-is an alias however it is spelled. `coga digest` (`commands/digest.py`) and
-`coga megalaunch` (`megalaunch.py`) are current in-package implementations,
-not ratified examples of irreducibility: the active command-cleanup design
-ticket is explicitly responsible for classifying and migrating them where
-their shape allows.
+The second is a **proven co-versioned command implementation**. It stays in the
+kernel even when no launch depends on it only when its reviewed contract names
+the exact package-private invariant or atomic transaction it enforces and shows
+why an edge command using Coga's stable CLI and files-on-disk interfaces cannot
+preserve that invariant. This is the same narrow rule `coga/codebase`,
+`AGENTS.md`, and `CLAUDE.md` state for `src/coga/`; the launch closure is its
+common case, not its whole extent. Python logic only proves that a verb is not
+an alias. Operands, validation, Coga-file access, or an implementation already
+living in `src/coga/` do not distinguish a kernel command from a command ticket
+or independently versioned external CLI. A verb whose whole body starts a
+launch is still an alias however it is spelled. `coga digest`
+(`commands/digest.py`) and `coga megalaunch` (`megalaunch.py`) are current
+in-package implementations, not ratified examples of this exception: the
+active command-cleanup design ticket must either record the required
+co-versioning proof or migrate each command where its shape allows.
 
 What that closure contains, and why each is there:
 
@@ -238,7 +241,7 @@ actively fights the capability boundary.
 
 | Home | Members |
 | --- | --- |
-| **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · fixed `coga run` recipes · command implementations proven not expressible as aliases · *(hooks)* secret-inject, skill-verify-at-compose |
+| **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · fixed `coga run` recipes · commands proven to require co-versioning with a named package-private invariant · *(hooks)* secret-inject, skill-verify-at-compose |
 | **Stateful tickets** | reviewable work with its own lifecycle; may run `ticket.py`, an agent, or both |
 | **Stateless command tickets** | package/repo bootstrap targets such as `resolve-conflicts`; agent-backed or no-operand `ticket.py`, launched in place |
 | **External tools** | existing CLIs such as `git`, `gh`, and `op` |
@@ -253,8 +256,9 @@ authoritative about decisions it was created to settle.
 
 ## Migration rule, not a redesign
 
-When a built-in verb is stateless and does not belong to `launch`'s dependency
-closure, move its implementation into one command ticket without changing its
+When a built-in verb is stateless, does not belong to `launch`'s dependency
+closure or the fixed recipe table, and has no reviewed co-versioning proof,
+move its implementation to the appropriate edge without changing its
 semantics:
 
 1. Preserve shared parsers, preflights, and declarative completion gates in the
