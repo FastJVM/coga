@@ -9,6 +9,9 @@ This file follows the `SKILL.md` standard — the same format Claude Code
 and OpenAI Codex use. A coga skill IS a Claude Code skill IS a Codex
 skill. Zero proprietary extensions, so Anthropic's `skill-creator` (and
 any other tool that speaks SKILL.md) can author and edit these files.
+The directory path supplies Coga's namespaced reference; replace `name:` with
+a standards-valid leaf name (lowercase letters, digits, and hyphens), never a
+slash-qualified path.
 
 Skills are process knowledge. They attach to a workflow step and inline
 into the agent's prompt at launch time when the task reaches that step.
