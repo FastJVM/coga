@@ -4282,3 +4282,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-02 21:46 [marketing/phase-0-audit] [human:nick] started (active → in_progress) via coga launch
 2026-09-02 21:47 [no-skill-exists-for-the-cold-evaluator-review-of-a] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-02 21:47 [no-skill-exists-for-the-cold-evaluator-review-of-a] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-02 21:46 [marketing/phase-0-audit] [human:nick] launched (assignee=claude, agent=claude)
+2026-09-02 21:59 [marketing/phase-0-audit] [agent:claude] advanced to step 2 (human-owns-and-finishes) → assigned to nicktoper — Step 1 draft on the blackboard: quickstart has no working first run from PyPI (0.2.0 init crashes; 3.11 crashes on every version), 10 narrative candidates from magicator/xpllm/admin, surfaces report, token-measurement draft, and the worklist.
