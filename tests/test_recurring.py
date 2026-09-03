@@ -9322,6 +9322,64 @@ def test_recurring_all_scan_services_off_control_checkout_from_worktree(
     assert "temporary 'main' worktree" in capsys.readouterr().out
 
 
+def test_control_worktree_seeds_missing_branch_in_a_narrow_clone(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fetched OID works when neither local nor remote-tracking ref exists."""
+    _seed_recipe_template_on_control(git_repo)
+    feature = "agent/parked-work"
+    git_repo.checkout_branch(feature)
+    git_repo.git("branch", "-D", "main")
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    git_repo.git("config", "--unset-all", "remote.origin.fetch")
+    git_repo.git(
+        "config",
+        "--add",
+        "remote.origin.fetch",
+        f"+refs/heads/{feature}:refs/remotes/origin/{feature}",
+    )
+
+    def ref_exists(ref: str) -> bool:
+        return (
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(git_repo.root),
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    ref,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            ).returncode
+            == 0
+        )
+
+    assert not ref_exists("refs/heads/main")
+    assert not ref_exists("refs/remotes/origin/main")
+    seen_branches: list[str] = []
+
+    def observe(coga_os: Path, **_kwargs) -> int:  # type: ignore[no-untyped-def]
+        seen_branches.append(
+            git_repo.git("branch", "--show-current", cwd=coga_os).strip()
+        )
+        assert not ref_exists("refs/remotes/origin/main")
+        return 0
+
+    monkeypatch.setattr(recurring_cmd, "_run_repo_recurring", observe)
+
+    cfg = load_config(git_repo.coga_os)
+    assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 0
+
+    assert seen_branches == ["main"]
+    assert ref_exists("refs/heads/main")
+    assert not ref_exists("refs/remotes/origin/main")
+    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+
+
 def test_control_worktree_services_a_deeply_nested_monorepo_workspace(
     git_repo,
 ) -> None:

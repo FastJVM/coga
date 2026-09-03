@@ -876,9 +876,11 @@ fetch/rebase must succeed before period state is read or written.
 A repo whose checkout is parked *off* the control branch — a feature branch, a
 detached HEAD — is serviced rather than failed. Nothing holds the control
 branch, so the child checks it out in a temporary linked worktree under the
-system temp dir, runs its scan from the mirrored workspace's host directory
-(even for a deeply nested monorepo workspace), and normally removes it when
-the run ends
+system temp dir. A missing local control ref is seeded from a private,
+command-scoped fetch, so single-branch and narrow-refspec clones do not require
+`origin/<control>` or rely on shared `FETCH_HEAD`. The child runs its scan from
+the mirrored workspace's host directory (even for a deeply nested monorepo
+workspace), and normally removes it when the run ends
 (on success, on a recipe's non-zero exit, on an exception, and on
 SIGINT/SIGTERM). The inner scan has its own process session; cancellation
 signals the whole group and reaps its leader, so a recipe descendant cannot

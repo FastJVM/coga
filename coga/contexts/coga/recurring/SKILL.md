@@ -280,9 +280,13 @@ while every sweep failed the repo in the meantime.
 So when an `--all` child's catch-up fails *only* because the control branch is
 not checked out here, the child does not give up. Nothing holds that branch, so
 it checks it out in a temporary linked worktree under the system temp dir,
-seeds the gitignored `coga.local.toml` into it (without it there is no `user`
-and `load_config` raises), and re-dispatches from that mirrored workspace's
-host directory (including a deeply nested monorepo workspace). Before removing
+creating a missing local control ref from an exact command-scoped fetch. That
+seed does not depend on `<remote>/<control>` existing, so a single-branch or
+narrow-refspec clone is serviceable without trusting checkout-wide
+`FETCH_HEAD`. It then seeds the gitignored `coga.local.toml` into it (without
+that file there is no `user` and `load_config` raises), and re-dispatches from
+that mirrored workspace's host directory (including a deeply nested monorepo
+workspace). Before removing
 the worktree, it copies every machine-local `.coga/recurring-runs/*.md`
 transcript into the matching workspace in the operator's durable checkout;
 same-name, different-content records are kept side by side. If that transfer

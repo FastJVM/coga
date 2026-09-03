@@ -1242,8 +1242,15 @@ def _service_from_control_worktree(
         _reap_stale_control_worktree(root, control)
         git._run_git(root, "worktree", "prune")
         control_ref_exists = _local_branch_exists(root, control)
+        control_seed: str | None = None
         if not control_ref_exists:
-            _fetch_control_branch(cfg, root)
+            # A command-line `git fetch <remote> <branch>` need only populate
+            # checkout-wide FETCH_HEAD in a single-branch/narrow-refspec clone;
+            # `<remote>/<branch>` can remain absent. Fetch into the shared
+            # Git layer's command-owned ref and retain its exact OID instead.
+            control_seed = git._fetch_branch_oid(
+                root, cfg.git_remote, control
+            )
     except git.GitError as exc:
         return None, str(exc)
 
@@ -1256,14 +1263,15 @@ def _service_from_control_worktree(
     checkout = parent / "checkout"
     # A repo that has never checked the control branch out locally has no
     # `refs/heads/<control>` to add a worktree for, so the ref is created from
-    # the fetched remote tip. Where it does exist it is used as-is: the inner
-    # scan runs its own catch-up against origin, which is where that
-    # integration belongs.
-    add_args = (
-        [str(checkout), control]
-        if control_ref_exists
-        else ["-b", control, str(checkout), f"{cfg.git_remote}/{control}"]
-    )
+    # the exact command-owned fetched OID. This does not depend on a
+    # remote-tracking ref that a narrow clone may not have. Where the local ref
+    # does exist it is used as-is: the inner scan runs its own catch-up against
+    # origin, which is where that integration belongs.
+    if control_ref_exists:
+        add_args = [str(checkout), control]
+    else:
+        assert control_seed is not None
+        add_args = ["-b", control, str(checkout), control_seed]
     try:
         git._run_git(root, "worktree", "add", *add_args)
     except git.GitError as exc:

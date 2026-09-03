@@ -138,7 +138,10 @@ no in-memory state.
   branch successfully before scanning. A child whose checkout is not on the
   control branch at all no longer fails the repo: the branch is free by
   definition, so the child checks it out in a temporary linked worktree under
-  the system temp dir, re-dispatches from the
+  the system temp dir. If the local branch itself is missing, Coga seeds it
+  from an exact command-scoped fetch rather than requiring a remote-tracking
+  ref, so narrow clones work without trusting shared `FETCH_HEAD`. The child
+  re-dispatches from the
   mirrored workspace's own host directory, and normally removes the worktree
   afterwards.
   The operator's branch, tracked and untracked project files, and stash are
