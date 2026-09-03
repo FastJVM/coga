@@ -367,6 +367,7 @@ on-control sweep does today.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/749
 branch: recurring-control-worktree
 worktree: /home/n/Code/claude/coga-recurring-control-worktree
 
