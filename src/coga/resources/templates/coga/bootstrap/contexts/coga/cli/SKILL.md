@@ -858,7 +858,9 @@ channel.
 `--all <path>` is the multi-repo scheduler entry point. It may run from outside
 a Coga repo: it recursively finds `coga/` directories containing `coga.toml`
 below the explicit path, skips dependency/tool and `_`-prefixed directory trees,
-and stops descending once it finds a workspace. Checkouts rejected by Coga's
+and prunes Coga temporary-control parents identified by both their stable prefix
+and owner marker. The latter remains true when the path includes `/tmp` or `/`.
+Discovery stops descending once it finds a workspace. Checkouts rejected by Coga's
 intentional config guards (including a missing local `user` or stale-key
 migration error) are summarized once as unconfigured, omitted from dispatch,
 and do not make the parent fail. Git-enabled configured checkouts are grouped by

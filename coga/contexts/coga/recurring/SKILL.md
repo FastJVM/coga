@@ -101,9 +101,12 @@ the example under "Extend recurring with a task-specific workflow").
   Deleting that canceled period task is the explicit prerequisite for a fresh
   run.
 - `coga recurring --all <path>` — discovers every Coga repo below an explicit
-  parent directory, pruning dependency/tool-state and `_`-prefixed directory
-  trees, and runs the ordinary due sweep in each configured target,
-  sequentially. A missing local `user` or another intentional Coga config guard
+  parent directory, pruning dependency/tool-state, `_`-prefixed directory
+  trees, and the prefix-plus-owner-marker parents of Coga's temporary control
+  worktrees. That last exclusion still applies when `<path>` contains the
+  system temp directory (including `/tmp` or `/`). It runs the ordinary due
+  sweep in each configured target, sequentially. A missing local `user` or
+  another intentional Coga config guard
   makes a scratch checkout an unconfigured non-target: these are omitted from
   dispatch, summarized once by count, and do not make the parent fail. Each
   selected repo runs in a fresh CLI process so its config, launch supervision,

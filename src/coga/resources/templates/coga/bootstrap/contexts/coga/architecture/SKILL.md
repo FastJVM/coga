@@ -121,8 +121,10 @@ no in-memory state.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard
   machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
-  repos below the path while pruning dependency/tool-state and `_`-prefixed
-  directory trees. Workspaces rejected by Coga's intentional config guards —
+  repos below the path while pruning dependency/tool-state, `_`-prefixed
+  directory trees, and Coga temporary-control parents proven by their stable
+  prefix plus owner marker. That exclusion applies even when the scan root
+  contains the system temp directory. Workspaces rejected by Coga's intentional config guards —
   including a missing local `user` or a stale-key migration error — are not
   scheduler targets: the parent reports one unconfigured-repo count, does not
   dispatch them, and does not fail because of them. It groups the remaining
@@ -136,7 +138,7 @@ no in-memory state.
   branch successfully before scanning. A child whose checkout is not on the
   control branch at all no longer fails the repo: the branch is free by
   definition, so the child checks it out in a temporary linked worktree under
-  the system temp dir (outside any plausible scan root), re-dispatches from the
+  the system temp dir, re-dispatches from the
   mirrored workspace's own host directory, and normally removes the worktree
   afterwards.
   The operator's branch, tracked and untracked project files, and stash are

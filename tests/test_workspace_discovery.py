@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from coga.workspace_discovery import discover_coga_repos
+from coga.workspace_discovery import (
+    CONTROL_WORKTREE_DIR_PREFIX,
+    CONTROL_WORKTREE_OWNER_FILE,
+    discover_coga_repos,
+)
 
 
 def _workspace(path: Path) -> Path:
@@ -47,6 +51,31 @@ def test_underscore_and_tool_state_trees_are_skipped(tmp_path: Path) -> None:
     _workspace(tmp_path / ".venv" / "coga")
     live = _workspace(tmp_path / "live" / "coga")
     assert discover_coga_repos(tmp_path) == [live]
+
+
+def test_owned_temporary_control_worktrees_are_skipped_from_any_root(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / f"{CONTROL_WORKTREE_DIR_PREFIX}project-token"
+    hidden = _workspace(parent / "checkout" / "coga")
+    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}\n", encoding="utf-8")
+    live = _workspace(tmp_path / "live" / "coga")
+
+    assert discover_coga_repos(tmp_path) == [live]
+    assert discover_coga_repos(parent) == []
+    assert discover_coga_repos(hidden) == []
+
+
+def test_control_worktree_prefix_without_ownership_marker_is_visible(
+    tmp_path: Path,
+) -> None:
+    lookalike = _workspace(
+        tmp_path
+        / f"{CONTROL_WORKTREE_DIR_PREFIX}user-project"
+        / "checkout"
+        / "coga"
+    )
+    assert discover_coga_repos(tmp_path) == [lookalike]
 
 
 def test_strict_mode_raises_on_an_unreadable_directory(tmp_path: Path) -> None:

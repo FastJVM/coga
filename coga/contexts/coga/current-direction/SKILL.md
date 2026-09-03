@@ -40,9 +40,10 @@ Last updated: 2026-08-31.
 
 - **`coga recurring --all <path>` is the one-entry scheduler surface.** It
   discovers Coga repos below the explicit parent path, pruning dependency/tool
-  and `_`-prefixed trees, and runs each serviceable git remote/workspace
-  identity once, sequentially, through the first locally configured control
-  checkout. Checkouts rejected by intentional Coga config guards are summarized
+  and `_`-prefixed trees plus Coga-owned temporary control worktrees, and runs
+  each serviceable git remote/workspace identity once, sequentially, through
+  the first locally configured control checkout. Checkouts rejected by
+  intentional Coga config guards are summarized
   as unconfigured and skipped non-fatally. Duplicate checkouts are warned and
   skipped; distinct Coga workspaces inside one monorepo remain distinct
   scheduler targets. A checkout whose pre-scan fetch/rebase cannot confirm

@@ -9808,19 +9808,21 @@ def test_control_worktree_refuses_when_another_worktree_holds_control(
     assert list_tasks(cfg) == []
 
 
-def test_control_worktree_is_outside_any_plausible_all_scan_root(
+def test_control_worktree_is_excluded_from_every_parent_scan_root(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A concurrent `--all` must never discover the temp checkout as a repo."""
+    """Even a `/tmp` sweep must never rediscover the live temp checkout."""
     _seed_recipe_template_on_control(git_repo)
     git_repo.checkout_branch("agent/parked-work")
     seen: list[Path] = []
 
     def observe(coga_os: Path, **kwargs):  # type: ignore[no-untyped-def]
         seen.append(coga_os)
-        # While the checkout is live, a sweep of the host tree still finds only
-        # the operator's own workspace.
+        # The ordinary host scan and a deliberately broad temp-dir scan both
+        # exclude the implementation-owned checkout while it is live.
         assert discover_coga_repos(git_repo.root.parent) == [git_repo.coga_os]
+        assert coga_os not in discover_coga_repos(Path(tempfile.gettempdir()))
+        assert discover_coga_repos(coga_os.parents[1]) == []
         return 0
 
     monkeypatch.setattr(recurring_cmd, "_run_repo_recurring", observe)

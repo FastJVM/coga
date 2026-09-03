@@ -87,7 +87,11 @@ from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
 from coga.workflow import WorkflowError
-from coga.workspace_discovery import discover_coga_repos
+from coga.workspace_discovery import (
+    CONTROL_WORKTREE_DIR_PREFIX as _CONTROL_WORKTREE_PREFIX,
+    CONTROL_WORKTREE_OWNER_FILE as _CONTROL_WORKTREE_OWNER_FILE,
+    discover_coga_repos,
+)
 
 # Default idle-timeout backstop (seconds) the sweep arms on the interactive
 # REPLs it spawns: one that stalls or crashes before signalling done would
@@ -849,12 +853,9 @@ def _terminate_repo_recurring_process(
             pass
 
 
-# Temporary checkouts this feature creates. Named with a stable prefix so a
-# directory stranded by SIGKILL is recognizable, and placed under the system
-# temp dir so `discover_coga_repos` — which walks any directory below a scan
-# root — can never pick one up as another Coga repo mid-sweep.
-_CONTROL_WORKTREE_PREFIX = "coga-recurring-"
-_CONTROL_WORKTREE_OWNER_FILE = ".coga-recurring-owner.json"
+# The shared discovery layer owns the prefix/marker pair and prunes any parent
+# carrying both, even when an explicit scan root contains the system temp dir.
+# The remaining state is the private marker protocol used by stale recovery.
 _CONTROL_WORKTREE_INNER_STATES = {"not-started", "starting", "running"}
 
 
