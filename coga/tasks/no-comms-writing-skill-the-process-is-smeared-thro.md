@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -24,7 +24,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -236,7 +236,8 @@ agent reads anyway. Files being edited are read, not composed.
 
 branch: write-post-skill
 worktree: /home/n/Code/claude/coga-write-post-skill
-commit: 49c7ca37 (single squashed commit; worktree clean)
+implementation commit: 794993ab (rebased onto current `main`)
+peer-review commit / branch head: 487a9dc0 (worktree clean)
 
 ## What shipped
 
@@ -293,19 +294,49 @@ error text, with a regression assertion in
 
 ## Verification run
 
-- `python -m pytest` — 2202 passed, 1 failed. The failure
+- `PYTHONPATH=/home/n/Code/claude/coga-write-post-skill/src python -m pytest` —
+  2202 passed, 1 failed. The failure
   (`test_packaging.py::test_wheel_includes_bootstrap_batteries`) is environmental —
-  `No module named pip` in the venv — and reproduces identically on `main`.
-- `coga validate --json` — diffed against `main`: 168 ok / 28 issues on both, zero new
-  findings. The one finding on a touched task (`marketing/phase-0-audit`,
-  `large-blackboard`) predates this branch.
+  the ambient interpreter cannot import `hatchling.build` for the isolated wheel
+  command — and the exact test reproduces identically on `main`.
+- `coga validate --json` — diffed against `main`: 168 ok / 27 issues on both, zero
+  feature-only findings.
 - `coga skill status` — `clarity: locally-adapted (url)`, not `delegated (github)` or
   `unmanaged`, so the right install path was used.
 - `compose.resolve_skill_path` resolves both `marketing/write-post` and `clarity`.
 - Both kept clarity scripts run standalone against a real markdown file.
+- The skill-creator validator accepts the imported `clarity` tree. Its generic name
+  rule rejects `marketing/write-post` only because it disallows `/`; Coga's validator
+  and resolver deliberately support namespaced local skills and both accept it.
 - No packaged twin: `src/coga/resources/templates/coga/contexts/` holds only `browser`
   and `_template`, and packaged `bootstrap/skills/` has no `marketing/`. CLAUDE.md's
   sync rule does not bite, as the ticket said.
+
+## Peer review
+
+Rebased onto current `main` before reviewing. This avoided reverting nine intervening
+commits, including the corrected HN title guidance and the conversion of
+`marketing/phase-0-audit` from a file-form ticket to a directory-form ticket. The
+prepared-replies pointer was applied to the current directory-form ticket; the obsolete
+file was not resurrected.
+
+Must-fix findings applied in `487a9dc0`:
+
+- `write-post` now defers changing HN tactics to `marketing/plan` instead of copying the
+  stale rule that titles must never state the thesis.
+- Post 1's five-beat arc and non-Coga-source requirement are no longer imposed on posts
+  2 and 3; later posts use their own phase structure and evidence requirements.
+- Any unresolved `[TK]` blocks the draft-to-craft transition; merely escalating the
+  question no longer satisfies the exit condition.
+- All clarity reference and script paths are explicitly resolved from
+  `coga/skills/clarity/`, so the handoff works from any working directory.
+
+The rebase also exposed the unpruned clarity import already present on current `main`.
+The review commit reapplies the ticket-required prune: only source metadata, `LICENSE`,
+`SKILL.md`, five loaded references, and the two runtime prose-stat scripts remain. The
+retained imported prose is unchanged. Code review found the `install-url` argv fix and
+its regression assertion consistent with the verified non-interactive `gh skill`
+behavior.
 
 ## Notes for follow-up (not folded in)
 
