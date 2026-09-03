@@ -248,6 +248,9 @@ def test_install_url_downloads_local_installs_and_records_coga_metadata(
     assert metadata["local_adaptation_notes"] == ""
     assert commands[1][:4] == ["gh", "skill", "install", commands[1][3]]
     assert "--from-local" in commands[1]
+    # `gh skill install` only auto-picks interactively, so the skill name has
+    # to be on the command line or every non-interactive install fails.
+    assert commands[1][4] == "tools/example"
 
 
 def test_install_url_refuses_dirty_overwrite_without_force(

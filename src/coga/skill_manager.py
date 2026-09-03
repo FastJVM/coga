@@ -165,6 +165,9 @@ def install_url_skill(
         args = [
             "install",
             str(materialized.path),
+            # `gh skill install` only auto-picks a skill in interactive mode,
+            # and gh always runs here with captured output. Name it explicitly.
+            skill_ref,
             "--from-local",
             "--dir",
             str(skills_root(cfg)),
@@ -568,8 +571,9 @@ def _translate_gh_skill_error(args: Sequence[str], stderr: str) -> str | None:
         return None
     source = args[1]
     lines = [
-        f"`gh skill install {source}` could not pick a skill: the source "
-        "exposes more than one, and `gh` only auto-picks in interactive mode.",
+        f"`gh skill install {source}` could not pick a skill: `gh` only "
+        "auto-picks in interactive mode, and coga always runs it with "
+        "captured output.",
         f"Rerun with a skill name: `coga skill install {source} <skill>`.",
     ]
     if "--from-local" in args:

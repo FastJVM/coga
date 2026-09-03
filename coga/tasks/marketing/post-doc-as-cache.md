@@ -9,7 +9,8 @@ assignee: nicktoper
 contexts:
   - marketing/plan
   - marketing/positioning
-skills: []
+skills:
+  - marketing/write-post
 workflow: null
 secrets: null
 ---
@@ -25,6 +26,12 @@ vs without contexts; `--prompt-report`, schema-2 usage records) before
 writing.
 
 ## Context
+
+`marketing/write-post` is the order of work and the gates for this post; it is
+attached under `skills:`. It reads the two marketing contexts for what to say
+and hands the prose-craft pass to the imported `clarity` skill at
+`coga/skills/clarity/SKILL.md`. Follow its steps rather than re-deriving a
+process from the contexts.
 
 <!-- coga:blackboard -->
 

@@ -222,7 +222,10 @@ thank early testers. Nothing to schedule; a standard to hold.
 
 ## Prepared replies (comment-section discipline)
 
-Write these out before post 1 ships; never improvise them in-thread:
+The standing answers to the objections the series draws. They are content, not
+a checklist: `marketing/write-post` owns the gate that blocks a post from
+shipping until its replies are written, and each later post adds the replies
+its own idea raises.
 
 - **"Show me / where are the receipts?"** — the repo is public; the days
   the post describes are readable in git (log, tickets, PRs). No numbers
@@ -251,7 +254,8 @@ Write these out before post 1 ships; never improvise them in-thread:
 - Essay posts claim *ideas*, not results — so they carry no numbers and
   need no receipts. The moment a post states a figure as a result, it
   graduates into the proof-post regime (pre-registration, recomputability)
-  — don't drift there by accident.
+  — don't drift there by accident. That is the reasoning; the per-post check
+  that enforces it is step 6 of `marketing/write-post`.
 - Misses stay publishable: the "takes time to feel" caveat and honest
   limits (see positioning) go *in* the posts, not in a FAQ.
 
@@ -279,8 +283,17 @@ installs play.
 - `marketing/post-doc-as-cache` — write post 3 (needs the collected
   measurements).
 
+The three `post-*` tickets all run `marketing/write-post`, which sequences the
+beats above into an order of work with gates. This context supplies what the
+posts say; that skill supplies how one gets written and shipped.
+
 ## What this context does NOT cover
 
+- How a post actually gets written and shipped — the order of work, the
+  entry and exit conditions, and the gates (single idea, real detail per
+  beat, no `[TK]` left open, the craft pass, prepared replies, Bookface
+  before HN) — `marketing/write-post`, which hands the prose-craft pass to
+  the imported `clarity` skill.
 - Positioning, audience, voice, competitive framing, honest product
   limits — `marketing/positioning`.
 - The full strategic argument — `docs/market-thesis.md`; the why —
