@@ -2655,6 +2655,104 @@ def test_megalaunch_does_not_restore_active_over_a_peer_session_claim(
     assert _log_lines_for(cfg, active["slug"], "restored (") == []
 
 
+def test_megalaunch_dependency_drain_publishes_resolution_before_claim(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The strict start claim leases the resolved control-ticket bytes."""
+    from coga import git as git_module
+    from coga.blackboard import (
+        append_blocker,
+        open_blockers,
+        parse_blockers_text,
+    )
+
+    cfg = load_config(git_repo.coga_os)
+    blocked = create_task(
+        cfg=cfg,
+        title="Blocked behind finished dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency = create_task(
+        cfg=cfg,
+        title="Finished dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    append_blocker(
+        Path(blocked["path"]),
+        actor="claude",
+        reason=f"Waiting for {dependency['slug']} to land",
+    )
+    blocked_ticket = Ticket.read(blocked["path"])
+    blocked_ticket.frontmatter["status"] = "blocked"
+    blocked_ticket.write(blocked["path"])
+    dependency_ticket = Ticket.read(dependency["path"])
+    dependency_ticket.frontmatter["status"] = "done"
+    dependency_ticket.frontmatter.pop("step", None)
+    dependency_ticket.write(dependency["path"])
+    git_module.sync_task_state(
+        cfg,
+        Path(dependency["path"]),
+        message="Seed finished dependency",
+    )
+    git_module.sync_task_state(
+        cfg,
+        Path(blocked["path"]),
+        message="Seed blocked dependent",
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    ticket_rel = str(Path(blocked["path"]).relative_to(git_repo.root))
+    spawned: list[str] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(
+        _cfg, ref_obj, claimed, _agent, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        spawned.append(ref_obj.id_slug)
+        assert claimed.status == "in_progress"
+        assert open_blockers(ref_obj.ticket_path) == []
+        remote = Ticket.parse(
+            git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+        )
+        assert remote.status == "in_progress"
+        assert [
+            blocker
+            for blocker in parse_blockers_text(remote.body)
+            if not blocker.resolved
+        ] == []
+        assert "Coga megalaunch automatically resolved" in remote.body
+        finished = Ticket.read(ref_obj.ticket_path)
+        finished.frontmatter["status"] = "done"
+        finished.frontmatter.pop("step", None)
+        finished.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert spawned == [blocked["slug"]]
+    assert run.counts["drained"] == 1
+    assert run.counts["completed"] == 1
+
+
 def test_megalaunch_deferred_activation_cas_uses_exact_control_ticket(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

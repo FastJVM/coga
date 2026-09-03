@@ -58,7 +58,12 @@ from typing import Literal
 from uuid import uuid4
 
 from coga import git
-from coga.blackboard import Blocker, open_blockers, resolve_open_blockers
+from coga.blackboard import (
+    Blocker,
+    open_blockers,
+    parse_blockers_text,
+    resolve_open_blockers,
+)
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
     spawn_agent_session,
@@ -92,7 +97,7 @@ from coga.mark import (
 from coga.paths import log_path
 from coga.repl_supervisor import build_supervised_step_env
 from coga.workflow import WorkflowError
-from coga.taskfile import read_blackboard, replace_blackboard
+from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard
 from coga.service_order import service_order
 from coga.tasks import (
     TaskNotFoundError,
@@ -376,12 +381,12 @@ def _drain_satisfied_blockers(
     a finished task may legitimately be retired and removed before its
     dependent reaches this drain.
 
-    Each task is drained at most once per run. A drained task is activated
-    first and only has its asks resolved once that succeeded, so a ticket that
-    cannot be activated keeps its open ask; resolving before launch makes the
-    normal path compose no blocker-resolution preamble; the explicit per-run
-    set also prevents a newly-created blocker from relaunching the same task
-    forever.
+    Each task is drained at most once per run. Its prospective activation is
+    validated first, then activation and blocker resolution publish from one
+    exact ticket snapshot. A ticket that cannot activate keeps its open ask;
+    the combined write also makes the resolved bytes the next launch claim's
+    control revision. The explicit per-run set prevents a newly-created
+    blocker from relaunching the same task forever.
     """
     # `filter_tasks_under` accepts a human-friendly leading/trailing slash and
     # normalizes it for the main queue. Apply the same normalization to the
@@ -438,16 +443,102 @@ def _drain_satisfied_blockers(
             if max_tasks is not None and attempted >= max_tasks:
                 return results
 
-            drained_slugs.add(ref.id_slug)
+            # Re-acquire the ticket and its blockers as one exact revision.
+            # The earlier read established that this task is worth considering;
+            # this snapshot is the source lease for the actual activation plus
+            # resolution publication, so a peer edit cannot be overlaid.
+            audit_path = log_path(cfg)
+            activation_snapshot = git.FileMutationRollback.capture(
+                (ref.ticket_path, audit_path),
+                union_paths=(audit_path,),
+            )
+            captured = activation_snapshot.originals[ref.ticket_path]
+            if captured is None:
+                drained_slugs.add(ref.id_slug)
+                _replace_result(
+                    results,
+                    _as_drained(
+                        _result(
+                            ref,
+                            "failed",
+                            "ticket disappeared before dependency activation",
+                        ),
+                        dependency,
+                    ),
+                )
+                continue
+            try:
+                ticket = Ticket.parse(captured.decode("utf-8"))
+                blocker_text = read_blackboard(
+                    ref.ticket_path,
+                    expected_bytes=captured,
+                )
+            except (
+                OSError,
+                UnicodeDecodeError,
+                TicketError,
+                TaskFileError,
+            ) as exc:
+                drained_slugs.add(ref.id_slug)
+                _replace_result(
+                    results,
+                    _as_drained(
+                        _result(
+                            ref,
+                            "failed",
+                            f"unreadable ticket before dependency activation: {exc}",
+                        ),
+                        dependency,
+                    ),
+                )
+                continue
+            if ticket.owner != cfg.current_user or ticket.status != "blocked":
+                _replace_result(
+                    results,
+                    _result(
+                        ref,
+                        "failed",
+                        "ticket changed before dependency activation; retry",
+                        ticket.assignee,
+                    ),
+                )
+                continue
+            blockers = [
+                blocker
+                for blocker in parse_blockers_text(blocker_text)
+                if not blocker.resolved
+            ]
+            dependency = _finished_blocker_dependency(blockers, known)
+            if dependency is None:
+                detail = (
+                    "; ".join(blocker.reason for blocker in blockers)
+                    or "status is blocked"
+                )
+                _replace_result(
+                    results,
+                    _result(
+                        ref,
+                        "skipped-unresolved-blocker",
+                        detail,
+                        ticket.assignee,
+                    ),
+                )
+                continue
 
-            # Activate first, resolve second. Activation can refuse a ticket
-            # that is otherwise ready to drain (no workflow, a `workflow:` ref
-            # that will not freeze, an empty required extension field) and
-            # those refusals leave the ticket `blocked`. Resolving the asks
-            # first would strand it blocked with nothing open — a state
-            # `coga launch` and `coga unblock` both refuse and blocker
-            # reminders no longer report — so the owner would lose the ask
-            # instead of repairing it and retrying.
+            drained_slugs.add(ref.id_slug)
+            answer = (
+                "Coga megalaunch automatically resolved this blocker after "
+                f"dependency {dependency} finished."
+            )
+
+            # Validate the prospective activation before either local write.
+            # The durable helper then publishes activation and this answer as
+            # one exact transaction; a refused activation leaves the blocked
+            # ticket and its actionable ask untouched.
+            prepared = _prepare_for_launch(cfg, ref, ticket)
+            if isinstance(prepared, MegalaunchResult):
+                _replace_result(results, _as_drained(prepared, dependency))
+                continue
             failure = _activate_for_launch(
                 cfg,
                 ref,
@@ -456,25 +547,18 @@ def _drain_satisfied_blockers(
                     "activated (blocked → active) — coga megalaunch "
                     f"resolved finished dependency {dependency}"
                 ),
+                prepared=prepared,
+                mutation_snapshot=activation_snapshot,
+                blocker_resolution=("system", answer),
             )
             if failure is not None:
                 _replace_result(results, _as_drained(failure, dependency))
                 continue
 
-            answer = (
-                "Coga megalaunch automatically resolved this blocker after "
-                f"dependency {dependency} finished."
-            )
-            resolve_open_blockers(
-                ref.ticket_path,
-                actor="system",
-                answer=answer,
-            )
-
             try:
-                # The blackboard write above changed the ticket body. Re-read
-                # before launching so writing frontmatter cannot restore the
-                # stale, still-open blocker text.
+                # The combined write changed both frontmatter and blackboard.
+                # Re-read before launch so the strict start claim binds to the
+                # exact resolved control revision just published.
                 ticket = read_ticket(ref)
             except TicketNotFoundError:
                 _replace_result(
@@ -1385,6 +1469,7 @@ def _activate_for_launch(
     log_message: str | None = None,
     prepared: Ticket | None = None,
     mutation_snapshot: git.FileMutationRollback | None = None,
+    blocker_resolution: tuple[str, str] | None = None,
 ) -> MegalaunchResult | None:
     """Commit a picked or dependency-drained ticket to `active`.
 
@@ -1397,9 +1482,10 @@ def _activate_for_launch(
     ticket its preflight saw plus a mutation snapshot of the source revision.
     `mark_active` therefore sees an already-prepared `active` ticket (so it
     cannot freeze a changed workflow definition) and refuses immediately
-    before writing if a peer changed the ticket. Dependency drain callers have
-    no preceding `_prepare_for_launch` and keep the ordinary prepare-and-write
-    path.
+    before writing if a peer changed the ticket. A dependency drain also
+    supplies an actor/answer pair: after activation validates and writes, its
+    blocker update joins the same snapshot and exact control publication. Thus
+    the next launch claim leases resolved bytes rather than a local-only edit.
     """
     prior = ticket.status
     strict_source_bytes: bytes | None = None
@@ -1408,6 +1494,15 @@ def _activate_for_launch(
         and prepared is not None
         and mutation_snapshot is not None
     )
+    if blocker_resolution is not None and (
+        prepared is None or mutation_snapshot is None
+    ):
+        return _result(
+            ref,
+            "failed",
+            "dependency resolution requires an exact activation snapshot",
+            ticket.assignee,
+        )
     if strict_activation:
         strict_source_bytes = mutation_snapshot.originals.get(ref.ticket_path)
         if strict_source_bytes is None:
@@ -1431,9 +1526,35 @@ def _activate_for_launch(
                 or f"activated ({prior} → active) — explicit megalaunch pick"
             ),
             echo=None,
-            sync_state=not strict_activation,
+            sync_state=not strict_activation and blocker_resolution is None,
             mutation_snapshot=mutation_snapshot,
         )
+        if blocker_resolution is not None:
+            assert mutation_snapshot is not None
+            generated = mutation_snapshot.generated
+            if generated is None or generated.get(ref.ticket_path) is None:
+                raise git.FeaturePublicationError(
+                    "activation did not arm dependency-resolution ticket bytes"
+                )
+            actor, answer = blocker_resolution
+            try:
+                resolved = resolve_open_blockers(
+                    ref.ticket_path,
+                    actor=actor,
+                    answer=answer,
+                    expected_bytes=generated[ref.ticket_path],
+                    after_write=lambda written: mutation_snapshot.arm(
+                        {ref.ticket_path: written}
+                    ),
+                )
+            except (OSError, UnicodeError, TaskFileError) as exc:
+                raise git.FeaturePublicationError(
+                    f"could not resolve dependency blocker: {exc}"
+                ) from exc
+            if not resolved:
+                raise git.FeaturePublicationError(
+                    "dependency blocker changed before its guarded resolution"
+                )
         if strict_activation:
             assert mutation_snapshot is not None
             assert strict_source_bytes is not None

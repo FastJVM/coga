@@ -245,6 +245,17 @@ push retains generated evidence for explicit reconciliation. A session never
 spawns until the unique `launch_generation` claim is durably published. This
 prevents two checkouts preflighted from one control revision from both starting.
 
+The dependency drain enters that boundary with one extra state change. It
+re-captures the exact `blocked` ticket and open asks, validates the prospective
+activation before writing, then arms the activation, audit line, and automatic
+blocker resolution in one rollback snapshot. Git-enabled runs publish that
+whole result through one exact control-ticket compare-and-set, so the following
+launch claim consumes the resolved `active` bytes rather than a local-only
+answer. An activation refusal leaves the ask open; an ordinary lease or
+publication failure restores the blocked bytes and removes only the generated
+audit line, while an ambiguous accepted push retains evidence for explicit
+reconciliation.
+
 If the exact post-publication local reread refuses a start, compensation may
 move the ticket back to `active` only while its lifecycle and launch generation
 still identify that unlaunched attempt. That backward write uses another exact
