@@ -75,6 +75,8 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/workflows/digest/post.md",
     # …and the code/* and digest-flush skills those workflows reference.
     "coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/code/review-design/"
+    "SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/address-pr-comments/"
     "SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/implement/"
@@ -121,6 +123,16 @@ IDENTICAL_LIVE_PACKAGED_PAIRS = (
         "coga/skills/browser/dochub/SKILL.md",
         "src/coga/resources/templates/coga/bootstrap/skills/browser/dochub/"
         "SKILL.md",
+    ),
+    (
+        "coga/skills/code/design/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/skills/code/design/"
+        "SKILL.md",
+    ),
+    (
+        "coga/skills/code/review-design/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/skills/code/"
+        "review-design/SKILL.md",
     ),
     (
         "coga/contexts/coga/sync/SKILL.md",
