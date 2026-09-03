@@ -274,11 +274,13 @@ So when an `--all` child's catch-up fails *only* because the control branch is
 not checked out here, the child does not give up. Nothing holds that branch, so
 it checks it out in a temporary linked worktree under the system temp dir,
 seeds the gitignored `coga.local.toml` into it (without it there is no `user`
-and `load_config` raises), re-dispatches its own scan there, and removes the
+and `load_config` raises), and re-dispatches from that mirrored workspace's
+host directory (including a deeply nested monorepo workspace). It removes the
 worktree in a `finally` — on success, on a recipe's non-zero exit, on an
-exception, and on SIGINT/SIGTERM. On cancellation the wrapper first forwards
-termination to the inner scan and waits for it to exit, so recipe side effects
-cannot continue against a checkout that has already been removed. Each temp
+exception, and on SIGINT/SIGTERM. The inner scan starts in its own process
+session; on cancellation the wrapper signals the entire process group and
+waits for its leader to exit, so a `ticket.py` descendant cannot continue
+against a checkout that has already been removed. Each temp
 parent carries a repo/branch/PID ownership marker. If SIGKILL bypasses cleanup
 and leaves both the directory and its valid Git registration behind, the next
 run removes it only after that exact marker proves it is a Coga-owned checkout

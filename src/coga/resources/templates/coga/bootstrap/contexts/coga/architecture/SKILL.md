@@ -136,15 +136,17 @@ no in-memory state.
   branch successfully before scanning. A child whose checkout is not on the
   control branch at all no longer fails the repo: the branch is free by
   definition, so the child checks it out in a temporary linked worktree under
-  the system temp dir (outside any plausible scan root), re-dispatches its own
-  scan there, and removes the worktree afterwards. The operator's branch,
+  the system temp dir (outside any plausible scan root), re-dispatches from the
+  mirrored workspace's own host directory, and removes the worktree afterwards.
+  The operator's branch,
   working tree, and stash are untouched, and every ordinary sync, ledger, and
   push path applies unmodified because the run really is on the control branch.
   Only recipe templates run that way — agent templates are named and skipped
   with that reason, not the misleading "requires a TTY"; existing periods are
   classified from their frozen materialized `ticket.py`, not the mutable
-  template. On cancellation the wrapper terminates and reaps the inner scan
-  before removing its checkout. A SIGKILL survivor carries a repo/branch/PID
+  template. The inner scan owns a separate process session; on cancellation
+  the wrapper signals the whole process group and reaps its leader before
+  removing the checkout. A SIGKILL survivor carries a repo/branch/PID
   marker, so a later run can remove that exact dead Coga worktree without
   touching a live sweep or user-owned checkout. `git worktree add`
   doubles as the concurrency lock, since git refuses to check one branch out

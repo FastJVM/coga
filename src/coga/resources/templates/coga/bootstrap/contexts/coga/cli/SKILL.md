@@ -874,10 +874,12 @@ fetch/rebase must succeed before period state is read or written.
 A repo whose checkout is parked *off* the control branch — a feature branch, a
 detached HEAD — is serviced rather than failed. Nothing holds the control
 branch, so the child checks it out in a temporary linked worktree under the
-system temp dir, runs its scan from there, and removes it when the run ends
+system temp dir, runs its scan from the mirrored workspace's host directory
+(even for a deeply nested monorepo workspace), and removes it when the run ends
 (on success, on a recipe's non-zero exit, on an exception, and on
-SIGINT/SIGTERM). Cancellation first terminates and reaps the inner scan, so it
-cannot continue mutating a removed checkout. A SIGKILL survivor carries a
+SIGINT/SIGTERM). The inner scan has its own process session; cancellation
+signals the whole group and reaps its leader, so a recipe descendant cannot
+continue mutating a removed checkout. A SIGKILL survivor carries a
 repo/branch/PID marker; a later run removes that exact worktree only when its
 owner is dead, leaving live sweeps and user worktrees alone. The operator's
 branch, working tree, and stash are untouched

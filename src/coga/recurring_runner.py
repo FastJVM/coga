@@ -709,8 +709,9 @@ def _run_repo_recurring(
 
     `cwd` overrides the host directory the child runs from. The parent sweep
     leaves it unset and gets `coga_os.parent`, exactly as before;
-    `_service_from_control_worktree` names the temporary checkout's own root so
-    config discovery lands on the mirrored workspace whatever the repo's layout.
+    `_service_from_control_worktree` names the mirrored workspace's host inside
+    the temporary checkout so config discovery also works for deeply nested
+    monorepo workspaces.
     """
     command = [
         sys.executable,
@@ -742,7 +743,8 @@ def _run_repo_recurring(
             # remove that checkout until the inner scan can no longer mutate
             # it. In particular, a SIGTERM is converted to KeyboardInterrupt
             # by `_service_from_control_worktree` in this outer process only;
-            # explicitly forward termination and reap the inner child here.
+            # explicitly signal its isolated process group and reap the inner
+            # child here.
             _terminate_repo_recurring_process(process)
             raise
 
@@ -761,8 +763,28 @@ _CONTROL_WORKTREE_STOP_TIMEOUT = 10.0
 def _start_repo_recurring_process(
     command: list[str], cwd: Path, env: dict[str, str]
 ) -> subprocess.Popen[bytes]:
-    """Start the inner temp-worktree scan behind a narrow test seam."""
-    return subprocess.Popen(command, cwd=cwd, env=env)
+    """Start the inner scan in a session whose whole process tree we own."""
+    return subprocess.Popen(command, cwd=cwd, env=env, start_new_session=True)
+
+
+def _signal_repo_recurring_process_group(
+    process: subprocess.Popen[bytes], signum: int
+) -> None:
+    """Signal the isolated inner scan and every recipe descendant."""
+    os.killpg(process.pid, signum)
+
+
+def _repo_recurring_process_group_exists(
+    process: subprocess.Popen[bytes],
+) -> bool:
+    """Whether any descendant still occupies the isolated process group."""
+    try:
+        os.killpg(process.pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
 
 
 def _terminate_repo_recurring_process(
@@ -772,14 +794,24 @@ def _terminate_repo_recurring_process(
     if process.poll() is not None:
         return
     try:
-        process.terminate()
+        _signal_repo_recurring_process_group(process, signal.SIGTERM)
     except ProcessLookupError:
+        process.wait()
         return
     try:
         process.wait(timeout=_CONTROL_WORKTREE_STOP_TIMEOUT)
     except subprocess.TimeoutExpired:
-        process.kill()
+        _signal_repo_recurring_process_group(process, signal.SIGKILL)
         process.wait()
+        return
+    # The leader can obey SIGTERM before a recipe descendant does. Once it is
+    # reaped, kill any process still occupying the isolated group so no user
+    # code can outlive the checkout this wrapper is about to remove.
+    if _repo_recurring_process_group_exists(process):
+        try:
+            _signal_repo_recurring_process_group(process, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
 
 # Temporary checkouts this feature creates. Named with a stable prefix so a
@@ -1015,7 +1047,7 @@ def _service_from_control_worktree(
                 agent_override=agent_override,
                 control_worktree=True,
                 control_worktree_host=str(root),
-                cwd=checkout,
+                cwd=(checkout / workspace_rel).parent,
             ),
             None,
         )

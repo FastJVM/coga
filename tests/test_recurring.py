@@ -9276,6 +9276,33 @@ def test_recurring_all_scan_services_off_control_checkout_from_worktree(
     assert "temporary 'main' worktree" in capsys.readouterr().out
 
 
+def test_control_worktree_services_a_deeply_nested_monorepo_workspace(
+    git_repo,
+) -> None:
+    """The inner child's cwd is the mirrored workspace host, not repo root."""
+    _seed_recipe_template_on_control(git_repo)
+    original = git_repo.coga_os
+    nested = git_repo.root / "tools" / "ops" / "coga"
+    nested.parent.mkdir(parents=True)
+    shutil.move(str(original), str(nested))
+    git_repo.coga_os = nested
+    (git_repo.root / ".gitignore").write_text("**/coga.local.toml\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "nest coga workspace")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("agent/parked-work")
+    before = _checkout_state(git_repo)
+
+    cfg = load_config(nested)
+    assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 0
+
+    assert _checkout_state(git_repo) == before
+    ledger = git_repo.git(
+        "show", "main:tools/ops/coga/log.md", cwd=git_repo.origin
+    )
+    assert "created recurring/z-script-check" in ledger
+
+
 def test_control_worktree_run_does_not_refire_the_serviced_period(git_repo) -> None:
     """The ledger written from the temp worktree is read by the next sweep."""
     _seed_recipe_template_on_control(git_repo)
@@ -9375,14 +9402,12 @@ def test_control_worktree_reaps_cancelled_child_before_removal(
     git_repo.checkout_branch("agent/parked-work")
 
     class InterruptedProcess:
+        pid = 4242
         terminated = False
         reaped = False
 
         def poll(self):  # type: ignore[no-untyped-def]
             return -15 if self.reaped else None
-
-        def terminate(self) -> None:
-            self.terminated = True
 
         def wait(self, timeout=None):  # type: ignore[no-untyped-def]
             if not self.terminated:
@@ -9391,14 +9416,28 @@ def test_control_worktree_reaps_cancelled_child_before_removal(
             self.reaped = True
             return -15
 
-        def kill(self) -> None:
-            pytest.fail("a cooperative child should not need SIGKILL")
-
     process = InterruptedProcess()
+    signals: list[tuple[int, int]] = []
+
+    def signal_group(child, signum):  # type: ignore[no-untyped-def]
+        assert child is process
+        signals.append((child.pid, signum))
+        process.terminated = True
+
     monkeypatch.setattr(
         recurring_cmd,
         "_start_repo_recurring_process",
         lambda *args, **kwargs: process,
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_signal_repo_recurring_process_group",
+        signal_group,
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_repo_recurring_process_group_exists",
+        lambda child: child is process and child.reaped,
     )
     real_run_git = coga_git._run_git
 
@@ -9415,6 +9454,10 @@ def test_control_worktree_reaps_cancelled_child_before_removal(
 
     assert process.terminated
     assert process.reaped
+    assert signals == [
+        (process.pid, recurring_cmd.signal.SIGTERM),
+        (process.pid, recurring_cmd.signal.SIGKILL),
+    ]
     assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
 
 
@@ -9679,6 +9722,29 @@ def test_repo_recurring_dispatch_threads_the_control_worktree_flags(
         "/home/op/project",
     ]
     assert captured["cwd"] == tmp_path / "elsewhere"
+
+
+def test_control_worktree_child_starts_in_an_isolated_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cancellation can address the inner scan and all recipe descendants."""
+    captured: dict[str, object] = {}
+    expected = object()
+
+    def fake_popen(command, **kwargs):  # type: ignore[no-untyped-def]
+        captured["command"] = command
+        captured.update(kwargs)
+        return expected
+
+    monkeypatch.setattr(recurring_cmd.subprocess, "Popen", fake_popen)
+
+    actual = recurring_cmd._start_repo_recurring_process(
+        ["coga", "run", "recurring-scan"], tmp_path, {"PATH": "/bin"}
+    )
+
+    assert actual is expected
+    assert captured["cwd"] == tmp_path
+    assert captured["start_new_session"] is True
 
 
 def test_recurring_all_summary_names_repos_serviced_from_a_control_worktree(
