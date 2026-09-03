@@ -35,10 +35,12 @@ those stay in `marketing/plan`.
 
 Found by Dream 2026-08-24, Phase 2 knowledge scan (shard-07), classified `gap`.
 
-Sequence after the marketing proposal PR from this run's Phase 6, which fixes five stale claims in
-those same two contexts — including a claim-discipline rule pointing at a "5x" figure that has
-never existed in `docs/vision.md`. **Check that PR's state before starting**; if it is still open,
-rebase onto it rather than re-fixing the same lines.
+The prerequisite is already satisfied — no need to hunt for it. The marketing proposal PR is
+**#717, "Dream proposal: correct six stale claims in the marketing contexts and README", merged
+2026-08-25** (commit `0737cfad`, still the head commit on `coga/contexts/marketing/`). Its fixes
+are in `main`, including the claim-discipline rule that used to point at a "5x" figure never
+present in `docs/vision.md`; the surviving rule now correctly cites the two-person/output-of-ten
+bet. Build on current `main` and do not re-fix those lines.
 
 ### The import decision is already made — do not re-trawl the registries
 
@@ -122,9 +124,9 @@ context.
   the sources of truth the contexts defer to.
 - Do not write post 1 itself. `marketing/post-async-megalaunch` is that ticket; this one only
   builds the skill it will run.
-- Check whether `coga/contexts/marketing/*` has a packaged twin under
-  `src/coga/resources/templates/coga/` before editing (per CLAUDE.md's sync rule). These are
-  repo-specific marketing contexts and likely have none, but verify rather than assume.
+- CLAUDE.md's sync rule does not bite here: verified 2026-09-03 that
+  `src/coga/resources/templates/coga/contexts/` holds only `browser` and `_template`, so the
+  marketing contexts have no packaged twin. Edit the live `coga/` copies only.
 
 <!-- coga:blackboard -->
 
