@@ -223,18 +223,21 @@ workflow.
 3. This repo's context (`coga/context.md`).
 4. The ticket's attached `contexts:`.
 5. The ticket-level skills, then the current step's skill.
-6. The ticket itself, last and contiguous, in the order it sits on disk: the
+6. The ticket itself, last and contiguous within the composed prompt, in the
+   order it sits on disk: the
    body's `## Description`, then its inline `## Context`, then the blackboard.
 
-That's the whole input — there's no follow-up loading. Two consequences worth
-internalizing:
+For a launch with no trailing positional arguments, that's the whole input.
+When arguments are supplied, launch appends one explicit `## Launch arguments`
+JSON block after the composed ticket; there is still no follow-up loading. Two
+consequences worth internalizing:
 
 - **The prompt is a pure function of the files on disk now.** Nothing is carried
   over from a previous session. That's precisely why an edit between runs takes
   effect completely and inspectably: fix the file, relaunch, done.
-- **The log is deliberately never a layer.** Only the blackboard — the last
-  thing in the prompt — carries state forward, which is why it must stay small
-  and the log can grow forever.
+- **The log is deliberately never a layer.** Only the blackboard — the final
+  part of the durable ticket layer — carries state forward, which is why it
+  must stay small and the log can grow forever.
 
 If a prompt gets bloated, `coga launch <task> --prompt-report` shows which layer
 to trim.
