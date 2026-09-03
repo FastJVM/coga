@@ -1,0 +1,13 @@
+{
+  "installed_at": "2026-09-03T22:07:47Z",
+  "installed_ref": "clarity",
+  "installed_tree_digest": "87d963d6d225f09f3447170e05e6c76029d45ed86528657ed7d3059f77718725",
+  "local_adaptation_notes": "",
+  "schema": "coga.skill-source.v1",
+  "selector": null,
+  "source_digest": "2410f4530a161b44b9077e500bdc20f774ade2c28c69c3d18642df8381b1dd41",
+  "source_tree_digest": "40cf7f57747bd8966d32105064ead0e4000aaabae3849326a3fefe9e77e1ca40",
+  "source_type": "url",
+  "source_url": "https://github.com/addyosmani/clarity/archive/refs/heads/main.tar.gz",
+  "updated_at": "2026-09-03T22:07:47Z"
+}
