@@ -306,14 +306,21 @@ Three properties make this shape the right one:
   holding the control branch — loses the race there and falls back to the loud
   refusal, which names the holder and the manual remedy.
 
-Only recipe-backed templates run in this mode, whether or not a TTY exists: a
-throwaway worktree is the wrong place to spawn an agent REPL that composes
-prompts, edits files, and opens PRs. Existing periods are classified from the
-frozen `ticket.py` in their materialized task, not from a template that may
-have changed since creation, including every status surfaced by `--force`.
-Each skipped agent template is reported by name with that reason rather than
-the (here false) "an agent run requires a TTY". The `--all` summary lists these
-repos separately from ordinary sweeps.
+Only deterministic `ticket.py` phases run in this mode, whether or not a TTY
+exists: a throwaway worktree is the wrong place to spawn an agent REPL that
+composes prompts, edits files, and opens PRs. Existing periods are admitted
+from the frozen `ticket.py` in their materialized task, not from a template
+that may have changed since creation, including every status surfaced by
+`--force`. File presence admits the script; it does **not** assert that the
+script completes the period, because ordinary tickets may combine deterministic
+and agent phases. The inner runner therefore carries a hard no-agent reason
+through shared launch. If a script leaves its current or next agent-owned step
+open, launch returns before agent-only setup, keeps the deterministic output,
+and the runner pauses that exact period for a later launch from a durable
+checkout. Each skipped agent template or refused hybrid handoff is reported by
+name with the temporary-worktree reason rather than the (here false) "an agent
+run requires a TTY". The `--all` summary lists these repos separately from
+ordinary sweeps.
 
 The *diverged* control checkout — on the control branch, but unable to rebase
 onto the fetched tip — is deliberately out of scope and still fails loud.

@@ -141,10 +141,14 @@ no in-memory state.
   The operator's branch,
   working tree, and stash are untouched, and every ordinary sync, ledger, and
   push path applies unmodified because the run really is on the control branch.
-  Only recipe templates run that way — agent templates are named and skipped
-  with that reason, not the misleading "requires a TTY"; existing periods are
-  classified from their frozen materialized `ticket.py`, not the mutable
-  template. The inner scan owns a separate process session; on cancellation
+  Only deterministic `ticket.py` phases run that way — agent templates are
+  named and skipped with that reason, not the misleading "requires a TTY";
+  existing periods are admitted from their frozen materialized `ticket.py`,
+  not the mutable template. Because that script may be one half of a hybrid
+  period, its presence is not permission to spawn an agent: the inner run
+  carries a hard refusal through shared launch, keeps completed script output,
+  and pauses the exact period if agent work remains. The inner scan owns a
+  separate process session; on cancellation
   the wrapper signals the whole process group and reaps its leader before
   removing the checkout. A SIGKILL survivor carries a repo/branch/PID
   marker, so a later run can remove that exact dead Coga worktree without

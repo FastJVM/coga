@@ -232,6 +232,7 @@ def launch_recurring_period(
     return_timeout: bool,
     script_failure_important: bool,
     launch_context: LaunchContext,
+    agent_spawn_refusal: str | None = None,
 ) -> RecurringPeriodLaunchResult:
     """Launch one period after the recurring runner admitted the sweep.
 
@@ -250,6 +251,11 @@ def launch_recurring_period(
     generation recaptured immediately before the last agent spawn. The sweep
     can therefore compare-and-set any unfinished-child pause without touching
     a replacement that arrived while either kind of child was running.
+    ``agent_spawn_refusal`` is the runner's hard execution boundary for a
+    headless or temporary-worktree sweep. A frozen ``ticket.py`` may be a
+    hybrid deterministic/agent phase; when it leaves agent work open, shared
+    launch returns before every agent setup or spawn and lets the runner park
+    that exact period.
     """
     if not _refresh_recurring_period_before_launch(
         task,
@@ -321,6 +327,7 @@ def launch_recurring_period(
         require_agent_target=False,
         record_launch=True,
         recurring_authorized=True,
+        agent_spawn_refusal=agent_spawn_refusal,
     )
     return RecurringPeriodLaunchResult(
         kind,
@@ -507,8 +514,14 @@ def _launch(
     require_agent_target: bool,
     record_launch: bool,
     recurring_authorized: bool,
+    agent_spawn_refusal: str | None = None,
 ) -> str | None:
-    """Implementation shared by the Typer command and in-process launch seam."""
+    """Implementation shared by the Typer command and in-process launch seam.
+
+    ``agent_spawn_refusal`` is an internal capability boundary, never a CLI
+    option. When supplied, deterministic ``ticket.py`` work may run, but every
+    path that would hand off to an agent returns before agent-only setup.
+    """
     # In-process callers (recurring, retire) invoke this Typer command function
     # directly without passing every parameter, so an omitted `args` arrives as
     # Typer's ArgumentInfo sentinel rather than None. Normalize once up front.
@@ -634,6 +647,14 @@ def _launch(
     if isinstance(ref, TaskRef):
         frozen_ticket = read_ticket(ref)
         if "delegate" in frozen_ticket.frontmatter:
+            if agent_spawn_refusal is not None:
+                typer.secho(
+                    f"Cannot continue {ref.id_slug}: its delegated phase needs "
+                    f"an agent, but {agent_spawn_refusal} No agent was started.",
+                    fg=typer.colors.YELLOW,
+                    err=True,
+                )
+                return "agent-refused" if return_timeout else None
             if launch_args:
                 _bail(
                     f"Cannot pass trailing arguments to delegated period "
@@ -1212,6 +1233,19 @@ def _launch(
                     f"Cannot continue {ref.id_slug}: ticket.py left no "
                     "ticket state for an agent handoff."
                 )
+            if agent_spawn_refusal is not None:
+                if blocked_resume:
+                    reblock_after_script_safely()
+                typer.secho(
+                    f"Cannot continue {ref.id_slug}: ticket.py left "
+                    f"{_script_step_label(ticket)} open, but "
+                    f"{agent_spawn_refusal} The deterministic work was kept; "
+                    "no agent was started.",
+                    fg=typer.colors.YELLOW,
+                    err=True,
+                )
+                refresh_after_script()
+                return "script" if return_timeout else None
             handoff_override = (
                 agent_override
                 if not human_assist or ticket.assignee not in cfg.agents
@@ -1284,9 +1318,24 @@ def _launch(
                 remote_oid=aligned_assist_remote_oid,
             )
 
-    # Everything below is agent-only. Deterministic completion, failure, and
-    # handoff paths have already returned without consulting agent config,
-    # materializing skills, composing a prompt, or probing the CLI binary.
+    # Everything below is agent-only. A headless or temporary-worktree runner
+    # supplies a hard refusal even for a period whose frozen ticket.py vanished
+    # after scan admission; no reconciliation race may turn that period into an
+    # agent launch in the disposable checkout.
+    if agent_spawn_refusal is not None:
+        if blocked_resume:
+            reblock_after_script_safely()
+        typer.secho(
+            f"Cannot continue {ref.id_slug}: its open work needs an agent, "
+            f"but {agent_spawn_refusal} No agent was started.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return "agent-refused" if return_timeout else None
+
+    # Deterministic completion, failure, and handoff paths have already
+    # returned without consulting agent config, materializing skills,
+    # composing a prompt, or probing the CLI binary.
     def agent_only_setup_call(action: Callable[[], _T]) -> _T:
         """Keep a resumed blocker owned through every agent-only preflight."""
         try:

@@ -885,10 +885,14 @@ owner is dead, leaving live sweeps and user worktrees alone. The operator's
 branch, working tree, and stash are untouched
 — there is deliberately no stash/switch/restore — and the run publishes period
 tasks and the `coga/log.md` serviced-period ledger to the control branch
-exactly as an ordinary sweep does. Only recipe-backed templates run in that
-mode; each agent template is named and skipped with that reason. Existing
-periods are classified from the `ticket.py` frozen in the materialized task,
-including statuses surfaced by `--force`, rather than from a mutable template.
+exactly as an ordinary sweep does. Only deterministic `ticket.py` phases run
+in that mode; each agent-only template is named and skipped with that reason.
+Existing periods are admitted from the `ticket.py` frozen in the materialized
+task, including statuses surfaced by `--force`, rather than from a mutable
+template. A script may still be one half of a hybrid period, so the inner run
+carries a hard no-agent boundary through shared launch: completed script output
+is kept, but a remaining agent handoff is refused before setup and that exact
+period is paused for a durable checkout.
 `git worktree add` is the concurrency lock: a second sweep, or any other worktree already
 holding the control branch, keeps the loud refusal, which names the holder and
 the manual `git -C <root> checkout <control>` remedy. A *diverged* control

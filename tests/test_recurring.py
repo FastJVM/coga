@@ -9628,6 +9628,79 @@ def test_control_worktree_run_names_agent_templates_and_the_real_reason(
     assert list_tasks(cfg) == []
 
 
+def test_control_worktree_parks_hybrid_before_its_agent_handoff(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A frozen ticket.py is not proof that the whole period is script-only."""
+    coga_os = git_repo.coga_os
+    (coga_os / "coga.local.toml").write_text(
+        'user = "marc"\n[notification.slack]\nenabled = false\n'
+    )
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "hybrid-check",
+        """
+        ---
+        schedule: "* * * * *"
+        title: "Hybrid check"
+        owner: marc
+        assignee: claude
+        ---
+
+        ## Description
+
+        Run a deterministic phase, then let an agent continue.
+        """,
+    )
+    _write_recurring_script(
+        coga_os,
+        "hybrid-check",
+        "import os\n"
+        "from pathlib import Path\n\n"
+        'Path(os.environ["COGA_TASK_DIR"], "deterministic.txt").write_text(\n'
+        '    "script ran\\n"\n'
+        ")\n",
+    )
+    _seed_global_log(git_repo)
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed hybrid recurring template")
+    git_repo.git("push", "origin", "main")
+    monkeypatch.setattr(
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._refresh_agent_skills_for_launch",
+        lambda *_args, **_kwargs: pytest.fail(
+            "a control-worktree hybrid must not reach agent-only setup"
+        ),
+    )
+
+    cfg = load_config(coga_os)
+    assert recurring_cmd.run_recurring_scan(
+        cfg,
+        require_fresh_control=True,
+        control_worktree=True,
+        control_worktree_host="/home/op/project",
+    ) == 0
+
+    ref = next(
+        ref for ref in list_tasks(cfg) if ref.id_slug == "recurring/hybrid-check"
+    )
+    assert Ticket.read(ref.ticket_path).status == "paused"
+    assert ref.task_dir is not None
+    assert (ref.task_dir / "deterministic.txt").read_text() == "script ran\n"
+    reported = capsys.readouterr()
+    combined = reported.out + reported.err
+    assert "ticket.py left" in combined
+    assert "temporary control worktree" in combined
+    assert "/home/op/project" in combined
+    assert "no agent was started" in combined
+
+
 def test_off_control_catchup_names_the_checkout_remedy(git_repo) -> None:
     """Independently shippable: the diagnosis now carries its own fix."""
     git_repo.checkout_branch("agent/parked-work")
@@ -9760,9 +9833,9 @@ def test_recurring_all_summary_names_repos_serviced_from_a_control_worktree(
 
     assert result.exit_code == 0, result.output
     assert "serviced from a temporary control worktree" in result.output
-    assert "recipe templates only" in result.output
+    assert "deterministic phases only, agent handoffs parked" in result.output
     # The on-control repo is an ordinary sweep and must not be listed.
-    listed = result.output.split("recipe templates only")[-1]
+    listed = result.output.split("agent handoffs parked")[-1]
     assert "parked/repo" in listed
     assert "ordinary/repo" not in listed
 

@@ -439,7 +439,10 @@ def scan_due(
     every template dropped by `allow_interactive=False`. A caller that excludes
     agent templates for its own reason — a sweep running from a temporary
     control worktree, where a TTY may well exist — passes the true one so the
-    reported skip is not a lie.
+    reported skip is not a lie. A frozen `ticket.py` admits only that
+    deterministic phase: it may be hybrid and leave agent work open, so the
+    caller must carry the same refusal through launch rather than treating file
+    presence as proof that the whole period is script-only.
     """
     now = now or datetime.now()
     root = recurring_dir(cfg)
@@ -625,9 +628,11 @@ def create_template(
     # is deliberate — finish the in-flight run before piling another on.
     #
     # A live period is returned rather than duplicated. A headless caller must
-    # classify execution from the materialized task's frozen `ticket.py`, not
-    # from a template that may have changed since creation, and skip every
-    # existing agent-backed shape before the launch loop can reach it.
+    # admit the deterministic phase from the materialized task's frozen
+    # `ticket.py`, not from a template that may have changed since creation,
+    # and skip every period with no such phase before the launch loop. Presence
+    # does not prove the script will complete a hybrid period; the runner also
+    # carries its hard no-agent boundary through shared launch.
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
         if not allow_agent and resolve_script_entry_point(live) is None:

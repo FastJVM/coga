@@ -36,6 +36,7 @@ from coga.logfile import append_log, ref_tag_for_path, task_log_lines
 from coga.paths import log_path
 from coga.taskfile import TaskFileError, read_blackboard, split_body
 from coga.recurring import (
+    _AGENT_NEEDS_TTY,
     DueTask,
     DueScan,
     PeriodLease as _PeriodLease,
@@ -342,9 +343,9 @@ def run_recurring_all_repos(
     later repos and returns non-zero after reporting the aggregate.
 
     A repo whose checkout is parked off the control branch is no longer one of
-    those failures: its child services the repo's recipe templates from a
-    temporary control worktree instead. Those repos are reported separately
-    from ordinary sweeps, because only their recipe templates ran.
+    those failures: its child services deterministic phases from a temporary
+    control worktree instead. Those repos are reported separately from ordinary
+    sweeps because no agent phase may run there.
     """
     root = scan_root.expanduser().resolve()
     if not root.is_dir():
@@ -486,13 +487,14 @@ def run_recurring_all_repos(
     if serviced_from_worktree:
         count = len(serviced_from_worktree)
         repo_word = "repo" if count == 1 else "repos"
-        # Named, not just counted: only recipe templates run in this mode, so
-        # an operator reading the summary needs to know which repos to put back
-        # on the control branch to get their agent templates running again.
+        # Named, not just counted: only deterministic phases run in this mode,
+        # so an operator needs to know which repos to put back on the control
+        # branch to run skipped templates or parked hybrid agent handoffs.
         listed = "\n".join(f"  {entry}" for entry in serviced_from_worktree)
         typer.secho(
             f"Serviced {count} {repo_word} from a temporary control worktree "
-            f"(checkout is on another branch; recipe templates only):\n{listed}",
+            "(checkout is on another branch; deterministic phases only, "
+            f"agent handoffs parked):\n{listed}",
             fg=typer.colors.YELLOW,
         )
     if failed:
@@ -905,12 +907,12 @@ def _reap_stale_control_worktree(root: Path, control: str) -> None:
 
 
 def _control_worktree_agent_refusal(cfg: Config, host: str) -> str:
-    """Why agent templates are skipped in a temporary-control-worktree run."""
+    """Why every agent phase is refused in a control-worktree run."""
     where = host or "the host checkout"
     return (
         "serviced from a temporary control worktree because "
         f"{where} does not have {cfg.git_control_branch!r} checked out; "
-        "agent templates need that checkout on the control branch."
+        "agent phases need a durable checkout on the control branch."
     )
 
 
@@ -921,8 +923,10 @@ def _service_from_control_worktree(
     interactive: bool,
     agent_override: str | None,
 ) -> tuple[int, None] | tuple[None, str]:
-    """Run this repo's recipe templates from a temp worktree on the control
-    branch. Returns `(exit_code, None)`, or `(None, why_unavailable)`.
+    """Run this repo's deterministic phases from a temp control worktree.
+
+    Hybrid scripts may run, but their agent handoff is refused and parked.
+    Returns `(exit_code, None)`, or `(None, why_unavailable)`.
 
     The caller reaches this only when the control branch is *not* checked out
     anywhere in this repo, which is what makes the shape safe: the temporary
@@ -1035,7 +1039,7 @@ def _service_from_control_worktree(
             else f"branch {host_branch!r}"
         )
         typer.secho(
-            f"{root} is on {where}; servicing recipe templates from a "
+            f"{root} is on {where}; servicing deterministic phases from a "
             f"temporary {control!r} worktree at {checkout}.",
             fg=typer.colors.CYAN,
         )
@@ -1129,10 +1133,14 @@ def run_recurring_scan(
     `_service_from_control_worktree` checks it out in a temporary linked
     worktree and re-dispatches this scan there, leaving the operator's tree and
     branch untouched. `control_worktree` marks that inner run. It stops the
-    recursion and restricts the scan to recipe templates — a throwaway worktree
-    is the wrong place to spawn an agent REPL that composes prompts, edits
-    files, and opens PRs — with `control_worktree_host` naming the operator's
-    checkout so each skipped agent template says why.
+    recursion and restricts execution to deterministic `ticket.py` phases — a
+    throwaway worktree is the wrong place to spawn an agent REPL that composes
+    prompts, edits files, and opens PRs — with `control_worktree_host` naming
+    the operator's checkout so each skipped or refused agent phase says why.
+    Because a `ticket.py` can be one half of a hybrid period, the same refusal
+    is carried through shared launch: if the script leaves agent work open, its
+    output is kept, the exact period is parked, and no agent setup or spawn is
+    attempted.
 
     `coga recurring launch <name>` force-runs one named template now.
 
@@ -1186,15 +1194,19 @@ def run_recurring_scan(
         return 2
     if not _valid_agent_override(cfg, agent_override):
         return 2
+    if control_worktree:
+        agent_spawn_refusal = _control_worktree_agent_refusal(
+            cfg, control_worktree_host
+        )
+    elif not _interactive_stdio_has_tty():
+        agent_spawn_refusal = _AGENT_NEEDS_TTY
+    else:
+        agent_spawn_refusal = None
     scan = scan_due(
         cfg,
-        allow_interactive=_interactive_stdio_has_tty() and not control_worktree,
+        allow_interactive=agent_spawn_refusal is None,
         force=force,
-        agent_unavailable_reason=(
-            _control_worktree_agent_refusal(cfg, control_worktree_host)
-            if control_worktree
-            else None
-        ),
+        agent_unavailable_reason=agent_spawn_refusal,
     )
     _broadcast_scan(
         cfg,
@@ -1246,6 +1258,7 @@ def run_recurring_scan(
             interactive=interactive,
             agent_override=agent_override,
             control_remote_expected=control_remote_expected,
+            agent_spawn_refusal=agent_spawn_refusal,
         )
     finally:
         run_autofix(cfg, record, agent_override=agent_override)
@@ -1260,6 +1273,7 @@ def _launch_due_tasks(
     interactive: bool,
     agent_override: str | None,
     control_remote_expected: bool,
+    agent_spawn_refusal: str | None = None,
 ) -> int:
     """Run each due period task in order, recording what each one did.
 
@@ -1376,6 +1390,24 @@ def _launch_due_tasks(
         # this sweep holding a second copy of that rule.
         #
         if task.delegate:
+            if agent_spawn_refusal is not None:
+                detail = (
+                    f"{task.ref.id_slug} needs its delegated agent after "
+                    f"reconciliation, but {agent_spawn_refusal} No agent was "
+                    "started."
+                )
+                typer.secho(detail, fg=typer.colors.YELLOW, err=True)
+                _record_outcome(
+                    record,
+                    TaskOutcome(
+                        template=task.template,
+                        slug=task.ref.id_slug,
+                        result="refused",
+                        final_status=current_ticket.status,
+                        detail=detail,
+                    ),
+                )
+                continue
             # A delegating template's period task never runs its own agent
             # session: the sweep launches the declared bootstrap target
             # directly — in this operator's terminal, under the same liveness
@@ -1421,11 +1453,13 @@ def _launch_due_tasks(
                 return delegated.exit_code
             continue
         # Sequential by design: each launch blocks until the session exits
-        # before the next begins. `scan_due` filters out templates that cannot
-        # run in the current stdio context (an agent run with no TTY), and the
-        # liveness backstops release any that launch but then stall. `launch`
-        # returns "timeout" when a backstop fired so we record the wedge
-        # honestly below instead of pausing it as a human would.
+        # before the next begins. `scan_due` filters periods with no executable
+        # phase in the current context. A ticket.py may still be hybrid, so the
+        # same admission refusal is passed into shared launch and enforced
+        # before agent-only setup. For admitted agents, liveness backstops
+        # release any that launch but then stall. `launch` returns "timeout"
+        # when a backstop fired so we record the wedge honestly below instead
+        # of pausing it as a human would.
         try:
             raw_launch_result = launch_cmd(
                 task.ref.id_slug,
@@ -1443,6 +1477,7 @@ def _launch_due_tasks(
                 # `--interactive` is a human stepping through by hand, so it
                 # selects the attended contract instead.
                 launch_context=launch_context,
+                agent_spawn_refusal=agent_spawn_refusal,
             )
             if not isinstance(raw_launch_result, RecurringPeriodLaunchResult):
                 raise RecurringError(
@@ -1644,6 +1679,9 @@ def _task_outcome(
             detail = (
                 "the deterministic `ticket.py` phase stopped before the step closed"
             )
+        elif kind == "agent-refused":
+            result = "unfinished"
+            detail = "the sweep refused the period's agent phase before spawn"
         else:
             result = "unfinished"
             detail = (
