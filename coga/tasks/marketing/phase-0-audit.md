@@ -8,7 +8,6 @@ agent: claude
 assignee: claude
 contexts:
   - marketing/plan
-  - marketing/positioning
 skills: []
 workflow: draft-for-human
 secrets: null
@@ -20,8 +19,9 @@ Audit what exists vs what the launch needs, per the phase 0 of
 `marketing/plan`: the README top (does it tell the post's story?), the blog
 and newsletter state, megalaunch and the blocker queue as narrative material
 (real examples to quote in post 1 — non-Coga repos like multiply first),
-community surfaces, and anything else the essay series depends on. Two checks
-are explicitly in scope: **run the README quickstart end-to-end on a fresh
+community surfaces, and anything else the essay series depends on (the full
+check list is in `## Context`). Two checks are called out because they are
+easy to skip: **run the README quickstart end-to-end on a fresh
 repo** (a broken first run burns every converted reader), and **assign the
 token-measurement collection** post 3 needs during phases 1-2. Output: the
 concrete phase-0 worklist, written to this ticket's blackboard.
@@ -47,9 +47,17 @@ worklist (step 3). The worklist lives on this ticket's blackboard, under a
    story (what it is, for whom, the day-shape: "an hour or two in the
    morning, then I leave")? Note the specific gaps for `marketing/readme-top`.
 2. **Quickstart, end-to-end** — follow the README install/first-run path
-   *exactly as written* (PyPI install into a fresh venv, a scratch git repo
-   under the scratchpad, first launch). Record every step where the text and
-   reality diverge. Test what a reader gets, not the local checkout.
+   as a reader would, with one substitution: install *this checkout*
+   (`pip install /home/n/Code/coga`) into a fresh venv instead of
+   `pip install coga`, because PyPI still has `0.2.0` and this repo is
+   `0.3.1`. The owner decided (2026-09-02) that 0.3.1 ships to PyPI before
+   post 1; put **"publish 0.3.1 to PyPI"** on the worklist as an owner item
+   and do not test the stale package. Then a scratch git repo under the
+   scratchpad, `coga init --user`, and `docs/getting-started.md` (where the
+   README sends readers) as part of the path under test. Run `coga build`
+   only as far as the first composed prompt / first launch attempt — do not
+   let a nested agent run to completion. Record every step where the text
+   and reality diverge.
 3. **Narrative material** — quotable, real examples for post 1, non-Coga
    repos first. Every Coga-run repo on this machine has a `coga/log.md`,
    `coga/tasks/`, and blocker history: `~/Code/multiply` (primary),
@@ -57,25 +65,33 @@ worklist (step 3). The worklist lives on this ticket's blackboard, under a
    `~/Code/xpllm`, `~/Code/coga-hosting-probes`, `~/Code/demo-hackathon`.
    Look for: actual questions agents queued via `coga block`, a real morning's
    answer-review-launch sequence, a megalaunch sweep. Collect 5–10 candidates
-   with date + repo + the literal text; the writer picks. Read-only — do not
-   modify those repos.
+   with date + repo + the literal text. Put them on this ticket's blackboard
+   under `## Narrative candidates`; `marketing/post-async-megalaunch` reads
+   them from there. Read-only — do not modify those repos. `~/Code/admin`
+   and `~/Code/patents` are likely confidential: flag any candidate whose
+   literal text is not publishable rather than dropping it silently. If the
+   non-Coga repos don't yield 5, say so — don't pad from this repo.
 4. **Megalaunch state** — is it stable enough to be *described* in present
    tense without lying? Check recent tickets/log entries in this repo for
    megalaunch and watchdog failures. This is a narrative-honesty check, not
-   a product review.
+   a product review. (From `marketing/positioning`, not attached: comms
+   must not promise the felt experience that Slack drops and
+   megalaunch/watchdog polish are currently blocking.)
 5. **Distribution surfaces** (public, agent fetches and reports):
    - Blog: https://deviantabstraction.com — last post date, newsletter
      signup present?, per-channel URL / analytics feasibility, any existing
      mention of Coga.
-   - fastjvm.com — the owner's other venture; check audience overlap and
-     whether a Coga link fits there (report, don't decide).
+   - fastjvm.com — the owner's other venture (YC). Report what the site is
+     and whether it has a place a Coga link would fit; audience overlap is
+     an owner-only judgment (step 2).
    - HN: user `top256` (karma 213 at ticket authoring, account since 2016;
      `https://hacker-news.firebaseio.com/v0/user/top256.json`). Note recent
      submission pattern and whether the story-submission plan fits the
      account's history.
    - Reddit: `https://www.reddit.com/user/Let047/` — karma, which subreddits
-     the owner is already a member of (the plan only posts where already a
-     member).
+     the owner is already active in (the plan only posts where already a
+     member). Reddit often blocks unauthenticated fetches; if so, report
+     that and leave it to step 2.
    - Lobste.rs — the owner has an account; username to be supplied by the
      owner in step 2. Check invite/tag fit for a story submission.
    - Community home — does a GitHub Discussions tab or Discord exist yet?
@@ -94,6 +110,8 @@ worklist (step 3). The worklist lives on this ticket's blackboard, under a
 - **Bookface** — login-gated; owner reports standing and whether a pre-HN
   Bookface post is realistic on the planned timeline.
 - **Lobste.rs username**, and Reddit/HN nuance the profile doesn't show.
+- **fastjvm.com audience overlap** and whether to cross-link.
+- **Publish `coga 0.3.1` to PyPI** before post 1 (decided 2026-09-02).
 - **Assign** the token-measurement collection (who/what, from the drafted
   plan).
 - **Phase-1 thresholds** — the private success numbers the retro will be
@@ -105,6 +123,13 @@ worklist (step 3). The worklist lives on this ticket's blackboard, under a
   create follow-up tickets only if the owner asks in step 2).
 - Re-opening fork A / the essay-series decision.
 - Anything from the shelved proof-post apparatus.
+
+**Scope decision (authoring, 2026-09-02).** The evaluator flagged checks 2
+and 3 as each big enough to be their own ticket. Kept here deliberately —
+the plan assigns the quickstart run to this ticket — but bounded: the
+quickstart stops at the first launch attempt, and narrative mining is capped
+at 5–10 candidates with an honest shortfall report. If either blows past
+that, stop and note it on the worklist instead of finishing it here.
 
 <!-- coga:blackboard -->
 
