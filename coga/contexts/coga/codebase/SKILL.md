@@ -132,8 +132,9 @@ coga/
 requirement, and it is
 not the only shape in the tree. Three shapes coexist under `coga/skills/`:
 
-- **Repo-authored, namespaced** — `code/`, `coga/`, `browser/`, `direct/`, with
-  `_template/` sitting beside them as the starter directory to copy.
+- **Repo-authored, namespaced** — `code/`, `coga/`, `direct/`, and
+  `browser/dochub`; `_template/` sits beside them as the starter directory to
+  copy. DocHub declares its full Coga ref as `name: browser/dochub`.
 - **Installer-managed, flat** — `coga skill install` lays a Coga-managed skill
   down flat at `coga/skills/<ref>/` under its upstream ref name, so this repo
   also carries seven flat `google-agents-cli-*` directories, each declared in
