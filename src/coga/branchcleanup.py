@@ -24,9 +24,16 @@ Worktree safety model:
   - Any open PR with the recorded head branch preserves the checkout even when
     another PR from that head already landed.
   - Before `git worktree remove`, an explicit status check includes ignored
-    files. Git's own unforced removal silently deletes ignored files, so any
-    tracked, untracked, or ignored local state preserves the checkout. A locked
-    worktree likewise survives with its failure reported.
+    files, because Git's own unforced removal silently deletes them. Tracked
+    and untracked state always preserves the checkout. So does ignored state,
+    *except* the regenerable tool caches named in `REGENERABLE_IGNORED_DIRS`:
+    those are derived from tracked files and reappear on the next tool run, so
+    deleting them along with a checkout retire is already authorized to delete
+    loses nothing. The removal note says how many went. Every code ticket runs
+    its tests in the feature worktree, so without that carve-out the refusal
+    was not an edge case but the normal outcome. Anything the status probe
+    cannot parse counts as blocking. A locked worktree likewise survives with
+    its failure reported.
   - Retire never removes the checkout it is running from.
   - A recorded path that is already gone is reported, not pruned: clearing the
     stale registration is a repo-wide operation that belongs to branch sweep.
@@ -64,7 +71,7 @@ from __future__ import annotations
 import os
 import subprocess
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Callable
 
 from coga.autoclose import (
@@ -88,6 +95,36 @@ class BranchCleanupResult:
     remote_deleted: bool = False
     local_worktree_path: str | None = None
     notes: list[str] = field(default_factory=list)
+
+
+# Ignored directories whose contents are derived from tracked files and
+# regenerate on the next tool run. Retire deletes these along with the
+# checkout; every other ignored entry is treated as unique and preserves it.
+REGENERABLE_IGNORED_DIRS: frozenset[str] = frozenset(
+    {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"}
+)
+
+
+@dataclass
+class _WorktreeLocalState:
+    """Local state found in a worktree, split by whether it blocks removal.
+
+    `blocking` and `regenerable` hold reconstructed `XY path` status lines so
+    the refusal and removal notes read the way they always have.
+    """
+
+    blocking: list[str] = field(default_factory=list)
+    regenerable: list[str] = field(default_factory=list)
+    regenerable_dirs: set[str] = field(default_factory=set)
+    # True while every blocking entry is a parsed ignored (`!!`) record, which
+    # is what lets the refusal offer `--force`. An unparsed record clears it:
+    # retire will not invite a force over state it could not identify.
+    blocking_all_ignored: bool = True
+
+    def block(self, entry: str, *, ignored: bool = False) -> None:
+        self.blocking.append(entry)
+        if not ignored:
+            self.blocking_all_ignored = False
 
 
 @dataclass
@@ -205,16 +242,28 @@ def remove_ticket_worktree(
             f"({status_error}) — left in place.",
         )
         return result
-    if local_state:
-        sample = ", ".join(repr(entry) for entry in local_state[:3])
-        if len(local_state) > 3:
-            sample += f", and {len(local_state) - 3} more"
-        _wnote(
-            result,
-            echo,
-            f"Worktree cleanup: {recorded!r} contains tracked, untracked, or "
-            f"ignored local state ({sample}) — left in place.",
-        )
+    if local_state.blocking:
+        # Sample the *blocking* entries only: a test run leaves hundreds of
+        # cache lines, and they used to drown the one entry that is the real
+        # reason the checkout survived.
+        sample = _sample(local_state.blocking)
+        if local_state.blocking_all_ignored:
+            _wnote(
+                result,
+                echo,
+                f"Worktree cleanup: {recorded!r} contains ignored local state "
+                f"retire will not delete ({sample}) — left in place. Remove it "
+                f"yourself with `git worktree remove --force {str(path)!r}`; "
+                "`coga run branch-sweep` prunes the branch on its next run.",
+            )
+        else:
+            # No force hint here: `--force` would destroy real work.
+            _wnote(
+                result,
+                echo,
+                f"Worktree cleanup: {recorded!r} contains tracked or untracked "
+                f"local state ({sample}) — left in place.",
+            )
         return result
 
     if not _branch_has_no_open_pr(
@@ -250,10 +299,18 @@ def remove_ticket_worktree(
             )
             return result
 
+    # Unforced on purpose: it refuses modified-tracked and untracked files
+    # (the gate above already did too) but deletes the ignored cache entries
+    # the gate just classified as regenerable. No extra plumbing needed.
     proc = _git(root, "worktree", "remove", str(path))
     if proc.returncode == 0:
         result.removed = True
-        _wnote(result, echo, f"Worktree cleanup: removed linked worktree {recorded!r}.")
+        _wnote(
+            result,
+            echo,
+            f"Worktree cleanup: removed linked worktree {recorded!r}"
+            f"{_regenerable_suffix(local_state)}.",
+        )
         return result
 
     stderr = (proc.stderr + proc.stdout).strip() or "git worktree remove failed"
@@ -303,12 +360,18 @@ def _same_path(left: Path, right: Path) -> bool:
         return False
 
 
-def _worktree_local_state(path: Path) -> tuple[list[str], str | None]:
-    """Return all tracked, untracked, and ignored state in ``path``.
+def _worktree_local_state(path: Path) -> tuple[_WorktreeLocalState, str | None]:
+    """Split every tracked, untracked, and ignored entry in ``path`` by disposability.
 
     ``git worktree remove`` without ``--force`` protects ordinary dirt but
     deliberately deletes ignored files. Retire's stronger no-data-loss
-    contract therefore has to ask status for ignored entries explicitly.
+    contract therefore has to ask status for ignored entries explicitly, and
+    then decide which of them it is willing to lose.
+
+    ``-z`` is not an optimization: without it git C-quotes any path holding a
+    space or a non-ASCII byte (``!! "__pycache__/a b.pyc"``), and the cache
+    file would be misclassified as blocking. With ``-z`` records are
+    NUL-separated and paths arrive raw.
     """
     proc = _git(
         path,
@@ -316,11 +379,76 @@ def _worktree_local_state(path: Path) -> tuple[list[str], str | None]:
         "--porcelain=v1",
         "--untracked-files=all",
         "--ignored",
+        "-z",
     )
     if proc.returncode != 0:
         detail = (proc.stderr + proc.stdout).strip() or "git status failed"
-        return [], detail
-    return [line for line in proc.stdout.splitlines() if line], None
+        return _WorktreeLocalState(), detail
+    return _classify_status_records(proc.stdout), None
+
+
+def _classify_status_records(stdout: str) -> _WorktreeLocalState:
+    """Sort NUL-separated porcelain-v1 status records into blocking vs regenerable.
+
+    Fails closed: a record that does not parse as ``XY <path>`` is blocking,
+    never regenerable.
+    """
+    state = _WorktreeLocalState()
+    records = stdout.split("\0")
+    if records and records[-1] == "":
+        records.pop()  # trailing terminator, not an entry
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if len(record) < 4 or record[2] != " ":
+            state.block(record)
+            continue
+        xy, entry_path = record[:2], record[3:]
+        if "R" in xy or "C" in xy:
+            # Porcelain `-z` emits a rename/copy source as its own record;
+            # consume it so it is never read as a bare entry.
+            index += 1
+        entry = f"{xy} {entry_path}"
+        cache_dir = _regenerable_dir(xy, entry_path)
+        if cache_dir is None:
+            state.block(entry, ignored=xy == "!!")
+        else:
+            state.regenerable.append(entry)
+            state.regenerable_dirs.add(cache_dir)
+    return state
+
+
+def _regenerable_dir(xy: str, entry_path: str) -> str | None:
+    """Name the regenerable cache directory ``entry_path`` sits under, if any.
+
+    Only ignored (``!!``) entries qualify. ``--untracked-files=all`` lists
+    ignored content as individual file paths rather than collapsing to
+    ``dir/``, so the match is on path *components*, not on a trailing slash.
+    """
+    if xy != "!!":
+        return None
+    for part in PurePosixPath(entry_path).parts:
+        if part in REGENERABLE_IGNORED_DIRS:
+            return part
+    return None
+
+
+def _regenerable_suffix(state: _WorktreeLocalState) -> str:
+    """The parenthetical naming what a successful removal also deleted."""
+    if not state.regenerable:
+        return ""
+    count = len(state.regenerable)
+    plural = "entry" if count == 1 else "entries"
+    dirs = ", ".join(repr(f"{name}/") for name in sorted(state.regenerable_dirs))
+    return f" (also deleted {count} regenerable cache {plural} under {dirs})"
+
+
+def _sample(entries: list[str]) -> str:
+    sample = ", ".join(repr(entry) for entry in entries[:3])
+    if len(entries) > 3:
+        sample += f", and {len(entries) - 3} more"
+    return sample
 
 
 def _wnote(
@@ -758,12 +886,17 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         ["git", "-C", str(root), *args],
         capture_output=True,
         text=True,
+        # `status -z` hands back raw paths, which may not decode under the
+        # ambient locale; surrogates keep classification working instead of
+        # raising.
+        errors="surrogateescape",
         check=False,
         env={**os.environ, "LC_ALL": "C"},
     )
 
 
 __all__ = [
+    "REGENERABLE_IGNORED_DIRS",
     "BranchCleanupResult",
     "WorktreeCleanupResult",
     "remove_ticket_worktree",

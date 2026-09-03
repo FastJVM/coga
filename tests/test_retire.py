@@ -407,6 +407,8 @@ def test_retire_removes_linked_worktree_then_prunes_its_branch(
     assert f"Worktree cleanup: removed linked worktree '{feature}'." in result.output
     assert "Branch cleanup: deleted local 'fix-retry-branch'." in result.output
     assert not feature.exists()
+    retire_task = Ticket.read(repo / "tasks" / f"retire-{slug}.md")
+    assert "## Checkout cleanup" not in retire_task.body
     assert (
         subprocess.run(
             ["git", "-C", str(repo), "rev-parse", "--verify", "--quiet",
@@ -461,8 +463,73 @@ def test_retire_leaves_dirty_worktree_in_place(
     result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
 
     assert result.exit_code == 0, result.output
-    assert "contains tracked, untracked, or ignored local state" in result.output
+    assert "contains tracked or untracked local state" in result.output
+    assert "--force" not in result.output
     assert (feature / "uncommitted.txt").is_file()
+    # The stdout note scrolls away under the retro launch; the retro task body
+    # is where a preserved checkout stays visible.
+    retire_task = Ticket.read(repo / "tasks" / f"retire-{slug}.md")
+    assert "### Checkout cleanup" in retire_task.body
+    assert str(feature) in retire_task.body
+    assert "contains tracked or untracked local state" in retire_task.body
+
+
+def test_retire_records_forceable_ignored_checkout_in_retro_body(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Machine-local config is the precious case: preserved, with the opt-in."""
+    monkeypatch.chdir(repo)
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    (repo / ".gitignore").write_text("coga.local.toml\n__pycache__/\n")
+    _git(repo, "add", "seed.txt", ".gitignore")
+    _git(repo, "commit", "-m", "seed")
+    feature = tmp_path / "feature"
+    _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
+    (feature / "coga.local.toml").write_text('user = "marc"\n')
+    pycache = feature / "__pycache__"
+    pycache.mkdir()
+    (pycache / "mod.cpython-312.pyc").write_bytes(b"\x00compiled")
+
+    slug = "fix-retry-logic"
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        f"""
+        ---
+        slug: {slug}
+        title: Fix retry logic
+        status: done
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: fix-retry-branch
+        worktree: {feature}
+        """,
+    )
+    (task_dir / "log.md").write_text("")
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert (feature / "coga.local.toml").is_file()
+    retire_task = Ticket.read(repo / "tasks" / f"retire-{slug}.md")
+    assert "### Checkout cleanup" in retire_task.body
+    assert f"git worktree remove --force {str(feature)!r}" in retire_task.body
+    assert "coga run branch-sweep" in retire_task.body
+    # The cache is named as blocking nowhere — only the precious file is.
+    assert "__pycache__" not in retire_task.body
 
 
 def test_retire_preserves_checkout_claimed_by_another_live_ticket(
