@@ -36,8 +36,14 @@ from coga.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
-from coga.config import ConfigError, load_config, resolve_layout_contexts_path
+from coga.config import (
+    ConfigError,
+    _parse_git,
+    load_config,
+    resolve_layout_contexts_path,
+)
 from coga.dependencies import DEPENDENCIES, install_hint
+from coga.git import GitError, _control_branch_present, _symbolic_head
 from coga.logfile import append_log
 from coga.managed_skills import (
     ManagedSkillError,
@@ -493,6 +499,98 @@ def _relocate_fresh_contexts(
     return destination, tuple(created_parents)
 
 
+# The scaffolded `coga.toml` documents `[git]` in comments only, so the control
+# branch comes from the `main` default in `coga.config`. When that default is
+# wrong for this checkout, the real table is written just above the aliases
+# heading, where the git-sync commentary ends.
+_GIT_TABLE_ANCHOR = "# --- Aliases ---"
+
+
+def _render_git_control_branch_table(branch: str, default: str) -> str:
+    """The `[git]` table `coga init` writes when `default` is absent here."""
+    return (
+        f"# `coga init` found no {default!r} branch in this checkout, so it\n"
+        f"# recorded the branch it was run from. Change this if the team\n"
+        f"# syncs coga state onto a different branch.\n"
+        f"[git]\n"
+        f'control_branch = "{branch}"\n'
+    )
+
+
+def _scaffolded_git_defaults(coga_os: Path) -> tuple[str, str, bool]:
+    """`(control_branch, remote, declared)` for the freshly scaffolded config.
+
+    Deliberately parses only `[git]` rather than going through `load_config`:
+    init must not start failing over an unrelated config problem (an
+    unresolvable Slack webhook, say) that it never used to read at this point.
+
+    `declared` is True when the scaffold ships a real `[git]` table. The
+    packaged template documents that table in comments only, so a scaffold
+    that has one made a deliberate choice — and a second table written under
+    it would not even parse.
+    """
+    shared = tomllib.loads((coga_os / "coga.toml").read_text())
+    git_table = shared.get("git")
+    remote, control_branch = _parse_git(git_table)
+    return control_branch, remote, git_table is not None
+
+
+def _detect_control_branch(
+    target: Path, *, control_branch: str, remote: str
+) -> tuple[str | None, str | None]:
+    """What `coga init` should record as the control branch, and why it can't.
+
+    `coga init` must not create the mismatch every later command complains
+    about, so the trigger here is exactly the predicate behind that warning:
+    `git._control_branch_present`. Returns `(branch, None)` when the configured
+    control branch is absent and the checkout's own branch should be recorded
+    instead, `(None, None)` when the configured value already fits, and
+    `(None, reason)` when the value is wrong but no usable branch name can be
+    resolved.
+
+    Detection is deliberately narrow. Recording the current branch
+    unconditionally would pin a *feature* branch as the control branch for
+    anyone running `coga init` from a branch of an established `main` repo —
+    trading one wrong config for another.
+    """
+    try:
+        if _control_branch_present(target, control_branch, remote):
+            return None, None
+    except (GitError, OSError):
+        # A ref database this can't read — or no `git` on PATH at all — is not
+        # init's problem to diagnose. Leave the scaffold on its default rather
+        # than guess, the same soft-skip the commit step takes.
+        return None, None
+    # `_symbolic_head` resolves an unborn HEAD, which `rev-parse` cannot — and
+    # a `git init`ed repo with no commit yet is exactly the first-run case.
+    try:
+        branch = _symbolic_head(target)
+    except OSError:
+        return None, None
+    if branch is None:
+        return None, "this checkout has a detached HEAD"
+    if '"' in branch or "\\" in branch:
+        # Git permits a quote in a ref name; it would not survive the
+        # `control_branch = "..."` literal written below.
+        return None, f"branch {branch!r} cannot be written to coga.toml"
+    return branch, None
+
+
+def _pin_control_branch(coga_os: Path, branch: str, default: str) -> None:
+    """Record `[git] control_branch` in the freshly scaffolded `coga.toml`."""
+    config_path = coga_os / "coga.toml"
+    table = _render_git_control_branch_table(branch, default)
+    text = config_path.read_text()
+    anchor = f"\n{_GIT_TABLE_ANCHOR}"
+    if anchor in text:
+        text = text.replace(anchor, f"\n{table}{anchor}", 1)
+    else:
+        # A customized scaffold without the shipped headings still gets the
+        # same table — a trailing one parses identically.
+        text = text.rstrip("\n") + "\n\n" + table
+    config_path.write_text(text)
+
+
 def _do_init(path: Path, *, user: str | None = None) -> None:
     target = path.resolve()
     coga_os = target / "coga"
@@ -676,6 +774,26 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
 
         local_toml = coga_os / "coga.local.toml"
         local_toml.write_text(render_local_toml(name))
+
+        # Init must not scaffold the very control-branch mismatch every later
+        # command nags about: on a repo whose branch isn't the configured
+        # default, record the branch this checkout is actually on.
+        default_control_branch, default_remote, git_declared = (
+            _scaffolded_git_defaults(coga_os)
+        )
+        pinned_branch, unpinnable_control_branch = _detect_control_branch(
+            target, control_branch=default_control_branch, remote=default_remote
+        )
+        if pinned_branch is not None and git_declared:
+            # The scaffold already made its own `[git]` choice. Report the
+            # mismatch rather than editing a config that states one.
+            unpinnable_control_branch = (
+                "this scaffold's coga.toml already declares its own [git] table"
+            )
+            pinned_branch = None
+        if pinned_branch is not None:
+            _pin_control_branch(coga_os, pinned_branch, default_control_branch)
+
         if is_empty:
             # The template cannot know when this repo is initialized. Record
             # the seeded onboarding task through the ordinary audit writer so
@@ -743,6 +861,21 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         typer.secho(
             f"Skipped {label} skill wiring — {path} exists but isn't a directory. "
             f"Remove or convert it so skill wiring can complete.",
+            fg=typer.colors.YELLOW,
+        )
+    if pinned_branch is not None:
+        typer.echo(
+            f'Set [git] control_branch = "{pinned_branch}" in '
+            f"{coga_os / 'coga.toml'} — this repo has no "
+            f"{default_control_branch!r} branch."
+        )
+    elif unpinnable_control_branch is not None:
+        typer.secho(
+            f"[git] control branch {default_control_branch!r} does not exist "
+            f"here and {unpinnable_control_branch} — every coga command will "
+            f"warn until you set it in {coga_os / 'coga.toml'}:\n"
+            f"    [git]\n"
+            f'    control_branch = "<your-branch>"',
             fg=typer.colors.YELLOW,
         )
     if host_gitignore_changed:

@@ -1992,6 +1992,140 @@ def test_init_commits_agent_guides_in_git_repo(
     assert "AGENTS.md" in tracked
 
 
+def _make_real_git_repo(target: Path, branch: str) -> Path:
+    """A real, committed git repo on `branch` — init's branch detection needs
+    a working ref database, which `_make_git_repo`'s bare `.git` dir isn't."""
+    target.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q", "-b", branch, str(target)], check=True)
+    subprocess.run(
+        ["git", "-C", str(target), "config", "user.email", "t@t"], check=True
+    )
+    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
+    return target
+
+
+def test_init_records_current_branch_when_control_branch_is_absent(
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On a repo whose `git init` made `master`, init records that branch
+    rather than scaffolding the `main` default it would then nag about."""
+    target = _make_real_git_repo(tmp_path / "company", "master")
+    monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert load_config(target / "coga").git_control_branch == "master"
+    assert '[git]\ncontrol_branch = "master"' in (
+        target / "coga" / "coga.toml"
+    ).read_text()
+    assert 'Set [git] control_branch = "master"' in result.output
+
+
+def test_init_keeps_default_when_control_branch_exists(
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Running init from a feature branch of a `main` repo must not pin the
+    feature branch — the configured default is already correct there."""
+    target = _make_real_git_repo(tmp_path / "company", "main")
+    subprocess.run(
+        ["git", "-C", str(target), "commit", "-q", "--allow-empty", "-m", "root"],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(target), "switch", "-q", "-c", "feature"], check=True)
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert load_config(target / "coga").git_control_branch == "main"
+    assert "control_branch = \"feature\"" not in (
+        target / "coga" / "coga.toml"
+    ).read_text()
+    assert "Set [git] control_branch" not in result.output
+
+
+def test_init_warns_when_no_branch_can_be_detected(
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A detached HEAD with no `main` leaves nothing safe to record, so init
+    succeeds but prints the exact one-line coga.toml fix."""
+    target = _make_real_git_repo(tmp_path / "company", "master")
+    subprocess.run(
+        ["git", "-C", str(target), "commit", "-q", "--allow-empty", "-m", "root"],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(target), "checkout", "-q", "--detach"], check=True)
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert load_config(target / "coga").git_control_branch == "main"
+    assert "detached HEAD" in result.output
+    assert 'control_branch = "<your-branch>"' in result.output
+
+
+def test_detect_control_branch_soft_skips_an_unreadable_repo(
+    tmp_path: Path,
+) -> None:
+    """A `.git` git itself can't read leaves the scaffold on its default —
+    init diagnoses neither the repo nor a missing `git` on PATH."""
+    target = _make_git_repo(tmp_path / "company")  # bare `.git` dir, no refs
+
+    assert init_cmd._detect_control_branch(
+        target, control_branch="main", remote="origin"
+    ) == (None, None)
+
+
+def test_init_leaves_a_scaffold_that_declares_its_own_git_table(
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A scaffold shipping a real `[git]` table stated its own choice. Init
+    reports the mismatch instead of writing a second table into it (which
+    would not even parse)."""
+    target = _make_real_git_repo(tmp_path / "company", "master")
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    real_copy = update_cmd.copy_fresh_templates
+
+    def copy_with_git_table(template_root, coga_os: Path) -> None:
+        real_copy(template_root, coga_os)
+        config = coga_os / "coga.toml"
+        config.write_text(
+            config.read_text() + '\n[git]\ncontrol_branch = "trunk"\n'
+        )
+
+    monkeypatch.setattr(init_cmd, "copy_fresh_templates", copy_with_git_table)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert load_config(target / "coga").git_control_branch == "trunk"
+    assert "already declares its own [git] table" in result.output
+    assert "Set [git] control_branch" not in result.output
+
+
+def test_packaged_config_leaves_the_git_table_to_init(tmp_path: Path) -> None:
+    """The shipped template documents `[git]` in comments only, so a fresh
+    init is free to record the detected branch there."""
+    scaffold = tmp_path / "coga"
+    scaffold.mkdir()
+    shutil.copy(_PACKAGED_COGA_TOML, scaffold / "coga.toml")
+
+    control_branch, remote, declared = init_cmd._scaffolded_git_defaults(scaffold)
+    assert (control_branch, remote, declared) == ("main", "origin", False)
+
+
+def test_packaged_config_carries_the_control_branch_anchor() -> None:
+    """`_pin_control_branch` inserts above the aliases heading. Keep the
+    shipped template and that anchor from drifting apart."""
+    assert init_cmd._GIT_TABLE_ANCHOR in _PACKAGED_COGA_TOML.read_text()
+
+
 def test_init_writes_pin_file(
     tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
