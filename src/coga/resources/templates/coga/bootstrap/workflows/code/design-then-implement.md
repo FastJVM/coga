@@ -39,13 +39,13 @@ compose their section, so those bodies are load-bearing.
 ## review-design
 
 Owner reviews the spec the `design` step wrote into `ticket.md` —
-Description, Acceptance Criteria, Proposed Shape, Out of Scope — and
-the cold peer's `## Evaluator review` on the blackboard. Answer anything under
-`## Open Questions` and resolve every must-fix evaluator finding. Edit the
-ticket directly to correct scope or approach, and record a disposition when a
-finding is intentionally rejected. When the spec is right, run `coga bump` to
-hand off to `implement`. If the design is wrong enough to redo, relaunch the
-`design` step instead of bumping.
+Description, Acceptance Criteria, Proposed Shape, Out of Scope — and answers
+anything under `## Open Questions` on the blackboard. If an
+`## Evaluator review` section is present, resolve every must-fix finding; record
+a disposition when one is intentionally rejected. Edit the ticket directly to
+correct scope or approach. When the spec is right, run `coga bump` to hand off
+to `implement`. If the design is wrong enough to redo, relaunch the `design`
+step instead of bumping.
 
 ## implement
 
