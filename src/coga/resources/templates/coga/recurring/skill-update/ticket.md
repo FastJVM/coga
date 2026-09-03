@@ -25,17 +25,23 @@ disk. Once a week this ticket fires on its schedule and its `ticket.py` runs
 1. delegates the installed GitHub-backed skills to `gh skill update --dir
    coga/skills --all`, then walks in Coga's own code every skill carrying
    `.coga-source.json` with `source_type = "url"`,
-2. rewrites in place each skill whose upstream digest changed and whose local
-   copy is unmodified,
+2. for URL-backed skills, rewrites in place only when the upstream digest
+   changed and the local copy is unmodified; the delegated GitHub updater
+   follows its own stored-tree-SHA policy,
 3. commits the clean updates onto the dedicated `coga/skill-update` branch
    and opens (or updates) one draft PR, and
 4. appends a `## Skill Update` report to this period task's blackboard,
    bucketing every skill by raw update status.
 
-Local adaptations are never overwritten: a skill whose local copy diverged, a
-provenance conflict, or a fetch failure is left untouched and listed under the
-report's follow-up heading for a human to resolve. Bundled (package-backed)
-skills are not touched here — they refresh when the coga package is upgraded.
+Local-edit protection applies to URL-backed skills: a diverged local copy,
+provenance conflict, or fetch failure is left untouched and listed under the
+report's follow-up heading for a human to resolve. GitHub-backed directories
+are upstream-owned by `gh skill update`; when its recorded tree SHA differs
+from upstream, re-downloading can overwrite local modifications before the
+draft PR is opened. That PR reviews the resulting upstream update; it does not
+recover overwritten edits. Do not keep local adaptations in those directories.
+Bundled (package-backed) skills are not touched here — they refresh when the
+coga package is upgraded.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
 PR is opened. A week with only follow-up statuses is intentionally loud: after
