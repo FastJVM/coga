@@ -4341,3 +4341,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-03 12:28 [no-comms-writing-skill-the-process-is-smeared-thro] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-03 12:28 [no-comms-writing-skill-the-process-is-smeared-thro] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-03 14:25 [cleanup/detect-the-current-git-branch-instead-of-hard-codi] [human:nicktoper] activated (draft → active) — auto on launch
+2026-09-03 14:25 [cleanup/detect-the-current-git-branch-instead-of-hard-codi] [human:nicktoper] started (active → in_progress) via coga launch
