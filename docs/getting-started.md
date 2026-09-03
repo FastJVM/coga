@@ -95,9 +95,11 @@ A few things worth knowing about init:
   `coga/coga.toml` as `[git] control_branch` and says so. In an established
   repo, it keeps `main` when that branch exists or uses a confirmed cached
   remote default; it never promotes the feature branch you happen to be on.
-  If Git cannot make the choice safely (a detached HEAD, an unreachable remote,
-  or no remote default to disambiguate an established repo), init leaves the
-  default in place and prints the exact config line to verify or change.
+  Init does not contact the remote for this decision, so an offline or stalled
+  remote cannot delay setup. If the local and cached refs cannot make the
+  choice safely (a detached HEAD or no cached remote default to disambiguate an
+  established repo), init leaves the default in place and prints the exact
+  config line to verify or change.
 
 `coga init` commits the new `coga/` directory for you (it prints the commit
 SHA); push it when you're ready, like any other project change.

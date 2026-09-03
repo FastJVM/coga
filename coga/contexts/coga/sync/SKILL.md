@@ -769,10 +769,12 @@ Failure model:
   branch as a match. If the configured branch is absent, init records the
   current branch only for a ref-less fresh repo with no configured remote; in
   an established repo it records only a confirmed cached remote default. A
-  detached HEAD, failed branch probe, or ambiguous established checkout leaves
-  the configured default untouched and prints the exact `[git] control_branch`
-  line to verify or change. This keeps first-run `git init -b master` quiet
-  without ever promoting a transient feature branch to shared policy.
+  detached HEAD, failed local/cached-ref probe, or ambiguous established
+  checkout leaves the configured default untouched and prints the exact
+  `[git] control_branch` line to verify or change. Init performs no live remote
+  probe for this decision, so an offline or stalled remote cannot delay
+  scaffolding. This keeps first-run `git init -b master` quiet without ever
+  promoting a transient feature branch to shared policy.
 - A **steady-state control-branch mismatch** is a soft-skip, not a crash. When
   `[git].control_branch` (default `main`) is not present as a local branch, a
   remote-tracking ref, or an exact configured remote branch, sync prints an

@@ -607,9 +607,10 @@ def _detect_control_branch(
     """What `coga init` should record as the control branch, and why it can't.
 
     `coga init` must not create the mismatch every later command complains
-    about, so the trigger here is exactly the predicate behind that warning:
-    `git._control_branch_present`. Returns `(branch, None)` when the configured
-    control branch is absent and a safe replacement can be recorded,
+    about, so the trigger here is the local/cached-ref portion of the predicate
+    behind that warning: `git._control_branch_present`. Init deliberately does
+    not contact a remote while scaffolding. Returns `(branch, None)` when the
+    configured control branch is absent and a safe replacement can be recorded,
     `(None, None)` when the configured value already fits, and `(None, reason)`
     when init cannot make a safe choice.
 
@@ -631,7 +632,9 @@ def _detect_control_branch(
         return None, None
 
     try:
-        if _control_branch_present(target, control_branch, remote):
+        if _control_branch_present(
+            target, control_branch, remote, probe_remote=False
+        ):
             return None, None
     except OSError:
         return None, None
@@ -676,7 +679,9 @@ def _detect_control_branch(
         if reason is not None:
             return None, reason
         try:
-            if _control_branch_present(target, remote_default, remote):
+            if _control_branch_present(
+                target, remote_default, remote, probe_remote=False
+            ):
                 return remote_default, None
         except (GitError, OSError) as exc:
             return None, (

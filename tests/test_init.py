@@ -14,6 +14,7 @@ import pytest
 from typer.testing import CliRunner
 
 import coga.agent_skills as agent_skills
+import coga.git as git_module
 import coga.logfile as logfile
 from coga.cli import app
 from coga.commands import init as init_cmd
@@ -2176,15 +2177,15 @@ def test_detect_control_branch_soft_skips_an_unreadable_repo(
     ) == (None, None)
 
 
-def test_detect_control_branch_reports_remote_probe_failure(
+def test_detect_control_branch_reports_cached_ref_probe_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An unreachable configured remote must not look like a valid `main`
-    default and silently recreate the mismatch init is meant to prevent."""
+    """An unreadable ref database must not look like a valid `main` default
+    and silently recreate the mismatch init is meant to prevent."""
     target = _make_real_git_repo(tmp_path / "company", "master")
 
     def fail_probe(*_args, **_kwargs) -> bool:
-        raise init_cmd.GitError("origin is unreachable")
+        raise init_cmd.GitError("ref database is unreadable")
 
     monkeypatch.setattr(init_cmd, "_control_branch_present", fail_probe)
 
@@ -2195,7 +2196,44 @@ def test_detect_control_branch_reports_remote_probe_failure(
     assert branch is None
     assert reason is not None
     assert "could not verify configured control branch 'main'" in reason
-    assert "origin is unreachable" in reason
+    assert "ref database is unreadable" in reason
+
+
+def test_detect_control_branch_never_probes_the_remote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Init's branch choice is bounded by local and cached refs even when a
+    configured remote could block forever."""
+    target = _make_real_git_repo(tmp_path / "company", "master")
+    subprocess.run(
+        ["git", "-C", str(target), "commit", "-q", "--allow-empty", "-m", "root"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(target),
+            "remote",
+            "add",
+            "origin",
+            "ssh://slow.invalid/repo",
+        ],
+        check=True,
+    )
+
+    def reject_remote_probe(*_args, **_kwargs) -> bool:
+        raise AssertionError("init must not run a live remote branch probe")
+
+    monkeypatch.setattr(git_module, "_remote_branch_present", reject_remote_probe)
+
+    branch, reason = init_cmd._detect_control_branch(
+        target, control_branch="main", remote="origin"
+    )
+
+    assert branch is None
+    assert reason is not None
+    assert "no cached default branch" in reason
 
 
 def test_init_leaves_a_scaffold_that_declares_its_own_git_table(
