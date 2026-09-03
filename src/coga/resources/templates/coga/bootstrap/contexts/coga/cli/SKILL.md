@@ -684,9 +684,12 @@ working launch:
    after those preflights pass is that ticket activated and launched. A
    resumed `blocked` pick returns to `blocked` if its session exits with the
    ask still open; a pick not reached under `--max-tasks` remains unchanged.
-   The prospective view and its source ticket revision stay bound together: if
-   the ticket changes during a preflight, megalaunch refuses that launch rather
-   than overwriting the newer revision.
+   The prospective view and its source ticket revision stay bound together
+   through activation and the following `in_progress` write: if the ticket
+   changes during preflight or activation sync, megalaunch refuses that launch
+   rather than overwriting the newer revision. Preflight also materializes the
+   exact prompt, resolved secret environment, and agent used by the spawn, so
+   no fallible input derivation is repeated after lifecycle state is written.
 
 Checking a task in the picker is the deliberate human act of selecting it for
 an attempted launch, and another owner's ticket launches when reached. A

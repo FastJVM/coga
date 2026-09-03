@@ -846,8 +846,11 @@ account state committed to git.
 
 Every command that triggers an agent routes through a single single-shot entry
 point — `spawn_agent_session(...)` in `commands/launch.py`, "spawn one agent
-once": compose → write the prompt file → build the agent command → spawn under
-the PTY watcher → log → cleanup. `coga launch`'s `while True:` supervisor chain
+once": compose (or accept an already preflighted `composed_prompt`) → write the
+prompt file → build the agent command → spawn under the PTY watcher → log →
+cleanup. Megalaunch supplies that preflighted prompt together with its already
+resolved environment and agent, binding the inputs checked before lifecycle
+writes to the eventual spawn. `coga launch`'s `while True:` supervisor chain
 (per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the
 done-sentinel, respawn) **wraps** that call per step; the chain stays
 launch-only and is *not* pushed into the shared unit. `coga ticket` authoring

@@ -67,7 +67,14 @@ from coga.recurring_runner import (
     _recurring_max_session,
 )
 from coga.compose import ComposeError, compose_prompt
-from coga.config import Config, ConfigError, SecretError, build_launch_env, load_config
+from coga.config import (
+    AgentType,
+    Config,
+    ConfigError,
+    SecretError,
+    build_launch_env,
+    load_config,
+)
 from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga.logfile import first_activity_map
@@ -123,6 +130,17 @@ class MegalaunchResult:
     agent: str | None = None
     launched: bool = False
     drained: bool = False
+
+
+@dataclass(frozen=True)
+class _PreparedAgentLaunch:
+    """Fallible launch inputs materialized before lifecycle writes."""
+
+    ticket: Ticket
+    source_ticket_bytes: bytes
+    agent: AgentType
+    env: dict[str, str]
+    prompt: str
 
 
 @dataclass(frozen=True)
@@ -998,6 +1016,32 @@ def _launch_until_stop(
                 launched=launched,
             )
 
+        # Active/resumed work has no earlier selection snapshot. Re-read it
+        # from exact bytes before deriving routing or inputs, then retain those
+        # raw bytes as the compare-and-swap source revision. This accepts
+        # harmless non-canonical YAML formatting without weakening the guard.
+        preflight_source_bytes: bytes | None = None
+        if not activate:
+            try:
+                preflight_source_bytes = ref.ticket_path.read_bytes()
+                ticket = Ticket.parse(preflight_source_bytes.decode("utf-8"))
+            except FileNotFoundError:
+                return _result(
+                    ref,
+                    "failed",
+                    "ticket disappeared before launch",
+                    ticket.assignee,
+                    launched=launched,
+                )
+            except (UnicodeDecodeError, TicketError) as exc:
+                return _result(
+                    ref,
+                    "failed",
+                    f"unreadable ticket: {exc}",
+                    ticket.assignee,
+                    launched=launched,
+                )
+
         if ticket.assignee not in cfg.agents:
             return _result(
                 ref,
@@ -1015,9 +1059,10 @@ def _launch_until_stop(
         first_step = False
 
         # A deferred activation belongs to the first step only. Preflight the
-        # prospective `active` view — the exact prompt and env this launch will
-        # use — and commit the flip only once every refusal below has passed,
-        # so a ticket whose session never starts is never left claiming it did.
+        # prospective `active` view, materializing the exact `in_progress`
+        # prompt, environment, and agent this launch will use. Commit the flip
+        # only once every refusal below has passed, so a ticket whose session
+        # never starts is never left claiming it did.
         preflight_view = ticket
         prepared_activation: Ticket | None = None
         if activate:
@@ -1027,14 +1072,18 @@ def _launch_until_stop(
             preflight_view = prepared
             prepared_activation = prepared
 
-        preflight = _preflight_agent_launch(
-            cfg, ref, preflight_view, launch_assignee
+        prepared_launch = _preflight_agent_launch(
+            cfg,
+            ref,
+            preflight_view,
+            launch_assignee,
+            source_ticket_bytes=preflight_source_bytes,
         )
-        if preflight is not None:
+        if isinstance(prepared_launch, str):
             return _result(
                 ref,
                 "failed",
-                preflight,
+                prepared_launch,
                 launch_assignee,
                 launched=launched,
             )
@@ -1051,7 +1100,29 @@ def _launch_until_stop(
             if failure is not None:
                 return failure
 
+        # Activation sync can spend long enough fetching/publishing for a peer
+        # to edit or complete the ticket. Bind the following start write to the
+        # exact active bytes that the preflight saw; never overlay that peer
+        # revision with this loop's stale in-memory ticket. The same guard also
+        # closes the preflight window for an already-active sweep candidate.
+        start_snapshot: git.FileMutationRollback | None = None
         if ticket.status == "active":
+            audit_path = log_path(cfg)
+            start_snapshot = git.FileMutationRollback.capture(
+                (ref.ticket_path, audit_path),
+                union_paths=(audit_path,),
+            )
+            if (
+                start_snapshot.originals[ref.ticket_path]
+                != prepared_launch.source_ticket_bytes
+            ):
+                return _result(
+                    ref,
+                    "failed",
+                    "ticket changed after launch preflight; retry",
+                    launch_assignee,
+                    launched=launched,
+                )
             try:
                 mark_in_progress(
                     cfg,
@@ -1060,18 +1131,33 @@ def _launch_until_stop(
                     actor="megalaunch",
                     log_message="started (active → in_progress) via coga megalaunch",
                     echo=None,
+                    mutation_snapshot=start_snapshot,
                 )
             except TaskValidationError as exc:
+                start_snapshot.restore()
                 return _result(ref, "failed", str(exc), ticket.assignee)
+            except git.FeaturePublicationError as exc:
+                return _result(ref, "failed", str(exc), ticket.assignee)
+        else:
+            try:
+                current_ticket_bytes = ref.ticket_path.read_bytes()
+            except FileNotFoundError:
+                current_ticket_bytes = None
+            if current_ticket_bytes != prepared_launch.source_ticket_bytes:
+                # An `in_progress` resume has no lifecycle write on which to
+                # hang a mutation snapshot, but it must still spawn only from
+                # the ticket revision whose inputs were materialized.
+                return _result(
+                    ref,
+                    "failed",
+                    "ticket changed after launch preflight; retry",
+                    launch_assignee,
+                    launched=launched,
+                )
 
-        before = read_ticket(ref)
+        before = prepared_launch.ticket
         try:
-            agent = cfg.agent_type(launch_assignee or "")
-            env = build_supervised_step_env(
-                build_launch_env(cfg, before.secrets),
-                task_path=ref.path,
-                step=before.step,
-            )
+            agent = prepared_launch.agent
             # A normal interactive launch: the REPL streams to the console
             # under the PTY watcher, and the done-sentinel (`coga bump` /
             # `mark done` / `mark canceled` / `block`) releases it — never
@@ -1082,7 +1168,7 @@ def _launch_until_stop(
                 ref,
                 before,
                 agent,
-                env=env,
+                env=prepared_launch.env,
                 actor="megalaunch",
                 log_message="launched via coga megalaunch",
                 name=before.title or "",
@@ -1091,6 +1177,7 @@ def _launch_until_stop(
                 launch_context="megalaunch",
                 label="Megalaunch",
                 warn_blackboard=True,
+                composed_prompt=prepared_launch.prompt,
             )
         except (ComposeError, ConfigError, SecretError) as exc:
             return _result(ref, "failed", str(exc), launch_assignee)
@@ -1369,8 +1456,13 @@ def _chain_stop_result(
 
 
 def _preflight_agent_launch(
-    cfg: Config, ref: TaskRef, ticket: Ticket, launch_assignee: str | None
-) -> str | None:
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    launch_assignee: str | None,
+    *,
+    source_ticket_bytes: bytes | None = None,
+) -> _PreparedAgentLaunch | str:
     try:
         agent = cfg.agent_type(launch_assignee or "")
     except ConfigError as exc:
@@ -1382,16 +1474,36 @@ def _preflight_agent_launch(
         return f"status is {ticket.status}; expected active or in_progress"
     if shutil.which(agent.cli) is None:
         return agent_cli_missing_message(agent.cli)
+    expected_source_bytes = (
+        ticket.render().encode("utf-8")
+        if source_ticket_bytes is None
+        else source_ticket_bytes
+    )
+    launch_ticket = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+    if launch_ticket.status == "active":
+        launch_ticket.frontmatter["status"] = "in_progress"
     try:
-        compose_prompt(cfg, ref, ticket, launch_context="megalaunch")
-        build_launch_env(cfg, ticket.secrets)
+        prompt = compose_prompt(
+            cfg, ref, launch_ticket, launch_context="megalaunch"
+        )
+        env = build_supervised_step_env(
+            build_launch_env(cfg, launch_ticket.secrets),
+            task_path=ref.path,
+            step=launch_ticket.step,
+        )
     except (ConfigError, ComposeError, SecretError) as exc:
         return str(exc)
     if cfg.git_enabled and check_git_remote(cfg.git_remote).ok:
         auth = check_git_auth(cfg.git_remote)
         if not auth.ok:
             return f"git push access unavailable: {auth.detail}"
-    return None
+    return _PreparedAgentLaunch(
+        ticket=launch_ticket,
+        source_ticket_bytes=expected_source_bytes,
+        agent=agent,
+        env=env,
+        prompt=prompt,
+    )
 
 
 def _result(

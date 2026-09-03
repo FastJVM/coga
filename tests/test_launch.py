@@ -373,6 +373,49 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
     assert calls == [["codex", "-c", "developer_instructions=# Coga task\nbody", "Begin"]]
 
 
+def test_spawn_agent_session_uses_precomposed_prompt_without_rederiving_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = TaskRef(slug="checked-ticket", path=tmp_path / "checked-ticket")
+    ref.path.mkdir()
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fail_compose(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a precomposed prompt must not be recomposed")
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.launch.compose_prompt", fail_compose)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(
+            name="claude",
+            cli="claude",
+            file="CLAUDE.md",
+            mode="local",
+            discussion="--append-system-prompt {prompt}",
+        ),
+        env={},
+        actor="human:marc",
+        log_message="launched",
+        discussion=True,
+        composed_prompt="# Materialized\nchecked once",
+    )
+
+    assert calls == [
+        ["claude", "--append-system-prompt", "# Materialized\nchecked once"]
+    ]
+
+
 def test_spawn_agent_session_rederives_nested_recurring_task_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

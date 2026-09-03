@@ -2991,6 +2991,7 @@ def spawn_agent_session(
     secrets_are_scoped: bool = True,
     stateless_identity: tuple[str, str] | None = None,
     include_blocker_preamble: bool = True,
+    composed_prompt: str | None = None,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -3013,6 +3014,9 @@ def spawn_agent_session(
     `include_blocker_preamble` is disabled only for guided authoring: the
     resolve-or-re-block directive belongs to task execution, while an authoring
     session must leave a blocked ticket and its open asks intact.
+    `composed_prompt` carries a prompt a caller already materialized at its
+    own preflight boundary. The spawn uses those exact bytes instead of
+    recomposing after intervening lifecycle publication.
     The launch supervisor loop and step chaining deliberately stay outside.
 
     `commit_log` immediately commits the `log.md` launch append (via
@@ -3076,14 +3080,18 @@ def spawn_agent_session(
         if warning:
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 
-    typer.echo(f"{label}: composing prompt")
-    prompt = compose_prompt(
-        cfg,
-        ref,
-        ticket,
-        include_blocker_preamble=include_blocker_preamble,
-        launch_context=launch_context,
-    )
+    if composed_prompt is None:
+        typer.echo(f"{label}: composing prompt")
+        prompt = compose_prompt(
+            cfg,
+            ref,
+            ticket,
+            include_blocker_preamble=include_blocker_preamble,
+            launch_context=launch_context,
+        )
+    else:
+        typer.echo(f"{label}: using preflighted prompt")
+        prompt = composed_prompt
     if prompt_suffix:
         prompt = f"{prompt}{prompt_suffix}"
     prompt_file = write_prompt_file(prompt, ref)
