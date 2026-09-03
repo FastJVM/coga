@@ -457,6 +457,7 @@ def test_megalaunch_chains_agent_owned_steps(
         if updated.step == "1 (implement)":
             updated.frontmatter["step"] = "2 (verify)"
             updated.frontmatter["assignee"] = "claude"
+            updated.frontmatter.pop("launch_generation", None)
         else:
             updated.frontmatter["status"] = "done"
             updated.frontmatter.pop("step", None)
@@ -644,6 +645,7 @@ def test_megalaunch_agent_override_applies_to_first_step_only(
         seen.append((updated.step or "", agent.cli))
         if updated.step == "1 (implement)":
             updated.frontmatter["step"] = "2 (verify)"
+            updated.frontmatter.pop("launch_generation", None)
         else:
             updated.frontmatter["status"] = "done"
             updated.frontmatter.pop("step", None)
@@ -2598,10 +2600,10 @@ def test_megalaunch_does_not_compensate_over_an_ordinary_resume(
     assert _log_lines_for(cfg, active["slug"], "restored (") == []
 
 
-def test_megalaunch_does_not_restore_active_over_a_peer_session_claim(
+def test_megalaunch_does_not_reclaim_a_published_session_claim(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A second launcher's generation owns its live ``in_progress`` task."""
+    """A published generation cannot be rotated by another megalaunch."""
     cfg = load_config(repo)
     active = create_task(
         cfg=cfg,
@@ -2618,52 +2620,49 @@ def test_megalaunch_does_not_restore_active_over_a_peer_session_claim(
     )
     sync_calls = 0
     outer_generation: str | None = None
-    peer_generation: str | None = None
+    peer_result = None
 
     class _Session:
         exit_code = 0
         termination_kind = "natural"
 
-    def peer_spawn(
-        _cfg, _ref, claimed: Ticket, _agent, **_kwargs
+    def outer_spawn(
+        _cfg, _ref, claimed: Ticket, _agent, **kwargs
     ):  # type: ignore[no-untyped-def]
-        nonlocal peer_generation
-        peer_generation = claimed.launch_generation
-        assert peer_generation is not None
-        peer = Ticket.read(active["path"])
-        assert peer.launch_generation == peer_generation
-        peer.body = f"{peer.body.rstrip()}\n\nPeer session is running.\n"
-        peer.write(active["path"])
+        assert claimed.launch_generation == outer_generation
+        kwargs["before_spawn"]()
+        finished = Ticket.read(active["path"])
+        finished.frontmatter["status"] = "done"
+        finished.frontmatter.pop("step", None)
+        finished.frontmatter.pop("launch_generation", None)
+        finished.write(active["path"])
         return _Session()
 
     def racing_sync(*_args, **_kwargs):  # type: ignore[no-untyped-def]
-        nonlocal outer_generation, sync_calls
+        nonlocal outer_generation, peer_result, sync_calls
         sync_calls += 1
         if sync_calls != 1:
             return
         outer_generation = Ticket.read(active["path"]).launch_generation
         assert outer_generation is not None
         peer_run = run_megalaunch(cfg, selection=[active["slug"]])
-        assert peer_run.results[0].launched
+        peer_result = peer_run.results[0]
 
     monkeypatch.setattr("coga.mark.git.sync_task_state", racing_sync)
-    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", peer_spawn)
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", outer_spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
 
-    assert sync_calls == 2
-    assert run.results[0].outcome == "failed"
-    assert (
-        run.results[0].detail
-        == "ticket changed during start publication; current state retained "
-        "for safe resume; retry"
-    )
-    assert peer_generation is not None
-    assert peer_generation != outer_generation
+    assert sync_calls == 1
+    assert run.results[0].outcome == "completed"
+    assert run.results[0].launched
+    assert peer_result is not None
+    assert peer_result.outcome == "failed"
+    assert not peer_result.launched
+    assert "already carries a published megalaunch claim" in peer_result.detail
     retained = Ticket.read(active["path"])
-    assert retained.status == "in_progress"
-    assert retained.launch_generation == peer_generation
-    assert "Peer session is running." in retained.body
+    assert retained.status == "done"
+    assert retained.launch_generation is None
     assert _log_lines_for(cfg, active["slug"], "restored (") == []
 
 
@@ -2988,6 +2987,94 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
     assert remote.launch_generation == peer_generation
     assert "Peer claimant is running." in remote.body
     assert _log_lines_for(cfg, active["slug"], "restored (") == []
+
+
+def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A published claim stays exclusive between final proof and PTY spawn."""
+    from coga import git as git_module
+
+    cfg = load_config(git_repo.coga_os)
+    active = create_task(
+        cfg=cfg,
+        title="Non-reclaimable final claim",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket_path = Path(active["path"])
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    git_module.sync_task_state(
+        cfg, ticket_path, message="Seed non-reclaimable final claim"
+    )
+    peer_root = git_repo.root.parent / "post-check-peer"
+    git_repo.git(
+        "clone", str(git_repo.origin), str(peer_root), cwd=git_repo.root.parent
+    )
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer_root)
+    git_repo.git("config", "user.name", "Peer", cwd=peer_root)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer_root)
+    git_repo.git("checkout", "-B", "main", "origin/main", cwd=peer_root)
+    (peer_root / "coga" / "coga.local.toml").write_text(
+        'user = "marc"\n', encoding="utf-8"
+    )
+    peer_cfg = load_config(peer_root / "coga")
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    outer_generation: str | None = None
+    peer_result = None
+    spawned_paths: list[Path] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def spawn_after_peer_attempt(
+        _cfg, ref_obj, claimed: Ticket, _agent, *, before_spawn, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal outer_generation, peer_result
+        if ref_obj.ticket_path.is_relative_to(peer_root):
+            raise AssertionError("a peer must not replace a published claim")
+        spawned_paths.append(ref_obj.ticket_path)
+        outer_generation = claimed.launch_generation
+        assert outer_generation is not None
+        # This is the actual shared final-spawn seam. Start the competing
+        # megalaunch only after A has completed that point-in-time proof.
+        before_spawn()
+        git_repo.git("pull", "--ff-only", "origin", "main", cwd=peer_root)
+        peer_run = run_megalaunch(peer_cfg, selection=[active["slug"]])
+        peer_result = peer_run.results[0]
+        finished = Ticket.read(ref_obj.ticket_path)
+        finished.frontmatter["status"] = "done"
+        finished.frontmatter.pop("step", None)
+        finished.frontmatter.pop("launch_generation", None)
+        finished.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr(
+        "coga.megalaunch.spawn_agent_session", spawn_after_peer_attempt
+    )
+
+    run = run_megalaunch(cfg, selection=[active["slug"]])
+
+    assert run.results[0].outcome == "completed"
+    assert run.results[0].launched
+    assert spawned_paths == [ticket_path]
+    assert peer_result is not None
+    assert peer_result.outcome == "failed"
+    assert not peer_result.launched
+    assert "already carries a published megalaunch claim" in peer_result.detail
+    remote = Ticket.parse(
+        git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    )
+    assert remote.status == "in_progress"
+    assert remote.launch_generation == outer_generation
 
 
 def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_launch(
@@ -4388,6 +4475,56 @@ def test_megalaunch_cli_picker_requires_tty(repo: Path) -> None:
 
     assert result.exit_code == 2
     assert "TTY" in result.output
+
+
+def test_megalaunch_disappeared_prompt_layer_fails_only_its_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A raw preflight file race becomes one failed row, not a sweep crash."""
+    import coga.megalaunch as megalaunch_module
+
+    cfg = load_config(repo)
+    first = create_task(
+        cfg=cfg,
+        title="A missing context",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    second = create_task(
+        cfg=cfg,
+        title="B still launches",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    missing = str(repo / "contexts" / "vanished" / "SKILL.md")
+    real_compose = megalaunch_module.compose_prompt
+
+    def flaky_compose(cfg_, ref_obj, ticket, *args, **kwargs):
+        if ref_obj.id_slug == first["slug"]:
+            raise FileNotFoundError(2, "No such file or directory", missing)
+        return real_compose(cfg_, ref_obj, ticket, *args, **kwargs)
+
+    monkeypatch.setattr(megalaunch_module, "compose_prompt", flaky_compose)
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg)
+
+    assert launched == [second["slug"]]
+    assert [(result.slug, result.outcome) for result in run.results] == [
+        (first["slug"], "failed"),
+        (second["slug"], "completed"),
+    ]
+    assert missing in run.results[0].detail
+    assert "not the agent CLI" in run.results[0].detail
+
 
 def test_megalaunch_missing_packaged_prompt_fails_task_not_sweep(
     repo: Path, monkeypatch: pytest.MonkeyPatch

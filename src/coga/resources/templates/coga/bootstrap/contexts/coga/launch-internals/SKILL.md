@@ -247,7 +247,11 @@ and audit bytes are restored when that lease or an ordinary publication attempt
 fails; an ambiguous accepted push retains generated evidence for explicit
 reconciliation. A session never spawns until the unique `launch_generation`
 claim is durably published. This prevents two checkouts preflighted from one
-control revision from both starting.
+control revision from both starting. A published generation is non-reclaimable
+by another megalaunch, so a later launcher cannot supersede it after the
+owner's final point-in-time control fetch. Workflow advancement and lifecycle
+transitions that end or park the session clear the generation; ordinary
+`coga launch` is the explicit recovery path for an abandoned claim.
 
 The dependency drain enters that boundary with one extra state change. It
 re-captures the exact `blocked` ticket and open asks, validates the prospective
@@ -269,9 +273,10 @@ prompt inputs at the actual spawn boundary. Any mismatch or unverifiable fetch
 refuses the child and retains the current `in_progress` state for safe resume.
 It never compensates backward to `active`: an ordinary `coga launch` resume may
 already be running from the same generation and changing its blackboard, so
-that token alone is not proof that no session owns the state. Git-disabled
-repositories retain both exact local rereads without claiming a nonexistent
-control publication.
+that token alone is not proof that no session owns the state. Another
+megalaunch refuses the published generation before it can rotate the claim.
+Git-disabled repositories retain both exact local rereads without claiming a
+nonexistent control publication.
 
 ## Recurring admission generations
 

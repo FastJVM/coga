@@ -334,6 +334,40 @@ def test_mark_paused_preserves_step(repo: Path) -> None:
     assert t.step == "2 (pr)"
 
 
+def test_bump_clears_finished_megalaunch_claim(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="in_progress")
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["launch_generation"] = "finished-session"
+    ticket.write(task_path)
+
+    result = CliRunner().invoke(app, ["bump", slug])
+
+    assert result.exit_code == 0, result.output
+    advanced = Ticket.read(task_path)
+    assert advanced.step == "2 (pr)"
+    assert advanced.launch_generation is None
+
+
+@pytest.mark.parametrize("status", ["paused", "done", "canceled"])
+def test_mark_session_end_clears_megalaunch_claim(
+    repo: Path, status: str
+) -> None:
+    slug, task_path = _make_task(repo, status="active")
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["launch_generation"] = "finished-session"
+    ticket.write(task_path)
+    command = ["mark", status, slug]
+    if status == "canceled":
+        command.extend(["--message", "No longer needed"])
+
+    result = CliRunner().invoke(app, command)
+
+    assert result.exit_code == 0, result.output
+    ended = Ticket.read(task_path)
+    assert ended.status == status
+    assert ended.launch_generation is None
+
+
 def test_mark_paused_from_draft_errors(repo: Path) -> None:
     slug, _ = _make_task(repo, status="draft")
     runner = CliRunner()

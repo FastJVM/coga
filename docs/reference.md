@@ -123,14 +123,17 @@ task (optionally scoped to `tasks/<DIR>/`).
   sync is enabled, activation and start compare-and-swap against the exact
   whole-ticket control revision and must publish before spawn. After
   `mark_in_progress` returns, megalaunch requires the live file to equal the
-  exact preflighted `in_progress` bytes before spawn. Every megalaunch start
-  and resume first writes a unique `launch_generation` claim. The final shared
+  exact preflighted `in_progress` bytes before spawn. An unclaimed megalaunch
+  start or resume writes a unique `launch_generation`; another megalaunch
+  refuses a published generation instead of replacing it. The final shared
   `before_spawn` seam rereads those local bytes and freshly verifies the whole
   ticket on every effective control destination immediately before the PTY.
   A changed or unverifiable claim refuses the child and retains
   `in_progress`; it never compensates backward to `active`, because an
   ordinary `coga launch` may already be running from the same generation and
-  changing the blackboard. The prompt, resolved
+  changing the blackboard. Step advancement and lifecycle transitions that
+  end or park the session clear the generation; ordinary `coga launch` is the
+  explicit recovery path for an abandoned one. The prompt, resolved
   secret environment, and agent
   are materialized by that preflight and reused at spawn, so no fallible
   derivation happens after the ticket reaches `in_progress`. The selection is

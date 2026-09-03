@@ -859,6 +859,9 @@ def test_bump_gate_fails_loud_on_non_string_requires(repo: Path) -> None:
 
 def test_block_writes_blocker_and_status(repo: Path) -> None:
     slug, task_path = _make_task(repo)
+    claimed = Ticket.read(task_path)
+    claimed.frontmatter["launch_generation"] = "finished-session"
+    claimed.write(task_path)
     runner = CliRunner()
     result = runner.invoke(app, ["block", "--task", slug, "--reason", "unclear ceiling for 429 backoff"])
     assert result.exit_code == 0, result.output
@@ -868,6 +871,7 @@ def test_block_writes_blocker_and_status(repo: Path) -> None:
     ticket = Ticket.read(task_path)
     assert ticket.status == "blocked"
     assert ticket.step == "1 (implement)"
+    assert ticket.launch_generation is None
     assert "blocked:" in _log_text(repo, slug)
 
 

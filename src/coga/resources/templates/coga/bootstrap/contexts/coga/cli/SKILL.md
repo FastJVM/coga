@@ -695,14 +695,18 @@ working launch:
    whole-ticket control compare-and-set and must publish durably before spawn,
    so two checkouts cannot both claim one revision. After
    `mark_in_progress` returns, the live ticket must still equal the exact
-   preflighted `in_progress` bytes. Every megalaunch start and resume writes a
-   unique, visible `launch_generation` claim before spawn. The final shared
+   preflighted `in_progress` bytes. An unclaimed megalaunch start or resume
+   writes a unique, visible `launch_generation` before spawn; another
+   megalaunch refuses a published generation instead of replacing it. The
+   final shared
    `before_spawn` seam rereads those local bytes and freshly verifies the whole
    ticket on every effective control destination immediately before the PTY.
    A changed or unverifiable claim refuses the child and retains
    `in_progress`; it never compensates backward to `active`, because an
    ordinary `coga launch` may already be running from the same generation and
-   changing the blackboard. Preflight also
+   changing the blackboard. Step advancement and lifecycle transitions that
+   end or park the session clear the generation; ordinary `coga launch` is the
+   explicit recovery path for an abandoned one. Preflight also
    materializes the
    exact prompt, resolved secret environment, and agent used by the spawn, so
    no fallible input derivation is repeated after lifecycle state is written.

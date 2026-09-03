@@ -66,6 +66,7 @@ from coga.blackboard import (
 )
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
+    missing_launch_file_message,
     spawn_agent_session,
 )
 from coga.recurring_runner import (
@@ -1635,11 +1636,12 @@ def _revalidate_launch_claim_before_spawn(
     """Re-prove one exact local/control claim at the actual PTY boundary.
 
     Strict claim publication closes the race between preflight and the first
-    control push, but a second launcher can rotate ``launch_generation`` after
-    that push while this process writes its prompt and builds argv. Reread the
-    local ticket and every effective control push destination from a private
-    fetch immediately before ``run_with_done_marker``. Exact ticket bytes bind
-    the proof to the preflighted prompt as well as the generation.
+    control push, and a published generation is not automatically reclaimable
+    by another megalaunch. Still reread the local ticket and every effective
+    control push destination from a private fetch immediately before
+    ``run_with_done_marker`` so arbitrary peer edits after publication cannot
+    reach spawn. Exact ticket bytes bind the proof to the preflighted prompt as
+    well as the generation.
 
     Refusal deliberately leaves ``in_progress`` untouched. Ordinary
     ``coga launch`` may already have resumed those same bytes and changed only
@@ -1794,6 +1796,12 @@ def _preflight_agent_launch(
     # cannot reach the agent spawn path.
     if ticket.status not in {"active", "in_progress"}:
         return f"status is {ticket.status}; expected active or in_progress"
+    if ticket.status == "in_progress" and ticket.launch_generation is not None:
+        return (
+            "ticket already carries a published megalaunch claim; refusing "
+            "an automatic concurrent resume — use `coga launch "
+            f"{ref.id_slug}` to recover it explicitly"
+        )
     if shutil.which(agent.cli) is None:
         return agent_cli_missing_message(agent.cli)
     expected_source_bytes = (
@@ -1814,6 +1822,8 @@ def _preflight_agent_launch(
             task_path=ref.path,
             step=launch_ticket.step,
         )
+    except FileNotFoundError as exc:
+        return missing_launch_file_message(exc)
     except (ConfigError, ComposeError, SecretError) as exc:
         return str(exc)
     if cfg.git_enabled and check_git_remote(cfg.git_remote).ok:

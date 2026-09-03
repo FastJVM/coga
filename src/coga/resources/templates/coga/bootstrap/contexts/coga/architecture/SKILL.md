@@ -215,9 +215,12 @@ generation and the runner's start lease reads it back as a bounded witness;
 templates and ordinary tasks that declare it are rejected. See `coga/recurring`.
 
 `launch_generation` is megalaunch's transient, durable session-claim token:
-every megalaunch start or resume rotates it before spawn, and activation clears
-it. Both generation fields are system-owned optional fields, never repository
-extensions.
+an unclaimed start or resume writes it before
+spawn; another megalaunch may not rotate a published generation. Advancing the
+workflow or marking the session blocked, paused, done, or canceled clears it,
+as does activation. An operator may explicitly recover an abandoned claim with
+ordinary `coga launch`. Both generation fields are system-owned optional
+fields, never repository extensions.
 
 `secrets` is nullable and declared **inline** — there is no central
 `[secrets]` catalog. Absent / `null` / `[]` inject nothing; otherwise it is a
@@ -863,11 +866,14 @@ that sync from reaching spawn. At the shared final `before_spawn` seam,
 megalaunch rereads those exact local bytes and freshly fetches every effective
 control destination; the whole control ticket, including `launch_generation`,
 must still match immediately before the PTY starts. A changed or unverifiable
-claim refuses the child and retains `in_progress` for safe resume. Megalaunch
-rotates its visible claim before every start or resume, but ordinary
-`coga launch` can resume the same generation and begin writing its blackboard.
-Megalaunch therefore never compensates a refused claim backward to `active`:
-the unchanged token cannot prove that no ordinary session is running.
+claim refuses the child and retains `in_progress` for safe resume. Once
+published, a generation is not automatically reclaimable by another
+megalaunch, closing the interval after the point-in-time final fetch; a step
+advance or lifecycle transition that ends or parks the session clears it.
+Ordinary `coga launch` remains the explicit recovery path and can resume the
+same generation while writing its blackboard. Megalaunch therefore never
+compensates a refused claim backward to `active`: the unchanged token cannot
+prove that no ordinary session is running.
 `coga launch`'s
 `while True:` supervisor chain
 (per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the

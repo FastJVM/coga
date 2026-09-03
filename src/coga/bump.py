@@ -169,6 +169,9 @@ def advance_step(
     # no sync, and each retry would advance it again.
     prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     prospective.frontmatter["step"] = f"{next_step} ({new_step_name})"
+    # Advancing the workflow ends the agent session that owned this durable
+    # megalaunch claim. The next step may acquire a fresh generation.
+    prospective.frontmatter.pop("launch_generation", None)
     if new_assignee is not None:
         prospective.frontmatter["assignee"] = new_assignee
     assert_task_valid(

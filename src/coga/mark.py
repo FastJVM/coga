@@ -193,6 +193,7 @@ def mark_done(
     prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     prospective.frontmatter["status"] = "done"
     prospective.frontmatter.pop("step", None)
+    prospective.frontmatter.pop("launch_generation", None)
     assert_task_valid(cfg, ref, action="mark done", ticket_override=prospective)
     ticket.frontmatter = prospective.frontmatter
     if mutation_snapshot is not None:
@@ -334,6 +335,7 @@ def mark_canceled(
     prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     prospective.frontmatter["status"] = "canceled"
     prospective.frontmatter.pop("step", None)
+    prospective.frontmatter.pop("launch_generation", None)
     assert_task_valid(
         cfg,
         ref,
@@ -949,6 +951,7 @@ def mark_blocked(
     """Flip a ticket to `blocked` without changing its workflow step."""
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "blocked"
+    ticket.frontmatter.pop("launch_generation", None)
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
@@ -1035,6 +1038,7 @@ def mark_paused(
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
+    ticket.frontmatter.pop("launch_generation", None)
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
