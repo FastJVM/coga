@@ -1,7 +1,7 @@
 ---
 slug: marketing/phase-0-audit
 title: Phase 0 audit
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
