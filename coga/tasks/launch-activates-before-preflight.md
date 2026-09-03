@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/launch-internals
 skills: []
@@ -34,7 +34,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 4 (open-pr)
+step: 5 (review)
 ---
 
 ## Description
