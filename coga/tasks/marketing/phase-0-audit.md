@@ -393,6 +393,13 @@ or PR templates. Not blocking, but arrivals will notice.
 
 ## Narrative candidates
 
+**Owner ruling (step 2, 2026-09-02): none of the candidates below are
+publishable.** magicator, xpllm, and admin are confidential; the literal
+text, slugs, and block reasons must not be quoted. Kept here as evidence of
+the practice only. Post 1 has to draw its quotable examples from this repo
+(`coga/log.md`: sweeps 2026-08-26 21:29 and 2026-09-02 13:44, plus the
+blocker history here) or paraphrase shapes without repo detail.
+
 Collected 2026-09-03 from the non-Coga repos (read-only). Log format is
 `[slug] [agent:X] blocked: <reason>`; human tags vary (`nick`, `nicktoper`,
 `zach`).
@@ -583,31 +590,48 @@ No shortfall. There are ten candidates across the non-Coga repos: eight strong o
 
 ## Worklist
 
-Draft from step 1. `[owner]` is who must act; `[?]` means the owner decides
-in step 2 whether it becomes a ticket, who takes it, or whether it is
-accepted as-is. Ordered: blockers for post 1 first.
+Draft from step 1, updated with the owner's step-2 decisions (2026-09-02).
+`[owner]` is who must act; `[?]` items are deferred by the owner ("will do
+later") and stay open for a later pass. Ordered: blockers for post 1 first.
+
+**Step 2 decisions (owner, 2026-09-02)**
+
+- 1.0 release: ticketed as `publish-coga-1-0-to-pypi` (draft,
+  `brief-for-human`); the owner will run it later, not as part of this audit.
+- Python 3.11 crash: fix, not re-floor. Ticketed as
+  `fix-coga-init-crash-on-python-3-11-by-adding-the-r` (draft,
+  `code/with-review`). Must land before the release.
+- Narrative candidates: all confidential, none publishable (see ruling above).
+  Non-Coga repos therefore yield zero quotable examples; this is the shortfall
+  the ticket asked to report honestly.
+- Token measurement: accepted as drafted in check 6. Assigned to an agent on
+  a `direct`-workflow ticket `marketing/token-receipts`, to be created when
+  phase 1 starts.
+- Owner-only facts (Lobste.rs, Reddit, Bookface, fastjvm.com, blog analytics)
+  and phase-1 thresholds: still open, nothing on record yet.
+- `[?]` triage findings: deferred by the owner.
 
 **Blocking post 1**
 
-- [nicktoper] Publish `coga 1.0` to PyPI — PyPI serves 0.2.0 and 0.2.0's `coga init` crashes; 0.3.1's `init` pip-installs its own version from PyPI into the vendored venv, so nothing works from PyPI until 1.0 is there. Release path: GitHub Release → `.github/workflows/release.yml` (Trusted Publishing). Bump `pyproject.toml` from 0.3.1.
-- [?] Fix or re-floor Python 3.11 — `coga init` crashes on 3.11 on every version (`src/coga/resources/` lacks `__init__.py` → `MultiplexedPath.joinpath(*parts)` is 3.12+). Either ship the `__init__.py` fix in 1.0 or change `requires-python` and both docs to 3.12+. Must land before 1.0.
+- [nicktoper] Publish `coga 1.0` to PyPI — ticketed: `publish-coga-1-0-to-pypi` (draft). PyPI serves 0.2.0 and 0.2.0's `coga init` crashes; 0.3.1's `init` pip-installs its own version from PyPI into the vendored venv, so nothing works from PyPI until 1.0 is there. Release path: GitHub Release → `.github/workflows/release.yml` (Trusted Publishing); runbook in `docs/releasing.md`.
+- [agent] Fix Python 3.11 — ticketed: `fix-coga-init-crash-on-python-3-11-by-adding-the-r` (draft). Add `src/coga/resources/__init__.py` (`MultiplexedPath.joinpath(*parts)` is 3.12+). Owner chose the fix over re-flooring. Must land before 1.0.
 - [nicktoper, step 3 agent] Re-run the quickstart from PyPI 1.0 in a real terminal — step 1 run stopped at the TTY gate; the Claude Code spawn itself was not exercised.
 - [marketing/discord] Community home — nothing exists: Discussions disabled (404), no Discord link, no repo homepage URL. Decide and create before post 1.
 - [marketing/readme-top] README first screen — add the day-shape sentence and the internal-tool envelope; pull "for whom" above the fold; decide whether "Measured on itself" (31 workstreams) moves below the primitives. "Acting as the CPU" is already there.
 - [nicktoper] Prepared replies — none exist outside the plan's bullets; write the four out (suggest: `marketing/post-async-megalaunch` blackboard).
-- [nicktoper] Confidentiality pass on narrative candidates — confirm `magicator`/`xpllm` lines (research direction) are quotable; rule on admin candidates 9 and 10 (Zach's repo; trademark/Xero/payroll lines nearby).
+- [marketing/post-async-megalaunch] Narrative material — owner ruled all ten non-Coga candidates confidential; nothing quotable from magicator/xpllm/admin. Post 1 quotes this repo's log or paraphrases. Shortfall recorded.
 
 **Owner-only decisions (step 2)**
 
-- [nicktoper] Assign token-measurement collection — draft mechanism in check 6: one `direct`-workflow ticket `marketing/token-receipts`, 4–6 ticket pairs (`<slug>` vs `<slug>-nocontext` copy with `contexts: []`), receipts from `coga usage --task --json` + `--prompt-report` + first-commit timestamp; no new code needed.
-- [nicktoper] Phase-1 thresholds — private success numbers before publishing (subscribers, community joins, referrer split; installs are not the bar).
+- [agent] Token-measurement collection — assigned (owner accepted check 6 as drafted): one `direct`-workflow ticket `marketing/token-receipts`, 4–6 ticket pairs (`<slug>` vs `<slug>-nocontext` copy with `contexts: []`), receipts from `coga usage --task --json` + `--prompt-report` + first-commit timestamp; no new code. Create the ticket when phase 1 starts.
+- [nicktoper] Phase-1 thresholds — still open. Private success numbers noted before publishing so the phase-1 retro is not post-hoc (subscribers, community joins, referrer split; installs are not the bar).
 - [nicktoper] Bookface standing and whether a pre-HN post fits the timeline — login-gated.
 - [nicktoper] Lobste.rs username + account age — invite-only; new accounts can't use `show` or submit unseen domains; tag would be `vibecoding` + `practices`, not `ai`; self-promo under ~¼ of activity. Fit is marginal ("productivity systems" is off-topic there).
 - [nicktoper] Reddit — profile unreachable unauthenticated; report karma and joined subreddits.
 - [nicktoper] fastjvm.com cross-link — single-page research index with GA; no blog/team/about slot; links to `manycore-com` org, not `FastJVM`. Decide yes/no.
 - [nicktoper] Blog readiness — WordPress.com, last post 2026-06-02 (three months quiet), Jetpack subscribe block exists, Jetpack Stats shows referrers only (no UTM table). Decide whether referrer-level attribution is enough for the phase decisions.
 
-**Findings for triage (file tickets only if the owner asks)**
+**Findings for triage (owner deferred these in step 2; revisit later)**
 
 - [?] PyPI `0.0.1` placeholder — on a 3.9/3.10 default `python3`, `pip install coga` silently installs the 1 KB placeholder with no `coga` binary. Consider yanking 0.0.1 so pip errors instead, and say in getting-started what the failure looks like.
 - [?] `coga init` hard-codes `control_branch = "main"` — on a machine whose `git init` makes `master`, every command prints the control-branch nag 2–3 times. Init should detect the current branch or the docs should say to set it.
