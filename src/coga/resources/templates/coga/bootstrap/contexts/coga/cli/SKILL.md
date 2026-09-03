@@ -882,14 +882,17 @@ command-scoped fetch, so single-branch and narrow-refspec clones do not require
 the mirrored workspace's host directory (even for a deeply nested monorepo
 workspace), and normally removes it when the run ends
 (on success, on a recipe's non-zero exit, on an exception, and on
-SIGINT/SIGTERM). The inner scan has its own process session; cancellation
-signals the whole group and reaps its leader, so a recipe descendant cannot
-continue mutating a removed checkout. A versioned SIGKILL-survivor marker
-records the wrapper PID and the inner spawn state/process-group ID; a later run
-removes that exact worktree only when both known processes are dead, while an
-ambiguous spawn window, live sweep, and user worktree remain protected. Before
-normal or stale cleanup, machine-local run records are copied into the matching
-durable workspace; a failed transfer retains the worktree. The operator's
+SIGINT/SIGTERM). Once the inner scan's process handle is known, cancellation
+signals its whole process group and reaps its leader, so a recipe descendant
+cannot continue mutating a removed checkout. If interruption lands after a
+possible fork but before the handle and process group can be published, cleanup
+retains the registered checkout for manual reconciliation. A versioned
+SIGKILL-survivor marker records the wrapper PID and the inner spawn
+state/process-group ID; a later run removes that exact worktree only when both
+known processes are dead, while it also retains an ambiguous spawn window,
+live sweep, and user worktree. Before known-safe normal or stale cleanup,
+machine-local run records are copied into the matching durable workspace; a
+failed transfer retains the worktree. The operator's
 branch, tracked and untracked project files, and stash are untouched — there is
 deliberately no stash/switch/restore — apart from that gitignored transcript,
 and the run publishes period

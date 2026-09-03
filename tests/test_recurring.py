@@ -9498,6 +9498,143 @@ def test_control_worktree_is_removed_when_the_inner_run_raises(
     assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
 
 
+def test_control_worktree_is_retained_when_child_startup_is_ambiguous(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """An interrupt after a possible fork must not remove the live checkout."""
+    _seed_recipe_template_on_control(git_repo)
+    git_repo.checkout_branch("agent/parked-work")
+    holder: Path | None = None
+
+    def interrupt_after_possible_fork(
+        *_args, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal holder
+        current = coga_git._worktree_holding_branch(git_repo.root, "main")
+        assert isinstance(current, Path)
+        holder = current
+        marker = json.loads(
+            (holder.parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text()
+        )
+        assert marker["inner_state"] == "starting"
+        assert marker["inner_pgid"] is None
+        raise KeyboardInterrupt("SIGTERM after fork, before handle assignment")
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_start_repo_recurring_process",
+        interrupt_after_possible_fork,
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_persist_control_worktree_run_logs",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an ambiguously live checkout must not be read or removed"
+        ),
+    )
+
+    try:
+        cfg = load_config(git_repo.coga_os)
+        with pytest.raises(KeyboardInterrupt):
+            recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True)
+
+        current = coga_git._worktree_holding_branch(git_repo.root, "main")
+        assert current == holder
+        assert holder is not None
+        assert holder.is_dir()
+        marker = json.loads(
+            (holder.parent / recurring_cmd._CONTROL_WORKTREE_OWNER_FILE).read_text()
+        )
+        assert marker["inner_state"] == "starting"
+        assert marker["inner_pgid"] is None
+        error = capsys.readouterr().err
+        assert "control worktree retained" in error
+        assert "child startup was interrupted" in error
+    finally:
+        if isinstance(holder, Path):
+            git_repo.git("worktree", "remove", "--force", str(holder))
+            shutil.rmtree(holder.parent, ignore_errors=True)
+
+
+def test_control_worktree_is_removed_when_child_start_is_refused(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A synchronous Popen error proves that no child can hold the checkout."""
+    _seed_recipe_template_on_control(git_repo)
+    git_repo.checkout_branch("agent/parked-work")
+
+    def refuse_start(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise OSError("simulated Popen refusal")
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_start_repo_recurring_process",
+        refuse_start,
+    )
+
+    cfg = load_config(git_repo.coga_os)
+    with pytest.raises(OSError, match="simulated Popen refusal"):
+        recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True)
+
+    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+
+
+def test_control_worktree_cleanup_retains_a_published_live_child_group(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """Even a second interrupted cancellation cannot remove live child files."""
+    _seed_recipe_template_on_control(git_repo)
+    git_repo.checkout_branch("agent/parked-work")
+    parent = Path(
+        tempfile.mkdtemp(
+            prefix=(
+                f"{recurring_cmd._CONTROL_WORKTREE_PREFIX}"
+                f"{git_repo.root.name}-"
+            )
+        )
+    )
+    holder = parent / "checkout"
+    workspace_rel = git_repo.coga_os.relative_to(git_repo.root)
+    recurring_cmd._write_control_worktree_owner(
+        parent,
+        git_repo.root,
+        "main",
+        workspace_rel,
+        inner_state="running",
+        inner_pgid=515151,
+    )
+    git_repo.git("worktree", "add", str(holder), "main")
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_process_group_is_running",
+        lambda pgid: pgid == 515151,
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_persist_control_worktree_run_logs",
+        lambda *_args, **_kwargs: pytest.fail(
+            "a live child group's checkout must not be read or removed"
+        ),
+    )
+
+    try:
+        recurring_cmd._cleanup_control_worktree(
+            git_repo.root,
+            "main",
+            holder,
+            workspace_rel,
+            git_repo.coga_os,
+        )
+
+        assert holder.is_dir()
+        error = capsys.readouterr().err
+        assert "control worktree retained" in error
+        assert "child process group 515151 may still be running" in error
+    finally:
+        git_repo.git("worktree", "remove", "--force", str(holder))
+        shutil.rmtree(parent, ignore_errors=True)
+
+
 def test_control_worktree_preserves_machine_local_run_logs_before_removal(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

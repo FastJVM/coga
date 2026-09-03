@@ -755,7 +755,26 @@ def _run_repo_recurring(
             expected="not-started",
             state="starting",
         )
-        process = _start_repo_recurring_process(command, child_cwd, child_env)
+        try:
+            process = _start_repo_recurring_process(
+                command, child_cwd, child_env
+            )
+        except Exception:
+            # A normal Popen refusal returns no child. Mark that known-safe
+            # outcome so the caller may clean up; BaseException is deliberately
+            # excluded because an asynchronous signal can land after fork but
+            # before the process handle is assigned.
+            try:
+                _transition_control_worktree_inner(
+                    control_worktree_parent,
+                    expected="starting",
+                    state="not-started",
+                )
+            except OSError:
+                # An unverifiable marker makes the outer cleanup retain the
+                # checkout. Preserve the original process-start diagnosis.
+                pass
+            raise
         try:
             _transition_control_worktree_inner(
                 control_worktree_parent,
@@ -763,21 +782,26 @@ def _run_repo_recurring(
                 state="running",
                 pgid=process.pid,
             )
-        except BaseException:
-            # A child whose identity could not be durably published must not
-            # escape while the normal cleanup path removes its checkout.
-            _terminate_repo_recurring_process(process)
-            raise
-        try:
             return process.wait()
         except BaseException:
-            # The caller owns a temporary checkout. Do not let its `finally`
-            # remove that checkout until the inner scan can no longer mutate
-            # it. In particular, a SIGTERM is converted to KeyboardInterrupt
-            # by `_service_from_control_worktree` in this outer process only;
-            # explicitly signal its isolated process group and reap the inner
-            # child here.
+            # From the moment a handle exists, every interruption is
+            # actionable: terminate the isolated group before the caller's
+            # `finally` considers removing its checkout. One try spans marker
+            # publication and wait so there is no uncovered signal window
+            # between them.
             _terminate_repo_recurring_process(process)
+            try:
+                # If publication never reached `running`, termination makes
+                # the ambiguous window known-safe again. A completed atomic
+                # write already says `running` and intentionally fails this
+                # CAS; cleanup verifies that published group is gone.
+                _transition_control_worktree_inner(
+                    control_worktree_parent,
+                    expected="starting",
+                    state="not-started",
+                )
+            except OSError:
+                pass
             raise
 
     result = subprocess.run(
@@ -1178,6 +1202,84 @@ def _reap_stale_control_worktree(root: Path, control: str) -> None:
     shutil.rmtree(holder.parent, ignore_errors=True)
 
 
+def _cleanup_control_worktree(
+    root: Path,
+    control: str,
+    checkout: Path,
+    workspace_rel: Path,
+    durable_coga_os: Path,
+) -> None:
+    """Remove a completed temp checkout, retaining every ambiguous one."""
+    owner = _read_control_worktree_owner(root, control, checkout)
+    if owner is None:
+        typer.secho(
+            "Recurring control worktree retained at "
+            f"{checkout}: its ownership marker could not be verified during "
+            "cleanup.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return
+    if owner.inner_state == "starting":
+        # Popen may have forked immediately before an asynchronous signal
+        # interrupted assignment of its handle. With no trustworthy PGID, the
+        # only safe cleanup is to leave the registered checkout in place.
+        typer.secho(
+            "Recurring control worktree retained at "
+            f"{checkout}: child startup was interrupted before its process "
+            "group could be published; verify no process still uses it "
+            "before removing it.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return
+    if (
+        owner.inner_state == "running"
+        and owner.inner_pgid is not None
+        and _process_group_is_running(owner.inner_pgid)
+    ):
+        # A second signal or an OS error can interrupt group termination. The
+        # published PGID lets this path fail closed instead of unlinking a
+        # checkout beneath a child that still has it open.
+        typer.secho(
+            "Recurring control worktree retained at "
+            f"{checkout}: child process group {owner.inner_pgid} may still "
+            "be running; retry after it exits.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return
+
+    try:
+        _persist_control_worktree_run_logs(
+            checkout / workspace_rel,
+            durable_coga_os,
+        )
+    except OSError as exc:
+        # The temp checkout is now the only durable copy. Keep both its
+        # directory and Git registration so the next sweep can retry the
+        # marker-proven transfer before reaping it.
+        typer.secho(
+            "Recurring control worktree retained at "
+            f"{checkout}: could not preserve its run logs in "
+            f"{durable_coga_os}: {exc}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return
+
+    try:
+        git._run_git(root, "worktree", "remove", "--force", str(checkout))
+    except git.GitError:
+        # The directory removal below plus `prune` still clears it.
+        pass
+    shutil.rmtree(checkout.parent, ignore_errors=True)
+    try:
+        git._run_git(root, "worktree", "prune")
+    except git.GitError:
+        pass
+
+
 def _control_worktree_agent_refusal(cfg: Config, host: str) -> str:
     """Why every agent phase is refused in a control-worktree run."""
     where = host or "the host checkout"
@@ -1339,35 +1441,13 @@ def _service_from_control_worktree(
     finally:
         if installed_sigterm:
             signal.signal(signal.SIGTERM, previous_sigterm)
-        try:
-            _persist_control_worktree_run_logs(
-                checkout / workspace_rel,
-                cfg.repo_root,
-            )
-        except OSError as exc:
-            # The temp checkout is now the only durable copy. Keep both its
-            # directory and Git registration so the next sweep can retry the
-            # marker-proven transfer before reaping it.
-            typer.secho(
-                "Recurring control worktree retained at "
-                f"{checkout}: could not preserve its run logs in "
-                f"{cfg.repo_root}: {exc}",
-                fg=typer.colors.RED,
-                err=True,
-            )
-        else:
-            try:
-                git._run_git(
-                    root, "worktree", "remove", "--force", str(checkout)
-                )
-            except git.GitError:
-                # The directory removal below plus `prune` still clears it.
-                pass
-            shutil.rmtree(parent, ignore_errors=True)
-            try:
-                git._run_git(root, "worktree", "prune")
-            except git.GitError:
-                pass
+        _cleanup_control_worktree(
+            root,
+            control,
+            checkout,
+            workspace_rel,
+            cfg.repo_root,
+        )
 
 
 def _raise_on_sigterm(signum: int, _frame: object) -> None:

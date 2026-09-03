@@ -155,13 +155,16 @@ no in-memory state.
   period, its presence is not permission to spawn an agent: the inner run
   carries a hard refusal through shared launch, keeps completed script output,
   and pauses the exact period if agent work remains. The inner scan owns a
-  separate process session; on cancellation the wrapper signals the whole
-  process group and reaps its leader before removing the checkout. A versioned
-  SIGKILL-survivor marker carries the repo, branch, workspace, wrapper PID, and
-  inner spawn state/process-group ID. A later run removes that exact Coga
-  worktree only after both known processes are dead; an ambiguous spawn window
-  is retained. Normal and stale cleanup first copy machine-local run records
-  into the durable checkout, retaining the worktree if that transfer fails.
+  separate process session; once its handle is known, cancellation signals the
+  whole process group and reaps its leader before removing the checkout. If an
+  interruption lands after a possible fork but before that handle and process
+  group can be published, the current cleanup retains the registered checkout
+  for manual reconciliation. A versioned SIGKILL-survivor marker carries the
+  repo, branch, workspace, wrapper PID, and inner spawn state/process-group ID.
+  A later run removes that exact Coga worktree only after both known processes
+  are dead; it also retains the ambiguous spawn window. For every known-safe
+  state, normal and stale cleanup first copy machine-local run records into the
+  durable checkout, retaining the worktree if that transfer fails.
   `git worktree add`
   doubles as the concurrency lock, since git refuses to check one branch out
   twice: a second sweep, or an unrelated worktree already holding the branch,

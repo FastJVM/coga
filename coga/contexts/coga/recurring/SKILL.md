@@ -291,21 +291,26 @@ the worktree, it copies every machine-local `.coga/recurring-runs/*.md`
 transcript into the matching workspace in the operator's durable checkout;
 same-name, different-content records are kept side by side. If that transfer
 fails, the registered temp worktree is retained rather than destroying the
-only copy. Otherwise removal runs in a `finally` — on success, on a recipe's
-non-zero exit, on an exception, and on SIGINT/SIGTERM. The inner scan starts in
-its own process session; on cancellation the wrapper signals the entire
-process group and waits for its leader to exit, so a `ticket.py` descendant
-cannot continue against a checkout that has already been removed.
+only copy. The inner scan starts in its own process session. Once its process
+handle is known, cancellation signals the entire process group and waits for
+its leader to exit, so a `ticket.py` descendant cannot continue against a
+checkout that has already been removed. Known-safe cleanup then runs in a
+`finally` — on success, on a recipe's non-zero exit, on an exception, and on
+SIGINT/SIGTERM. If an asynchronous interruption lands after the child may have
+forked but before its handle and process-group ID can be published, cleanup
+instead retains the registered worktree without reading its possibly-live run
+records; the operator must verify no process still uses it before removal.
 
 Each temp parent carries a versioned repo/branch/workspace ownership marker
 with the wrapper PID and the isolated child's spawn state. It publishes
 `starting` before spawn and the process-group ID immediately afterwards. If
 SIGKILL bypasses cleanup, the next run removes that exact Coga-owned checkout
 only when the wrapper is dead and either no child had started or the published
-process group is also dead. An ambiguous `starting` window, a live wrapper or
-group, an old/invalid marker, and every unrelated user worktree remain
-protected by the ordinary branch-lock refusal. Stale recovery also transfers
-the saved run records before removal and retains the checkout if it cannot.
+process group is also dead. Immediate cleanup and later stale recovery both
+retain an ambiguous `starting` window; a live wrapper or group, an old/invalid
+marker, and every unrelated user worktree remain protected by the ordinary
+branch-lock refusal. Stale recovery also transfers the saved run records before
+removal and retains the checkout if it cannot.
 
 Three properties make this shape the right one:
 
