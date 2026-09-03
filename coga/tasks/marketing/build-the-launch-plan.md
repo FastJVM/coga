@@ -218,6 +218,41 @@ Jetpack form directly. **Do not schedule a warm-up post.**
 - `marketing/positioning` and `docs/market-thesis.md` stay authoritative; if
   this plan drifts from them, they win.
 
+### Also in scope: shelve the old apparatus, and sequence against the comms ticket
+
+Two housekeeping jobs on the same context file, folded in here rather than
+given a third ticket, because a third writer on
+`coga/contexts/marketing/plan/SKILL.md` would mostly generate conflicts.
+
+**Shelve what is no longer live.** The context still carries two blocks that
+no post 1-3 may spend, and every ticket attaching `marketing/plan` pays for
+them in its composed prompt:
+
+- The **"Later, gated — the proof post"** block, 1,203 bytes: the 2-week
+  pre-registered experiment, the metrics script, the token ledger, the
+  intention-to-treat rule. It survives as an option, not a plan, and the
+  context already tells readers not to spend any of it on posts 1-3.
+- The **superseded-program status preamble**, 884 bytes, explaining that this
+  plan replaced the "20 minutes a day" experiment program in August 2026.
+  Real history, but history.
+
+Together about 2.1 KiB of a 16.5 KiB context, so roughly 13 percent. Move
+them somewhere durable rather than deleting them — `docs/` or a separate
+context — and leave a one-line pointer, the same treatment the phase-0 audit's
+evidence just got. Deciding whether the proof post is still a live option is
+itself a plan decision, which is why it belongs to this ticket.
+
+**Sequence behind `no-comms-writing-skill-the-process-is-smeared-thro.`**
+That ticket is already `in_progress` at step 1 and will thin *procedure* out
+of both marketing contexts into a new `coga/skills/marketing/write-post`
+skill, importing `addyosmani/clarity` for the prose-craft layer. It
+deliberately leaves plan status, phasing and scheduling in `marketing/plan` —
+which is exactly what this ticket rewrites. The two do not overlap in content
+but they do overlap in file, so **let the comms ticket land first** and
+rewrite what remains. Its change is also the larger size win: procedure moved
+into a skill composes only when a workflow step calls for it, whereas the
+context composes for all eight tickets that attach it.
+
 ### Out of scope
 
 - Writing any post. This produces the plan; the post tickets write the posts.

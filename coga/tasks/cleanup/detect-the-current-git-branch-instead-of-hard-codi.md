@@ -65,4 +65,39 @@ before the marketing materials ship.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: init-control-branch
+worktree: /home/n/Code/coga-init-control-branch
+
+## Findings
+
+- `coga init` does **not** literally write `control_branch = "main"`. The
+  packaged template ships `[git]` fully commented out
+  (`src/coga/resources/templates/coga/coga.toml`, the "--- Git sync ---" block);
+  the value comes from the `Config.git_control_branch = "main"` default in
+  `src/coga/config.py:117`.
+- The nag text is `git._control_branch_mismatch_message` (`src/coga/git.py:5908`),
+  emitted whenever `git._control_branch_present(root, branch, remote)` is false.
+  That predicate is the exact trigger to gate the fix on.
+- `git._symbolic_head` (`src/coga/git.py:5873`) already resolves the branch name
+  *before the first commit* (unborn HEAD), which is precisely the
+  `git init` + `coga init` case. Reused rather than reimplemented.
+
+## Decision (confirmed with the human, 2026-09-03)
+
+Pin the detected branch into the scaffolded `coga/coga.toml` **only when the
+configured default control branch is genuinely absent** (no local ref, no
+remote ref). Rationale: an unconditional pin would record a *feature* branch as
+the control branch when someone runs `coga init` while on a branch of an
+established main-based repo — trading one wrong config for another.
+
+- Cannot resolve a branch (detached HEAD / git error) *and* the default is
+  absent -> init still succeeds but prints the exact one-line
+  `[git] control_branch = "..."` fix (human's call: loud notice, not exit 2).
+- Docs: add a bullet to `docs/getting-started.md` under "A few things worth
+  knowing about init" (human's call: code + docs).
+
+Tradeoff accepted: a fresh init on a non-`main` repo now writes a real `[git]`
+table into a config that previously shipped comments-only, and a later branch
+rename still needs a manual edit.
