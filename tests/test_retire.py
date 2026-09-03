@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -9,6 +10,8 @@ import typer
 from typer.testing import CliRunner
 
 from coga.cli import app
+from coga.branchcleanup import WorktreeCleanupResult
+from coga.commands.retire import _checkout_cleanup_section
 from coga.ticket import Ticket
 from coga.validate import Issue, TaskValidationError
 
@@ -526,10 +529,23 @@ def test_retire_records_forceable_ignored_checkout_in_retro_body(
     assert (feature / "coga.local.toml").is_file()
     retire_task = Ticket.read(repo / "tasks" / f"retire-{slug}.md")
     assert "### Checkout cleanup" in retire_task.body
-    assert f"git worktree remove --force {str(feature)!r}" in retire_task.body
+    assert (
+        f"git worktree remove --force {shlex.quote(str(feature))}"
+        in retire_task.body
+    )
     assert "coga run branch-sweep" in retire_task.body
     # The cache is named as blocking nowhere — only the precious file is.
     assert "__pycache__" not in retire_task.body
+
+
+def test_retire_does_not_label_missing_checkout_as_preserved() -> None:
+    result = WorktreeCleanupResult(
+        worktree="/tmp/already-gone",
+        already_gone=True,
+        notes=["Worktree cleanup: recorded worktree is already gone."],
+    )
+
+    assert _checkout_cleanup_section(result) == ""
 
 
 def test_retire_preserves_checkout_claimed_by_another_live_ticket(

@@ -330,7 +330,12 @@ def _checkout_cleanup_section(checkout: WorktreeCleanupResult | None) -> str:
     they outlive the scrollback. Nothing to say when the worktree was removed,
     or when no worktree was recorded.
     """
-    if checkout is None or checkout.worktree is None or checkout.removed:
+    if (
+        checkout is None
+        or checkout.worktree is None
+        or checkout.removed
+        or checkout.already_gone
+    ):
         return ""
     notes = "\n".join(f"- {note}" for note in checkout.notes)
     return (

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -649,7 +650,7 @@ def test_ignored_only_refusal_offers_the_force_command(
     repo: Path, tmp_path: Path
 ) -> None:
     _ignore_pycache(repo)
-    feature = tmp_path / "feature"
+    feature = tmp_path / "feature's $cache"
     _add_worktree(repo, feature, "feat")
     (feature / "coga.local.toml.secret").write_text("user = 'marc'")
 
@@ -663,7 +664,8 @@ def test_ignored_only_refusal_offers_the_force_command(
 
     assert result.removed is False
     assert any(
-        f"git worktree remove --force {str(feature)!r}" in note for note in notes
+        f"git worktree remove --force {shlex.quote(str(feature))}" in note
+        for note in notes
     )
     assert any("coga run branch-sweep" in note for note in notes)
 
@@ -833,6 +835,7 @@ def test_missing_worktree_path_is_reported_not_pruned(
     )
 
     assert result.removed is False
+    assert result.already_gone is True
     assert any("already gone" in note for note in notes)
     # The stale registration is branch sweep's repo-wide job, not retire's.
     assert str(feature) in _git(repo, "worktree", "list").stdout

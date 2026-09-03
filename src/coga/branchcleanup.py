@@ -69,6 +69,7 @@ with `check=False`, no third-party git binding.
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -133,6 +134,7 @@ class WorktreeCleanupResult:
 
     worktree: str | None = None
     removed: bool = False
+    already_gone: bool = False
     notes: list[str] = field(default_factory=list)
 
 
@@ -187,6 +189,7 @@ def remove_ticket_worktree(
     if not path.is_absolute():
         path = root / path
     if not path.is_dir():
+        result.already_gone = True
         _wnote(
             result,
             echo,
@@ -253,7 +256,8 @@ def remove_ticket_worktree(
                 echo,
                 f"Worktree cleanup: {recorded!r} contains ignored local state "
                 f"retire will not delete ({sample}) — left in place. Remove it "
-                f"yourself with `git worktree remove --force {str(path)!r}`; "
+                f"yourself with `git worktree remove --force "
+                f"{shlex.quote(str(path))}`; "
                 "`coga run branch-sweep` prunes the branch on its next run.",
             )
         else:
