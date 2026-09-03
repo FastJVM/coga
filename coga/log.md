@@ -4322,3 +4322,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-03 11:16 [cleanup/detect-the-current-git-branch-instead-of-hard-codi] [human:nick] created (status=draft)
 2026-09-03 11:16 [cleanup/quiet-the-first-run-noise-from-recurring-jobs-and] [human:nick] created (status=draft)
 2026-09-03 11:16 [cleanup/handle-a-bare-slack-webhook-url-during-empty-repo] [human:nick] created (status=draft)
+2026-09-03 11:16 [cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f] [human:nick] created (status=draft)
