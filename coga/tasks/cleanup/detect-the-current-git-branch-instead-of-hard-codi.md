@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -101,3 +101,52 @@ established main-based repo — trading one wrong config for another.
 Tradeoff accepted: a fresh init on a non-`main` repo now writes a real `[git]`
 table into a config that previously shipped comments-only, and a later branch
 rename still needs a manual edit.
+
+## Implemented (2026-09-03)
+
+Commit `e4a6f82f` on `init-control-branch`, rebased onto `origin/main`.
+
+`src/coga/commands/init.py`:
+
+- `_scaffolded_git_defaults(coga_os)` -> `(control_branch, remote, declared)`.
+  Parses only `[git]` with `config._parse_git` rather than calling
+  `load_config`: an earlier draft used `load_config` and made init *fail* on an
+  unrelated config problem (caught in the live repro — an ambient
+  `SLACK_WEBHOOK_URL` aborted and rolled back the whole init). `declared` is
+  true when the scaffold ships a real `[git]` table, which init then refuses to
+  edit (a second table would not parse).
+- `_detect_control_branch(target, *, control_branch, remote)` gates on
+  `git._control_branch_present` — the exact predicate behind the nag — then
+  reads `git._symbolic_head` (resolves an *unborn* HEAD, so it works before the
+  first commit). Soft-skips on `GitError`/`OSError`; the `OSError` arm matters
+  because three existing tests run init with `PATH=""`, i.e. no `git` binary.
+- `_pin_control_branch` inserts the table above the `# --- Aliases ---` heading
+  in the scaffolded `coga.toml`, before `_git_commit_coga_os` commits it.
+  Falls back to appending for a scaffold without the shipped headings.
+- Post-init output: a plain line naming what was set, or a yellow one-liner
+  with the exact `[git] control_branch` fix when nothing could be recorded.
+
+`docs/getting-started.md`: bullet under "A few things worth knowing about init".
+
+`tests/test_init.py`: six tests — `master` repo pins, `main` repo on a feature
+branch does *not* pin, detached HEAD warns, an unreadable repo soft-skips, a
+scaffold with its own `[git]` table is left alone, and the packaged template
+still carries the insertion anchor and no `[git]` table.
+
+## Verification
+
+- `python -m pytest` — 2210 passed (re-run after the rebase). Ran under a
+  scratchpad 3.12 venv: the `python` on this machine's PATH is conda 3.9, which
+  coga refuses, and no existing env had both coga and pytest.
+- Live end-to-end in a throwaway `git init -b master` repo: init printed
+  `Set [git] control_branch = "master"`, and `coga status` / `coga create` were
+  quiet. Removing the pinned table from that same repo reproduced the ticket
+  exactly — the nag twice on one `coga create`.
+
+## Follow-up noted, not fixed here
+
+`git._symbolic_head` and `git._control_branch_present` are now cross-module
+imports of underscore-prefixed names (matching how init.py already imports
+`_refresh_coga_gitignore` from `commands/update`). Both are genuine shared
+infra with two consumers now; promoting them to public names is a separate
+tidy-up, out of scope for this ticket.
