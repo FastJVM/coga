@@ -99,7 +99,9 @@ worklist (step 3). The worklist lives on this ticket's blackboard, under a
    - fastjvm.com — the owner's other venture (YC). Report what the site is
      and whether it has a place a Coga link would fit; audience overlap is
      an owner-only judgment (step 2).
-   - HN: user `top256` (karma 213 at ticket authoring, account since 2016;
+   - HN: user `top256` (karma 213, confirmed unchanged by the owner on
+    2026-09-03 — flat since ticket authoring, consistent with the quiet
+    pattern below; account since 2016;
      `https://hacker-news.firebaseio.com/v0/user/top256.json`). Note recent
      submission pattern and whether the story-submission plan fits the
      account's history.
@@ -316,8 +318,18 @@ understatement until 1.0 ships.
   HN" matches the account's history exactly**; the second-chance
   resubmission branch has precedent on this account. Coga has never been
   submitted.
-- **Reddit (`Let047`):** every fetch returned 403 or a login wall.
-  **Owner-only in step 2:** karma and the subreddits already joined.
+- **Reddit (`Let047`) — supplied by the owner 2026-09-03** (every
+  unauthenticated fetch returned 403 or a JavaScript wall, on `www`,
+  `old.reddit.com`, and `about.json`). **7,781 karma, 2,609 contributions,
+  6-year-old account, 56 followers**, 0 gold. This is a substantially stronger
+  account than the audit assumed: it is not a cold account and will not trip
+  new-account or low-karma spam filters, which are what usually make cold
+  self-promotion fail on Reddit.
+  **Still missing: the list of subreddits.** The profile's "active in" panel
+  shows none, so it reveals nothing about membership. The plan's rule is to
+  post only where already a member, so that list is what decides whether
+  Reddit is in the channel set and which subreddits. It has to come from the
+  owner's own joined-communities sidebar.
 - **Lobste.rs — answered from the API on 2026-09-03** (the step-1 run could
   not reach the site; a retry succeeded). Username **`ntoper`**, created
   **2025-06-05** (15 months old), karma **55**, invited by `skeptrune`, empty
@@ -646,7 +658,7 @@ later") and stay open for a later pass. Ordered: blockers for post 1 first.
 - [answered 2026-09-03] Lobste.rs — `ntoper`, created 2025-06-05, karma 55, one prior self-authored submission of a `deviantabstraction.com` essay at 26 points / 19 comments. Not a new account; the domain is already seen and well received. Tags: `vibecoding` + `practices`, never `ai` (verified against `/tags.json`). Full detail in check 5 above. Nothing left for the owner here beyond deciding to submit.
 - [recommendation, owner to confirm] fastjvm.com cross-link — **recommend no.** It is a single-page Next.js research index for JVM performance work; the only slots are the "Our research" link list and a contact footer, and its GitHub link points at `manycore-com` rather than the `FastJVM` org that hosts Coga. Its readers are JVM performance researchers; post 1 addresses founders of small technical teams. A forced link would read as an ad on a research page. Revisit at post 3, where the token/documentation angle is technically adjacent enough to earn a slot.
 - [recommendation, owner to confirm] Blog attribution — **recommend accepting referrer-level and not buying analytics.** The phase decision asks which channel sent traffic; HN, Lobsters, Reddit and the newsletter are four distinct referrer domains, so Jetpack Stats separates them cleanly. What it cannot do is split two links posted to the same channel or attribute a subscriber to a channel, and neither changes a phase-1 decision. **One hard prerequisite:** record the pre-publication baseline — current subscriber count and monthly views — before post 1 goes out, or every delta below is unmeasurable.
-- [nicktoper, still owner-only] Reddit (`Let047`) — unreachable. Retried on 2026-09-03 against `www`, `old.reddit.com`, and the `about.json` endpoint; all returned 403 or a JavaScript wall. Karma and joined subreddits have to come from the owner's logged-in session. The plan only posts where already a member, so this gates whether Reddit is in the channel list at all.
+- [partly answered 2026-09-03] Reddit (`Let047`) — owner supplied: 7,781 karma, 2,609 contributions, 6 years old, 56 followers. Established account, so the cold-account failure mode the plan worried about does not apply. **Outstanding: the joined-subreddit list**, which the public profile does not expose and which decides whether Reddit is in the channel set at all.
 - [nicktoper, still owner-only] Bookface standing and whether a pre-HN post fits the timeline — login-gated to YC; no external check is possible.
 - [nicktoper, proposed below] Phase-1 thresholds — a grounded proposal is in `## Proposed phase-1 thresholds`; the owner accepts or adjusts. Note this repo is public, so anything recorded here is public too.
 
