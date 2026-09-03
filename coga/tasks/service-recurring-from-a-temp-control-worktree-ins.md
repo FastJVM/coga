@@ -5,7 +5,7 @@ status: in_progress
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts:
 - coga/architecture
 - coga/cli
@@ -34,7 +34,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (review-design)
+step: 3 (implement)
 ---
 
 ## Description
