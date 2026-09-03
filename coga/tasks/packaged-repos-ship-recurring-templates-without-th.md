@@ -1,7 +1,7 @@
 ---
 slug: packaged-repos-ship-recurring-templates-without-th
 title: Packaged repos ship recurring templates without the coga recurring context
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
