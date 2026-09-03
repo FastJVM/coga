@@ -121,6 +121,87 @@ the preconditions each ship gate waits on; who owns each step; the phase-1
 thresholds and what a miss triggers; and where the token receipts for the
 productivity angle get collected during earlier phases.
 
+### Evidence: what actually works on this HN account
+
+Verified 2026-09-03 against the public HN search API, not inherited from the
+audit. The audit's figures were close but two were wrong: it reported 101
+submissions, which counted comments — there are **26 stories** — and it missed
+a fourth high scorer, "VC and the marginal-dollar problem" (52 points, 2017).
+The API records points, not placement, so "front page" is an inference
+everywhere it appears, near-certain at 87 points and merely likely at 32.
+
+**The natural experiment.** One URL was submitted twice, four days apart, and
+the only variable that changed was the title:
+
+| Date | Title | Result |
+|---|---|---|
+| 2024-11-21 | "Making All Software Faster: Experiments with Bytecode on Real-World Apps" | 1 point |
+| 2024-11-25 | "Computing Industry Doesn't Care about Performance: how I made things faster" | 32 points |
+
+Both point at `deviantabstraction.com/2024/10/24/faster-computer/`. Same
+article, same account, same week. A descriptive title scored 1; an adversarial
+one scored 32. The audit read this resubmission as evidence for the
+second-chance branch and missed that the title had been rewritten, which is
+what actually moved it.
+
+**The pattern that separates hits from misses.** Every story this account has
+scored well with names an opponent: tech inevitability, the computing
+industry, Copilot, VC. Every miss is descriptive, definitional, or a Show HN.
+Six Show HN attempts, zero hits, best result 6 points.
+
+| Shape | Result |
+|---|---|
+| Contrarian thesis naming an opponent | 87, 52, 32 points |
+| Benchmark against a famous product | 47 points |
+| Show HN (six attempts) | 1 to 6 points |
+| Tutorial or explainer | 1 to 3 points |
+| Descriptive or definitional title | 1 to 3 points |
+
+**Consequence: the plan's title rule is wrong for this account.** The plan says
+"titles are the experience, never the thesis — a thesis title gets argued
+before it gets read." Every hit here is a thesis title, and the best result
+ever ("Why Tech Inevitability is Self-Defeating") is pure thesis. The rule has
+to be rewritten to match the evidence: name an opponent, and make the claim
+conservative rather than grand. The blog-to-HN retitles show the same hand —
+"Against Tech Inevitability" became "Why Tech Inevitability is Self-Defeating",
+and "Beats gpt5 by 4X" became "beats Copilot by 2x", a smaller number against
+a more recognizable target.
+
+**What the one AI-workflow data point does and does not show.** "AI Delegation
+Starts with Inspectable Work" (2026-06-03) scored 1 point, and it is the
+closest thing in this history to post 1 as currently planned. It is *not*
+evidence that the category fails: the owner confirms it was written for
+himself and his team and was never a launch attempt. Timing does not explain
+it either — it went out Wednesday 12:18 ET, essentially the same slot as the
+87-point best (Wednesday 13:09 ET); across all 26 stories the submission
+window is a near-constant around midday ET and has no explanatory power. What
+it does show is the title pattern again: "AI Delegation Starts with
+Inspectable Work" is a definition with no opponent in it.
+
+**The owner's own read, and why it points the same way** (2026-09-03): the AI
+category felt "too noisy to really stick out." That instinct and the natural
+experiment agree. In a saturated category a descriptive title is invisible and
+an adversarial thesis is not. The plan already owns a usable opponent —
+autonomy tools liberate by blinding you, supervision keeps you seeing by
+keeping you chained — but it is buried as beat 3 of post 1. It probably wants
+to be the spine.
+
+**Sequencing precedent.** The 32-point story was published on the blog
+2024-10-24 and not submitted to HN until 2024-11-25, a month later. Publish
+first, submit later is this account's own precedent, not a novel proposal.
+
+### Blog rhythm: no warm-up post needed
+
+Checked 2026-09-03 against the WordPress API. 39 posts since 2023, and the
+cadence is extremely uneven by nature: bursts of near-daily posting in May
+2024 alongside gaps of 117 days, 149 days, and 233 days immediately before the
+most recent post. A three-month silence is **shorter** than this blog's normal
+gap, so the "looks abandoned" concern that motivated a warm-up post is
+unfounded. The two reasons that did survive — needing a subscriber baseline
+and needing to know the subscribe flow works — are both satisfiable without
+publishing: read the existing stats for the 2026-06-02 post, and test the
+Jetpack form directly. **Do not schedule a warm-up post.**
+
 ### What is settled and not reopened
 
 - **Fork A** — an internal tool, open-sourced, told as a personal story.
