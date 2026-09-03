@@ -97,19 +97,13 @@ hands you. So:
 
 ### Import mechanics — use `install-url`, not `install`
 
-**`coga skill install` is the wrong path here, and the reason is load-bearing.**
-`install_github_skill` (`src/coga/skill_manager.py:101`) only shells out to
-`gh skill install --dir <skills root>` and returns. It writes **no** `.coga-source.json`, so there
-is no `local_adaptation_notes` field and no dirty-detection. Verified: `find coga/skills -name
-.coga-source.json` returns nothing repo-wide, and `coga skill status` reports every
-`google-agents-cli-*` skill as `delegated (github)` with no source metadata. Open PR **#743**
-exists because the skill-update recurring template made exactly this wrong assumption — do not
-repeat it.
-
-Only `install_url_skill` writes Coga provenance (`source_type: "url"`, digests, and the
-hand-editable `local_adaptation_notes`), and only it refuses to overwrite a locally adapted skill
-without `--force`. Since this import **requires pruning** (below), that protection is the whole
-point.
+**Use `install-url`, not `install`.** `install_github_skill` (`src/coga/skill_manager.py:101`)
+only shells out to `gh skill install` — it writes no `.coga-source.json`, so there is no
+`local_adaptation_notes` and no dirty-detection. Verified: no `.coga-source.json` exists repo-wide
+and `coga skill status` reports the `google-agents-cli-*` skills as `delegated (github)` with no
+source metadata; open PR **#743** exists because the skill-update template assumed otherwise. Only
+`install_url_skill` writes provenance and refuses to overwrite a locally adapted skill without
+`--force`. Since this import **requires pruning**, that protection is the point.
 
 Do this:
 
