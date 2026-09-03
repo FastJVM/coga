@@ -55,6 +55,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
 from coga import git
 from coga.blackboard import Blocker, open_blockers, resolve_open_blockers
@@ -138,6 +139,7 @@ class _PreparedAgentLaunch:
 
     ticket: Ticket
     source_ticket_bytes: bytes
+    launch_generation: str
     agent: AgentType
     env: dict[str, str]
     prompt: str
@@ -1105,83 +1107,72 @@ def _launch_until_stop(
         # exact active bytes that the preflight saw; never overlay that peer
         # revision with this loop's stale in-memory ticket. The same guard also
         # closes the preflight window for an already-active sweep candidate.
-        start_snapshot: git.FileMutationRollback | None = None
-        if ticket.status == "active":
-            audit_path = log_path(cfg)
-            start_snapshot = git.FileMutationRollback.capture(
-                (ref.ticket_path, audit_path),
-                union_paths=(audit_path,),
+        prior_start_status = ticket.status
+        audit_path = log_path(cfg)
+        start_snapshot = git.FileMutationRollback.capture(
+            (ref.ticket_path, audit_path),
+            union_paths=(audit_path,),
+        )
+        if (
+            start_snapshot.originals[ref.ticket_path]
+            != prepared_launch.source_ticket_bytes
+        ):
+            return _result(
+                ref,
+                "failed",
+                "ticket changed after launch preflight; retry",
+                launch_assignee,
+                launched=launched,
             )
-            if (
-                start_snapshot.originals[ref.ticket_path]
-                != prepared_launch.source_ticket_bytes
-            ):
-                return _result(
-                    ref,
-                    "failed",
-                    "ticket changed after launch preflight; retry",
-                    launch_assignee,
-                    launched=launched,
-                )
-            try:
-                mark_in_progress(
-                    cfg,
-                    ref,
-                    ticket,
-                    actor="megalaunch",
-                    log_message="started (active → in_progress) via coga megalaunch",
-                    echo=None,
-                    mutation_snapshot=start_snapshot,
-                )
-            except TaskValidationError as exc:
-                start_snapshot.restore()
-                return _result(ref, "failed", str(exc), ticket.assignee)
-            except git.FeaturePublicationError as exc:
-                return _result(ref, "failed", str(exc), ticket.assignee)
-            # `mark_in_progress` includes synchronous Git publication. A peer
-            # can replace or complete the ticket while that network boundary is
-            # in flight, after our pre-write CAS has already succeeded. Spawn
-            # only if the live file is still the exact `in_progress` revision
-            # whose prompt, environment, and agent were materialized above.
-            try:
-                post_start_ticket_bytes = ref.ticket_path.read_bytes()
-            except FileNotFoundError:
-                post_start_ticket_bytes = None
-            expected_started_bytes = prepared_launch.ticket.render().encode(
-                "utf-8"
+        try:
+            mark_in_progress(
+                cfg,
+                ref,
+                prepared_launch.ticket,
+                actor="megalaunch",
+                log_message=(
+                    "started (active → in_progress) via coga megalaunch"
+                    if prior_start_status == "active"
+                    else "claimed in_progress resume via coga megalaunch"
+                ),
+                echo=None,
+                mutation_snapshot=start_snapshot,
             )
-            if post_start_ticket_bytes != expected_started_bytes:
-                restored = _restore_unlaunched_start(
+        except TaskValidationError as exc:
+            start_snapshot.restore()
+            return _result(ref, "failed", str(exc), ticket.assignee)
+        except git.FeaturePublicationError as exc:
+            return _result(ref, "failed", str(exc), ticket.assignee)
+        # `mark_in_progress` includes synchronous Git publication. A peer can
+        # replace, complete, or claim the ticket while that network boundary
+        # is in flight, after our pre-write CAS has already succeeded. Spawn
+        # only if the live file is still the exact claimed revision whose
+        # prompt, environment, and agent were materialized above.
+        try:
+            post_start_ticket_bytes = ref.ticket_path.read_bytes()
+        except FileNotFoundError:
+            post_start_ticket_bytes = None
+        expected_started_bytes = prepared_launch.ticket.render().encode("utf-8")
+        if post_start_ticket_bytes != expected_started_bytes:
+            restored = (
+                prior_start_status == "active"
+                and _restore_unlaunched_start(
                     cfg,
                     ref,
                     prepared_launch.ticket,
+                    prepared_launch.launch_generation,
                 )
-                detail = "ticket changed during start publication"
-                if restored:
-                    detail += "; returned the unlaunched ticket to active"
-                return _result(
-                    ref,
-                    "failed",
-                    f"{detail}; retry",
-                    launch_assignee,
-                    launched=launched,
-                )
-        else:
-            try:
-                current_ticket_bytes = ref.ticket_path.read_bytes()
-            except FileNotFoundError:
-                current_ticket_bytes = None
-            if current_ticket_bytes != prepared_launch.source_ticket_bytes:
-                # An `in_progress` resume has no lifecycle write on which to
-                # hang a mutation snapshot, but it must still spawn only from
-                # the ticket revision whose inputs were materialized.
-                return _result(
-                    ref,
-                    "failed",
-                    "ticket changed after launch preflight; retry",
-                    launch_assignee,
-                    launched=launched,
-                )
+            )
+            detail = "ticket changed during start publication"
+            if restored:
+                detail += "; returned the unlaunched ticket to active"
+            return _result(
+                ref,
+                "failed",
+                f"{detail}; retry",
+                launch_assignee,
+                launched=launched,
+            )
 
         before = prepared_launch.ticket
         try:
@@ -1404,6 +1395,7 @@ def _restore_unlaunched_start(
     cfg: Config,
     ref: TaskRef,
     expected_started: Ticket,
+    expected_launch_generation: str,
 ) -> bool:
     """Return our refused ``in_progress`` start to ``active`` when still ours.
 
@@ -1411,10 +1403,12 @@ def _restore_unlaunched_start(
     therefore return with ticket bytes different from the preflighted spawn.
     The session must not start from stale inputs, but leaving that exact
     lifecycle at ``in_progress`` would claim a session did start. Capture and
-    parse the conflicting revision, require its lifecycle tuple to remain the
-    one this launch wrote, then use the shared active-state writer against that
-    exact local revision. Its control landing gets a second, full-ticket CAS;
-    a concurrent lifecycle or prose edit wins instead of being overwritten.
+    parse the conflicting revision, require its lifecycle tuple *and durable
+    launch generation* to remain the ones this launch wrote, then use the
+    shared active-state writer against that exact local revision. Another
+    launcher rotates the generation before spawning, so its same-lifecycle
+    edit cannot be mistaken for ours. The control landing gets a second,
+    full-ticket CAS; a later concurrent edit wins instead of being overwritten.
     """
     audit_path = log_path(cfg)
     rollback = git.FileMutationRollback.capture(
@@ -1427,6 +1421,12 @@ def _restore_unlaunched_start(
     try:
         current = Ticket.parse(source_bytes.decode("utf-8"))
     except (UnicodeDecodeError, TicketError):
+        return False
+
+    if (
+        expected_started.launch_generation != expected_launch_generation
+        or current.launch_generation != expected_launch_generation
+    ):
         return False
 
     expected_lifecycle = (
@@ -1476,10 +1476,11 @@ def _restore_unlaunched_start(
             raise_state_regression=True,
         )
     except git.StateRegressionError:
-        # The exact control revision moved after our local CAS. Keep the local
-        # compensating state visible (ordinary Coga state writes are
-        # markdown-first) but never overwrite the newer control ticket.
-        pass
+        # A peer changed control after our local CAS. Undo only our generated
+        # active bytes so the local checkout cannot advertise a regression
+        # that was correctly refused remotely.
+        rollback.restore()
+        return False
 
     try:
         restored = read_ticket(ref)
@@ -1489,6 +1490,7 @@ def _restore_unlaunched_start(
         restored.status == "active"
         and restored.step == expected_started.step
         and restored.assignee == expected_started.assignee
+        and restored.launch_generation is None
     )
 
 
@@ -1602,6 +1604,8 @@ def _preflight_agent_launch(
     launch_ticket = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     if launch_ticket.status == "active":
         launch_ticket.frontmatter["status"] = "in_progress"
+    launch_generation = str(uuid4())
+    launch_ticket.frontmatter["launch_generation"] = launch_generation
     try:
         prompt = compose_prompt(
             cfg, ref, launch_ticket, launch_context="megalaunch"
@@ -1620,6 +1624,7 @@ def _preflight_agent_launch(
     return _PreparedAgentLaunch(
         ticket=launch_ticket,
         source_ticket_bytes=expected_source_bytes,
+        launch_generation=launch_generation,
         agent=agent,
         env=env,
         prompt=prompt,

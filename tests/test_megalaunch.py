@@ -2581,9 +2581,78 @@ def test_megalaunch_restores_active_after_body_edit_during_start_sync(
     )
     restored = Ticket.read(active["path"])
     assert restored.status == "active"
+    assert restored.launch_generation is None
     assert "Peer clarified the body." in restored.body
     assert len(_log_lines_for(cfg, active["slug"], "started (")) == 1
     assert len(_log_lines_for(cfg, active["slug"], "restored (")) == 1
+
+
+def test_megalaunch_does_not_restore_active_over_a_peer_session_claim(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second launcher's generation owns its live ``in_progress`` task."""
+    cfg = load_config(repo)
+    active = create_task(
+        cfg=cfg,
+        title="Start claim race",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    sync_calls = 0
+    outer_generation: str | None = None
+    peer_generation: str | None = None
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def peer_spawn(
+        _cfg, _ref, claimed: Ticket, _agent, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal peer_generation
+        peer_generation = claimed.launch_generation
+        assert peer_generation is not None
+        peer = Ticket.read(active["path"])
+        assert peer.launch_generation == peer_generation
+        peer.body = f"{peer.body.rstrip()}\n\nPeer session is running.\n"
+        peer.write(active["path"])
+        return _Session()
+
+    def racing_sync(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        nonlocal outer_generation, sync_calls
+        sync_calls += 1
+        if sync_calls != 1:
+            return
+        outer_generation = Ticket.read(active["path"]).launch_generation
+        assert outer_generation is not None
+        peer_run = run_megalaunch(cfg, selection=[active["slug"]])
+        assert peer_run.results[0].launched
+
+    monkeypatch.setattr("coga.mark.git.sync_task_state", racing_sync)
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", peer_spawn)
+
+    run = run_megalaunch(cfg, selection=[active["slug"]])
+
+    assert sync_calls == 2
+    assert run.results[0].outcome == "failed"
+    assert (
+        run.results[0].detail
+        == "ticket changed during start publication; retry"
+    )
+    assert peer_generation is not None
+    assert peer_generation != outer_generation
+    retained = Ticket.read(active["path"])
+    assert retained.status == "in_progress"
+    assert retained.launch_generation == peer_generation
+    assert "Peer session is running." in retained.body
+    assert _log_lines_for(cfg, active["slug"], "restored (") == []
 
 
 def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_launch(

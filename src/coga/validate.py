@@ -101,7 +101,14 @@ REQUIRED_TASK_KEYS: tuple[str, ...] = (
 )
 # Optional keys that may appear in addition to the required set.
 OPTIONAL_TASK_KEYS: frozenset[str] = frozenset(
-    {"step", "watchers", "secrets", "delegate", "period_generation"}
+    {
+        "step",
+        "watchers",
+        "secrets",
+        "delegate",
+        "period_generation",
+        "launch_generation",
+    }
 )
 _NON_EMPTY_STRING_KEYS: tuple[str, ...] = (
     "title",
@@ -110,6 +117,7 @@ _NON_EMPTY_STRING_KEYS: tuple[str, ...] = (
     "agent",
     "assignee",
     "period_generation",
+    "launch_generation",
 )
 _LIVE_WORKFLOW_STATUSES: frozenset[str] = frozenset(
     {"active", "in_progress", "blocked", "paused"}

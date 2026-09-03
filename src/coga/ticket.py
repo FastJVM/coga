@@ -46,6 +46,7 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
     "skills",
     "delegate",
     "period_generation",
+    "launch_generation",
     "secrets",
 })
 
@@ -184,6 +185,14 @@ class Ticket:
     def delegate(self) -> str | None:
         """Frozen recurring bootstrap target, absent on ordinary tasks."""
         value = self.frontmatter.get("delegate")
+        if not isinstance(value, str) or not value.strip():
+            return None
+        return value.strip()
+
+    @property
+    def launch_generation(self) -> str | None:
+        """Visible identity of the most recent megalaunch session claim."""
+        value = self.frontmatter.get("launch_generation")
         if not isinstance(value, str) or not value.strip():
             return None
         return value.strip()

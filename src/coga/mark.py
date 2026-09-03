@@ -743,6 +743,9 @@ def prepare_active(
         raise RequiredExtensionMissing(missing)
 
     ticket.frontmatter["status"] = "active"
+    # An active task has no live megalaunch claim. The next megalaunch writes
+    # a fresh generation atomically with its `in_progress` transition.
+    ticket.frontmatter.pop("launch_generation", None)
 
 
 def mark_active(

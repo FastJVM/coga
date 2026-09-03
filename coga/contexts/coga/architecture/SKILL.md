@@ -853,10 +853,12 @@ resolved environment and agent, binding the inputs checked before lifecycle
 writes to the eventual spawn. Its pre-write compare-and-swap prevents a stale
 start write, and an exact reread after synchronous `in_progress` publication
 prevents a peer change during that sync from reaching spawn. When that reread
-finds the same `in_progress` lifecycle with peer-edited ticket bytes,
-megalaunch preserves those bytes and compare-and-set publishes `active` again:
-the refused, unlaunched session no longer claims it started. A different
-lifecycle such as `done` wins untouched. `coga launch`'s
+finds peer-edited ticket bytes, megalaunch returns `active` only when the
+revision still carries the unique `launch_generation` written by this refused
+attempt. Every start and `in_progress` resume rotates that visible claim before
+spawn, so another launcher's same-lifecycle session wins untouched just like a
+different lifecycle such as `done`; only the provably unlaunched attempt is
+compensated. `coga launch`'s
 `while True:` supervisor chain
 (per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the
 done-sentinel, respawn) **wraps** that call per step; the chain stays
