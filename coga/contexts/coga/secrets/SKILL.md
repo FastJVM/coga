@@ -45,20 +45,29 @@ account can reach, regardless of what its ticket declared. Secret construction
 first removes every named `env:VAR` source, then writes each resolved value
 under its declared destination alias. The final alias set therefore matters as
 much as the sources: `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` removes the
-well-known name and prevents `op` auto-authentication, while
+well-known name and prevents that variable from providing service-account-token
+auto-authentication, while
 `OP_SERVICE_ACCOUNT_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` restores it and
 `OP_SERVICE_ACCOUNT_TOKEN: env:OTHER_TOKEN` overwrites any inherited value with
-the resolved `OTHER_TOKEN`. A ticket's `secrets:` list bounds what Coga
-*resolves and names* for the task; it does not otherwise bound what the task's
-process can reach. Read the final child environment plus the vault and SA grant
-as the real boundary; read the declaration as documentation of intent.
+the resolved `OTHER_TOKEN`. Removing that token does not log the `op` CLI out:
+an inherited personal session, desktop-app integration, or other ambient
+credential may still authenticate the child and may carry broader vault access.
+A ticket's `secrets:` list bounds what Coga *resolves and names* for the task;
+it does not otherwise bound what the task's process can reach. For the service-
+account-token path, read the final child environment plus the vault and SA grant
+as its boundary. For the process as a whole, include every other inherited auth
+session and credential; read the declaration as documentation of intent, not
+confinement.
 
 The `op` CLI auto-uses `OP_SERVICE_ACCOUNT_TOKEN` while it remains set, so no
 coga code changes are normally needed for headless auth — exporting the token
 in the job process is enough for every `op://` ref a **ticket's `secrets:`**
 declares to resolve. When the launched process itself must continue using `op`
-directly, ensure the *final destination aliases* still include
-`OP_SERVICE_ACCOUNT_TOKEN`; merely using it as an `env:` source is not enough.
+specifically through the service account, ensure the *final destination
+aliases* still include `OP_SERVICE_ACCOUNT_TOKEN`; merely using it as an
+`env:` source is not enough. A personal `op` session may make the command work
+without that variable, but that is inherited operator authority, not evidence
+of ticket-scoped access.
 Config values resolve almost nothing. Exactly two fields —
 `[notification.slack].webhook` and `[notification.slack].important_webhook` —
 run an `env:VAR` reference through the shared resolver; every other string in

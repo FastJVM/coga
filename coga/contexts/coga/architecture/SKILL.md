@@ -790,9 +790,12 @@ account state committed to git.
   of what the ticket declared. The exact declaration can change the final
   environment: `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` scrubs the
   well-known name, while declaring that same well-known name as a destination
-  restores or replaces it. The `secrets:` list bounds what Coga *resolves and
-  names* for a task; it does not otherwise bound what the task's process can
-  reach. Real confinement needs process isolation Coga does not yet have.
+  restores or replaces it. That scrub removes only service-account-token auth
+  through that variable; it does not log out an inherited personal `op` session
+  or remove other CLI/desktop authentication. The `secrets:` list bounds what
+  Coga *resolves and names* for a task; it does not otherwise bound what the
+  task's process can reach. Real confinement needs process isolation Coga does
+  not yet have.
 
 ## One shared agent-spawn path
 
