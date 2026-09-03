@@ -510,7 +510,8 @@ def _render_git_control_branch_table(branch: str, default: str) -> str:
     """The `[git]` table `coga init` writes when `default` is absent here."""
     return (
         f"# `coga init` found no {default!r} branch in this checkout, so it\n"
-        f"# recorded the branch it was run from. Change this if the team\n"
+        f"# identified {branch!r} as this repository's control branch.\n"
+        f"# Change this if the team\n"
         f"# syncs coga state onto a different branch.\n"
         f"[git]\n"
         f'control_branch = "{branch}"\n'
@@ -535,6 +536,71 @@ def _scaffolded_git_defaults(coga_os: Path) -> tuple[str, str, bool]:
     return control_branch, remote, git_table is not None
 
 
+def _repository_has_refs(target: Path) -> bool:
+    """Whether this checkout has any refs, distinguishing fresh from orphaned."""
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(target),
+            "for-each-ref",
+            "--count=1",
+            "--format=%(refname)",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or f"exit {result.returncode}"
+        raise GitError(f"`git for-each-ref` failed: {detail}")
+    return bool(result.stdout.strip())
+
+
+def _git_can_read_repository(target: Path) -> bool:
+    """Whether Git recognizes the checkout beyond a synthetic `.git` marker."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(target), "rev-parse", "--git-dir"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
+def _cached_remote_default_branch(target: Path, remote: str) -> str | None:
+    """The branch named by cached `refs/remotes/<remote>/HEAD`, if present."""
+    ref = f"refs/remotes/{remote}/HEAD"
+    result = subprocess.run(
+        ["git", "-C", str(target), "symbolic-ref", "--quiet", "--short", ref],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 1:
+        return None
+    if result.returncode != 0:
+        detail = result.stderr.strip() or f"exit {result.returncode}"
+        raise GitError(f"`git symbolic-ref {ref}` failed: {detail}")
+    symbolic = result.stdout.strip()
+    prefix = f"{remote}/"
+    if not symbolic.startswith(prefix) or symbolic == prefix:
+        return None
+    return symbolic[len(prefix) :]
+
+
+def _unwritable_control_branch_reason(branch: str) -> str | None:
+    """Why `branch` cannot be emitted as a TOML basic string, if any."""
+    if '"' in branch or "\\" in branch:
+        # Git permits a quote in a ref name; it would not survive the
+        # `control_branch = "..."` literal written below.
+        return f"branch {branch!r} cannot be written to coga.toml"
+    return None
+
+
 def _detect_control_branch(
     target: Path, *, control_branch: str, remote: str
 ) -> tuple[str | None, str | None]:
@@ -543,37 +609,94 @@ def _detect_control_branch(
     `coga init` must not create the mismatch every later command complains
     about, so the trigger here is exactly the predicate behind that warning:
     `git._control_branch_present`. Returns `(branch, None)` when the configured
-    control branch is absent and the checkout's own branch should be recorded
-    instead, `(None, None)` when the configured value already fits, and
-    `(None, reason)` when the value is wrong but no usable branch name can be
-    resolved.
+    control branch is absent and a safe replacement can be recorded,
+    `(None, None)` when the configured value already fits, and `(None, reason)`
+    when init cannot make a safe choice.
 
-    Detection is deliberately narrow. Recording the current branch
-    unconditionally would pin a *feature* branch as the control branch for
-    anyone running `coga init` from a branch of an established `main` repo —
-    trading one wrong config for another.
+    Detection is deliberately narrow. A ref-less fresh repo is safe to infer
+    from its unborn HEAD. An established repo is pinned only to its confirmed,
+    cached remote default; recording its current HEAD could make a disposable
+    feature branch the shared control branch.
     """
+    try:
+        # `symbolic-ref` resolves an unborn HEAD, which `rev-parse` cannot. If
+        # it already names the configured branch, the init commit will create
+        # that ref; do not write a redundant table or claim the branch is absent.
+        branch = _symbolic_head(target)
+    except OSError:
+        # The up-front dependency check owns a missing Git executable. Some
+        # unit fixtures deliberately supply only an empty `.git/` marker.
+        return None, None
+    if branch == control_branch:
+        return None, None
+
     try:
         if _control_branch_present(target, control_branch, remote):
             return None, None
-    except (GitError, OSError):
-        # A ref database this can't read — or no `git` on PATH at all — is not
-        # init's problem to diagnose. Leave the scaffold on its default rather
-        # than guess, the same soft-skip the commit step takes.
-        return None, None
-    # `_symbolic_head` resolves an unborn HEAD, which `rev-parse` cannot — and
-    # a `git init`ed repo with no commit yet is exactly the first-run case.
-    try:
-        branch = _symbolic_head(target)
     except OSError:
         return None, None
+    except GitError as exc:
+        if not _git_can_read_repository(target):
+            # Preserve init's historical clean skip for synthetic/unreadable
+            # `.git/` markers; a real invocation fails an earlier repo/identity
+            # gate. Valid repos reach the loud remote-probe diagnostic below.
+            return None, None
+        return None, (
+            f"git could not verify configured control branch "
+            f"{control_branch!r} ({exc})"
+        )
     if branch is None:
-        return None, "this checkout has a detached HEAD"
-    if '"' in branch or "\\" in branch:
-        # Git permits a quote in a ref name; it would not survive the
-        # `control_branch = "..."` literal written below.
-        return None, f"branch {branch!r} cannot be written to coga.toml"
-    return branch, None
+        return None, (
+            f"configured control branch {control_branch!r} is absent and this "
+            "checkout has a detached HEAD"
+        )
+
+    try:
+        remote_configured = subprocess.run(
+            ["git", "-C", str(target), "remote", "get-url", remote],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).returncode == 0
+        has_refs = _repository_has_refs(target)
+        remote_default = (
+            _cached_remote_default_branch(target, remote)
+            if remote_configured
+            else None
+        )
+    except (GitError, OSError) as exc:
+        return None, f"git could not determine a safe replacement branch ({exc})"
+
+    if not remote_configured and not has_refs:
+        reason = _unwritable_control_branch_reason(branch)
+        return (None, reason) if reason else (branch, None)
+
+    if remote_default is not None:
+        reason = _unwritable_control_branch_reason(remote_default)
+        if reason is not None:
+            return None, reason
+        try:
+            if _control_branch_present(target, remote_default, remote):
+                return remote_default, None
+        except (GitError, OSError) as exc:
+            return None, (
+                f"git could not verify cached remote default branch "
+                f"{remote_default!r} ({exc})"
+            )
+
+    if remote_configured:
+        detail = (
+            f"cached default branch {remote_default!r} is absent"
+            if remote_default is not None
+            else f"remote {remote!r} has no cached default branch"
+        )
+    else:
+        detail = "there is no configured remote default"
+    return None, (
+        f"configured control branch {control_branch!r} is absent, but current "
+        f"branch {branch!r} belongs to an established repository and {detail} "
+        "to confirm the team's control branch"
+    )
 
 
 def _pin_control_branch(coga_os: Path, branch: str, default: str) -> None:
@@ -776,8 +899,9 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         local_toml.write_text(render_local_toml(name))
 
         # Init must not scaffold the very control-branch mismatch every later
-        # command nags about: on a repo whose branch isn't the configured
-        # default, record the branch this checkout is actually on.
+        # command nags about. Infer only when Git makes the repository's intent
+        # unambiguous; otherwise keep the configured default and say how to fix
+        # it rather than pinning a transient feature branch.
         default_control_branch, default_remote, git_declared = (
             _scaffolded_git_defaults(coga_os)
         )
@@ -788,7 +912,8 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             # The scaffold already made its own `[git]` choice. Report the
             # mismatch rather than editing a config that states one.
             unpinnable_control_branch = (
-                "this scaffold's coga.toml already declares its own [git] table"
+                f"configured control branch {default_control_branch!r} is absent, "
+                "and this scaffold's coga.toml already declares its own [git] table"
             )
             pinned_branch = None
         if pinned_branch is not None:
@@ -871,9 +996,10 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         )
     elif unpinnable_control_branch is not None:
         typer.secho(
-            f"[git] control branch {default_control_branch!r} does not exist "
-            f"here and {unpinnable_control_branch} — every coga command will "
-            f"warn until you set it in {coga_os / 'coga.toml'}:\n"
+            f"[git] coga init could not safely select a control branch: "
+            f"{unpinnable_control_branch}. It left the "
+            f"{default_control_branch!r} default in {coga_os / 'coga.toml'}; "
+            f"verify that branch or set the right one explicitly:\n"
             f"    [git]\n"
             f'    control_branch = "<your-branch>"',
             fg=typer.colors.YELLOW,

@@ -90,12 +90,14 @@ A few things worth knowing about init:
 - **You can nest it.** In a monorepo, `coga init tools/ops` puts the `coga/` tree
   under `tools/ops/` and manages that subtree.
 - **It records your control branch.** Coga syncs task state to a control branch,
-  `main` by default. If your repo has no `main` — a `git init` without
-  `init.defaultBranch=main` makes `master` — init writes the branch you are on
-  into `coga/coga.toml` as `[git] control_branch` and says so. On a repo that
-  does have `main`, the default stands, even if you happen to run init from a
-  feature branch. Only if init can't work out a branch at all (a detached HEAD)
-  does it leave the default in place and print the one-line fix to make.
+  `main` by default. In a fresh repo whose unborn branch has another name — for
+  example, `git init` may select `master` — init writes that name into
+  `coga/coga.toml` as `[git] control_branch` and says so. In an established
+  repo, it keeps `main` when that branch exists or uses a confirmed cached
+  remote default; it never promotes the feature branch you happen to be on.
+  If Git cannot make the choice safely (a detached HEAD, an unreachable remote,
+  or no remote default to disambiguate an established repo), init leaves the
+  default in place and prints the exact config line to verify or change.
 
 `coga init` commits the new `coga/` directory for you (it prints the commit
 SHA); push it when you're ready, like any other project change.

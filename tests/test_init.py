@@ -2023,6 +2023,24 @@ def test_init_records_current_branch_when_control_branch_is_absent(
     assert 'Set [git] control_branch = "master"' in result.output
 
 
+def test_init_keeps_unborn_configured_branch_implicit(
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unborn `main` HEAD becomes a real `main` on init's first commit;
+    init must not claim it is absent or write a redundant `[git]` table."""
+    target = _make_real_git_repo(tmp_path / "company", "main")
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert load_config(target / "coga").git_control_branch == "main"
+    assert "\n[git]\n" not in (target / "coga" / "coga.toml").read_text()
+    assert "Set [git] control_branch" not in result.output
+    assert "could not safely select a control branch" not in result.output
+
+
 def test_init_keeps_default_when_control_branch_exists(
     tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2045,6 +2063,83 @@ def test_init_keeps_default_when_control_branch_exists(
         target / "coga" / "coga.toml"
     ).read_text()
     assert "Set [git] control_branch" not in result.output
+
+
+def test_init_uses_confirmed_remote_default_in_established_repo(
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An established master-based repo initialized from a feature branch
+    records the cached remote default, never the disposable current branch."""
+    origin = tmp_path / "origin.git"
+    subprocess.run(
+        ["git", "init", "-q", "--bare", "-b", "master", str(origin)], check=True
+    )
+    target = _make_real_git_repo(tmp_path / "company", "master")
+    subprocess.run(
+        ["git", "-C", str(target), "commit", "-q", "--allow-empty", "-m", "root"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(target), "remote", "add", "origin", str(origin)],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(target), "push", "-q", "-u", "origin", "master"],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(target),
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/master",
+        ],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(target), "switch", "-q", "-c", "feature"], check=True
+    )
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert load_config(target / "coga").git_control_branch == "master"
+    assert 'control_branch = "feature"' not in (
+        target / "coga" / "coga.toml"
+    ).read_text()
+    assert 'Set [git] control_branch = "master"' in result.output
+
+
+def test_init_warns_instead_of_pinning_ambiguous_established_branch(
+    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without a remote default, an established feature HEAD is ambiguous and
+    must not become the shared control branch merely because `main` is absent."""
+    target = _make_real_git_repo(tmp_path / "company", "master")
+    subprocess.run(
+        ["git", "-C", str(target), "commit", "-q", "--allow-empty", "-m", "root"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(target), "switch", "-q", "-c", "feature"], check=True
+    )
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert load_config(target / "coga").git_control_branch == "main"
+    assert 'control_branch = "feature"' not in (
+        target / "coga" / "coga.toml"
+    ).read_text()
+    assert "could not safely select a control branch" in result.output
+    assert "established repository" in result.output
+    assert 'control_branch = "<your-branch>"' in result.output
 
 
 def test_init_warns_when_no_branch_can_be_detected(
@@ -2072,13 +2167,35 @@ def test_init_warns_when_no_branch_can_be_detected(
 def test_detect_control_branch_soft_skips_an_unreadable_repo(
     tmp_path: Path,
 ) -> None:
-    """A `.git` git itself can't read leaves the scaffold on its default —
-    init diagnoses neither the repo nor a missing `git` on PATH."""
+    """A synthetic `.git` marker Git cannot read leaves the scaffold on its
+    default; real init rejects this shape before branch detection."""
     target = _make_git_repo(tmp_path / "company")  # bare `.git` dir, no refs
 
     assert init_cmd._detect_control_branch(
         target, control_branch="main", remote="origin"
     ) == (None, None)
+
+
+def test_detect_control_branch_reports_remote_probe_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreachable configured remote must not look like a valid `main`
+    default and silently recreate the mismatch init is meant to prevent."""
+    target = _make_real_git_repo(tmp_path / "company", "master")
+
+    def fail_probe(*_args, **_kwargs) -> bool:
+        raise init_cmd.GitError("origin is unreachable")
+
+    monkeypatch.setattr(init_cmd, "_control_branch_present", fail_probe)
+
+    branch, reason = init_cmd._detect_control_branch(
+        target, control_branch="main", remote="origin"
+    )
+
+    assert branch is None
+    assert reason is not None
+    assert "could not verify configured control branch 'main'" in reason
+    assert "origin is unreachable" in reason
 
 
 def test_init_leaves_a_scaffold_that_declares_its_own_git_table(
