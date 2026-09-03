@@ -46,14 +46,17 @@ the `coga/cli` *context*. Read this for the worked classification; read
 > carry logic — including a stateless command ticket — but the alias itself
 > cannot draft, validate, sync, or own a lifecycle transition.
 
-`coga ticket` is the standing proof: a pure `launch bootstrap/ticket` alias
-cannot replace its built-in command head because
+`coga ticket` proves only the alias limitation: a pure
+`launch bootstrap/ticket` alias cannot replace its current command head because
 it drafts a ticket on the fly, validates the authored ticket after the agent
 exits, git-syncs changed `tasks/`/`contexts/`/`skills/`, and enforces a TTY —
 none of which an argv rewrite can express. The authoring interview itself is
 the `bootstrap/ticket` launch target, and the post-exit validation/sync phase
 now lives in `coga.authoring` plus the documentation-only `coga/ticket/finalize`
-skill; the command remains only because the pre/post hook is irreducible.
+skill. That proves coordinating logic is needed, not that it must remain in the
+package. The residual-command cleanup must either name the package-private
+atomic invariant that requires co-versioning or move that coordinator to an
+edge command.
 
 The structural consequence: aliases may capture any fixed argv rewrite whose
 first token is a real built-in. Current defaults cover bootstrap launches,
@@ -71,7 +74,7 @@ remaining argv passes through unchanged.
 | `init` | built-in | No | Scaffolds `coga/`, vendors the running CLI into `.coga/.venv`, installs venv deps. Heavy side effects. |
 | `uninstall` | built-in | No | Symmetric inverse of `init`: removes the repo-local footprint plus the machine-global shim, with a confirmation prompt. Heavy side effects. |
 | `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket and validates it; raw creation is intentionally Slack-silent. |
-| `ticket` | thin built-in head + `coga.authoring` finalize | No | **Canonical proof.** Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. |
+| `ticket` | thin built-in head + `coga.authoring` finalize; package home provisional | Not as a fixed alias | Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. Those hooks require coordinating logic, but no co-versioning invariant has yet been ratified. |
 | `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |
 | `megalaunch` | built-in | No | Sweep / `--pick` / `--relaunch` over one engine: launchability filtering, a TTY picker, staged prepare→activate→launch, fixed-point dependency drain. The `pick` default alias is sugar for `megalaunch --pick`, not a replacement. |
 | `status` | built-in | No | Reads tree + renders tables. Logic, not a passthrough to another command. |
@@ -99,7 +102,7 @@ implementation, not a fixed rewrite to another command.
 | Bootstrap ticket | Mechanism today | Alias-able? | Why |
 |------|-----------------|-------------|-----|
 | `orient` | `chat` default alias → `launch bootstrap/orient` | Yes — already aliased | Pure `launch bootstrap/orient`; no pre/post logic. |
-| `ticket` | `coga ticket` command head + `coga/ticket/finalize` | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. The validate/sync substance is Python-backed, not an alias hook. |
+| `ticket` | current `coga ticket` head + `coga/ticket/finalize`; home provisional | Not as a fixed alias | Authoring needs draft-on-fly / post-exit validate / git-sync / TTY. That rules out bare alias sugar but does not yet prove why an edge coordinator could not preserve the contract. |
 | `recurring-scan` | `coga recurring` command head + fixed `coga run recurring-scan` recipe | No | The bootstrap target is gone. The public command forwards `--interactive` / `--force` / `--agent` as ordinary argv; `--all <path>` dispatches the same recipe in each discovered repo. |
 | `browser-automation` | unaliased `launch bootstrap/browser-automation` | Not currently | Intentional agent-backed orchestration entry point; it remains available through its full launch spelling. |
 | `open-pr` | `open-pr` default alias → `run open-pr` | Yes — already aliased | Registered recipe (`coga.open_pr`); the target task ref is ordinary argv. The command ticket it used to be is retired. |
@@ -224,16 +227,19 @@ command-cleanup design ticket still owns the decision: it must record that
 co-versioning proof or migrate them. Python logic and inability to use an alias
 do not distinguish a package command from an edge command.
 
-**Current built-ins mix kernel candidates with thin command heads.** `digest`
-and `megalaunch` remain Python command implementations pending that shape
-review; this inventory records their current home rather than prejudging the
-migration. `delete` fronts the fixed `delete-task` recipe. `coga ticket` is the worked collapsed case: its authoring
-conversation is the `bootstrap/ticket` launch target already, its post-exit
-validate + git-sync lives in `coga.authoring`, and the `arg → draft` head in
-`commands/ticket.py` is irreducible. The command calls the
-finalize module inline after the single-shot interview to preserve the stateless,
-concurrent-safe bootstrap launch target; no generic shim or workflow-step state
-was introduced. `retire` retains its own task-creation and launch head.
+**Current built-ins mix kernel candidates with thin command heads.** `digest`,
+`megalaunch`, and `ticket` remain Python command implementations pending their
+assigned cleanup reviews; this inventory records their current home rather than
+prejudging migration. `delete` fronts the fixed `delete-task` recipe. The
+current `coga ticket` split puts its authoring conversation in the
+`bootstrap/ticket` launch target, its post-exit validate + git-sync in
+`coga.authoring`, and its `arg → draft` coordinator in `commands/ticket.py`.
+That coordinator calls finalize inline after the single-shot interview to
+preserve the stateless, concurrent-safe bootstrap target; no generic shim or
+workflow-step state was introduced. The split rules out a fixed alias, but its
+permanent package home remains provisional until the residual-command ticket
+records a co-versioning invariant or moves it to the edge. `retire` retains its
+own task-creation and launch head pending its separate cleanup review.
 
 **Ticket vs. command is decided by statefulness, not parameters.** Stateful
 work materializes inputs into task files. Stateless command tickets accept
