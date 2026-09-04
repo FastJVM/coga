@@ -1,7 +1,7 @@
 ---
 slug: give-a-ticket-s-superseded-design-one-documented-h
 title: Give a ticket's superseded design one documented home
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
