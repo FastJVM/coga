@@ -157,10 +157,14 @@ exact bytes they constructed for each generated file write, never by rereading
 a live path that a peer may already have changed, before post-write validation
 can reject it; they then add the exact encoded audit append to that owned
 snapshot. Before replacing a ticket from an in-memory state object, they also
-require its live bytes to equal the latest captured revision. Their first
-blocker append or resolution is likewise conditional on the captured
-full-ticket bytes before the blackboard splice, including a would-be no-op
-resolution whose last blocker was just resolved by a peer, so it cannot adopt
+require its live bytes to equal the latest captured revision. That comparison,
+replacement, and snapshot arming share the local publication barrier. A failed
+strict lifecycle mutation's generated-byte comparison and conditional restore
+share it too, so a peer lifecycle write cannot land in either compare/write
+gap. Their first blocker append or resolution is likewise conditional on the
+captured full-ticket bytes before the blackboard splice, including a resolution
+that would be a no-op because its last blocker was just resolved by a peer, so
+it cannot adopt
 a peer revision and label it generated. Strict `block`, `unblock`, and the
 automatic unresolved re-block capture that full-ticket revision before any
 network-backed publication lease or notification preflight, parse their state

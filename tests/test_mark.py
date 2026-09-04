@@ -358,9 +358,16 @@ def test_lifecycle_write_waits_until_child_release_even_without_git(
     errors: list[BaseException] = []
     real_write = git_module.write_ticket_under_barrier
 
-    def observed_write(cfg_, ticket_, path_):  # type: ignore[no-untyped-def]
+    def observed_write(  # type: ignore[no-untyped-def]
+        cfg_, ticket_, path_, *, mutation_snapshot=None
+    ):
         attempted.set()
-        real_write(cfg_, ticket_, path_)
+        real_write(
+            cfg_,
+            ticket_,
+            path_,
+            mutation_snapshot=mutation_snapshot,
+        )
         assert gate_written.is_set()
         write_finished.set()
 
@@ -392,6 +399,122 @@ def test_lifecycle_write_waits_until_child_release_even_without_git(
     assert not worker.is_alive()
     assert errors == []
     assert Ticket.read(task_path).status == "paused"
+
+
+def test_strict_lifecycle_compare_and_write_share_publication_barrier(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A peer write cannot land between a strict byte check and replacement."""
+    _, task_path = _make_task(repo, status="active")
+    cfg = replace(load_config(repo), git_enabled=False)
+    snapshot = git_module.FileMutationRollback.capture((task_path,))
+    stale = Ticket.read(task_path)
+    stale.frontmatter["status"] = "paused"
+    peer = Ticket.read(task_path)
+    peer.frontmatter["status"] = "done"
+    checked = threading.Event()
+    peer_attempted = threading.Event()
+    peer_finished = threading.Event()
+    errors: list[BaseException] = []
+    real_require_unchanged = snapshot.require_unchanged
+
+    def pause_after_compare(path: Path) -> None:
+        real_require_unchanged(path)
+        checked.set()
+        assert peer_attempted.wait(timeout=5)
+        assert not peer_finished.wait(timeout=0.1)
+
+    monkeypatch.setattr(snapshot, "require_unchanged", pause_after_compare)
+
+    def write_stale_state() -> None:
+        try:
+            git_module.write_ticket_under_barrier(
+                cfg,
+                stale,
+                task_path,
+                mutation_snapshot=snapshot,
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    def write_peer_state() -> None:
+        try:
+            peer_attempted.set()
+            git_module.write_ticket_under_barrier(cfg, peer, task_path)
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            peer_finished.set()
+
+    stale_worker = threading.Thread(target=write_stale_state)
+    stale_worker.start()
+    assert checked.wait(timeout=5)
+    peer_worker = threading.Thread(target=write_peer_state)
+    peer_worker.start()
+    stale_worker.join(timeout=5)
+    peer_worker.join(timeout=5)
+
+    assert not stale_worker.is_alive()
+    assert not peer_worker.is_alive()
+    assert errors == []
+    assert snapshot.generated == {task_path: stale.render().encode("utf-8")}
+    assert Ticket.read(task_path).status == "done"
+
+
+def test_strict_lifecycle_compare_and_restore_share_publication_barrier(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed stale transition cannot restore over a peer lifecycle write."""
+    _, task_path = _make_task(repo, status="active")
+    cfg = replace(load_config(repo), git_enabled=False)
+    snapshot = git_module.FileMutationRollback.capture((task_path,))
+    generated = Ticket.read(task_path)
+    generated.frontmatter["status"] = "paused"
+    generated.write(task_path)
+    snapshot.arm({task_path: generated.render().encode("utf-8")})
+    peer = Ticket.read(task_path)
+    peer.frontmatter["status"] = "done"
+    restore_reached = threading.Event()
+    peer_attempted = threading.Event()
+    peer_finished = threading.Event()
+    errors: list[BaseException] = []
+    real_restore_file_bytes = git_module._restore_file_bytes
+
+    def pause_before_restore(path: Path, data: bytes | None) -> None:
+        restore_reached.set()
+        assert peer_attempted.wait(timeout=5)
+        assert not peer_finished.wait(timeout=0.1)
+        real_restore_file_bytes(path, data)
+
+    monkeypatch.setattr(git_module, "_restore_file_bytes", pause_before_restore)
+
+    def restore_generated_state() -> None:
+        try:
+            assert git_module.restore_files_under_barrier(cfg, snapshot) == ()
+        except BaseException as exc:
+            errors.append(exc)
+
+    def write_peer_state() -> None:
+        try:
+            peer_attempted.set()
+            git_module.write_ticket_under_barrier(cfg, peer, task_path)
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            peer_finished.set()
+
+    restore_worker = threading.Thread(target=restore_generated_state)
+    restore_worker.start()
+    assert restore_reached.wait(timeout=5)
+    peer_worker = threading.Thread(target=write_peer_state)
+    peer_worker.start()
+    restore_worker.join(timeout=5)
+    peer_worker.join(timeout=5)
+
+    assert not restore_worker.is_alive()
+    assert not peer_worker.is_alive()
+    assert errors == []
+    assert Ticket.read(task_path).status == "done"
 
 
 def test_bump_clears_finished_megalaunch_claim(repo: Path) -> None:

@@ -1338,7 +1338,7 @@ def _launch_until_stop(
                 strict_state_sync=cfg.git_enabled,
             )
         except TaskValidationError as exc:
-            start_snapshot.restore()
+            git.restore_files_under_barrier(cfg, start_snapshot)
             return _result(ref, "failed", str(exc), ticket.assignee)
         except git.UncertainFeaturePublicationError as exc:
             return _result(
@@ -1349,7 +1349,7 @@ def _launch_until_stop(
                 ticket.assignee,
             )
         except git.GitError as exc:
-            start_snapshot.restore()
+            git.restore_files_under_barrier(cfg, start_snapshot)
             return _result(
                 ref,
                 "failed",
@@ -1696,7 +1696,7 @@ def _activate_for_launch(
             isinstance(exc, (TaskValidationError, git.GitError))
             and mutation_snapshot is not None
         ):
-            mutation_snapshot.restore()
+            git.restore_files_under_barrier(cfg, mutation_snapshot)
         return _activation_refusal(ref, ticket, prior, exc)
     return None
 

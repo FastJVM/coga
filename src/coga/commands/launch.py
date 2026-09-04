@@ -2230,7 +2230,7 @@ def _publish_assist_lifecycle_before_spawn(
                 "state was retained for explicit reconciliation; no agent was "
                 f"started: {exc}"
             ) from exc
-        rollback_note = _restore_assist_state(snapshot)
+        rollback_note = _restore_assist_state(cfg, snapshot)
         if isinstance(
             exc,
             (
@@ -2302,9 +2302,12 @@ def _snapshot_assist_state(
     )
 
 
-def _restore_assist_state(snapshot: git.FileMutationRollback) -> str:
+def _restore_assist_state(
+    cfg: Config,
+    snapshot: git.FileMutationRollback,
+) -> str:
     """Conditionally restore refused assist state; report retained peer edits."""
-    refused = snapshot.restore()
+    refused = git.restore_files_under_barrier(cfg, snapshot)
     if not refused:
         return ""
     names = ", ".join(str(path) for path in refused)
@@ -2583,7 +2586,7 @@ def _reblock_unresolved_resume(
                 "or could not be determined"
             )
         elif rollback is not None:
-            rollback_note = _restore_assist_state(rollback)
+            rollback_note = _restore_assist_state(cfg, rollback)
         message = (
             f"Could not publish {ref.id_slug}'s unresolved blocked state to "
             f"the recorded assist branch: {exc}{rollback_note}"
@@ -2597,7 +2600,7 @@ def _reblock_unresolved_resume(
     except TaskValidationError as exc:
         rollback_note = ""
         if rollback is not None:
-            rollback_note = _restore_assist_state(rollback)
+            rollback_note = _restore_assist_state(cfg, rollback)
         if feature_branch is not None:
             raise _AssistPublicationRefused(
                 f"{exc}{rollback_note}",
@@ -2613,7 +2616,7 @@ def _reblock_unresolved_resume(
                 "publication already succeeded"
             )
         else:
-            rollback_note = _restore_assist_state(rollback)
+            rollback_note = _restore_assist_state(cfg, rollback)
         detail = str(exc).strip() or type(exc).__name__
         raise _AssistPublicationRefused(
             f"Could not complete {ref.id_slug}'s automatic unresolved re-block "
@@ -3243,6 +3246,9 @@ def spawn_agent_session(
                         # follow it rather than merely precede it.
                         validate_after_spawn()
                     except BaseException as exc:
+                        # ``after_spawn`` runs inside ``spawn_release_guard``'s
+                        # publication barrier. Reacquiring the non-reentrant
+                        # lock here would deadlock the refused child.
                         refused = audit_rollback.restore()
                         if refused:
                             paths = ", ".join(str(path) for path in refused)

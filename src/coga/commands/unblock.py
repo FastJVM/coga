@@ -278,6 +278,7 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
     except git.FeaturePublicationError as exc:
         if rollback is not None:
             _raise_strict_unblock_error(
+                cfg,
                 "Could not publish the blocker resolution to the recorded "
                 f"assist branch: {exc}",
                 exc,
@@ -289,12 +290,14 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
         ) from exc
     except WorkflowMissing:
         _raise_unblock_error(
+            cfg,
             f"Cannot unblock {ref.id_slug}: ticket has no workflow. Set "
             "`workflow: <name>` in `ticket.md`, then retry.",
             rollback,
         )
     except WorkflowError as exc:
         _raise_unblock_error(
+            cfg,
             f"Cannot unblock {ref.id_slug}: its `workflow:` ref could not "
             f"be frozen — {exc}",
             rollback,
@@ -302,17 +305,19 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
     except RequiredExtensionMissing as exc:
         names = ", ".join(repr(f) for f in exc.fields)
         _raise_unblock_error(
+            cfg,
             f"Cannot unblock {ref.id_slug}: required extension field(s) "
             f"empty: {names}. Fill them in `ticket.md` then retry.",
             rollback,
         )
     except TaskValidationError as exc:
-        _raise_unblock_error(str(exc), rollback)
+        _raise_unblock_error(cfg, str(exc), rollback)
     except BaseException as exc:
         if rollback is None:
             raise
         detail = str(exc).strip() or type(exc).__name__
         _raise_strict_unblock_error(
+            cfg,
             f"Could not complete {ref.id_slug}'s strict unblock transition "
             f"after {type(exc).__name__}: {detail}",
             exc,
@@ -322,12 +327,13 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
 
 
 def _raise_unblock_error(
+    cfg: Config,
     message: str,
     rollback: git.FileMutationRollback | None,
 ) -> None:
     rollback_note = ""
     if rollback is not None:
-        rollback_note = _rollback_note(rollback)
+        rollback_note = _rollback_note(cfg, rollback)
     raise _UnblockError(
         f"{message}{rollback_note}",
         exit_code=(
@@ -339,6 +345,7 @@ def _raise_unblock_error(
 
 
 def _raise_strict_unblock_error(
+    cfg: Config,
     message: str,
     cause: BaseException,
     rollback: git.FileMutationRollback,
@@ -354,15 +361,15 @@ def _raise_strict_unblock_error(
             "could not be determined"
         )
     else:
-        rollback_note = _rollback_note(rollback)
+        rollback_note = _rollback_note(cfg, rollback)
     raise _UnblockError(
         f"{message}{rollback_note}",
         exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
     ) from cause
 
 
-def _rollback_note(rollback: git.FileMutationRollback) -> str:
-    refused = rollback.restore()
+def _rollback_note(cfg: Config, rollback: git.FileMutationRollback) -> str:
+    refused = git.restore_files_under_barrier(cfg, rollback)
     if not refused:
         return ""
     names = ", ".join(str(path) for path in refused)

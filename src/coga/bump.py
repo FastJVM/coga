@@ -181,12 +181,12 @@ def advance_step(
         ticket_override=prospective,
     )
     ticket.frontmatter = prospective.frontmatter
-    if mutation_snapshot is not None:
-        mutation_snapshot.require_unchanged(ref.ticket_path)
-    ticket_bytes = ticket.render().encode("utf-8")
-    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
-    if mutation_snapshot is not None:
-        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
+    ticket_bytes = git.write_ticket_under_barrier(
+        cfg,
+        ticket,
+        ref.ticket_path,
+        mutation_snapshot=mutation_snapshot,
+    )
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
         mutation_snapshot.arm_append(log_path(cfg), audit_append)

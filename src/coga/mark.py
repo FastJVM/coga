@@ -196,12 +196,12 @@ def mark_done(
     prospective.frontmatter.pop("launch_generation", None)
     assert_task_valid(cfg, ref, action="mark done", ticket_override=prospective)
     ticket.frontmatter = prospective.frontmatter
-    if mutation_snapshot is not None:
-        mutation_snapshot.require_unchanged(ref.ticket_path)
-    ticket_bytes = ticket.render().encode("utf-8")
-    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
-    if mutation_snapshot is not None:
-        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
+    ticket_bytes = git.write_ticket_under_barrier(
+        cfg,
+        ticket,
+        ref.ticket_path,
+        mutation_snapshot=mutation_snapshot,
+    )
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
         mutation_snapshot.arm_append(log_path(cfg), audit_append)
@@ -343,12 +343,12 @@ def mark_canceled(
         ticket_override=prospective,
     )
     ticket.frontmatter = prospective.frontmatter
-    if mutation_snapshot is not None:
-        mutation_snapshot.require_unchanged(ref.ticket_path)
-    ticket_bytes = ticket.render().encode("utf-8")
-    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
-    if mutation_snapshot is not None:
-        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
+    ticket_bytes = git.write_ticket_under_barrier(
+        cfg,
+        ticket,
+        ref.ticket_path,
+        mutation_snapshot=mutation_snapshot,
+    )
     audit_append = append_log(
         cfg,
         ref.id_slug,
@@ -771,14 +771,12 @@ def mark_active(
     """
     prior_status = ticket.status
     prepare_active(cfg, ref, ticket)
-    if mutation_snapshot is not None:
-        mutation_snapshot.require_unchanged(ref.ticket_path)
-    ticket_bytes = ticket.render().encode("utf-8")
-    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
-    if mutation_snapshot is not None:
-        # Strict callers captured the pre-mutation bytes. Arm immediately after
-        # the write so a post-write validation refusal can still restore them.
-        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
+    ticket_bytes = git.write_ticket_under_barrier(
+        cfg,
+        ticket,
+        ref.ticket_path,
+        mutation_snapshot=mutation_snapshot,
+    )
     assert_task_valid(cfg, ref, action="mark active")
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
@@ -828,14 +826,12 @@ def mark_in_progress(
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
-    if mutation_snapshot is not None:
-        mutation_snapshot.require_unchanged(ref.ticket_path)
-    ticket_bytes = ticket.render().encode("utf-8")
-    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
-    if mutation_snapshot is not None:
-        # A validation exception is still a failed generated mutation; make it
-        # rollback-safe before validation can raise.
-        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
+    ticket_bytes = git.write_ticket_under_barrier(
+        cfg,
+        ticket,
+        ref.ticket_path,
+        mutation_snapshot=mutation_snapshot,
+    )
     assert_task_valid(cfg, ref, action="mark in_progress")
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
@@ -952,14 +948,12 @@ def mark_blocked(
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "blocked"
     ticket.frontmatter.pop("launch_generation", None)
-    if mutation_snapshot is not None:
-        mutation_snapshot.require_unchanged(ref.ticket_path)
-    ticket_bytes = ticket.render().encode("utf-8")
-    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
-    if mutation_snapshot is not None:
-        # Arm before validation so a strict block rejected by validation does
-        # not leave an unpublished generated status behind.
-        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
+    ticket_bytes = git.write_ticket_under_barrier(
+        cfg,
+        ticket,
+        ref.ticket_path,
+        mutation_snapshot=mutation_snapshot,
+    )
     assert_task_valid(cfg, ref, action="mark blocked")
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
@@ -1039,12 +1033,12 @@ def mark_paused(
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
     ticket.frontmatter.pop("launch_generation", None)
-    if mutation_snapshot is not None:
-        mutation_snapshot.require_unchanged(ref.ticket_path)
-    ticket_bytes = ticket.render().encode("utf-8")
-    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
-    if mutation_snapshot is not None:
-        mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
+    ticket_bytes = git.write_ticket_under_barrier(
+        cfg,
+        ticket,
+        ref.ticket_path,
+        mutation_snapshot=mutation_snapshot,
+    )
     assert_task_valid(cfg, ref, action="mark paused")
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
     if mutation_snapshot is not None:
