@@ -1,7 +1,7 @@
 ---
 slug: recurring/autoclose-merged
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -9,7 +9,7 @@ assignee: claude
 contexts:
 - coga/period-task
 skills: []
-period_generation: 3dd22671-870b-489a-9607-683e7933f427
+period_generation: 2d439d3a-e27e-47d1-84d0-d9cedc898bfe
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -18,6 +18,7 @@ workflow:
     - coga/autoclose/sweep
     assignee: agent
 secrets: null
+step: 1 (sweep)
 ---
 
 ## Description

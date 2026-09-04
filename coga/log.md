@@ -4362,3 +4362,12 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-03 17:01 [no-comms-writing-skill-the-process-is-smeared-thro] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR open and mergeable: https://github.com/FastJVM/coga/pull/754 — note the src/coga/skill_manager.py fix under Scope deviation, and that the large deletions are the clarity prune.
 2026-09-03 17:01 [no-comms-writing-skill-the-process-is-smeared-thro] [system] {"agent":"claude","agent_turns":6,"cache_creation_input_tokens":87792,"cache_read_input_tokens":1514453,"cli":"claude","content_status":"ok","elapsed_seconds":147.68502,"ended_at":"2026-09-04T00:01:47.764753Z","human_turns":0,"input_tokens":60,"model":"claude-opus-5","outcome":"Ticket state recorded, frontmatter untouched. Bumping to hand off to the owner.","outcome_status":"completed","output_tokens":13622,"provider":"anthropic","request":null,"schema":2,"session_id":"b618b58f-7a5a-48db-a0ac-56383fa20c4e","slug":"no-comms-writing-skill-the-process-is-smeared-thro","started_at":"2026-09-03T23:59:20.079733Z","step":"open-pr","title":"No comms-writing skill; the process is smeared through marketing plan","ts":"2026-09-04T00:01:47.764753Z","usage_status":"ok"}
 2026-09-03 18:41 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-09-04 11:49 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-04 11:49 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-04
+2026-09-04 11:49 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-04
+2026-09-04 11:49 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-04 11:49 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-09-04
+2026-09-04 11:49 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-04
+2026-09-04 11:49 [recurring/digest] [system] created (status=active)
+2026-09-04 11:49 [recurring/digest] [system] deleted completed prior-period task before 2026-09-04
+2026-09-04 11:49 [recurring/digest] [system] created recurring/digest for 2026-09-04
