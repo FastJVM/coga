@@ -4,7 +4,7 @@
 
 ## Cloud Trace
 
-Always-on distributed tracing, exporting spans/logs to Cloud Trace and Cloud Logging via `get_fast_api_app(otel_to_cloud=True)`. For **Agent Runtime** it's gated on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY` (set by deploy), and traces also appear in the Agent Engine console. Content env vars are declared statically (Terraform `service.tf` for deployed, `.env` for local). Tracks requests through LLM calls and tool executions with latency analysis and error visibility.
+Always-on distributed tracing, exporting spans/logs to Cloud Trace and Cloud Logging. The exporters are wired at app startup (**ADK:** `get_fast_api_app(otel_to_cloud=True)`; other templates call their own setup, e.g. `app/app_utils/telemetry.py`). For **Agent Runtime** it's gated on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY` (set by deploy), and traces also appear in the Agent Engine console. Content env vars are declared statically (Terraform `service.tf` for deployed, `.env` for local). Tracks requests through LLM calls and tool executions with latency analysis and error visibility.
 
 View traces: **Cloud Console → Trace → Trace explorer**
 
@@ -33,8 +33,8 @@ Set automatically by Terraform on the deployed service. The `OTEL_INSTRUMENTATIO
 |----------|---------|
 | `LOGS_BUCKET_NAME` | GCS bucket for completions and logs. Required to enable prompt-response logging |
 | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Controls content capture for the traces/events tier only (`NO_CONTENT`/`EVENT_ONLY`/`SPAN_ONLY`/`SPAN_AND_EVENT`; `true`/`false` invalid) |
-| `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS` | Keeps message content out of trace spans; Terraform sets `false` (ADK defaults to `true`) |
-| `BQ_ANALYTICS_DATASET_ID` | BigQuery dataset for telemetry (only when scaffolded with `--bq-analytics`) |
+| `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS` | **ADK only.** Keeps message content out of trace spans; Terraform sets `false` (ADK defaults to `true`) |
+| `BQ_ANALYTICS_DATASET_ID` | BigQuery dataset for telemetry (ADK BigQuery Agent Analytics plugin; only when scaffolded with `--bq-analytics`) |
 | `BQ_ANALYTICS_CONNECTION_ID` | BigQuery connection for GCS access (only when scaffolded with `--bq-analytics`) |
 | `BQ_ANALYTICS_GCS_BUCKET` | GCS bucket for BigQuery Analytics multimodal offloading (only when scaffolded with `--bq-analytics`) |
 | `OTEL_INSTRUMENTATION_GENAI_COMPLETION_HOOK` | Set to `upload` to export full completions to GCS (the prompt-response logging feature) |

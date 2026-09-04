@@ -1,18 +1,18 @@
 ---
 description: |
-    This skill should be used when the user wants to "run an evaluation", "evaluate my ADK agent", "write an eval dataset", "analyze eval failures", "compare eval results", "optimize agent", or needs guidance on the Agent Platform eval methodology and the Quality Flywheel. Covers eval metrics, dataset schema, LLM-as-judge scoring, and common failure causes. Do NOT use for API code patterns (use google-agents-cli-adk-code), deployment (use google-agents-cli-deploy), or project scaffolding (use google-agents-cli-scaffold).
+    This skill should be used when the user wants to "run an evaluation", "evaluate my agent", "evaluate my ADK agent", "write an eval dataset", "analyze eval failures", "compare eval results", "optimize agent", or needs guidance on the Agent Platform eval methodology and the Quality Flywheel. Covers eval metrics, dataset schema, LLM-as-judge scoring, and common failure causes. Applies to any agents-cli project, whatever framework the agent is written in. Do NOT use for agent API code patterns (ADK: use google-agents-cli-adk-code), deployment (use google-agents-cli-deploy), or project scaffolding (use google-agents-cli-scaffold).
 metadata:
     author: Google
     github-path: skills/google-agents-cli-eval
-    github-ref: refs/tags/v1.4.1
+    github-ref: refs/tags/v1.5.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 916caeb6b995b5fff4af8dae492801854acf6cbb
+    github-tree-sha: 59e41b2ce8bdcaf9f7cd03b4e35eb50928e717a1
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.4.1
+    version: 1.5.0
 name: google-agents-cli-eval
 ---
 # Agent Evaluation Guide
@@ -42,7 +42,7 @@ Improving agent quality is iterative. The 4 stages below describe the loop. Each
 
 **Default:** Use or edit the scaffolded `tests/eval/datasets/basic-dataset.json` to define single-turn eval inputs. Start with 1–2 cases.
 
-**Opt-in:** `agents-cli eval dataset synthesize`: user-simulate multi-turn datasets when you lack data; its output already includes traces, so Stage 2 collapses to `agents-cli eval grade` alone. See *Eval Commands* and `references/user-simulation.md`.
+**Opt-in (ADK projects):** `agents-cli eval dataset synthesize`: user-simulate multi-turn datasets when you lack data; its output already includes traces, so Stage 2 collapses to `agents-cli eval grade` alone. See *Eval Commands* and `references/user-simulation.md`.
 
 ### 2. Run the Eval (always run)
 
@@ -60,7 +60,7 @@ Improving agent quality is iterative. The 4 stages below describe the loop. Each
 
 **Default:** Edit the agent — adjust prompts, tool descriptions, instructions, or eval dataset based on the failure analysis. See *What to fix when scores fail* below for the failure → fix mapping.
 
-**Opt-in:** `agents-cli eval optimize` runs ADK GEPA prompt optimization against a target metric (see `references/advanced-commands.md`). Suitable for prompt-only failures. The optimized prompt appears in the command output; capture it and apply it to the agent. For the full per-iteration trace, set `print_detailed_results: true` in your optimization config file.
+**Opt-in (ADK projects):** `agents-cli eval optimize` runs ADK GEPA prompt optimization against a target metric (see `references/advanced-commands.md`). Suitable for prompt-only failures. The optimized prompt appears in the command output; capture it and apply it to the agent. For the full per-iteration trace, set `print_detailed_results: true` in your optimization config file.
 
 > **Long-running and expensive.** GEPA optimization makes many LLM calls and can take a long time. Do not run it unless the user explicitly asks for prompt optimization. When you do run it, iterate as far as possible with manual fixes first, then run a **single** final `eval optimize` — never loop on this command.
 
@@ -115,7 +115,7 @@ After `agents-cli eval run` completes, inspect the latest `artifacts/grade_resul
 | `final_response_quality` low | Read the auto-generated rubric verdicts; refine agent instructions to address the worst-scoring criterion (often clarity, completeness, or instruction-following) |
 | `hallucination` low | Tighten agent instructions to stay grounded in tool output; verify the tool actually returned the data the agent claimed |
 | `safety` low | Add safety guardrails to instructions; review the violating content category in the rubric verdict |
-| Agent calls wrong tools | Fix tool descriptions, agent instructions, or `tool_config` |
+| Agent calls wrong tools | Fix tool descriptions, agent instructions, or the model's tool-choice config (**ADK:** `tool_config`) |
 | Agent calls extra tools | Add strict stop instructions, or switch to `multi_turn_tool_use_quality` |
 
 After applying a fix, rerun `agents-cli eval run` and use `agents-cli eval compare <prev_results>.json <new_results>.json` to confirm the fix improved the target metric without regressing others.
@@ -143,7 +143,9 @@ agents-cli eval run --dataset tests/eval/datasets/custom.json --metrics final_re
 
 Runs an agent over an evaluation dataset and writes traces to disk.
 
-By default, runs the agent in a local HTTP server (launches the project's `fast_api_app.py` if it exists, or falls back to `adk api_server`) and sends each evaluation case over HTTP. You can generate traces from an already-running agent by passing its HTTP endpoint and app name to `--url` and `--app-name`.
+By default, runs the agent locally and records a trace per evaluation case. You can generate traces from an already-running agent by passing its HTTP endpoint and app name to `--url` and `--app-name`.
+
+> **ADK projects.** The built-in generator serves the agent over HTTP (the project's `fast_api_app.py` if it exists, else `adk api_server`) and drives it over ADK's `/apps/...` and `/run_sse` routes — the same shape `--url` / `--app-name` expect. Extensions for other frameworks replace `eval generate` with their own generator, which may not serve HTTP at all; `--url` and `--app-name` are then unsupported.
 
 ```bash
 # Basic — uses tests/eval/datasets/, writes to artifacts/traces/
@@ -171,6 +173,10 @@ agents-cli eval grade --traces custom_traces/
 
 # Advanced 2: load metrics to run from a config file (YAML or JSON) on a specified trace file.
 agents-cli eval grade --traces ./artifacts/traces/trace_1.json --config tests/eval/eval_config.yaml
+
+# Advanced 3: dispatch rate, 15 metric computations per second by default. Lower it when the
+# judge model or the eval service rate-limits you, raise it when they have headroom.
+agents-cli eval grade --qps 5
 ```
 
 See *Evaluation Configuration Schema* below for the config file format.
@@ -184,6 +190,8 @@ agents-cli eval compare baseline.json candidate.json
 ```
 
 ### `eval dataset synthesize`
+
+> **ADK projects.** It loads and runs the agent through ADK, so it is unavailable on other frameworks.
 
 Generates user scenarios from your agent's tools and instructions, plays each against an LLM-backed user simulator, and writes graded-ready traces to `artifacts/traces/` (feed straight to `eval grade`, skip `eval generate`). Invocations, flags, and compatible metrics: `references/user-simulation.md`.
 
@@ -288,6 +296,8 @@ Instead, use **`multi_turn_tool_use_quality`** / **`multi_turn_trajectory_qualit
 
 ### App name must match directory name
 
+> **ADK projects.**
+
 The `App` object's `name` parameter MUST match the directory containing your agent:
 
 ```python
@@ -312,6 +322,8 @@ app = App(root_agent=root_agent, name="flight_booking_assistant")
 
 ### The `before_agent_callback` Pattern (State Initialization)
 
+> **ADK projects.**
+
 Always use a callback to initialize session state variables used in your instruction template. This prevents `KeyError` crashes on the first turn:
 
 ```python
@@ -329,7 +341,7 @@ root_agent = Agent(
 
 ### Model thinking mode may bypass tools
 
-Models with "thinking" enabled may skip tool calls. Use `tool_config` with `mode="ANY"` to force tool usage, or switch to a non-thinking model for predictable tool calling.
+Models with "thinking" enabled may skip tool calls. Force tool usage through the model's tool-choice config (**ADK:** `tool_config` with `mode="ANY"`), or switch to a non-thinking model for predictable tool calling.
 
 ---
 
@@ -355,7 +367,7 @@ Don't assert that eval passes — show the evidence. Concrete output prevents fa
 ## Related Skills
 
 - `/google-agents-cli-workflow` — Development workflow and the spec-driven build-evaluate-deploy lifecycle
-- `/google-agents-cli-adk-code` — ADK Python API quick reference for writing agent code
+- `/google-agents-cli-adk-code` — ADK Python API quick reference for writing agent code (ADK projects only)
 - `/google-agents-cli-scaffold` — Project creation and enhancement with `agents-cli scaffold create` / `scaffold enhance`
 - `/google-agents-cli-deploy` — Deployment targets, CI/CD pipelines, and production workflows
 - `/google-agents-cli-observability` — Cloud Trace, logging, and monitoring for debugging agent behavior

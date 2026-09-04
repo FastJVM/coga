@@ -1,5 +1,7 @@
 # User Simulation for Dynamic Evaluation
 
+> **ADK projects.** `agents-cli eval dataset synthesize` loads and runs the agent through ADK, so it is unavailable on other frameworks. The rest of the eval loop (`eval generate`, `eval grade`, metrics, dataset schema) is framework-agnostic.
+
 > File paths below reference the scaffolded layout. Adjust for your project structure if not using `/google-agents-cli-scaffold`.
 
 ## When to Use
