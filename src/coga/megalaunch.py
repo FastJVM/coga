@@ -63,6 +63,7 @@ from coga.blackboard import (
     open_blockers,
     parse_blockers_text,
     resolve_open_blockers,
+    update_blackboard_under_barrier,
 )
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
@@ -101,7 +102,6 @@ from coga.workflow import WorkflowError
 from coga.taskfile import (
     TaskFileError,
     read_blackboard,
-    replace_blackboard,
     split_body,
 )
 from coga.service_order import service_order
@@ -1983,12 +1983,19 @@ def trim_megalaunch_blackboard_text(text: str, summary: str) -> str:
     return f"{base}\n\n{heading}\n\n{summary.rstrip()}\n"
 
 
-def write_run_summary(blackboard_path: Path, run: MegalaunchRun) -> None:
+def write_run_summary(
+    cfg: Config,
+    blackboard_path: Path,
+    run: MegalaunchRun,
+) -> None:
     """Write the latest run summary while trimming old megalaunch noise."""
-    region = read_blackboard(blackboard_path)
-    replace_blackboard(
+    update_blackboard_under_barrier(
+        cfg,
         blackboard_path,
-        trim_megalaunch_blackboard_text(region, render_run_summary(run)),
+        lambda region: trim_megalaunch_blackboard_text(
+            region,
+            render_run_summary(run),
+        ),
     )
 
 

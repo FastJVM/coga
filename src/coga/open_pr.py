@@ -30,6 +30,7 @@ import sys
 from pathlib import Path
 
 from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
+from coga.blackboard import update_blackboard_under_barrier
 from coga.compose import _extract_section
 from coga.config import Config
 from coga.github_preflight import (
@@ -40,6 +41,7 @@ from coga.github_preflight import (
     check_gh_auth,
 )
 from coga.git import (
+    GitError,
     is_linked_worktree,
     sync_log,
     sync_paths,
@@ -47,7 +49,7 @@ from coga.git import (
 )
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.repl_supervisor import EXPECTED_TASK_ENV
-from coga.taskfile import read_blackboard, replace_blackboard, split_body
+from coga.taskfile import split_body
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 from coga.ticket import Ticket
 
@@ -527,18 +529,28 @@ def open_pr(
 
     # --- record pr: back under ## Dev ---------------------------------------
     # RE-READ the live blackboard region: the step's `coga bump` renders the
-    # whole ticket right after we return, so only a byte-spliced blackboard
-    # write (replace_blackboard) is safe — it leaves frontmatter + body untouched.
-    current_blackboard = read_blackboard(blackboard_path)
-    if parse_pr_url(current_blackboard) != url:
-        replace_blackboard(blackboard_path, set_dev_pr(current_blackboard, url))
-        if single_checkout:
-            _sync_pr_record(
-                cfg,
-                worktree=worktree,
-                blackboard_path=blackboard_path,
-                slug=slug,
-            )
+    # whole ticket right after we return, so use the barrier-held byte-spliced
+    # update: it leaves frontmatter + body untouched and cannot cross child
+    # admission.
+    try:
+        updated = update_blackboard_under_barrier(
+            cfg,
+            blackboard_path,
+            lambda current: (
+                None
+                if parse_pr_url(current) == url
+                else set_dev_pr(current, url)
+            ),
+        )
+    except GitError as exc:
+        raise OpenPrError(f"could not serialize the PR record: {exc}") from exc
+    if updated is not None and single_checkout:
+        _sync_pr_record(
+            cfg,
+            worktree=worktree,
+            blackboard_path=blackboard_path,
+            slug=slug,
+        )
 
     if already and already != url:
         # Not an error — record it so a stale link replacement is visible in

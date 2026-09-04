@@ -491,6 +491,7 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
     # recreate). `_seed_repo` writes the body with no fence, so the fix adds one.
     assert fence_count((task / "ticket.md").read_text()) == 0
     report = task / "report.md"
+    report.write_text("")
     env = os.environ.copy()
     env.update(
         {

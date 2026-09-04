@@ -46,6 +46,8 @@ from typing import Any, Iterable
 
 import requests
 
+from coga import git
+from coga.atomicio import atomic_write_text
 from coga.blackboard import (
     BLACKBOARD_WARN_BYTES,
     blackboard_size_warning,
@@ -62,7 +64,7 @@ from coga.config import (
 from coga.logfile import last_activity
 from coga.launch_script import SCRIPT_ENTRY_POINT, script_entry_point
 from coga.lifecycle import TERMINAL_STATUSES, VALID_STATUSES
-from coga.taskfile import BLACKBOARD_FENCE, fence_count
+from coga.taskfile import BLACKBOARD_FENCE, TaskFileError, fence_count
 from coga.period_state import read_snapshot, stale_keys
 from coga.paths import (
     context_resolution_paths,
@@ -1487,35 +1489,40 @@ def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix
     fixes: list[Fix] = []
     targets = list(only) if only is not None else list_tasks(cfg)
     for ref in targets:
-        ticket_path = ref.ticket_path
-        if not ticket_path.is_file():
-            continue
-        text = ticket_path.read_text()
-        if fence_count(text) >= 1:
-            continue
-        title = ref.id_slug
-        try:
-            title = Ticket.read(ticket_path).title or ref.id_slug
-        except (TicketError, FileNotFoundError):
-            pass
-        new = (
-            text.rstrip("\n")
-            + "\n\n"
-            + BLACKBOARD_FENCE
-            + "\n\n"
-            + render_blackboard(title).lstrip("\n")
-        )
-        if not new.endswith("\n"):
-            new += "\n"
-        ticket_path.write_text(new)
-        fixes.append(
-            Fix(
-                kind="blackboard-fence",
-                task=ref.id_slug,
-                message="added blackboard fence + region",
-                path=str(ticket_path),
+        with git.state_publication_barrier(cfg):
+            ticket_path = ref.ticket_path
+            if not ticket_path.is_file():
+                continue
+            text = ticket_path.read_text()
+            if fence_count(text) >= 1:
+                continue
+            title = ref.id_slug
+            try:
+                title = Ticket.read(ticket_path).title or ref.id_slug
+            except (TicketError, FileNotFoundError):
+                pass
+            new = (
+                text.rstrip("\n")
+                + "\n\n"
+                + BLACKBOARD_FENCE
+                + "\n\n"
+                + render_blackboard(title).lstrip("\n")
             )
-        )
+            if not new.endswith("\n"):
+                new += "\n"
+            if ticket_path.read_text() != text:
+                raise TaskFileError(
+                    f"ticket changed before its blackboard repair: {ticket_path}"
+                )
+            atomic_write_text(ticket_path, new)
+            fixes.append(
+                Fix(
+                    kind="blackboard-fence",
+                    task=ref.id_slug,
+                    message="added blackboard fence + region",
+                    path=str(ticket_path),
+                )
+            )
 
     return fixes
 

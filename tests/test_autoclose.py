@@ -10,6 +10,7 @@ import typer
 from typer.testing import CliRunner
 
 from coga import autoclose as am
+from coga import blackboard as blackboard_module
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
@@ -956,7 +957,11 @@ def test_append_report_preserves_crlf_and_uses_atomic_blackboard_replace(
     original = host.read_bytes().replace(b"\n", b"\r\n")
     host.write_bytes(original)
 
-    am._append_blackboard_report(host, "## Report\n\nbody\n")
+    am._append_blackboard_report(
+        load_config(repo),
+        host,
+        "## Report\n\nbody\n",
+    )
 
     assert host.read_bytes() == original + b"\r\n## Report\r\n\r\nbody\r\n"
 
@@ -965,7 +970,7 @@ def test_append_report_refuses_to_overwrite_a_concurrent_ticket_change(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _, host = _make_task(repo, title="Racing host", status="draft")
-    original_replace = am.replace_blackboard
+    original_replace = blackboard_module.replace_blackboard
 
     def race_then_replace(
         path: Path, new_blackboard: str, *, expected_bytes: bytes | None = None
@@ -975,10 +980,10 @@ def test_append_report_refuses_to_overwrite_a_concurrent_ticket_change(
             path, new_blackboard, expected_bytes=expected_bytes
         )
 
-    monkeypatch.setattr(am, "replace_blackboard", race_then_replace)
+    monkeypatch.setattr(blackboard_module, "replace_blackboard", race_then_replace)
 
     with pytest.raises(TaskFileError, match="ticket changed"):
-        am._append_blackboard_report(host, "## Report\n")
+        am._append_blackboard_report(load_config(repo), host, "## Report\n")
 
     assert host.read_text().endswith("\nconcurrent update\n")
     assert "## Report" not in host.read_text()

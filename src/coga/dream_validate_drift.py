@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from coga.blackboard import append_blackboard_report
 from coga.config import Config, ConfigError, find_repo_root, load_config
 from coga.slack import post
 from coga.task_env import blackboard_from_env, discover_coga_os_root
@@ -508,17 +509,8 @@ def render_blackboard_report(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def append_report(blackboard: Path, report: str) -> None:
-    if not blackboard.parent.is_dir():
-        raise RuntimeError(f"Blackboard parent does not exist: {blackboard.parent}")
-    existing = blackboard.read_text() if blackboard.is_file() else ""
-    if not existing or existing.endswith("\n\n"):
-        separator = ""
-    elif existing.endswith("\n"):
-        separator = "\n"
-    else:
-        separator = "\n\n"
-    blackboard.write_text(existing + separator + report)
+def append_report(cfg: Config, blackboard: Path, report: str) -> None:
+    append_blackboard_report(cfg, blackboard, report)
 
 
 def build_slack_summary(
@@ -650,7 +642,6 @@ def script_task_slug_from_env() -> str | None:
 
 
 def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
-    del cfg
     parser = argparse.ArgumentParser(description="Run the validate-drift Dream skill.")
     parser.add_argument(
         "--cwd",
@@ -691,7 +682,7 @@ def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
     fix = not args.no_fix
 
     try:
-        cfg: Config | None = None
+        worker_cfg: Config | None = None
         payload, command = run_validate_json(
             cwd=args.cwd,
             fix=fix,
@@ -705,12 +696,12 @@ def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
         if args.commit_and_push:
             if not fix:
                 raise RuntimeError("--commit-and-push requires the fix pass")
-            cfg = load_worker_config(args.cwd)
+            worker_cfg = load_worker_config(args.cwd)
             git_result = commit_and_push_fixes(
                 cwd=args.cwd or Path.cwd(),
                 fixes=fixes,
                 message=args.commit_message,
-                remote=cfg.git_remote,
+                remote=worker_cfg.git_remote,
                 allow_main_push=args.allow_main_push,
             )
         report = render_blackboard_report(
@@ -722,16 +713,19 @@ def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
             git_result=git_result,
         )
         if blackboard:
-            append_report(blackboard, report)
+            append_report(cfg, blackboard, report)
         else:
             sys.stdout.write(report)
         if args.post_slack:
-            if cfg is None:
-                cfg = load_worker_config(args.cwd)
-            slack_task = task_slug or infer_task_slug_from_blackboard(cfg, blackboard)
+            if worker_cfg is None:
+                worker_cfg = load_worker_config(args.cwd)
+            slack_task = task_slug or infer_task_slug_from_blackboard(
+                worker_cfg,
+                blackboard,
+            )
             if slack_task:
                 post_slack_summary(
-                    cfg,
+                    worker_cfg,
                     slack_task,
                     build_slack_summary(fixes, classified, git_result=git_result),
                 )

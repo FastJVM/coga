@@ -15,6 +15,7 @@ from pathlib import Path
 
 import yaml
 
+from coga.blackboard import append_blackboard_report
 from coga.config import Config
 from coga.task_env import blackboard_from_env
 
@@ -297,21 +298,11 @@ def render_report(
     return "\n".join(lines) + "\n"
 
 
-def append_report(blackboard: Path, report: str) -> None:
-    if not blackboard.parent.is_dir():
-        raise RuntimeError(f"Blackboard parent does not exist: {blackboard.parent}")
-    existing = blackboard.read_text() if blackboard.is_file() else ""
-    if not existing or existing.endswith("\n\n"):
-        separator = ""
-    elif existing.endswith("\n"):
-        separator = "\n"
-    else:
-        separator = "\n\n"
-    blackboard.write_text(existing + separator + report)
+def append_report(cfg: Config, blackboard: Path, report: str) -> None:
+    append_blackboard_report(cfg, blackboard, report)
 
 
 def run_cleanup_orphan_markers_recipe(cfg: Config, argv: list[str]) -> int:
-    del cfg
     if argv:
         sys.stderr.write(
             "cleanup-orphan-markers: unexpected arguments: "
@@ -336,7 +327,7 @@ def run_cleanup_orphan_markers_recipe(cfg: Config, argv: list[str]) -> int:
         # blackboard from another checkout falls back to stdout.
         blackboard = blackboard_from_env(coga_os)
         if blackboard:
-            append_report(blackboard, report)
+            append_report(cfg, blackboard, report)
         else:
             sys.stdout.write(report)
     except RuntimeError as exc:
