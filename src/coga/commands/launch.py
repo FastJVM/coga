@@ -3060,9 +3060,11 @@ def spawn_agent_session(
     the append and immediately before release. The append, proof, and supervisor
     pipe release share Git's local state-publication barrier, so another Coga
     command cannot commit the provisional line while that proof is in flight.
-    Refusal conditionally removes only this invocation's append. Such an audit
-    cannot also request immediate Git publication, because a published append
-    cannot be transactionally retracted if that final proof refuses.
+    Refusal conditionally removes only this invocation's append. A pipe-release
+    failure invokes the same compensation inside the barrier and clears the
+    session-started flag before the held child is killed. Such an audit cannot
+    also request immediate Git publication, because a published append cannot
+    be transactionally retracted if that final proof or release refuses.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the
@@ -3140,6 +3142,7 @@ def spawn_agent_session(
     usage_cwd = Path.cwd().resolve()
     usage_window_start = datetime.now(timezone.utc)
     spawn_started = False
+    provisional_audit_rollback: git.FileMutationRollback | None = None
     publish_session_log = False
     assist_log_refusal: str | None = None
     outcome_status: usage_tracking.OutcomeStatus = "unknown"
@@ -3148,7 +3151,6 @@ def spawn_agent_session(
         if (
             record_launch
             and record_launch_on_spawn
-            and validate_after_spawn is not None
             and commit_log
         ):
             raise ValueError(
@@ -3228,7 +3230,7 @@ def spawn_agent_session(
             spawn_started = True
 
         def admit_spawned_child() -> None:
-            nonlocal spawn_started
+            nonlocal provisional_audit_rollback, spawn_started
             if validate_after_spawn is not None:
                 validate_after_spawn()
             if deferred_launch_audit:
@@ -3239,6 +3241,7 @@ def spawn_agent_session(
                 )
                 audit_append = record_and_publish_launch_audit()
                 audit_rollback.arm_append(audit_path, audit_append)
+                provisional_audit_rollback = audit_rollback
                 if validate_after_spawn is not None:
                     try:
                         # The append is visible to same-checkout editors and
@@ -3250,6 +3253,7 @@ def spawn_agent_session(
                         # publication barrier. Reacquiring the non-reentrant
                         # lock here would deadlock the refused child.
                         refused = audit_rollback.restore()
+                        provisional_audit_rollback = None
                         if refused:
                             paths = ", ".join(str(path) for path in refused)
                             raise RuntimeError(
@@ -3258,6 +3262,21 @@ def spawn_agent_session(
                             ) from exc
                         raise
             spawn_started = True
+
+        def rollback_spawn_admission() -> None:
+            """Retract callback effects when the held child was not released."""
+            nonlocal provisional_audit_rollback, spawn_started
+            spawn_started = False
+            if provisional_audit_rollback is None:
+                return
+            refused = provisional_audit_rollback.restore()
+            provisional_audit_rollback = None
+            if refused:
+                paths = ", ".join(str(path) for path in refused)
+                raise RuntimeError(
+                    "could not remove unreleased launch audit from "
+                    f"{paths}"
+                )
 
         # Agent CLIs (`claude`, `codex`) don't exit on their own. Run through a
         # PTY watcher so an agent that writes the session-done sentinel after
@@ -3279,8 +3298,11 @@ def spawn_agent_session(
             after_spawn=admit_spawned_child if gated_spawn_admission else None,
             spawn_release_guard=(
                 (lambda: git.state_publication_barrier(cfg))
-                if validate_after_spawn is not None and deferred_launch_audit
+                if deferred_launch_audit
                 else None
+            ),
+            on_spawn_admission_failure=(
+                rollback_spawn_admission if gated_spawn_admission else None
             ),
         )
         outcome_status = _session_outcome_status(outcome)

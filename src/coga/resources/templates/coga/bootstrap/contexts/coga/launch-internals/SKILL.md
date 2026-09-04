@@ -299,11 +299,15 @@ append, second proof, and supervisor pipe write; every Coga lifecycle-ticket
 writer and Git publisher waits on the same kernel-released advisory lock. A
 lifecycle change is therefore either visible to the second proof or starts only
 after the executable is released, and no publisher can commit the provisional
-line while refusal is still possible. A mismatch or unverifiable fetch
-conditionally removes the owned audit line, refuses the child, and retains the
-current `in_progress` state for safe resume; an audit failure likewise kills
-the held child. Thus an edit during the append cannot start stale work or
-publish a false launch record, and no audit failure starts unrecorded work. It
+line while refusal is still possible. If the one-byte pipe release fails after
+the callback succeeds, the supervisor invokes its admission-failure hook under
+that same barrier; the hook removes the provisional audit and clears the
+session-started flag before the still-held child is killed. A mismatch or
+unverifiable fetch conditionally removes the owned audit line, refuses the
+child, and retains the current `in_progress` state for safe resume; an audit
+failure likewise kills the held child. Thus an edit during the append cannot
+start stale work or publish a false launch record, and no audit failure starts
+unrecorded work. It
 never compensates backward to `active`: an ordinary `coga launch` resume may
 already be running
 from the same generation and changing its blackboard, so that token alone is

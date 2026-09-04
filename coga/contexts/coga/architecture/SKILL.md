@@ -900,8 +900,11 @@ release. The local state admission/publication barrier spans that append,
 final proof, and pipe write; every Coga lifecycle writer and Git publisher
 waits, so no ticket mutation can invalidate the successful proof before release
 and no publisher can commit the provisional line before admission becomes
-irrevocable. A changed or unverifiable claim conditionally removes only the
-owned audit line, refuses the child, and retains `in_progress` for safe resume.
+irrevocable. If the pipe write itself fails, the supervisor runs admission
+compensation before releasing that barrier: it removes the provisional audit
+and keeps the session out of usage teardown before killing the still-held
+child. A changed or unverifiable claim conditionally removes only the owned
+audit line, refuses the child, and retains `in_progress` for safe resume.
 Thus the audit stays out of
 `log.md` until the PTY child actually exists, while an edit during the append
 cannot release stale preflighted work or publish a false audit. An audit failure

@@ -213,6 +213,7 @@ def run_with_done_marker(
     spawn_release_guard: (
         Callable[[], AbstractContextManager[None]] | None
     ) = None,
+    on_spawn_admission_failure: Callable[[], None] | None = None,
 ) -> ReplOutcome:
     """Spawn `cmd` in a PTY, proxy stdio, SIGTERM the child on done signal.
 
@@ -253,9 +254,14 @@ def run_with_done_marker(
     ``spawn_release_guard`` optionally surrounds both that callback and the
     gate write, so a caller can keep a short cross-process critical section
     held until the child is irrevocably released.
+    ``on_spawn_admission_failure`` runs inside that same guard when either the
+    callback or gate write fails. It lets a caller retract provisional callback
+    effects before the held child is killed and peer publishers can proceed.
     """
     if spawn_release_guard is not None and after_spawn is None:
         raise ValueError("spawn_release_guard requires after_spawn")
+    if on_spawn_admission_failure is not None and after_spawn is None:
+        raise ValueError("on_spawn_admission_failure requires after_spawn")
 
     def release_gated_child(gate_write_fd: int) -> None:
         guard = (
@@ -265,8 +271,26 @@ def run_with_done_marker(
         )
         with guard:
             assert after_spawn is not None
-            after_spawn()
-            os.write(gate_write_fd, b"\0")
+            try:
+                after_spawn()
+                written = os.write(gate_write_fd, b"\0")
+                if written != 1:
+                    raise OSError(
+                        errno.EIO,
+                        "short write while releasing held agent child",
+                    )
+            except BaseException as admission_exc:
+                if on_spawn_admission_failure is not None:
+                    try:
+                        on_spawn_admission_failure()
+                    except BaseException as compensation_exc:
+                        raise RuntimeError(
+                            "agent child admission failed and its provisional "
+                            "effects could not be retracted: "
+                            f"admission={admission_exc}; "
+                            f"compensation={compensation_exc}"
+                        ) from compensation_exc
+                raise
 
     if not sys.stdout.isatty():
         import subprocess

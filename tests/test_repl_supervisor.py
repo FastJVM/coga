@@ -172,6 +172,65 @@ def test_no_tty_spawn_release_guard_covers_callback_and_gate_write(
     assert marker.read_text() == "ran"
 
 
+def test_no_tty_release_failure_compensates_before_reaping_held_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed gate write retracts callback effects under the release guard."""
+    marker = tmp_path / "child-ran"
+    events: list[str] = []
+    guard_held = False
+    real_write = os.write
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    @contextmanager
+    def release_guard():
+        nonlocal guard_held
+        guard_held = True
+        events.append("guard-enter")
+        try:
+            yield
+        finally:
+            events.append("guard-exit")
+            guard_held = False
+
+    def fail_gate_write(fd: int, data: bytes) -> int:
+        if data == b"\0":
+            assert guard_held
+            events.append("release-failed")
+            raise OSError("held-child gate write failed")
+        return real_write(fd, data)
+
+    def record_spawn() -> None:
+        assert guard_held
+        assert not marker.exists()
+        events.append("callback")
+
+    def compensate_spawn() -> None:
+        assert guard_held
+        assert not marker.exists()
+        events.append("compensate")
+
+    monkeypatch.setattr("coga.repl_supervisor.os.write", fail_gate_write)
+    with pytest.raises(OSError, match="held-child gate write failed"):
+        run_with_done_marker(
+            [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+            env={},
+            after_spawn=record_spawn,
+            spawn_release_guard=release_guard,
+            on_spawn_admission_failure=compensate_spawn,
+        )
+
+    assert events == [
+        "guard-enter",
+        "callback",
+        "release-failed",
+        "compensate",
+        "guard-exit",
+    ]
+    assert not marker.exists()
+
+
 def _run_through_pty(
     monkeypatch: pytest.MonkeyPatch,
     cmd: list[str],

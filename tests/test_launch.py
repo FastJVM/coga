@@ -548,6 +548,66 @@ def test_spawn_agent_session_removes_deferred_audit_when_post_append_guard_refus
     assert not log_file.exists()
 
 
+def test_spawn_agent_session_retracts_audit_when_child_release_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A callback success is not a launch until the held child is released."""
+    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
+    ref.path.mkdir()
+    log_file = tmp_path / "log.md"
+    usage_calls: list[dict] = []
+
+    def fail_release(
+        _cmd,
+        _env,
+        *,
+        after_spawn,
+        spawn_release_guard,
+        on_spawn_admission_failure,
+        **_kwargs,
+    ):  # type: ignore[no-untyped-def]
+        assert after_spawn is not None
+        assert spawn_release_guard is not None
+        assert on_spawn_admission_failure is not None
+        with spawn_release_guard():
+            after_spawn()
+            assert "launched before failed release" in log_file.read_text()
+            on_spawn_admission_failure()
+            assert not log_file.exists()
+        raise OSError("held-child release failed")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        fail_release,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: usage_calls.append(kwargs),
+    )
+
+    with pytest.raises(OSError, match="held-child release failed"):
+        spawn_agent_session(
+            SimpleNamespace(repo_root=tmp_path),
+            ref,
+            _ticket(),
+            AgentType(
+                name="claude",
+                cli="claude",
+                file="CLAUDE.md",
+                mode="local",
+            ),
+            env={},
+            actor="megalaunch",
+            log_message="launched before failed release",
+            composed_prompt="# Materialized\nchecked once",
+            validate_after_spawn=lambda: None,
+            record_launch_on_spawn=True,
+        )
+
+    assert not log_file.exists()
+    assert usage_calls == []
+
+
 def test_spawn_agent_session_rejects_publishing_a_guarded_deferred_audit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
