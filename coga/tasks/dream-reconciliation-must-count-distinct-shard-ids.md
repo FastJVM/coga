@@ -1,7 +1,7 @@
 ---
 slug: dream-reconciliation-must-count-distinct-shard-ids
 title: Dream reconciliation must count distinct shard ids, not completion lines
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
