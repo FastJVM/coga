@@ -1,9 +1,11 @@
 """Importable skill-update recipe.
 
-Wraps `coga skill update --all --pr`: applies every clean imported-skill
-update into one reviewable PR and reports the skills that could not be updated
-cleanly (a local adaptation, a provenance conflict, a fetch failure) so they
-surface as follow-up work on the task blackboard.
+Wraps `coga skill update --all --pr`: publishes the clean results emitted by
+the GitHub- and URL-backed updater paths in one reviewable PR, and groups their
+reported conflicts, URL local adaptations, or fetch failures as follow-up work
+on the task blackboard. GitHub-backed local edits follow ``gh skill`` overwrite
+semantics. Local-backed and hand-vendored directories emit no update result,
+so this recipe neither updates nor inventories them.
 """
 
 from __future__ import annotations
@@ -24,11 +26,11 @@ from coga.task_env import blackboard_from_env, discover_coga_os_root
 
 # Update statuses `coga skill update` emits, grouped into the three buckets
 # this skill reports. The buckets only drive the headline summary and the
-# section a skill is listed under; skills are always listed by their *raw*
-# status, so a new status (e.g. the `conflict` status a sibling ticket adds)
-# stays distinct from `skipped-local-adaptation` instead of being merged with
-# it. Any status not named here is treated as follow-up so it is never silently
-# swallowed.
+# section an emitted result is listed under; results are always listed by their
+# *raw* status, so a new status (e.g. the `conflict` status a sibling ticket
+# adds) stays distinct from `skipped-local-adaptation` instead of being merged
+# with it. Any emitted status not named here is treated as follow-up so it is
+# never silently swallowed.
 GROUP_UPDATED = "updated"
 GROUP_FOLLOWUP = "followup"
 GROUP_SKIPPED = "skipped"
@@ -162,7 +164,7 @@ def render_result_line(results: list[SkillUpdate]) -> str:
     back out of the rendered text.
     """
     if not results:
-        return "no installed skills to update."
+        return "no managed update results."
     grouped = group_results(results)
     return (
         f"{len(results)} skill(s): "

@@ -517,7 +517,12 @@ for GitHub, `install-url <url>` for an arbitrary URL downloaded locally first,
 and `install-local <path>` for an already-downloaded directory. `update <skill>`
 / `update --all` (with optional `--pr` to open one draft skill-update PR) and
 `remove <skill>` (exact-name only, shown as a normal git delete) round out the
-surface.
+surface. A local install is supported but intentionally not remotely managed:
+`gh skill` records `local-path`, `gh skill update --all` skips it without
+GitHub metadata, and Coga's URL updater ignores it. The combined update report
+currently emits no per-skill row for that directory. Treat it as pinned and
+reinstall from the reviewed local source explicitly; absence from a weekly
+report does not prove it was checked.
 
 `coga skill` is a thin wrapper around GitHub CLI's `gh skill`, not a new
 package manager. GitHub-backed installs and updates delegate straight to

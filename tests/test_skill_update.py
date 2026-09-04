@@ -159,7 +159,7 @@ def test_render_handles_empty_results() -> None:
         pr_requested=True,
         task_slug="skill-update",
     )
-    assert "Result: no installed skills to update." in report
+    assert "Result: no managed update results." in report
     assert "PR: none opened" in report
 
 
@@ -186,7 +186,7 @@ def test_render_result_line_is_the_reports_own_result_sentence() -> None:
 
 
 def test_render_result_line_handles_empty_results() -> None:
-    assert render_result_line([]) == "no installed skills to update."
+    assert render_result_line([]) == "no managed update results."
 
 
 def test_recipe_hands_back_the_results_it_already_holds(
@@ -430,12 +430,20 @@ def test_skill_update_skill_declares_contract() -> None:
 
     assert "name: bootstrap/skill-update" in text
     assert "## Known Skill Contract" in text
-    assert "- Purpose: update clean imported skills" in text
+    assert "- Purpose: update clean GitHub- and URL-backed imported skills" in text
     assert "- Action: `pr-required`" in text
     assert "coga skill update --all --pr" in text
     assert "`coga/skill-update` branch" in norm
     assert "never the caller's branch" in norm
     assert "Bundled (package-backed) skills are not updated here" in norm
+    assert "`gh skill`'s own metadata for GitHub-backed installs" in norm
+    assert "Coga `.coga-source.json` provenance for URL-backed installs" in norm
+    assert "delegated GitHub path does not promise to preserve local edits" in norm
+    assert "Do not keep local adaptations in GitHub-backed directories" in norm
+    assert "`coga skill install-local` leaves `gh skill` `local-path` metadata" in norm
+    assert "this run neither updates nor lists it" in norm
+    assert "omission is a known reporting limitation" in norm
+    assert "This is not a complete installed-skill inventory" in norm
     assert "- Output: append `## Skill Update`" in text
     assert "COGA_TASK_BLACKBOARD" in text
     assert "--blackboard" not in text
@@ -459,12 +467,15 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
     assert "recipe:" not in ticket
     assert "workflow: skill-update/run" in ticket
     assert "coga skill update --all --pr" in ticket
+    assert "`coga skill install-local` is a third supported installation path" in ticket
+    assert "weekly report neither lists nor verifies them" in ticket
 
     assert "from coga.skill_update import run_skill_update_recipe" in script
     assert "run_skill_update_recipe(load_config(), [])" in script
 
     assert "name: skill-update/run" in workflow
     assert "- bootstrap/skill-update" in workflow
+    assert "Local-backed and hand-vendored skills are unmanaged" in workflow
 
 
 def _write(path: Path, text: str) -> None:

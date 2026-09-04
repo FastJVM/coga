@@ -1,6 +1,6 @@
 ---
 schedule: "0 9 * * 1"
-schedule_comment: "Every Monday at 9am — update clean imported skills into one reviewable PR"
+schedule_comment: "Every Monday at 9am — update remotely managed GitHub/URL skills into one reviewable PR"
 title: "Skill update"
 # The reserved `ticket.py` sibling is this task's deterministic half: `coga
 # launch` runs it directly, with no agent and no composed prompt. The one-step
@@ -10,24 +10,46 @@ workflow: skill-update/run
 
 ## Description
 
-Update every clean imported (Coga-managed) skill in one reviewable PR.
+Update every clean remotely managed GitHub/URL skill in one reviewable PR.
 
-Imported skills live as plain directories under `coga/skills/` with
-`.coga-source.json` provenance. Once a week this ticket fires on its schedule
-and its `ticket.py` runs `coga skill update --all --pr`, which:
+Imported skills live as plain directories under `coga/skills/`. GitHub-backed
+installs are tracked by `gh skill`'s own metadata. URL-installed skills instead
+carry Coga's `.coga-source.json` provenance with `source_type = "url"`.
+`coga skill install-local` is a third supported installation path: `gh skill`
+records `local-path`, but its updater skips that directory because it has no
+GitHub source metadata, and Coga's URL updater does not consume it. Hand-vendored
+packs likewise have no managed update source. A freshly initialized repo
+attempts to install the optional GitHub refs declared in `managed-skills.toml`,
+but installation may be skipped or fail and operators may add any source shape
+later. Once a week this ticket fires on its schedule and its `ticket.py` runs
+`coga skill update --all --pr`, which:
 
-1. walks every imported skill with recorded provenance,
-2. rewrites in place each skill whose upstream digest changed and whose local
-   copy is unmodified,
+1. delegates the installed GitHub-backed skills to `gh skill update --dir
+   coga/skills --all`, then walks in Coga's own code every skill carrying
+   `.coga-source.json` with `source_type = "url"`; local-backed and
+   hand-vendored directories are outside both updater paths,
+2. for URL-backed skills, rewrites in place only when the upstream digest
+   changed and the local copy is unmodified; the delegated GitHub updater
+   follows its own stored-tree-SHA policy,
 3. commits the clean updates onto the dedicated `coga/skill-update` branch
    and opens (or updates) one draft PR, and
 4. appends a `## Skill Update` report to this period task's blackboard,
-   bucketing every skill by raw update status.
+   bucketing every result emitted by the GitHub, URL, and bundled paths.
 
-Local adaptations are never overwritten: a skill whose local copy diverged, a
-provenance conflict, or a fetch failure is left untouched and listed under the
-report's follow-up heading for a human to resolve. Bundled (package-backed)
-skills are not touched here — they refresh when the coga package is upgraded.
+Local-edit protection applies to URL-backed skills: a diverged local copy,
+provenance conflict, or fetch failure is left untouched and listed under the
+report's follow-up heading for a human to resolve. GitHub-backed directories
+are upstream-owned by `gh skill update`; when its recorded tree SHA differs
+from upstream, re-downloading can overwrite local modifications before the
+draft PR is opened. That PR reviews the resulting upstream update; it does not
+recover overwritten edits. Do not keep local adaptations in those directories.
+Local-backed installs are pinned until an operator reviews their source and
+reinstalls explicitly. They currently produce no per-skill update result, so
+the weekly report neither lists nor verifies them; omission is not evidence
+that their source or installed bytes are current. Hand-vendored directories
+have the same unmanaged update posture.
+Bundled (package-backed) skills are not touched here — they refresh when the
+coga package is upgraded.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
 PR is opened. A week with only follow-up statuses is intentionally loud: after
