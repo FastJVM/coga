@@ -550,7 +550,10 @@ substrate:
   forced overwrite discards the adaptation, so preserving the note would
   mis-describe the new tree. Force applies only when the exact target directory
   contains a `SKILL.md`; a flat ref that collides with an existing namespace
-  directory is refused so its nested skills cannot be deleted.
+  directory is refused so its nested skills cannot be deleted. The inverse is
+  refused too: a namespaced ref cannot be installed beneath an existing flat
+  skill, where recursive discovery would hide it from status, updates, and the
+  generated agent skill view. `--force` overrides neither namespace collision.
 - **`conflict` is its own status.** URL-backed update/status checks fetch
   upstream before classifying: locally adapted with upstream unchanged stays
   `skipped-local-adaptation`; locally adapted **and** upstream changed

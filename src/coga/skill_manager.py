@@ -167,6 +167,16 @@ def install_url_skill(
         materialized = materialize_url_skill(url, data, Path(tmp), selector)
         skill_ref = materialized.skill_ref
         target = _skill_target(cfg, skill_ref)
+        root = skills_root(cfg)
+        for ancestor in target.parents:
+            if ancestor == root:
+                break
+            if (ancestor / "SKILL.md").is_file():
+                ancestor_ref = ancestor.relative_to(root).as_posix()
+                raise SkillManagerError(
+                    f"Cannot install {skill_ref}: ancestor {ancestor_ref} is "
+                    "already an installed skill"
+                )
         metadata = read_source_metadata(target) if target.is_dir() else None
         installed_digest = (
             metadata.get("installed_tree_digest")

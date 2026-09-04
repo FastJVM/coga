@@ -336,6 +336,32 @@ def test_install_url_force_preserves_existing_namespace_children(
     assert not (cfg.repo_root / "skills" / "tools" / "SKILL.md").exists()
 
 
+def test_install_url_refuses_skill_beneath_existing_skill_even_with_force(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    flat = cfg.repo_root / "skills" / "tools" / "SKILL.md"
+    _write(flat, "---\nname: tools\n---\nFlat skill.\n")
+    before = flat.read_bytes()
+    commands: list[list[str]] = []
+
+    with pytest.raises(SkillManagerError, match="ancestor tools is already"):
+        install_url_skill(
+            cfg,
+            "https://example.test/skill.zip",
+            force=True,
+            downloader=lambda url: _skill_zip(
+                "tools/example",
+                body="Hidden nested skill.\n",
+            ),
+            runner=_gh_install_runner(commands),
+        )
+
+    assert commands == [["gh", "skill", "--help"]]
+    assert flat.read_bytes() == before
+    assert not (cfg.repo_root / "skills" / "tools" / "example").exists()
+
+
 def test_install_url_refuses_dirty_overwrite_without_force(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
