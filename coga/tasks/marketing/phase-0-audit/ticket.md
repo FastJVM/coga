@@ -121,8 +121,9 @@ worklist (step 3). The worklist lives on this ticket's blackboard, under a
    ledger reader). Draft *how* it would be collected and by what mechanism
    (a recurring ticket? a script? manual?), so the owner only has to assign
    it.
-7. **Prepared replies** — `marketing/plan` says to write them before post 1
-   ships. Do they exist anywhere yet? Report.
+7. **Prepared replies** — `marketing/plan` carries the four standing answers;
+   `marketing/write-post` step 7 is the gate that blocks a post from shipping
+   until they are written out. Do they exist anywhere yet? Report.
 
 ### Owner-only items (step 2)
 

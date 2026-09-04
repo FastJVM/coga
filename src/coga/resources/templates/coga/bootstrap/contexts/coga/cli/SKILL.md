@@ -534,6 +534,12 @@ substrate:
   and a `local_adaptation_notes` field. The notes field is hand-edited in the
   JSON (no CLI flag, keeping the surface small) and a clean `coga skill
   update` preserves it.
+- An arbitrary-URL skill's original frontmatter `name` must be either an Agent
+  Skills-compatible name or Coga's intentional extension: slash-separated
+  components that each meet the Agent Skills name rules. Coga validates that
+  original value before giving `gh skill install` an isolated, slash-free
+  staging name, then restores the validated Coga name and canonical path.
+  Update and checked-status downloads pass through the same validation.
 - **Local adaptation is detected by digest**, comparing the skill's current
   tree digest against the recorded `installed_tree_digest`. `coga skill
   install-url` refuses to overwrite a locally-adapted skill unless `--force`
@@ -542,7 +548,12 @@ substrate:
   the underlying `gh skill install`, rewrites `installed_tree_digest` to the
   freshly installed tree, and resets `local_adaptation_notes` to empty — the
   forced overwrite discards the adaptation, so preserving the note would
-  mis-describe the new tree.
+  mis-describe the new tree. Force applies only when the exact target directory
+  contains a `SKILL.md`; a flat ref that collides with an existing namespace
+  directory is refused so its nested skills cannot be deleted. The inverse is
+  refused too: a namespaced ref cannot be installed beneath an existing flat
+  skill, where recursive discovery would hide it from status, updates, and the
+  generated agent skill view. `--force` overrides neither namespace collision.
 - **`conflict` is its own status.** URL-backed update/status checks fetch
   upstream before classifying: locally adapted with upstream unchanged stays
   `skipped-local-adaptation`; locally adapted **and** upstream changed

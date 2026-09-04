@@ -117,12 +117,12 @@ Writing rules for this post (and defaults for the series):
   so the phase-1 retro can't be post-hoc rationalization.
 
 **Phase 1 — post 1, "async megalaunch".**
-Blog is the canonical hub; distinct per-channel URLs. Newsletter day 0.
-Bookface a few days *before* HN (friendly fire hardens the post; YC readers
-arrive in the HN thread already convinced). HN as a plain-titled **story
-submission only** — never Show HN. X optional: one summary thread.
-Reddit deferred (self-promo economics are bad cold; post only where already
-a member, or leave for phase 2+).
+Channel set and order: blog first as the canonical hub, newsletter on day 0,
+then an optional X summary thread, then Bookface, then HN a few days after the
+Bookface read (friendly fire hardens the post; YC readers arrive in the HN
+thread already convinced). Use distinct per-channel URLs. HN is a
+plain-titled **story submission only** — never Show HN. Reddit is not in this
+phase (self-promo economics are bad cold; leave it for phase 2+).
 
 **Phase 2 — post 2, "you own it".**
 Ownership / control / simplicity — **by specifics, never as humanist
@@ -135,7 +135,10 @@ that's exactly why you can trust it; nothing hidden means nothing to rent.
 This post answers the question post 1 raises ("why would I trust my days
 to this?"): you trust nothing — everything is yours and legible.
 Timeable: hold it for the next autonomy-hype cycle and publish as the
-counter.
+counter. Channel set and order once that moment arrives: blog first,
+newsletter on day 0, optional X summary thread, Bookface, then HN a few days
+after the Bookface read. Reddit is optional only where the founder is already
+a member, and comes after HN if used. Use distinct per-channel URLs throughout.
 
 **Phase 3 — post 3, "documentation as cache".**
 The token-reduction/speed pitch: sessions are stateless, so an undocumented
@@ -145,7 +148,16 @@ documentation stops being hygiene and becomes a cache, and it's why you can
 walk away. This post *benefits from receipts* (same task with vs without
 contexts: tokens, time-to-first-edit; `--prompt-report` + schema-2 usage
 records), which is why it comes after the audience exists — collect the
-measurements during phases 1–2.
+measurements during phases 1–2. Those receipts are required private source
+support, not publishable results for this essay: use them to test the premise
+and find the concrete context and repository question whose understanding was
+reused. Keep their values and any measured comparison on the blackboard. The
+post may explain that mechanism, but may not say — numerically or otherwise —
+that the measured run was faster or used fewer tokens without graduating into
+the proof-post regime. Channel set and order: blog first, newsletter on day 0,
+optional X summary thread, Bookface, then HN a few days after the Bookface
+read. Reddit is optional only where the founder is already a member, and comes
+after HN if used. Use distinct per-channel URLs throughout.
 
 **Later, gated — the proof post.**
 The 2-week pre-registered experiment ("N merged PRs, the ledger, recompute
@@ -222,7 +234,10 @@ thank early testers. Nothing to schedule; a standard to hold.
 
 ## Prepared replies (comment-section discipline)
 
-Write these out before post 1 ships; never improvise them in-thread:
+The standing answers to the objections the series draws. They are content, not
+a checklist: `marketing/write-post` owns the gate that blocks a post from
+shipping until its replies are written, and each later post adds the replies
+its own idea raises.
 
 - **"Show me / where are the receipts?"** — the repo is public; the days
   the post describes are readable in git (log, tickets, PRs). No numbers
@@ -248,10 +263,14 @@ Write these out before post 1 ships; never improvise them in-thread:
   one and keep its framing; `docs/velocity-report.md` holds the same line in
   public ("this report makes no '5x,' '10x,' or percentage productivity
   claim"). The rule bites on *results*, not on the thesis.
-- Essay posts claim *ideas*, not results — so they carry no numbers and
-  need no receipts. The moment a post states a figure as a result, it
-  graduates into the proof-post regime (pre-registration, recomputability)
-  — don't drift there by accident.
+- Essay posts claim *ideas*, not results — so they publish no result numbers
+  and need no public receipts. Post 3 still keeps its prescribed token/time
+  receipts as private source support: they test the premise and ground the
+  concrete mechanism, but neither their values nor a measured outcome belongs
+  in the post. The moment a post states a figure as a result, it graduates into
+  the proof-post regime (pre-registration, recomputability) — don't drift
+  there by accident. That is the reasoning; the per-post check that enforces
+  it is step 6 of `marketing/write-post`.
 - Misses stay publishable: the "takes time to feel" caveat and honest
   limits (see positioning) go *in* the posts, not in a FAQ.
 
@@ -279,8 +298,17 @@ installs play.
 - `marketing/post-doc-as-cache` — write post 3 (needs the collected
   measurements).
 
+The three `post-*` tickets all run `marketing/write-post`, which sequences the
+beats above into an order of work with gates. This context supplies what the
+posts say; that skill supplies how one gets written and shipped.
+
 ## What this context does NOT cover
 
+- How a post actually gets written and shipped — the order of work, the
+  entry and exit conditions, and the gates (single idea, real detail per
+  beat, no `[TK]` left open, the craft pass, prepared replies, Bookface
+  before HN) — `marketing/write-post`, which hands the prose-craft pass to
+  the imported `clarity` skill.
 - Positioning, audience, voice, competitive framing, honest product
   limits — `marketing/positioning`.
 - The full strategic argument — `docs/market-thesis.md`; the why —

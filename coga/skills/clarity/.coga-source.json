@@ -2,7 +2,7 @@
   "installed_at": "2026-09-03T22:07:47Z",
   "installed_ref": "clarity",
   "installed_tree_digest": "87d963d6d225f09f3447170e05e6c76029d45ed86528657ed7d3059f77718725",
-  "local_adaptation_notes": "",
+  "local_adaptation_notes": "Pruned to the runtime skill only: kept SKILL.md, references/, scripts/{strip_markdown,prose_stats}.py, and LICENSE (MIT, attribution required). Dropped upstream project scaffolding the skill body never loads \u2014 commands/, evals/, samples/ (~600 KB PNG), site/, .claude/, .github/, README.md, DESIGN.md, PRODUCT.md, netlify.toml, skills.sh.json, .gitignore. Also dropped scripts/validate_package.py: it asserts the presence of commands/, evals/, samples/ and README.md, so it fails by construction against the pruned tree. No prose was edited; installed_tree_digest is therefore stale by design and `coga skill status` will read this as locally adapted.",
   "schema": "coga.skill-source.v1",
   "selector": null,
   "source_digest": "2410f4530a161b44b9077e500bdc20f774ade2c28c69c3d18642df8381b1dd41",

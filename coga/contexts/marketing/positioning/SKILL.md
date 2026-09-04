@@ -7,7 +7,8 @@ description: Marketing-mode context for Coga launch/comms work. Loads Coga's pos
 
 Domain facts for writing Coga's outward comms — launch posts, landing
 copy, READMEs, talks, social. This is *what's true about Coga's market
-position and voice*; it is not a writing process (that would be a skill).
+position and voice*; it is not a writing process — that is
+`marketing/write-post`.
 Distilled from `docs/market-thesis.md` and `docs/vision.md` — read those
 for the full argument. When they conflict with this file, they win.
 
@@ -135,7 +136,8 @@ Comms must stay credible. State plainly where Coga is outclassed:
 **Fork A is pinned** for the launch series — owner decision of 2026-08-19,
 recorded in `marketing/plan`'s status block. Write to fork A; do not reopen
 the question inside a marketing/comms ticket. Changing the fork is an owner
-decision.
+decision. `marketing/write-post` cites this paragraph at its entry condition
+rather than restating the fork.
 
 - **Fork A (pinned)** — internal OSS infrastructure / honest field report
   (taste as craft). Lower-key launch: recruiting, alignment, the small tribe.
@@ -148,8 +150,10 @@ launch is a field report. They read very differently.
 
 ## What this context does NOT cover
 
-- How to write / the comms process, templates, channel mechanics — that's
-  a skill, not this context.
+- How to write / the comms process, channel mechanics — `marketing/write-post`
+  (the order of work and the gates), which hands the prose-craft pass to the
+  imported `clarity` skill. What each post *says* and when it ships —
+  `marketing/plan`.
 - The full argument and competitor verification — `docs/market-thesis.md`.
 - Product internals / how Coga works — `coga/architecture`,
   `coga/principles`.

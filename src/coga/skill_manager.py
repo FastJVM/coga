@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shlex
 import shutil
 import subprocess
@@ -17,6 +18,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
+
+import yaml
 
 from coga.config import Config
 from coga.github_source import github_owner_repo
@@ -86,6 +89,7 @@ class SkillUpdateSummary:
 @dataclass(frozen=True)
 class MaterializedSkill:
     path: Path
+    skill_ref: str
     source_digest: str
     source_tree_digest: str
 
@@ -161,17 +165,18 @@ def install_url_skill(
     data = (downloader or download_url)(url)
     with tempfile.TemporaryDirectory(prefix="coga-skill-url-") as tmp:
         materialized = materialize_url_skill(url, data, Path(tmp), selector)
-        skill_ref = _skill_ref_for_dir(materialized.path)
-        args = [
-            "install",
-            str(materialized.path),
-            "--from-local",
-            "--dir",
-            str(skills_root(cfg)),
-        ]
-        if force:
-            args.append("--force")
+        skill_ref = materialized.skill_ref
         target = _skill_target(cfg, skill_ref)
+        root = skills_root(cfg)
+        for ancestor in target.parents:
+            if ancestor == root:
+                break
+            if (ancestor / "SKILL.md").is_file():
+                ancestor_ref = ancestor.relative_to(root).as_posix()
+                raise SkillManagerError(
+                    f"Cannot install {skill_ref}: ancestor {ancestor_ref} is "
+                    "already an installed skill"
+                )
         metadata = read_source_metadata(target) if target.is_dir() else None
         installed_digest = (
             metadata.get("installed_tree_digest")
@@ -185,12 +190,71 @@ def install_url_skill(
             raise SkillManagerError(
                 f"{skill_ref} has local adaptations; rerun with --force to overwrite."
             )
-        run_gh_skill(args, runner=runner, checked=True)
-        if not target.is_dir():
+        if target.exists() and not target.is_dir():
             raise SkillManagerError(
-                "`gh skill install` completed, but the expected Coga skill "
-                f"path is missing: {target}"
+                f"Expected Coga skill path to be a directory: {target}"
             )
+        if target.is_dir() and not (target / "SKILL.md").is_file():
+            raise SkillManagerError(
+                f"Cannot install {skill_ref}: {target} is an existing skill "
+                "namespace, not that exact skill"
+            )
+        if target.exists() and not force:
+            raise SkillManagerError(
+                f"{skill_ref} is already installed; rerun with --force to overwrite."
+            )
+
+        # Agent Skills names cannot contain Coga's namespace separator. Give
+        # gh an isolated copy with a valid temporary name, let it perform the
+        # local install, then restore the canonical Coga frontmatter and path.
+        # The source digests above remain those of the unmodified download.
+        gh_name = f"coga-url-{materialized.source_tree_digest[:16]}"
+        gh_source = Path(tmp) / "gh-source"
+        shutil.copytree(materialized.path, gh_source, symlinks=True)
+        try:
+            gh_skill = Skill.load(gh_source / "SKILL.md")
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            raise SkillManagerError(
+                f"Invalid SKILL.md in downloaded skill {skill_ref}: {exc}"
+            ) from exc
+        gh_frontmatter = dict(gh_skill.frontmatter)
+        gh_frontmatter["name"] = gh_name
+        rendered_frontmatter = yaml.safe_dump(
+            gh_frontmatter,
+            allow_unicode=True,
+            sort_keys=False,
+        ).rstrip()
+        (gh_source / "SKILL.md").write_text(
+            f"---\n{rendered_frontmatter}\n---\n{gh_skill.body}",
+            encoding="utf-8",
+        )
+        gh_install_root = Path(tmp) / "gh-installed"
+        gh_install_root.mkdir()
+        args = [
+            "install",
+            str(gh_source),
+            # `gh skill install` only auto-picks a skill in interactive mode,
+            # and gh always runs here with captured output. Name it explicitly.
+            gh_name,
+            "--from-local",
+            "--dir",
+            str(gh_install_root),
+        ]
+        if force:
+            args.append("--force")
+        run_gh_skill(args, runner=runner, checked=True)
+        gh_target = gh_install_root / gh_name
+        if not gh_target.is_dir():
+            raise SkillManagerError(
+                "`gh skill install` completed, but its staged skill path is "
+                f"missing: {gh_target}"
+            )
+        shutil.copy2(materialized.path / "SKILL.md", gh_target / "SKILL.md")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            _replace_skill_tree(gh_target, target)
+        else:
+            shutil.copytree(gh_target, target, symlinks=True)
         installed_tree_digest = hash_skill_tree(target)
         metadata = _url_metadata(
             url=url,
@@ -568,8 +632,9 @@ def _translate_gh_skill_error(args: Sequence[str], stderr: str) -> str | None:
         return None
     source = args[1]
     lines = [
-        f"`gh skill install {source}` could not pick a skill: the source "
-        "exposes more than one, and `gh` only auto-picks in interactive mode.",
+        f"`gh skill install {source}` could not pick a skill: `gh` only "
+        "auto-picks in interactive mode, and coga always runs it with "
+        "captured output.",
         f"Rerun with a skill name: `coga skill install {source} <skill>`.",
     ]
     if "--from-local" in args:
@@ -807,6 +872,7 @@ def materialize_url_skill(
     skill_dir = _select_skill_dir(extracted, selector)
     return MaterializedSkill(
         path=skill_dir,
+        skill_ref=_validated_url_skill_ref(skill_dir),
         source_digest=source_digest,
         source_tree_digest=hash_skill_tree(skill_dir),
     )
@@ -1182,6 +1248,45 @@ def _skill_ref_for_dir(skill_dir: Path) -> str:
     if not isinstance(name, str) or not name.strip():
         name = skill_dir.name
     return str(_safe_skill_ref(name))
+
+
+_AGENT_SKILL_NAME_PART = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+
+
+def _validated_url_skill_ref(skill_dir: Path) -> str:
+    """Return a downloaded skill's valid Agent Skills/Coga name.
+
+    Coga intentionally extends an Agent Skills name with slash-separated
+    namespaces.  The slash is the only exception: every component still has
+    the Agent Skills spelling and length constraints.  Validate the original
+    value before URL installation replaces it with a gh-safe staging name.
+    """
+    skill_path = skill_dir / "SKILL.md"
+    try:
+        skill = Skill.load(skill_path)
+    except (OSError, UnicodeError, ValueError, yaml.YAMLError) as exc:
+        raise SkillManagerError(
+            f"Invalid downloaded SKILL.md at {skill_path}: {exc}"
+        ) from exc
+
+    name = skill.frontmatter.get("name")
+    if not isinstance(name, str):
+        raise SkillManagerError(
+            f"Invalid downloaded SKILL.md at {skill_path}: frontmatter `name` "
+            "must be a string"
+        )
+    parts = name.split("/")
+    if any(
+        not part
+        or len(part) > 64
+        or _AGENT_SKILL_NAME_PART.fullmatch(part) is None
+        for part in parts
+    ):
+        raise SkillManagerError(
+            f"Invalid downloaded skill name {name!r}: expected an Agent Skills "
+            "name or a slash-separated Coga namespace of those names"
+        )
+    return name
 
 
 def _skill_ref_from_path(root: Path, skill_dir: Path) -> str:
