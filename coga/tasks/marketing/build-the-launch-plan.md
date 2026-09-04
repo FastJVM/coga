@@ -1,7 +1,7 @@
 ---
 slug: marketing/build-the-launch-plan
 title: Build the launch plan
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
