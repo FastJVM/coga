@@ -781,7 +781,14 @@ There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
 someone is — or isn't — working on a task. `coga launch` accepts an `active` or
 `in_progress` ticket directly, and treats a launch of `draft` or `paused` as
 the readiness decision itself: the ticket is run through `coga mark active`
-inline before the agent starts. Terminal tickets (`done` and `canceled`) are
+inline before the agent starts. On the agent path that activation is prepared
+in memory before prompt composition, but its durable ticket/log write is
+deferred until every refusing preflight has passed, immediately before the
+`in_progress` transition. A missing layer, agent CLI, secret, push credential,
+or other preflight refusal therefore leaves a draft or paused ticket unchanged
+on disk. A `ticket.py` path activates when the script is about to execute,
+because executing user code is already the start of work. Terminal tickets
+(`done` and `canceled`) are
 refused and left untouched; launching one must not restart its workflow. A
 workflow-less or required-extension-incomplete ticket still can't be activated,
 so those launches fail loud with the same remedy `mark active` gives. The failure mode
