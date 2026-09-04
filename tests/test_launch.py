@@ -435,9 +435,17 @@ def test_spawn_agent_session_can_record_audit_only_after_child_exists(
         events.append("audit")
         return ReplOutcome(0, "natural")
 
+    validation_count = 0
+
     def final_guard() -> None:
-        assert not log_file.exists()
-        events.append("validate")
+        nonlocal validation_count
+        validation_count += 1
+        if validation_count == 1:
+            assert not log_file.exists()
+            events.append("validate-before-audit")
+        else:
+            assert "launched after spawn" in log_file.read_text()
+            events.append("validate-after-audit")
 
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker", fake_supervisor
@@ -446,13 +454,6 @@ def test_spawn_agent_session_can_record_audit_only_after_child_exists(
         "coga.commands.launch.usage_tracking.capture_session",
         lambda **kwargs: None,
     )
-
-    def sync_audit(*args, **kwargs):  # type: ignore[no-untyped-def]
-        assert "launched after spawn" in log_file.read_text()
-        events.append("sync")
-        return True
-
-    monkeypatch.setattr("coga.commands.launch.git.sync_log", sync_audit)
 
     spawn_agent_session(
         SimpleNamespace(repo_root=tmp_path),
@@ -470,10 +471,121 @@ def test_spawn_agent_session_can_record_audit_only_after_child_exists(
         composed_prompt="# Materialized\nchecked once",
         validate_after_spawn=final_guard,
         record_launch_on_spawn=True,
-        commit_log=True,
     )
 
-    assert events == ["spawn", "validate", "sync", "audit"]
+    assert events == [
+        "spawn",
+        "validate-before-audit",
+        "validate-after-audit",
+        "audit",
+    ]
+
+
+def test_spawn_agent_session_removes_deferred_audit_when_post_append_guard_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A claim change during the audit append leaves no false launch line."""
+    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
+    ref.path.mkdir()
+    log_file = tmp_path / "log.md"
+    events: list[str] = []
+    claim_changed = False
+    released = False
+
+    def fake_supervisor(
+        _cmd, _env, *, after_spawn, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal released
+        events.append("spawn")
+        after_spawn()
+        released = True
+        return ReplOutcome(0, "natural")
+
+    def final_guard() -> None:
+        events.append("validate")
+        if claim_changed:
+            raise RuntimeError("claim changed during audit")
+
+    real_append_log = launch_module.append_log
+
+    def append_then_change_claim(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal claim_changed
+        appended = real_append_log(*args, **kwargs)
+        events.append("append")
+        claim_changed = True
+        return appended
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr("coga.commands.launch.append_log", append_then_change_claim)
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    with pytest.raises(RuntimeError, match="claim changed during audit"):
+        spawn_agent_session(
+            SimpleNamespace(repo_root=tmp_path),
+            ref,
+            _ticket(),
+            AgentType(
+                name="claude",
+                cli="claude",
+                file="CLAUDE.md",
+                mode="local",
+            ),
+            env={},
+            actor="megalaunch",
+            log_message="launched after spawn",
+            composed_prompt="# Materialized\nchecked once",
+            validate_after_spawn=final_guard,
+            record_launch_on_spawn=True,
+        )
+
+    assert events == ["spawn", "validate", "append", "validate"]
+    assert released is False
+    assert not log_file.exists()
+
+
+def test_spawn_agent_session_rejects_publishing_a_guarded_deferred_audit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pre-release audit must remain retractable until its last proof."""
+    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
+    ref.path.mkdir()
+
+    def fail_supervisor(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("an invalid admission contract must not spawn")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fail_supervisor
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="guarded spawn-time launch audit cannot be published",
+    ):
+        spawn_agent_session(
+            SimpleNamespace(repo_root=tmp_path),
+            ref,
+            _ticket(),
+            AgentType(
+                name="claude",
+                cli="claude",
+                file="CLAUDE.md",
+                mode="local",
+            ),
+            env={},
+            actor="megalaunch",
+            log_message="launched after spawn",
+            composed_prompt="# Materialized\nchecked once",
+            validate_after_spawn=lambda: None,
+            record_launch_on_spawn=True,
+            commit_log=True,
+        )
+
+    assert not (tmp_path / "log.md").exists()
 
 
 def test_spawn_agent_session_rederives_nested_recurring_task_env(

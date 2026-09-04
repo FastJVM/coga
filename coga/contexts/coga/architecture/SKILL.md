@@ -879,16 +879,16 @@ At the shared pre-audit
 freshly fetches every effective control destination; the whole control ticket,
 including `launch_generation`, must still match. It repeats that proof through
 `validate_after_spawn` after the PTY child exists but while the supervisor
-still holds it before exec. A changed or unverifiable claim refuses the child
-and retains `in_progress` for safe resume. Megalaunch keeps the launch audit
-out of `log.md` until the PTY child actually exists. The
-supervisor holds that child behind a private pre-exec gate, appends the audit in
-the parent, and releases the executable only after the append succeeds, so
-neither a refusal nor an audit failure can expose false or unrecorded work to
-another same-checkout state sync. Once published, a generation is not
-automatically reclaimable by another megalaunch, closing the interval after the
-point-in-time final fetch; a step advance or lifecycle transition that ends or
-parks the session clears it.
+still holds it before exec. Megalaunch then appends the launch audit and repeats
+the same `validate_after_spawn` proof after that append, immediately before
+release. A changed or unverifiable claim conditionally removes only the owned
+audit line, refuses the child, and retains `in_progress` for safe resume. Thus
+the audit stays out of `log.md` until the PTY child actually exists, while an
+edit during the append cannot release stale preflighted work. An audit failure
+likewise kills the held child, so no unrecorded work starts. Once published, a
+generation is not automatically reclaimable by another megalaunch, closing the
+interval after the point-in-time final fetch; a step advance or lifecycle
+transition that ends or parks the session clears it.
 Ordinary `coga launch` remains the explicit recovery path and can resume the
 same generation while writing its blackboard. Megalaunch therefore never
 compensates a refused claim backward to `active`: the unchanged token cannot

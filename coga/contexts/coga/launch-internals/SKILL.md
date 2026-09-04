@@ -288,15 +288,14 @@ destination before the launch audit; each control ticket must still equal the
 whole preflighted `in_progress` revision. Megalaunch repeats that same proof at
 the `validate_after_spawn` seam after the PTY child exists but while a private
 pipe still holds it before exec, binding both `launch_generation` and prompt
-inputs at the actual executable boundary. Any mismatch or unverifiable fetch
-refuses the child and retains the current `in_progress` state for safe resume.
-Megalaunch withholds its launch audit from
-`log.md` throughout both proofs. The supervisor then creates the PTY child but
-holds it behind a private pre-exec pipe while its parent appends the audit;
-success releases the executable, and failure kills the held child. A refusal
-therefore exposes no false line, and an audit failure starts no unrecorded work,
-for a concurrent same-checkout state sync to commit. It never compensates
-backward to `active`: an ordinary `coga launch` resume may already be running
+inputs at the actual executable boundary. It then appends the audit and repeats
+that held-child proof after the append. Only the second success releases the
+executable. A mismatch or unverifiable fetch conditionally removes the owned
+audit line, refuses the child, and retains the current `in_progress` state for
+safe resume; an audit failure likewise kills the held child. Thus an edit
+during the append cannot start stale work, and no audit failure starts
+unrecorded work. It never compensates backward to `active`: an ordinary `coga
+launch` resume may already be running
 from the same generation and changing its blackboard, so that token alone is
 not proof that no session owns the state. Another megalaunch refuses the
 published generation before it can rotate the claim.

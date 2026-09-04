@@ -3052,9 +3052,12 @@ def spawn_agent_session(
     period lease. ``validate_after_spawn`` is the narrower executable-admission
     guard: it runs after the supervisor creates its child but while a private
     pipe still holds that child before exec. ``record_launch_on_spawn`` defers
-    the audit append into that same gate, after ``validate_after_spawn``
-    succeeds and before the child is released, keeping the line out of
-    concurrent state commits throughout every guard.
+    the audit append into that same gate. A guarded deferred audit is bracketed
+    by two calls to ``validate_after_spawn``: the second exact proof runs after
+    the append and immediately before release. Refusal conditionally removes
+    only this invocation's append. Such an audit cannot also request immediate
+    Git publication, because a published append cannot be transactionally
+    retracted if that final proof refuses.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the
@@ -3137,6 +3140,16 @@ def spawn_agent_session(
     outcome_status: usage_tracking.OutcomeStatus = "unknown"
 
     try:
+        if (
+            record_launch
+            and record_launch_on_spawn
+            and validate_after_spawn is not None
+            and commit_log
+        ):
+            raise ValueError(
+                "a guarded spawn-time launch audit cannot be published before "
+                "its post-append validation"
+            )
         cmd = build_agent_command(
             agent,
             prompt_arg,
@@ -3156,8 +3169,8 @@ def spawn_agent_session(
 
         deferred_launch_audit = record_launch and record_launch_on_spawn
 
-        def record_and_publish_launch_audit() -> None:
-            append_log(cfg, ref.id_slug, actor, log_message)
+        def record_and_publish_launch_audit() -> bytes:
+            audit_append = append_log(cfg, ref.id_slug, actor, log_message)
             if commit_log:
                 # A bootstrap target has no later task-state sync to carry its
                 # launch line; a human-step assist may share the PR checkout
@@ -3187,6 +3200,7 @@ def spawn_agent_session(
                         "The launch audit append remains dirty and the catch-all "
                         "state sweep has been suppressed."
                     )
+            return audit_append
 
         if record_launch and not deferred_launch_audit:
             record_and_publish_launch_audit()
@@ -3213,7 +3227,28 @@ def spawn_agent_session(
             if validate_after_spawn is not None:
                 validate_after_spawn()
             if deferred_launch_audit:
-                record_and_publish_launch_audit()
+                audit_path = log_path(cfg)
+                audit_rollback = git.FileMutationRollback.capture(
+                    (audit_path,),
+                    union_paths=(audit_path,),
+                )
+                audit_append = record_and_publish_launch_audit()
+                audit_rollback.arm_append(audit_path, audit_append)
+                if validate_after_spawn is not None:
+                    try:
+                        # The append is visible to same-checkout editors and
+                        # publishers, so the proof that authorizes exec must
+                        # follow it rather than merely precede it.
+                        validate_after_spawn()
+                    except BaseException as exc:
+                        refused = audit_rollback.restore()
+                        if refused:
+                            paths = ", ".join(str(path) for path in refused)
+                            raise RuntimeError(
+                                f"{exc}; could not remove refused launch audit "
+                                f"from {paths}"
+                            ) from exc
+                        raise
             spawn_started = True
 
         # Agent CLIs (`claude`, `codex`) don't exit on their own. Run through a

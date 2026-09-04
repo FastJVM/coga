@@ -3354,6 +3354,78 @@ def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
     assert "launched via coga megalaunch" not in remote_log
 
 
+def test_megalaunch_revalidates_after_the_deferred_audit_append(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An edit during the audit append refuses exec and removes that line."""
+    from coga.commands import launch as launch_module
+    from coga import git as git_module
+
+    cfg = load_config(git_repo.coga_os)
+    active = create_task(
+        cfg=cfg,
+        title="Post-audit claim proof",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket_path = Path(active["path"])
+    git_module.sync_task_state(
+        cfg, ticket_path, message="Seed post-audit claim race"
+    )
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    child_released = False
+    audit_changed_ticket = False
+
+    def hold_child_for_admission(
+        _cmd, _env, *, after_spawn, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal child_released
+        assert after_spawn is not None
+        after_spawn()
+        child_released = True
+        raise AssertionError("a post-audit claim mismatch must refuse exec")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", hold_child_for_admission
+    )
+    real_append_log = launch_module.append_log
+
+    def append_audit_then_edit_ticket(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal audit_changed_ticket
+        appended = real_append_log(*args, **kwargs)
+        if args[2] == "megalaunch" and args[3] == "launched via coga megalaunch":
+            peer = Ticket.read(ticket_path)
+            peer.body = f"{peer.body.rstrip()}\n\nEdited during audit append.\n"
+            peer.write(ticket_path)
+            audit_changed_ticket = True
+        return appended
+
+    monkeypatch.setattr(
+        "coga.commands.launch.append_log", append_audit_then_edit_ticket
+    )
+
+    run = run_megalaunch(cfg, selection=[active["slug"]])
+
+    assert audit_changed_ticket
+    assert child_released is False
+    assert run.results[0].outcome == "failed"
+    assert not run.results[0].launched
+    assert "launch claim changed locally before agent spawn" in (
+        run.results[0].detail
+    )
+    assert "Edited during audit append." in Ticket.read(ticket_path).body
+    assert _log_lines_for(
+        cfg, active["slug"], "launched via coga megalaunch"
+    ) == []
+
+
 def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

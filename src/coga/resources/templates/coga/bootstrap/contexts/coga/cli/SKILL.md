@@ -711,13 +711,12 @@ working launch:
    `validate_before_spawn` seam rereads those local bytes and freshly verifies
    the whole ticket on every effective control destination before the launch
    audit; `validate_after_spawn` repeats that proof after the PTY child exists
-   but while a private pipe still holds it before exec. A changed or
-   unverifiable claim refuses the child and retains `in_progress`. Megalaunch
-   withholds its launch audit from `log.md` throughout both proofs. The
-   supervisor then creates and holds the PTY child before exec, appends the
-   audit in the parent, and releases the executable only after that succeeds;
-   neither a refusal nor an audit failure can expose false or unrecorded work
-   to another same-checkout state sync. It never compensates backward to
+   but while a private pipe still holds it before exec. The parent then appends
+   the audit and repeats that held-child proof after the append. Only the second
+   success releases the executable. A changed or unverifiable claim removes
+   the owned audit append, refuses the child, and retains `in_progress`; an
+   audit failure also kills the held child, so neither stale nor unrecorded work
+   starts. It never compensates backward to
    `active`, because an ordinary `coga launch` may already be running from the
    same generation and changing the blackboard. Step advancement and lifecycle
    transitions that end or park the session clear the generation; ordinary
