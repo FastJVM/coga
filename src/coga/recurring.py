@@ -259,8 +259,12 @@ class CreateOutcome:
     create is idempotent, so two `coga recurring` runs converge on the
     stable `tasks/recurring/<name>/` directory. `replaced_done` identifies a
     prior-period completed task that was deleted before this fresh creation.
-    `period_key` is the period this create call decided, whether it created or
-    reused the stable task. `prior_serviced_period` is the target-bounded
+    `replaced_done_ticket_bytes` freezes the exact stale completed ticket that
+    a replacement removed. The control-plane create may replace only that
+    observed generation; a concurrently reactivated or rematerialized task at
+    the stable path remains protected. `period_key` is the period this create
+    call decided, whether it created or reused the stable task.
+    `prior_serviced_period` is the target-bounded
     ledger answer captured before this call can append its own record; the
     recurring runner uses that pre-create snapshot for its pinned control
     check after a successful pre-scan catch-up.
@@ -270,6 +274,7 @@ class CreateOutcome:
     created: bool
     period_key: str
     replaced_done: bool = False
+    replaced_done_ticket_bytes: bytes | None = None
     prior_serviced_period: str | None = None
 
 
@@ -306,6 +311,7 @@ class DueTask:
     delegate: str | None = None
     period_key: str = ""
     replaced_done: bool = False
+    replaced_done_ticket_bytes: bytes | None = None
 
     @property
     def launchable(self) -> bool:
@@ -537,6 +543,7 @@ def scan_due(
                 created=outcome.created,
                 status=ticket.status,
                 replaced_done=outcome.replaced_done,
+                replaced_done_ticket_bytes=outcome.replaced_done_ticket_bytes,
             )
         )
     return DueScan(
@@ -639,6 +646,7 @@ def create_template(
                     f"shell, or give the template a `{SCRIPT_ENTRY_POINT}` "
                     "deterministic half for unattended runs."
                 )
+            replaced_done_ticket_bytes = existing.ticket_path.read_bytes()
             try:
                 run_delete_task(existing)
             except DeleteTaskError as exc:
@@ -654,6 +662,7 @@ def create_template(
                 prior_serviced_period=prior_serviced_period,
             )
             outcome.replaced_done = True
+            outcome.replaced_done_ticket_bytes = replaced_done_ticket_bytes
             append_log(
                 cfg,
                 target_slug,

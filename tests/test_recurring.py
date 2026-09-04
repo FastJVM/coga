@@ -5491,6 +5491,164 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
     assert git_repo.git("status", "--porcelain") == ""
 
 
+def test_named_launch_replaces_a_done_task_control_still_tracks(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An on-demand launch must land the task that replaces a stale `done` run.
+
+    Regression: `run_recurring_named` left `respect_existing_task` at its
+    default, so control still tracking the prior period's `done` task read as
+    "this firing was already handled" — `run_delete_task` had removed it from
+    the working tree only. The landing returned early, the unwind restored the
+    committed `done` ticket over the freshly created `active` one, and the
+    launch reported "is done; not launching" *after* the ledger recorded the
+    new period as serviced, so the scheduled sweep skipped it too. The sweep
+    disables the guard for the same case (`_broadcast_scan`); every named
+    spelling — `coga autoclose`, `coga dream`, `coga skill-update` — rides
+    this path.
+    """
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        owner: marc
+        assignee: claude
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(coga_os)
+    first = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    recurring_cmd._sync_recurring_create(
+        cfg, "weekly-check", first.ref, respect_handled_period=False
+    )
+    task_rel = f"coga/tasks/{first.ref.id_slug}/ticket.md"
+    assert git_repo.origin_tracks(task_rel)
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W24"
+
+    # The prior period finished but Dream never reaped it, so control keeps
+    # tracking a `done` task at the stable path.
+    ticket = Ticket.read(first.ref.ticket_path)
+    ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(first.ref.ticket_path)
+    git_repo.git("add", "--", task_rel)
+    git_repo.git("commit", "-m", "weekly-check done")
+    git_repo.git("push", "origin", "main")
+
+    launched: list[str] = []
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 15, 10, 5))
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period",
+        lambda slug, **kwargs: launched.append(slug),
+    )
+
+    assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 0
+
+    assert launched == [first.ref.id_slug]
+    assert Ticket.read(first.ref.ticket_path).status == "active"
+    assert _control_serviced_period(git_repo, "weekly-check") == "2026-W25"
+    control_ticket = git_repo.git(
+        "show", f"main:{task_rel}", cwd=git_repo.origin
+    )
+    assert "status: active" in control_ticket
+
+
+def test_named_replacement_does_not_launch_a_concurrent_generation(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """Only the exact stale ``done`` generation may be replaced on control."""
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        owner: marc
+        assignee: claude
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(coga_os)
+    first = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    recurring_cmd._sync_recurring_create(
+        cfg, "weekly-check", first.ref, respect_handled_period=False
+    )
+    task_rel = f"coga/tasks/{first.ref.id_slug}/ticket.md"
+
+    stale_done = Ticket.read(first.ref.ticket_path)
+    stale_done.frontmatter["status"] = "done"
+    stale_done.frontmatter.pop("step", None)
+    stale_done.write(first.ref.ticket_path)
+    git_repo.git("add", "--", task_rel)
+    git_repo.git("commit", "-m", "weekly-check done")
+    git_repo.git("push", "origin", "main")
+
+    winner = Ticket.read(first.ref.ticket_path)
+    winner.frontmatter["status"] = "active"
+    winner.frontmatter["period_generation"] = "concurrent-generation"
+    winner.body += "\nConcurrent replacement.\n"
+
+    real_fetch = recurring_cmd._fetch_control_branch
+    fetch_calls = 0
+
+    def racing_fetch(cfg_arg, root):
+        nonlocal fetch_calls
+        fetch_calls += 1
+        if fetch_calls == 2:
+            git_repo.push_competing_commit(task_rel, winner.render())
+            _push_competing_serviced_period(git_repo, "weekly-check", "2026-W25")
+        real_fetch(cfg_arg, root)
+
+    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", racing_fetch)
+    launched: list[str] = []
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 15, 10, 5))
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period",
+        lambda slug, **kwargs: launched.append(slug),
+    )
+
+    assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 0
+
+    assert launched == []
+    assert "changed on the control branch during recurring admission" in (
+        capsys.readouterr().out
+    )
+    local = Ticket.read(first.ref.ticket_path)
+    assert local.frontmatter["period_generation"] == "concurrent-generation"
+    assert "Concurrent replacement." in local.body
+    control = git_repo.git("show", f"main:{task_rel}", cwd=git_repo.origin)
+    assert "period_generation: concurrent-generation" in control
+    assert git_repo.git("status", "--porcelain") == ""
+
+
 def test_recurring_create_sync_missing_git_is_soft(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
